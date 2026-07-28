@@ -15,7 +15,12 @@ pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     Ok(json)
 }
 
-pub fn generate_nix(cixfile: &Cixfile, source_dir: &Path, lock: &LockFile) -> Result<String> {
+pub fn generate_nix(
+    cixfile: &Cixfile,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+) -> Result<String> {
     let (owner, repo) = github_repository(&lock.nixpkgs.url)?;
     let source_dir = source_dir
         .canonicalize()
@@ -34,7 +39,11 @@ pub fn generate_nix(cixfile: &Cixfile, source_dir: &Path, lock: &LockFile) -> Re
         nix_string(&lock.nixpkgs.nar_hash)
     )?;
     writeln!(expression, "  }};")?;
-    writeln!(expression, "  pkgs = import nixpkgsSource {{ }};")?;
+    writeln!(
+        expression,
+        "  pkgs = import nixpkgsSource {{ system = {}; }};",
+        nix_string(system)
+    )?;
     writeln!(expression, "  spec = {};", nix_spec(cixfile))?;
 
     for (index, item) in cixfile.items.iter().enumerate() {
@@ -441,8 +450,10 @@ mod tests {
             "PKG hello\nCOPY asset share/asset\nLINK bin/hello ${hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
         )
         .unwrap();
-        let first = generate_nix(&cixfile, directory.path(), &fixture_lock()).unwrap();
-        let second = generate_nix(&cixfile, directory.path(), &fixture_lock()).unwrap();
+        let first =
+            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
+        let second =
+            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
         assert_eq!(first, second);
         assert!(first.contains("builtins.fetchTree"));
         assert!(first.contains("narHash = \"sha256-"));
@@ -454,7 +465,7 @@ mod tests {
     fn copy_must_name_an_existing_regular_file() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse("COPY missing x\nSERVICE app\nEXEC x\n").unwrap();
-        let error = generate_nix(&cixfile, directory.path(), &fixture_lock())
+        let error = generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux")
             .unwrap_err()
             .to_string();
         assert!(error.contains("does not exist"), "{error}");
@@ -464,7 +475,7 @@ mod tests {
     fn rejects_non_github_lock_urls() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse("SERVICE app\nEXEC x\n").unwrap();
-        let error = generate_nix(&cixfile, directory.path(), &LOCK)
+        let error = generate_nix(&cixfile, directory.path(), &LOCK, "x86_64-linux")
             .unwrap_err()
             .to_string();
         assert!(error.contains("unsupported nixpkgs URL"), "{error}");

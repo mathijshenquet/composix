@@ -22,7 +22,8 @@ pub fn build(options: &BuildOptions) -> Result<String> {
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
     let lock = ensure_lock(&directory.join("Cixfile.lock"), options.update_lock)?;
-    let expression = generate_nix(&cixfile, &directory, &lock)?;
+    let system = cix_common::current_system()?;
+    let expression = generate_nix(&cixfile, &directory, &lock, &system)?;
     let store_path = build_expression(&expression)?;
     if let Some(tag) = &options.tag {
         cix_index::tag(&store_path, tag, None)

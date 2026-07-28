@@ -1,0 +1,34 @@
+PKG nginx
+
+FILE www/index.html <<EOF
+<h1>hello from composix</h1>
+EOF
+
+LINK bin/nginx ${nginx}/bin/nginx
+LINK etc/mime.types ${nginx}/conf/mime.types
+
+FILE etc/nginx.conf <<EOF
+daemon off;
+pid /run/nginx/nginx.pid;
+error_log stderr info;
+events { }
+http {
+  include /item/etc/mime.types;
+  access_log off;
+  client_body_temp_path /var/cache/nginx/body;
+  proxy_temp_path /var/cache/nginx/proxy;
+  fastcgi_temp_path /var/cache/nginx/fastcgi;
+  uwsgi_temp_path /var/cache/nginx/uwsgi;
+  scgi_temp_path /var/cache/nginx/scgi;
+  server {
+    listen 8080;
+    root /item/www;
+  }
+}
+EOF
+
+SERVICE nginx
+EXEC bin/nginx -c /item/etc/nginx.conf -e stderr
+PORT http = 8080
+CACHE /var/cache/nginx
+RUNDIR /run/nginx

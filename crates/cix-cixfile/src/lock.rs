@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
@@ -24,11 +25,24 @@ pub struct NixpkgsLock {
 #[derive(Deserialize)]
 struct FlakeMetadata {
     locked: LockedMetadata,
+    url: String,
 }
 
 #[derive(Deserialize)]
 struct LockedMetadata {
     rev: String,
+    #[serde(default)]
+    #[serde(rename = "narHash")]
+    nar_hash: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FlakeArchive {
+    path: String,
+}
+
+#[derive(Deserialize)]
+struct PathInfo {
     #[serde(rename = "narHash")]
     nar_hash: String,
 }
@@ -77,13 +91,33 @@ fn resolve_default(refresh: bool) -> Result<LockFile> {
     let raw = cix_common::nix(&arguments).context("resolving the default nixpkgs channel")?;
     let metadata: FlakeMetadata =
         serde_json::from_str(&raw).context("parsing nix flake metadata")?;
+    let nar_hash = match metadata.locked.nar_hash {
+        Some(nar_hash) => nar_hash,
+        None => archive_nar_hash(&metadata.url)?,
+    };
     Ok(LockFile {
         nixpkgs: NixpkgsLock {
             url: DEFAULT_NIXPKGS_URL.to_owned(),
             rev: metadata.locked.rev,
-            nar_hash: metadata.locked.nar_hash,
+            nar_hash,
         },
     })
+}
+
+fn archive_nar_hash(url: &str) -> Result<String> {
+    let archive_raw = cix_common::nix(&["flake", "archive", "--json", url])
+        .with_context(|| format!("archiving pinned nixpkgs source {url}"))?;
+    let archive: FlakeArchive =
+        serde_json::from_str(&archive_raw).context("parsing nix flake archive JSON")?;
+    let info_raw = cix_common::nix(&["path-info", "--json", "--json-format", "1", &archive.path])
+        .context("reading archived nixpkgs path information")?;
+    let infos: BTreeMap<String, PathInfo> =
+        serde_json::from_str(&info_raw).context("parsing nix path-info JSON")?;
+    infos
+        .get(&archive.path)
+        .or_else(|| infos.values().next())
+        .map(|info| info.nar_hash.clone())
+        .context("nix path-info returned no archived nixpkgs path")
 }
 
 impl LockFile {
