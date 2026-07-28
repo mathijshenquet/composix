@@ -8,16 +8,7 @@
 A consumer can track a remote tag without making the publisher's name local.
 
 ```sh
-publisher $ mkdir -p fixture-v1 && printf '%s\n' 'hello from my app v1' > fixture-v1/README
-```
-
-```sh
-publisher $ nix store add-path fixture-v1
-/nix/store/…-fixture-v1
-```
-
-```sh
-publisher $ cix tag /nix/store/…-fixture-v1 my-app:v1
+publisher $ echo 'hello from my app v1' > my-app-v1 && cix tag "$(nix store add my-app-v1)" my-app:v1
 ```
 
 ```sh
@@ -30,16 +21,7 @@ updated 1 tag(s)
 ```
 
 ```sh
-publisher $ mkdir -p fixture-v2 && printf '%s\n' 'hello from my app v2' > fixture-v2/README
-```
-
-```sh
-publisher $ nix store add-path fixture-v2
-/nix/store/…-fixture-v2
-```
-
-```sh
-publisher $ cix tag /nix/store/…-fixture-v2 my-app:v1
+publisher $ echo 'hello from my app v2' > my-app-v2 && cix tag "$(nix store add my-app-v2)" my-app:v1
 ```
 
 ```sh
@@ -49,7 +31,7 @@ updated 1 tag(s)
 
 ```sh
 consumer $ cix ls -l
-127.0.0.1:8420/my-app:v1	systems=x86_64-linux	path=/nix/store/…-fixture-v2	upstream=127.0.0.1:8420	age=0s
+127.0.0.1:8420/my-app:v1	systems=x86_64-linux	path=/nix/store/…-my-app-v2	upstream=127.0.0.1:8420	age=0s
 ```
 
 Tags are mutable names over immutable paths, refreshed like git remotes. GC follows the pins: after the refresh, this consumer tag roots the new path, not the old one.

@@ -8,16 +8,7 @@
 Removing a tag removes its local GC root and its metadata sidecar.
 
 ```sh
-$ mkdir -p fixture-v1 && printf '%s\n' 'hello from my app v1' > fixture-v1/README
-```
-
-```sh
-$ nix store add-path fixture-v1
-/nix/store/…-fixture-v1
-```
-
-```sh
-$ cix tag /nix/store/…-fixture-v1 my-app:v1
+$ echo 'hello from my app v1' > my-app-v1 && cix tag "$(nix store add my-app-v1)" my-app:v1
 ```
 
 ```sh
