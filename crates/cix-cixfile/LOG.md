@@ -1,0 +1,3 @@
+# Cixfile track work log
+
+- 2026-07-28T21:50:00Z — Started `.dev/specs/track-cixfile.md`; read both authoritative design sections, the directive reference, cix-spec v2 validation, existing CLI/index APIs, and both hand-written examples. Added the `cix-cixfile` workspace crate scaffold. The branch-local `.envrc` changed and was re-approved; Rust 1.97, Nix 2.34, and devenv 2.1.2 are active. Contract discrepancy to preserve and test: Part 4/D22 says heredoc contents are verbatim, while this track explicitly requires `${…}` interpolation and `$${…}` escaping in FILE/SCRIPT bodies. The track requirement wins for the implementation; examples will still use D22-style `/item` paths and LINKs. Next: implement the parser and its complete error coverage.

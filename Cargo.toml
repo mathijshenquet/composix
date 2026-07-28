@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "crates/cix",
+  "crates/cix-cixfile",
   "crates/cix-common",
   "crates/cix-index",
   "crates/cix-run",
@@ -14,6 +15,7 @@ license = "MIT"
 
 [workspace.dependencies]
 cix-common = { path = "crates/cix-common" }
+cix-cixfile = { path = "crates/cix-cixfile" }
 cix-index = { path = "crates/cix-index" }
 cix-run = { path = "crates/cix-run" }
 
