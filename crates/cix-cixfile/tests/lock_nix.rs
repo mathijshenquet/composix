@@ -11,6 +11,7 @@ fn committed_lock() -> LockFile {
 fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
     let output = cix_common::nix(&[
         "build",
+        "--impure",
         "--no-link",
         "--print-out-paths",
         "--expr",
@@ -36,8 +37,14 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 #[test]
 fn real_nix_build_assembles_files_scripts_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("asset"),
+        "literal=${hello}\nruntime=$VALUE\n",
+    )
+    .unwrap();
     let cixfile = parse(
         r#"PKG hello
+COPY asset share/copied
 FILE share/content <<EOF
 package=${hello}
 escaped=$${literal}
@@ -64,6 +71,10 @@ EXEC bin/start
     let contents = fs::read_to_string(output.join("share/content")).unwrap();
     assert!(contents.starts_with("package=/nix/store/"), "{contents}");
     assert!(contents.contains("\nescaped=${literal}\nruntime=$VALUE\n"));
+    assert_eq!(
+        fs::read_to_string(output.join("share/copied")).unwrap(),
+        "literal=${hello}\nruntime=$VALUE\n"
+    );
 
     let script = fs::read_to_string(output.join("bin/start")).unwrap();
     assert!(script.starts_with("#!/nix/store/"), "{script}");

@@ -35,6 +35,7 @@ pub fn build(options: &BuildOptions) -> Result<String> {
 fn build_expression(expression: &str) -> Result<String> {
     let output = cix_common::nix(&[
         "build",
+        "--impure",
         "--no-link",
         "--print-out-paths",
         "--expr",
