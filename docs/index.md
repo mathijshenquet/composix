@@ -10,6 +10,8 @@ to hardened systemd units, and (coming) tracking compose files with atomic rollb
   running the real `cix` binary and drift-checked by the test suite.
 - **[Source & design](https://github.com/mathijshenquet/composix)** — the repo, including
   `DESIGN.md` with every decision and its rationale.
+- **[Coming from Docker](https://github.com/mathijshenquet/composix/blob/main/DOCKER.md)** —
+  every Docker concept mapped to what composix does instead, each consciously.
 
 Status: early and moving fast. The index (`tag`/`serve`/`pull`) and the runner (`cix run`)
 work end-to-end today; compose and the Cixfile are designed but not built.
