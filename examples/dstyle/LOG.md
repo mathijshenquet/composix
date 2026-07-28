@@ -227,3 +227,14 @@ the composite target owns both units. This is exactly the nginx proof: the `.soc
 host IP listener, proxyd starts on demand, and the application never receives IP-stack authority.
 Expose proxy mode honestly because proxyd does not forward `SO_PEERCRED`/SCM side-channel data; a
 native fd-activated service should use proposal 2 when end-to-end fd capability semantics matter.
+
+- 2026-07-28 23:10 UTC — The first post-gate residue audit found no system units, socket units,
+  TCP listeners, managed runtime directories, socket files, or temporary edge group after two
+  complete green passes. It did find that systemd had created the raw `BindPaths=` destination
+  `/run/stack-shared` in the host mount namespace and left that empty directory after unit
+  collection. Updated stack cleanup to own and `rmdir` that exact empty mountpoint on normal and
+  trapped exits, and added it to the assertions. Design amendment to proposal 1: generated compose
+  must own destination mountpoint lifecycle too (prefer paths beneath an edge-owned managed
+  directory; otherwise explicitly remove empty destinations). The audit also found an empty
+  user-manager `cix-run.slice` left by earlier repository work; these demos never use the user
+  manager, but the final track gate will stop it and verify both managers are empty as required.

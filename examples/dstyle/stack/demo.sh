@@ -11,6 +11,7 @@ edge_group=cix-dstyle-stack-edge
 group_created=false
 backend_dir=/run/cix-run-backend
 backend_socket=$backend_dir/backend.sock
+shared_mount=/run/stack-shared
 nginx_dir=/run/cix-run-stack-nginx
 nginx_socket=$nginx_dir/http.sock
 
@@ -18,12 +19,13 @@ cleanup() {
   stop_unit "$nginx_unit"
   stop_unit "$backend_unit"
   [[ -z $backend_unit ]] || wait_for_unit_gone "$backend_unit" || true
+  sudo rmdir "$shared_mount" >/dev/null 2>&1 || true
   collect_cix_run_slice
   if $group_created; then
     sudo groupdel "$edge_group" >/dev/null 2>&1 || true
     group_created=false
   fi
-  for path in "$backend_dir" "$nginx_dir"; do
+  for path in "$backend_dir" "$nginx_dir" "$shared_mount"; do
     [[ ! -e $path ]] || {
       echo "cleanup failed: $path remains" >&2
       return 1
@@ -80,7 +82,7 @@ sudo systemd-run \
   --property=CacheDirectory=cix-run-stack-nginx:nginx \
   --property=CacheDirectoryMode=0700 \
   --property=TemporaryFileSystem=/var/cache:ro \
-  --property=BindPaths="$backend_dir:/run/stack-shared" \
+  --property=BindPaths="$backend_dir:$shared_mount" \
   --property=ProtectSystem=strict \
   --property=ProtectHome=yes \
   --property=PrivateTmp=yes \
@@ -114,7 +116,7 @@ assert_property "$nginx_unit" RuntimeDirectory cix-run-stack-nginx
 assert_property "$nginx_unit" RuntimeDirectoryMode 0700
 assert_property "$nginx_unit" DynamicUser yes
 assert_property "$nginx_unit" SupplementaryGroups "$edge_group"
-assert_property "$nginx_unit" BindPaths "$backend_dir:/run/stack-shared:rbind"
+assert_property "$nginx_unit" BindPaths "$backend_dir:$shared_mount:rbind"
 
 page=$(sudo curl --fail --silent --show-error --unix-socket "$nginx_socket" http://localhost/)
 [[ $page == "hello from the dstyle backend" ]]
@@ -124,9 +126,11 @@ stop_unit "$nginx_unit"
 stop_unit "$backend_unit"
 wait_for_unit_gone "$backend_unit"
 backend_unit=
+sudo rmdir "$shared_mount"
 collect_cix_run_slice
 sudo groupdel "$edge_group"
 group_created=false
 [[ ! -e $backend_dir ]]
 [[ ! -e $nginx_dir ]]
+[[ ! -e $shared_mount ]]
 echo "stopped cleanly; services, sockets, runtime paths, and edge group removed"
