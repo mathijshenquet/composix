@@ -89,3 +89,12 @@
   hardening profile. It proves the service is inactive before the first request, inspects
   `Triggers`/`TriggeredBy`/`Sockets`, and makes two real requests before cleaning both units and
   the listener.
+- 2026-07-28 23:05 UTC — `listenfds/demo.sh` passed on its first live run. The socket was active at
+  `127.0.0.1:18081` with `Triggers=cix-dstyle-listenfds.service`, while the service remained
+  inactive. The first curl activated it and received `LISTEN_FDS=1; no socket() authority`; a
+  second request reused the process. Raw service state showed `TriggeredBy` the socket,
+  `DynamicUser=yes`, `PrivateNetwork=yes`, `AF_UNIX`, and an empty capability bounding set.
+  `Sockets` was not populated by systemd-run's same-name implicit activation pair, which is useful
+  design evidence: generated compose units should emit explicit dependency/fd-source wiring rather
+  than rely on basename convention. Stop removed the service, socket unit, and TCP listener.
+  Design wall: neither cixSpec nor `cix run` can request, create, or report an activation socket.
