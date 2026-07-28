@@ -17,6 +17,8 @@ pub struct Spec {
 #[serde(deny_unknown_fields)]
 pub struct Service {
     pub exec: Vec<String>,
+    /// Read-only sparse-rootfs paths projected from the store item in system mode.
+    pub mounts: Option<Vec<PathBuf>>,
     /// Pre-start argv run in the service sandbox on every start.
     ///
     /// It follows the same output-relative executable and environment interpolation rules as
@@ -208,6 +210,7 @@ impl Service {
                 seen.push(path);
             }
         }
+        validate_mounts(self.mounts.as_deref().unwrap_or_default(), &seen)?;
         Ok(())
     }
 
@@ -228,6 +231,9 @@ impl Service {
         if self.jit.is_some() {
             bail!("field \"jit\" requires cixSpec 2");
         }
+        if self.mounts.is_some() {
+            bail!("field \"mounts\" requires cixSpec 2");
+        }
         for (name, port) in &self.ports {
             if port.value.is_some() {
                 bail!("field \"ports.{name}.value\" requires cixSpec 2");
@@ -235,6 +241,79 @@ impl Service {
         }
         Ok(())
     }
+}
+
+fn validate_mounts(mounts: &[PathBuf], role_paths: &[&Path]) -> Result<()> {
+    for (index, mount) in mounts.iter().enumerate() {
+        validate_mount_path(mount)?;
+        for other in &mounts[..index] {
+            if mount.starts_with(other) || other.starts_with(mount) {
+                bail!(
+                    "mount paths {} and {} overlap; mounts must not be nested",
+                    other.display(),
+                    mount.display()
+                );
+            }
+        }
+        for role_path in role_paths {
+            if mount.starts_with(role_path) || role_path.starts_with(mount) {
+                bail!(
+                    "mount path {} overlaps declared role directory {}",
+                    mount.display(),
+                    role_path.display()
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_mount_path(path: &Path) -> Result<()> {
+    let value = path.to_str().context("mount path is not valid UTF-8")?;
+    if !path.is_absolute() {
+        bail!("mount path {value:?} must be absolute");
+    }
+    if value == "/" {
+        bail!("mount path {value:?} is denied by the D22 v3 filesystem-projection rule");
+    }
+    if value.ends_with('/') || value.contains("//") {
+        bail!("mount path {value:?} must be normalized and must not end in '/'");
+    }
+    if value
+        .split('/')
+        .any(|component| matches!(component, "." | ".."))
+    {
+        bail!("mount path {value:?} must be normalized and contain no '.' or '..' components");
+    }
+    if denied_mount_path(path) {
+        bail!("mount path {value:?} is denied by the D22 v3 filesystem-projection rule");
+    }
+    Ok(())
+}
+
+fn denied_mount_path(path: &Path) -> bool {
+    [
+        "/nix",
+        "/proc",
+        "/sys",
+        "/dev",
+        "/run",
+        "/var/lib",
+        "/var/cache",
+        "/var/log",
+        "/etc/passwd",
+        "/etc/group",
+        "/etc/nsswitch.conf",
+        "/etc",
+        "/usr",
+        "/bin",
+    ]
+    .iter()
+    .any(|denied| path == Path::new(denied))
+        || path.parent() == Some(Path::new("/"))
+            && path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("lib"))
 }
 
 impl Env {
@@ -469,6 +548,10 @@ mod tests {
                 "ports.http.value",
                 r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}}}"#,
             ),
+            (
+                "mounts",
+                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app"]}}}"#,
+            ),
         ] {
             let error = format!("{:#}", parse(json).unwrap_err());
             assert!(error.contains(field), "{error}");
@@ -539,6 +622,89 @@ mod tests {
             r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/var/lib/app/nested"]}}}}"#,
         ] {
             assert!(parse(json).is_err(), "{json}");
+        }
+    }
+
+    #[test]
+    fn validates_mounts_adversarially() {
+        let error = format!("{:#}", parse(
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"config":["/etc/app"]},"mounts":["/etc/app/config"]}}}"#,
+        )
+        .unwrap_err());
+        assert!(
+            error.contains("overlaps declared role directory"),
+            "{error}"
+        );
+
+        let reverse_error = format!("{:#}", parse(
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app/config"],"dirs":{"config":["/etc/app"]}}}}"#,
+        )
+        .unwrap_err());
+        assert!(
+            reverse_error.contains("overlaps declared role directory"),
+            "{reverse_error}"
+        );
+
+        let nested = format!("{:#}", parse(
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/nginx","/etc/nginx/conf.d"]}}}"#,
+        )
+        .unwrap_err());
+        assert!(nested.contains("must not be nested"), "{nested}");
+
+        for denied in [
+            "/nix",
+            "/proc",
+            "/sys",
+            "/dev",
+            "/run",
+            "/var/lib",
+            "/var/cache",
+            "/var/log",
+            "/etc/passwd",
+            "/etc/group",
+            "/etc/nsswitch.conf",
+            "/",
+            "/etc",
+            "/usr",
+            "/bin",
+            "/lib",
+            "/lib64",
+        ] {
+            let error = parse(&format!(
+                r#"{{"cixSpec":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{denied}"]}}}}}}"#
+            ))
+            .unwrap_err()
+            .chain()
+            .map(|cause| cause.to_string())
+            .collect::<Vec<_>>()
+            .join(": ");
+            assert!(error.contains("D22 v3"), "{denied}: {error}");
+        }
+
+        parse(
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/cix-probe.conf","/opt/a/b/c/d","/etc/nginx"]}}}"#,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn rejects_non_normalized_mounts() {
+        for mount in [
+            "relative",
+            "/etc/",
+            "/etc/./nginx",
+            "/etc/nginx/../ssl",
+            "/etc//nginx",
+        ] {
+            let error = parse(&format!(
+                r#"{{"cixSpec":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{mount}"]}}}}}}"#
+            ))
+            .unwrap_err()
+            .chain()
+            .map(|cause| cause.to_string())
+            .collect::<Vec<_>>()
+            .join(": ");
+            assert!(error.contains("mount path"), "{mount}: {error}");
         }
     }
 }

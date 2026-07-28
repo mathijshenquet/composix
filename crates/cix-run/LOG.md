@@ -1,5 +1,9 @@
 # cix-run work log
 
+- 2026-07-28 22:24 UTC — Started `.dev/specs/track-fsproj.md`. Read D22 v3 and inventoried the stable `/app` implementation, Cixfile compiler, examples, docs, and tour. Contract choice: `mounts` is an additive cixSpec 2 service field (v1 rejects it); D22’s “exact roots” wording is implemented literally, so a denied root itself is rejected while a dedicated child can be projected unless it collides with a declared writable role directory. First milestone: schema validation plus adversarial coverage, then commit.
+
+- 2026-07-28 22:28 UTC — Completed the schema boundary. Mounts reject non-absolute/non-normalized forms, every D22 v3 denied root/file (including `/lib*`), nesting/duplicates, and role-directory overlap independent of JSON field order; valid root-level and deep projections remain accepted. Focused `cix-run` fmt, 24 unit tests, and warning-denied clippy pass. Next: replace `/app` with source-checked per-mount system binds and exercise systemd behavior.
+
 - 2026-07-28 22:17 UTC — Final cleanup complete: stopped the system and user `cix-run.slice` instances after the final tests, removed the generated untracked `devenv.lock`, and confirmed both `systemctl` managers have no `cix-*` units. The legacy mount-reference audit is empty and the committed worktree is clean.
 
 - 2026-07-28 22:10 UTC — Started the stable-mount rename requested in `scratchpad/app-rename.md`. The system-unit bind target and exported environment variable are now `/app` and `CIX_APP`; user mode retains the real store path in `CIX_APP` and names `/app` in its degraded-mode warning. Updated all cix-run system-unit goldens and direct unit assertions. Next: focused verification, commit the runner unit, then migrate Cixfiles, documentation, codegen coverage, rebuild, and run both system demos.
