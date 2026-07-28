@@ -12,20 +12,16 @@
       ],
       "env": {
         "PORT": {
-          "type": "port",
-          "default": 8000
+          "default": "8000"
         },
         "DB_URL": {
-          "type": "string",
           "required": true,
           "secret": true
         },
         "ENABLED": {
-          "type": "bool",
-          "default": false
+          "default": "false"
         },
         "ROOT": {
-          "type": "path",
           "default": "/srv/web"
         }
       },

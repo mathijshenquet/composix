@@ -24,6 +24,15 @@ impl ResolvedConfig {
                 bail!("environment override refers to undeclared variable {name:?}");
             }
         }
+        for env_name in service.ports.values().filter_map(|port| port.env.as_ref()) {
+            if let Some(value) = env_overrides.get(env_name) {
+                parse_port(value).with_context(|| {
+                    format!(
+                        "invalid override for ports-referenced environment variable {env_name:?}"
+                    )
+                })?;
+            }
+        }
         for name in port_overrides.keys() {
             let Some(port) = service.ports.get(name) else {
                 bail!("port override refers to undeclared port {name:?}");
@@ -35,14 +44,10 @@ impl ResolvedConfig {
 
         let mut env = BTreeMap::new();
         for (name, declaration) in &service.env {
-            let value =
-                if let Some(value) = env_overrides.get(name) {
-                    Some(declaration.parse_cli(value).with_context(|| {
-                        format!("invalid value for environment variable {name:?}")
-                    })?)
-                } else {
-                    declaration.default_string()?
-                };
+            let value = env_overrides
+                .get(name)
+                .cloned()
+                .or_else(|| declaration.default_string());
             if let Some(value) = value {
                 env.insert(name.clone(), value);
             } else if declaration.required {
@@ -119,11 +124,11 @@ mod tests {
                     "app": {
                         "exec": ["bin/app"],
                         "env": {
-                            "NAME": {"type": "string", "default": "default"},
-                            "COUNT": {"type": "int", "required": true},
-                            "PORT": {"type": "port", "default": 8000},
-                            "ENABLED": {"type": "bool"},
-                            "ROOT": {"type": "path", "default": "/srv/app"}
+                            "NAME": {"default": "default"},
+                            "COUNT": {"required": true},
+                            "PORT": {"default": "8000"},
+                            "ENABLED": {},
+                            "ROOT": {"default": "/srv/app"}
                         },
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
                     }
@@ -147,7 +152,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(resolved.env["NAME"], "default");
-        assert_eq!(resolved.env["COUNT"], "3");
+        assert_eq!(resolved.env["COUNT"], "03");
         assert_eq!(resolved.env["PORT"], "10000");
         assert_eq!(resolved.env["ENABLED"], "false");
     }
@@ -155,12 +160,25 @@ mod tests {
     #[test]
     fn rejects_missing_and_invalid_values() {
         assert!(ResolvedConfig::resolve(&service(), &[], &[]).is_err());
-        assert!(ResolvedConfig::resolve(&service(), &["COUNT=abc".into()], &[]).is_err());
+        assert!(ResolvedConfig::resolve(&service(), &["COUNT=abc".into()], &[]).is_ok());
         assert!(
             ResolvedConfig::resolve(&service(), &["COUNT=1".into(), "NOPE=x".into()], &[]).is_err()
         );
         assert!(
             ResolvedConfig::resolve(&service(), &["COUNT=1".into()], &["http=0".into()]).is_err()
+        );
+    }
+
+    #[test]
+    fn rejects_non_port_env_overrides_for_ports_referenced_variables() {
+        let error =
+            ResolvedConfig::resolve(&service(), &["COUNT=1".into(), "PORT=nope".into()], &[])
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("invalid override for ports-referenced environment variable \"PORT\""),
+            "{error:#}"
         );
     }
 

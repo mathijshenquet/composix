@@ -453,7 +453,7 @@ mod tests {
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
-                        "env": {"PORT": {"type": "port", "default": 80}},
+                        "env": {"PORT": {"default": "80"}},
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
                     }
                 }
@@ -486,7 +486,7 @@ mod tests {
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
-                        "env": {"PORT": {"type": "port", "default": 8080}},
+                        "env": {"PORT": {"default": "8080"}},
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
                     }
                 }

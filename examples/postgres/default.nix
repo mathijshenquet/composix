@@ -60,7 +60,7 @@ pkgs.runCommand "postgres-cix" { } ''
       "postgres": {
         "setup": ["bin/setup"],
         "exec": ["bin/start", "$PORT"],
-        "env": { "PORT": { "type": "port", "default": 5432 } },
+        "env": { "PORT": { "default": "5432" } },
         "ports": { "postgres": { "env": "PORT", "protocol": "tcp" } },
         "dirs": {
           "state": ["/var/lib/postgresql"],
