@@ -6,11 +6,13 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU16, Ordering};
 use std::time::{Duration, Instant};
 
 use regex::Regex;
 
 const TOUR_LISTEN: &str = "127.0.0.1:8420";
+static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
 
 struct Server {
     child: Child,
@@ -172,9 +174,14 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
     path
 }
 
-fn start_server(doc: &Doc, state_dir: &Path) -> Server {
+fn next_listen() -> String {
+    let port = NEXT_TOUR_PORT.fetch_add(1, Ordering::Relaxed);
+    format!("127.0.0.1:{port}")
+}
+
+fn start_server(doc: &Doc, state_dir: &Path, listen: &str) -> Server {
     let child = Command::new(doc.bin_dir.join("cix"))
-        .args(["serve", "--with-store", "--listen", TOUR_LISTEN])
+        .args(["serve", "--with-store", "--listen", listen])
         .current_dir(&doc.base)
         .env("CIX_STATE_DIR", state_dir)
         .stdout(Stdio::null())
@@ -194,7 +201,7 @@ fn start_server(doc: &Doc, state_dir: &Path) -> Server {
                 "1",
                 "-H",
                 "Accept: application/vnd.cix+json;version=1",
-                &format!("http://{TOUR_LISTEN}/my-app:v1"),
+                &format!("http://{listen}/my-app:v1"),
             ])
             .output()
             .is_ok_and(|output| output.status.success());
@@ -298,15 +305,18 @@ fn scenario_serving_your_store() -> String {
         &format!("cix tag {store_path} my-app:v1"),
         true,
     );
+    let listen = next_listen();
     doc.background(
         "publisher $",
-        "cix serve --with-store --listen 127.0.0.1:8420",
+        &format!("cix serve --with-store --listen {listen}"),
     );
-    let server = start_server(&doc, &publisher);
+    let server = start_server(&doc, &publisher, &listen);
     let entry = doc.sh_in(
         "publisher $",
         &publisher,
-        "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://127.0.0.1:8420/my-app:v1",
+        &format!(
+            "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://{listen}/my-app:v1"
+        ),
         true,
     );
     assert!(entry.contains("\"outputs\":"));
@@ -317,7 +327,7 @@ fn scenario_serving_your_store() -> String {
     let html = doc.sh_in(
         "publisher $",
         &publisher,
-        "curl -s http://127.0.0.1:8420/my-app:v1 | head -c 120",
+        &format!("curl -s http://{listen}/my-app:v1 | head -c 120"),
         true,
     );
     assert!(html.contains("<!doctype html>"));
@@ -345,22 +355,23 @@ fn scenario_pulling_on_another_machine() -> String {
         &format!("cix tag {store_path} my-app:v1"),
         true,
     );
+    let listen = next_listen();
     doc.background(
         "publisher $",
-        "cix serve --with-store --listen 127.0.0.1:8420",
+        &format!("cix serve --with-store --listen {listen}"),
     );
-    let server = start_server(&doc, &publisher);
+    let server = start_server(&doc, &publisher, &listen);
     let pulled = doc.sh_in(
         "consumer $",
         &consumer,
-        "cix pull 127.0.0.1:8420/my-app:v1 --as my-app",
+        &format!("cix pull {listen}/my-app:v1 --as my-app"),
         true,
     );
     assert!(pulled.contains("updated 1 tag(s)"));
     let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
     assert!(listing.contains("my-app:latest"));
     assert!(listing.contains(&store_path));
-    assert!(listing.contains("upstream=127.0.0.1:8420"));
+    assert!(listing.contains(&format!("upstream={listen}")));
 
     doc.para("The qualified ref is self-describing; `--as` adopts it under a bare local name. A mirror keeps its qualified remote identity, while adoption makes the name local.");
     drop(server);
@@ -387,15 +398,16 @@ fn scenario_tags_move_pull_follows() -> String {
         &format!("cix tag {first} my-app:v1"),
         true,
     );
+    let listen = next_listen();
     doc.background(
         "publisher $",
-        "cix serve --with-store --listen 127.0.0.1:8420",
+        &format!("cix serve --with-store --listen {listen}"),
     );
-    let server = start_server(&doc, &publisher);
+    let server = start_server(&doc, &publisher, &listen);
     doc.sh_in(
         "consumer $",
         &consumer,
-        "cix pull 127.0.0.1:8420/my-app:v1",
+        &format!("cix pull {listen}/my-app:v1"),
         true,
     );
     let second = fixture_in(
