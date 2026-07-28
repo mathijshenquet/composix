@@ -118,6 +118,7 @@ name = "cix"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cix-cixfile",
  "cix-index",
  "cix-run",
  "clap",
