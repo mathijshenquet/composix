@@ -1,5 +1,18 @@
 # composix work log
 
+## 2026-07-28 (continued)
+
+- Design rounds with Mathijs on claims → publications → final form D17 v2: cix serve exposes the
+  bare tag DB, no root_url arg, qualification IS reachability; qualified tag targets error;
+  publish deferred until it means "ask a server" (push-shaped, server-side authz). D18 v2: one
+  content-negotiated URL space (vnd.cix media type), /v1 dropped, the ref is literally a URL.
+- Merged track/run (sol): spec parse/validate, golden-tested unit generation, cix run/ps; live
+  --user demo verified. Empirical finding: user manager lacks mount-ns bind remapping
+  (PrivateUsers path EOPNOTSUPP); degraded mode drops cap controls loudly.
+- Merged track/litdoc (terra): tests/tour.rs harness + docs/tour.md (drift-checked, determinism
+  test). Second strong terra datapoint.
+- Launched track/web (terra): serve refactor to D17v2/D18v2.
+
 ## 2026-07-28
 
 - Project kickoff, design phase. Context dump from Mathijs: 4 parts (index, spec, compose,
