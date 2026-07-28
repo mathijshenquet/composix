@@ -55,6 +55,19 @@ target era) · ❓ needs discussion.
 | `--privileged` | ❌ against the cap-spec thesis (D20a); operator overrides live in compose ❓ |
 | `--init` (tini) | ❌ systemd *is* the init |
 | interactive `-it` containers | 🔁 out of scope for services; `nix run`/`nix shell` already cover one-offs |
+| `create`/`start` (pre-created stopped containers) | ❌ transient units are run-or-nothing; persistent units arrive with compose |
+| `restart` | 🔁 `systemctl restart`; policy ⏳ compose |
+| `checkpoint` (CRIU) | ❌ niche, no systemd first-class support |
+| resource flags (`--cpu-*` `--memory-*` `--blkio-*` `--ulimit` `--oom-*`) | ⏳ compose: slice/unit limits, systemd-native |
+| namespace modes (`--ipc` `--pid` `--uts`) | 🔁 systemd sandboxing covers isolation; *sharing* modes ⏳ compose ❓ |
+| `--device` / `--gpus` / `--device-cgroup-rule` | ⏳ deliberate (spec v2 deferral): needs a dogfood case; `DeviceAllow=` exists |
+| `--read-only` | ✅ stronger as default: `ProtectSystem=strict` always |
+| `--shm-size` | ⏳ postgres already brushed `/dev/shm`; no direct systemd knob, needs design |
+| `--sysctl` | ❌ host policy; per-netns sysctls ⏳ networking era |
+| `--name` | 🔁 unit names are systematic (`cix-run-<svc>-<nonce>`, compose: `cix-<comp>-<svc>`) |
+| `--hostname` `--dns*` `--add-host` `--ip*` `--mac-address` `--network-alias` | ⏳ networking era, wholesale |
+| `--group-add` (supplementary groups) | ❓ adjacent to device access; no case yet |
+| docker-machinery flags (`--cidfile` `--detach-keys` `--label*` `--annotation` `--cgroup-parent` `--isolation` `--runtime` `--publish-all` `--volumes-from`) | ❌ no composix analog needed |
 
 ## 3. Building (part 4 designed — coarse)
 
@@ -69,6 +82,11 @@ target era) · ❓ needs discussion.
 | multi-stage builds | 🔁 derivations compose naturally |
 | buildkit secret/ssh mounts | ❓ private deps — nix has netrc/access-tokens; needs a story |
 | reproducible builds | ✅ the whole point |
+| Dockerfile here-documents | ✅ the Cixfile design *is* heredoc-first (`FILE`/`SCRIPT <<EOF`) |
+| `STOPSIGNAL` | ⏳ spec v3 candidate (`KillSignal=`), with stop timeouts |
+| `SHELL` `ONBUILD` `MAINTAINER` parser directives | ❌ SCRIPT has a fixed shell; no image inheritance; no parser magic |
+| `RUN --mount=cache/bind/tmpfs` `--network` `--security` | ❌ falls with RUN itself; nix builders answer these |
+| buildx / bake / builder management | ❌ nix is the builder; remote/multi-platform 🔁 nix distributed builds |
 
 ## 4. Storage (coarse)
 
@@ -78,6 +96,7 @@ target era) · ❓ needs discussion.
 | bind mounts (host paths in) | ⏳ compose era, operator territory |
 | tmpfs mounts | ✅ PrivateTmp; more ⏳ |
 | volume drivers / plugins | ❌ filesystems are the host's business |
+| `volume prune`/`update` | 🔁 role dirs are plain host paths; lifecycle via `systemctl clean` + GC |
 
 ## 5. Networking (coarse — the biggest *conscious* gap)
 
@@ -102,6 +121,8 @@ target era) · ❓ needs discussion.
 | `up` / `down` / rollback | ✅ designed: resolve→lock→build→activate, per-composite profiles (D9) |
 | `watch` (dev mode) | ❓ interesting dev loop, unscoped |
 | profiles | ❓ |
+| `configs` top-level element | ⏳ compose config story (`ConfigurationDirectory` content) |
+| `version` marker (obsolete) | ❌ |
 
 ## 7. Daemon & platform
 
@@ -138,6 +159,7 @@ comes much later, consciously.
 | docker | disposition |
 | --- | --- |
 | hub search/explore | ⏳ the serve pages (D18) are the seed of "explore" |
+| `docker dhi` (hardened images) / `docker model` (AI artifacts) | ❌ product catalog features, not runtime concepts |
 | automated builds | ❌ CI's job |
 | Misc CLI: `diff` `export` `import` `rename` | ❌ artifacts are immutable store items |
 | `wait` `port` `version` `info` | 🔁 trivial equivalents where useful |

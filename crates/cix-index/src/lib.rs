@@ -1,5 +1,5 @@
 //! Part 1: the composix index — tag, untag, ls, serve, pull.
-//! See DESIGN.md "Part 1 — index".
+//! See docs/design.md "Part 1 — index".
 
 pub mod cli;
 
@@ -215,7 +215,7 @@ pub fn tag(installable: &str, target: &str, upstream: Option<String>) -> Result<
     let reference = Ref::parse(target)?;
     if reference.root_url.is_some() && upstream.is_none() {
         bail!(
-            "qualified names denote remote state; tags are bare. To publish, tag on the box that serves (see DESIGN.md \"The org workflow\")."
+            "qualified names denote remote state; tags are bare. To publish, tag on the box that serves (see docs/design.md \"The org workflow\")."
         );
     }
     let path = resolved_path(&store, installable)?;
