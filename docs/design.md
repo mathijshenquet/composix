@@ -283,6 +283,22 @@ Deferred consciously: health/readiness wiring (compose era), nss_wrapper standar
 served-payload dirs à la `/srv` (immutable payload lives in the store; mutable shared payload
 is a compose question).
 
+Amendments (same day, after the YAGNI round with Mathijs):
+
+- **D21 — env de-typing.** The `type` field is dropped from the schema docs: env entries are
+  `{default?, required?, secret?}` (all values strings). Port-ness is *structural*: a var is a
+  port because the `ports` section references it; cix validates the referenced var's
+  default/override parses as a port, and the <1024 capability logic keys off that. `int`,
+  `bool`, `path` bought a marginally earlier error at real complexity cost — removed. For
+  compat, `type` is still *accepted and ignored* (deprecated) within v2; hard removal at v3.
+- **D22 — the stable item mount `/item`.** Every system-mode unit gets its store item bound
+  read-only at `/item` (plus `CIX_ITEM=/item` in the environment). This restores docker's
+  stable-absolute-paths property: config files and scripts reference `/item/…` and stay
+  VERBATIM — no build-time templating in file contents, ever. Cross-package references are
+  pulled into the item via links (Cixfile `LINK`), so `${pkg}` interpolation is confined to
+  directive arguments. In degraded `--user` mode (no binds) `CIX_ITEM` is the real store path
+  and `/item`-dependent items warn loudly.
+
 ### Open
 
 - ~~O3~~ → resolved as D11 (app-path model), narrowed by Spec v2 point 6.
@@ -303,7 +319,29 @@ Mechanism per D9. Not yet designed in detail; parked notes:
   later, consciously deferred.
 - Secrets: compose-level concern → `LoadCredential=`; spec only marks `secret: true`.
 
-## Part 4 — Cixfile (design pending)
+## Part 4 — Cixfile v1 (assembly subset — decided 2026-07-28)
+
+Scope: *assembly*, not building — wrap nixpkgs packages + files + a spec into a runnable
+item. Ecosystem builds (cargo/pnpm/uv) stay out of v1 entirely.
+
+Item directives: `PKG <attr>` (nixpkgs attribute into scope; enables `${attr}` in directive
+arguments), `COPY <src> <dst>` (verbatim sibling file — docker semantics, never substituted),
+`FILE <dst> <<EOF` / `SCRIPT <dst> <<EOF` (inline, `${…}`-interpolated; SCRIPT adds shebang +
+exec bit), `LINK <dst> <target>`.
+
+Service directives (compile to cix-spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
+`ENV NAME [= default] [required] [secret]` (docker-compatible: `ENV FOO = bar` behaves like
+docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STATE` `CACHE`
+`LOGS` `CONFIG` `RUNDIR` (role dirs, D11-narrowed paths), `JIT`.
+
+Interpolation rule: `${…}` (build-time) only in directive arguments; `$VAR` (runtime env) only
+in EXEC/SETUP; file contents are verbatim — `/item` paths (D22) replace any need for
+`${self}`/`${out}`. There is no RUN, deliberately.
+
+Determinism: `cix build [dir] [-t ref]` compiles Cixfile → nix expr → store item. nixpkgs is
+pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock` to roll).
+
+## Part 4 addendum — beyond v1 (design pending)
 
 - Positioning per D16: not essential to baseline value, but where the non-nix audience is won.
   Sequenced last; `composix.lib.withSpec` (nix helper) lands much earlier as the nix-native rung.
