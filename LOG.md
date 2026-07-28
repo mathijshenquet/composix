@@ -12,6 +12,14 @@
   activate, per-composite nix profiles), Cixfile positions. Open questions marked O1–O3.
 - Next: Mathijs reviews DESIGN.md (esp. O1 push-vs-serve, O2 serve --with-store, O3 dir model);
   then repo bootstrap (cargo workspace + devenv) and two agent tracks in worktrees.
+- Round 3: O1 → D12 (docker-style self-describing refs). Design feedback round with Mathijs:
+  D13 (cix run --user degraded dev mode), D14 (per-system index entries), D15 (spec rejects
+  unknown fields), D16 (baseline parts 1–3 is the nix-native product; Cixfile is the adoption
+  bridge; composix.lib.withSpec as early rung). Bootstrapped cargo workspace (cix bin +
+  cix-common/cix-index/cix-run) + devenv; CLI surface stubbed and compiling. Published private
+  repo github.com/mathijshenquet/composix. Wrote specs/track-{index,run}.md; launched codex
+  agents in worktrees .worktrees/{index,run} on branches track/{index,run}: index → gpt-5.6-terra
+  (epsilon exploration, mechanical-leaning track), run → gpt-5.6-sol (systemd nuance).
 - Round 2: O2 resolved → D10 (--with-store in MVP; `nix copy --to file://` + static serving is
   ~free). O3 resolved → D11 (app-path dirs model, docker VOLUME-like; Mathijs's push, my hybrid
   dropped). O1: serve-only agreed; wrote out the docker-style self-describing ref model (identity ≠
