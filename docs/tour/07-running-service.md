@@ -20,7 +20,6 @@ warning: retrying without PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, 
 ```sh
 $ cix ps
 MANAGER  UNIT                                            STATE       DESCRIPTION
-system   cix-run.slice                                   active/active  Slice /cix/run
 user     cix-run-tour-service-NONCE.service  active/running  [systemd-run] /nix/store/…-service-fixture/bin/service
 user     cix-run.slice                                   active/active  Slice /cix/run
 ```
@@ -32,7 +31,6 @@ $ systemctl --user stop cix-run-tour-service-NONCE.service
 ```sh
 $ cix ps
 MANAGER  UNIT           STATE       DESCRIPTION
-system   cix-run.slice  active/active  Slice /cix/run
 user     cix-run.slice  active/active  Slice /cix/run
 ```
 

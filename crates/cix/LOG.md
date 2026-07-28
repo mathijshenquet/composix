@@ -1,5 +1,8 @@
 # litdoc work log
 
+- 2026-07-28T21:00:00Z — Started the tour fixture one-liner update. On this host (Determinate Nix 2.34), `echo 'hello from my app v1' | nix store add --name my-app-v1 /dev/stdin` exits successfully but stores a `/proc/self/fd/0` symlink rather than stdin content; `--mode flat` rejects that symlink. The honest one-line fallback writes a named regular file before adding and tagging it.
+- 2026-07-28T21:05:00Z — Updated every ordinary tour fixture transcript to one executable line: `echo … > my-app-vN && cix tag "$(nix store add my-app-vN)" my-app:v1`. The helper reads cix's real GC root for its assertions, so displayed and executed commands remain identical. Regenerated all tour pages; focused drift and consecutive-render determinism tests pass.
+
 - 2026-07-28T19:45:23Z — Started `specs/track-litdoc.md`. Read D19 and the gitsitter reference; scope is limited to the cix integration-test harness, generated `docs/tour.md`, and necessary dev-dependencies. No deviations yet.
 - 2026-07-28T19:48:00Z — Inspected the real CLI and local-index layout. The root and sidecar filenames are base64-url encodings of refs, so the tour will deliberately show that observable storage representation. Following the gitsitter header pattern, the commit uses `GIT_COMMIT_HASH` when supplied at build time and otherwise `unknown`; this avoids a runtime git lookup making the drift check unstable.
 - 2026-07-28T19:51:00Z — Added the tour harness and direct `regex`/`tempfile` dev-dependencies. Initial generator compilation found a `Cow<str>` pattern mismatch in normalization; corrected it before running scenarios. The harness retains a `TempDir` per scenario so temporary state is removed after rendering.

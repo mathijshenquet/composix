@@ -182,16 +182,13 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
     doc.sh_in(
         prompt,
         state_dir,
-        &format!("mkdir -p {name} && printf '%s\\n' '{contents}' > {name}/README"),
+        &format!("echo '{contents}' > {name} && cix tag \"$(nix store add {name})\" my-app:v1"),
         true,
     );
-    let output = doc.sh_in(
-        prompt,
-        state_dir,
-        &format!("nix store add-path {name}"),
-        true,
-    );
-    let path = output.trim().to_owned();
+    let path = fs::read_link(state_dir.join("roots").join(root_filename()))
+        .expect("reading fixture GC root")
+        .to_string_lossy()
+        .into_owned();
     assert!(
         path.starts_with("/nix/store/"),
         "unexpected store path: {path}"
@@ -293,8 +290,7 @@ fn scenario_tagging_a_build() -> String {
     let mut doc = Doc::new("tagging");
     doc.para("Nix produced a store path. Give that immutable build a memorable local name.");
 
-    let store_path = fixture(&mut doc, "fixture-v1", "hello from my app v1");
-    doc.sh(&format!("cix tag {store_path} my-app:v1"), true);
+    let store_path = fixture(&mut doc, "my-app-v1", "hello from my app v1");
     let listing = doc.sh("cix ls -l", true);
     assert!(listing.contains("my-app:v1"));
     assert!(listing.contains(&store_path));
@@ -323,10 +319,8 @@ fn scenario_moving_a_tag() -> String {
         "A tag can move to a newer build without changing the immutable store paths behind it.",
     );
 
-    let first = fixture(&mut doc, "fixture-v1", "hello from my app v1");
-    doc.sh(&format!("cix tag {first} my-app:v1"), true);
-    let second = fixture(&mut doc, "fixture-v2", "hello from my app v2");
-    doc.sh(&format!("cix tag {second} my-app:v1"), true);
+    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
+    let second = fixture(&mut doc, "my-app-v2", "hello from my app v2");
     let listing = doc.sh("cix ls -l", true);
     assert!(listing.contains(&second));
     assert!(!listing.contains(&first));
@@ -345,8 +339,7 @@ fn scenario_untagging() -> String {
     let mut doc = Doc::new("untagging");
     doc.para("Removing a tag removes its local GC root and its metadata sidecar.");
 
-    let store_path = fixture(&mut doc, "fixture-v1", "hello from my app v1");
-    doc.sh(&format!("cix tag {store_path} my-app:v1"), true);
+    fixture(&mut doc, "my-app-v1", "hello from my app v1");
     doc.sh("cix untag my-app:v1", true);
     let listing = doc.sh("cix ls", true);
     assert!(listing.trim().is_empty());
@@ -364,14 +357,8 @@ fn scenario_serving_your_store() -> String {
         &mut doc,
         "publisher $",
         &publisher,
-        "fixture-v1",
+        "my-app-v1",
         "hello from my app v1",
-    );
-    doc.sh_in(
-        "publisher $",
-        &publisher,
-        &format!("cix tag {store_path} my-app:v1"),
-        true,
     );
     let listen = next_listen();
     doc.background(
@@ -413,14 +400,8 @@ fn scenario_pulling_on_another_machine() -> String {
         &mut doc,
         "publisher $",
         &publisher,
-        "fixture-v1",
+        "my-app-v1",
         "hello from my app v1",
-    );
-    doc.sh_in(
-        "publisher $",
-        &publisher,
-        &format!("cix tag {store_path} my-app:v1"),
-        true,
     );
     let listen = next_listen();
     doc.background(
@@ -455,14 +436,8 @@ fn scenario_tags_move_pull_follows() -> String {
         &mut doc,
         "publisher $",
         &publisher,
-        "fixture-v1",
+        "my-app-v1",
         "hello from my app v1",
-    );
-    doc.sh_in(
-        "publisher $",
-        &publisher,
-        &format!("cix tag {first} my-app:v1"),
-        true,
     );
     let listen = next_listen();
     doc.background(
@@ -480,14 +455,8 @@ fn scenario_tags_move_pull_follows() -> String {
         &mut doc,
         "publisher $",
         &publisher,
-        "fixture-v2",
+        "my-app-v2",
         "hello from my app v2",
-    );
-    doc.sh_in(
-        "publisher $",
-        &publisher,
-        &format!("cix tag {second} my-app:v1"),
-        true,
     );
     let refreshed = doc.sh_in("consumer $", &consumer, "cix pull", true);
     assert!(refreshed.contains("updated 1 tag(s)"));
