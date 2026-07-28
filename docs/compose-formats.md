@@ -156,3 +156,525 @@ contract.
 The examples below are complete prototypes, not fragments to be mentally
 merged. Comments are part of the test: an operator must be able to explain an
 exception next to it.
+
+### TOML
+
+#### Scenario 1
+
+```toml
+format_version = 1
+name = "minimal"
+
+[services.nginx]
+ref = "cix.example.com/nginx:1.27#nginx"
+update = "hold"
+
+[services.nginx.override.env]
+UPSTREAM = "unix:/run/minimal/app-http.sock"
+
+[services.app]
+ref = "cix.example.com/hello:v1#app"
+update = "hold"
+
+[services.app.override.env]
+LISTEN = "unix:/run/minimal/app-http.sock"
+
+[services.app.override.dirs]
+"/var/lib/hello" = { host = "/srv/cix/minimal/hello" }
+
+[sockets.app_http]
+path = "/run/minimal/app-http.sock"
+provider = "app"
+
+[publishes.web]
+from = "nginx.http"
+listen = "0.0.0.0:8080"
+mode = "socket"
+
+[[talks_to]]
+from = "nginx"
+to = "app"
+via = "socket.app_http"
+```
+
+#### Scenario 2
+
+```toml
+format_version = 1
+name = "host-dashboard"
+
+# the host tunnel itself is existing host infrastructure, not a service invented here.
+[networks.tunnelnet]
+driver = "host-tunnel"
+external = true
+
+[endpoints.postgres]
+address = "data-host:5432"
+network = "tunnelnet"
+
+[endpoints.dataplane]
+address = "data-host:50051"
+network = "tunnelnet"
+
+[endpoints.chain]
+address = "archive-host:9944"
+network = "tunnelnet"
+
+[endpoints.bot_logs]
+address = "host-c:8873"
+network = "tunnelnet"
+
+[credentials.database_url]
+source = "/run/keys/host-dashboard-database-url"
+
+[services.dashboard]
+ref = "cix.example.com/host-dashboard:latest#dashboard"
+update = "watch"
+networks = ["tunnelnet"]
+
+[services.dashboard.credentials]
+DATABASE_URL = "database_url"
+
+[services.dashboard.override.env]
+DASHBOARD_LISTEN = "127.0.0.1:8787"
+DATAPLANE_GRPC_URL = "http://data-host:50051"
+CHAIN_RPC_URL = "ws://archive-host:9944"
+APP_BOT_LOG_RSYNC_SOURCE = "rsync://host-c:8873/bot-logs/"
+
+[services.dashboard.override.dirs]
+"/var/lib/host-dashboard" = { host = "/var/lib/host-dashboard" }
+"/var/cache/host-dashboard" = { host = "/var/cache/host-dashboard", quota = "10G" }
+
+# Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
+[publishes.origin]
+from = "dashboard.http"
+listen = "127.0.0.1:8787"
+mode = "proxy"
+
+[[talks_to]]
+from = "dashboard"
+to = "endpoint.postgres"
+via = "network.tunnelnet"
+
+[[talks_to]]
+from = "dashboard"
+to = "endpoint.dataplane"
+via = "network.tunnelnet"
+
+[[talks_to]]
+from = "dashboard"
+to = "endpoint.chain"
+via = "network.tunnelnet"
+
+[[talks_to]]
+from = "dashboard"
+to = "endpoint.bot_logs"
+via = "network.tunnelnet"
+```
+
+#### Scenario 3
+
+```toml
+format_version = 1
+name = "commerce"
+
+[limits.small]
+cpu = "250m"
+memory = "256MiB"
+
+[limits.standard]
+cpu = "1"
+memory = "1GiB"
+
+[limits.worker]
+cpu = "2"
+memory = "2GiB"
+
+[limits.database]
+cpu = "4"
+memory = "8GiB"
+
+[networks.frontend]
+driver = "bridge"
+subnet = "10.42.10.0/24"
+
+[networks.backend]
+driver = "bridge"
+subnet = "10.42.20.0/24"
+
+[credentials.postgres_password]
+source = "/run/keys/commerce-postgres-password"
+
+[endpoints.payments_ledger]
+composite = "payments-prod"
+published = "ledger"
+
+[services.edge]
+ref = "cix.example.com/commerce/edge:v7#edge"
+update = "hold"
+networks = ["frontend"]
+limits = "small"
+
+[services.api]
+ref = "cix.example.com/commerce/api:latest#api"
+update = "watch"
+networks = ["frontend", "backend"]
+limits = "standard"
+
+[services.realtime]
+ref = "cix.example.com/commerce/realtime:v3#realtime"
+update = "hold"
+networks = ["frontend", "backend"]
+limits = "standard"
+
+[services.worker]
+ref = "cix.example.com/commerce/worker:latest#worker"
+update = "watch"
+networks = ["backend"]
+limits = "worker"
+scale = 3
+
+[services.db]
+ref = "cixpkgs.org/postgresql:16#postgres"
+update = "hold"
+networks = ["backend"]
+limits = "database"
+
+[services.db.credentials]
+POSTGRES_PASSWORD = "postgres_password"
+
+[services.db.override.env]
+POSTGRES_DB = "commerce"
+POSTGRES_USER = "commerce"
+
+[services.redis]
+ref = "cixpkgs.org/redis:7#redis"
+update = "hold"
+networks = ["backend"]
+limits = "small"
+
+[services.metrics]
+# :latest declares fixed 9000 and collides with api; compose cannot override it.
+ref = "cix.example.com/observability/metrics:port-9100#metrics"
+update = "hold"
+networks = ["backend"]
+limits = "small"
+
+[publishes.https]
+from = "edge.https"
+listen = "0.0.0.0:443"
+mode = "socket"
+
+[[talks_to]]
+from = "edge"
+to = "api"
+via = "network.frontend"
+
+[[talks_to]]
+from = "edge"
+to = "realtime"
+via = "network.frontend"
+
+[[talks_to]]
+from = "api"
+to = "db"
+via = "network.backend"
+
+[[talks_to]]
+from = "api"
+to = "redis"
+via = "network.backend"
+
+[[talks_to]]
+from = "api"
+to = "endpoint.payments_ledger"
+via = "published"
+
+[[talks_to]]
+from = "realtime"
+to = "redis"
+via = "network.backend"
+
+[[talks_to]]
+from = "worker"
+to = "db"
+via = "network.backend"
+
+[[talks_to]]
+from = "worker"
+to = "redis"
+via = "network.backend"
+
+[[talks_to]]
+from = "metrics"
+to = "api"
+via = "network.backend"
+```
+
+#### TOML: what survives contact
+
+Pros:
+
+- Strings, booleans, arrays, and tables have a small, stable grammar. `NO`,
+  `on`, and `2026-07-28` do not silently become unrelated types.
+- Table headers make ownership explicit. The ugly
+  `[services.dashboard.override.dirs]` is at least unambiguous.
+- Dotted references remain ordinary schema-validated strings, and named limit
+  profiles solve the required reuse without another language.
+- Comments are predictable, diffs are stable, duplicate tables/keys are
+  errors, and Taplo supplies a credible formatter, editor integration, and
+  schema-aware completion.
+- Rust support is cheap and mature. Deserialization plus a post-resolution
+  semantic validator fits the existing implementation.
+
+Cons:
+
+- The gnarly graph is a wall of `[[talks_to]]` tables. TOML is bad at repeated
+  structured records and makes no attempt to hide it.
+- Context is carried by distant headers. Moving a stanza can silently change
+  which object following keys belong to; reviewers must read upward.
+- Inline tables must stay on one physical line. Directory backing is compact
+  here, but adding several policy fields forces yet more headers.
+- There is no native structural reuse. Named schema objects work; arbitrary
+  partial-service inheritance does not. That is a feature until users demand
+  it, at which point they will invent preprocessors.
+- Bare dates and times are typed TOML values, so quote version-like dates and
+  every unit-bearing scalar. A schema catches this, a text review may not.
+- Docker Compose migration is conceptual rather than mechanical. The syntax is
+  familiar enough to read but not familiar enough to paste.
+
+### YAML
+
+The YAML examples deliberately avoid anchors and merge keys. Anchors can share
+nodes, but the commonly used `<<` merge key is not part of YAML 1.2 and gives
+different results across loaders. Required reuse goes through the same named
+limit-profile schema as every other candidate.
+
+#### Scenario 1
+
+```yaml
+format-version: 1
+name: minimal
+
+services:
+  nginx:
+    ref: cix.example.com/nginx:1.27#nginx
+    update: hold
+    override:
+      env:
+        UPSTREAM: unix:/run/minimal/app-http.sock
+  app:
+    ref: cix.example.com/hello:v1#app
+    update: hold
+    override:
+      env:
+        LISTEN: unix:/run/minimal/app-http.sock
+      dirs:
+        /var/lib/hello:
+          host: /srv/cix/minimal/hello
+
+sockets:
+  app-http:
+    path: /run/minimal/app-http.sock
+    provider: app
+
+publishes:
+  web:
+    from: nginx.http
+    listen: 0.0.0.0:8080
+    mode: socket
+
+talks-to:
+  - from: nginx
+    to: app
+    via: socket.app-http
+```
+
+#### Scenario 2
+
+```yaml
+format-version: 1
+name: host-dashboard
+
+networks:
+  # the host tunnel itself is existing host infrastructure, not a service invented here.
+  tunnelnet:
+    driver: host-tunnel
+    external: true
+
+endpoints:
+  postgres:
+    address: data-host:5432
+    network: tunnelnet
+  dataplane:
+    address: data-host:50051
+    network: tunnelnet
+  chain:
+    address: archive-host:9944
+    network: tunnelnet
+  bot-logs:
+    address: host-c:8873
+    network: tunnelnet
+
+credentials:
+  database-url:
+    source: /run/keys/host-dashboard-database-url
+
+services:
+  dashboard:
+    ref: cix.example.com/host-dashboard:latest#dashboard
+    update: watch
+    networks: [tunnelnet]
+    credentials:
+      DATABASE_URL: database-url
+    override:
+      env:
+        DASHBOARD_LISTEN: 127.0.0.1:8787
+        DATAPLANE_GRPC_URL: http://data-host:50051
+        CHAIN_RPC_URL: ws://archive-host:9944
+        APP_BOT_LOG_RSYNC_SOURCE: rsync://host-c:8873/bot-logs/
+      dirs:
+        /var/lib/host-dashboard:
+          host: /var/lib/host-dashboard
+        /var/cache/host-dashboard:
+          host: /var/cache/host-dashboard
+          quota: 10G
+
+publishes:
+  # Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
+  origin:
+    from: dashboard.http
+    listen: 127.0.0.1:8787
+    mode: proxy
+
+talks-to:
+  - { from: dashboard, to: endpoint.postgres, via: network.tunnelnet }
+  - { from: dashboard, to: endpoint.dataplane, via: network.tunnelnet }
+  - { from: dashboard, to: endpoint.chain, via: network.tunnelnet }
+  - { from: dashboard, to: endpoint.bot-logs, via: network.tunnelnet }
+```
+
+#### Scenario 3
+
+```yaml
+format-version: 1
+name: commerce
+
+limits:
+  small: { cpu: 250m, memory: 256MiB }
+  standard: { cpu: "1", memory: 1GiB }
+  worker: { cpu: "2", memory: 2GiB }
+  database: { cpu: "4", memory: 8GiB }
+
+networks:
+  frontend: { driver: bridge, subnet: 10.42.10.0/24 }
+  backend: { driver: bridge, subnet: 10.42.20.0/24 }
+
+credentials:
+  postgres-password:
+    source: /run/keys/commerce-postgres-password
+
+endpoints:
+  payments-ledger:
+    composite: payments-prod
+    published: ledger
+
+services:
+  edge:
+    ref: cix.example.com/commerce/edge:v7#edge
+    update: hold
+    networks: [frontend]
+    limits: small
+  api:
+    ref: cix.example.com/commerce/api:latest#api
+    update: watch
+    networks: [frontend, backend]
+    limits: standard
+  realtime:
+    ref: cix.example.com/commerce/realtime:v3#realtime
+    update: hold
+    networks: [frontend, backend]
+    limits: standard
+  worker:
+    ref: cix.example.com/commerce/worker:latest#worker
+    update: watch
+    networks: [backend]
+    limits: worker
+    scale: 3
+  db:
+    ref: cixpkgs.org/postgresql:16#postgres
+    update: hold
+    networks: [backend]
+    limits: database
+    credentials:
+      POSTGRES_PASSWORD: postgres-password
+    override:
+      env:
+        POSTGRES_DB: commerce
+        POSTGRES_USER: commerce
+  redis:
+    ref: cixpkgs.org/redis:7#redis
+    update: hold
+    networks: [backend]
+    limits: small
+  metrics:
+    # :latest declares fixed 9000 and collides with api; compose cannot override it.
+    ref: cix.example.com/observability/metrics:port-9100#metrics
+    update: hold
+    networks: [backend]
+    limits: small
+
+publishes:
+  https:
+    from: edge.https
+    listen: 0.0.0.0:443
+    mode: socket
+
+talks-to:
+  - { from: edge, to: api, via: network.frontend }
+  - { from: edge, to: realtime, via: network.frontend }
+  - { from: api, to: db, via: network.backend }
+  - { from: api, to: redis, via: network.backend }
+  - { from: api, to: endpoint.payments-ledger, via: published }
+  - { from: realtime, to: redis, via: network.backend }
+  - { from: worker, to: db, via: network.backend }
+  - { from: worker, to: redis, via: network.backend }
+  - { from: metrics, to: api, via: network.backend }
+```
+
+#### YAML: what survives contact
+
+Pros:
+
+- It is the Docker Compose incumbent. A Docker user immediately recognizes
+  `services`, `networks`, mappings, lists, and inline records.
+- The gnarly graph is materially shorter than TOML. Nested ownership is visible
+  without repeating full table paths.
+- Comments are good, JSON Schema tooling is widespread, and editors already
+  know how to associate schemas with YAML filenames.
+- Named objects and string references read naturally. Anchors are available
+  for raw node reuse when portability is deliberately abandoned.
+- Parser, formatter, and LSP costs for us are low if we select one YAML version
+  and one strict loader.
+
+Cons:
+
+- "Select one strict loader" is the trap. YAML 1.1 turns `NO`, `On`, `yes`, and
+  `off` into booleans; YAML 1.2 fixes that, but deployed parsers and editor
+  validators still disagree. Timestamps and sexagesimal/legacy number forms
+  add more implicit typing failures. Quotes become defensive programming.
+- Duplicate keys are legal or rejected depending on loader settings. We would
+  have to reject them explicitly or accept silent policy replacement.
+- Indentation is structure with weak visual delimiters. One misplaced level
+  can move a credential or override to another owner while still parsing.
+- `:` followed by space, `#` after whitespace, aliases, tags, block scalars,
+  and multiple documents are language features composix does not need but its
+  parser and threat model inherit.
+- Anchors copy syntax nodes, not domain objects. Alias mutation semantics vary
+  by library, merge precedence is review-hostile, and cross-file reuse still
+  needs a preprocessor.
+- Familiarity is dangerous here: Docker-shaped syntax encourages users to
+  paste `command`, `depends_on`, app port declarations, and environment
+  contracts that belong in the item spec. Schema errors must be blunt.
+- Formatters are not culturally standard for YAML. Semantically identical
+  flow/block-style churn is common in review.
