@@ -678,3 +678,548 @@ Cons:
   contracts that belong in the item spec. Schema errors must be blunt.
 - Formatters are not culturally standard for YAML. Semantically identical
   flow/block-style churn is common in review.
+
+### nix-lite
+
+This candidate is intentionally not "a Nix module." The file
+`compose.cix.nix` has one optional, non-recursive top-level `let` followed by
+one plain attrset.
+
+Allowed features are:
+
+- static attrsets, lists, double-quoted strings, integers, booleans, and `null`;
+- one top-level `let ... in`, whose bindings must be scalar literals;
+- `${name}` interpolation of those scalar bindings inside double-quoted
+  strings;
+- static attribute names and `#` or `/* ... */` comments.
+
+Banned features are functions and application, `rec`, `with`, `inherit`,
+`import`, all `builtins`, flakes, overlays/modules, `if`, `assert`, operators
+including `//` and `+`, attribute selection as an expression, dynamic attribute
+names, path/search-path/URI literals, indented strings, and interpolation of
+anything except a scalar top-level binding. In particular, limit-profile reuse
+below is a compose-schema reference by string, not Nix object sharing.
+
+Evaluation has no API function and no injected `pkgs`: parse with a Nix syntax
+tree library, reject every node outside the whitelist, run the installed Nix
+evaluator with `--pure-eval --restrict-eval --json`, then validate the JSON
+against the compose schema and resolved item specs. Calling `nix eval` directly
+is unsupported because it skips the whitelist. This is real Nix evaluation,
+but almost none of the language.
+
+#### Scenario 1
+
+```nix
+{
+  formatVersion = 1;
+  name = "minimal";
+
+  services = {
+    nginx = {
+      ref = "cix.example.com/nginx:1.27#nginx";
+      update = "hold";
+      override.env.UPSTREAM = "unix:/run/minimal/app-http.sock";
+    };
+    app = {
+      ref = "cix.example.com/hello:v1#app";
+      update = "hold";
+      override = {
+        env.LISTEN = "unix:/run/minimal/app-http.sock";
+        dirs."/var/lib/hello".host = "/srv/cix/minimal/hello";
+      };
+    };
+  };
+
+  sockets.app-http = {
+    path = "/run/minimal/app-http.sock";
+    provider = "app";
+  };
+
+  publishes.web = {
+    from = "nginx.http";
+    listen = "0.0.0.0:8080";
+    mode = "socket";
+  };
+
+  talksTo = [
+    {
+      from = "nginx";
+      to = "app";
+      via = "socket.app-http";
+    }
+  ];
+}
+```
+
+#### Scenario 2
+
+```nix
+let
+  dataHost = "data-host";
+  archiveHost = "archive-host";
+  botHost = "host-c";
+in
+{
+  formatVersion = 1;
+  name = "host-dashboard";
+
+  networks.tunnelnet = {
+    # the host tunnel itself is existing host infrastructure, not a service invented here.
+    driver = "host-tunnel";
+    external = true;
+  };
+
+  endpoints = {
+    postgres = {
+      address = "${dataHost}:5432";
+      network = "tunnelnet";
+    };
+    dataplane = {
+      address = "${dataHost}:50051";
+      network = "tunnelnet";
+    };
+    chain = {
+      address = "${archiveHost}:9944";
+      network = "tunnelnet";
+    };
+    bot-logs = {
+      address = "${botHost}:8873";
+      network = "tunnelnet";
+    };
+  };
+
+  credentials.database-url.source =
+    "/run/keys/host-dashboard-database-url";
+
+  services.dashboard = {
+    ref = "cix.example.com/host-dashboard:latest#dashboard";
+    update = "watch";
+    networks = [ "tunnelnet" ];
+    credentials.DATABASE_URL = "database-url";
+    override = {
+      env = {
+        DASHBOARD_LISTEN = "127.0.0.1:8787";
+        DATAPLANE_GRPC_URL = "http://${dataHost}:50051";
+        CHAIN_RPC_URL = "ws://${archiveHost}:9944";
+        APP_BOT_LOG_RSYNC_SOURCE =
+          "rsync://${botHost}:8873/bot-logs/";
+      };
+      dirs = {
+        "/var/lib/host-dashboard".host = "/var/lib/host-dashboard";
+        "/var/cache/host-dashboard" = {
+          host = "/var/cache/host-dashboard";
+          quota = "10G";
+        };
+      };
+    };
+  };
+
+  # Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
+  publishes.origin = {
+    from = "dashboard.http";
+    listen = "127.0.0.1:8787";
+    mode = "proxy";
+  };
+
+  talksTo = [
+    {
+      from = "dashboard";
+      to = "endpoint.postgres";
+      via = "network.tunnelnet";
+    }
+    {
+      from = "dashboard";
+      to = "endpoint.dataplane";
+      via = "network.tunnelnet";
+    }
+    {
+      from = "dashboard";
+      to = "endpoint.chain";
+      via = "network.tunnelnet";
+    }
+    {
+      from = "dashboard";
+      to = "endpoint.bot-logs";
+      via = "network.tunnelnet";
+    }
+  ];
+}
+```
+
+#### Scenario 3
+
+```nix
+{
+  formatVersion = 1;
+  name = "commerce";
+
+  limits = {
+    small = {
+      cpu = "250m";
+      memory = "256MiB";
+    };
+    standard = {
+      cpu = "1";
+      memory = "1GiB";
+    };
+    worker = {
+      cpu = "2";
+      memory = "2GiB";
+    };
+    database = {
+      cpu = "4";
+      memory = "8GiB";
+    };
+  };
+
+  networks = {
+    frontend = {
+      driver = "bridge";
+      subnet = "10.42.10.0/24";
+    };
+    backend = {
+      driver = "bridge";
+      subnet = "10.42.20.0/24";
+    };
+  };
+
+  credentials.postgres-password.source =
+    "/run/keys/commerce-postgres-password";
+
+  endpoints.payments-ledger = {
+    composite = "payments-prod";
+    published = "ledger";
+  };
+
+  services = {
+    edge = {
+      ref = "cix.example.com/commerce/edge:v7#edge";
+      update = "hold";
+      networks = [ "frontend" ];
+      limits = "small";
+    };
+    api = {
+      ref = "cix.example.com/commerce/api:latest#api";
+      update = "watch";
+      networks = [ "frontend" "backend" ];
+      limits = "standard";
+    };
+    realtime = {
+      ref = "cix.example.com/commerce/realtime:v3#realtime";
+      update = "hold";
+      networks = [ "frontend" "backend" ];
+      limits = "standard";
+    };
+    worker = {
+      ref = "cix.example.com/commerce/worker:latest#worker";
+      update = "watch";
+      networks = [ "backend" ];
+      limits = "worker";
+      scale = 3;
+    };
+    db = {
+      ref = "cixpkgs.org/postgresql:16#postgres";
+      update = "hold";
+      networks = [ "backend" ];
+      limits = "database";
+      credentials.POSTGRES_PASSWORD = "postgres-password";
+      override.env = {
+        POSTGRES_DB = "commerce";
+        POSTGRES_USER = "commerce";
+      };
+    };
+    redis = {
+      ref = "cixpkgs.org/redis:7#redis";
+      update = "hold";
+      networks = [ "backend" ];
+      limits = "small";
+    };
+    metrics = {
+      # :latest declares fixed 9000 and collides with api; compose cannot override it.
+      ref = "cix.example.com/observability/metrics:port-9100#metrics";
+      update = "hold";
+      networks = [ "backend" ];
+      limits = "small";
+    };
+  };
+
+  publishes.https = {
+    from = "edge.https";
+    listen = "0.0.0.0:443";
+    mode = "socket";
+  };
+
+  talksTo = [
+    {
+      from = "edge";
+      to = "api";
+      via = "network.frontend";
+    }
+    {
+      from = "edge";
+      to = "realtime";
+      via = "network.frontend";
+    }
+    {
+      from = "api";
+      to = "db";
+      via = "network.backend";
+    }
+    {
+      from = "api";
+      to = "redis";
+      via = "network.backend";
+    }
+    {
+      from = "api";
+      to = "endpoint.payments-ledger";
+      via = "published";
+    }
+    {
+      from = "realtime";
+      to = "redis";
+      via = "network.backend";
+    }
+    {
+      from = "worker";
+      to = "db";
+      via = "network.backend";
+    }
+    {
+      from = "worker";
+      to = "redis";
+      via = "network.backend";
+    }
+    {
+      from = "metrics";
+      to = "api";
+      via = "network.backend";
+    }
+  ];
+}
+```
+
+#### nix-lite: what survives contact
+
+Pros:
+
+- Attrsets and lists render all three cases without YAML's implicit typing or
+  TOML's repeated-table ceremony. Braces make ownership and moved blocks
+  obvious in review.
+- Duplicate attributes are errors. Strings have one interpolation model, and
+  `nixfmt` provides deterministic formatting.
+- Scalar interpolation removes the only repetition that was genuinely noisy
+  in scenario 2 without admitting structural programming.
+- Nix is already a product dependency, and Rust Nix parsers exist. The
+  evaluated JSON can use exactly the same semantic validator as TOML/YAML.
+- The syntax makes the resolve/build boundary unsurprising to existing Nix
+  users, while `cix.lock` still owns mutable-ref resolution.
+
+Cons:
+
+- It is bait. The file looks like Nix, has a `.nix` suffix, and rejects almost
+  every useful answer from a Nix search result: `inherit`, `rec`, `//`,
+  functions, imports, modules, and even attrset-valued `let` reuse.
+- Conversely, non-Nix users still pay for braces, semicolons, dotted
+  attributes, unusual list syntax, and error messages containing Nix terms.
+  D4 explicitly chose a Dockerfile-ish Cixfile because no one wants to write
+  Nix; compose has no evidence that it is exempt.
+- Safe evaluation is not free. We need an AST whitelist kept in lockstep with
+  the parser, a restricted evaluator invocation, and tests proving rejected
+  constructs cannot smuggle paths, imports, or string contexts into output.
+- Generic Nix language servers will recommend banned features and report
+  scalar-only rules too late. A composix-specific diagnostic layer is still
+  required.
+- Reuse is no better than TOML after the restrictions: named schema objects
+  and scalar interpolation. Relaxing that boundary starts the slide toward
+  functions-as-API and a module system.
+- Docker Compose migration is worst-in-class. The format communicates the
+  implementation substrate instead of the operator domain.
+
+### Cixfile-sibling directives
+
+Call the prototype file `Cixcompose`. The grammar is deliberately less magical
+than a shell:
+
+- top-level directives start in column 1; service child directives have
+  exactly two leading spaces; tabs and any other indentation are errors;
+- directive and enum names are case-sensitive uppercase tokens;
+- arguments are whitespace-delimited; a value containing whitespace uses a
+  double-quoted JSON string;
+- `#` starts a comment only when it is the first non-whitespace character, so
+  `ref#service` remains one token; trailing comments are not supported;
+- a `SERVICE` block ends at the next top-level directive; child directives are
+  illegal at top level and top-level directives are illegal when indented;
+- unknown directives, duplicate singleton children, duplicate names, and
+  unresolved references are errors.
+
+This extends the Cixfile family but not the Cixfile grammar itself. The
+top-level directives are `COMPOSITE`, `LIMITS`, `NETWORK`, `CREDENTIAL`,
+`ENDPOINT`, `SOCKET`, `PUBLISH`, `SERVICE`, and `TALKS-TO`. Service children are
+`UPDATE`, `JOINS`, `LIMITS`, `SCALE`, `SECRET`, and `OVERRIDE ENV|DIR`.
+
+#### Scenario 1
+
+```dockerfile
+COMPOSITE minimal
+
+SERVICE nginx cix.example.com/nginx:1.27#nginx
+  UPDATE hold
+  OVERRIDE ENV UPSTREAM = unix:/run/minimal/app-http.sock
+
+SERVICE app cix.example.com/hello:v1#app
+  UPDATE hold
+  OVERRIDE ENV LISTEN = unix:/run/minimal/app-http.sock
+  OVERRIDE DIR /var/lib/hello = /srv/cix/minimal/hello
+
+SOCKET app-http PATH /run/minimal/app-http.sock PROVIDER app
+PUBLISH web FROM nginx.http LISTEN 0.0.0.0:8080 MODE socket
+TALKS-TO nginx -> app VIA socket.app-http
+```
+
+#### Scenario 2
+
+```dockerfile
+COMPOSITE host-dashboard
+
+# the host tunnel itself is existing host infrastructure, not a service invented here.
+NETWORK tunnelnet DRIVER host-tunnel EXTERNAL
+
+ENDPOINT postgres ADDRESS data-host:5432 NETWORK tunnelnet
+ENDPOINT dataplane ADDRESS data-host:50051 NETWORK tunnelnet
+ENDPOINT chain ADDRESS archive-host:9944 NETWORK tunnelnet
+ENDPOINT bot-logs ADDRESS host-c:8873 NETWORK tunnelnet
+
+CREDENTIAL database-url FILE /run/keys/host-dashboard-database-url
+
+SERVICE dashboard cix.example.com/host-dashboard:latest#dashboard
+  UPDATE watch
+  JOINS tunnelnet
+  SECRET DATABASE_URL FROM database-url
+  OVERRIDE ENV DASHBOARD_LISTEN = 127.0.0.1:8787
+  OVERRIDE ENV DATAPLANE_GRPC_URL = http://data-host:50051
+  OVERRIDE ENV CHAIN_RPC_URL = ws://archive-host:9944
+  OVERRIDE ENV APP_BOT_LOG_RSYNC_SOURCE = rsync://host-c:8873/bot-logs/
+  OVERRIDE DIR /var/lib/host-dashboard = /var/lib/host-dashboard
+  OVERRIDE DIR /var/cache/host-dashboard = /var/cache/host-dashboard QUOTA 10G
+
+# Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
+PUBLISH origin FROM dashboard.http LISTEN 127.0.0.1:8787 MODE proxy
+
+TALKS-TO dashboard -> endpoint.postgres VIA network.tunnelnet
+TALKS-TO dashboard -> endpoint.dataplane VIA network.tunnelnet
+TALKS-TO dashboard -> endpoint.chain VIA network.tunnelnet
+TALKS-TO dashboard -> endpoint.bot-logs VIA network.tunnelnet
+```
+
+#### Scenario 3
+
+```dockerfile
+COMPOSITE commerce
+
+LIMITS small CPU 250m MEMORY 256MiB
+LIMITS standard CPU 1 MEMORY 1GiB
+LIMITS worker CPU 2 MEMORY 2GiB
+LIMITS database CPU 4 MEMORY 8GiB
+
+NETWORK frontend DRIVER bridge SUBNET 10.42.10.0/24
+NETWORK backend DRIVER bridge SUBNET 10.42.20.0/24
+
+CREDENTIAL postgres-password FILE /run/keys/commerce-postgres-password
+ENDPOINT payments-ledger COMPOSITE payments-prod PUBLISH ledger
+
+SERVICE edge cix.example.com/commerce/edge:v7#edge
+  UPDATE hold
+  JOINS frontend
+  LIMITS small
+
+SERVICE api cix.example.com/commerce/api:latest#api
+  UPDATE watch
+  JOINS frontend backend
+  LIMITS standard
+
+SERVICE realtime cix.example.com/commerce/realtime:v3#realtime
+  UPDATE hold
+  JOINS frontend backend
+  LIMITS standard
+
+SERVICE worker cix.example.com/commerce/worker:latest#worker
+  UPDATE watch
+  JOINS backend
+  LIMITS worker
+  SCALE 3
+
+SERVICE db cixpkgs.org/postgresql:16#postgres
+  UPDATE hold
+  JOINS backend
+  LIMITS database
+  SECRET POSTGRES_PASSWORD FROM postgres-password
+  OVERRIDE ENV POSTGRES_DB = commerce
+  OVERRIDE ENV POSTGRES_USER = commerce
+
+SERVICE redis cixpkgs.org/redis:7#redis
+  UPDATE hold
+  JOINS backend
+  LIMITS small
+
+# :latest declares fixed 9000 and collides with api; compose cannot override it.
+SERVICE metrics cix.example.com/observability/metrics:port-9100#metrics
+  UPDATE hold
+  JOINS backend
+  LIMITS small
+
+PUBLISH https FROM edge.https LISTEN 0.0.0.0:443 MODE socket
+
+TALKS-TO edge -> api VIA network.frontend
+TALKS-TO edge -> realtime VIA network.frontend
+TALKS-TO api -> db VIA network.backend
+TALKS-TO api -> redis VIA network.backend
+TALKS-TO api -> endpoint.payments-ledger VIA published
+TALKS-TO realtime -> redis VIA network.backend
+TALKS-TO worker -> db VIA network.backend
+TALKS-TO worker -> redis VIA network.backend
+TALKS-TO metrics -> api VIA network.backend
+```
+
+#### Cixfile sibling: what survives contact
+
+Pros:
+
+- It says the domain out loud. `TALKS-TO`, `JOINS`, `SECRET`, `UPDATE`, and
+  `PUBLISH` are harder to confuse with app-contract declarations than generic
+  mapping keys.
+- The gnarly communication graph is the only rendering that can be scanned as
+  a graph instead of a list of records. Refs and hold/watch policy are adjacent.
+- There are no implicit scalar types, aliases, merge rules, expression
+  evaluation, or invisible environment substitution.
+- Full-line comments and one-statement-per-line make diffs disciplined. The
+  fixed-port decision is exactly where a reviewer looks: above `SERVICE
+  metrics`.
+- The Cixfile parser's directive model, source diagnostics, name validation,
+  and runtime/build interpolation distinctions provide implementation prior
+  art. Users learn one broad syntax family for build and compose.
+
+Cons:
+
+- This is a new language. We own the parser, formatter, syntax highlighting,
+  JSON-schema equivalent, documentation generator, and eventual LSP forever.
+  Reusing ideas from the Cixfile parser does not make those costs disappear.
+- Indentation now has meaning even though Cixfile v1 is mostly flat. Exact
+  two-space indentation avoids YAML ambiguity by turning deviations into
+  errors, but it is still a new family rule.
+- Whitespace-token syntax ages badly when values need spaces, empty strings,
+  lists with annotations, or future structured policy. Quoting then becomes a
+  second sublanguage.
+- Repetition is low because `TALKS-TO` is positional. That also makes large
+  lines harder for schema-aware completion and makes argument-order mistakes
+  parser concerns rather than labeled-field errors.
+- Reuse stops at named `LIMITS`, exactly as it should for now. There is no
+  principled route to richer reuse except more directives, includes, or a
+  macro language.
+- Similar-looking `SERVICE` blocks do different jobs in Cixfile and
+  Cixcompose: one declares an app contract, the other selects and overrides
+  one. The syntax-family story can conceal that boundary as easily as it can
+  teach it.
+- Docker Compose migration gets no structural help. Familiar uppercase
+  directives resemble Dockerfile, not Compose, and generic YAML tooling is
+  lost.
