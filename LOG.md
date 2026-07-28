@@ -12,6 +12,11 @@
 - Merged track/litdoc (terra): tests/tour.rs harness + docs/tour.md (drift-checked, determinism
   test). Second strong terra datapoint.
 - Launched track/web (terra): serve refactor to D17v2/D18v2.
+- Merged track/web (terra, 3rd strong datapoint): bare-tag serving, negotiated URL space, HTML
+  pages, conneg pull client; verified via tests + demo.
+- Public launch: README, MIT LICENSE, docs/index.md; repo flipped public; GitHub Pages live at
+  mathijshenquet.nl/composix (custom domain; also …github.io/composix). Launched track/tour2
+  (terra): serve/pull/refresh scenarios for the literate tour.
 
 ## 2026-07-28
 
