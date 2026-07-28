@@ -1,0 +1,12 @@
+SERVICE app
+EXEC bin/app $PORT
+SETUP bin/setup
+ENV PORT = 9000 required
+ENV TOKEN secret
+PORT http = $PORT
+STATE /var/lib/app
+CACHE /var/cache/app
+LOGS /var/log/app
+CONFIG /etc/app
+RUNDIR /run/app
+JIT
