@@ -137,3 +137,120 @@
   `cargo clippy -p cix-import --all-targets -- -D warnings`, `cargo test --workspace`, and
   `cargo clippy --workspace --all-targets -- -D warnings` all pass. The new crate has four tests;
   the full workspace suite has no failures.
+
+## 2026-07-28 — Final report and verdict
+
+### Executive answer
+
+The mechanical import is cheap; honest runtime compatibility is not. This prototype imports both
+requested offline formats into stable Nix store items, maps the straightforward config fields,
+and ran real nginx and Redis images under strong systemd hardening. It also exposed that the
+useful part of the promise is not “untar into the store”: it is a second, full-rootfs runtime
+model with mutable-path inference, OCI identity semantics, logging adaptation, and a long
+compatibility tail.
+
+**Verdict: distraction** as a product track in the proposed `cix import` form. Do not merge this
+prototype subcommand. A later read-only `cix migrate`/inspection tool that extracts metadata and
+generates a native Cixfile skeleton could reuse the parsing work without promising OCI runtime
+compatibility.
+
+### What works
+
+- A single-image `docker save` archive and a single-manifest OCI layout directory import fully
+  offline. There is no registry client.
+- Ordered uncompressed/gzip layer application handles ordinary and opaque OCI whiteouts.
+- The output is one Nix store item containing `rootfs/` plus deterministic pretty-printed
+  `cix-spec.json`. Repeated OCI imports and a Docker-archive conversion of the same nginx image
+  produced the identical store path.
+- Config mapping works for the tested shapes: `Entrypoint + Cmd`, env defaults, numeric TCP/UDP
+  `ExposedPorts` as fixed-value ports, and `Volumes` as state-dir declarations. Bare entrypoints
+  can be resolved through the image PATH.
+- nginx served its stock page and Redis returned PONG from their real entrypoints. Both retained
+  all normal cix hardening controls. nginx needed only the semantically implied low-port
+  capability; Redis had an empty capability set.
+- The expanded-cost evidence is nontrivial: the compressed OCI layouts were about 25 MiB nginx /
+  36 MiB Redis, while the resulting full-rootfs store items were about 65 MiB / 112 MiB. Nix can
+  distribute each item reliably, but it gets no cross-image layer reuse at this item granularity.
+
+### What breaks or remains prototype-grade
+
+- Today's `cix run` cannot run the generated spec correctly. It resolves
+  `rootfs/<entrypoint>` in the store but does not enter that rootfs, so absolute paths used by the
+  entrypoint resolve against the host namespace. A dedicated RootDirectory service kind would be
+  required. D22's sparse projection deliberately does not describe a full rootfs.
+- `WorkingDir` and image `User` have no spec representation. Arbitrary Docker volumes such as
+  `/data` cannot satisfy v2's one-component-under-`/var/lib` state-dir rule. The prototype warns,
+  but may therefore emit a spec that the current parser rejects when such a volume is present.
+- Writable needs are not described completely by image metadata. nginx needed cache, run, and log
+  paths that were not `Volumes`; Redis needed its `/data` working directory writable despite the
+  tested current image declaring no volume. Discovering these by failure is not a product model.
+- systemd 257 managed-directory aliases fail namespace setup when `RootDirectory` already
+  contains the destination (`File exists`). Broad tmpfs overlays made the demos run, but they
+  discard state. A persistent bind to arbitrary image paths loses the DynamicUser idmap that
+  motivated D11's narrowed native model.
+- Docker's log symlinks to `/dev/stdout` and `/dev/stderr` do not translate to journald sockets:
+  nginx gets `ENXIO` when reopening them. The workaround makes logs ephemeral rather than
+  journal-native.
+- The importer does not verify descriptor/layer digests, retain provenance/config metadata,
+  support zstd, choose from multi-platform indexes, select among multi-image archives, or
+  preserve xattrs/file capabilities, ownership, device nodes, and setuid semantics. The last
+  group also cannot be faithfully represented by a normal Nix store path.
+- The imported item is initially unrooted and can be garbage-collected unless the user tags or
+  otherwise roots it. Error recovery, progress output, disk-space checks, and interrupted-import
+  behavior are prototype-level.
+- Entrypoint arguments containing shell `$` syntax collide with cix's own exec interpolation
+  model. Healthchecks, stop signals, labels, annotations, and other OCI config fields are ignored.
+
+### Irreducible runtime differences
+
+- **UID assumptions:** image `/etc/passwd` identities are not DynamicUser. Store ownership
+  normalizes to root and NAR does not carry Docker layer ownership semantics. nginx's `user nginx`
+  directive was ignored because the master was already a dynamic non-root user; Redis skipped its
+  root-only `chown`/`setpriv` path. Other images may require a fixed numeric UID, root startup, or
+  ownership changes. Supporting those weakens the current identity/persistence model rather than
+  merely adding a parser field.
+- **Writable-root assumptions:** OCI images assume an overlay root where any path may become
+  writable and changes disappear with the container unless mounted. Composix assumes an immutable
+  item plus declared, idmapped writable capabilities. Automatically overlaying the entire imported
+  root would recreate container semantics, hide undeclared writes, complicate upgrades, and make
+  persistence accidental.
+- **Mutating entrypoints:** nginx's `/etc` edit was defensive and skipped a read-only file.
+  Entrypoints that run `apt`, `apk`, write certificates/config anywhere under `/etc` or `/usr`, or
+  install plugins at startup will fail. Granting them a writable root turns the “import bridge”
+  into an OCI runtime with mutable package state—the compatibility surface explicitly outside
+  composix's thesis.
+- **Network/operator semantics:** exposing a port in image metadata says what the process listens
+  on, not whether/how the operator publishes it. Redis consequently bound the host network on all
+  interfaces and warned about missing authentication. Docker bridge/NAT/isolation cannot be
+  inferred or replaced by the generated fixed port.
+- **Host/kernel expectations:** Redis's overcommit warning is a real host prerequisite. Some
+  images require sysctls, devices, capabilities, LSM labels, or seccomp exceptions that cannot be
+  safely inferred. Keeping `ProtectKernelTunables` was correct; compatibility cannot silently
+  authorize host changes.
+
+### Effort estimate
+
+- A narrow, explicitly curated beta would take roughly **6–10 engineer-weeks**: digest and
+  compression/platform correctness; adversarial extraction/conformance work; a new full-rootfs
+  runtime type; cwd/user/log handling; declared persistent overlays with safe DynamicUser
+  ownership; provenance/GC UX; and an integration corpus.
+- A credible “import arbitrary Docker images” claim is at least **3–6 months plus ongoing
+  compatibility maintenance**, because writable paths, UID transitions, entrypoint mutations,
+  capabilities, and host prerequisites are workload-specific. That estimate still excludes
+  registry auth and Docker networking parity.
+- The parser/unpacker itself is perhaps 1–2 weeks of production hardening. It is not the dominant
+  cost and does not, by itself, soften the migration cliff: users need the imported service to run
+  with persistence, logging, and isolation they can trust.
+
+### Merge assessment and cleanup
+
+The code is small and tested, but the command is not clean enough to merge even with an
+“experimental” label: its output suggests compatibility that current `cix run` cannot provide,
+and representable-looking Docker volumes can create an invalid v2 spec. Keeping it would also
+create pressure to evolve a second runtime model before the native D22/compose model is complete.
+The branch/report should remain the experiment's value.
+
+All named transient experiment units were stopped/reset; no `cix-import-*` units and no listeners
+on ports 80 or 6379 remained. The temporary OCI layouts and Docker archive under
+`/tmp/cix-ocimport.FSKObs` were permanently removed after the recorded digest/size checks. The two
+unrooted Nix store outputs remain subject to normal garbage collection.
