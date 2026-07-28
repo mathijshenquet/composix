@@ -335,8 +335,10 @@ fn apply_layer(layer: &Path, rootfs: &Path) -> Result<()> {
     let whiteouts = scan_whiteouts(layer)?;
     for whiteout in whiteouts {
         match whiteout {
-            Whiteout::Remove(path) => remove_path(&rootfs.join(path))?,
-            Whiteout::Opaque(directory) => clear_directory(&rootfs.join(directory))?,
+            Whiteout::Remove(path) => remove_path(&checked_rootfs_path(rootfs, &path, false)?)?,
+            Whiteout::Opaque(directory) => {
+                clear_directory(&checked_rootfs_path(rootfs, &directory, true)?)?
+            }
         }
     }
 
@@ -437,6 +439,33 @@ fn remove_path(path: &Path) -> Result<()> {
         fs::remove_file(path)?;
     }
     Ok(())
+}
+
+fn checked_rootfs_path(rootfs: &Path, relative: &Path, check_final: bool) -> Result<PathBuf> {
+    let components = relative.components().collect::<Vec<_>>();
+    let mut current = rootfs.to_owned();
+    for (index, component) in components.iter().enumerate() {
+        let Component::Normal(part) = component else {
+            bail!("unsafe rootfs-relative path {}", relative.display());
+        };
+        current.push(part);
+        if index + 1 == components.len() && !check_final {
+            continue;
+        }
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                bail!(
+                    "whiteout path {} traverses symlink {}",
+                    relative.display(),
+                    current.display()
+                )
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(current)
 }
 
 fn clear_directory(path: &Path) -> Result<()> {
@@ -740,12 +769,32 @@ mod tests {
             spec["services"]["demo"]["exec"],
             serde_json::json!(["rootfs/usr/local/bin/demo"])
         );
+        cix_run::spec::Spec::load(output.path()).unwrap();
     }
 
     #[test]
     fn rejects_archive_path_traversal() {
         assert!(clean_tar_path(Path::new("../escape")).is_err());
         assert!(checked_child(Path::new("/tmp/root"), "../escape").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_whiteout_through_lower_layer_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = TempDir::new().unwrap();
+        let rootfs = fixture.path().join("rootfs");
+        let outside = fixture.path().join("outside");
+        fs::create_dir_all(&rootfs).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("victim"), "keep").unwrap();
+        symlink(&outside, rootfs.join("escape")).unwrap();
+        let layer = fixture.path().join("malicious.tar");
+        tar_file(&layer, &[("escape/.wh.victim", b"")]);
+
+        assert!(apply_layer(&layer, &rootfs).is_err());
+        assert_eq!(fs::read_to_string(outside.join("victim")).unwrap(), "keep");
     }
 
     fn tar_file(path: &Path, entries: &[(&str, &[u8])]) {

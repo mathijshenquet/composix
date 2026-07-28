@@ -157,6 +157,7 @@ name = "cix-import"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cix-run",
  "clap",
  "flate2",
  "serde",

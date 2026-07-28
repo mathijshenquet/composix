@@ -124,3 +124,16 @@
   are not preserved. Those losses improve some safety properties but mean the result cannot be
   claimed byte/behavior-equivalent for arbitrary OCI images. Multi-image Docker archives,
   nested/multi-platform indexes, and zstd layers are explicitly rejected.
+
+## 2026-07-28 — Safety pass and full verification
+
+- Added a regression test and guard for whiteouts whose parent traverses a symlink installed by a
+  lower layer. Without the guard, a malicious image could redirect a deletion outside the
+  assembly root. The outside fixture now remains untouched and import fails closed.
+- The OCI fixture's generated `cix-spec.json` is now loaded through the real `cix-run` parser in
+  tests, confirming the emitted v2 shape is accepted when metadata is representable.
+- Final verification under the pinned devenv toolchain:
+  `cargo fmt --all -- --check`, `cargo test -p cix-import`,
+  `cargo clippy -p cix-import --all-targets -- -D warnings`, `cargo test --workspace`, and
+  `cargo clippy --workspace --all-targets -- -D warnings` all pass. The new crate has four tests;
+  the full workspace suite has no failures.
