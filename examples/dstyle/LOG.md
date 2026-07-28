@@ -71,3 +71,13 @@
   systemd creates the managed-directory alias. This keeps the stack's raw unit faithful to current
   cix generation; it is unrelated to the shared socket projection under test. All probe state was
   removed.
+- 2026-07-28 23:03 UTC — `stack/demo.sh` passed end to end. The cix backend showed
+  `PrivateNetwork=yes`, `AF_UNIX`, `DynamicUser=yes`, and its exclusive `0700` runtime directory;
+  uid 1001 could not even see the socket. After applying the operator-side edge group and modes,
+  raw nginx showed `BindPaths=/run/cix-run-backend:/run/stack-shared:rbind`,
+  `SupplementaryGroups=cix-dstyle-stack-edge`, and the same private-network/AF_UNIX isolation.
+  A request through nginx's Unix listener returned `hello from the dstyle backend`, proving both
+  hops use filesystem capabilities with no IP stack. Cleanup removed both services, both sockets,
+  runtime directories, the cix slice, and the temporary group. Design wall: native shared runtime
+  edges must jointly control directory lifetime, namespace projection, and consumer membership;
+  `BindPaths=` alone makes the object visible but does not authorize traversal.
