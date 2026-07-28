@@ -47,6 +47,22 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   Cixfile is the adoption bridge for non-nix users, not the foundation. Intermediate rung, cheap
   and early: a nix lib helper (`composix.lib.withSpec drv {…}`) attaching a spec to any existing
   derivation.
+- ✅ D17 — **namespace claims**: tagging into a qualified namespace requires a local *claim* — an
+  explicit "I believe I'm allowed to tag under this glob" (`cix claim cix.example.com/*`). If you
+  can host `my-domain:port`, you can evidently claim it; if a docker.io-style registry ever
+  exists, `cix claim docker.io/my-team/*` is the moment push authorization enters the model (not
+  yet). Authored tags (`cix tag`) and `cix serve` are gated on claims; pull-created tags are
+  exempt (they're provenance-recorded mirrors, not authored). localhost/127.0.0.1 origins are
+  implicitly claimed.
+- ✅ D18 — **informative URLs** (in the spirit of the web): the human-facing URL mirrors the name.
+  `GET https://host/{name}` serves an informative HTML page (tags, systems, store paths,
+  narHashes, a pull snippet, and a spec summary when the path carries `cix-spec.json`);
+  `GET https://host/` lists names. Machines use `/v1/…`; a qualified name pasted into a browser
+  must land somewhere explanatory.
+- ✅ D19 — **literate documentation** (gitsitter `tests/workflows.rs` pattern): docs are generated
+  from executed scenarios driving the real `cix` binary in isolated environments; assertions make
+  them tests, transcripts make them docs, and a drift-check test keeps the committed markdown
+  current. Outputs are normalized (store hashes, timestamps, ages) so generation is deterministic.
 
 ---
 
@@ -70,8 +86,10 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   ```
   No default registry, ever (docker.io's magic is refused): bare names are genuinely local, so
   nothing bare touches the network or gets served — this kills podman's short-name
-  ambiguity/squatting class outright. Digest pinning needs no `@digest` syntax: the store path
-  *is* the digest and is accepted anywhere an installable is; `cix.lock` pins store paths.
+  ambiguity/squatting class outright. **Remotes are never *named*** (no git-style `origin`
+  indirection): the fully-qualified name — a URL — *is* the identity. Digest pinning needs no
+  `@digest` syntax: the store path *is* the digest and is accepted anywhere an installable is;
+  `cix.lock` pins store paths.
 - ✅ **D12 (was O1) — ref model**: docker-style self-describing refs, not git-style named
   remotes. Three separations that make it clean:
   1. *The ref is an identity, not an address.* Disambiguation rule (docker's): first
@@ -121,6 +139,20 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   closure from advertised substituters (verify narHash; require signatures when trustedKeys given),
   then tag locally with upstream recorded.
 - `cix pull` — refresh every tag that has an upstream; fetch the ones that moved.
+
+### Claims & web pages (D17, D18)
+
+- `cix claim <pattern>` / `cix unclaim <pattern>` / `cix claims` — a pattern is an exact
+  qualified name or a prefix glob ending in `*`, matched against `root_url/name` (e.g.
+  `cix.example.com/*`, `example.com/team/*`). Stored in the state dir.
+- Enforcement: `cix tag` into a qualified ref and `cix serve <root_url>` require a covering
+  claim (error carries a `cix claim …` hint). `cix pull` is exempt — pulled tags are mirrors
+  with recorded provenance, not authored claims. Origins on localhost/127.0.0.1 are implicitly
+  claimed.
+- Serve, human side: `GET /` → HTML list of names; `GET /{name}` → HTML page with the tag table
+  (tag, systems, store path, narHash, age), a copy-pastable `cix pull` snippet, and a summary of
+  `cix-spec.json` when the store path carries one. `Accept: application/json` on those paths
+  negotiates to the `/v1` data.
 
 ### HTTP API (v1, JSON)
 
