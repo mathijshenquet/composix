@@ -78,6 +78,8 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     }
     stop_service(&started.name, true)?;
     std::mem::forget(guard);
+    fs::remove_file(&host_timestamp)?;
+    fs::remove_dir(&app_state)?;
     fs::remove_dir_all(&temporary)?;
     Ok(())
 }
