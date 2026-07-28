@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 cix-cixfile.workspace = true
+cix-import.workspace = true
 cix-index.workspace = true
 cix-run.workspace = true
 anyhow.workspace = true

@@ -19,3 +19,23 @@
 - Known question to measure: OCI image metadata gives exposed container ports but not the
   operator's host-port choice. The generated spec can faithfully use fixed-value ports, while
   collision/exposure remains an operator/compose concern.
+
+## 2026-07-28 — Importer implementation slice
+
+- Added offline readers for single-image Docker archives and single-manifest OCI layouts.
+  Registry access and multi-platform selection are deliberately absent. OCI gzip and plain-tar
+  layers work; zstd layers are detected and rejected with a precise error for now.
+- Layer application scans each layer once for whiteouts, applies deletions/opaque-directory
+  clearing to the lower rootfs, then extracts non-whiteout entries. Doing deletions before
+  extraction matters: an opaque marker removes lower children, not files created by its own layer.
+- Metadata mapping is implemented as cix-spec v2: `Entrypoint` + `Cmd`, string env defaults,
+  fixed TCP/UDP port values, and `Volumes` copied to `dirs.state`. Bare entrypoint names are
+  resolved through the image's `PATH` when present in the assembled rootfs.
+- `WorkingDir` and `User` become warnings/findings because v2 has no representation. Arbitrary
+  Docker volumes also become a finding: the importer records (for example) `/data` faithfully,
+  but the v2 validator requires exactly `/var/lib/<name>`. Silently remapping it would change the
+  image contract.
+- Fixture tests cover Docker archive input, OCI layout + gzip input, ordinary and opaque
+  whiteouts, config mapping, and traversal rejection. `cargo test -p cix-import` and
+  `cargo clippy -p cix-import --all-targets -- -D warnings` pass under `devenv shell`.
+- Next: verify the integrated CLI and then exercise real pinned nginx and redis images.
