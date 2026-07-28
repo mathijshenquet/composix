@@ -334,9 +334,10 @@ Service directives (compile to cix-spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
 docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STATE` `CACHE`
 `LOGS` `CONFIG` `RUNDIR` (role dirs, D11-narrowed paths), `JIT`.
 
-Interpolation rule: `${…}` (build-time) only in directive arguments; `$VAR` (runtime env) only
-in EXEC/SETUP; file contents are verbatim — `/item` paths (D22) replace any need for
-`${self}`/`${out}`. There is no RUN, deliberately.
+Interpolation rule: `${…}` (build-time) lives in directive arguments and in `FILE`/`SCRIPT`
+heredoc bodies (`$${…}` escapes to a literal); `COPY`'d files are always verbatim; `$VAR`
+(runtime env) only in EXEC/SETUP. `/item` paths (D22) remove the *need* for interpolating
+file contents — heredocs merely retain the option. There is no RUN, deliberately.
 
 Determinism: `cix build [dir] [-t ref]` compiles Cixfile → nix expr → store item. nixpkgs is
 pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock` to roll).

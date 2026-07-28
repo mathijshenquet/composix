@@ -20,11 +20,16 @@ EXPOSE 8080
 ```
 
 ```dockerfile
-# Cixfile (composix)
+# Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
 PKG nginx
 
-COPY index.html www/index.html
+FILE www/index.html <<EOF
+<h1>hello from composix</h1>
+EOF
+
+LINK bin/nginx ${nginx}/bin/nginx
 LINK etc/mime.types ${nginx}/conf/mime.types
+
 FILE etc/nginx.conf <<EOF
 daemon off;
 pid /run/nginx/nginx.pid;
@@ -33,6 +38,11 @@ events { }
 http {
   include /item/etc/mime.types;
   access_log off;
+  client_body_temp_path /var/cache/nginx/body;
+  proxy_temp_path /var/cache/nginx/proxy;
+  fastcgi_temp_path /var/cache/nginx/fastcgi;
+  uwsgi_temp_path /var/cache/nginx/uwsgi;
+  scgi_temp_path /var/cache/nginx/scgi;
   server {
     listen 8080;
     root /item/www;
@@ -41,11 +51,16 @@ http {
 EOF
 
 SERVICE nginx
-EXEC ${nginx}/bin/nginx -c /item/etc/nginx.conf -e stderr
+EXEC bin/nginx -c /item/etc/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx
 ```
+
+(A sibling file via `COPY index.html www/index.html` would work identically to the inline
+`FILE`; this example inlines everything so the repo carries one self-contained file. Note the
+executable is `LINK`ed into the item and exec'd as `bin/nginx` — cross-package references are
+always pulled in via `LINK`.)
 
 The Cixfile is longer — because it states things the Dockerfile leaves implicit in the base
 image (the config, the writable paths, what the process actually is). Nothing here is
