@@ -23,7 +23,7 @@ resolve_cix() {
 wait_for_path() {
   local path=$1
   for _ in {1..300}; do
-    [[ -e $path ]] && return 0
+    sudo test -e "$path" && return 0
     sleep 0.1
   done
   echo "timed out waiting for $path" >&2

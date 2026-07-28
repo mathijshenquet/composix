@@ -18,3 +18,9 @@
   runtime directory; systemd retained only the empty `cix-run.slice`. Extended only the readiness
   deadline, fixed collected-unit detection to inspect `LoadState`, and explicitly collect the empty
   cix run slice so the done gate can assert no residual units.
+- 2026-07-28 22:57 UTC — Second PostgreSQL harness attempt revealed the permission boundary even
+  in readiness detection: unprivileged bash reports the socket path as nonexistent because it
+  cannot traverse the DynamicUser-owned `0700` directory. A root inspection while the service was
+  live showed `/run/postgresql -> cix-run-postgres`, the socket in the backing directory, and the
+  runtime directory owned by the allocated dynamic identity. Changed readiness to test the path as
+  root; this is test plumbing and preserves the access probe's expected denial for ordinary users.
