@@ -14,8 +14,7 @@
       ],
       "env": {
         "ADMIN_PORT": {
-          "type": "port",
-          "default": 9000
+          "default": "9000"
         }
       },
       "ports": {

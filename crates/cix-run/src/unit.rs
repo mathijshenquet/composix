@@ -55,6 +55,19 @@ pub(crate) fn build_unit(
         mode != UnitMode::UserDegraded,
     );
 
+    let cix_item = if mode == UnitMode::System {
+        properties.push((
+            "BindReadOnlyPaths".into(),
+            format!("{}:/item", output.display()),
+        ));
+        "/item".into()
+    } else {
+        output
+            .to_str()
+            .context("store output path is not valid UTF-8")?
+            .to_owned()
+    };
+
     if mode == UnitMode::System {
         properties.push(("DynamicUser".into(), "yes".into()));
     } else if mode == UnitMode::UserFull {
@@ -110,11 +123,12 @@ pub(crate) fn build_unit(
         properties.push(("ExecStartPre".into(), exec_command(&setup)));
     }
 
-    let environment = config
+    let mut environment = config
         .env
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
+    environment.push(("CIX_ITEM".into(), cix_item));
 
     let text = render(service_name, &argv, &environment, &properties);
     Ok(UnitDefinition {
@@ -428,6 +442,34 @@ mod tests {
     }
 
     #[test]
+    fn system_units_mount_the_item_and_set_cix_item() {
+        let spec = Spec::from_slice(include_bytes!("../tests/fixtures/minimal-spec.json")).unwrap();
+        let service = &spec.services["worker"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let output = Path::new("/nix/store/00000000000000000000000000000000-worker");
+        let definition = build_unit(output, "worker", service, &config, UnitMode::System).unwrap();
+
+        assert!(definition.properties.contains(&(
+            "BindReadOnlyPaths".into(),
+            "/nix/store/00000000000000000000000000000000-worker:/item".into(),
+        )));
+        assert!(definition
+            .environment
+            .contains(&("CIX_ITEM".into(), "/item".into())));
+
+        let user_definition =
+            build_unit(output, "worker", service, &config, UnitMode::UserFull).unwrap();
+        assert!(!user_definition
+            .properties
+            .iter()
+            .any(|(name, _)| name == "BindReadOnlyPaths"));
+        assert!(user_definition.environment.contains(&(
+            "CIX_ITEM".into(),
+            "/nix/store/00000000000000000000000000000000-worker".into(),
+        )));
+    }
+
+    #[test]
     fn v2_system_unit_matches_golden_file() {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/v2-spec.json")).unwrap();
         let service = &spec.services["web"];
@@ -453,7 +495,7 @@ mod tests {
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
-                        "env": {"PORT": {"type": "port", "default": 80}},
+                        "env": {"PORT": {"default": "80"}},
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
                     }
                 }
@@ -486,7 +528,7 @@ mod tests {
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
-                        "env": {"PORT": {"type": "port", "default": 8080}},
+                        "env": {"PORT": {"default": "8080"}},
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
                     }
                 }

@@ -4,7 +4,6 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
-use serde_json::Value;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -38,22 +37,16 @@ pub struct Service {
 #[serde(deny_unknown_fields)]
 pub struct Env {
     #[serde(rename = "type")]
-    pub kind: EnvType,
-    pub default: Option<Value>,
+    /// Deprecated compatibility field. It is accepted and ignored; environment values are strings.
+    #[deprecated(
+        note = "the cix-spec env `type` field is ignored and will be removed in cixSpec 3"
+    )]
+    pub legacy_type: Option<String>,
+    pub default: Option<String>,
     #[serde(default)]
     pub required: bool,
     #[serde(default)]
     pub secret: bool,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum EnvType {
-    String,
-    Int,
-    Bool,
-    Port,
-    Path,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -167,13 +160,8 @@ impl Service {
             }
         }
 
-        for (name, declaration) in &self.env {
+        for name in self.env.keys() {
             validate_env_name(name)?;
-            if let Some(default) = &declaration.default {
-                declaration.parse_json(default).with_context(|| {
-                    format!("default for environment variable {name:?} has the wrong type")
-                })?;
-            }
         }
 
         for (name, port) in &self.ports {
@@ -185,10 +173,12 @@ impl Service {
                             "port {name:?} refers to undeclared environment variable {env_name:?}"
                         )
                     })?;
-                    if env.kind != EnvType::Port {
-                        bail!(
-                            "port {name:?} refers to {env_name:?}, which must have type \"port\""
-                        );
+                    if let Some(default) = &env.default {
+                        parse_port(default).with_context(|| {
+                            format!(
+                                "default for ports-referenced environment variable {env_name:?} must be a port"
+                            )
+                        })?;
                     }
                 }
                 (None, Some(0)) => bail!("port {name:?} value must be between 1 and 65535"),
@@ -248,61 +238,8 @@ impl Service {
 }
 
 impl Env {
-    pub fn parse_cli(&self, value: &str) -> Result<String> {
-        match self.kind {
-            EnvType::String => Ok(value.to_owned()),
-            EnvType::Int => value
-                .parse::<i64>()
-                .map(|value| value.to_string())
-                .context("expected an integer"),
-            EnvType::Bool => match value {
-                "true" | "false" => Ok(value.to_owned()),
-                _ => bail!("expected true or false"),
-            },
-            EnvType::Port => parse_port(value).map(|value| value.to_string()),
-            EnvType::Path => {
-                let path = Path::new(value);
-                validate_absolute_clean_path(path, "path environment value")?;
-                Ok(value.to_owned())
-            }
-        }
-    }
-
-    fn parse_json(&self, value: &Value) -> Result<String> {
-        match self.kind {
-            EnvType::String => value
-                .as_str()
-                .map(ToOwned::to_owned)
-                .context("expected a JSON string"),
-            EnvType::Int => value
-                .as_i64()
-                .map(|value| value.to_string())
-                .context("expected a JSON integer"),
-            EnvType::Bool => value
-                .as_bool()
-                .map(|value| value.to_string())
-                .context("expected a JSON boolean"),
-            EnvType::Port => {
-                let number = value.as_u64().context("expected a JSON integer")?;
-                let number = u16::try_from(number).context("port is larger than 65535")?;
-                if number == 0 {
-                    bail!("port must be between 1 and 65535");
-                }
-                Ok(number.to_string())
-            }
-            EnvType::Path => {
-                let value = value.as_str().context("expected a JSON string")?;
-                validate_absolute_clean_path(Path::new(value), "path environment default")?;
-                Ok(value.to_owned())
-            }
-        }
-    }
-
-    pub fn default_string(&self) -> Result<Option<String>> {
-        self.default
-            .as_ref()
-            .map(|value| self.parse_json(value))
-            .transpose()
+    pub fn default_string(&self) -> Option<String> {
+        self.default.clone()
     }
 }
 
@@ -459,8 +396,8 @@ mod tests {
                     "app": {
                         "exec": ["bin/app", "--port", "$PORT"],
                         "env": {
-                            "PORT": {"type": "port", "default": 8080},
-                            "READY": {"type": "bool", "required": true, "secret": false}
+                            "PORT": {"type": "port", "default": "8080"},
+                            "READY": {"required": true, "secret": false}
                         },
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}},
                         "dirs": {
@@ -476,7 +413,9 @@ mod tests {
             }"#,
         )
         .unwrap();
-        assert_eq!(spec.services["app"].env["PORT"].kind, EnvType::Port);
+        #[allow(deprecated)]
+        let legacy_type = spec.services["app"].env["PORT"].legacy_type.as_deref();
+        assert_eq!(legacy_type, Some("port"));
         assert_eq!(spec.services["app"].ports["http"].protocol, Protocol::Tcp);
     }
 
@@ -489,7 +428,7 @@ mod tests {
                     "app": {
                         "setup": ["bin/setup", "$PORT"],
                         "exec": ["bin/app", "$PORT"],
-                        "env": {"PORT": {"type": "port", "default": 8080}},
+                        "env": {"PORT": {"default": "8080"}},
                         "ports": {
                             "http": {"value": 8080, "protocol": "tcp"},
                             "admin": {"env": "PORT", "protocol": "tcp"}
@@ -540,7 +479,7 @@ mod tests {
     #[test]
     fn rejects_ports_with_both_or_neither_source() {
         for json in [
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{"type":"port"}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
             r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}}}"#,
         ] {
             let error = format!("{:#}", parse(json).unwrap_err());
@@ -586,8 +525,13 @@ mod tests {
             .to_string()
             .contains("invalid service"));
 
-        let port = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"env":{"P":{"type":"int"}},"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
-        assert!(format!("{:#}", parse(port).unwrap_err()).contains("must have type \"port\""));
+        let undeclared_port = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
+        assert!(format!("{:#}", parse(undeclared_port).unwrap_err())
+            .contains("refers to undeclared environment variable \"P\""));
+
+        let invalid_port_default = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"env":{"P":{"default":"nope"}},"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
+        assert!(format!("{:#}", parse(invalid_port_default).unwrap_err())
+            .contains("default for ports-referenced environment variable \"P\" must be a port"));
 
         for json in [
             r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/nix/data"]}}}}"#,
