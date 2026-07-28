@@ -9,7 +9,7 @@ let
 
   conf = pkgs.writeText "nginx.conf" ''
     daemon off;
-    pid /var/cache/nginx/nginx.pid;
+    pid /run/nginx/nginx.pid;
     error_log stderr info;
     events { }
     http {
@@ -32,13 +32,15 @@ pkgs.runCommand "nginx-cix" { } ''
   ln -s ${pkgs.nginx}/bin/nginx $out/bin/nginx
   cat > $out/cix-spec.json <<'EOF'
   {
-    "cixSpec": 1,
+    "cixSpec": 2,
     "services": {
       "nginx": {
         "exec": ["bin/nginx", "-c", "@conf@", "-e", "stderr"],
-        "env": { "PORT": { "type": "port", "default": 8080 } },
-        "ports": { "http": { "env": "PORT", "protocol": "tcp" } },
-        "dirs": { "cache": ["/var/cache/nginx"] }
+        "ports": { "http": { "value": 8080, "protocol": "tcp" } },
+        "dirs": {
+          "cache": ["/var/cache/nginx"],
+          "run": ["/run/nginx"]
+        }
       }
     }
   }
