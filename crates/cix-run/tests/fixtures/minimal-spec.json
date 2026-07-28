@@ -1,0 +1,10 @@
+{
+  "cixSpec": 1,
+  "services": {
+    "worker": {
+      "exec": [
+        "bin/worker"
+      ]
+    }
+  }
+}
