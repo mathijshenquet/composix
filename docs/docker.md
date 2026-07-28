@@ -149,69 +149,51 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 
 ## 4. Storage (coarse)
 
-| docker | disposition |
-| --- | --- |
-| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ⏳ compose era |
-| [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ⏳ compose era, operator territory |
-| [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/) | ✅ `PrivateTmp`; more ⏳. ❓ A private `/tmp` and `/var/tmp` does not cover arbitrary tmpfs destinations, sizing, modes, or swap behavior. |
-| [volume drivers / plugins](https://docs.docker.com/engine/extend/plugins_volume/) | ❌ filesystems are the host's business. Given up: portable compose declarations for remote, encrypted, cloud, clustered, and vendor storage backends. |
-| [`volume prune`](https://docs.docker.com/reference/cli/docker/volume/prune/) / [`volume update`](https://docs.docker.com/reference/cli/docker/volume/update/) | 🔁 role dirs are plain host paths; lifecycle via `systemctl clean` + GC. ❓ Nix GC does not clean mutable role data, and no `cix` command inventories ownership or previews deletion. |
-| [`volume create` / `inspect` / `ls` / `rm`](https://docs.docker.com/reference/cli/docker/volume/) | ❓ compose has not defined the named-volume object, metadata, sharing, lifecycle, or CLI surface |
-
-**Residuals.** Docker provides named volume objects with create/list/inspect/remove/prune,
-cross-service attachment, copy-up and `volume-subpath` behavior, and a driver interface. composix
-today creates service-specific FHS role directories indirectly through systemd. D11 deliberately
-covers app-path persistence, not shared volumes, arbitrary mounts, backup/restore, remote storage,
-quota, snapshot, encryption, or a safe mutable-data garbage collector; compose merely defers those
-questions.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ⏳ compose era | Named volume objects, cross-service attachment, copy-up/`volume-subpath`, shared volumes, backup/restore, quota, snapshots, and encryption. |
+| [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ⏳ compose era, operator territory | Arbitrary mounts; today composix creates service-specific FHS role directories indirectly through systemd. |
+| [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/) | ✅ `PrivateTmp`; more ⏳ | ❓ A private `/tmp` and `/var/tmp` does not cover arbitrary tmpfs destinations, sizing, modes, or swap behavior. |
+| [volume drivers / plugins](https://docs.docker.com/engine/extend/plugins_volume/) | ❌ filesystems are the host's business | Portable Compose declarations for remote, encrypted, cloud, clustered, and vendor storage backends; a driver interface. |
+| [`volume prune`](https://docs.docker.com/reference/cli/docker/volume/prune/) / [`volume update`](https://docs.docker.com/reference/cli/docker/volume/update/) | 🔁 role dirs are plain host paths; lifecycle via `systemctl clean` + GC | ❓ Nix GC does not clean mutable role data, and no `cix` command inventories ownership or previews deletion; no safe mutable-data garbage collector. |
+| [`volume create` / `inspect` / `ls` / `rm`](https://docs.docker.com/reference/cli/docker/volume/) | ❓ compose has not defined the named-volume object | ❓ Metadata, sharing, lifecycle, or CLI surface are undefined. |
 
 ## 5. Networking (coarse — the biggest *conscious* gap)
 
-| docker | disposition |
-| --- | --- |
-| [port publish / NAT](https://docs.docker.com/engine/network/port-publishing/) | 🔁 host networking + explicit port allocation (MVP position, part 3). ❓ This gives networked services the host stack and is neither address translation nor per-service exposure control. |
-| [bridge networks and service DNS](https://docs.docker.com/engine/network/drivers/bridge/) | ⏳ compose-era decision (per-slice netns? socket activation?) |
-| [network isolation](https://docs.docker.com/engine/network/) | ✅ coarse today (no ports ⇒ `PrivateNetwork`); finer ⏳. ❓ A binary no-network switch does not isolate one networked composix app from another or from host interfaces. |
-| [overlay / multi-host networking](https://docs.docker.com/engine/network/drivers/overlay/) | ❌ now; k8s-lite ambitions much later. Given up: encrypted multi-daemon service networks and the basis for multi-host orchestration. |
-| [`--link` (legacy)](https://docs.docker.com/engine/network/links/) | ❌ legacy environment/hosts coupling is refused. Given up is minor because Docker itself recommends user-defined networks. |
-| [`network create` / `connect` / `disconnect` / `inspect` / `ls` / `prune` / `rm`](https://docs.docker.com/reference/cli/docker/network/) | ❓ there is no composix network object or lifecycle surface |
-| [host, none, macvlan, ipvlan network drivers](https://docs.docker.com/engine/network/drivers/) | ❓ the ledger only discusses bridge and overlay; decide whether these modes are unsupported, operator overrides, or future capabilities |
-
-**Residuals.** Docker supplies per-container network namespaces, bridge/NAT, user-defined network
-objects, embedded DNS, aliases, IPAM, several local drivers, overlay networks, inspection, and
-connect/disconnect lifecycle. composix only denies networking entirely or places the service on
-the host network. Part 3 explicitly chooses host networking for its MVP and merely opens the
-per-slice-netns question, so neither D9 nor another current decision closes this gap.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [port publish / NAT](https://docs.docker.com/engine/network/port-publishing/) | 🔁 host networking + explicit port allocation (MVP position, part 3) | ❓ Networked services get the host stack: no address translation or per-service exposure control. |
+| [bridge networks and service DNS](https://docs.docker.com/engine/network/drivers/bridge/) | ⏳ compose-era decision (per-slice netns? socket activation?) | Per-container namespaces, bridge networks, user-defined networks, embedded DNS, aliases, and IPAM. |
+| [network isolation](https://docs.docker.com/engine/network/) | ✅ coarse today (no ports ⇒ `PrivateNetwork`); finer ⏳ | ❓ A binary no-network switch does not isolate one networked composix app from another or from host interfaces. |
+| [overlay / multi-host networking](https://docs.docker.com/engine/network/drivers/overlay/) | ❌ now; k8s-lite ambitions much later | Encrypted multi-daemon service networks and the basis for multi-host orchestration. |
+| [`--link` (legacy)](https://docs.docker.com/engine/network/links/) | ❌ legacy environment/hosts coupling is refused | Legacy environment/hosts coupling (minor: Docker recommends user-defined networks). |
+| [`network create` / `connect` / `disconnect` / `inspect` / `ls` / `prune` / `rm`](https://docs.docker.com/reference/cli/docker/network/) | ❓ no composix network object | ❓ No lifecycle surface: create, inspect, connect/disconnect, list, prune, or remove. |
+| [host, none, macvlan, ipvlan network drivers](https://docs.docker.com/engine/network/drivers/) | ❓ the ledger only discusses bridge and overlay | ❓ Decide whether these modes are unsupported, operator overrides, or future capabilities. |
 
 ## 6. Compose (activation mechanism designed; product absent)
 
-| docker | disposition |
-| --- | --- |
+| docker | disposition | still missing |
+| --- | --- | --- |
 Nothing in this section is built; every 🔁/✅ below grades the *design* (D9). One sentence
 covers what would otherwise be ten rows of ❓: the entire user-facing compose surface —
 language, `up`/`down`/rollback commands, validation/dry-run, per-composite observation
 (`ps`/`logs`/`stats`), one-offs (`run`/`exec`/`cp`), multi-file merging, and distributing
 composite definitions — exists only as the D9 mechanism sketch and is part-3 work.
 
-| docker | disposition |
-| --- | --- |
-| [Compose services](https://docs.docker.com/reference/compose-file/services/) | 🔁 part 3; surface language TBD (prototyping planned) |
-| [`depends_on` / ordering](https://docs.docker.com/reference/compose-file/services/#depends_on) | ⏳ systemd `After`/`Wants` natively. ❓ Compose also has health/completion conditions; map failure and restart propagation, not just ordering. |
-| [scale / replicas](https://docs.docker.com/reference/cli/docker/compose/scale/) | ⏳ template units (`@n`) |
-| [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | ⏳ `LoadCredential=` (D20b: operator territory) |
-| [resource limits](https://docs.docker.com/reference/compose-file/deploy/#resources) | ⏳ slice properties, natively |
-| [project namespacing](https://docs.docker.com/compose/how-tos/project-name/) | 🔁 designed: `cix-<composite>.slice`/`.target` |
-| [`up`](https://docs.docker.com/reference/cli/docker/compose/up/) / [`down`](https://docs.docker.com/reference/cli/docker/compose/down/) / rollback | 🔁 designed: resolve→lock→build→activate, per-composite profiles (D9) |
-| [`watch` (dev mode)](https://docs.docker.com/compose/how-tos/file-watch/) | ❓ interesting dev loop, unscoped |
-| [profiles](https://docs.docker.com/reference/compose-file/profiles/) | ❓ decide selection, dependency validation, and lock/profile interaction |
-| [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ compose config story (`ConfigurationDirectory` content) |
-| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ❓ object identity, external resources, and lifecycle are undesigned — the named-volume analog especially |
-| [`version` marker (obsolete)](https://docs.docker.com/reference/compose-file/version-and-name/#version-top-level-element-obsolete) | ❌ |
-
-**Residuals.** Docker Compose is implemented and widely deployed; composix compose is a
-mechanism sketch with good bones (atomic activation + rollback via profiles is something
-compose itself lacks). The gap is the whole product surface, and it is the project's next
-major phase.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [Compose services](https://docs.docker.com/reference/compose-file/services/) | 🔁 part 3; surface language TBD (prototyping planned) | An implemented, widely deployed Compose product; composix is only a D9 mechanism sketch. |
+| [`depends_on` / ordering](https://docs.docker.com/reference/compose-file/services/#depends_on) | ⏳ systemd `After`/`Wants` natively | ❓ Compose also has health/completion conditions; map failure and restart propagation, not just ordering. |
+| [scale / replicas](https://docs.docker.com/reference/cli/docker/compose/scale/) | ⏳ template units (`@n`) | — |
+| [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | ⏳ `LoadCredential=` (D20b: operator territory) | — |
+| [resource limits](https://docs.docker.com/reference/compose-file/deploy/#resources) | ⏳ slice properties, natively | — |
+| [project namespacing](https://docs.docker.com/compose/how-tos/project-name/) | 🔁 designed: `cix-<composite>.slice`/`.target` | — |
+| [`up`](https://docs.docker.com/reference/cli/docker/compose/up/) / [`down`](https://docs.docker.com/reference/cli/docker/compose/down/) / rollback | 🔁 designed: resolve→lock→build→activate, per-composite profiles (D9) | User-facing commands, validation/dry-run, observation, one-offs, multi-file merging, and distributing composite definitions remain part-3 work. |
+| [`watch` (dev mode)](https://docs.docker.com/compose/how-tos/file-watch/) | ❓ interesting dev loop, unscoped | ❓ Unscoped. |
+| [profiles](https://docs.docker.com/reference/compose-file/profiles/) | ❓ | ❓ Decide selection, dependency validation, and lock/profile interaction. |
+| [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ compose config story (`ConfigurationDirectory` content) | — |
+| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ❓ | ❓ Object identity, external resources, and lifecycle are undesigned — the named-volume analog especially. |
+| [`version` marker (obsolete)](https://docs.docker.com/reference/compose-file/version-and-name/#version-top-level-element-obsolete) | ❌ | — |
 
 ## 7. Daemon & platform
 
