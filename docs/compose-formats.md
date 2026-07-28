@@ -99,21 +99,26 @@ is stale:
   There is no nginx or nginx configuration in this deployment.
 - The dashboard reads PostgreSQL on `data-host:5432`, dataplane gRPC on
   `data-host:50051`, Chain WebSocket RPC on `archive-host:9944`, and a
-  read-only bot-log rsync module on `host-c:8873`.
+  read-only bot-log rsync module on `host-c:8873`. It also needs outbound
+  HTTPS for GitHub identities, subnet images, and optionally ntfy/Slack.
 - Mutable data is cache/state, not a database owned by this deployment:
   block views, subnet assets, opportunity shards, analysis results, mirrored
-  bot logs, and small user metadata. The deployed cache root is
-  `/var/cache/host-dashboard`, backed by a Btrfs subvolume with a `10G` quota;
-  service home/state is `/var/lib/host-dashboard`.
+  bot logs, and small user metadata. The active `dashboard-deploy` path uses
+  `/home/mthq/.cache/host-dashboard-block-cache` for block/opportunity/analysis
+  data, backed by a Btrfs subvolume with a `10G` quota, and other caches below
+  `/home/mthq/.cache`. A separate checked-in NixOS module uses
+  `/var/cache/host-dashboard`; that is not the user-service deployment modeled
+  here.
 
 The prototype models one runtime service,
 `cix.example.com/host-dashboard:latest#dashboard`, with `watch` update policy. It
 overrides the declared listener and upstream settings, maps the
 spec-declared `DATABASE_URL` secret to a credential sourced from
 `/run/keys/host-dashboard-database-url`, and attaches to an externally realized
-`tunnelnet` network. Four `talks-to` edges grant the observed outbound
-dependencies. The composite publishes only its host-loopback `8787` origin;
-the already-installed the host tunnel daemon's `80`/`443` exposure remains explicit
+`tunnelnet` plus a local egress network. Four `talks-to` edges grant the observed
+tunnelnet dependencies and one grants public HTTPS egress. The composite
+publishes only its host-loopback `8787` origin. The already-installed the host tunnel
+daemon's `80`/`443` exposure remains explicit
 external host configuration, not a fictional nginx service.
 
 This is a faithful deployment model, not a transcription of the repository's
@@ -208,6 +213,11 @@ name = "host-dashboard"
 driver = "host-tunnel"
 external = true
 
+[networks.egress]
+driver = "bridge"
+subnet = "10.42.30.0/24"
+egress = true
+
 [endpoints.postgres]
 address = "data-host:5432"
 network = "tunnelnet"
@@ -224,13 +234,18 @@ network = "tunnelnet"
 address = "host-c:8873"
 network = "tunnelnet"
 
+[endpoints.public_https]
+address = "0.0.0.0/0"
+port = 443
+network = "egress"
+
 [credentials.database_url]
 source = "/run/keys/host-dashboard-database-url"
 
 [services.dashboard]
 ref = "cix.example.com/host-dashboard:latest#dashboard"
 update = "watch"
-networks = ["tunnelnet"]
+networks = ["tunnelnet", "egress"]
 
 [services.dashboard.credentials]
 DATABASE_URL = "database_url"
@@ -240,10 +255,16 @@ DASHBOARD_LISTEN = "127.0.0.1:8787"
 DATAPLANE_GRPC_URL = "http://data-host:50051"
 CHAIN_RPC_URL = "ws://archive-host:9944"
 APP_BOT_LOG_RSYNC_SOURCE = "rsync://host-c:8873/bot-logs/"
+DASHBOARD_BLOCK_CACHE = "/var/cache/host-dashboard-block-cache/block-views"
+DASHBOARD_SUBNET_ASSET_CACHE = "/var/cache/host-dashboard/subnets"
+APP_MEV_ANALYSIS_CACHE_DIR = "/var/cache/host-dashboard-block-cache/opportunities"
+APP_MEV_ANALYSIS_RESULT_CACHE_DIR = "/var/cache/host-dashboard-block-cache/analysis-results"
+APP_BOT_LOG_CACHE_DIR = "/var/cache/the-org/bot-logs/host-c"
 
 [services.dashboard.override.dirs]
-"/var/lib/host-dashboard" = { host = "/var/lib/host-dashboard" }
-"/var/cache/host-dashboard" = { host = "/var/cache/host-dashboard", quota = "10G" }
+"/var/cache/host-dashboard-block-cache" = { host = "/home/mthq/.cache/host-dashboard-block-cache", quota = "10G" }
+"/var/cache/host-dashboard" = { host = "/home/mthq/.cache/host-dashboard" }
+"/var/cache/the-org" = { host = "/home/mthq/.cache/the-org" }
 
 # Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
 [publishes.origin]
@@ -270,6 +291,11 @@ via = "network.tunnelnet"
 from = "dashboard"
 to = "endpoint.bot_logs"
 via = "network.tunnelnet"
+
+[[talks_to]]
+from = "dashboard"
+to = "endpoint.public_https"
+via = "network.egress"
 ```
 
 #### Scenario 3
@@ -501,6 +527,10 @@ networks:
   tunnelnet:
     driver: host-tunnel
     external: true
+  egress:
+    driver: bridge
+    subnet: 10.42.30.0/24
+    egress: true
 
 endpoints:
   postgres:
@@ -515,6 +545,10 @@ endpoints:
   bot-logs:
     address: host-c:8873
     network: tunnelnet
+  public-https:
+    address: 0.0.0.0/0
+    port: 443
+    network: egress
 
 credentials:
   database-url:
@@ -524,7 +558,7 @@ services:
   dashboard:
     ref: cix.example.com/host-dashboard:latest#dashboard
     update: watch
-    networks: [tunnelnet]
+    networks: [tunnelnet, egress]
     credentials:
       DATABASE_URL: database-url
     override:
@@ -533,12 +567,19 @@ services:
         DATAPLANE_GRPC_URL: http://data-host:50051
         CHAIN_RPC_URL: ws://archive-host:9944
         APP_BOT_LOG_RSYNC_SOURCE: rsync://host-c:8873/bot-logs/
+        DASHBOARD_BLOCK_CACHE: /var/cache/host-dashboard-block-cache/block-views
+        DASHBOARD_SUBNET_ASSET_CACHE: /var/cache/host-dashboard/subnets
+        APP_MEV_ANALYSIS_CACHE_DIR: /var/cache/host-dashboard-block-cache/opportunities
+        APP_MEV_ANALYSIS_RESULT_CACHE_DIR: /var/cache/host-dashboard-block-cache/analysis-results
+        APP_BOT_LOG_CACHE_DIR: /var/cache/the-org/bot-logs/host-c
       dirs:
-        /var/lib/host-dashboard:
-          host: /var/lib/host-dashboard
-        /var/cache/host-dashboard:
-          host: /var/cache/host-dashboard
+        /var/cache/host-dashboard-block-cache:
+          host: /home/mthq/.cache/host-dashboard-block-cache
           quota: 10G
+        /var/cache/host-dashboard:
+          host: /home/mthq/.cache/host-dashboard
+        /var/cache/the-org:
+          host: /home/mthq/.cache/the-org
 
 publishes:
   # Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
@@ -552,6 +593,7 @@ talks-to:
   - { from: dashboard, to: endpoint.dataplane, via: network.tunnelnet }
   - { from: dashboard, to: endpoint.chain, via: network.tunnelnet }
   - { from: dashboard, to: endpoint.bot-logs, via: network.tunnelnet }
+  - { from: dashboard, to: endpoint.public-https, via: network.egress }
 ```
 
 #### Scenario 3
@@ -768,6 +810,11 @@ in
     driver = "host-tunnel";
     external = true;
   };
+  networks.egress = {
+    driver = "bridge";
+    subnet = "10.42.30.0/24";
+    egress = true;
+  };
 
   endpoints = {
     postgres = {
@@ -786,6 +833,11 @@ in
       address = "${botHost}:8873";
       network = "tunnelnet";
     };
+    public-https = {
+      address = "0.0.0.0/0";
+      port = 443;
+      network = "egress";
+    };
   };
 
   credentials.database-url.source =
@@ -794,7 +846,7 @@ in
   services.dashboard = {
     ref = "cix.example.com/host-dashboard:latest#dashboard";
     update = "watch";
-    networks = [ "tunnelnet" ];
+    networks = [ "tunnelnet" "egress" ];
     credentials.DATABASE_URL = "database-url";
     override = {
       env = {
@@ -803,13 +855,25 @@ in
         CHAIN_RPC_URL = "ws://${archiveHost}:9944";
         APP_BOT_LOG_RSYNC_SOURCE =
           "rsync://${botHost}:8873/bot-logs/";
+        DASHBOARD_BLOCK_CACHE =
+          "/var/cache/host-dashboard-block-cache/block-views";
+        DASHBOARD_SUBNET_ASSET_CACHE =
+          "/var/cache/host-dashboard/subnets";
+        APP_MEV_ANALYSIS_CACHE_DIR =
+          "/var/cache/host-dashboard-block-cache/opportunities";
+        APP_MEV_ANALYSIS_RESULT_CACHE_DIR =
+          "/var/cache/host-dashboard-block-cache/analysis-results";
+        APP_BOT_LOG_CACHE_DIR = "/var/cache/the-org/bot-logs/host-c";
       };
       dirs = {
-        "/var/lib/host-dashboard".host = "/var/lib/host-dashboard";
-        "/var/cache/host-dashboard" = {
-          host = "/var/cache/host-dashboard";
+        "/var/cache/host-dashboard-block-cache" = {
+          host = "/home/mthq/.cache/host-dashboard-block-cache";
           quota = "10G";
         };
+        "/var/cache/host-dashboard" = {
+          host = "/home/mthq/.cache/host-dashboard";
+        };
+        "/var/cache/the-org".host = "/home/mthq/.cache/the-org";
       };
     };
   };
@@ -841,6 +905,11 @@ in
       from = "dashboard";
       to = "endpoint.bot-logs";
       via = "network.tunnelnet";
+    }
+    {
+      from = "dashboard";
+      to = "endpoint.public-https";
+      via = "network.egress";
     }
   ];
 }
@@ -1084,24 +1153,32 @@ COMPOSITE host-dashboard
 
 # the host tunnel itself is existing host infrastructure, not a service invented here.
 NETWORK tunnelnet DRIVER host-tunnel EXTERNAL
+NETWORK egress DRIVER bridge SUBNET 10.42.30.0/24 EGRESS
 
 ENDPOINT postgres ADDRESS data-host:5432 NETWORK tunnelnet
 ENDPOINT dataplane ADDRESS data-host:50051 NETWORK tunnelnet
 ENDPOINT chain ADDRESS archive-host:9944 NETWORK tunnelnet
 ENDPOINT bot-logs ADDRESS host-c:8873 NETWORK tunnelnet
+ENDPOINT public-https CIDR 0.0.0.0/0 PORT 443 NETWORK egress
 
 CREDENTIAL database-url FILE /run/keys/host-dashboard-database-url
 
 SERVICE dashboard cix.example.com/host-dashboard:latest#dashboard
   UPDATE watch
-  JOINS tunnelnet
+  JOINS tunnelnet egress
   SECRET DATABASE_URL FROM database-url
   OVERRIDE ENV DASHBOARD_LISTEN = 127.0.0.1:8787
   OVERRIDE ENV DATAPLANE_GRPC_URL = http://data-host:50051
   OVERRIDE ENV CHAIN_RPC_URL = ws://archive-host:9944
   OVERRIDE ENV APP_BOT_LOG_RSYNC_SOURCE = rsync://host-c:8873/bot-logs/
-  OVERRIDE DIR /var/lib/host-dashboard = /var/lib/host-dashboard
-  OVERRIDE DIR /var/cache/host-dashboard = /var/cache/host-dashboard QUOTA 10G
+  OVERRIDE ENV DASHBOARD_BLOCK_CACHE = /var/cache/host-dashboard-block-cache/block-views
+  OVERRIDE ENV DASHBOARD_SUBNET_ASSET_CACHE = /var/cache/host-dashboard/subnets
+  OVERRIDE ENV APP_MEV_ANALYSIS_CACHE_DIR = /var/cache/host-dashboard-block-cache/opportunities
+  OVERRIDE ENV APP_MEV_ANALYSIS_RESULT_CACHE_DIR = /var/cache/host-dashboard-block-cache/analysis-results
+  OVERRIDE ENV APP_BOT_LOG_CACHE_DIR = /var/cache/the-org/bot-logs/host-c
+  OVERRIDE DIR /var/cache/host-dashboard-block-cache = /home/mthq/.cache/host-dashboard-block-cache QUOTA 10G
+  OVERRIDE DIR /var/cache/host-dashboard = /home/mthq/.cache/host-dashboard
+  OVERRIDE DIR /var/cache/the-org = /home/mthq/.cache/the-org
 
 # Existing the host tunnel Serve forwards tunnelnet :80/:443 to this host-loopback origin.
 PUBLISH origin FROM dashboard.http LISTEN 127.0.0.1:8787 MODE proxy
@@ -1110,6 +1187,7 @@ TALKS-TO dashboard -> endpoint.postgres VIA network.tunnelnet
 TALKS-TO dashboard -> endpoint.dataplane VIA network.tunnelnet
 TALKS-TO dashboard -> endpoint.chain VIA network.tunnelnet
 TALKS-TO dashboard -> endpoint.bot-logs VIA network.tunnelnet
+TALKS-TO dashboard -> endpoint.public-https VIA network.egress
 ```
 
 #### Scenario 3
