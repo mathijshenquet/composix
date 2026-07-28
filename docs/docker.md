@@ -197,89 +197,60 @@ composite definitions — exists only as the D9 mechanism sketch and is part-3 w
 
 ## 7. Daemon & platform
 
-| docker | disposition |
-| --- | --- |
-| [`dockerd` (the daemon)](https://docs.docker.com/reference/cli/dockerd/) | ❌ systemd is the runtime; `cix` is a CLI + later a small reconciler (D9). Given up: one versioned engine API owning lifecycle, images, networks, volumes, events, metrics, and remote automation. |
-| [`docker context` / remote hosts](https://docs.docker.com/reference/cli/docker/context/) | ❓ ssh is the transport today; `cix --host` sugar maybe ⏳ |
-| [events API](https://docs.docker.com/reference/cli/docker/system/events/) | 🔁 journald/systemd events |
-| [logging drivers](https://docs.docker.com/engine/logging/configure/) | ❌ journald; forwarding is journald's job. Given up: per-workload selection and portable Compose configuration for JSON, syslog, Fluentd, GELF, cloud, and plugin drivers. |
-| [storage drivers](https://docs.docker.com/engine/storage/drivers/select-storage-driver/) | ❌ the Nix store. Given up: platform/filesystem-specific runtime-layer choices and compatibility with Docker's mutable container filesystems. |
-| [plugins](https://docs.docker.com/engine/extend/) | ❌ no plugin interface. Given up: third-party volume, network, authorization, logging, and other daemon extensions. |
-| [rootless mode](https://docs.docker.com/engine/security/rootless/) | 🔁 `--user` degraded dev mode exists (D13); full rootless is not a goal |
-| [Docker Desktop / GUI](https://docs.docker.com/desktop/) | ❌ no desktop product. Given up: supported macOS/Windows development, managed VM/updates, file sharing, proxy/VPN handling, credential integration, GUI diagnostics, extensions, and optional Kubernetes. |
-| [`system df` / `info` / `prune`](https://docs.docker.com/reference/cli/docker/system/) | ❓ no unified disk-usage, capability/status, or safe unused-resource cleanup view exists |
-| [Docker Engine API and SDKs](https://docs.docker.com/reference/api/engine/) | ❓ D9 mentions a reconciler but no stable local/remote API, compatibility policy, or client libraries |
-| [CLI configuration, credential stores, proxies, TLS](https://docs.docker.com/reference/cli/docker/#configuration-files) | ❓ the index has signing/auth fields but no complete client configuration and credential-management model |
-| [Docker Offload](https://docs.docker.com/offload/) | ❓ the Docker CLI can offload builds and runs to cloud infrastructure; decide whether this is rejected, delegated to Nix builders, or a future remote-runtime feature |
-
-**Residuals.** Docker offers a stable engine API and SDK ecosystem, remote contexts, typed events,
-system-wide inspection and cleanup, pluggable logging/storage/authorization, a materially complete
-rootless mode, and Desktop products on macOS, Windows, and Linux. composix delegates fragments to
-systemd, journald, SSH, and Nix without a unifying API. D2 intentionally accepts root-managed
-Linux/systemd only, D13 explicitly degrades rootless use, and D9's future reconciler covers
-activation rather than this platform surface.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [`dockerd` (the daemon)](https://docs.docker.com/reference/cli/dockerd/) | ❌ systemd is the runtime; `cix` is a CLI + later a small reconciler (D9) | One versioned engine API owning lifecycle, images, networks, volumes, events, metrics, and remote automation; a unifying platform surface. |
+| [`docker context` / remote hosts](https://docs.docker.com/reference/cli/docker/context/) | ❓ ssh is the transport today; `cix --host` sugar maybe ⏳ | ❓ Remote contexts. |
+| [events API](https://docs.docker.com/reference/cli/docker/system/events/) | 🔁 journald/systemd events | Typed events API. |
+| [logging drivers](https://docs.docker.com/engine/logging/configure/) | ❌ journald; forwarding is journald's job | Per-workload selection and portable Compose configuration for JSON, syslog, Fluentd, GELF, cloud, and plugin drivers. |
+| [storage drivers](https://docs.docker.com/engine/storage/drivers/select-storage-driver/) | ❌ the Nix store | Platform/filesystem-specific runtime-layer choices and compatibility with Docker's mutable container filesystems. |
+| [plugins](https://docs.docker.com/engine/extend/) | ❌ no plugin interface | Third-party volume, network, authorization, logging, and other daemon extensions. |
+| [rootless mode](https://docs.docker.com/engine/security/rootless/) | 🔁 `--user` degraded dev mode exists (D13); full rootless is not a goal | A materially complete rootless mode. |
+| [Docker Desktop / GUI](https://docs.docker.com/desktop/) | ❌ no desktop product | Supported macOS/Windows development, managed VM/updates, file sharing, proxy/VPN handling, credential integration, GUI diagnostics, extensions, and optional Kubernetes. |
+| [`system df` / `info` / `prune`](https://docs.docker.com/reference/cli/docker/system/) | ❓ | ❓ No unified disk-usage, capability/status, or safe unused-resource cleanup view. |
+| [Docker Engine API and SDKs](https://docs.docker.com/reference/api/engine/) | ❓ D9 mentions a reconciler | ❓ No stable local/remote API, compatibility policy, or client libraries. |
+| [CLI configuration, credential stores, proxies, TLS](https://docs.docker.com/reference/cli/docker/#configuration-files) | ❓ the index has signing/auth fields | ❓ No complete client configuration or credential-management model. |
+| [Docker Offload](https://docs.docker.com/offload/) | ❓ | ❓ Decide whether cloud build/run offload is rejected, delegated to Nix builders, or a future remote-runtime feature. |
 
 ## 8. Orchestration (swarm)
 
-| docker | disposition |
-| --- | --- |
-| [Swarm mode](https://docs.docker.com/engine/swarm/) | ❌ wholesale; composix is single-host. Given up: clustered desired state, managers/workers, scheduling, reconciliation, rolling updates, service discovery, mutual TLS, and failure rescheduling. |
-| [`docker node`](https://docs.docker.com/reference/cli/docker/node/) | ❌ no cluster membership, availability, labels, promotion/demotion, drain, or node inspection |
-| [`docker service`](https://docs.docker.com/reference/cli/docker/service/) | ❌ no replicated/global service object, placement, update/rollback, endpoint, or service logs |
-| [`docker stack`](https://docs.docker.com/reference/cli/docker/stack/) | ❌ no multi-node Compose deployment or stack lifecycle |
-| [Swarm configs](https://docs.docker.com/reference/cli/docker/config/) | ❌ no cluster config distribution; compose-level local configuration is only deferred |
-| [Swarm secrets](https://docs.docker.com/reference/cli/docker/secret/) | ❌ no encrypted cluster secret distribution; local `LoadCredential=` delivery is only deferred |
-
-**Residuals.** Docker Swarm has multi-node desired-state reconciliation, placement, encrypted
-manager/worker membership, rolling updates and rollback, service VIP/DNS, overlay networks,
-configs, secrets, and stack deployment. composix rejects all of that today. Calling D9 a
-“k8s-lite seed” supplies no current capability, and its fixed mechanism is single-host; nothing in
-the plan actually covers host failure or workload rescheduling.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [Swarm mode](https://docs.docker.com/engine/swarm/) | ❌ wholesale; composix is single-host | Clustered desired state, managers/workers, scheduling, reconciliation, rolling updates, service discovery, mutual TLS, and failure rescheduling. |
+| [`docker node`](https://docs.docker.com/reference/cli/docker/node/) | ❌ no cluster membership, availability, labels, promotion/demotion, drain, or node inspection | Encrypted manager/worker membership and node lifecycle. |
+| [`docker service`](https://docs.docker.com/reference/cli/docker/service/) | ❌ no replicated/global service object, placement, update/rollback, endpoint, or service logs | Placement, service VIP/DNS, host-failure recovery, and workload rescheduling. |
+| [`docker stack`](https://docs.docker.com/reference/cli/docker/stack/) | ❌ no multi-node Compose deployment or stack lifecycle | Multi-node Compose deployment and stack lifecycle. |
+| [Swarm configs](https://docs.docker.com/reference/cli/docker/config/) | ❌ no cluster config distribution; compose-level local configuration is only deferred | Cluster config distribution. |
+| [Swarm secrets](https://docs.docker.com/reference/cli/docker/secret/) | ❌ no encrypted cluster secret distribution; local `LoadCredential=` delivery is only deferred | Encrypted cluster secret distribution. |
 
 ## 9. Security
 
-| docker | disposition |
-| --- | --- |
-| [seccomp profiles](https://docs.docker.com/engine/security/seccomp/) | ✅ `SystemCallFilter=@system-service` default; custom profiles ❌ (D20a) |
-| [capabilities (`--cap-add`)](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) | ✅ semantic grants only (for example, a port below 1024 ⇒ `NET_BIND_SERVICE`, spec v2). ❓ One implemented semantic grant is not coverage of real workloads that need other narrowly scoped capabilities. |
-| [userns-remap](https://docs.docker.com/engine/security/userns-remap/) | ✅ `DynamicUser` + idmapped mounts. ❓ sharp catch: our services do NOT run in a user namespace — the containment boundary differs from docker's userns; verify before claiming parity (see Evidence). |
-| [AppArmor](https://docs.docker.com/engine/security/apparmor/) / [SELinux](https://docs.docker.com/engine/storage/bind-mounts/#configure-the-selinux-label) | ❓ host policy, likely out of spec scope; define labeling/profile behavior for store items and managed writable directories |
-| [secrets](https://docs.docker.com/compose/how-tos/use-secrets/) | ⏳ `LoadCredential=`, compose era |
-| [SBOM / vulnerability scanning (Scout)](https://docs.docker.com/scout/) | 🔁 the closure is an exact dependency inventory; tooling ⏳. ❓ closure ≠ SPDX/CycloneDX and there is no CVE matcher — decide whether to emit standard SBOMs (cheap, likely worth it). |
-| [provenance / attestations](https://docs.docker.com/build/metadata/attestations/slsa-provenance/) | 🔁 `drvPath` + path signatures carry real provenance; a standard exchange format (SLSA-shaped) ⏳ |
-| [authorization plugins](https://docs.docker.com/engine/extend/plugins_authorization/) | ❓ rejecting plugins leaves no stated policy-enforcement point for a future server/reconciler API |
-| [Docker Desktop Enhanced Container Isolation](https://docs.docker.com/enterprise/security/hardened-desktop/enhanced-container-isolation/) | ❓ the ledger has no comparable VM/user-namespace boundary or enterprise policy/control plane; decide whether that entire threat model is out of scope |
-
-**Residuals.** Docker's defaults and controls have years of deployment exposure, documented
-seccomp/AppArmor behavior, capability and user-namespace controls, rootless operation, secrets,
-authorization plugins, SBOM/provenance standards, registry-integrated scanning, and enterprise
-Desktop isolation. composix's generated systemd sandbox may ultimately be narrower and safer for
-its service niche, but today it has two application examples, no published threat model or audit,
-no compatibility corpus, no scanner, and no policy engine. D20a deliberately rejects raw
-exceptions; it does not demonstrate that the semantic grant vocabulary is complete. D20b plans
-secret delivery only after compose exists.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [seccomp profiles](https://docs.docker.com/engine/security/seccomp/) | ✅ `SystemCallFilter=@system-service` default; custom profiles ❌ (D20a) | Years of deployment exposure and published seccomp behavior; composix has no published threat model, audit, or compatibility corpus. |
+| [capabilities (`--cap-add`)](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) | ✅ semantic grants only (for example, a port below 1024 ⇒ `NET_BIND_SERVICE`, spec v2) | ❓ One implemented semantic grant is not coverage of real workloads that need other narrowly scoped capabilities. |
+| [userns-remap](https://docs.docker.com/engine/security/userns-remap/) | ✅ `DynamicUser` + idmapped mounts | ❓ Services do not run in a user namespace—the containment boundary differs from Docker's userns; verify before claiming parity (see Evidence). |
+| [AppArmor](https://docs.docker.com/engine/security/apparmor/) / [SELinux](https://docs.docker.com/engine/storage/bind-mounts/#configure-the-selinux-label) | ❓ host policy, likely out of spec scope | ❓ Define labeling/profile behavior for store items and managed writable directories. |
+| [secrets](https://docs.docker.com/compose/how-tos/use-secrets/) | ⏳ `LoadCredential=`, compose era | Secret delivery today. |
+| [SBOM / vulnerability scanning (Scout)](https://docs.docker.com/scout/) | 🔁 the closure is an exact dependency inventory; tooling ⏳ | ❓ A closure is not SPDX/CycloneDX; there is no CVE matcher, standard SBOM, or registry-integrated scanner. |
+| [provenance / attestations](https://docs.docker.com/build/metadata/attestations/slsa-provenance/) | 🔁 `drvPath` + path signatures carry real provenance; a standard exchange format (SLSA-shaped) ⏳ | Standard provenance/attestation exchange format. |
+| [authorization plugins](https://docs.docker.com/engine/extend/plugins_authorization/) | ❓ rejecting plugins | ❓ No stated policy-enforcement point for a future server/reconciler API. |
+| [Docker Desktop Enhanced Container Isolation](https://docs.docker.com/enterprise/security/hardened-desktop/enhanced-container-isolation/) | ❓ | ❓ No comparable VM/user-namespace boundary or enterprise policy/control plane; decide whether that threat model is out of scope. |
 
 ## 10. Hub & ecosystem
 
-| docker | disposition |
-| --- | --- |
-| [Hub search / explore](https://docs.docker.com/docker-hub/image-library/) | ⏳ the serve pages (D18) are the seed of “explore” |
-| [`docker dhi` (hardened images)](https://docs.docker.com/reference/cli/docker/dhi/) / [`docker model` (AI artifacts)](https://docs.docker.com/reference/cli/docker/model/) | ❌ product catalog features, not runtime concepts. Given up: Docker's maintained hardened supply chain and turnkey local model packaging/execution, regardless of whether composix calls them “runtime” concepts. |
-| [automated builds](https://docs.docker.com/docker-hub/repos/manage/builds/) | ❌ CI's job. Given up: repository-integrated source triggers, build rules, status, and a hosted path from commit to published artifact. |
-| [misc CLI: `diff`](https://docs.docker.com/reference/cli/docker/container/diff/), [`export`](https://docs.docker.com/reference/cli/docker/container/export/), [`import`](https://docs.docker.com/reference/cli/docker/image/import/), [`rename`](https://docs.docker.com/reference/cli/docker/container/rename/) | ❌ artifacts are immutable store items. Given up: runtime filesystem diff/export, rootfs import, and mutable container handles; immutability only explains the choice. |
-| [`wait`](https://docs.docker.com/reference/cli/docker/container/wait/), [`port`](https://docs.docker.com/reference/cli/docker/container/port/), [`version`](https://docs.docker.com/reference/cli/docker/version/), [`info`](https://docs.docker.com/reference/cli/docker/system/info/) | 🔁 trivial equivalents where useful |
-| [`docker search`](https://docs.docker.com/reference/cli/docker/search/) | ❓ D18 serves one index's listing but there is no federated/catalog search, ranking, trust metadata, or discovery across indexes |
-| [Hub organizations, access, webhooks, and repository management](https://docs.docker.com/docker-hub/repos/) | ❓ D17 defers server authorization and does not cover teams, roles, private repositories, audit, lifecycle policies, or event integration |
-| [`docker scout`](https://docs.docker.com/reference/cli/docker/scout/) | ❓ closure metadata could feed future analysis, but no vulnerability, policy, comparison, recommendation, or remediation command exists |
-| [`docker mcp`](https://docs.docker.com/reference/cli/docker/mcp/) | ❓ newly present in the Docker CLI index; decide whether MCP catalog/toolkit integration is irrelevant, external, or a composix ecosystem concern |
-| [`docker pass`](https://docs.docker.com/reference/cli/docker/pass/) | ❓ newly present in the Docker CLI index; composix has no local OS-keychain secret-management surface |
-
-**Residuals.** Docker brings millions of discoverable images, trusted catalogs, organizations and
-access controls, webhooks, hosted automated builds, vulnerability analysis, CI/IDE/SDK and
-Testcontainers integrations, credential tooling, and a large installed community. composix has a
-single-server HTML listing and two examples. D18 provides a sound seed for browsing one index,
-but no current or planned decision closes the catalog, governance, security-intelligence, or
-integration-scale gap.
+| docker | disposition | still missing |
+| --- | --- | --- |
+| [Hub search / explore](https://docs.docker.com/docker-hub/image-library/) | ⏳ the serve pages (D18) are the seed of “explore” | Millions of discoverable images, trusted catalogs, CI/IDE/SDK and Testcontainers integrations, and a large installed community; composix has one HTML listing and two examples. |
+| [`docker dhi` (hardened images)](https://docs.docker.com/reference/cli/docker/dhi/) / [`docker model` (AI artifacts)](https://docs.docker.com/reference/cli/docker/model/) | ❌ product catalog features, not runtime concepts | Docker's maintained hardened supply chain and turnkey local model packaging/execution. |
+| [automated builds](https://docs.docker.com/docker-hub/repos/manage/builds/) | ❌ CI's job | Repository-integrated source triggers, build rules, status, and a hosted path from commit to published artifact. |
+| [misc CLI: `diff`](https://docs.docker.com/reference/cli/docker/container/diff/), [`export`](https://docs.docker.com/reference/cli/docker/container/export/), [`import`](https://docs.docker.com/reference/cli/docker/image/import/), [`rename`](https://docs.docker.com/reference/cli/docker/container/rename/) | ❌ artifacts are immutable store items | Runtime filesystem diff/export, rootfs import, and mutable container handles. |
+| [`wait`](https://docs.docker.com/reference/cli/docker/container/wait/), [`port`](https://docs.docker.com/reference/cli/docker/container/port/), [`version`](https://docs.docker.com/reference/cli/docker/version/), [`info`](https://docs.docker.com/reference/cli/docker/system/info/) | 🔁 trivial equivalents where useful | — |
+| [`docker search`](https://docs.docker.com/reference/cli/docker/search/) | ❓ D18 serves one index's listing | ❓ No federated/catalog search, ranking, trust metadata, or discovery across indexes. |
+| [Hub organizations, access, webhooks, and repository management](https://docs.docker.com/docker-hub/repos/) | ❓ D17 defers server authorization | ❓ No teams, roles, private repositories, audit, lifecycle policies, or event integration. |
+| [`docker scout`](https://docs.docker.com/reference/cli/docker/scout/) | ❓ closure metadata could feed future analysis | ❓ No vulnerability, policy, comparison, recommendation, or remediation command. |
+| [`docker mcp`](https://docs.docker.com/reference/cli/docker/mcp/) | ❓ newly present in the Docker CLI index | ❓ Decide whether MCP catalog/toolkit integration is irrelevant, external, or a composix ecosystem concern. |
+| [`docker pass`](https://docs.docker.com/reference/cli/docker/pass/) | ❓ newly present in the Docker CLI index | ❓ No local OS-keychain secret-management surface. |
 
 The [top-level Docker CLI reference](https://docs.docker.com/reference/cli/docker/) was used as
 the thoroughness checklist. Concepts without an existing composix decision are marked ❓ rather
