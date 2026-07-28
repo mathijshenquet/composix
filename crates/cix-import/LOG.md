@@ -39,3 +39,45 @@
   whiteouts, config mapping, and traversal rejection. `cargo test -p cix-import` and
   `cargo clippy -p cix-import --all-targets -- -D warnings` pass under `devenv shell`.
 - Next: verify the integrated CLI and then exercise real pinned nginx and redis images.
+
+## 2026-07-28 — Real nginx import and run
+
+- Pulled `docker.io/library/nginx:alpine` once with skopeo 1.23.0 into an OCI layout, selecting
+  linux/amd64. Host skopeo had no containers trust-policy file, so this one-time public pull used
+  its explicit `--insecure-policy`; registry transport is not part of the importer.
+- Tested manifest digest:
+  `sha256:1d40e3eb3bf4f138de1d67193f2aa5309fcaf343eb5ffadbf5e9439de1eb1ebb`;
+  config digest:
+  `sha256:f0ba77f796e57c6fa89ae7f4fdad1665d6fcbd8e3f211535120542b337f9959e`.
+  This was nginx 1.31.3, entrypoint `/docker-entrypoint.sh`, command
+  `nginx -g "daemon off;"`, exposed TCP 80, no volumes, `WorkingDir=/`.
+- Offline `cix import <layout> --name nginx` produced
+  `/nix/store/ib41fmr50npn8iwg5sshslv6wl53dh4z-cix-import-nginx` (65 MiB apparent size).
+  Generated exec/env/port metadata matches the config; `WorkingDir=/` is the sole warning.
+- A baseline `RootDirectory=<item>/rootfs` unit with every normal cix hardening control reached
+  the real entrypoint and nginx, then failed on read-only `/var/cache/nginx/client_temp`.
+- `CacheDirectory=cix-import-nginx:nginx` is not a solution under `RootDirectory` on this
+  systemd 257 host: namespace setup fails with `status=226/NAMESPACE`, `File exists`, because
+  the full rootfs already contains `/var/cache/nginx`. This is precisely the projection/idmap
+  mismatch that D11/D22 avoid for native sparse items.
+- The successful unit kept `DynamicUser`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`,
+  `NoNewPrivileges`, `RestrictSUIDSGID`, all kernel/control-group protections,
+  `LockPersonality`, `MemoryDenyWriteExecute`, `SystemCallFilter=@system-service`,
+  `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`, and a bounding+ambient set containing only
+  `CAP_NET_BIND_SERVICE`.
+- Required writable surfaces were ephemeral tmpfs mounts over `/var/cache/nginx`, `/run`, and
+  `/var/log/nginx` (all `rw,nodev,nosuid,mode=1777`). The log mount is needed because Docker's
+  `/var/log/nginx/{access,error}.log -> /dev/std{out,err}` convention does not work with a
+  systemd journal stream: nginx reopening the journal socket through those paths gets `ENXIO`.
+  Consequence: nginx's own logs land in the ephemeral mount rather than journald.
+- The entrypoint's attempted edit of `/etc/nginx/conf.d/default.conf` detected the immutable
+  filesystem and continued. No template directory existed in this image, so no other `/etc`
+  mutation was required. nginx warned that its `user nginx` directive is ignored when the master
+  is already the non-root dynamic user; this was harmless.
+- End-to-end result: `curl http://127.0.0.1/` returned the stock “Welcome to nginx!” page.
+  `systemd-analyze security` rated the live unit 3.2 “OK”. The transient unit was stopped and
+  verified inactive.
+- Hardening dropped: none of the standard cix controls. Compatibility added three broad,
+  image-path-specific writable tmpfs mounts; persistence and native journald log capture were
+  lost. Production code would need a declared writable-path/overlay strategy instead of these
+  experiment-only mounts.
