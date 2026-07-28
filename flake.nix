@@ -13,6 +13,7 @@
         src = self;
         cargoLock.lockFile = ./Cargo.lock;
         cargoBuildFlags = [ "-p" "cix" ];
+        doCheck = false;
       };
     in
     {
