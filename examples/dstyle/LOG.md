@@ -81,3 +81,11 @@
   runtime directories, the cix slice, and the temporary group. Design wall: native shared runtime
   edges must jointly control directory lifetime, namespace projection, and consumer membership;
   `BindPaths=` alone makes the object visible but does not authorize traversal.
+- 2026-07-28 23:05 UTC — Added `listenfds`, a no-port cixSpec 2 item whose Python process requires
+  exactly one systemd listener (`LISTEN_PID` must match and `LISTEN_FDS` must equal 1) and accepts
+  HTTP directly from fd 3. The demo supplies the missing transient `.socket`/`.service` pair via
+  `systemd-run`. The socket owns `127.0.0.1:18081`; the service has `PrivateNetwork=yes`,
+  `RestrictAddressFamilies=AF_UNIX`, an empty capability bounding set, and the standard cix
+  hardening profile. It proves the service is inactive before the first request, inspects
+  `Triggers`/`TriggeredBy`/`Sockets`, and makes two real requests before cleaning both units and
+  the listener.
