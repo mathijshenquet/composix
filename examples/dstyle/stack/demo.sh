@@ -79,6 +79,7 @@ sudo systemd-run \
   --property=RuntimeDirectoryMode=0700 \
   --property=CacheDirectory=cix-run-stack-nginx:nginx \
   --property=CacheDirectoryMode=0700 \
+  --property=TemporaryFileSystem=/var/cache:ro \
   --property=BindPaths="$backend_dir:/run/stack-shared" \
   --property=ProtectSystem=strict \
   --property=ProtectHome=yes \

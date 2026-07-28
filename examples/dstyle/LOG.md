@@ -64,3 +64,10 @@
   existing cix v2 behavior that the raw definition must reproduce, not a new style-D wall. Changed
   the raw property to `CacheDirectory=cix-run-stack-nginx:nginx`. The cleanup trap removed both
   services, socket paths, slice, and temporary group after each attempt.
+- 2026-07-28 23:03 UTC — The cache alias alone then failed namespace assembly with `File exists`:
+  this host already has `/var/cache/nginx`, so the alias cannot replace it in the unmasked view.
+  A minimal raw bind probe reproduced the failure independently. Added cix's corresponding
+  `TemporaryFileSystem=/var/cache:ro`, which supplies a private collision-free role root before
+  systemd creates the managed-directory alias. This keeps the stack's raw unit faithful to current
+  cix generation; it is unrelated to the shared socket projection under test. All probe state was
+  removed.
