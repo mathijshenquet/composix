@@ -17,6 +17,15 @@
 - Public launch: README, MIT LICENSE, docs/index.md; repo flipped public; GitHub Pages live at
   mathijshenquet.nl/composix (custom domain; also …github.io/composix). Launched track/tour2
   (terra): serve/pull/refresh scenarios for the literate tour.
+- First-contact dogfood (Claude, by hand): system mode was broken for any ported service —
+  RestrictAddressFamilies used nonexistent `+` merge syntax (golden tests encoded the bug);
+  root PATH lacks nix; port-env model can't express env-blind apps (nginx).
+- Merged track/tour2 after correction round (terra): parallel-test port race fixed.
+- Merged track/dogfood (sol): nginx AND postgres run e2e under full hardening (sudo demos
+  verified independently). Deep fixes: idmapped role-dir binds on systemd 257, nix-free store
+  path resolution. nss_wrapper for postgres NSS; entrypoint-pattern initdb. Spec boundary
+  proposals harvested in crates/cix-run/LOG.md → agenda for spec v2 design round. Process note:
+  sol skipped its commit step; orchestrator committed on its behalf.
 
 ## 2026-07-28
 
