@@ -1,5 +1,6 @@
 use std::{
     env, fs,
+    io::{Read, Write},
     net::TcpListener,
     path::PathBuf,
     process::Command,
@@ -21,7 +22,7 @@ fn temporary_dir(label: &str) -> PathBuf {
 }
 
 #[test]
-fn pull_from_local_store_server_records_upstream() {
+fn serve_and_pull_follow_the_bare_tag_web_contract() {
     let server_state = temporary_dir("server");
     let client_state = temporary_dir("client");
     let source = temporary_dir("source");
@@ -45,19 +46,67 @@ fn pull_from_local_store_server_records_upstream() {
     let root_url = format!("localhost:{port}");
 
     env::set_var("CIX_STATE_DIR", &server_state);
-    tag(&store_path, &format!("{root_url}/x:v1"), None).unwrap();
-    let serve_root = root_url.clone();
+    tag(&store_path, "x:v1", None).unwrap();
     thread::spawn(move || {
-        serve(
-            &serve_root,
-            &format!("127.0.0.1:{port}"),
-            Vec::new(),
-            true,
-            None,
-        )
-        .unwrap();
+        serve(&format!("127.0.0.1:{port}"), Vec::new(), true, None).unwrap();
     });
     thread::sleep(Duration::from_millis(250));
+
+    let browser = get(port, "/", "text/html", "index.example.test");
+    assert_eq!(browser.status, 200);
+    assert!(browser.content_type().starts_with("text/html"));
+    assert_eq!(browser.header("Vary"), Some("Accept"));
+    assert!(browser.body.contains("<html"));
+
+    for accept in ["application/vnd.cix+json;version=1", "application/json"] {
+        let response = get(port, "/", accept, "index.example.test");
+        assert_eq!(response.status, 200);
+        assert!(response
+            .content_type()
+            .starts_with("application/vnd.cix+json;version=1"));
+        assert_eq!(response.header("Vary"), Some("Accept"));
+        assert_eq!(response.body, r#"{"names":["x"]}"#);
+    }
+    assert!(
+        get(port, "/?format=json", "text/html", "index.example.test")
+            .content_type()
+            .starts_with("application/vnd.cix+json;version=1")
+    );
+    assert!(get(
+        port,
+        "/?format=html",
+        "application/json",
+        "index.example.test"
+    )
+    .content_type()
+    .starts_with("text/html"));
+
+    let name_page = get(port, "/x", "text/html", "published.example.test");
+    assert_eq!(name_page.status, 200);
+    assert!(name_page
+        .body
+        .contains("cix pull published.example.test/x:v1"));
+    for accept in ["text/html", "application/vnd.cix+json"] {
+        let response = get(port, "/missing", accept, "index.example.test");
+        assert_eq!(response.status, 404);
+        assert_eq!(response.header("Vary"), Some("Accept"));
+    }
+    assert!(get(port, "/missing", "text/html", "index.example.test")
+        .content_type()
+        .starts_with("text/html"));
+    assert!(get(
+        port,
+        "/missing",
+        "application/vnd.cix+json",
+        "index.example.test"
+    )
+    .content_type()
+    .starts_with("application/vnd.cix+json;version=1"));
+
+    let error = tag("/not/a/store/path", &format!("{root_url}/x:v1"), None).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("qualified names denote remote state; tags are bare"));
 
     env::set_var("CIX_STATE_DIR", &client_state);
     assert_eq!(
@@ -77,7 +126,78 @@ fn pull_from_local_store_server_records_upstream() {
         store_path
     );
 
+    let mirror_state = temporary_dir("mirror");
+    env::set_var("CIX_STATE_DIR", &mirror_state);
+    assert_eq!(pull(Some(&format!("{root_url}/x:v1")), None).unwrap(), 1);
+    let mirror_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let mirror_port = mirror_listener.local_addr().unwrap().port();
+    drop(mirror_listener);
+    thread::spawn(move || {
+        serve(&format!("127.0.0.1:{mirror_port}"), Vec::new(), false, None).unwrap();
+    });
+    thread::sleep(Duration::from_millis(100));
+    let mirror_names = get(
+        mirror_port,
+        "/?format=json",
+        "application/json",
+        "mirror.example.test",
+    );
+    assert_eq!(mirror_names.status, 200);
+    assert_eq!(mirror_names.body, r#"{"names":[]}"#);
+
     fs::remove_dir_all(server_state).unwrap();
     fs::remove_dir_all(client_state).unwrap();
+    fs::remove_dir_all(mirror_state).unwrap();
     fs::remove_dir_all(source).unwrap();
+}
+
+struct HttpResponse {
+    status: u16,
+    headers: Vec<(String, String)>,
+    body: String,
+}
+
+impl HttpResponse {
+    fn header(&self, name: &str) -> Option<&str> {
+        self.headers
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+    }
+
+    fn content_type(&self) -> &str {
+        self.header("Content-Type").unwrap_or_default()
+    }
+}
+
+fn get(port: u16, path: &str, accept: &str, host: &str) -> HttpResponse {
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    write!(
+        stream,
+        "GET {path} HTTP/1.1\r\nHost: {host}\r\nAccept: {accept}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    let mut lines = head.lines();
+    let status = lines
+        .next()
+        .unwrap()
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .parse()
+        .unwrap();
+    let headers = lines
+        .filter_map(|line| {
+            line.split_once(": ")
+                .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        })
+        .collect();
+    HttpResponse {
+        status,
+        headers,
+        body: body.to_owned(),
+    }
 }
