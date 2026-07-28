@@ -1,0 +1,24 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/cix",
+  "crates/cix-common",
+  "crates/cix-index",
+  "crates/cix-run",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+cix-common = { path = "crates/cix-common" }
+cix-index = { path = "crates/cix-index" }
+cix-run = { path = "crates/cix-run" }
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
