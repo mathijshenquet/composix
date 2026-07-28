@@ -238,3 +238,10 @@ native fd-activated service should use proposal 2 when end-to-end fd capability 
   directory; otherwise explicitly remove empty destinations). The audit also found an empty
   user-manager `cix-run.slice` left by earlier repository work; these demos never use the user
   manager, but the final track gate will stop it and verify both managers are empty as required.
+- 2026-07-28 23:11 UTC — Final done gate passed. All four demos completed successfully twice in
+  sequence; after the bind-destination cleanup change, the stack completed successfully twice
+  again. Final assertions found no `cix-*` loaded units or sockets in either the system or user
+  manager, no listeners on 8080 or 18081, none of the managed/runtime/alias/bind paths, and no
+  temporary edge group. `bash -n` passed for the shared helper and every demo, every `default.nix`
+  parsed with `nix-instantiate`, and `git diff --check` passed. The branch diff from the track-spec
+  commit contains only `examples/dstyle/`; no frozen runtime crate was modified.
