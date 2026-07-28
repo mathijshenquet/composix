@@ -9,3 +9,7 @@ cix-index.workspace = true
 cix-run.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+
+[dev-dependencies]
+regex = "1"
+tempfile = "3"
