@@ -16,3 +16,11 @@
   Smoke tests ran all binaries and checked both frontend files. A targeted filter test changed
   `worker/src/output.rs`: the worker derivation changed while the api derivation did not.
   Next: commit the stub, then write and evaluate both Cixfile BUILD variants.
+- 2026-07-28 23:12 UTC — Wrote `docs/cixfile-build.md` with two complete Cixfiles over the
+  stub. Variant A uses fixed Rust/pnpm builders and explicit stages; Variant B uses locked
+  plugin items, typed Unix-like pipelines, and a canonical JSON planning protocol that
+  cannot return raw Nix. Defined multi-output selection, SERVICE ownership, locks,
+  diagnostics, expressiveness limits, and `.nix` graduation. Adversarial comparison
+  recommends Variant A first; listed concrete evidence that could justify plugins later.
+  Privacy deny-list scan across the example and document is clean. Next: commit the design,
+  then run the final twice-build, content, scope, and privacy gates from committed state.
