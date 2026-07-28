@@ -3,7 +3,7 @@
 { pkgs ? import <nixpkgs> { } }:
 
 let
-  html = pkgs.writeTextDir "index.html" ''
+  html = pkgs.writeText "index.html" ''
     <h1>hello from composix</h1>
   '';
 
@@ -13,7 +13,7 @@ let
     error_log stderr info;
     events { }
     http {
-      include ${pkgs.nginx}/conf/mime.types;
+      include /etc/nginx/mime.types;
       access_log off;
       client_body_temp_path /var/cache/nginx/body;
       proxy_temp_path /var/cache/nginx/proxy;
@@ -22,20 +22,24 @@ let
       scgi_temp_path /var/cache/nginx/scgi;
       server {
         listen 8080;
-        root ${html};
+        root /srv/www;
       }
     }
   '';
 in
 pkgs.runCommand "nginx-cix" { } ''
-  mkdir -p $out/bin
+  mkdir -p $out/bin $out/etc/nginx $out/srv/www
   ln -s ${pkgs.nginx}/bin/nginx $out/bin/nginx
+  ln -s ${pkgs.nginx}/conf/mime.types $out/etc/nginx/mime.types
+  install -m 0644 ${html} $out/srv/www/index.html
+  install -m 0644 ${conf} $out/etc/nginx/nginx.conf
   cat > $out/cix-spec.json <<'EOF'
   {
     "cixSpec": 2,
     "services": {
       "nginx": {
-        "exec": ["bin/nginx", "-c", "@conf@", "-e", "stderr"],
+        "exec": ["bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
+        "mounts": ["/etc/nginx", "/srv/www"],
         "ports": { "http": { "value": 8080, "protocol": "tcp" } },
         "dirs": {
           "cache": ["/var/cache/nginx"],
@@ -45,5 +49,4 @@ pkgs.runCommand "nginx-cix" { } ''
     }
   }
   EOF
-  substituteInPlace $out/cix-spec.json --replace-fail '@conf@' '${conf}'
 ''
