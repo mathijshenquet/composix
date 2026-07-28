@@ -26,8 +26,8 @@ pkgs.runCommand "postgres-cix" { } ''
   . "$out/lib/runtime-env.sh"
 
   if [ ! -s "\$data_dir/PG_VERSION" ]; then
-    rm -rf "\$init_dir"
-    mkdir -p "\$init_dir"
+    ${pkgs.coreutils}/bin/rm -rf "\$init_dir"
+    ${pkgs.coreutils}/bin/mkdir -p "\$init_dir"
     LANG=C LC_ALL=C ${pkgs.postgresql}/bin/initdb \
       --pgdata="\$init_dir" \
       --username=cix \
@@ -35,7 +35,7 @@ pkgs.runCommand "postgres-cix" { } ''
       --auth-host=trust \
       --encoding=UTF8 \
       --no-locale
-    mv "\$init_dir" "\$data_dir"
+    ${pkgs.coreutils}/bin/mv "\$init_dir" "\$data_dir"
   fi
   EOF
 
