@@ -1,3 +1,4 @@
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -375,11 +376,12 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
     if installable.is_empty() {
         bail!("installable must not be empty");
     }
-    let output = Command::new("nix")
-        .args(["build", "--no-link", "--print-out-paths", "--"])
-        .arg(installable)
-        .output()
-        .with_context(|| format!("failed to invoke nix for installable {installable:?}"))?;
+    let direct_path = PathBuf::from(installable);
+    if direct_path.starts_with("/nix/store/") && direct_path.exists() {
+        return Ok(direct_path);
+    }
+
+    let output = nix_build(installable)?;
     if !output.status.success() {
         bail!(
             "failed to resolve installable {installable:?}: {}",
@@ -405,6 +407,25 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
         );
     }
     Ok(path)
+}
+
+fn nix_build(installable: &str) -> Result<Output> {
+    let invoke = |program: &Path| {
+        Command::new(program)
+            .args(["build", "--no-link", "--print-out-paths", "--"])
+            .arg(installable)
+            .output()
+    };
+
+    match invoke(Path::new("nix")) {
+        Ok(output) => Ok(output),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            invoke(Path::new("/nix/var/nix/profiles/default/bin/nix"))
+                .with_context(|| format!("failed to invoke nix for installable {installable:?}"))
+        }
+        Err(error) => Err(error)
+            .with_context(|| format!("failed to invoke nix for installable {installable:?}")),
+    }
 }
 
 fn current_uid() -> Result<u32> {
@@ -590,5 +611,19 @@ mod tests {
         assert!(capability_failure(&anyhow::anyhow!(
             "Failed at step CAPABILITIES"
         )));
+    }
+
+    #[test]
+    fn resolves_an_existing_store_path_without_building_it() {
+        let store_path = std::fs::read_dir("/nix/store")
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .find(|path| path.is_dir())
+            .unwrap();
+        assert_eq!(
+            resolve_installable(store_path.to_str().unwrap()).unwrap(),
+            store_path
+        );
     }
 }

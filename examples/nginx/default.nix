@@ -14,7 +14,7 @@ let
     events { }
     http {
       include ${pkgs.nginx}/conf/mime.types;
-      access_log /dev/stdout;
+      access_log off;
       client_body_temp_path /var/cache/nginx/body;
       proxy_temp_path /var/cache/nginx/proxy;
       fastcgi_temp_path /var/cache/nginx/fastcgi;
