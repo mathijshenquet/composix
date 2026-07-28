@@ -248,9 +248,44 @@ Strict-by-default is the point: the spec *is* the capability grant.
   `cix-run-<service>-<nonce>.service` in `cix-run.slice`. Foreground: stream journal, ctrl-C stops
   unit. `--detach` prints unit name; `cix ps` lists `cix-*` units.
 
+### Spec v2 (decided 2026-07-28, after the nginx/postgres dogfood round)
+
+Two principles first, more important than any field:
+
+- **D20a — no raw systemd passthrough, ever.** The spec declares capabilities in *app
+  semantics* ("I JIT", "I listen on 80", "I need a socket dir"); the generator maps to
+  mechanism. Raw overrides are operator territory → compose, never the spec.
+- **D20b — the boundary**: spec = what the supervisor must know (lifecycle, resources,
+  capabilities); item = app quirks (nss_wrapper, path plumbing); compose = operator decisions
+  (overrides, config content, scaling).
+
+v2 fields/changes (`"cixSpec": 2`; runner accepts 1 and 2; new fields rejected under 1):
+
+1. `dirs.run` — runtime-lifetime role → `RuntimeDirectory=` (tmpfs, wiped on stop): sockets,
+   pidfiles.
+2. `setup: [argv]` — pre-start hook, ExecStartPre semantics: runs *every* start in the same
+   sandbox, MUST be idempotent (the docker-entrypoint / k8s-initContainer convergence;
+   "first run" is undefinable — the state itself is the only truth).
+3. Fixed-value ports: `{"value": 8080}` alongside the env form, for env-blind apps (nginx);
+   `-p` override of a value port is a clear error.
+4. Declared port < 1024 ⇒ generator grants exactly `CAP_NET_BIND_SERVICE` (Ambient +
+   BoundingSet). No new field: the declaration is the grant. (Socket activation: compose era.)
+5. `jit: true` ⇒ drop `MemoryDenyWriteExecute`. Semantic name, per D20a.
+6. **D11 narrowed**: a role's app path MUST live under that role's conventional root
+   (state→`/var/lib`, cache→`/var/cache`, logs→`/var/log`, config→`/etc`, run→`/run`), one
+   component deep. Reason: systemd's idmapped managed dirs can only be aliased within their
+   root (`StateDirectory=cix-…:name`); a `BindPaths` to an arbitrary path provably loses the
+   ID map on systemd 257. The restriction codifies what the platform can actually deliver —
+   and matches FHS anyway.
+
+Deferred consciously: health/readiness wiring (compose era), nss_wrapper standardization
+(app quirk; reconsider if it recurs across cixpkgs), devices/GPU (no dogfood case yet),
+served-payload dirs à la `/srv` (immutable payload lives in the store; mutable shared payload
+is a compose question).
+
 ### Open
 
-- ~~O3~~ → resolved as D11 (app-path model).
+- ~~O3~~ → resolved as D11 (app-path model), narrowed by Spec v2 point 6.
 
 ## Part 3 — compose (design pending, mechanism fixed)
 
