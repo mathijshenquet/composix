@@ -47,18 +47,22 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   Cixfile is the adoption bridge for non-nix users, not the foundation. Intermediate rung, cheap
   and early: a nix lib helper (`composix.lib.withSpec drv {…}`) attaching a spec to any existing
   derivation.
-- ✅ D17 — **namespace claims**: tagging into a qualified namespace requires a local *claim* — an
-  explicit "I believe I'm allowed to tag under this glob" (`cix claim cix.example.com/*`). If you
-  can host `my-domain:port`, you can evidently claim it; if a docker.io-style registry ever
-  exists, `cix claim docker.io/my-team/*` is the moment push authorization enters the model (not
-  yet). Authored tags (`cix tag`) and `cix serve` are gated on claims; pull-created tags are
-  exempt (they're provenance-recorded mirrors, not authored). localhost/127.0.0.1 origins are
-  implicitly claimed.
-- ✅ D18 — **informative URLs** (in the spirit of the web): the human-facing URL mirrors the name.
-  `GET https://host/{name}` serves an informative HTML page (tags, systems, store paths,
-  narHashes, a pull snippet, and a spec summary when the path carries `cix-spec.json`);
-  `GET https://host/` lists names. Machines use `/v1/…`; a qualified name pasted into a browser
-  must land somewhere explanatory.
+- ✅ D17 (v2; supersedes the claims design) — **serve exposes the bare tag DB; qualification is
+  reachability.** `cix serve` takes no root_url: it serves all *bare* local tags under whatever
+  URL reaches it. A fully-qualified name is nothing but the URL of a bare tag on the store that
+  DNS resolves the host to. Consequences: `cix tag` into a qualified name is a hard error
+  (qualified names denote remote state, exclusively); pull-created mirror tags are never
+  re-served — to re-serve, adopt as bare (`cix pull … --as`), which is the entire adoption
+  story. `cix publish` is deliberately NOT built now; later it means *ask a server to publish
+  for you* (push-shaped, with server-side authorization — where the claims idea returns as
+  ACLs).
+- ✅ D18 (v2) — **the ref is a URL; one negotiated URL space** (in the spirit of the web):
+  `GET https://host/{name}[:{tag}]` serves an informative HTML page to browsers and the entry
+  JSON to `Accept: application/vnd.cix+json;version=1` (the header the cix client always
+  sends); `GET /` lists names. API versioning lives in the media type, not the path — there is
+  no `/v1/`. `Vary: Accept`; `?format=json` as the human escape hatch; `/store/` (nix
+  binary-cache protocol) unchanged. Prior art: ActivityPub/Mastodon conneg, Linked-Data "Cool
+  URIs", GitHub-style vnd media types. Pages self-reference via the request's Host header.
 - ✅ D19 — **literate documentation** (gitsitter `tests/workflows.rs` pattern): docs are generated
   from executed scenarios driving the real `cix` binary in isolated environments; assertions make
   them tests, transcripts make them docs, and a drift-check test keeps the committed markdown
@@ -95,12 +99,11 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   1. *The ref is an identity, not an address.* Disambiguation rule (docker's): first
      slash-component containing `.` or `:port`, or equal to `localhost` ⇒ root_url; otherwise the
      whole ref is a local name (which may contain `/`).
-  2. *Serving claims an identity, not a socket.* `cix serve <root_url> --listen <addr>` serves
-     exactly the tags prefixed `<root_url>`; DNS/reverse proxy maps identity → socket. In dev,
-     `localhost:8420` is itself a valid root_url.
-  3. *Publishing is tagging into the namespace.* `cix tag my-app:v3 cix.example.com/my-app:v3`
-     adds a second tag to the same store path; `cix ls` shows what is public under which identity;
-     nothing is served by accident.
+  2. *Serving exposes a store, not an identity.* `cix serve` publishes the local **bare** tag DB
+     at whatever URLs reach its socket — the server does not know or configure its own name;
+     which hostnames route to it is DNS's business (exactly like a web server and its vhosts).
+  3. *Publishing is tagging on a served store.* A bare tag on a box that serves is public under
+     that box's URLs; nothing else is. `my-org` publishing = `ssh index-box cix tag …` (or CI).
   Git-style upstream tracking survives underneath (pulled/aliased tags record their origin);
   named remotes as a *surface* were rejected: refs stop being self-describing, which is the
   "publicize our-app:v321" use case itself.
@@ -128,11 +131,12 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
 ### CLI
 
 - `cix tag <installable> <ref>` — installable = store path, flake installable (`.#foo`), or an
-  existing ref. Resolves/builds → symlink + gcroot + sidecar. Tagging with a `root_url` prefix marks
-  the tag as publishable under that origin.
+  existing ref. Resolves/builds → symlink + gcroot + sidecar. The target ref must be **bare**;
+  a qualified target is a hard error (D17: qualified names denote remote state; to publish,
+  tag on the box that serves).
 - `cix untag <ref>`; `cix ls [prefix]` — list tags, `-l` shows store path / upstream / age.
-- `cix serve <root_url> [--listen host:port] [--substituter url]... [--with-store [--sign-key file]]`
-  — HTTP resolver serving exactly the tags prefixed with `root_url`. Advertised substituters come
+- `cix serve [--listen host:port] [--substituter url]... [--with-store [--sign-key file]]`
+  — serves the **bare** tag DB (D17) at whatever URL reaches it. Advertised substituters come
   from serve config; `--with-store` additionally maintains + statically serves a
   `nix copy --to file://` binary cache and advertises itself as a substituter (D10).
 - `cix pull <root_url>/<name>:<tag> [--as <name[:tag]>]` — resolve over HTTPS, `nix copy` the
@@ -140,25 +144,34 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   then tag locally with upstream recorded.
 - `cix pull` — refresh every tag that has an upstream; fetch the ones that moved.
 
-### Claims & web pages (D17, D18)
+### The org workflow (pre-push)
 
-- `cix claim <pattern>` / `cix unclaim <pattern>` / `cix claims` — a pattern is an exact
-  qualified name or a prefix glob ending in `*`, matched against `root_url/name` (e.g.
-  `cix.example.com/*`, `example.com/team/*`). Stored in the state dir.
-- Enforcement: `cix tag` into a qualified ref and `cix serve <root_url>` require a covering
-  claim (error carries a `cix claim …` hint). `cix pull` is exempt — pulled tags are mirrors
-  with recorded provenance, not authored claims. Origins on localhost/127.0.0.1 are implicitly
-  claimed.
-- Serve, human side: `GET /` → HTML list of names; `GET /{name}` → HTML page with the tag table
-  (tag, systems, store path, narHash, age), a copy-pastable `cix pull` snippet, and a summary of
-  `cix-spec.json` when the store path carries one. `Accept: application/json` on those paths
-  negotiates to the `/v1` data.
+Publishing to `cix.my-org.com` = getting a bare tag onto the box DNS resolves it to — the
+git-before-forges model (you have write access, so "push" is ssh):
 
-### HTTP API (v1, JSON)
+```
+nix copy --to ssh://index-box /nix/store/…-myapp
+ssh index-box cix tag /nix/store/…-myapp myapp:v1
+# a running `cix serve --with-store` picks it up; org-wide:
+cix pull cix.my-org.com/myapp:v1
+```
 
-- `GET {root_url}/v1/resolve/{name}/{tag}` → entry (404 if unknown)
-- `GET {root_url}/v1/tags/{name}` → `{"tags": {"latest": <entry>, …}}`
-- `GET {root_url}/v1/names` → `{"names": ["my-app", …]}`
+Later, `cix publish`/`cix push` abstracts exactly those two lines (ssh transport first,
+authenticated HTTP for docker.io-style registries after), and authorization enters server-side.
+
+### HTTP surface (one negotiated URL space, D18)
+
+The URL space IS the name space; representation is negotiated (`Vary: Accept`,
+`?format=json|html` escape hatch):
+
+| URL | browser (HTML) | `Accept: application/vnd.cix+json;version=1` |
+| --- | --- | --- |
+| `/` | list of served names, linked | `{"names": [...]}` |
+| `/{name}` | tag table (tag, systems, closure size, narHash, age), pull snippet, spec summary if the store path carries `cix-spec.json` | `{"tags": {"latest": <entry>, …}}` |
+| `/{name}:{tag}` | that entry's detail, provenance, `cix pull`/`cix run` snippets — the permalink you publicize | `<entry>` (404 if unknown) |
+| `/store/…` | — | nix binary-cache protocol (D10), no negotiation |
+
+HTML pages construct their self-referential names/snippets from the request's Host header.
 
 Trust model: integrity/authenticity ride on nix path signing + narHash verification, **not** on
 trusting the index. The index is a resolver; TLS protects the pointer, nix signatures protect the
