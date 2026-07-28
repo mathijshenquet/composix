@@ -77,7 +77,7 @@ sudo systemd-run \
   --property=SupplementaryGroups="$edge_group" \
   --property=RuntimeDirectory=cix-run-stack-nginx:nginx \
   --property=RuntimeDirectoryMode=0700 \
-  --property=CacheDirectory=cix-run-stack-nginx \
+  --property=CacheDirectory=cix-run-stack-nginx:nginx \
   --property=CacheDirectoryMode=0700 \
   --property=BindPaths="$backend_dir:/run/stack-shared" \
   --property=ProtectSystem=strict \
@@ -129,4 +129,3 @@ group_created=false
 [[ ! -e $backend_dir ]]
 [[ ! -e $nginx_dir ]]
 echo "stopped cleanly; services, sockets, runtime paths, and edge group removed"
-

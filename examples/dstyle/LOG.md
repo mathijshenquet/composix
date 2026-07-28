@@ -57,3 +57,10 @@
   match that grant. This deliberately exposes that bind visibility and filesystem authorization
   are two distinct compose mechanisms. Both units retain cix-equivalent hardening and
   `PrivateNetwork=yes`/`AF_UNIX`-only address-family policy.
+- 2026-07-28 23:02 UTC — Stack execution found two harness-level issues. The first backend start
+  was canceled by a transient systemd transaction, then the identical item/service started
+  normally in isolation and on immediate full retry. The raw nginx service then failed because
+  its managed cache directory was not aliased to nginx's app path under `/var/cache`; this is
+  existing cix v2 behavior that the raw definition must reproduce, not a new style-D wall. Changed
+  the raw property to `CacheDirectory=cix-run-stack-nginx:nginx`. The cleanup trap removed both
+  services, socket paths, slice, and temporary group after each attempt.
