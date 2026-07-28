@@ -48,3 +48,12 @@
   `PrivateNetwork=yes` and `AF_UNIX` only, proving an inherited TCP listener does not require
   ambient IP-stack authority. Both units, the listener, cix service, slice, and runtime socket were
   absent after cleanup. Design wall: cix/compose cannot yet describe or own this socket/proxy pair.
+- 2026-07-28 23:01 UTC — Added the two-service `stack` item. Its cix spec contains a tiny Python
+  HTTP backend bound to `/run/backend/backend.sock` and nginx bound to its own Unix socket, with
+  nginx configured to proxy through `/run/stack-shared/backend.sock`. The backend starts through
+  frozen cix and demonstrates the exclusive-directory wall. The consumer is therefore a raw
+  transient service carrying the missing `BindPaths=` projection and a temporary per-edge
+  `SupplementaryGroups=` grant; the demo changes the producer directory/socket group and modes to
+  match that grant. This deliberately exposes that bind visibility and filesystem authorization
+  are two distinct compose mechanisms. Both units retain cix-equivalent hardening and
+  `PrivateNetwork=yes`/`AF_UNIX`-only address-family policy.
