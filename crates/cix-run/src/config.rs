@@ -7,6 +7,7 @@ use crate::spec::{parse_port, Service};
 #[derive(Debug, Clone)]
 pub struct ResolvedConfig {
     pub env: BTreeMap<String, String>,
+    pub ports: BTreeMap<String, u16>,
 }
 
 impl ResolvedConfig {
@@ -24,8 +25,11 @@ impl ResolvedConfig {
             }
         }
         for name in port_overrides.keys() {
-            if !service.ports.contains_key(name) {
+            let Some(port) = service.ports.get(name) else {
                 bail!("port override refers to undeclared port {name:?}");
+            };
+            if port.value.is_some() {
+                bail!("port {name:?} is fixed at build time");
             }
         }
 
@@ -51,7 +55,10 @@ impl ResolvedConfig {
             let value = parse_port(&value)
                 .with_context(|| format!("invalid override for port {port_name:?}"))?
                 .to_string();
-            let env_name = &service.ports[&port_name].env;
+            let env_name = service.ports[&port_name]
+                .env
+                .as_ref()
+                .expect("validated env-backed port");
             if let Some(previous) = port_env_values.insert(env_name.clone(), value.clone()) {
                 if previous != value {
                     bail!(
@@ -62,7 +69,23 @@ impl ResolvedConfig {
         }
         env.extend(port_env_values);
 
-        Ok(Self { env })
+        let mut ports = BTreeMap::new();
+        for (name, port) in &service.ports {
+            let value = if let Some(value) = port.value {
+                Some(value)
+            } else {
+                port.env
+                    .as_ref()
+                    .and_then(|env_name| env.get(env_name))
+                    .map(|value| parse_port(value))
+                    .transpose()?
+            };
+            if let Some(value) = value {
+                ports.insert(name.clone(), value);
+            }
+        }
+
+        Ok(Self { env, ports })
     }
 }
 
@@ -138,6 +161,33 @@ mod tests {
         );
         assert!(
             ResolvedConfig::resolve(&service(), &["COUNT=1".into()], &["http=0".into()]).is_err()
+        );
+    }
+
+    #[test]
+    fn resolves_fixed_ports_and_rejects_overrides() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 2,
+                "services": {
+                    "app": {
+                        "exec": ["bin/app"],
+                        "ports": {"http": {"value": 8080, "protocol": "tcp"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["app"];
+        let resolved = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        assert_eq!(resolved.ports["http"], 8080);
+
+        let error = ResolvedConfig::resolve(service, &[], &["http=9090".into()]).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("port \"http\" is fixed at build time"),
+            "{error:#}"
         );
     }
 }

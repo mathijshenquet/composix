@@ -18,6 +18,11 @@ pub struct Spec {
 #[serde(deny_unknown_fields)]
 pub struct Service {
     pub exec: Vec<String>,
+    /// Pre-start argv run in the service sandbox on every start.
+    ///
+    /// It follows the same output-relative executable and environment interpolation rules as
+    /// `exec` and must be idempotent.
+    pub setup: Option<Vec<String>>,
     #[serde(default)]
     pub env: BTreeMap<String, Env>,
     #[serde(default)]
@@ -26,6 +31,7 @@ pub struct Service {
     pub dirs: Dirs,
     pub health: Option<Health>,
     pub network: Option<Network>,
+    pub jit: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -53,7 +59,8 @@ pub enum EnvType {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Port {
-    pub env: String,
+    pub env: Option<String>,
+    pub value: Option<u16>,
     pub protocol: Protocol,
 }
 
@@ -75,6 +82,7 @@ pub struct Dirs {
     pub logs: Vec<PathBuf>,
     #[serde(default)]
     pub config: Vec<PathBuf>,
+    pub run: Option<Vec<PathBuf>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -125,9 +133,9 @@ impl Spec {
     }
 
     fn validate(&self) -> Result<()> {
-        if self.cix_spec != 1 {
+        if !matches!(self.cix_spec, 1 | 2) {
             bail!(
-                "unsupported cixSpec version {}; this cix supports version 1",
+                "unsupported cixSpec version {}; this cix supports versions 1 and 2",
                 self.cix_spec
             );
         }
@@ -138,7 +146,7 @@ impl Spec {
         for (name, service) in &self.services {
             validate_name("service", name)?;
             service
-                .validate()
+                .validate(self.cix_spec)
                 .with_context(|| format!("invalid service {name:?}"))?;
         }
         Ok(())
@@ -146,8 +154,12 @@ impl Spec {
 }
 
 impl Service {
-    fn validate(&self) -> Result<()> {
+    fn validate(&self, version: u32) -> Result<()> {
+        self.validate_version_fields(version)?;
         validate_exec("exec", &self.exec, &self.env)?;
+        if let Some(setup) = &self.setup {
+            validate_exec("setup", setup, &self.env)?;
+        }
         if let Some(health) = &self.health {
             validate_exec("health.exec", &health.exec, &self.env)?;
             if health.interval.is_empty() {
@@ -166,24 +178,34 @@ impl Service {
 
         for (name, port) in &self.ports {
             validate_name("port", name)?;
-            let env = self.env.get(&port.env).with_context(|| {
-                format!(
-                    "port {name:?} refers to undeclared environment variable {:?}",
-                    port.env
-                )
-            })?;
-            if env.kind != EnvType::Port {
-                bail!(
-                    "port {name:?} refers to {:?}, which must have type \"port\"",
-                    port.env
-                );
+            match (&port.env, port.value) {
+                (Some(env_name), None) => {
+                    let env = self.env.get(env_name).with_context(|| {
+                        format!(
+                            "port {name:?} refers to undeclared environment variable {env_name:?}"
+                        )
+                    })?;
+                    if env.kind != EnvType::Port {
+                        bail!(
+                            "port {name:?} refers to {env_name:?}, which must have type \"port\""
+                        );
+                    }
+                }
+                (None, Some(0)) => bail!("port {name:?} value must be between 1 and 65535"),
+                (None, Some(_)) => {}
+                (Some(_), Some(_)) => {
+                    bail!("port {name:?} must declare exactly one of \"env\" or \"value\"")
+                }
+                (None, None) => {
+                    bail!("port {name:?} must declare exactly one of \"env\" or \"value\"")
+                }
             }
         }
 
         let mut seen: Vec<&Path> = Vec::new();
-        for (role, paths) in self.dirs.roles() {
+        for (role, root, paths) in self.dirs.roles() {
             for path in paths {
-                validate_app_path(role, path)?;
+                validate_app_path(version, role, root, path)?;
                 for other in &seen {
                     if path.starts_with(other) || other.starts_with(path) {
                         bail!(
@@ -201,6 +223,27 @@ impl Service {
 
     pub fn has_network(&self) -> bool {
         !self.ports.is_empty() || self.network == Some(Network::Host)
+    }
+
+    fn validate_version_fields(&self, version: u32) -> Result<()> {
+        if version != 1 {
+            return Ok(());
+        }
+        if self.setup.is_some() {
+            bail!("field \"setup\" requires cixSpec 2");
+        }
+        if self.dirs.run.is_some() {
+            bail!("field \"dirs.run\" requires cixSpec 2");
+        }
+        if self.jit.is_some() {
+            bail!("field \"jit\" requires cixSpec 2");
+        }
+        for (name, port) in &self.ports {
+            if port.value.is_some() {
+                bail!("field \"ports.{name}.value\" requires cixSpec 2");
+            }
+        }
+        Ok(())
     }
 }
 
@@ -264,12 +307,13 @@ impl Env {
 }
 
 impl Dirs {
-    pub fn roles(&self) -> [(&'static str, &[PathBuf]); 4] {
+    pub fn roles(&self) -> [(&'static str, &'static str, &[PathBuf]); 5] {
         [
-            ("state", &self.state),
-            ("cache", &self.cache),
-            ("logs", &self.logs),
-            ("config", &self.config),
+            ("state", "/var/lib", &self.state),
+            ("cache", "/var/cache", &self.cache),
+            ("logs", "/var/log", &self.logs),
+            ("config", "/etc", &self.config),
+            ("run", "/run", self.run.as_deref().unwrap_or_default()),
         ]
     }
 }
@@ -356,8 +400,22 @@ fn is_env_continue(value: u8) -> bool {
     is_env_start(value) || value.is_ascii_digit()
 }
 
-fn validate_app_path(role: &str, path: &Path) -> Result<()> {
+fn validate_app_path(version: u32, role: &str, root: &str, path: &Path) -> Result<()> {
     validate_absolute_clean_path(path, &format!("{role} directory"))?;
+    if version == 2 {
+        let relative = path.strip_prefix(root).ok();
+        let is_one_component = relative.is_some_and(|relative| {
+            let mut components = relative.components();
+            matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+        });
+        if !is_one_component {
+            bail!(
+                "{role} directory {} must be exactly one component under {root}, as required by DESIGN.md \"Spec v2\" point 6",
+                path.display()
+            );
+        }
+        return Ok(());
+    }
     let nix = Path::new("/nix");
     if path.starts_with(nix) || nix.starts_with(path) {
         bail!(
@@ -420,6 +478,90 @@ mod tests {
         .unwrap();
         assert_eq!(spec.services["app"].env["PORT"].kind, EnvType::Port);
         assert_eq!(spec.services["app"].ports["http"].protocol, Protocol::Tcp);
+    }
+
+    #[test]
+    fn parses_v2_fields() {
+        let spec = parse(
+            r#"{
+                "cixSpec": 2,
+                "services": {
+                    "app": {
+                        "setup": ["bin/setup", "$PORT"],
+                        "exec": ["bin/app", "$PORT"],
+                        "env": {"PORT": {"type": "port", "default": 8080}},
+                        "ports": {
+                            "http": {"value": 8080, "protocol": "tcp"},
+                            "admin": {"env": "PORT", "protocol": "tcp"}
+                        },
+                        "dirs": {"run": ["/run/app"]},
+                        "jit": true
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["app"];
+        assert_eq!(service.setup.as_ref().unwrap()[0], "bin/setup");
+        assert_eq!(service.ports["http"].value, Some(8080));
+        assert_eq!(
+            service.dirs.run.as_deref().unwrap(),
+            [PathBuf::from("/run/app")]
+        );
+        assert_eq!(service.jit, Some(true));
+    }
+
+    #[test]
+    fn rejects_every_v2_field_under_v1() {
+        for (field, json) in [
+            (
+                "setup",
+                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"setup":["bin/setup"]}}}"#,
+            ),
+            (
+                "dirs.run",
+                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"run":[]}}}}"#,
+            ),
+            (
+                "jit",
+                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"jit":false}}}"#,
+            ),
+            (
+                "ports.http.value",
+                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}}}"#,
+            ),
+        ] {
+            let error = format!("{:#}", parse(json).unwrap_err());
+            assert!(error.contains(field), "{error}");
+            assert!(error.contains("requires cixSpec 2"), "{error}");
+        }
+    }
+
+    #[test]
+    fn rejects_ports_with_both_or_neither_source() {
+        for json in [
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{"type":"port"}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}}}"#,
+        ] {
+            let error = format!("{:#}", parse(json).unwrap_err());
+            assert!(
+                error.contains("exactly one of \"env\" or \"value\""),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn v2_paths_must_be_one_component_under_the_role_root() {
+        for json in [
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/data"]}}}}"#,
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/cache/app"]}}}}"#,
+            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"run":["/run/app/socket"]}}}}"#,
+        ] {
+            let error = format!("{:#}", parse(json).unwrap_err());
+            assert!(error.contains("exactly one component"), "{error}");
+            assert!(error.contains("DESIGN.md \"Spec v2\" point 6"), "{error}");
+        }
     }
 
     #[test]
