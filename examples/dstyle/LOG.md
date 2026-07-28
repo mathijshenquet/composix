@@ -24,3 +24,11 @@
   live showed `/run/postgresql -> cix-run-postgres`, the socket in the backing directory, and the
   runtime directory owned by the allocated dynamic identity. Changed readiness to test the path as
   root; this is test plumbing and preserves the access probe's expected denial for ordinary users.
+- 2026-07-28 22:57 UTC — `postgres-unix/demo.sh` passed end to end. Raw properties were
+  `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`,
+  `RuntimeDirectory=cix-run-postgres`, `RuntimeDirectoryMode=0700`, and `DynamicUser=yes`;
+  the allocated uid was 61220 in this run. Root connected from the host and returned `SELECT 1`.
+  Host uid 1001 and a second DynamicUser unit both failed to connect, including when the latter
+  received a read-only bind of the socket directory. Stop removed the socket and runtime directory,
+  and the transient service and empty cix slice were collected. Design wall: a socket pathname is
+  not a usable grant while the producer exclusively owns its parent runtime directory.
