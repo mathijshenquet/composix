@@ -54,9 +54,24 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
 
 ### Concepts
 
-- **ref**: `[{root_url}/]{name}:{tag}`. `name`, `tag`: `[a-z0-9._-]+` (name may contain `/`).
-  `root_url` is a host with optional path prefix, e.g. `cix.example.com/team`.
-  🔶 Tag defaults to `latest` when omitted (docker convention).
+- **ref**: `[{root_url}/]{name}:{tag}`. `name`, `tag`: `[a-z0-9._-]+`; `name` may contain `/`
+  (path segments; the first segment must not look like a host). Tag defaults to `latest`.
+  **root_url is `host[:port]` only — no path prefixes** (refined D12): in
+  `cix.example.com/team/my-app:v3` the origin is `cix.example.com` and the *name* is
+  `team/my-app` — team/project namespacing lives inside the name, exactly like docker registries.
+  The HTTP API anchors at a fixed root (`https://{host}/v1/…`), which is what keeps the grammar
+  unambiguous; path-prefix hosting can be added later via `/.well-known` discovery without
+  touching the ref grammar.
+  ```
+  ref        = [host "/"] name [":" tag]        (tag defaults to latest)
+  host       = contains "." or ":port", or "localhost"
+  local  ref = no host  → never resolved remotely, never served
+  remote ref = host     → API at https://host/v1/, self-describing anywhere
+  ```
+  No default registry, ever (docker.io's magic is refused): bare names are genuinely local, so
+  nothing bare touches the network or gets served — this kills podman's short-name
+  ambiguity/squatting class outright. Digest pinning needs no `@digest` syntax: the store path
+  *is* the digest and is accepted anywhere an installable is; `cix.lock` pins store paths.
 - ✅ **D12 (was O1) — ref model**: docker-style self-describing refs, not git-style named
   remotes. Three separations that make it clean:
   1. *The ref is an identity, not an address.* Disambiguation rule (docker's): first

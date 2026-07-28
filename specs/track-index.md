@@ -26,7 +26,8 @@ DESIGN.md — propose changes as notes in your LOG instead.
 
 1. **Ref parsing** (cix-common): `[root_url/]name[:tag]`, docker disambiguation rule (first
    slash-component containing `.` or `:port`, or `localhost` ⇒ root_url), default tag `latest`.
-   Thorough unit tests including nasty edge cases.
+   root_url is `host[:port]` ONLY — never a path prefix; namespacing lives inside the name
+   (refined D12). Thorough unit tests including nasty edge cases.
 2. **Local tag store** at `$CIX_STATE_DIR` (env override, default `~/.local/state/cix`):
    symlink farm `roots/<encoded-ref>` → store path, each registered as an indirect nix GC root
    (`nix build <path> --out-link <link>` or `nix-store --add-root`), plus a JSON sidecar per tag:
