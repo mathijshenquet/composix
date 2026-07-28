@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = [
+  "common",
+  "api",
+  "worker",
+  "dashboard",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+common = { path = "common" }
