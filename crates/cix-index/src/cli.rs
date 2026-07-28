@@ -32,6 +32,34 @@ pub enum Command {
 
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
-        anyhow::bail!("not implemented yet (index track)")
+        match self {
+            Self::Tag { installable, r#ref } => crate::tag(&installable, &r#ref, None),
+            Self::Untag { r#ref } => crate::untag(&r#ref),
+            Self::Ls { prefix, long } => {
+                let listing = crate::list(prefix.as_deref(), long)?;
+                if !listing.is_empty() {
+                    println!("{listing}");
+                }
+                Ok(())
+            }
+            Self::Serve {
+                root_url,
+                listen,
+                substituter,
+                with_store,
+                sign_key,
+            } => crate::serve(
+                &root_url,
+                &listen,
+                substituter,
+                with_store,
+                sign_key.as_deref(),
+            ),
+            Self::Pull { r#ref, r#as } => {
+                let updated = crate::pull(r#ref.as_deref(), r#as.as_deref())?;
+                println!("updated {updated} tag(s)");
+                Ok(())
+            }
+        }
     }
 }
