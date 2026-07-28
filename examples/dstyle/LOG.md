@@ -32,3 +32,10 @@
   received a read-only bind of the socket directory. Stop removed the socket and runtime directory,
   and the transient service and empty cix slice were collected. Design wall: a socket pathname is
   not a usable grant while the producer exclusively owns its parent runtime directory.
+- 2026-07-28 22:58 UTC — Added `nginx-unix`: nginx declares no ports and listens only at
+  `/run/nginx/http.sock`. The demo verifies its cix-generated isolation and direct Unix-socket
+  HTTP, then asks `systemd-run` to create a transient `.socket` on `127.0.0.1:8080` paired with
+  `systemd-socket-proxyd`. The proxy service is constrained to `PrivateNetwork=yes` and
+  `RestrictAddressFamilies=AF_UNIX`; its TCP authority is solely the inherited listener. The demo
+  asserts the service is absent before first connection, inspects activation properties after the
+  request, and owns cleanup of both generated units, the host listener, and the nginx runtime path.
