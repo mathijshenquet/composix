@@ -1,5 +1,7 @@
 # cix-run work log
 
+- 2026-07-28 22:17 UTC — Final cleanup complete: stopped the system and user `cix-run.slice` instances after the final tests, removed the generated untracked `devenv.lock`, and confirmed both `systemctl` managers have no `cix-*` units. The legacy mount-reference audit is empty and the committed worktree is clean.
+
 - 2026-07-28 22:10 UTC — Started the stable-mount rename requested in `scratchpad/app-rename.md`. The system-unit bind target and exported environment variable are now `/app` and `CIX_APP`; user mode retains the real store path in `CIX_APP` and names `/app` in its degraded-mode warning. Updated all cix-run system-unit goldens and direct unit assertions. Next: focused verification, commit the runner unit, then migrate Cixfiles, documentation, codegen coverage, rebuild, and run both system demos.
 
 - 2026-07-28 22:16 UTC — Stable-mount rename complete. Rebuilt nginx and PostgreSQL through both `cix build` and `nix-build`; all four system-mode runs passed (nginx returned its expected page and PostgreSQL returned `1`), and every transient unit was stopped. Regenerated the tour through its ignored test after clearing stale slices. Final `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace` pass. Historical mount-specific log wording was normalized with the code so the requested legacy path/env-name audit is empty; generic store-item vocabulary remains unchanged. Next: stop remaining test slices, make the final log commit, and confirm a clean worktree.
