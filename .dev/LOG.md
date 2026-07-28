@@ -1,5 +1,26 @@
 # composix work log
 
+## 2026-07-28 (night)
+
+- D22 v3 filesystem projection: items are sparse rootfs fragments (mounts field, deny-list,
+  stress-verified: ro shadowing, symlink escape blocked, 25 mounts). /app removed entirely;
+  examples on native paths; sibling COPY files replace verbatim heredocs (nginx Cixfile is now
+  7 docker-readable lines).
+- Networking direction D23-D27 recorded (composite netns, SocketBind enforcement, caps tier,
+  pluggable networks, talks-to). dstyle track (sol) proved the D25 tier live and produced 3
+  ranked proposals: unix edges w/ per-edge groups, a listeners contract distinct from ports,
+  socket-activated publish. Awaiting Mathijs review.
+- compose-formats doc (sol): TOML recommended (data-only, strict), Cixfile-DSL as
+  evidence-gated challenger, YAML/nix-lite rejected with reversal conditions. Awaiting verdict.
+- OCI import prototyped (sol): real nginx/redis images ran hardened via RootDirectory, but
+  verdict = distraction (second runtime model); branch track/ocimport preserved unmerged;
+  ledger updated; cix migrate kept open.
+- buildshape (sol): generic stub of the real rust+frontend flake shape (privacy-audited twice)
+  + docs/cixfile-build.md — BUILD half judged: Variant A (inline minimal magic) first, plugin
+  system (B) behind a 5-point evidence bar.
+- Open with Mathijs: compose TOML verdict, dstyle proposals, docker.md remaining questions,
+  model table update.
+
 ## 2026-07-28 (evening)
 
 - Spec v2 amendments: D21 env de-typing (Mathijs's YAGNI push), D22 /item stable mount
