@@ -98,3 +98,132 @@
   design evidence: generated compose units should emit explicit dependency/fd-source wiring rather
   than rely on basename convention. Stop removed the service, socket unit, and TCP listener.
   Design wall: neither cixSpec nor `cix run` can request, create, or report an activation socket.
+
+## Design proposals, ranked
+
+- 2026-07-28 23:08 UTC — Ranked the mechanisms by D25/D27 leverage using the live evidence above.
+
+The sketches below use JSON only to make the data model precise; they do not decide compose's
+surface language.
+
+### 1. Named Unix-socket edges with compose-owned runtime directories
+
+This unlocks the largest part of D25 and the strongest D27 enforcement: PostgreSQL clients and
+the nginx/backend stack both need the same primitive.
+
+```json
+{
+  "unixEdges": {
+    "database": {
+      "producer": {"service": "postgres", "path": "/run/postgresql"},
+      "consumers": {
+        "api": {"path": "/run/postgresql", "access": "connect"}
+      }
+    }
+  }
+}
+```
+
+The corresponding item-level declaration remains app-semantic: PostgreSQL still declares its
+run path, and compose says that this particular instance's path participates in a named edge.
+If embedding the association beside a service proves more readable, the equivalent object form
+is `{"path": "/run/postgresql", "shared": "database"}`; `shared` is a compose overlay, not a raw
+systemd escape hatch.
+
+Mechanism:
+
+1. Generate a `cix-<composite>-edge-<edge>.service`, held active by the composite target, with
+   `RuntimeDirectory=cix-<composite>-edge-<edge>`, a root-owned per-edge group, mode `2770`, and
+   stop-time cleanup. This gives the directory composite/edge lifetime instead of producer-process
+   lifetime.
+2. Project that backing directory to each declared app path with `BindPaths=` for the producer and
+   `BindReadOnlyPaths=` where a consumer only connects. Add `Requires=`/`After=` on the edge owner.
+3. Generate a collision-resistant system group for the edge (for example
+   `cix-e-<stable-hash>`) and put only producer and declared consumers in it with
+   `SupplementaryGroups=`. Set `UMask=0007`; applications that expose an explicit socket mode
+   should use `0660`.
+4. Report the effective grant in `cix ps`/inspection as `unix-edge(group)`, including every member
+   and projected path.
+
+Choose the per-edge group. A shared directory object without membership merely repeats the stack's
+raw `BindPaths=` failure: visibility is not authorization. `JoinsNamespaceOf=` is the wrong tool:
+systemd does not use it to share mount namespaces, it does not align DynamicUser identities, and it
+would widen a namespace boundary instead of granting one object. A per-edge group maps directly to
+Unix traversal/connect checks, can include multiple consumers, and is observable with ordinary
+systemd properties. The generated group is host-persistent metadata, but authority is not: only
+running units explicitly carrying `SupplementaryGroups=` can exercise it.
+
+### 2. A first-class activated-listener contract, distinct from `ports`
+
+This is the pure-capability endpoint: `listenfds` showed that a service can accept an inherited
+TCP listener while retaining `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`, and no
+capabilities.
+
+```json
+{
+  "listeners": {
+    "http": {
+      "type": "stream",
+      "family": "tcp",
+      "activation": "fd"
+    }
+  }
+}
+```
+
+Do **not** add `"activation": "socket"` to today's `ports` entry. A port currently means “this
+process may create an IP socket,” which intentionally grants AF_INET/AF_INET6. An activated
+listener means the opposite: “this process accepts an already-open fd and must not gain IP socket
+creation.” A separate `listeners` field keeps capability compilation unambiguous. For named
+multi-fd services, the application consumes `LISTEN_FDNAMES`; the listener name becomes
+`FileDescriptorName=`.
+
+`cix run` supplies the operator binding for an item listener, for example
+`cix run item -p http=127.0.0.1:8080`; compose stores the same decision:
+
+```json
+{
+  "services": {
+    "api": {
+      "bind": {"http": "127.0.0.1:8080"}
+    }
+  }
+}
+```
+
+Mechanism: create a transient `cix-run-…-http.socket` with `ListenStream=` and
+`FileDescriptorName=http`, point `Service=` at the service, and put explicit
+`Requires=`/`After=` plus `Sockets=` on the service. Explicit wiring is preferable to
+systemd-run's same-basename convention: the live probe populated `TriggeredBy` but not `Sockets`,
+and systemd permits a conventionally paired service to start without its socket. Put all generated
+units behind one run/composite target so stop and failed-start cleanup are atomic. Extend `cix ps`
+to show inactive/listening sockets, their bound addresses, target service, and activation count.
+
+### 3. Publish a Unix edge through a socket-activated proxy
+
+This unlocks D25 for daemons such as nginx that can bind Unix sockets but cannot consume
+`LISTEN_FDS`.
+
+```json
+{
+  "publish": {
+    "web": {
+      "listen": "127.0.0.1:8080",
+      "to": {"service": "nginx", "unix": "/run/nginx/http.sock"},
+      "mode": "socket-proxy"
+    }
+  }
+}
+```
+
+`listen` is an operator/compose decision; the item continues to declare no ports. `to` must resolve
+to a declared run path or named Unix edge, never an arbitrary host path.
+
+Mechanism: generate `cix-<composite>-publish-web.socket` with
+`ListenStream=127.0.0.1:8080` and a paired `systemd-socket-proxyd` service targeting the Unix
+socket. The proxy gets `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`, no capabilities,
+and consumer membership/projection from proposal 1. It requires the edge and producer service;
+the composite target owns both units. This is exactly the nginx proof: the `.socket` alone owns the
+host IP listener, proxyd starts on demand, and the application never receives IP-stack authority.
+Expose proxy mode honestly because proxyd does not forward `SO_PEERCRED`/SCM side-channel data; a
+native fd-activated service should use proposal 2 when end-to-end fd capability semantics matter.
