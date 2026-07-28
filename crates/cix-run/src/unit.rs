@@ -55,12 +55,12 @@ pub(crate) fn build_unit(
         mode != UnitMode::UserDegraded,
     );
 
-    let cix_item = if mode == UnitMode::System {
+    let cix_app = if mode == UnitMode::System {
         properties.push((
             "BindReadOnlyPaths".into(),
-            format!("{}:/item", output.display()),
+            format!("{}:/app", output.display()),
         ));
-        "/item".into()
+        "/app".into()
     } else {
         output
             .to_str()
@@ -128,7 +128,7 @@ pub(crate) fn build_unit(
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
-    environment.push(("CIX_ITEM".into(), cix_item));
+    environment.push(("CIX_APP".into(), cix_app));
 
     let text = render(service_name, &argv, &environment, &properties);
     Ok(UnitDefinition {
@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn system_units_mount_the_item_and_set_cix_item() {
+    fn system_units_mount_the_app_and_set_cix_app() {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/minimal-spec.json")).unwrap();
         let service = &spec.services["worker"];
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
@@ -451,11 +451,11 @@ mod tests {
 
         assert!(definition.properties.contains(&(
             "BindReadOnlyPaths".into(),
-            "/nix/store/00000000000000000000000000000000-worker:/item".into(),
+            "/nix/store/00000000000000000000000000000000-worker:/app".into(),
         )));
         assert!(definition
             .environment
-            .contains(&("CIX_ITEM".into(), "/item".into())));
+            .contains(&("CIX_APP".into(), "/app".into())));
 
         let user_definition =
             build_unit(output, "worker", service, &config, UnitMode::UserFull).unwrap();
@@ -464,7 +464,7 @@ mod tests {
             .iter()
             .any(|(name, _)| name == "BindReadOnlyPaths"));
         assert!(user_definition.environment.contains(&(
-            "CIX_ITEM".into(),
+            "CIX_APP".into(),
             "/nix/store/00000000000000000000000000000000-worker".into(),
         )));
     }

@@ -928,7 +928,7 @@ escaped=$${literal}
 runtime=$PORT
 CONF
 SCRIPT bin/start <<SCRIPT
-exec /item/bin/nginx "$PORT"
+exec /app/bin/nginx "$PORT"
 SCRIPT
 LINK bin/nginx ${nginx}/bin/nginx
 

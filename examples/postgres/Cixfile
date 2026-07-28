@@ -16,40 +16,40 @@ FILE lib/runtime-env.sh <<EOF
 state_dir=/var/lib/postgresql
 data_dir="$state_dir/data"
 init_dir="$state_dir/.init"
-uid="$(/item/bin/id -u)"
-gid="$(/item/bin/id -g)"
+uid="$(/app/bin/id -u)"
+gid="$(/app/bin/id -g)"
 
 printf 'cix:x:%s:%s:PostgreSQL:%s:/noshell\n' \
   "$uid" "$gid" "$state_dir" > "$state_dir/passwd"
 printf 'cix:x:%s:\n' "$gid" > "$state_dir/group"
 export NSS_WRAPPER_PASSWD="$state_dir/passwd"
 export NSS_WRAPPER_GROUP="$state_dir/group"
-export LD_PRELOAD=/item/lib/libnss_wrapper.so
+export LD_PRELOAD=/app/lib/libnss_wrapper.so
 EOF
 
 SCRIPT bin/setup <<EOF
 set -eu
-. /item/lib/runtime-env.sh
+. /app/lib/runtime-env.sh
 
 if [ ! -s "$data_dir/PG_VERSION" ]; then
-  /item/bin/rm -rf "$init_dir"
-  /item/bin/mkdir -p "$init_dir"
-  LANG=C LC_ALL=C /item/bin/initdb \
+  /app/bin/rm -rf "$init_dir"
+  /app/bin/mkdir -p "$init_dir"
+  LANG=C LC_ALL=C /app/bin/initdb \
     --pgdata="$init_dir" \
     --username=cix \
     --auth-local=trust \
     --auth-host=trust \
     --encoding=UTF8 \
     --no-locale
-  /item/bin/mv "$init_dir" "$data_dir"
+  /app/bin/mv "$init_dir" "$data_dir"
 fi
 EOF
 
 SCRIPT bin/start <<EOF
 set -eu
-. /item/lib/runtime-env.sh
+. /app/lib/runtime-env.sh
 
-exec /item/bin/postgres \
+exec /app/bin/postgres \
   -D "$data_dir" \
   -p "$1" \
   -h 127.0.0.1 \

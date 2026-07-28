@@ -291,13 +291,13 @@ Amendments (same day, after the YAGNI round with Mathijs):
   default/override parses as a port, and the <1024 capability logic keys off that. `int`,
   `bool`, `path` bought a marginally earlier error at real complexity cost — removed. For
   compat, `type` is still *accepted and ignored* (deprecated) within v2; hard removal at v3.
-- **D22 — the stable item mount `/item`.** Every system-mode unit gets its store item bound
-  read-only at `/item` (plus `CIX_ITEM=/item` in the environment). This restores docker's
-  stable-absolute-paths property: config files and scripts reference `/item/…` and stay
+- **D22 — the stable app mount `/app`.** Every system-mode unit gets its store item bound
+  read-only at `/app` (plus `CIX_APP=/app` in the environment). This restores docker's
+  stable-absolute-paths property: config files and scripts reference `/app/…` and stay
   VERBATIM — no build-time templating in file contents, ever. Cross-package references are
   pulled into the item via links (Cixfile `LINK`), so `${pkg}` interpolation is confined to
-  directive arguments. In degraded `--user` mode (no binds) `CIX_ITEM` is the real store path
-  and `/item`-dependent items warn loudly.
+  directive arguments. In degraded `--user` mode (no binds) `CIX_APP` is the real store path
+  and `/app`-dependent items warn loudly.
 
 ### Open
 
@@ -336,7 +336,7 @@ docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STA
 
 Interpolation rule: `${…}` (build-time) lives in directive arguments and in `FILE`/`SCRIPT`
 heredoc bodies (`$${…}` escapes to a literal); `COPY`'d files are always verbatim; `$VAR`
-(runtime env) only in EXEC/SETUP. `/item` paths (D22) remove the *need* for interpolating
+(runtime env) only in EXEC/SETUP. `/app` paths (D22) remove the *need* for interpolating
 file contents — heredocs merely retain the option. There is no RUN, deliberately.
 
 Determinism: `cix build [dir] [-t ref]` compiles Cixfile → nix expr → store item. nixpkgs is

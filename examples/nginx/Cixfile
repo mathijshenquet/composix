@@ -13,7 +13,7 @@ pid /run/nginx/nginx.pid;
 error_log stderr info;
 events { }
 http {
-  include /item/etc/mime.types;
+  include /app/etc/mime.types;
   access_log off;
   client_body_temp_path /var/cache/nginx/body;
   proxy_temp_path /var/cache/nginx/proxy;
@@ -22,13 +22,13 @@ http {
   scgi_temp_path /var/cache/nginx/scgi;
   server {
     listen 8080;
-    root /item/www;
+    root /app/www;
   }
 }
 EOF
 
 SERVICE nginx
-EXEC bin/nginx -c /item/etc/nginx.conf -e stderr
+EXEC bin/nginx -c /app/etc/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx

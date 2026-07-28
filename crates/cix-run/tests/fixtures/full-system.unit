@@ -17,7 +17,7 @@ BindPaths=/var/log/cix-run-web:/srv/web/log
 ConfigurationDirectory=cix-run-web
 ConfigurationDirectoryMode=0700
 BindPaths=/etc/cix-run-web:/srv/web/config
-BindReadOnlyPaths=/nix/store/00000000000000000000000000000000-web:/item
+BindReadOnlyPaths=/nix/store/00000000000000000000000000000000-web:/app
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -38,4 +38,4 @@ Environment="DB_URL=postgres://db/a b"
 Environment="ENABLED=true"
 Environment="PORT=9090"
 Environment="ROOT=/srv/web"
-Environment="CIX_ITEM=/item"
+Environment="CIX_APP=/app"
