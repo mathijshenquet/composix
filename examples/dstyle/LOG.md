@@ -12,3 +12,9 @@
   and no ports. Its demo inspects raw unit properties, connects from the host through the backing
   runtime path, and compares root access with uid 1001 and an unrelated DynamicUser service.
   Added a small shared demo helper for exact property assertions and collected-unit cleanup.
+- 2026-07-28 22:55 UTC — First PostgreSQL run reached ready state and the journal proved its sole
+  listener was `/run/postgresql/.s.PGSQL.5432`, but initial cluster creation took about 13 seconds,
+  longer than the demo's 10-second socket deadline. Cleanup stopped the service and removed the
+  runtime directory; systemd retained only the empty `cix-run.slice`. Extended only the readiness
+  deadline, fixed collected-unit detection to inspect `LoadState`, and explicitly collect the empty
+  cix run slice so the done gate can assert no residual units.

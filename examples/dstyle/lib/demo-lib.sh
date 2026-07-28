@@ -22,7 +22,7 @@ resolve_cix() {
 
 wait_for_path() {
   local path=$1
-  for _ in {1..100}; do
+  for _ in {1..300}; do
     [[ -e $path ]] && return 0
     sleep 0.1
   done
@@ -31,15 +31,23 @@ wait_for_path() {
 }
 
 wait_for_unit_gone() {
-  local unit=$1
+  local unit=$1 load_state
   for _ in {1..100}; do
-    if ! sudo systemctl show "$unit" >/dev/null 2>&1; then
+    load_state=$(sudo systemctl show "$unit" --property=LoadState --value 2>/dev/null || true)
+    if [[ $load_state != loaded ]]; then
       return 0
     fi
     sleep 0.1
   done
   echo "timed out waiting for $unit to be collected" >&2
   return 1
+}
+
+collect_cix_run_slice() {
+  if ! sudo systemctl list-units --state=active --no-legend \
+    'cix-run-*.service' | grep -q .; then
+    stop_unit cix-run.slice
+  fi
 }
 
 stop_unit() {
@@ -57,4 +65,3 @@ assert_property() {
     return 1
   fi
 }
-

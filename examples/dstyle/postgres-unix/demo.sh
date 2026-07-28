@@ -13,6 +13,7 @@ cleanup() {
   stop_unit "$peer_unit"
   stop_unit "$unit"
   [[ -z $unit ]] || wait_for_unit_gone "$unit" || true
+  collect_cix_run_slice
   [[ ! -e $host_socket_dir ]] || {
     echo "cleanup failed: $host_socket_dir remains" >&2
     return 1
@@ -94,6 +95,6 @@ echo "unrelated DynamicUser client: denied despite receiving the socket path"
 sudo systemctl stop "$unit"
 wait_for_unit_gone "$unit"
 unit=
+collect_cix_run_slice
 [[ ! -e $host_socket_dir ]]
 echo "stopped cleanly; runtime directory removed"
-
