@@ -55,18 +55,9 @@ pub(crate) fn build_unit(
         mode != UnitMode::UserDegraded,
     );
 
-    let cix_app = if mode == UnitMode::System {
-        properties.push((
-            "BindReadOnlyPaths".into(),
-            format!("{}:/app", output.display()),
-        ));
-        "/app".into()
-    } else {
-        output
-            .to_str()
-            .context("store output path is not valid UTF-8")?
-            .to_owned()
-    };
+    if mode == UnitMode::System {
+        add_mounts(&mut properties, output, service)?;
+    }
 
     if mode == UnitMode::System {
         properties.push(("DynamicUser".into(), "yes".into()));
@@ -128,7 +119,15 @@ pub(crate) fn build_unit(
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
-    environment.push(("CIX_APP".into(), cix_app));
+    if mode != UnitMode::System {
+        environment.push((
+            "CIX_APP".into(),
+            output
+                .to_str()
+                .context("store output path is not valid UTF-8")?
+                .to_owned(),
+        ));
+    }
 
     let text = render(service_name, &argv, &environment, &properties);
     Ok(UnitDefinition {
@@ -137,6 +136,31 @@ pub(crate) fn build_unit(
         environment,
         argv,
     })
+}
+
+fn add_mounts(
+    properties: &mut Vec<(String, String)>,
+    output: &Path,
+    service: &Service,
+) -> Result<()> {
+    for mount in service.mounts.as_deref().unwrap_or_default() {
+        let relative = mount
+            .strip_prefix("/")
+            .expect("validated mount paths are absolute");
+        let source = output.join(relative);
+        if !source.exists() {
+            bail!(
+                "declared mount {} is missing from store item at {}",
+                mount.display(),
+                source.display()
+            );
+        }
+        properties.push((
+            "BindReadOnlyPaths".into(),
+            format!("{}:{}", source.display(), mount.display()),
+        ));
+    }
+    Ok(())
 }
 
 fn resolved_argv(
@@ -442,31 +466,67 @@ mod tests {
     }
 
     #[test]
-    fn system_units_mount_the_app_and_set_cix_app() {
-        let spec = Spec::from_slice(include_bytes!("../tests/fixtures/minimal-spec.json")).unwrap();
+    fn system_units_project_existing_mounts_without_cix_app() {
+        let output = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(output.path().join("etc/nginx")).unwrap();
+        std::fs::write(output.path().join("etc/nginx/nginx.conf"), "events {}\n").unwrap();
+        std::fs::write(output.path().join("cix-probe.conf"), "probe\n").unwrap();
+        let spec = Spec::from_slice(
+            br#"{"cixSpec":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}}}"#,
+        )
+        .unwrap();
         let service = &spec.services["worker"];
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
-        let output = Path::new("/nix/store/00000000000000000000000000000000-worker");
-        let definition = build_unit(output, "worker", service, &config, UnitMode::System).unwrap();
+        let definition =
+            build_unit(output.path(), "worker", service, &config, UnitMode::System).unwrap();
 
         assert!(definition.properties.contains(&(
             "BindReadOnlyPaths".into(),
-            "/nix/store/00000000000000000000000000000000-worker:/app".into(),
+            format!("{}/etc/nginx:/etc/nginx", output.path().display()),
         )));
-        assert!(definition
+        assert!(definition.properties.contains(&(
+            "BindReadOnlyPaths".into(),
+            format!("{}/cix-probe.conf:/cix-probe.conf", output.path().display()),
+        )));
+        assert!(!definition
             .environment
-            .contains(&("CIX_APP".into(), "/app".into())));
+            .iter()
+            .any(|(name, _)| name == "CIX_APP"));
 
-        let user_definition =
-            build_unit(output, "worker", service, &config, UnitMode::UserFull).unwrap();
+        let user_definition = build_unit(
+            output.path(),
+            "worker",
+            service,
+            &config,
+            UnitMode::UserFull,
+        )
+        .unwrap();
         assert!(!user_definition
             .properties
             .iter()
             .any(|(name, _)| name == "BindReadOnlyPaths"));
         assert!(user_definition.environment.contains(&(
             "CIX_APP".into(),
-            "/nix/store/00000000000000000000000000000000-worker".into(),
+            output.path().to_string_lossy().into_owned(),
         )));
+    }
+
+    #[test]
+    fn refuses_a_declared_mount_missing_from_the_store_item() {
+        let output = tempfile::tempdir().unwrap();
+        let spec = Spec::from_slice(
+            br#"{"cixSpec":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}}}"#,
+        )
+        .unwrap();
+        let service = &spec.services["worker"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let error = build_unit(output.path(), "worker", service, &config, UnitMode::System)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("declared mount /opt/a/b/c/d is missing"),
+            "{error}"
+        );
     }
 
     #[test]

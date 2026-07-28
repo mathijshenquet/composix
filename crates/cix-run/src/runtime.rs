@@ -51,7 +51,7 @@ pub fn run(options: RunOptions) -> Result<()> {
     }
     if options.user {
         eprintln!(
-            "warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; /app is unavailable and CIX_APP names the real store path"
+            "warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path"
         );
     }
 
