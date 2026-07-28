@@ -133,6 +133,7 @@ dependencies = [
  "anyhow",
  "cix-common",
  "cix-index",
+ "cix-run",
  "clap",
  "serde",
  "serde_json",
