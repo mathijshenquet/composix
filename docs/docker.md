@@ -73,17 +73,16 @@ surface above.
 | [default registry (`docker.io`)](https://docs.docker.com/docker-hub/) | ❌ by design: bare names are always local (D12). Given up: zero-configuration access to a shared public namespace. |
 | [official images (`library/`)](https://docs.docker.com/docker-hub/image-library/trusted-content/) | 🔁 cixpkgs (planned; `examples/` is the seed). ❓ Two examples do not yet earn an ecosystem adaptation claim. |
 | [multi-platform images / manifest lists](https://docs.docker.com/build/building/multi-platform/) | ✅ per-system outputs (D14). ❓ This has metadata coverage, but no published evidence of cross-building, serving, and pulling every claimed system. |
-| [`docker login` / registry auth](https://docs.docker.com/reference/cli/docker/login/) | ⏳ arrives with push; authorization is server-side (D17) |
+| [`docker login` / `logout` / registry auth](https://docs.docker.com/reference/cli/docker/login/) | ⏳ arrives with push; authorization is server-side (D17) |
 | [content trust / signing](https://docs.docker.com/engine/security/trust/) | ✅ Nix path signatures + `trustedKeys` in entries. ❓ Specify key rotation, revocation, delegation, policy enforcement, and unsigned-path behavior before claiming operational parity. |
-| [`save` / `load` (tar transport)](https://docs.docker.com/reference/cli/docker/image/save/) | 🔁 `nix copy --to file://…/ssh://…` is native. ❓ “Better” is unevidenced: Docker emits a portable stream with tags and layers; document the exact offline round trip and metadata retained by the Nix replacement. |
-| [`image ls` / `image rm`](https://docs.docker.com/reference/cli/docker/image/ls/) | 🔁 `cix ls` / `cix untag` plus Nix GC; removal of shared store content is deliberately indirect |
+| [`save`](https://docs.docker.com/reference/cli/docker/image/save/) / [`load`](https://docs.docker.com/reference/cli/docker/image/load/) (tar transport) | 🔁 `nix copy --to file://…/ssh://…` is native. ❓ “Better” is unevidenced: Docker emits a portable stream with tags and layers; document the exact offline round trip and metadata retained by the Nix replacement. |
+| [`image ls`](https://docs.docker.com/reference/cli/docker/image/ls/) / [`image rm`](https://docs.docker.com/reference/cli/docker/image/rm/) | ❓ `cix ls` / `cix untag` plus Nix GC look adjacent, but decide whether tag inventory and indirect shared-store collection satisfy Docker's image-object lifecycle |
 | [`image inspect`](https://docs.docker.com/reference/cli/docker/image/inspect/) | 🔁 informative URL page (D18) + `cix ls -l`; a `cix inspect` ❓. The current views expose much less runtime/config metadata than Docker inspect. |
 | [layers / `image history`](https://docs.docker.com/reference/cli/docker/image/history/) | ❌ no layers; provenance = `drvPath` + `nix log`. Given up: layer-level transfer reuse, authoring history, and a ubiquitous debugging vocabulary. |
 | [build-cache export/import](https://docs.docker.com/build/cache/backends/) | 🔁 Nix binary caches provide remote build results. ❓ Compare cache keys, partial reuse, multi-stage behavior, export modes, and cold-transfer bytes before calling them “exactly” the same. |
 | [`image prune` / dangling images](https://docs.docker.com/reference/cli/docker/image/prune/) | 🔁 `cix untag` + Nix GC; `cix prune` sugar ⏳ |
 | [registry mirrors / pull-through cache](https://docs.docker.com/docker-hub/image-library/mirror/) | 🔁 `substituters` list in entries (D6). ❓ A list of content sources is not itself a pull-through mirror with upstream fill, freshness checks, and cache lifecycle. |
 | [registry HTTP API](https://docs.docker.com/reference/api/registry/latest/) | ✅ one negotiated URL space (D18). ❓ “Richer” does not offset incompatibility with registry clients, OCI tooling, or registry middleware. |
-| [`image import`](https://docs.docker.com/reference/cli/docker/image/import/) | ❌ artifacts are built, never imported from mutable filesystem snapshots. Given up: a direct migration path from rootfs tarballs. |
 | [`docker manifest`](https://docs.docker.com/reference/cli/docker/manifest/) | ❓ D14 stores per-system outputs, but there is no client surface to inspect, annotate, create, or push a multi-platform manifest. |
 
 **Residuals.** Docker can pull and run existing OCI/Docker images, stream tagged images through
@@ -107,19 +106,19 @@ larger than Docker's compressed layers.
 | [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 journald; foreground `cix run` streams and `journalctl -u cix-*` works. ❓ There is no `cix logs`, stable selector, per-app retention contract, or logging-driver integration. |
 | [`exec` (command in container)](https://docs.docker.com/reference/cli/docker/container/exec/) | ❓ no container, but the unit's namespaces exist—would `cix exec` enter them, and under which identity/capabilities? |
 | [`attach`](https://docs.docker.com/reference/cli/docker/container/attach/) | 🔁 journal streaming. ❓ Journal following is output-only and is not attach parity for stdin, signals, detach keys, or the process TTY. |
-| [`stop` / `kill` / signals](https://docs.docker.com/reference/cli/docker/container/stop/) | ✅ `systemctl stop`; custom stop signal/timeouts ⏳ (spec v3 candidate). ❓ Calling a generic supervisor escape hatch “have” leaves no composix CLI, object selector, or `kill` equivalent. |
+| [`stop`](https://docs.docker.com/reference/cli/docker/container/stop/) / [`kill`](https://docs.docker.com/reference/cli/docker/container/kill/) / signals | ✅ `systemctl stop`; custom stop signal/timeouts ⏳ (spec v3 candidate). ❓ Calling a generic supervisor escape hatch “have” leaves no composix CLI, object selector, or `kill` equivalent. |
 | [`rm` / `--rm`](https://docs.docker.com/reference/cli/docker/container/rm/) | 🔁 transient units self-collect |
 | [`ps`](https://docs.docker.com/reference/cli/docker/container/ls/) | ✅ `cix ps` |
-| [`stats` / `top`](https://docs.docker.com/reference/cli/docker/container/stats/) | 🔁 cgroup accounting is available through `systemd-cgtop`; `cix stats` sugar ⏳. ❓ Docker supplies per-container CLI output and an API; the underlying accounting primitive is not the product surface. |
+| [`stats`](https://docs.docker.com/reference/cli/docker/container/stats/) / [`top`](https://docs.docker.com/reference/cli/docker/container/top/) | 🔁 cgroup accounting is available through `systemd-cgtop`; `cix stats` sugar ⏳. ❓ Docker supplies per-container CLI output and an API; the underlying accounting primitive is not the product surface. |
 | [`update` (live resource limits)](https://docs.docker.com/reference/cli/docker/container/update/) | ⏳ compose era (limits are operator config) |
 | [`cp`](https://docs.docker.com/reference/cli/docker/container/cp/) | ❓ role dirs are plain host paths—would path documentation replace copying to/from the immutable item and private namespaces? |
 | [`commit` (container → image)](https://docs.docker.com/reference/cli/docker/container/commit/) | ❌ fundamental: artifacts come from builds, never snapshots (purity). Given up: capturing a debugged or manually modified runtime as a distributable artifact. |
-| [`pause` / `unpause`](https://docs.docker.com/reference/cli/docker/container/pause/) | 🔁 `systemctl freeze/thaw` exists; sugar probably ❌. ❓ Confirm semantics and cgroup-version support before presenting the commands as interchangeable. |
+| [`pause`](https://docs.docker.com/reference/cli/docker/container/pause/) / [`unpause`](https://docs.docker.com/reference/cli/docker/container/unpause/) | 🔁 `systemctl freeze/thaw` exists; sugar probably ❌. ❓ Confirm semantics and cgroup-version support before presenting the commands as interchangeable. |
 | [`--user` (pick uid)](https://docs.docker.com/reference/cli/docker/container/run/#user) | ❌ `DynamicUser` is the model; fixed UIDs are refused. Given up: compatibility with images, mounted files, licenses, and protocols that require a known numeric identity. |
 | [`--privileged`](https://docs.docker.com/reference/cli/docker/container/run/#privileged) | ❌ against the capability-spec thesis (D20a); operator overrides live in compose ❓. Given up: workloads that need broad device/kernel access and the common diagnostic escape hatch. |
 | [`--init`](https://docs.docker.com/reference/cli/docker/container/run/#init) | ❌ systemd is the service manager. Given up: Docker's portable in-container child reaping/forwarding behavior when the same image runs under another runtime. |
 | [interactive `-it` containers](https://docs.docker.com/reference/cli/docker/container/run/#foreground) | 🔁 out of scope for services; `nix run`/`nix shell` cover Nix-native one-offs. ❓ They cannot open an existing image or reproduce its filesystem, environment, entrypoint, and user. |
-| [`create` / `start` (stopped containers)](https://docs.docker.com/reference/cli/docker/container/create/) | ❌ transient units are run-or-nothing; persistent units arrive with compose. Given up: prepare/inspect/start workflows and a durable stopped-object inventory. |
+| [`create`](https://docs.docker.com/reference/cli/docker/container/create/) / [`start`](https://docs.docker.com/reference/cli/docker/container/start/) (stopped containers) | ❌ transient units are run-or-nothing; persistent units arrive with compose. Given up: prepare/inspect/start workflows and a durable stopped-object inventory. |
 | [`restart`](https://docs.docker.com/reference/cli/docker/container/restart/) | 🔁 `systemctl restart`; policy ⏳ compose. ❓ Again, this is an operator escape hatch rather than a `cix` lifecycle command. |
 | [`checkpoint` (CRIU)](https://docs.docker.com/reference/cli/docker/checkpoint/) | ❌ niche, no systemd first-class support. Given up: checkpoint/restore, live migration building blocks, and stateful fast restart. |
 | [resource flags (`--cpu-*`, `--memory-*`, `--blkio-*`, `--ulimit`, `--oom-*`)](https://docs.docker.com/reference/cli/docker/container/run/#runtime-constraints-on-resources) | ⏳ compose: slice/unit limits, systemd-native |
@@ -144,14 +143,14 @@ compose work. D11, D20a, and D22 deliberately narrow mounts and privileges, but 
 the compatibility lost. D9 plans persistent compose units; it does not yet specify their complete
 lifecycle or inspection surface.
 
-## 3. Building (part 4 designed — coarse)
+## 3. Building (part 4 designed, not built)
 
 | docker | disposition |
 | --- | --- |
 | [Dockerfile](https://docs.docker.com/reference/dockerfile/) | 🔁 Cixfile (D4) + always the `.nix` escape hatch. ❓ Cixfile is unimplemented, omits general build steps, and cannot yet substantiate an adaptation claim. |
 | [`FROM` / base images](https://docs.docker.com/reference/dockerfile/#from) | 🔁 nixpkgs + ecosystem builders; no layer inheritance. ❓ This only helps software packaged in Nix or newly packaged for it; it cannot consume an arbitrary base image. |
 | [`RUN`](https://docs.docker.com/reference/dockerfile/#run) | ❌ imperative impure steps; blessed builders instead. Given up: the universal escape hatch that makes existing installation instructions and most Dockerfiles directly expressible. |
-| [`COPY` / `ADD` / `.dockerignore`](https://docs.docker.com/build/concepts/context/#dockerignore-files) | 🔁 Cixfile source assembly/filtering. ❓ D4 describes `COPY` and inline files, but the command and filtering semantics are not built. |
+| [`COPY`](https://docs.docker.com/reference/dockerfile/#copy) / [`ADD`](https://docs.docker.com/reference/dockerfile/#add) / [`.dockerignore`](https://docs.docker.com/build/concepts/context/#dockerignore-files) | 🔁 Cixfile source assembly/filtering. ❓ D4 describes `COPY` and inline files, but the command and filtering semantics are not built. |
 | [`ENV`, `EXPOSE`, `VOLUME`, `ENTRYPOINT`, `CMD`, `WORKDIR`, `HEALTHCHECK`, `USER`, `LABEL`](https://docs.docker.com/reference/dockerfile/#overview) | 🔁 Cixfile `SERVICE` blocks → `cix-spec.json`. ❓ The proposed schema has no faithful equivalent for all of these (notably image labels, arbitrary user, working directory, and wired health). |
 | [`ARG` / build args](https://docs.docker.com/reference/dockerfile/#arg) | ❓ decide how configurable builds coexist with pinned inputs and cache identity |
 | [multi-stage builds](https://docs.docker.com/build/building/multi-stage/) | 🔁 derivations compose naturally. ❓ Show how Cixfile users—not `.nix` authors—express private intermediate tools and selective copying. |
@@ -180,7 +179,7 @@ trades broad packageability for discipline.
 | [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ⏳ compose era, operator territory |
 | [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/) | ✅ `PrivateTmp`; more ⏳. ❓ A private `/tmp` and `/var/tmp` does not cover arbitrary tmpfs destinations, sizing, modes, or swap behavior. |
 | [volume drivers / plugins](https://docs.docker.com/engine/extend/plugins_volume/) | ❌ filesystems are the host's business. Given up: portable compose declarations for remote, encrypted, cloud, clustered, and vendor storage backends. |
-| [`volume prune` / `volume update`](https://docs.docker.com/reference/cli/docker/volume/) | 🔁 role dirs are plain host paths; lifecycle via `systemctl clean` + GC. ❓ Nix GC does not clean mutable role data, and no `cix` command inventories ownership or previews deletion. |
+| [`volume prune`](https://docs.docker.com/reference/cli/docker/volume/prune/) / [`volume update`](https://docs.docker.com/reference/cli/docker/volume/update/) | 🔁 role dirs are plain host paths; lifecycle via `systemctl clean` + GC. ❓ Nix GC does not clean mutable role data, and no `cix` command inventories ownership or previews deletion. |
 | [`volume create` / `inspect` / `ls` / `rm`](https://docs.docker.com/reference/cli/docker/volume/) | ❓ compose has not defined the named-volume object, metadata, sharing, lifecycle, or CLI surface |
 
 **Residuals.** Docker provides named volume objects with create/list/inspect/remove/prune,
@@ -208,7 +207,7 @@ connect/disconnect lifecycle. composix only denies networking entirely or places
 the host network. Part 3 explicitly chooses host networking for its MVP and merely opens the
 per-slice-netns question, so neither D9 nor another current decision closes this gap.
 
-## 6. Compose (part 3 designed — coarse until built)
+## 6. Compose (activation mechanism designed; product absent)
 
 | docker | disposition |
 | --- | --- |
@@ -218,14 +217,14 @@ per-slice-netns question, so neither D9 nor another current decision closes this
 | [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | ⏳ `LoadCredential=` (D20b: operator territory) |
 | [resource limits](https://docs.docker.com/reference/compose-file/deploy/#resources) | ⏳ slice properties, natively |
 | [project namespacing](https://docs.docker.com/compose/how-tos/project-name/) | ✅ designed: `cix-<composite>.slice`/`.target`. ❓ “Have” is premature until activation, discovery, collision, and cleanup are implemented. |
-| [`up` / `down` / composix rollback](https://docs.docker.com/reference/cli/docker/compose/up/) | ✅ designed: resolve→lock→build→activate, per-composite profiles (D9). ❓ No `cix up`, `down`, or rollback command exists; this is currently a mechanism sketch. |
+| [`up`](https://docs.docker.com/reference/cli/docker/compose/up/) / [`down`](https://docs.docker.com/reference/cli/docker/compose/down/) / composix rollback | ✅ designed: resolve→lock→build→activate, per-composite profiles (D9). ❓ No `cix up`, `down`, or rollback command exists; this is currently a mechanism sketch. |
 | [`watch` (dev mode)](https://docs.docker.com/compose/how-tos/file-watch/) | ❓ interesting dev loop, unscoped |
 | [profiles](https://docs.docker.com/reference/compose-file/profiles/) | ❓ decide selection, dependency validation, and lock/profile interaction |
 | [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ compose config story (`ConfigurationDirectory` content) |
 | [`version` marker (obsolete)](https://docs.docker.com/reference/compose-file/version-and-name/#version-top-level-element-obsolete) | ❌ no obsolete compatibility marker. Given up: parsing older files that still carry it, unless a migration tool ignores it deliberately. |
 | [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ❓ the mechanism notes do not define object identity, external resources, labels, drivers, or lifecycle |
 | [multiple files, merge, include, and extends](https://docs.docker.com/compose/how-tos/multiple-compose-files/) | ❓ no configuration-composition model has been prototyped |
-| [one-off `run`, `exec`, `attach`, `cp`](https://docs.docker.com/reference/cli/docker/compose/run/) | ❓ D9 only addresses activation; operator/debug workflows for a composite are absent |
+| [one-off `run`, `exec`, `attach`, `cp`](https://docs.docker.com/reference/cli/docker/compose/) | ❓ D9 only addresses activation; operator/debug workflows for a composite are absent |
 | [`ps`, `logs`, `events`, `top`, `stats`, `wait`, `port`](https://docs.docker.com/reference/cli/docker/compose/) | ❓ no per-composite observation or scripting surface is designed |
 | [`build`, `pull`, `push`, `images`](https://docs.docker.com/reference/cli/docker/compose/) | ❓ resolve→lock→build names stages but does not define the user commands, concurrency, progress, partial failure, or offline behavior |
 | [`config` validation and dry run](https://docs.docker.com/reference/cli/docker/compose/config/) | ❓ no parser exists, so there is no canonical render, semantic validation, or execution preview |
@@ -288,7 +287,7 @@ the plan actually covers host failure or workload rescheduling.
 | [seccomp profiles](https://docs.docker.com/engine/security/seccomp/) | ✅ `SystemCallFilter=@system-service` default; custom profiles ❌ (D20a). ❓ Publish the effective syscall set, architecture behavior, exception process, and compatibility evidence before treating a systemd policy group as audited parity. |
 | [capabilities (`--cap-add`)](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) | ✅ semantic grants only (for example, a port below 1024 ⇒ `NET_BIND_SERVICE`, spec v2). ❓ One implemented semantic grant is not coverage of real workloads that need other narrowly scoped capabilities. |
 | [userns-remap](https://docs.docker.com/engine/security/userns-remap/) | ✅ `DynamicUser` + idmapped mounts, described as native and better. ❓ These solve host identity/persistent ownership differently; show that the service actually runs in a user namespace before claiming the same containment boundary, let alone “better.” |
-| [AppArmor / SELinux](https://docs.docker.com/engine/security/apparmor/) | ❓ host policy, likely out of spec scope; define labeling/profile behavior for store items and managed writable directories |
+| [AppArmor](https://docs.docker.com/engine/security/apparmor/) / [SELinux](https://docs.docker.com/engine/storage/bind-mounts/#configure-the-selinux-label) | ❓ host policy, likely out of spec scope; define labeling/profile behavior for store items and managed writable directories |
 | [secrets](https://docs.docker.com/compose/how-tos/use-secrets/) | ⏳ `LoadCredential=`, compose era |
 | [SBOM / vulnerability scanning (Scout)](https://docs.docker.com/scout/) | 🔁 the closure is an exact Nix dependency inventory; tooling ⏳. ❓ A closure graph is not an SPDX/CycloneDX SBOM, package-to-CVE matcher, remediation recommendation, policy gate, or registry scan. |
 | [provenance / attestations](https://docs.docker.com/build/metadata/attestations/slsa-provenance/) | 🔁 `drvPath` + path signatures; richer story ⏳. ❓ Define an exchange format, builder identity, materials, parameters, verification policy, and transparency story before calling this an attestation adaptation. |
@@ -309,10 +308,10 @@ secret delivery only after compose exists.
 | docker | disposition |
 | --- | --- |
 | [Hub search / explore](https://docs.docker.com/docker-hub/image-library/) | ⏳ the serve pages (D18) are the seed of “explore” |
-| [`docker dhi` (hardened images) / `docker model` (AI artifacts)](https://docs.docker.com/reference/cli/docker/) | ❌ product catalog features, not runtime concepts. Given up: Docker's maintained hardened supply chain and turnkey local model packaging/execution, regardless of whether composix calls them “runtime” concepts. |
+| [`docker dhi` (hardened images)](https://docs.docker.com/reference/cli/docker/dhi/) / [`docker model` (AI artifacts)](https://docs.docker.com/reference/cli/docker/model/) | ❌ product catalog features, not runtime concepts. Given up: Docker's maintained hardened supply chain and turnkey local model packaging/execution, regardless of whether composix calls them “runtime” concepts. |
 | [automated builds](https://docs.docker.com/docker-hub/repos/manage/builds/) | ❌ CI's job. Given up: repository-integrated source triggers, build rules, status, and a hosted path from commit to published artifact. |
-| [misc CLI: `diff`, `export`, `import`, `rename`](https://docs.docker.com/reference/cli/docker/container/) | ❌ artifacts are immutable store items. Given up: runtime filesystem diff/export, rootfs import, and mutable container handles; immutability only explains the choice. |
-| [`wait`, `port`, `version`, `info`](https://docs.docker.com/reference/cli/docker/container/wait/) | 🔁 trivial equivalents where useful. ❓ No `cix wait`, `port`, or `info` exists; `cix --version` covers only one item, and shelling out to systemd is not yet a defined equivalent. |
+| [misc CLI: `diff`](https://docs.docker.com/reference/cli/docker/container/diff/), [`export`](https://docs.docker.com/reference/cli/docker/container/export/), [`import`](https://docs.docker.com/reference/cli/docker/image/import/), [`rename`](https://docs.docker.com/reference/cli/docker/container/rename/) | ❌ artifacts are immutable store items. Given up: runtime filesystem diff/export, rootfs import, and mutable container handles; immutability only explains the choice. |
+| [`wait`](https://docs.docker.com/reference/cli/docker/container/wait/), [`port`](https://docs.docker.com/reference/cli/docker/container/port/), [`version`](https://docs.docker.com/reference/cli/docker/version/), [`info`](https://docs.docker.com/reference/cli/docker/system/info/) | 🔁 trivial equivalents where useful. ❓ No `cix wait`, `port`, or `info` exists; `cix --version` covers only one item, and shelling out to systemd is not yet a defined equivalent. |
 | [`docker search`](https://docs.docker.com/reference/cli/docker/search/) | ❓ D18 serves one index's listing but there is no federated/catalog search, ranking, trust metadata, or discovery across indexes |
 | [Hub organizations, access, webhooks, and repository management](https://docs.docker.com/docker-hub/repos/) | ❓ D17 defers server authorization and does not cover teams, roles, private repositories, audit, lifecycle policies, or event integration |
 | [`docker scout`](https://docs.docker.com/reference/cli/docker/scout/) | ❓ closure metadata could feed future analysis, but no vulnerability, policy, comparison, recommendation, or remediation command exists |
