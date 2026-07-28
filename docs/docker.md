@@ -26,10 +26,14 @@ time and adoption fix them.
 The actionable case against composix today — each item is either a decision to make or work to
 schedule:
 
-- **No OCI *import* path.** Running images is out of scope, but a `cix import` that unpacks an
-  OCI image into a store item + generated spec is technically plausible (nixpkgs has the
-  machinery) and would soften the migration cliff considerably. ❓ Decide: worth a track, or a
-  distraction?
+- **No OCI *import* path — prototyped, verdict: distraction** (branch `track/ocimport`,
+  2026-07-28). The mechanical import is cheap and was proven: offline docker-archive/OCI-layout
+  → deterministic store item + generated spec; real nginx and redis images ran under full
+  hardening via `RootDirectory=`. But honest compatibility means a second full-rootfs runtime
+  model (mutable-path inference, UID semantics, logging adaptation, a long tail) — not worth
+  it. Kept open: a read-only `cix migrate` that extracts image metadata into a native Cixfile
+  skeleton, reusing the parsing without runtime promises. Measured: ~25 MiB compressed OCI
+  nginx → ~65 MiB rootfs item (Evidence-we-owe datapoint).
 - **Networking between networked services.** Two apps that both need the network share the host
   stack: no per-app netns, no service DNS, no bind-address control, no port inventory or
   collision management. This is *the* design debt the compose era must pay first
