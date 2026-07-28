@@ -39,3 +39,12 @@
   `RestrictAddressFamilies=AF_UNIX`; its TCP authority is solely the inherited listener. The demo
   asserts the service is absent before first connection, inspects activation properties after the
   request, and owns cleanup of both generated units, the host listener, and the nginx runtime path.
+- 2026-07-28 22:59 UTC — `nginx-unix/demo.sh` passed on its first live run. cix emitted
+  `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`, `DynamicUser=yes`, and a `0700`
+  `cix-run-nginx` runtime directory. Root's direct `curl --unix-socket` returned the expected page.
+  `systemd-run` then reported separate `cix-dstyle-nginx-publish.socket` and `.service` units; the
+  socket showed `Listen=127.0.0.1:8080 (Stream)` while the service was inactive. The first ordinary
+  host curl activated proxyd and returned the same page. The active proxy retained
+  `PrivateNetwork=yes` and `AF_UNIX` only, proving an inherited TCP listener does not require
+  ambient IP-stack authority. Both units, the listener, cix service, slice, and runtime socket were
+  absent after cleanup. Design wall: cix/compose cannot yet describe or own this socket/proxy pair.
