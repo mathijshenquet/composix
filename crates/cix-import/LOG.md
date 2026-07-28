@@ -81,3 +81,46 @@
   image-path-specific writable tmpfs mounts; persistence and native journald log capture were
   lost. Production code would need a declared writable-path/overlay strategy instead of these
   experiment-only mounts.
+
+## 2026-07-28 — Real redis import and run
+
+- Pulled `docker.io/library/redis:alpine` once as linux/amd64 OCI. Tested manifest digest:
+  `sha256:465aff338d817971674ff1ec3c0d59182e2b687018e87bf94b6e1491d0bb79e2`;
+  config digest:
+  `sha256:a597386e6d2ef50b536ae3c77aa77e8c3772631abe949882f9f2a7d1a3065b79`.
+  This was Redis 8.8.1, bare entrypoint `docker-entrypoint.sh`, command `redis-server`, exposed
+  TCP 6379, `WorkingDir=/data`, and (notably for this current tag) no declared `Volumes`.
+- Offline import produced
+  `/nix/store/sqk0prhcn4d01h5rdp7hgyd2yas96m4d-cix-import-redis` (112 MiB apparent size).
+  PATH lookup correctly resolved the bare entrypoint to
+  `rootfs/usr/local/bin/docker-entrypoint.sh`. `WorkingDir=/data` is the only metadata warning.
+- Successful transient-unit additions were `WorkingDirectory=/data` and an ephemeral writable
+  tmpfs over `/data` (`rw,nodev,nosuid,mode=1777`). The full standard hardening set survived,
+  including `DynamicUser`, `MemoryDenyWriteExecute`, and `SystemCallFilter=@system-service`;
+  both ambient and bounding capability sets were empty.
+- The entrypoint saw that it was already non-root and skipped its root-only `chown`/`setpriv`
+  path. Redis loaded its bundled modules, listened on 6379, and returned the RESP frame
+  `+PONG\r` to a raw protocol PING. `systemd-analyze security` rated the live unit 3.1 “OK”.
+  The transient unit was stopped and verified inactive.
+- Redis warned that host `vm.overcommit_memory` is disabled. `ProtectKernelTunables=yes` remained
+  in force; changing host sysctls is correctly an operator concern, but production Redis would
+  need the host prerequisite documented/checked.
+- Redis also bound all host interfaces without authentication, exposing the already-known
+  compose/networking gap: declaring port 6379 grants network access but does not provide Docker's
+  port publication or isolation semantics.
+- Hardening dropped: none. Compatibility/persistence compromise: `/data` is an image-specific
+  writable path outside D11's managed `/var/lib/<name>` shape, so this run used tmpfs and loses
+  data at stop. A persistent bind would either lose the dynamic-user idmap on systemd 257 or
+  require a semantic path remap/command override, neither of which is available in today's spec.
+
+## 2026-07-28 — Format and determinism spot checks
+
+- Converted the already-downloaded nginx OCI layout to a real Docker archive with skopeo, then
+  imported that tarball. It produced the exact same store path as the OCI-directory import.
+- Re-importing the OCI layout also produced that same path. For this fixture, layer application,
+  generated JSON ordering, and `nix store add-path --name cix-import-nginx` are deterministic.
+- Caveats: no layer digest verification is implemented; timestamps and ownership are discarded
+  by Nix's NAR/store model; xattrs (including file capabilities), devices, and setuid semantics
+  are not preserved. Those losses improve some safety properties but mean the result cannot be
+  claimed byte/behavior-equivalent for arbitrary OCI images. Multi-image Docker archives,
+  nested/multi-platform indexes, and zstd layers are explicitly rejected.
