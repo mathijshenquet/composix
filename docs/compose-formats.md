@@ -1223,3 +1223,201 @@ Cons:
 - Docker Compose migration gets no structural help. Familiar uppercase
   directives resemble Dockerfile, not Compose, and generic YAML tooling is
   lost.
+
+## Comparison
+
+Scores are 1 (actively bad) through 5 (strong). They are equal-weight prompts
+for argument, not procurement arithmetic. A format does not win by hiding a
+severe safety problem behind several cosmetic fives.
+
+| Criterion | TOML | YAML | nix-lite | Cixfile sibling |
+| --- | ---: | ---: | ---: | ---: |
+| References/reuse | 3 | 2 | 2 | 3 |
+| Tag refs + lock interaction | 4 | 4 | 4 | 5 |
+| Diffability + code review | 4 | 2 | 4 | 5 |
+| Comments | 4 | 4 | 4 | 3 |
+| Schema validation story | 4 | 3 | 3 | 3 |
+| Spec overrides | 3 | 4 | 4 | 4 |
+| Networks + `talks-to` | 3 | 4 | 4 | 5 |
+| Docker Compose migration | 3 | 5 | 1 | 2 |
+| Tooling cost for composix | 4 | 4 | 2 | 1 |
+| Concrete footgun resistance | 4 | 1 | 1 | 3 |
+| **Unweighted total / 50** | **36** | **33** | **29** | **34** |
+
+### References and reuse
+
+None of the formats gets arbitrary service inheritance in this proposal.
+That is deliberate. Scenario 3 proves a need for reusable limit policy, so
+`limits` is a named domain object. The same approach can later cover restart or
+rollout policy if repeated real configurations justify it.
+
+TOML and the directive DSL make these references boring strings/tokens. YAML
+can additionally alias syntax nodes, which is the wrong level: an anchor can
+copy half a service without the schema knowing that the copy is policy. The
+merge-key extension makes precedence worse. nix-lite has been stripped of the
+structural operations that make Nix good at reuse, so its score must reflect
+the restricted language actually proposed, not full Nix.
+
+No candidate supports includes or cross-file templates. Adding either before a
+real need would split the reproducibility boundary between a compose file and
+an untracked input graph.
+
+### Refs, updates, and `cix.lock`
+
+All four make `name:tag#service`, `hold`, and `watch` legible. The directive
+format wins narrowly because the ref and update policy are adjacent and
+visually dominant. In mapping formats a formatter cannot guarantee that
+adjacency.
+
+The lock behavior is identical and format-independent. `cix resolve` records,
+per system, each source ref, selected item service, store path, `narHash`,
+substituters/trusted keys, and resolution time. Network IPAM allocations also
+need persisted state per D26, but should be a distinct lock section so a tag
+update does not masquerade as a network change. `hold` changes only through an
+explicit update; `watch` proposes a new complete lock and activates only after
+the full build succeeds. The compose source never accepts a `narHash` that
+purports to be its own lock.
+
+The fixed-port collision is a lock-time semantic check over resolved specs.
+Syntax validation cannot catch it. The selected metrics variant proves that the
+operator decision is an item/ref change, not a prettier spelling for an
+illegal override.
+
+### Review quality and comments
+
+The directive file is the fastest to review for topology: one `TALKS-TO` per
+line, no repeated labels. TOML is verbose but stable. nix-lite has strong
+delimiters and a canonical formatter, but reviewers must remember that
+apparently ordinary Nix may be forbidden. YAML is last: indentation carries
+ownership, flow and block styles create gratuitous alternatives, and there is
+no universally expected formatter.
+
+All candidates retain comments in source and discard them from evaluated data.
+TOML, YAML, and Nix allow trailing comments. The directive grammar intentionally
+does not, because `#` is already meaningful inside `ref#service`; full-line
+comments are adequate but less convenient.
+
+### Validation
+
+There are three validation layers regardless of syntax:
+
+1. parse with duplicate/unknown construct rejection and source spans;
+2. validate the unresolved compose schema and its internal references;
+3. resolve items, validate overrides and credentials against each selected
+   cix-spec, detect shared-namespace collisions, and validate enforcement
+   feasibility.
+
+TOML has the cleanest implementation path: strict deserialization for the CLI,
+the same model exported as JSON Schema for Taplo, then one semantic validator.
+YAML can reuse that model only after locking the parser to YAML 1.2 core schema,
+rejecting duplicate keys, aliases/tags, merge keys, and multi-document streams.
+At that point we are selling "YAML, except the YAML you already have."
+
+nix-lite must validate its AST before evaluation and retain an AST-to-output
+source map, or post-evaluation errors degrade to unhelpful JSON paths. A generic
+Nix LSP does not know the whitelist. The directive DSL can produce excellent
+domain errors, but every editor/schema facility is bespoke.
+
+JSON Schema is useful for shape and completion, not a substitute for resolution.
+It cannot prove that `dashboard.http` exists in a fetched spec, that
+`DATABASE_URL` is declared secret, or that two fixed ports collide.
+
+### How overrides and networking read
+
+YAML and nix-lite render nested overrides most naturally. TOML's quoted
+directory-path keys and header changes are clumsy. The directive form is
+explicit but positional; `OVERRIDE DIR app-path = host-path` is excellent until
+that statement accumulates six optional policies.
+
+For topology the order reverses. `TALKS-TO api -> db VIA network.backend` is
+better than any record rendering. YAML is acceptable. nix-lite is long but
+bounded by braces. TOML's array-of-table graph is punitive.
+
+That does not justify changing semantics by format. In every candidate:
+
+- membership says which named network subnets a service may access;
+- `talks-to` says which dependency is intended;
+- a socket edge is enforceable per service;
+- an intra-composite IP edge may compile only to composite-address ACLs and
+  must be reported as coarse;
+- a cross-composite edge targets a named published port, never another
+  composite's private loopback;
+- `depends_on` is absent because reachability and startup order are different
+  facts.
+
+### Migration and tooling
+
+YAML is the only credible migration leader. A converter can map Docker Compose
+services/networks/volumes into a draft and emit hard failures for `build`,
+`command`, undeclared environment, health/order semantics, and Docker socket
+mounts that have no honest composix equivalent. Familiar layout reduces the
+first-reading cost.
+
+That advantage is not enough to choose YAML as the source of truth. A migration
+tool can read YAML and write TOML; the permanent format need not preserve the
+incumbent's parser hazards. TOML gets mature Rust parsing, formatting, and
+Taplo at low cost. YAML tooling is broad but loader configuration becomes part
+of the security contract. nix-lite adds an AST gate and misleading generic Nix
+tooling. The directive language leaves the whole toolchain with us.
+
+### Footguns, without euphemism
+
+- **TOML:** table context can be far above a key; arrays of tables are noisy;
+  inline tables cannot span lines; bare dates/times acquire types; dotted and
+  quoted keys are easy to mix up. These are annoying and testable, not
+  loader-folklore semantics.
+- **YAML:** the Norway problem (`NO`), `on`/`off` booleans, implicit timestamps,
+  loader-dependent duplicate keys, merge-key precedence, alias expansion,
+  indentation ownership, tag constructors in unsafe loaders, and `:`/`#`
+  plain-scalar traps. "Use quotes carefully" is not a language design.
+- **nix-lite:** it advertises Nix and rejects Nix; generic tools suggest invalid
+  constructs; a whitelist miss can expose imports or path/string-context
+  behavior; relaxing the subset invites functions-as-API, overlays, and module
+  fixpoints. The subset is socially unstable even if its parser is perfect.
+- **Cixfile sibling:** positional arguments, eventual quoting pressure,
+  bespoke-tooling drift, directive proliferation, and the same-looking
+  `SERVICE` keyword on opposite sides of the spec/compose boundary. The grammar
+  is controllable; its growth pressure is not.
+
+## Recommendation
+
+Choose **TOML** for the first compose surface and call the file
+`compose.toml`. Keep it deliberately data-only:
+
+- no includes, anchors, interpolation, profiles other than named domain
+  objects, or environment-variable substitution;
+- strict unknown/duplicate-key rejection and source-spanned errors;
+- unit-bearing values represented as strings and normalized by schema;
+- generated `cix.lock` kept beside the source and never edited through TOML;
+- one resolver/semantic validator shared with any future input format;
+- `cix fmt`, Taplo schema metadata, and `cix compose graph` available from the
+  first usable release.
+
+TOML does not make scenario 3 pretty. That is the honest trade: the syntax is
+boring, its parser is unsurprising, and complexity remains visible instead of
+escaping into anchors, expressions, or a language implementation. Composition
+already has hard semantics—mutable refs, capabilities, credentials, shared
+namespaces, enforcement tiers, and atomic activation. It does not need an
+additional clever subsystem.
+
+The **Cixfile-sibling DSL is the runner-up**. Its topology and update-policy
+review experience is plainly best, and a syntax-family story has product value.
+Do not build it now. Preserve these examples as the challenger and test them
+against real operator edits after a TOML implementation exists. If repeated
+blind review tests on at least five real composites show materially fewer
+wrong-edge, wrong-owner, or missed-update-policy errors with directives—and
+the maintenance estimate includes formatter and editor support—that evidence
+would change the recommendation.
+
+YAML would become preferable only if source-level Docker Compose compatibility,
+not migration, becomes a primary product requirement and composix is willing
+to define and enforce a hostile strict subset. nix-lite would become preferable
+only if the target audience becomes explicitly Nix-native and asks for actual
+Nix reuse; in that case the honest answer is a full `.nix` escape hatch, not
+this crippled dialect.
+
+No fifth candidate is added. KDL would trade TOML's mature schema/tooling path
+for nicer nested records without solving reuse. CUE would add a powerful
+constraint/programming system precisely when this prototype argues to keep
+compose as validated data. Either deserves a new prototype only after real
+composites demonstrate a requirement the four candidates cannot express.
