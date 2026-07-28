@@ -11,6 +11,8 @@ struct Cli {
 #[derive(clap::Subcommand)]
 enum Command {
     #[command(flatten)]
+    Cixfile(cix_cixfile::cli::Command),
+    #[command(flatten)]
     Index(cix_index::cli::Command),
     #[command(flatten)]
     Run(cix_run::cli::Command),
@@ -18,6 +20,7 @@ enum Command {
 
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
+        Command::Cixfile(cmd) => cmd.run(),
         Command::Index(cmd) => cmd.run(),
         Command::Run(cmd) => cmd.run(),
     }
