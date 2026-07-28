@@ -10,7 +10,7 @@ A spec'd store item can become a transient systemd service without root.
 ```sh
 $ cix run /nix/store/…-service-fixture --detach --user
 cix-run-tour-service-NONCE.service
-warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; /item is unavailable and CIX_ITEM names the real store path
+warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; /app is unavailable and CIX_APP names the real store path
 warning: the user manager rejected mount-namespace sandboxing (host-specific diagnostic)
 warning: retrying without PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains, but declared app paths will not be remapped
 ```

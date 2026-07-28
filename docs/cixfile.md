@@ -36,7 +36,7 @@ pid /run/nginx/nginx.pid;
 error_log stderr info;
 events { }
 http {
-  include /item/etc/mime.types;
+  include /app/etc/mime.types;
   access_log off;
   client_body_temp_path /var/cache/nginx/body;
   proxy_temp_path /var/cache/nginx/proxy;
@@ -45,13 +45,13 @@ http {
   scgi_temp_path /var/cache/nginx/scgi;
   server {
     listen 8080;
-    root /item/www;
+    root /app/www;
   }
 }
 EOF
 
 SERVICE nginx
-EXEC bin/nginx -c /item/etc/nginx.conf -e stderr
+EXEC bin/nginx -c /app/etc/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx
@@ -85,7 +85,7 @@ boilerplate; every line is contract.
 
 Two interpolation worlds, one rule: `${name}` is **build time** (only in directive arguments,
 never in file contents); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). File contents are
-verbatim — they reference `/item/…`, which is where the runtime mounts the item, read-only, at
+verbatim — they reference `/app/…`, which is where the runtime mounts the item, read-only, at
 a stable path. That stable path is what lets configs be plain files instead of templates.
 
 ## Where this is honestly not a Dockerfile
@@ -111,7 +111,7 @@ store-wide and automatic). The role of "which base am I on" is played by the nix
 change. A docker image is a whole root filesystem: software you use lives at global paths
 (`/usr/bin/…`, `/etc/…`) because it was *installed* there. A composix item is a small
 directory of your own files plus symlinks into other packages (`LINK etc/mime.types
-${nginx}/conf/mime.types`). At runtime `/item` makes this feel docker-like again — stable
+${nginx}/conf/mime.types`). At runtime `/app` makes this feel docker-like again — stable
 absolute paths — but at authoring time you think in references, not installations. In
 exchange: your item is kilobytes, its dependencies are exact and inspectable
 (`nix path-info -r`), and two items sharing nginx share it fully.

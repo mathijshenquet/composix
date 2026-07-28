@@ -44,7 +44,7 @@ escaped=$${literal}
 runtime=$VALUE
 EOF
 SCRIPT bin/start <<EOF
-exec /item/bin/hello
+exec /app/bin/hello
 EOF
 LINK bin/hello ${hello}/bin/hello
 SERVICE fixture
