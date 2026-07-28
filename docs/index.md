@@ -12,6 +12,8 @@ to hardened systemd units, and (coming) tracking compose files with atomic rollb
   [`design`](design.html) with every decision and its rationale.
 - **[Coming from Docker](docker.html)** —
   every Docker concept mapped to what composix does instead, each consciously.
+- **[The Cixfile](cixfile.html)** — Dockerfile-shaped authoring without writing nix, and an
+  honest account of where the model differs underneath.
 
 Status: early and moving fast. The index (`tag`/`serve`/`pull`) and the runner (`cix run`)
 work end-to-end today; compose and the Cixfile are designed but not built.
