@@ -1,74 +1,72 @@
-# Track: web — namespace claims + informative serve pages
+# Track: web — serve refactor to D17 v2 / D18 v2 (bare-tag serving, negotiated URL space)
 
-Read `DESIGN.md` first: "Part 1 — index", subsection "Claims & web pages (D17, D18)", and
-decisions D12, D17, D18. That is the contract; this file adds implementation constraints. Where
-ambiguous, choose the boring option and note it in your LOG — do NOT expand scope.
+Read `DESIGN.md` first: decisions D17 (v2), D18 (v2), the "Part 1 — index" sections "HTTP
+surface" and "The org workflow", and the ref-model block under D12. That is the contract; this
+file adds implementation constraints. Where ambiguous, choose the boring option and note it in
+your LOG — do NOT expand scope. The claims/publications designs you may find referenced in git
+history are SUPERSEDED — do not implement them.
 
 ## Ground rules
 
-- Work log: append to `crates/cix-index/LOG.md` (timestamped entries, keep current).
-- Territory: `crates/cix-index/` and (only if truly shared) `crates/cix-common/`. Do NOT touch
-  `crates/cix-run/`, `crates/cix/src/main.rs`, `DESIGN.md`, `docs/`, or `crates/cix/tests/`
-  (another agent works there in parallel).
-- No new heavyweight dependencies. HTML is small enough to generate with a hand-rolled
-  escape function — no template engine.
-- Commit to your branch as you go, meaningful messages.
-- All existing tests must keep passing. `cargo fmt --check`, `cargo clippy --workspace -- -D
-  warnings`, `cargo test --workspace` green at the end.
+- Work log: append to `crates/cix-index/LOG.md` (timestamped, keep current).
+- Territory: `crates/cix-index/`, `crates/cix-common/` (only if truly shared). Do NOT touch
+  `crates/cix-run/` or `crates/cix/src/`. Exception: if your (intended) output changes break the
+  literate-tour drift test, regenerate via
+  `cargo test --test tour -- --ignored generate_tour` and commit the updated `docs/tour.md` —
+  never hand-edit it.
+- No heavyweight dependencies; HTML via a hand-rolled escape helper, no template engine.
+- Commit as you go. Done gate: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`,
+  `cargo test --workspace` (all crates, including tour drift test) green; demo.sh runs.
 
-## Deliverable 1: claims (D17)
+## Deliverable 1: enforce the D17 invariant
 
-1. Storage: `claims.json` in the cix state dir (`Store`), a sorted list of claim patterns.
-2. Pattern semantics (exactly this, nothing more): a pattern is matched against the string
-   `{root_url}/{name}`. Two forms:
-   - exact: `cix.example.com/team/app` matches only that name;
-   - prefix glob: trailing `*` matches any suffix, e.g. `cix.example.com/*` or
-     `example.com/team/*`. `*` is only allowed at the end. Validate patterns on input: the part
-     before the glob must be a valid `host[:port]` optionally followed by `/` + name segments.
-3. CLI (add to the existing `Command` enum in `crates/cix-index/src/cli.rs`):
-   - `cix claim <pattern>` — validate, store, idempotent.
-   - `cix unclaim <pattern>` — remove exact pattern; error if absent.
-   - `cix claims` — list, one per line.
-4. Enforcement:
-   - `cix tag` where the target ref is qualified: require a covering claim, else error:
-     `not claimed: <root_url>/<name> — if you control this namespace, run: cix claim <root_url>/*`.
-   - `cix serve <root_url>`: require a claim covering `<root_url>/*` (or any claim whose host
-     part equals the root_url), same error shape.
-   - Implicit claim: any root_url whose host is `localhost` or `127.0.0.1` (any port) is always
-     claimed. This must keep the existing integration tests passing unchanged.
-   - `cix pull` (including `--as` with a qualified alias): NO claim check.
-5. Tests: unit tests for pattern validation + matching (exact, glob, host-only, port
-   sensitivity, invalid patterns like `a*b/x`, `*`, `foo/*` with non-host first segment);
-   enforcement tests for tag and serve (error message contains the hint); localhost exemption
-   test; pull-is-exempt test.
-6. Update `crates/cix-index/demo.sh`: add the claim step before qualified tagging (use a
-   non-localhost fake host for the claim demonstration only if it doesn't require networking;
-   otherwise demonstrate claims with `cix claims` listing and keep the flow on localhost).
+1. `cix tag <installable> <qualified-ref>` → hard error:
+   `qualified names denote remote state; tags are bare. To publish, tag on the box that serves
+   (see DESIGN.md "The org workflow").`
+2. `cix serve` loses its `root_url` positional argument entirely. It serves the **bare** tags of
+   the local store only; qualified (mirror) tags are never served. All other flags stay
+   (`--listen`, `--substituter`, `--with-store`, `--sign-key`).
+3. `--with-store` maintains the binary cache for exactly the served (bare) closures.
+4. The server does not know its own name: anything self-referential (pull snippets, advertised
+   own-`/store/` substituter URL) is constructed per-request from the `Host` header, scheme from
+   `X-Forwarded-Proto` when present else `http`.
 
-## Deliverable 2: informative pages (D18)
+## Deliverable 2: one negotiated URL space (D18 v2)
 
-On the existing serve HTTP server:
+Replace the `/v1/…` routes entirely (delete them — nothing depends on them yet):
 
-1. `GET /` → HTML: page title = root_url, list of served names, each linking to `/{name}`.
-2. `GET /{name}` (any name path not under `/v1/` or `/store/`) → HTML page:
-   - heading `{root_url}/{name}`;
-   - table of tags: tag, systems, store path, narHash, age;
-   - a copy-pastable snippet: `cix pull {root_url}/{name}:{tag}`;
-   - if the current system's store path exists locally and contains `cix-spec.json`, a summary
-     section: service names, their declared ports and env var names. Parse it leniently as
-     `serde_json::Value` — do NOT depend on `cix-run` types; if parsing fails, omit the section
-     silently.
-   - unknown name → 404 with a small HTML body.
-3. Content negotiation: when the `Accept` header contains `application/json`, `/` behaves like
-   `/v1/names` and `/{name}` like `/v1/tags/{name}`. The `/v1/` and `/store/` routes are
-   unchanged.
-4. HTML: valid, minimal, self-contained (one small inline `<style>`, no external assets, no JS).
-   Escape all interpolated strings.
-5. Tests: extend the existing serve integration test — fetch `/` and `/{name}`, assert 200,
-   `text/html` content type, and that the tag and a pull snippet appear; assert the JSON
-   negotiation path; assert 404 for unknown names.
+1. Routes = the name space: `GET /`, `GET /{name}`, `GET /{name}:{tag}` (name may contain `/`;
+   the `:{tag}` suffix is after the last path segment). `/store/…` unchanged.
+2. Negotiation: if the `Accept` header contains `application/vnd.cix+json` (any parameters) or
+   `application/json`, or `?format=json` is given → JSON representation with content type
+   `application/vnd.cix+json;version=1`. Otherwise → HTML (`?format=html` forces it). Always
+   emit `Vary: Accept`.
+3. JSON representations: `/` → `{"names": [...]}`; `/{name}` → `{"tags": {"<tag>": <entry>, …}}`;
+   `/{name}:{tag}` → `<entry>`; unknown → 404 with a JSON body.
+4. HTML representations (valid, minimal, one small inline `<style>`, no JS, escape everything):
+   - `/`: served names, linked.
+   - `/{name}`: heading `{host}/{name}`; tag table (tag, systems, store path, narHash, closure
+     size via `nix path-info -S`, age); `cix pull {host}/{name}:{tag}` snippet; spec-summary
+     section (service names, ports, env var names) when the current system's store path exists
+     locally and contains a parseable `cix-spec.json` — parse leniently as `serde_json::Value`,
+     omit the section silently on any failure. Do NOT import cix-run types.
+   - `/{name}:{tag}`: that entry's detail (per-system outputs, narHash, drvPath if present,
+     createdAt), plus `cix pull` and `cix run` snippets. This is the permalink page.
+   - Unknown name/tag → 404 with a small HTML body.
+5. Update the pull client: request `/{name}:{tag}` with `Accept: application/vnd.cix+json;version=1`.
+
+## Deliverable 3: tests + demo
+
+1. Update existing serve/pull integration tests to the new URL scheme (they should keep telling
+   the same two-machine story).
+2. New tests: conneg matrix (browser-ish Accept → HTML; vnd.cix and plain json Accept → JSON;
+   `?format=` overrides; `Vary` header present); qualified-tag error (message content); mirrors
+   are not served (pull a tag into a state dir without `--as`, serve from it, assert the mirror
+   name is absent from `/`); 404 both representations; Host-header self-reference appears in a
+   pull snippet.
+3. Update `crates/cix-index/demo.sh` to the new flow (serve has no root_url; show a
+   `curl` of the HTML page and of the JSON representation).
 
 ## Done criteria
 
-fmt/clippy/tests green; demo.sh runs; LOG.md has a final summary entry listing any deviations
-from DESIGN.md and open questions.
+Green gate as above; LOG.md final summary entry with deviations and open questions.
