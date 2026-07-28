@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path};
 
 use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
@@ -165,16 +165,35 @@ fn github_repository(url: &str) -> Result<(&str, &str)> {
 
 fn nix_spec(cixfile: &Cixfile) -> String {
     let mut output = String::from("{ cixSpec = 2; services = {");
+    let mounts = projected_mounts(cixfile);
     for (name, service) in &cixfile.services {
-        write!(output, " {} = {};", nix_attr(name), nix_service(service)).unwrap();
+        write!(
+            output,
+            " {} = {};",
+            nix_attr(name),
+            nix_service(service, &mounts)
+        )
+        .unwrap();
     }
     output.push_str(" }; }");
     output
 }
 
-fn nix_service(service: &Service) -> String {
+fn nix_service(service: &Service, mounts: &BTreeSet<String>) -> String {
     let mut output = String::from("{");
     write!(output, " exec = {};", nix_templates(&service.exec)).unwrap();
+    if !mounts.is_empty() {
+        write!(
+            output,
+            " mounts = [ {} ];",
+            mounts
+                .iter()
+                .map(|mount| nix_string(mount))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+        .unwrap();
+    }
     if let Some(setup) = &service.setup {
         write!(output, " setup = {};", nix_templates(setup)).unwrap();
     }
@@ -318,8 +337,9 @@ fn shell_double_quoted(value: &str) -> String {
 
 fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
     let mut services = Map::new();
+    let mounts = projected_mounts(cixfile);
     for (name, service) in &cixfile.services {
-        services.insert(name.clone(), literal_service(service)?);
+        services.insert(name.clone(), literal_service(service, &mounts)?);
     }
     Ok(Value::Object(Map::from_iter([
         ("cixSpec".to_owned(), Value::from(2)),
@@ -327,9 +347,15 @@ fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
     ])))
 }
 
-fn literal_service(service: &Service) -> Result<Value> {
+fn literal_service(service: &Service, mounts: &BTreeSet<String>) -> Result<Value> {
     let mut value = Map::new();
     value.insert("exec".into(), literal_templates(&service.exec)?);
+    if !mounts.is_empty() {
+        value.insert(
+            "mounts".into(),
+            Value::Array(mounts.iter().cloned().map(Value::String).collect()),
+        );
+    }
     if let Some(setup) = &service.setup {
         value.insert("setup".into(), literal_templates(setup)?);
     }
@@ -375,6 +401,37 @@ fn literal_service(service: &Service) -> Result<Value> {
         value.insert("jit".into(), Value::Bool(true));
     }
     Ok(Value::Object(value))
+}
+
+fn projected_mounts(cixfile: &Cixfile) -> BTreeSet<String> {
+    cixfile
+        .items
+        .iter()
+        .filter_map(|item| {
+            let destination = match item {
+                Item::Copy { dst, .. }
+                | Item::File { dst, .. }
+                | Item::Script { dst, .. }
+                | Item::Link { dst, .. } => dst,
+            };
+            let path = Path::new(destination);
+            if !path.is_absolute() {
+                return None;
+            }
+            let components = path
+                .components()
+                .filter_map(|component| match component {
+                    Component::Normal(component) => component.to_str(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            match components.as_slice() {
+                [first] => Some(format!("/{first}")),
+                [first, second, ..] => Some(format!("/{first}/{second}")),
+                [] => None,
+            }
+        })
+        .collect()
 }
 
 fn literal_dirs(service: &Service) -> Map<String, Value> {
@@ -440,6 +497,25 @@ mod tests {
         let cixfile = parse(include_str!("../tests/golden/Cixfile")).unwrap();
         let actual = generate_spec_json(&cixfile).unwrap();
         assert_eq!(actual, include_str!("../tests/golden/cix-spec.json"));
+    }
+
+    #[test]
+    fn groups_projected_destinations_without_broadening_mounts() {
+        let cixfile = parse(
+            "FILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /etc/nginx/mime.types /mime.types\nFILE /srv/www/index.html <<E\nhello\nE\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE app\nEXEC bin/app\n",
+        )
+        .unwrap();
+        let spec = generate_spec_json(&cixfile).unwrap();
+        assert!(spec.contains("\"mounts\": [\n        \"/cix-probe.conf\",\n        \"/etc/nginx\",\n        \"/srv/www\"\n      ]"), "{spec}");
+
+        let nix = generate_nix(
+            &cixfile,
+            tempfile::tempdir().unwrap().path(),
+            &fixture_lock(),
+            "x86_64-linux",
+        )
+        .unwrap();
+        assert!(nix.contains("mounts = [ \"/cix-probe.conf\" \"/etc/nginx\" \"/srv/www\" ];"));
     }
 
     #[test]

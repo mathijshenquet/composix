@@ -23,20 +23,20 @@ EXPOSE 8080
 # Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
 PKG nginx
 
-FILE www/index.html <<EOF
+FILE /srv/www/index.html <<EOF
 <h1>hello from composix</h1>
 EOF
 
 LINK bin/nginx ${nginx}/bin/nginx
-LINK etc/mime.types ${nginx}/conf/mime.types
+LINK /etc/nginx/mime.types ${nginx}/conf/mime.types
 
-FILE etc/nginx.conf <<EOF
+FILE /etc/nginx/nginx.conf <<EOF
 daemon off;
 pid /run/nginx/nginx.pid;
 error_log stderr info;
 events { }
 http {
-  include /app/etc/mime.types;
+  include /etc/nginx/mime.types;
   access_log off;
   client_body_temp_path /var/cache/nginx/body;
   proxy_temp_path /var/cache/nginx/proxy;
@@ -45,19 +45,19 @@ http {
   scgi_temp_path /var/cache/nginx/scgi;
   server {
     listen 8080;
-    root /app/www;
+    root /srv/www;
   }
 }
 EOF
 
 SERVICE nginx
-EXEC bin/nginx -c /app/etc/nginx.conf -e stderr
+EXEC bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx
 ```
 
-(A sibling file via `COPY index.html www/index.html` would work identically to the inline
+(A sibling file via `COPY index.html /srv/www/index.html` would work identically to the inline
 `FILE`; this example inlines everything so the repo carries one self-contained file. Note the
 executable is `LINK`ed into the item and exec'd as `bin/nginx` — cross-package references are
 always pulled in via `LINK`.)
@@ -84,9 +84,10 @@ boilerplate; every line is contract.
 | `JIT` | the service maps writable+executable memory | — (docker allows W+X silently) |
 
 Two interpolation worlds, one rule: `${name}` is **build time** (only in directive arguments,
-never in file contents); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). File contents are
-verbatim — they reference `/app/…`, which is where the runtime mounts the item, read-only, at
-a stable path. That stable path is what lets configs be plain files instead of templates.
+never in file contents); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). Destinations beginning
+with `/` are projected read-only at that native path; bare-relative destinations stay inside the
+item for executable and script targets. Native paths let configs remain plain files rather than
+templates.
 
 ## Where this is honestly not a Dockerfile
 
@@ -110,9 +111,9 @@ store-wide and automatic). The role of "which base am I on" is played by the nix
 **The LINK shift — you assemble a view, not a filesystem.** This is the real mental-model
 change. A docker image is a whole root filesystem: software you use lives at global paths
 (`/usr/bin/…`, `/etc/…`) because it was *installed* there. A composix item is a small
-directory of your own files plus symlinks into other packages (`LINK etc/mime.types
-${nginx}/conf/mime.types`). At runtime `/app` makes this feel docker-like again — stable
-absolute paths — but at authoring time you think in references, not installations. In
+directory of your own files plus symlinks into other packages (`LINK /etc/nginx/mime.types
+${nginx}/conf/mime.types`). Projected destinations appear at their native absolute paths at
+runtime, while at authoring time you think in references, not installations. In
 exchange: your item is kilobytes, its dependencies are exact and inspectable
 (`nix path-info -r`), and two items sharing nginx share it fully.
 

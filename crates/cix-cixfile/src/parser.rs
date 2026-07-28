@@ -866,7 +866,72 @@ fn validate_item_path(
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
-    validate_relative_path(value, label, line, source)
+    if Path::new(value).is_absolute() {
+        validate_projected_path(value, label, line, source)
+    } else {
+        validate_relative_path(value, label, line, source)
+    }
+}
+
+fn validate_projected_path(
+    value: &str,
+    label: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    let path = Path::new(value);
+    if value == "/" {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{label} is denied by the D22 v3 filesystem-projection rule"),
+        ));
+    }
+    if value.ends_with('/')
+        || value.contains("//")
+        || value
+            .split('/')
+            .any(|component| matches!(component, "." | ".."))
+    {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{label} must be a normalized absolute path"),
+        ));
+    }
+    if denied_projected_path(path) {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{label} is denied by the D22 v3 filesystem-projection rule"),
+        ));
+    }
+    Ok(())
+}
+
+fn denied_projected_path(path: &Path) -> bool {
+    [
+        "/nix",
+        "/proc",
+        "/sys",
+        "/dev",
+        "/run",
+        "/var/lib",
+        "/var/cache",
+        "/var/log",
+        "/etc/passwd",
+        "/etc/group",
+        "/etc/nsswitch.conf",
+        "/etc",
+        "/usr",
+        "/bin",
+    ]
+    .iter()
+    .any(|denied| path == Path::new(denied))
+        || path.parent() == Some(Path::new("/"))
+            && path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with("lib"))
 }
 
 fn validate_relative_path(
@@ -1053,10 +1118,43 @@ JIT
     fn rejects_unsafe_item_paths_and_duplicate_destinations() {
         for input in [
             "COPY ../x x\nSERVICE x\nEXEC x\n",
-            "FILE /x <<E\nx\nE\nSERVICE x\nEXEC x\n",
+            "FILE / <<E\nx\nE\nSERVICE x\nEXEC x\n",
             "COPY a x\nLINK x /target\nSERVICE x\nEXEC x\n",
         ] {
             assert!(parse(input).is_err(), "{input}");
+        }
+    }
+
+    #[test]
+    fn accepts_projected_destinations_and_rejects_d22_denied_paths() {
+        let parsed = parse(
+            "FILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE x\nEXEC bin/x\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.items.len(), 3);
+
+        for denied in [
+            "/nix",
+            "/proc",
+            "/sys",
+            "/dev",
+            "/run",
+            "/var/lib",
+            "/var/cache",
+            "/var/log",
+            "/etc/passwd",
+            "/etc/group",
+            "/etc/nsswitch.conf",
+            "/",
+            "/etc",
+            "/usr",
+            "/bin",
+            "/lib",
+            "/lib64",
+        ] {
+            let input = format!("FILE {denied} <<E\nx\nE\nSERVICE x\nEXEC bin/x\n");
+            let error = parse(&input).unwrap_err();
+            assert!(error.message.contains("D22 v3"), "{denied}: {error}");
         }
     }
 }
