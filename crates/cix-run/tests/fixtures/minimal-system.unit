@@ -4,6 +4,7 @@ Description=cix run: worker
 [Service]
 Type=exec
 Slice=cix-run.slice
+BindReadOnlyPaths=/nix/store/00000000000000000000000000000000-worker:/item
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -21,3 +22,4 @@ CapabilityBoundingSet=
 RestrictAddressFamilies=AF_UNIX
 PrivateNetwork=yes
 ExecStart="/nix/store/00000000000000000000000000000000-worker/bin/worker"
+Environment="CIX_ITEM=/item"
