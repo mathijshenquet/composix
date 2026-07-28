@@ -353,6 +353,43 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   (write nix yourself). Discipline: Cixfile stays sugar over a small set of blessed builders —
   never a general build system. General build steps: later, if ever.
 
+## Part 5 — networking (direction set 2026-07-28; implementation is compose-era)
+
+- ✅ D23 — **the composite is the network boundary.** Per-*service* netns + bridge/NAT + DNS
+  (the docker model) is rejected: it isolates at a boundary finer than the trust boundary and
+  imports docker's messiest machinery. Instead, each composite gets ONE network namespace:
+  services inside share a loopback (own 127.0.0.1:5432 per composite — collision-freedom and
+  privacy in one move; intra-composite addressing is `localhost:port`, DNS becomes unnecessary
+  rather than unimplemented). Publishing to the host edge is an explicit per-port compose
+  decision (socket-activation preferred, `systemd-socket-proxyd`/DNAT otherwise).
+- ✅ D24 — **kernel-enforced port declarations now** (spec v3, independent of the rest):
+  `SocketBindAllow=`/`SocketBindDeny=` compiled from the declared ports — a service cannot bind
+  what it didn't declare. Cheap, no design dependency.
+- ✅ D25 — **the capability tier**: wherever apps permit, intra-composite wiring prefers unix
+  sockets in shared runtime dirs + socket activation for published ports (`PrivateNetwork=yes`
+  services that never touch an IP stack). Framing (Mathijs): this is *pure capabilities* — an
+  fd is the original capability: possession is authorization, unforgeable, delegable; the
+  network disappears as ambient authority. Bonus: <1024 without capability grants, on-demand
+  start, zero-downtime restarts.
+- 🔶 D26 — **networks as named, realization-pluggable objects** (compose surface, like docker
+  compose `networks`): a network = name + stable subnet + IPAM state (persisted in the
+  composite lock/state, never ephemeral). A composite attaches via one veth + address per
+  network into its single netns. **Per-service membership is enforced, not plumbed**: services
+  share the composite netns, and unit-level cgroup-eBPF (`IPAddressAllow=<its networks'
+  subnets>` + `IPAddressDeny=any`) restricts each service to the networks it declares.
+  Local realization: bridge (networkd-managed, `IPMasquerade=` for egress). Multi-host
+  realization later: the same name+subnet semantics over wireguard/vxlan/host-tunnel — the
+  design constraints that keep this compatible are: stable addressing from persisted IPAM, no
+  link-local/broadcast reliance, address-keyed ACLs (they carry over unchanged).
+- 🔶 D27 — **service→service permission (defence in depth)**: compose grows a declarative
+  `talks-to` edge; it compiles to the strongest available mechanism and reports which:
+  (a) D25 tier: true per-service capabilities (fd possession, unix-socket fs-perms +
+  `SO_PEERCRED`); (b) IP tier: address-keyed allow-lists — honest granularity today is
+  *composite-level* (peers within one composite share the veth address, so "A → B's postgres
+  only" is not IP-expressible without baroque per-service addressing); port-aware rules via
+  systemd's `NFTSet=` integration are the candidate refinement. No pretending: coarse
+  enforcement is reported as coarse.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
