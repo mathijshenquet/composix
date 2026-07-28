@@ -10,9 +10,8 @@ pub enum Command {
         #[arg(short, long)]
         long: bool,
     },
-    /// Serve the tags under a root_url as an HTTP index.
+    /// Serve bare local tags as an HTTP index.
     Serve {
-        root_url: String,
         #[arg(long, default_value = "127.0.0.1:8420")]
         listen: String,
         #[arg(long)]
@@ -43,18 +42,11 @@ impl Command {
                 Ok(())
             }
             Self::Serve {
-                root_url,
                 listen,
                 substituter,
                 with_store,
                 sign_key,
-            } => crate::serve(
-                &root_url,
-                &listen,
-                substituter,
-                with_store,
-                sign_key.as_deref(),
-            ),
+            } => crate::serve(&listen, substituter, with_store, sign_key.as_deref()),
             Self::Pull { r#ref, r#as } => {
                 let updated = crate::pull(r#ref.as_deref(), r#as.as_deref())?;
                 println!("updated {updated} tag(s)");

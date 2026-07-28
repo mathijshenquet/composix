@@ -23,15 +23,17 @@ store_path=$(nix store add-path "$source_dir/input")
 printf '   %s\n' "$store_path"
 
 echo '2. Tag it in a publisher state directory'
-CIX_STATE_DIR="$server_state" cargo run -q -p cix -- tag "$store_path" "$root_url/x:v1"
+CIX_STATE_DIR="$server_state" cargo run -q -p cix -- tag "$store_path" x:v1
 
-echo '3. Serve the resolver and file:// binary cache'
-CIX_STATE_DIR="$server_state" cargo run -q -p cix -- serve "$root_url" --listen "127.0.0.1:$port" --with-store > "$root_dir/server.log" 2>&1 &
+echo '3. Serve the bare tag index and file:// binary cache'
+CIX_STATE_DIR="$server_state" cargo run -q -p cix -- serve --listen "127.0.0.1:$port" --with-store > "$root_dir/server.log" 2>&1 &
 server_pid=$!
 sleep 1
 
-echo '4. Resolve and pull into a separate client state directory'
-curl --fail --silent "http://127.0.0.1:$port/v1/resolve/x/v1"
+echo '4. View the HTML and JSON representations, then pull into a separate client state directory'
+curl --fail --silent "http://127.0.0.1:$port/x"
+printf '\n'
+curl --fail --silent --header 'Accept: application/vnd.cix+json;version=1' "http://127.0.0.1:$port/x:v1"
 printf '\n'
 CIX_STATE_DIR="$client_state" cargo run -q -p cix -- pull "$root_url/x:v1" --as x
 
