@@ -21,8 +21,8 @@ let
     export LD_PRELOAD="${pkgs.nss_wrapper}/lib/libnss_wrapper.so"
 
     if [ ! -s "$data_dir/PG_VERSION" ]; then
-      rm -rf "$init_dir"
-      mkdir -p "$init_dir"
+      ${pkgs.coreutils}/bin/rm -rf "$init_dir"
+      ${pkgs.coreutils}/bin/mkdir -p "$init_dir"
       LANG=C LC_ALL=C ${pkgs.postgresql}/bin/initdb \
         --pgdata="$init_dir" \
         --username=cix \
@@ -30,7 +30,7 @@ let
         --auth-host=trust \
         --encoding=UTF8 \
         --no-locale
-      mv "$init_dir" "$data_dir"
+      ${pkgs.coreutils}/bin/mv "$init_dir" "$data_dir"
     fi
 
     exec ${pkgs.postgresql}/bin/postgres \
