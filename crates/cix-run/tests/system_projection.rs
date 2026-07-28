@@ -76,6 +76,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
     let spec = Spec::load(&store_path)?;
     let service = &spec.services["projection-test"];
     let config = ResolvedConfig::resolve(service, &[], &[])?;
+    let slice_guard = SystemSliceGuard;
     let started = start_service(&store_path, "projection-test", service, &config, false)?;
     let guard = UnitGuard {
         name: started.name.clone(),
@@ -103,6 +104,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
 
     stop_service(&started.name, false)?;
     std::mem::forget(guard);
+    drop(slice_guard);
     fs::remove_dir_all(&temporary)?;
     Ok(())
 }
@@ -114,6 +116,16 @@ struct UnitGuard {
 impl Drop for UnitGuard {
     fn drop(&mut self) {
         let _ = stop_service(&self.name, false);
+    }
+}
+
+struct SystemSliceGuard;
+
+impl Drop for SystemSliceGuard {
+    fn drop(&mut self) {
+        let _ = Command::new("systemctl")
+            .args(["stop", "cix-run.slice"])
+            .status();
     }
 }
 
