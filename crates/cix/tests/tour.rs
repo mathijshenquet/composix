@@ -5,9 +5,23 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
 
 use regex::Regex;
+
+const TOUR_LISTEN: &str = "127.0.0.1:8420";
+
+struct Server {
+    child: Child,
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
 
 struct Doc {
     text: String,
@@ -48,6 +62,17 @@ impl Doc {
     }
 
     fn sh(&mut self, command: &str, expect_success: bool) -> String {
+        let state_dir = self.state_dir.clone();
+        self.sh_in("$", &state_dir, command, expect_success)
+    }
+
+    fn sh_in(
+        &mut self,
+        prompt: &str,
+        state_dir: &Path,
+        command: &str,
+        expect_success: bool,
+    ) -> String {
         let mut path = self.bin_dir.display().to_string();
         if let Some(existing) = std::env::var_os("PATH") {
             path.push(':');
@@ -56,7 +81,7 @@ impl Doc {
         let output = Command::new("sh")
             .args(["-c", command])
             .current_dir(&self.base)
-            .env("CIX_STATE_DIR", &self.state_dir)
+            .env("CIX_STATE_DIR", state_dir)
             .env("PATH", path)
             .output()
             .unwrap_or_else(|error| panic!("running `{command}`: {error}"));
@@ -73,7 +98,7 @@ impl Doc {
         );
 
         let displayed_command = normalize(command, &self.base);
-        writeln!(self.text, "```sh\n$ {displayed_command}").expect("writing command");
+        writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
         let normalized = normalize(&raw, &self.base);
         if !normalized.is_empty() {
             self.text.push_str(&normalized);
@@ -83,6 +108,11 @@ impl Doc {
         }
         writeln!(self.text, "```\n").expect("writing transcript");
         raw
+    }
+
+    fn background(&mut self, prompt: &str, command: &str) {
+        let command = normalize(command, &self.base);
+        writeln!(self.text, "```sh\n{prompt} {command} &\n```\n").expect("writing command");
     }
 
     fn finish(self) -> String {
@@ -101,28 +131,79 @@ fn test_tmp_dir() -> PathBuf {
 fn normalize(raw: &str, base: &Path) -> String {
     let store_hash = Regex::new(r"/nix/store/[0123456789abcdfghijklmnpqrsvwxyz]{32}-")
         .expect("valid store hash regex");
+    let port = Regex::new(r"127\.0\.0\.1:\d+").expect("valid port regex");
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"age=\d+s").expect("valid age regex");
 
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
+    let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "age=0s");
-    normalized.replace(base.to_string_lossy().as_ref(), "~")
+    normalized
+        .replace(base.to_string_lossy().as_ref(), "~")
+        .trim_end()
+        .to_owned()
 }
 
 fn fixture(doc: &mut Doc, name: &str, contents: &str) -> String {
-    doc.sh(
+    let state_dir = doc.state_dir.clone();
+    fixture_in(doc, "$", &state_dir, name, contents)
+}
+
+fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, contents: &str) -> String {
+    doc.sh_in(
+        prompt,
+        state_dir,
         &format!("mkdir -p {name} && printf '%s\\n' '{contents}' > {name}/README"),
         true,
     );
-    let output = doc.sh(&format!("nix store add-path {name}"), true);
+    let output = doc.sh_in(
+        prompt,
+        state_dir,
+        &format!("nix store add-path {name}"),
+        true,
+    );
     let path = output.trim().to_owned();
     assert!(
         path.starts_with("/nix/store/"),
         "unexpected store path: {path}"
     );
     path
+}
+
+fn start_server(doc: &Doc, state_dir: &Path) -> Server {
+    let child = Command::new(doc.bin_dir.join("cix"))
+        .args(["serve", "--with-store", "--listen", TOUR_LISTEN])
+        .current_dir(&doc.base)
+        .env("CIX_STATE_DIR", state_dir)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starting cix serve");
+    let mut server = Server { child };
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = server.child.try_wait().expect("checking cix serve") {
+            panic!("cix serve exited before becoming ready: {status}");
+        }
+        let ready = Command::new("curl")
+            .args([
+                "-fsS",
+                "--max-time",
+                "1",
+                "-H",
+                "Accept: application/vnd.cix+json;version=1",
+                &format!("http://{TOUR_LISTEN}/my-app:v1"),
+            ])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if ready {
+            return server;
+        }
+        assert!(Instant::now() < deadline, "timed out waiting for cix serve");
+        std::thread::sleep(Duration::from_millis(25));
+    }
 }
 
 fn root_filename() -> &'static str {
@@ -198,11 +279,154 @@ fn scenario_untagging() -> String {
     doc.finish()
 }
 
+fn scenario_serving_your_store() -> String {
+    let mut doc = Doc::new("serving");
+    let publisher = doc.state_dir.clone();
+    doc.heading(2, "Serving your store");
+    doc.para("Publication is not a ceremony — serving exposes your bare tags at whatever URL reaches the box.");
+
+    let store_path = fixture_in(
+        &mut doc,
+        "publisher $",
+        &publisher,
+        "fixture-v1",
+        "hello from my app v1",
+    );
+    doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!("cix tag {store_path} my-app:v1"),
+        true,
+    );
+    doc.background(
+        "publisher $",
+        "cix serve --with-store --listen 127.0.0.1:8420",
+    );
+    let server = start_server(&doc, &publisher);
+    let entry = doc.sh_in(
+        "publisher $",
+        &publisher,
+        "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://127.0.0.1:8420/my-app:v1",
+        true,
+    );
+    assert!(entry.contains("\"outputs\":"));
+    assert!(entry.contains("\"substituters\":"));
+    assert!(entry.contains(&store_path));
+
+    doc.para("The same URL in a browser is an informative HTML page; here is only a short teaser, not the page dump.");
+    let html = doc.sh_in(
+        "publisher $",
+        &publisher,
+        "curl -s http://127.0.0.1:8420/my-app:v1 | head -c 120",
+        true,
+    );
+    assert!(html.contains("<!doctype html>"));
+    drop(server);
+    doc.finish()
+}
+
+fn scenario_pulling_on_another_machine() -> String {
+    let mut doc = Doc::new("pulling");
+    let publisher = doc.state_dir.clone();
+    let consumer = doc.base.join("consumer-state");
+    doc.heading(2, "Pulling on another machine");
+    doc.para("A second machine is just a second state dir.");
+
+    let store_path = fixture_in(
+        &mut doc,
+        "publisher $",
+        &publisher,
+        "fixture-v1",
+        "hello from my app v1",
+    );
+    doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!("cix tag {store_path} my-app:v1"),
+        true,
+    );
+    doc.background(
+        "publisher $",
+        "cix serve --with-store --listen 127.0.0.1:8420",
+    );
+    let server = start_server(&doc, &publisher);
+    let pulled = doc.sh_in(
+        "consumer $",
+        &consumer,
+        "cix pull 127.0.0.1:8420/my-app:v1 --as my-app",
+        true,
+    );
+    assert!(pulled.contains("updated 1 tag(s)"));
+    let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(listing.contains("my-app:latest"));
+    assert!(listing.contains(&store_path));
+    assert!(listing.contains("upstream=127.0.0.1:8420"));
+
+    doc.para("The qualified ref is self-describing; `--as` adopts it under a bare local name. A mirror keeps its qualified remote identity, while adoption makes the name local.");
+    drop(server);
+    doc.finish()
+}
+
+fn scenario_tags_move_pull_follows() -> String {
+    let mut doc = Doc::new("pull-follows");
+    let publisher = doc.state_dir.clone();
+    let consumer = doc.base.join("consumer-state");
+    doc.heading(2, "Tags move; pull follows");
+    doc.para("A consumer can track a remote tag without making the publisher's name local.");
+
+    let first = fixture_in(
+        &mut doc,
+        "publisher $",
+        &publisher,
+        "fixture-v1",
+        "hello from my app v1",
+    );
+    doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!("cix tag {first} my-app:v1"),
+        true,
+    );
+    doc.background(
+        "publisher $",
+        "cix serve --with-store --listen 127.0.0.1:8420",
+    );
+    let server = start_server(&doc, &publisher);
+    doc.sh_in(
+        "consumer $",
+        &consumer,
+        "cix pull 127.0.0.1:8420/my-app:v1",
+        true,
+    );
+    let second = fixture_in(
+        &mut doc,
+        "publisher $",
+        &publisher,
+        "fixture-v2",
+        "hello from my app v2",
+    );
+    doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!("cix tag {second} my-app:v1"),
+        true,
+    );
+    let refreshed = doc.sh_in("consumer $", &consumer, "cix pull", true);
+    assert!(refreshed.contains("updated 1 tag(s)"));
+    let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(listing.contains(&second));
+    assert!(!listing.contains(&first));
+
+    doc.para("Tags are mutable names over immutable paths, refreshed like git remotes. GC follows the pins: after the refresh, this consumer tag roots the new path, not the old one.");
+    drop(server);
+    doc.finish()
+}
+
 fn generate_header() -> String {
     let version = env!("CARGO_PKG_VERSION");
     let commit = option_env!("GIT_COMMIT_HASH").unwrap_or("unknown");
     format!(
-        "# cix — local index tour\n\n> **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.\n> All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.\n> Version **{version}**, commit `{commit}`.\n> **Do not edit** — re-run the test to regenerate.\n\nThis five-minute tour covers local tags only: naming a build, moving that name, and removing it.\n"
+        "# cix — local index tour\n\n> **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.\n> All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.\n> Version **{version}**, commit `{commit}`.\n> **Do not edit** — re-run the test to regenerate.\n\nThis five-minute tour covers local tags, serving a store, and pulling from it.\n"
     )
 }
 
@@ -211,6 +435,9 @@ fn render_tour() -> String {
     doc.push_str(&scenario_tagging_a_build());
     doc.push_str(&scenario_moving_a_tag());
     doc.push_str(&scenario_untagging());
+    doc.push_str(&scenario_serving_your_store());
+    doc.push_str(&scenario_pulling_on_another_machine());
+    doc.push_str(&scenario_tags_move_pull_follows());
     doc
 }
 
