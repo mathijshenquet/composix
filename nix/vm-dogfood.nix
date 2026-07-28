@@ -31,6 +31,7 @@ pkgs.testers.runNixOSTest {
     machine.succeed("cix ps | grep -F " + postgres_unit)
     machine.succeed("systemctl stop " + postgres_unit)
 
-    machine.succeed("test -z \"$(systemctl list-units --all --no-legend 'cix-*' | awk 'NF { print $1 }')\"")
+    machine.succeed("systemctl stop cix-run.slice")
+    machine.succeed("test -z \"$(systemctl list-units --no-legend 'cix-*' | awk 'NF { print $1 }')\"")
   '';
 }
