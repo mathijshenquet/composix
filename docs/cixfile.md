@@ -23,14 +23,24 @@ EXPOSE 8080
 # Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
 PKG nginx
 
-FILE /srv/www/index.html <<EOF
-<h1>hello from composix</h1>
-EOF
+COPY index.html /srv/www/index.html
 
 LINK bin/nginx ${nginx}/bin/nginx
 LINK /etc/nginx/mime.types ${nginx}/conf/mime.types
 
-FILE /etc/nginx/nginx.conf <<EOF
+COPY nginx.conf /etc/nginx/nginx.conf
+
+SERVICE nginx
+EXEC bin/nginx -c /etc/nginx/nginx.conf -e stderr
+PORT http = 8080
+CACHE /var/cache/nginx
+RUNDIR /run/nginx
+```
+
+`nginx.conf` sits next to the Cixfile and is copied unchanged:
+
+```nginx
+# examples/nginx/nginx.conf
 daemon off;
 pid /run/nginx/nginx.pid;
 error_log stderr info;
@@ -48,19 +58,11 @@ http {
     root /srv/www;
   }
 }
-EOF
-
-SERVICE nginx
-EXEC bin/nginx -c /etc/nginx/nginx.conf -e stderr
-PORT http = 8080
-CACHE /var/cache/nginx
-RUNDIR /run/nginx
 ```
 
-(A sibling file via `COPY index.html /srv/www/index.html` would work identically to the inline
-`FILE`; this example inlines everything so the repo carries one self-contained file. Note the
-executable is `LINK`ed into the item and exec'd as `bin/nginx` — cross-package references are
-always pulled in via `LINK`.)
+`COPY` is the natural choice for checked-in, verbatim assets; use `FILE` when an inline file
+needs build-time `${…}` interpolation. The executable is `LINK`ed into the item and exec'd as
+`bin/nginx` — cross-package references are always pulled in via `LINK`.
 
 The Cixfile is longer — because it states things the Dockerfile leaves implicit in the base
 image (the config, the writable paths, what the process actually is). Nothing here is
@@ -71,8 +73,8 @@ boilerplate; every line is contract.
 | directive | what it does | closest docker |
 | --- | --- | --- |
 | `PKG <attr>` | bring a nixpkgs package into scope; enables `${attr}` in directive arguments | `FROM` (spiritually — see below) |
-| `COPY <src> <dst>` | copy a sibling file into the item, **verbatim, never substituted** | `COPY` (identical intent) |
-| `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time | `COPY <<EOF` (buildkit heredoc) |
+| `COPY <src> <dst>` | copy a regular sibling file into the item, **verbatim, never substituted** | `COPY` (identical intent) |
+| `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time; use `COPY` for verbatim sibling content | `COPY <<EOF` (buildkit heredoc) |
 | `SCRIPT <dst> <<EOF` | inline executable script (shebang added) | — |
 | `LINK <dst> <target>` | symlink into another package | — (see "the LINK shift") |
 | `SERVICE <name>` | begin a service block (an item can hold several) | — (docker splits this over image + compose) |
@@ -83,11 +85,11 @@ boilerplate; every line is contract.
 | `STATE` `CACHE` `LOGS` `CONFIG` `RUNDIR` | writable dirs by role, at the path the app expects | `VOLUME` (roleless) |
 | `JIT` | the service maps writable+executable memory | — (docker allows W+X silently) |
 
-Two interpolation worlds, one rule: `${name}` is **build time** (only in directive arguments,
-never in file contents); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). Destinations beginning
-with `/` are projected read-only at that native path; bare-relative destinations stay inside the
-item for executable and script targets. Native paths let configs remain plain files rather than
-templates.
+Two interpolation worlds, one rule: `${name}` is **build time** (in directive arguments and
+inline `FILE`/`SCRIPT` bodies); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). `COPY` content is
+always verbatim. Destinations beginning with `/` are projected read-only at that native path;
+bare-relative destinations stay inside the item for executable and script targets. Native paths
+let copied configs remain plain files rather than templates.
 
 ## Where this is honestly not a Dockerfile
 
