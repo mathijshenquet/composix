@@ -1,0 +1,62 @@
+{
+  "cixSpec": 1,
+  "services": {
+    "web": {
+      "exec": [
+        "bin/web",
+        "--port",
+        "$PORT",
+        "--database",
+        "$DB_URL",
+        "--enabled=$ENABLED"
+      ],
+      "env": {
+        "PORT": {
+          "type": "port",
+          "default": 8000
+        },
+        "DB_URL": {
+          "type": "string",
+          "required": true,
+          "secret": true
+        },
+        "ENABLED": {
+          "type": "bool",
+          "default": false
+        },
+        "ROOT": {
+          "type": "path",
+          "default": "/srv/web"
+        }
+      },
+      "ports": {
+        "http": {
+          "env": "PORT",
+          "protocol": "tcp"
+        }
+      },
+      "dirs": {
+        "state": [
+          "/srv/web/state",
+          "/srv/web/uploads"
+        ],
+        "cache": [
+          "/srv/web/cache"
+        ],
+        "logs": [
+          "/srv/web/log"
+        ],
+        "config": [
+          "/srv/web/config"
+        ]
+      },
+      "health": {
+        "exec": [
+          "bin/healthcheck",
+          "$PORT"
+        ],
+        "interval": "30s"
+      }
+    }
+  }
+}

@@ -2,3 +2,7 @@
 //! See DESIGN.md "Part 2 — spec + run".
 
 pub mod cli;
+pub mod config;
+pub mod runtime;
+pub mod spec;
+pub mod unit;

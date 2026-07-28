@@ -1,0 +1,40 @@
+[Unit]
+Description=cix run: web
+
+[Service]
+Type=exec
+Slice=cix-run.slice
+StateDirectory=cix-run-web/state-0 cix-run-web/state-1
+StateDirectoryMode=0700
+BindPaths=/var/lib/cix-run-web/state-0:/srv/web/state
+BindPaths=/var/lib/cix-run-web/state-1:/srv/web/uploads
+CacheDirectory=cix-run-web
+CacheDirectoryMode=0700
+BindPaths=/var/cache/cix-run-web:/srv/web/cache
+LogsDirectory=cix-run-web
+LogsDirectoryMode=0700
+BindPaths=/var/log/cix-run-web:/srv/web/log
+ConfigurationDirectory=cix-run-web
+ConfigurationDirectoryMode=0700
+BindPaths=/etc/cix-run-web:/srv/web/config
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+RestrictAddressFamilies=+AF_INET +AF_INET6
+ExecStart="/nix/store/00000000000000000000000000000000-web/bin/web" "--port" "9090" "--database" "postgres://db/a b" "--enabled=true"
+Environment="DB_URL=postgres://db/a b"
+Environment="ENABLED=true"
+Environment="PORT=9090"
+Environment="ROOT=/srv/web"

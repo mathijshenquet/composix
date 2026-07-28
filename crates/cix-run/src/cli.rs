@@ -2,12 +2,17 @@
 pub enum Command {
     /// Run a spec'ed service as a transient systemd unit.
     Run {
-        /// Installable, optionally with `#service` when the spec has several.
+        /// Store path or flake installable, optionally with `#service`.
+        ///
+        /// For a flake output, append a second suffix: `flake#package#service`.
         installable: String,
-        #[arg(short, long)]
+        /// Override a declared environment variable (`NAME=VALUE`).
+        #[arg(short = 'e', long = "env", value_name = "NAME=VALUE")]
         env: Vec<String>,
-        #[arg(short, long)]
+        /// Override a named port (`NAME=PORT`).
+        #[arg(short = 'p', long = "port", value_name = "NAME=PORT")]
         port: Vec<String>,
+        /// Print the transient unit name and return without following logs.
         #[arg(long)]
         detach: bool,
         /// Degraded dev mode against the user manager (no DynamicUser).
@@ -20,6 +25,21 @@ pub enum Command {
 
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
-        anyhow::bail!("not implemented yet (run track)")
+        match self {
+            Self::Run {
+                installable,
+                env,
+                port,
+                detach,
+                user,
+            } => crate::runtime::run(crate::runtime::RunOptions {
+                installable,
+                env,
+                port,
+                detach,
+                user,
+            }),
+            Self::Ps => crate::runtime::ps(),
+        }
     }
 }
