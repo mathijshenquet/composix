@@ -86,13 +86,13 @@ pub(crate) fn build_unit(
     if mode != UnitMode::UserDegraded {
         properties.push(("CapabilityBoundingSet".into(), String::new()));
     }
-    properties.push(("RestrictAddressFamilies".into(), "AF_UNIX".into()));
     if service.has_network() {
         properties.push((
             "RestrictAddressFamilies".into(),
-            "+AF_INET +AF_INET6".into(),
+            "AF_UNIX AF_INET AF_INET6".into(),
         ));
     } else {
+        properties.push(("RestrictAddressFamilies".into(), "AF_UNIX".into()));
         properties.push(("PrivateNetwork".into(), "yes".into()));
     }
 
@@ -234,20 +234,39 @@ fn add_directories(
             continue;
         }
         let managed = managed_names(&managed_base, role, paths.len());
-        properties.push((directive.into(), managed.join(" ")));
-        properties.push((mode_directive.into(), "0700".into()));
-
-        if bind {
-            let root = if user { user_root } else { system_root };
-            for (source, destination) in managed.iter().zip(paths) {
-                properties.push((
-                    "BindPaths".into(),
-                    format!(
+        let use_directory_aliases = !user && bind && role != "config";
+        let mut directory_values = Vec::with_capacity(paths.len());
+        let mut bind_values = Vec::new();
+        let mut needs_private_role_root = false;
+        for (source, destination) in managed.iter().zip(paths) {
+            let relative_destination = use_directory_aliases
+                .then(|| destination.strip_prefix(system_root).ok())
+                .flatten()
+                .filter(|path| !path.as_os_str().is_empty());
+            if let Some(relative_destination) = relative_destination {
+                needs_private_role_root = true;
+                directory_values.push(format!(
+                    "{source}:{}",
+                    relative_destination.to_string_lossy().replace('%', "%%")
+                ));
+            } else {
+                directory_values.push(source.clone());
+                if bind {
+                    let root = if user { user_root } else { system_root };
+                    bind_values.push(format!(
                         "{root}/{source}:{}",
                         destination.to_string_lossy().replace('%', "%%")
-                    ),
-                ));
+                    ));
+                }
             }
+        }
+        if needs_private_role_root {
+            properties.push(("TemporaryFileSystem".into(), format!("{system_root}:ro")));
+        }
+        properties.push((directive.into(), directory_values.join(" ")));
+        properties.push((mode_directive.into(), "0700".into()));
+        for value in bind_values {
+            properties.push(("BindPaths".into(), value));
         }
     }
 }
@@ -398,5 +417,49 @@ mod tests {
             UnitMode::System
         )
         .is_err());
+    }
+
+    #[test]
+    fn system_role_paths_preserve_dynamic_user_id_mapping() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 1,
+                "services": {
+                    "database": {
+                        "exec": ["bin/database"],
+                        "dirs": {
+                            "state": ["/var/lib/database"],
+                            "cache": ["/var/cache/database"],
+                            "logs": ["/var/log/database"]
+                        }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["database"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-database"),
+            "database",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        for expected in [
+            "TemporaryFileSystem=/var/lib:ro",
+            "StateDirectory=cix-run-database:database",
+            "TemporaryFileSystem=/var/cache:ro",
+            "CacheDirectory=cix-run-database:database",
+            "TemporaryFileSystem=/var/log:ro",
+            "LogsDirectory=cix-run-database:database",
+        ] {
+            assert!(
+                actual.contains(expected),
+                "missing {expected:?} in:\n{actual}"
+            );
+        }
+        assert!(!actual.contains("BindPaths="));
     }
 }
