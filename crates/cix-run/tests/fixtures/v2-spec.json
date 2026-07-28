@@ -1,0 +1,39 @@
+{
+  "cixSpec": 2,
+  "services": {
+    "web": {
+      "setup": [
+        "bin/setup",
+        "--admin-port",
+        "$ADMIN_PORT"
+      ],
+      "exec": [
+        "bin/web",
+        "--admin-port",
+        "$ADMIN_PORT"
+      ],
+      "env": {
+        "ADMIN_PORT": {
+          "type": "port",
+          "default": 9000
+        }
+      },
+      "ports": {
+        "http": {
+          "value": 80,
+          "protocol": "tcp"
+        },
+        "admin": {
+          "env": "ADMIN_PORT",
+          "protocol": "tcp"
+        }
+      },
+      "dirs": {
+        "run": [
+          "/run/web"
+        ]
+      },
+      "jit": true
+    }
+  }
+}

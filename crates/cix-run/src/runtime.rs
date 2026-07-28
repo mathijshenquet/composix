@@ -123,11 +123,12 @@ pub fn start_service(
                 let capability_name = format!("cix-run-{service_name}-{}.service", nonce());
                 eprintln!("warning: user manager rejected capability controls ({full_error:#})");
                 eprintln!(
-                    "warning: retrying after dropping CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
+                    "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
                 );
                 let without_capabilities = without_properties(
                     &definition,
                     &[
+                        "AmbientCapabilities",
                         "CapabilityBoundingSet",
                         "ProtectKernelModules",
                         "ProtectKernelLogs",

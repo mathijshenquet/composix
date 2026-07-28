@@ -42,7 +42,7 @@ pub(crate) fn build_unit(
         bail!("store output path {} is not absolute", output.display());
     }
 
-    let argv = resolved_exec(output, &service.exec, &config.env)?;
+    let argv = resolved_argv(output, "exec", &service.exec, &config.env)?;
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), "cix-run.slice".into()));
@@ -80,11 +80,21 @@ pub(crate) fn build_unit(
     properties.extend([
         ("ProtectControlGroups".into(), "yes".into()),
         ("LockPersonality".into(), "yes".into()),
-        ("MemoryDenyWriteExecute".into(), "yes".into()),
-        ("SystemCallFilter".into(), "@system-service".into()),
     ]);
+    if service.jit != Some(true) {
+        properties.push(("MemoryDenyWriteExecute".into(), "yes".into()));
+    }
+    properties.push(("SystemCallFilter".into(), "@system-service".into()));
     if mode != UnitMode::UserDegraded {
-        properties.push(("CapabilityBoundingSet".into(), String::new()));
+        if config.ports.values().any(|port| *port < 1024) {
+            properties.push(("AmbientCapabilities".into(), "CAP_NET_BIND_SERVICE".into()));
+            properties.push((
+                "CapabilityBoundingSet".into(),
+                "CAP_NET_BIND_SERVICE".into(),
+            ));
+        } else {
+            properties.push(("CapabilityBoundingSet".into(), String::new()));
+        }
     }
     if service.has_network() {
         properties.push((
@@ -94,6 +104,10 @@ pub(crate) fn build_unit(
     } else {
         properties.push(("RestrictAddressFamilies".into(), "AF_UNIX".into()));
         properties.push(("PrivateNetwork".into(), "yes".into()));
+    }
+    if let Some(setup) = &service.setup {
+        let setup = resolved_argv(output, "setup", setup, &config.env)?;
+        properties.push(("ExecStartPre".into(), exec_command(&setup)));
     }
 
     let environment = config
@@ -111,14 +125,15 @@ pub(crate) fn build_unit(
     })
 }
 
-fn resolved_exec(
+fn resolved_argv(
     output: &Path,
+    field: &str,
     exec: &[String],
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<String>> {
     let mut argv = exec
         .iter()
-        .map(|argument| interpolate(argument, env))
+        .map(|argument| interpolate(field, argument, env))
         .collect::<Result<Vec<_>>>()?;
 
     let executable = Path::new(&argv[0]);
@@ -142,7 +157,7 @@ fn resolved_exec(
     Ok(argv)
 }
 
-fn interpolate(input: &str, env: &BTreeMap<String, String>) -> Result<String> {
+fn interpolate(field: &str, input: &str, env: &BTreeMap<String, String>) -> Result<String> {
     let bytes = input.as_bytes();
     let mut output = String::with_capacity(input.len());
     let mut copied_until = 0;
@@ -155,7 +170,7 @@ fn interpolate(input: &str, env: &BTreeMap<String, String>) -> Result<String> {
         output.push_str(&input[copied_until..index]);
         index += 1;
         if index >= bytes.len() || !(bytes[index].is_ascii_alphabetic() || bytes[index] == b'_') {
-            bail!("invalid environment interpolation in exec argument {input:?}");
+            bail!("invalid environment interpolation in {field} argument {input:?}");
         }
         let start = index;
         index += 1;
@@ -229,6 +244,14 @@ fn add_directories(
             "/etc",
             "%E",
         ),
+        (
+            "run",
+            dirs.run.as_deref().unwrap_or_default(),
+            "RuntimeDirectory",
+            "RuntimeDirectoryMode",
+            "/run",
+            "%t",
+        ),
     ] {
         if paths.is_empty() {
             continue;
@@ -260,7 +283,7 @@ fn add_directories(
                 }
             }
         }
-        if needs_private_role_root {
+        if needs_private_role_root && role != "run" {
             properties.push(("TemporaryFileSystem".into(), format!("{system_root}:ro")));
         }
         properties.push((directive.into(), directory_values.join(" ")));
@@ -298,13 +321,7 @@ fn render(
         output.push('\n');
     }
     output.push_str("ExecStart=");
-    output.push_str(
-        &argv
-            .iter()
-            .map(|value| quote_exec_word(value))
-            .collect::<Vec<_>>()
-            .join(" "),
-    );
+    output.push_str(&exec_command(argv));
     output.push('\n');
     for (name, value) in environment {
         output.push_str("Environment=");
@@ -312,6 +329,13 @@ fn render(
         output.push('\n');
     }
     output
+}
+
+fn exec_command(argv: &[String]) -> String {
+    argv.iter()
+        .map(|value| quote_exec_word(value))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn quote_exec_word(value: &str) -> String {
@@ -401,6 +425,87 @@ mod tests {
             include_str!("../tests/fixtures/minimal-system.unit")
         );
         assert!(actual.contains("PrivateNetwork=yes"));
+    }
+
+    #[test]
+    fn v2_system_unit_matches_golden_file() {
+        let spec = Spec::from_slice(include_bytes!("../tests/fixtures/v2-spec.json")).unwrap();
+        let service = &spec.services["web"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-web-v2"),
+            "web",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert_eq!(actual, include_str!("../tests/fixtures/v2-system.unit"));
+        assert!(!actual.contains("TemporaryFileSystem=/run"));
+        assert!(!actual.contains("MemoryDenyWriteExecute"));
+    }
+
+    #[test]
+    fn env_default_and_override_low_ports_grant_bind_capability() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 2,
+                "services": {
+                    "web": {
+                        "exec": ["bin/web"],
+                        "env": {"PORT": {"type": "port", "default": 80}},
+                        "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["web"];
+        for config in [
+            ResolvedConfig::resolve(service, &[], &[]).unwrap(),
+            ResolvedConfig::resolve(service, &[], &["http=81".into()]).unwrap(),
+        ] {
+            let actual = generate_unit(
+                Path::new("/nix/store/00000000000000000000000000000000-web"),
+                "web",
+                service,
+                &config,
+                UnitMode::System,
+            )
+            .unwrap();
+            assert!(actual.contains("AmbientCapabilities=CAP_NET_BIND_SERVICE"));
+            assert!(actual.contains("CapabilityBoundingSet=CAP_NET_BIND_SERVICE"));
+        }
+    }
+
+    #[test]
+    fn high_default_overridden_to_low_port_grants_bind_capability() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 2,
+                "services": {
+                    "web": {
+                        "exec": ["bin/web"],
+                        "env": {"PORT": {"type": "port", "default": 8080}},
+                        "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["web"];
+        let config =
+            ResolvedConfig::resolve(service, &[], &["http=80".into()]).expect("valid override");
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(actual.contains("AmbientCapabilities=CAP_NET_BIND_SERVICE"));
+        assert!(actual.contains("CapabilityBoundingSet=CAP_NET_BIND_SERVICE"));
     }
 
     #[test]
