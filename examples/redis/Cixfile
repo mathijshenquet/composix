@@ -1,0 +1,11 @@
+PKG redis
+
+LINK bin/redis-cli ${redis}/bin/redis-cli
+LINK bin/redis-server ${redis}/bin/redis-server
+
+COPY redis.conf /etc/redis/redis.conf
+
+SERVICE redis
+EXEC bin/redis-server /etc/redis/redis.conf
+PORT redis = 6379
+RUNDIR /run/redis
