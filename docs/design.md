@@ -447,6 +447,12 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `${name}` without a namespace is an error suggesting `${pkgs.name}`. Future lock inputs
   beyond nixpkgs arrive as sibling namespaces — flake-inputs semantics without grammar
   changes.
+  **Amendment (same day, Mathijs): `FROM` returns, honestly.** An unbound `pkgs` is itself
+  ambient magic, so every Cixfile REQUIRES a `FROM <flakeref> [AS <name>]` heading that binds
+  a package universe to a namespace (`FROM nixpkgs` → `pkgs`; `AS stable` → `${stable.x}`;
+  bare `nixpkgs` is the registry ref). `Cixfile.lock` is keyed per input
+  (`--update-lock [name]`). Docker muscle memory restored with a truthful meaning: not "which
+  layer do I inherit" but "which package universe do I draw from".
 - ✅ D31 (2026-07-29) — **the `PATH` directive; LINK is for assets, not bins.** Cixfile gains
   an explicit, item-level `PATH <dir>…` declaration (repeatable; order = search order; no
   implicit PKG⇒PATH magic — Mathijs's call, consistent with the minimal-magic budget). Two
