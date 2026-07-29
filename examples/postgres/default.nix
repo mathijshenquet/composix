@@ -3,7 +3,7 @@
 { pkgs ? import <nixpkgs> { } }:
 
 pkgs.runCommand "postgres-cix" { } ''
-  mkdir -p $out/opt/postgres
+  mkdir -p $out/bin $out/opt/postgres
 
   cat > $out/opt/postgres/runtime-env.sh <<'EOF'
   state_dir=/var/lib/postgresql
@@ -53,6 +53,7 @@ pkgs.runCommand "postgres-cix" { } ''
   EOF
 
   chmod +x $out/opt/postgres/setup $out/opt/postgres/start
+  ln -s ${pkgs.postgresql}/bin/psql $out/bin/psql
   cat > $out/cix-spec.json <<'EOF'
   {
     "cixSpec": 2,
