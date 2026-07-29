@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::net::SocketAddr;
 
 use anyhow::{bail, Context, Result};
 
@@ -8,6 +9,8 @@ use crate::spec::{parse_port, Service};
 pub struct ResolvedConfig {
     pub env: BTreeMap<String, String>,
     pub ports: BTreeMap<String, u16>,
+    /// Operator bindings for named inherited listeners.
+    pub listeners: BTreeMap<String, SocketAddr>,
 }
 
 impl ResolvedConfig {
@@ -17,7 +20,9 @@ impl ResolvedConfig {
         port_overrides: &[String],
     ) -> Result<Self> {
         let env_overrides = parse_assignments("-e/--env", env_overrides)?;
-        let port_overrides = parse_assignments("-p/--port", port_overrides)?;
+        let overrides = parse_assignments("-p/--port", port_overrides)?;
+        let mut port_overrides = BTreeMap::new();
+        let mut listeners = BTreeMap::new();
 
         for name in env_overrides.keys() {
             if !service.env.contains_key(name) {
@@ -33,12 +38,28 @@ impl ResolvedConfig {
                 })?;
             }
         }
-        for name in port_overrides.keys() {
-            let Some(port) = service.ports.get(name) else {
-                bail!("port override refers to undeclared port {name:?}");
-            };
-            if port.value.is_some() {
-                bail!("port {name:?} is fixed at build time");
+        for (name, value) in overrides {
+            if let Some(port) = service.ports.get(&name) {
+                if port.value.is_some() {
+                    bail!("port {name:?} is fixed at build time");
+                }
+                port_overrides.insert(name, value);
+            } else if service.listeners.contains_key(&name) {
+                let address = value.parse::<SocketAddr>().with_context(|| {
+                    format!(
+                        "listener binding for {name:?} must be an IP address and port such as 127.0.0.1:8080"
+                    )
+                })?;
+                listeners.insert(name, address);
+            } else {
+                bail!("-p/--port target {name:?} is neither a declared port nor listener");
+            }
+        }
+        for name in service.listeners.keys() {
+            if !listeners.contains_key(name) {
+                bail!(
+                    "listener {name:?} has no binding; pass -p {name}=ADDR:PORT when running this service"
+                );
             }
         }
 
@@ -90,7 +111,11 @@ impl ResolvedConfig {
             }
         }
 
-        Ok(Self { env, ports })
+        Ok(Self {
+            env,
+            ports,
+            listeners,
+        })
     }
 }
 
@@ -207,5 +232,37 @@ mod tests {
                 .contains("port \"http\" is fixed at build time"),
             "{error:#}"
         );
+    }
+
+    #[test]
+    fn resolves_listener_bindings_and_requires_all_listeners() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 3,
+                "services": {
+                    "app": {
+                        "exec": ["bin/app"],
+                        "listeners": {"http": {"type": "stream"}},
+                        "ports": {"metrics": {"value": 9090, "protocol": "tcp"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["app"];
+        let resolved =
+            ResolvedConfig::resolve(service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
+        assert_eq!(resolved.listeners["http"].to_string(), "127.0.0.1:8080");
+        assert_eq!(resolved.ports["metrics"], 9090);
+
+        let missing = ResolvedConfig::resolve(service, &[], &[]).unwrap_err();
+        assert!(missing
+            .to_string()
+            .contains("listener \"http\" has no binding"));
+        let bad =
+            ResolvedConfig::resolve(service, &[], &["other=127.0.0.1:8080".into()]).unwrap_err();
+        assert!(bad
+            .to_string()
+            .contains("neither a declared port nor listener"));
     }
 }

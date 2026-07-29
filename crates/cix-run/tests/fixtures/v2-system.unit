@@ -21,6 +21,9 @@ SystemCallFilter=@system-service
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SocketBindAllow=tcp:9000
+SocketBindAllow=tcp:80
+SocketBindDeny=any
 ExecStartPre="/nix/store/00000000000000000000000000000000-web-v2/bin/setup" "--admin-port" "9000"
 ExecStart="/nix/store/00000000000000000000000000000000-web-v2/bin/web" "--admin-port" "9000"
 Environment="ADMIN_PORT=9000"
