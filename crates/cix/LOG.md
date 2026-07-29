@@ -4,6 +4,8 @@
 
 - 2026-07-29T03:05:00Z — Reconciled docker-ledger §6 against the v0 implementation and stack demo. The section now distinguishes implemented strict JSON, edge ordering, namespaced profiles/units, root activation, rootless check/diff, and retained profile rollback from still-deferred scale, health, credentials, limits, reusable objects, networks, and reconciler work. Next: add and run the rootless compose tour fixture.
 
+- 2026-07-29T03:15:00Z — Added scenario 10, “Composing services,” and regenerated `docs/tour/`. It makes two self-contained cix-spec v2 items with `nix store add-path`, tags a tracked service, shows strict JSON plus rootless `check`, records the actual resolved tag values in the root-only-up lock format, then dry-diffs before and after retagging. Focused generation passes. Next: run tour drift/determinism (including the foreign-unit decoy) three times, then the workspace gate.
+
 - 2026-07-29T01:11:49Z — Started the hermetic-tour fix. The renderer currently emits raw `cix ps` rows, including the shared `cix-run.slice`, so foreign `cix-*` units can change generated transcripts. I will filter displayed unit-list rows to each scenario's generated names, add a live foreign-unit regression test with cleanup, regenerate `docs/tour/`, and run the workspace gate three times while a decoy user unit is active.
 
 - 2026-07-29T01:12:00Z — The initial focused test confirmed the decoy regression test works, but also exposed that `cix ps` formats its header and retained rows using the widest foreign unit before the harness filters output. The filter now reparses its retained rows and regenerates the table with widths based only on scenario units; this preserves the real command while making its rendered transcript hermetic.
