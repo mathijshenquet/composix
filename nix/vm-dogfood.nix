@@ -1,31 +1,62 @@
 { pkgs, cix }:
 
 let
-  nginx = import ../examples/nginx { inherit pkgs; };
-  postgres = import ../examples/postgres { inherit pkgs; };
-  redis = pkgs.runCommand "redis-cix" { } ''
-    mkdir -p $out/bin $out/etc/redis
-    ln -s ${pkgs.redis}/bin/redis-cli $out/bin/redis-cli
-    ln -s ${pkgs.redis}/bin/redis-server $out/bin/redis-server
-    install -m 0644 ${../examples/redis/redis.conf} $out/etc/redis/redis.conf
+  nginx = pkgs.runCommand "nginx-cix" { } ''
+    mkdir -p $out/etc/nginx $out/srv/www
+    ln -s ${pkgs.nginx}/conf/mime.types $out/etc/nginx/mime.types
+    install -m 0644 ${../examples/pack/nginx/index.html} $out/srv/www/index.html
+    install -m 0644 ${../examples/pack/nginx/nginx.conf} $out/etc/nginx/nginx.conf
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 2,
       "services": {
-        "redis": {
-          "exec": ["bin/redis-server", "/etc/redis/redis.conf"],
-          "mounts": ["/etc/redis"],
-          "ports": { "redis": { "value": 6379, "protocol": "tcp" } },
-          "dirs": { "run": ["/run/redis"] }
+        "nginx": {
+          "exec": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
+          "mounts": ["/etc/nginx", "/srv/www"],
+          "ports": { "http": { "value": 8080, "protocol": "tcp" } },
+          "dirs": {
+            "cache": ["/var/cache/nginx"],
+            "run": ["/run/nginx"]
+          }
         }
       }
     }
     EOF
   '';
+  postgres = pkgs.runCommand "postgres-cix" { } ''
+    mkdir -p $out/bin $out/opt/postgres
+    ln -s ${pkgs.nss_wrapper}/lib/libnss_wrapper.so $out/opt/postgres/libnss_wrapper.so
+    ln -s ${pkgs.postgresql}/bin/psql $out/bin/psql
+    install -m 0644 ${../examples/pack/postgres/runtime-env.sh} $out/opt/postgres/runtime-env.sh
+    install -m 0755 ${../examples/pack/postgres/setup} $out/opt/postgres/setup
+    install -m 0755 ${../examples/pack/postgres/start} $out/opt/postgres/start
+    cat > $out/cix-manifest.json <<'EOF'
+    {
+      "cixManifest": 2,
+      "services": {
+        "postgres": {
+          "setup": ["${pkgs.bash}/bin/sh", "/opt/postgres/setup"],
+          "exec": ["${pkgs.bash}/bin/sh", "/opt/postgres/start", "$PORT"],
+          "env": {
+            "PATH": { "default": "${pkgs.postgresql}/bin:${pkgs.coreutils}/bin" },
+            "PORT": { "default": "5432" }
+          },
+          "mounts": ["/opt/postgres"],
+          "ports": { "postgres": { "env": "PORT", "protocol": "tcp" } },
+          "dirs": {
+            "state": ["/var/lib/postgresql"],
+            "run": ["/run/postgresql"]
+          }
+        }
+      }
+    }
+    EOF
+  '';
+  redis = import ../examples/pack/redis { inherit pkgs; };
   caddy = pkgs.runCommand "caddy-cix" { } ''
     mkdir -p $out/bin $out/srv/www
     ln -s ${pkgs.caddy}/bin/caddy $out/bin/caddy
-    install -m 0644 ${../examples/caddy/index.html} $out/srv/www/index.html
+    install -m 0644 ${../examples/pack/caddy/index.html} $out/srv/www/index.html
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 2,
@@ -42,7 +73,7 @@ let
   nodeApp = pkgs.runCommand "node-app-cix" { } ''
     mkdir -p $out/bin $out/app
     ln -s ${pkgs.nodejs}/bin/node $out/bin/node
-    install -m 0644 ${../examples/node-app/server.js} $out/app/server.js
+    install -m 0644 ${../examples/pack/node-app/server.js} $out/app/server.js
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 2,
@@ -86,8 +117,8 @@ pkgs.testers.runNixOSTest {
     machine.succeed("systemctl stop " + postgres_unit)
 
     redis_unit = machine.succeed("cix run ${redis} --detach").strip()
-    machine.wait_until_succeeds("${redis}/bin/redis-cli -h 127.0.0.1 -p 6379 PING | grep -Fx PONG")
-    machine.wait_until_succeeds("${redis}/bin/redis-cli -s /run/redis/redis.sock PING | grep -Fx PONG")
+    machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -h 127.0.0.1 -p 6379 PING | grep -Fx PONG")
+    machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -s /run/redis/redis.sock PING | grep -Fx PONG")
     machine.succeed("cix ps | grep -F " + redis_unit)
     machine.succeed("systemctl stop " + redis_unit)
 

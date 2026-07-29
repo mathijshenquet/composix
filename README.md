@@ -24,7 +24,7 @@ built now. Everything may change.
 ## A taste
 
 ```dockerfile
-# Cixfile — this is examples/nginx, verbatim
+# Cixfile — this is examples/pack/nginx, verbatim
 PKG nginx
 
 COPY index.html /srv/www/index.html
@@ -42,7 +42,7 @@ RUNDIR /run/nginx
 ```
 
 ```sh
-cix build examples/nginx -t my-nginx:v1   # deterministic: nixpkgs pinned in Cixfile.lock
+cix build examples/pack/nginx -t my-nginx:v1   # deterministic: nixpkgs pinned in Cixfile.lock
 cix run my-nginx:v1                       # a hardened transient systemd unit
 
 # on the box your org's DNS calls cix.my-org.com:
@@ -67,11 +67,10 @@ paths (`/etc/nginx/…`) — a sparse rootfs fragment, no layers, no templating.
 
 ## Examples
 
-`examples/` is the seed of a spec'd-packages collection: nginx and postgres (each as both a
-Cixfile and a `default.nix` escape hatch), a pure socket-activated service
-(`examples/listenfds`), unix-socket-only variants proving the capability-style networking
-tier (`examples/dstyle`), and a realistic rust-workspace + frontend build shape
-(`examples/buildshape`). Each has a `demo.sh`; a NixOS VM check
+`examples/` is the seed of a spec'd-packages collection: individual services live in
+[`examples/pack/`](examples/pack/) (with Redis showing both Cixfile and `withSpec` authoring),
+composites in `examples/compose/`, and build stories in `examples/build/`. `examples/dstyle/`
+is the design-era archive. Each runnable pack has a `demo.sh`; a NixOS VM check
 (`nix build .#checks.x86_64-linux.vm-dogfood`) runs the core ones as root in a disposable VM.
 
 ## Docs

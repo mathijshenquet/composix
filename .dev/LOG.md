@@ -178,3 +178,16 @@
   dropped). O1: serve-only agreed; wrote out the docker-style self-describing ref model (identity ≠
   address ≠ socket; docker disambiguation rule; publish = tag into namespace) vs git-style named
   remotes — awaiting Mathijs's pick.
+
+## 2026-07-29 (track/restruct close)
+
+- Completed D37(a+b): service examples now live under `examples/pack/`, buildshape is
+  `examples/build/proj1`, and `examples/README.md` documents the Cixfile → withSpec → plain
+  Nix adoption ladder. `dstyle/` and `LOG-examples2.md` remain untouched as the archive.
+- Added `nix/lib.nix` and exported `lib.withSpec`; Redis demonstrates the helper, including a
+  Nix build + `cix` parser test and live TCP/Unix-socket demo. The compose stack now consumes
+  that moved Redis pack through its tag/lock path.
+- Verification passed: workspace Rust gate, regenerated/drift-checked tour, VM dogfood, moved
+  nginx/redis live demos, compose integration demo, and active stale-path scan. Exact commands
+  and transcripts are in `.dev/specs/track-restruct.LOG.md`.
+- Open with Mathijs: none. Open for agents: commit `track/restruct` after final staged review.

@@ -20,7 +20,7 @@ EXPOSE 8080
 ```
 
 ```dockerfile
-# Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
+# Cixfile (composix) — examples/pack/nginx/Cixfile in this repo, verbatim
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 COPY index.html /srv/www/index.html
@@ -39,7 +39,7 @@ RUNDIR /run/nginx
 `nginx.conf` sits next to the Cixfile and is copied unchanged:
 
 ```nginx
-# examples/nginx/nginx.conf
+# examples/pack/nginx/nginx.conf
 daemon off;
 pid /run/nginx/nginx.pid;
 error_log stderr info;

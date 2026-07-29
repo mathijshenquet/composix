@@ -20,7 +20,7 @@ compose = {
         "database": {
             "producer": {
                 "service": "db",
-                "path": "/run/postgresql",
+                "path": "/run/redis",
             },
             "consumers": {"backend": {}},
         },
