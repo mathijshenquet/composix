@@ -54,3 +54,18 @@ adoption ladder) and D22 (mounts are item-relative) as context. D37 wins on conf
 ## Log
 
 Keep .dev/specs/track-restruct.LOG.md current (append-only, timestamped, transcripts).
+
+## Correction round 1 (orchestrator post-merge finding, 2026-07-29)
+
+`examples/pack/listenfds` is broken: its `default.nix` was deleted but NO Cixfile exists —
+and none CAN exist: v3 listeners are deliberately not a Cixfile v1 directive (D29). The
+demo's `cix build` therefore fails. The LOG claim "listenfds now use Cixfile builds" was
+wrong; the listenfds demo was not in the live gate, which is how it slipped through.
+
+Fix: recreate listenfds as the second `composix.lib.withSpec` example (the idiomatic rung is
+exactly for what Cixfile cannot express). The old definition is preserved in git
+(`git show 73ce3a8:examples/listenfds/default.nix`) — port it to withSpec form, adjust
+demo.sh to build via nix (mirror how redis' demo builds its withSpec default), note in
+examples/README.md that listenfds demonstrates withSpec-for-listeners. Gate: workspace tests
++ tour drift green, VM check passes, AND the listenfds demo runs live end-to-end (sudo) —
+this demo is now mandatory in the gate. Commit on this branch.
