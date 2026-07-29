@@ -661,6 +661,36 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   Consequence: the engine-contract bridge is NOT built; RUN productization is the build
   story's next design round.
 
+- ✅ D39 (2026-07-29) — **RUN v0: the D38 primitive productized** (Mathijs: "perfect, bouw
+  maar"). The four spike residuals get these answers:
+  (1) *Realisation policy, tiered*: the memo needs no determinism locally (key → the output
+  we got); layers (intermediate steps) need only functional adequacy, artifacts get
+  reproducible-env defaults (`SOURCE_DATE_EPOCH`, `TZ=UTC`, `LC_ALL=C`, fixed umask,
+  `HOME=<workdir>`) + sampled-rebuild verification; realisation *sharing* is publish-era and
+  reuses D35's signing story.
+  (2) *Caches & network*: non-store inputs are offered as writable snapshots (source
+  fingerprint = input; overlayfs where cheap). **`FETCH` is its own directive** — the only
+  network-allowed step, fixed-output: its result hash is TOFU-pinned in `Cixfile.lock` and
+  verified on re-fetch. RUN never sees a network. The distinction is a promise to the
+  reader, hence a keyword, not a flag.
+  (3) *Granularity = COPY-scoping (docker's own answer)*: steps form a linear chain; each
+  step sees exactly the workdir accumulated by prior COPY/FETCH/RUN steps and is keyed on
+  its snapshot hash — `COPY recipe.json .` before the cook step is precisely why a source
+  edit doesn't re-cook. Whole-snapshot hashing per step is then correct, not
+  over-invalidating. Trace-observed workdir granularity: later, evidence-gated.
+  (4) *Soundness by construction, observation as optimization*: the RUN sandbox mounts
+  ONLY the offered closure (FROM/PATH-declared paths + their nix closures — the D22 sparse
+  machinery's build-time sibling), no network, fresh namespaces. An unoffered read cannot
+  happen, so the tracer is not load-bearing: **v0 ships without one** (memo key = command +
+  offered closure + snapshot); strace/fanotify-based pruning of the offered set to the
+  observed set is a v0.5 optimization (spike: 1.3–1.7× overhead when on).
+  Surface (v0): `FETCH <cmd…>` / `RUN <cmd…>` between the FROM/PATH/COPY prelude and
+  SERVICE blocks; the final step's workdir snapshot is addressable as `${build}` in
+  EXEC/LINK/PATH. Supersedes D37(c)'s BUILD increments — `BUILD rust` is dead, the
+  buildtool worktree stays parked as archive. Consequence for the ledger: docker's `RUN`
+  row flips from ❌ to a sandboxed, memoized, lock-pinned ✅ — the universal escape hatch,
+  made honest.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
