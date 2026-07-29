@@ -33,11 +33,11 @@ pub enum Command {
         #[arg(last = true, value_name = "COMMAND")]
         command: Vec<String>,
     },
-    /// Run a command inside a live cix service's namespaces.
+    /// Run a command inside a live cix service's private namespaces.
     Exec {
         /// Exact unit name from `cix ps`, or an unambiguous running service name.
         target: String,
-        /// Keep root identity after joining the service namespaces.
+        /// Keep root identity after joining the service's private namespaces.
         #[arg(long)]
         root: bool,
         /// Degraded mode: use a user unit's environment without joining namespaces.

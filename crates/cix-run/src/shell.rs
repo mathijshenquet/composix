@@ -4,10 +4,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 
+const OPERATOR_PATH: [&str; 2] = ["/usr/bin", "/bin"];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ShellSource {
     ServicePath,
-    BinSh,
+    OperatorPath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,28 +19,67 @@ pub(crate) struct Shell {
 }
 
 pub(crate) fn resolve_shell(env: &BTreeMap<String, String>) -> Result<Shell> {
-    resolve_shell_with_fallback(env, Path::new("/bin/sh"))
+    let (path, source) = resolve_bare_program("sh", env, OPERATOR_PATH.iter().map(Path::new))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no `sh` found on the service's recorded/generated PATH or operator fallback /usr/bin:/bin; pass an explicit command after `--`"
+            )
+        })?;
+    Ok(Shell {
+        path,
+        source: match source {
+            ProgramSource::ServicePath => ShellSource::ServicePath,
+            ProgramSource::OperatorPath => ShellSource::OperatorPath,
+        },
+    })
 }
 
-fn resolve_shell_with_fallback(env: &BTreeMap<String, String>, fallback: &Path) -> Result<Shell> {
-    if let Some(path) = env.get("PATH") {
-        for directory in std::env::split_paths(path) {
-            let candidate = directory.join("sh");
-            if is_executable(&candidate) {
-                return Ok(Shell {
-                    path: candidate,
-                    source: ShellSource::ServicePath,
-                });
-            }
+pub(crate) fn resolve_program(program: &str, env: &BTreeMap<String, String>) -> Result<PathBuf> {
+    let path = Path::new(program);
+    if program.contains('/') {
+        if is_executable(path) {
+            return Ok(path.to_owned());
+        }
+        bail!("command {program:?} is not an executable file");
+    }
+
+    resolve_bare_program(program, env, OPERATOR_PATH.iter().map(Path::new))
+        .map(|(path, _)| path)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "command {program:?} was not found on the service's recorded/generated PATH or operator fallback /usr/bin:/bin"
+            )
+        })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProgramSource {
+    ServicePath,
+    OperatorPath,
+}
+
+fn resolve_bare_program<'a>(
+    program: &str,
+    env: &BTreeMap<String, String>,
+    operator_path: impl IntoIterator<Item = &'a Path>,
+) -> Option<(PathBuf, ProgramSource)> {
+    let service_path = env
+        .get("PATH")
+        .into_iter()
+        .flat_map(|path| std::env::split_paths(path));
+    for directory in service_path {
+        let candidate = directory.join(program);
+        if is_executable(&candidate) {
+            return Some((candidate, ProgramSource::ServicePath));
         }
     }
-    if is_executable(fallback) {
-        return Ok(Shell {
-            path: fallback.to_owned(),
-            source: ShellSource::BinSh,
-        });
+    for directory in operator_path {
+        let candidate = directory.join(program);
+        if is_executable(&candidate) {
+            return Some((candidate, ProgramSource::OperatorPath));
+        }
     }
-    bail!("no `sh` found on the service PATH or at /bin/sh; pass an explicit command after `--`")
+    None
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -61,15 +102,16 @@ mod tests {
     }
 
     #[test]
-    fn shell_fallback_chain_prefers_service_path_then_bin_sh_then_errors() {
+    fn effective_path_prefers_service_path_then_operator_path_then_errors() {
         let temp = tempfile::tempdir().unwrap();
         let first = temp.path().join("first");
         let second = temp.path().join("second");
+        let operator = temp.path().join("operator");
         fs::create_dir_all(&first).unwrap();
         fs::create_dir_all(&second).unwrap();
+        fs::create_dir_all(&operator).unwrap();
         executable(&second.join("sh"));
-        let fallback = temp.path().join("fallback-sh");
-        executable(&fallback);
+        executable(&operator.join("sh"));
 
         let env = BTreeMap::from([(
             "PATH".into(),
@@ -79,23 +121,39 @@ mod tests {
                 .unwrap(),
         )]);
         assert_eq!(
-            resolve_shell_with_fallback(&env, &fallback).unwrap(),
-            Shell {
-                path: second.join("sh"),
-                source: ShellSource::ServicePath,
-            }
+            resolve_bare_program("sh", &env, [operator.as_path()]),
+            Some((second.join("sh"), ProgramSource::ServicePath))
         );
 
         let empty = BTreeMap::new();
         assert_eq!(
-            resolve_shell_with_fallback(&empty, &fallback).unwrap(),
-            Shell {
-                path: fallback.clone(),
-                source: ShellSource::BinSh,
-            }
+            resolve_bare_program("sh", &empty, [operator.as_path()]),
+            Some((operator.join("sh"), ProgramSource::OperatorPath))
         );
-        fs::remove_file(&fallback).unwrap();
-        let error = resolve_shell_with_fallback(&empty, &fallback).unwrap_err();
-        assert!(error.to_string().contains("pass an explicit command"));
+        fs::remove_file(operator.join("sh")).unwrap();
+        assert_eq!(
+            resolve_bare_program("sh", &empty, [operator.as_path()]),
+            None
+        );
+    }
+
+    #[test]
+    fn empty_environment_resolves_shell_and_explicit_command_from_operator_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let operator = temp.path().join("operator");
+        fs::create_dir_all(&operator).unwrap();
+        executable(&operator.join("id"));
+
+        assert_eq!(
+            resolve_bare_program("id", &BTreeMap::new(), [operator.as_path()]),
+            Some((operator.join("id"), ProgramSource::OperatorPath))
+        );
+
+        let shell = resolve_shell(&BTreeMap::new()).unwrap();
+        assert_eq!(shell.source, ShellSource::OperatorPath);
+        assert!(shell.path == Path::new("/usr/bin/sh") || shell.path == Path::new("/bin/sh"));
+
+        let command = resolve_program("id", &BTreeMap::new()).unwrap();
+        assert!(command == Path::new("/usr/bin/id") || command == Path::new("/bin/id"));
     }
 }

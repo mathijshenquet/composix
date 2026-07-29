@@ -7,7 +7,7 @@ use crate::runtime::{
     capability_failure, current_uid, namespace_failure, nonce, resolve_service,
     run_transient_foreground, with_unit_diagnostics, without_properties, ForegroundResult,
 };
-use crate::shell::{resolve_shell, ShellSource};
+use crate::shell::{resolve_program, resolve_shell, ShellSource};
 use crate::unit::{build_unit, UnitDefinition, UnitMode};
 
 pub struct DebugOptions {
@@ -40,12 +40,16 @@ pub fn debug(options: DebugOptions) -> Result<()> {
         let shell = resolve_shell(&config.env)?;
         let source = match shell.source {
             ShellSource::ServicePath => "service PATH",
-            ShellSource::BinSh => "/bin/sh fallback",
+            ShellSource::OperatorPath => "operator fallback PATH",
         };
         eprintln!("cix debug: using shell {} ({source})", shell.path.display());
         vec![shell.path.to_string_lossy().into_owned()]
     } else {
-        options.command
+        let mut command = options.command;
+        command[0] = resolve_program(&command[0], &config.env)?
+            .to_string_lossy()
+            .into_owned();
+        command
     };
 
     if options.user {

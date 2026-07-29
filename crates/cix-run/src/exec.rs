@@ -2,15 +2,14 @@ use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::fs::File;
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::MetadataExt;
 use std::process::{self, Command};
 
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::runtime::current_uid;
-use crate::shell::{resolve_shell, ShellSource};
+use crate::shell::{resolve_program, resolve_shell, ShellSource};
 
 pub struct ExecOptions {
     pub target: String,
@@ -62,7 +61,7 @@ pub fn exec(options: ExecOptions) -> Result<()> {
         let shell = resolve_shell(&state.env)?;
         let source = match shell.source {
             ShellSource::ServicePath => "unit PATH",
-            ShellSource::BinSh => "/bin/sh fallback",
+            ShellSource::OperatorPath => "operator fallback PATH",
         };
         eprintln!("cix exec: using shell {} ({source})", shell.path.display());
         vec![shell.path.to_string_lossy().into_owned()]
@@ -77,8 +76,16 @@ pub fn exec(options: ExecOptions) -> Result<()> {
         return spawn_user_command(&argv, &state.env);
     }
 
+    let namespace_set = open_namespaces(state.pid)?;
     eprintln!(
-        "=== warning: cix exec is operator surgery; joining {unit} namespaces without the service seccomp, capability, or cgroup confinement; identity={} ===",
+        "=== warning: cix exec is operator surgery; joining {unit} private namespaces [{}]; caller-shared namespaces [{}] remain shared; no service seccomp, capability, or cgroup confinement; identity={} ===",
+        namespace_set
+            .private
+            .iter()
+            .map(|namespace| namespace.name)
+            .collect::<Vec<_>>()
+            .join(", "),
+        namespace_set.shared.join(", "),
         if options.root {
             "root (--root)"
         } else {
@@ -86,7 +93,7 @@ pub fn exec(options: ExecOptions) -> Result<()> {
         }
     );
     join_and_exec(
-        state.pid,
+        namespace_set.private,
         state.uid,
         state.gid,
         options.root,
@@ -324,19 +331,18 @@ fn spawn_user_command(argv: &[String], env: &BTreeMap<String, String>) -> Result
 }
 
 fn join_and_exec(
-    pid: u32,
+    namespaces: Vec<Namespace>,
     uid: u32,
     gid: u32,
     keep_root: bool,
     argv: &[String],
     env: &BTreeMap<String, String>,
 ) -> Result<()> {
-    let namespaces = open_namespaces(pid)?;
     for namespace in &namespaces {
         let result = unsafe { libc::setns(namespace.file.as_raw_fd(), namespace.kind) };
         if result != 0 {
             return Err(std::io::Error::last_os_error()).with_context(|| {
-                format!("failed to join {} namespace of PID {pid}", namespace.name)
+                format!("failed to join the unit's {} namespace", namespace.name)
             });
         }
     }
@@ -365,7 +371,7 @@ fn join_and_exec(
     let child = unsafe { libc::fork() };
     if child < 0 {
         return Err(std::io::Error::last_os_error())
-            .context("failed to fork after joining PID namespace");
+            .context("failed to fork after joining unit namespaces");
     }
     if child == 0 {
         if !keep_root {
@@ -423,47 +429,42 @@ struct Namespace {
     file: File,
 }
 
-fn open_namespaces(pid: u32) -> Result<Vec<Namespace>> {
-    [
+struct NamespaceSet {
+    private: Vec<Namespace>,
+    shared: Vec<&'static str>,
+}
+
+fn open_namespaces(pid: u32) -> Result<NamespaceSet> {
+    let mut private = Vec::new();
+    let mut shared = Vec::new();
+    for (name, entry, kind) in [
         ("mount", "mnt", libc::CLONE_NEWNS),
         ("network", "net", libc::CLONE_NEWNET),
         ("IPC", "ipc", libc::CLONE_NEWIPC),
         ("UTS", "uts", libc::CLONE_NEWUTS),
         ("PID", "pid", libc::CLONE_NEWPID),
-    ]
-    .into_iter()
-    .map(|(name, entry, kind)| {
+    ] {
         let path = format!("/proc/{pid}/ns/{entry}");
         let file = File::open(&path)
             .with_context(|| format!("failed to open {name} namespace at {path}"))?;
-        Ok(Namespace { name, kind, file })
-    })
-    .collect()
-}
-
-fn resolve_program(program: &str, env: &BTreeMap<String, String>) -> Result<PathBuf> {
-    let path = Path::new(program);
-    if program.contains('/') {
-        if is_executable(path) {
-            return Ok(path.to_owned());
-        }
-        bail!("command {program:?} is not an executable file");
-    }
-    if let Some(path) = env.get("PATH") {
-        for directory in std::env::split_paths(path) {
-            let candidate = directory.join(program);
-            if is_executable(&candidate) {
-                return Ok(candidate);
-            }
+        let current_path = format!("/proc/self/ns/{entry}");
+        let current = File::open(&current_path)
+            .with_context(|| format!("failed to open caller {name} namespace at {current_path}"))?;
+        let target_metadata = file
+            .metadata()
+            .with_context(|| format!("failed to inspect {name} namespace at {path}"))?;
+        let current_metadata = current
+            .metadata()
+            .with_context(|| format!("failed to inspect caller {name} namespace"))?;
+        if target_metadata.dev() == current_metadata.dev()
+            && target_metadata.ino() == current_metadata.ino()
+        {
+            shared.push(name);
+        } else {
+            private.push(Namespace { name, kind, file });
         }
     }
-    bail!("command {program:?} was not found on the unit's recorded PATH")
-}
-
-fn is_executable(path: &Path) -> bool {
-    path.metadata()
-        .map(|metadata| metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
-        .unwrap_or(false)
+    Ok(NamespaceSet { private, shared })
 }
 
 fn c_string(bytes: &[u8], description: &str) -> Result<CString> {
@@ -544,5 +545,12 @@ mod tests {
             Some("web")
         );
         assert_eq!(service_from_transient_name("cix-stack-web.service"), None);
+    }
+
+    #[test]
+    fn current_process_namespaces_are_all_reported_as_shared() {
+        let namespaces = open_namespaces(std::process::id()).unwrap();
+        assert!(namespaces.private.is_empty());
+        assert_eq!(namespaces.shared, ["mount", "network", "IPC", "UTS", "PID"]);
     }
 }

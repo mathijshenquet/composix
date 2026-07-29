@@ -529,17 +529,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   inherits no fds).
   *Stories B/C (operator: admin against a live service — psql, migrations, state-dir surgery;
   live inspection — procs, sockets, strace)* — served by **`cix exec <unit-or-service>
-  [--root] [-- cmd]`**: join the *running* unit's namespaces (mount/pid/net/ipc/uts;
-  nsenter-style — systemd has no first-class join, `JoinsNamespaceOf=` never shares the mount
-  ns), env from the unit's recorded `Environment=` (which carries the generated PATH and any
+  [--root] [-- cmd]`**: join whichever of the *running* unit's mount/pid/net/ipc/uts namespaces
+  differ from the caller's (nsenter-style — systemd has no first-class join,
+  `JoinsNamespaceOf=` never shares the mount ns). PID is host-shared with today's generator;
+  network is host-shared for a port-declaring service and private when the spec denies network.
+  Environment comes from the unit's recorded `Environment=` (including any generated PATH and
   `-e` overrides), default identity = the service's DynamicUser uid (story B: files created
   during data surgery must carry the ownership the service expects; `--root` is the explicit
   escape, and root-in-namespace is real root — no userns). Deliberately **no synthetic
   seccomp/cgroup confinement on the joined shell**: the service's `@system-service` filter
   would block strace/tcpdump — the operator's tools working is story C's point. The grant
   confines the service (D20a); exec is operator surgery (D20b). Documented loudly.
-  Shared mechanics: shell fallback `sh` on the effective PATH → `/bin/sh` (visible under
-  `ProtectSystem=strict`; exists on NixOS) → hard error demanding `-- cmd`; future
+  Shared mechanics: command and shell lookup use recorded/generated PATH followed by the
+  operator fallback `/usr/bin:/bin`, then a clear error; future
   `--with <pkg>` = prepend a store path to that PATH (D31 addendum). Consciously refused:
   shell-into-container as a pet-server workflow — transient units, `--collect`, and immutable
   items already lean against it; the ledger says so rather than staying silent.
