@@ -7,7 +7,7 @@ use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
 use crate::parser::bare_command;
-use crate::{Cixfile, Item, LockFile, Port, Service, Template, TemplatePart};
+use crate::{Cixfile, InputLock, Item, LockFile, Port, Service, Template, TemplatePart};
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let value = literal_spec(cixfile)?;
@@ -22,29 +22,27 @@ pub fn generate_nix(
     lock: &LockFile,
     system: &str,
 ) -> Result<String> {
-    let (owner, repo) = github_repository(&lock.nixpkgs.url)?;
+    lock.validate_for(&cixfile.inputs)?;
     let source_dir = source_dir
         .canonicalize()
         .with_context(|| format!("resolving Cixfile directory {}", source_dir.display()))?;
 
     let mut expression = String::new();
     writeln!(expression, "let")?;
-    writeln!(expression, "  nixpkgsSource = builtins.fetchTree {{")?;
-    writeln!(expression, "    type = \"github\";")?;
-    writeln!(expression, "    owner = {};", nix_string(owner))?;
-    writeln!(expression, "    repo = {};", nix_string(repo))?;
-    writeln!(expression, "    rev = {};", nix_string(&lock.nixpkgs.rev))?;
-    writeln!(
-        expression,
-        "    narHash = {};",
-        nix_string(&lock.nixpkgs.nar_hash)
-    )?;
+    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
+        let input = &lock.inputs[name];
+        writeln!(expression, "  input{index}Source = {};", fetch_tree(input)?)?;
+    }
+    writeln!(expression, "  universes = {{")?;
+    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
+        writeln!(
+            expression,
+            "    {} = import input{index}Source {{ system = {}; }};",
+            nix_attr(name),
+            nix_string(system)
+        )?;
+    }
     writeln!(expression, "  }};")?;
-    writeln!(
-        expression,
-        "  pkgs = import nixpkgsSource {{ system = {}; }};",
-        nix_string(system)
-    )?;
     writeln!(
         expression,
         "  pathDirs = {};",
@@ -88,14 +86,17 @@ pub fn generate_nix(
             Item::File { contents, .. } => {
                 writeln!(
                     expression,
-                    "  file{index} = pkgs.writeText \"cixfile-file-{index}\" {};",
+                    "  file{index} = universes.{}.writeText \"cixfile-file-{index}\" {};",
+                    nix_attr(primary_namespace(cixfile)?),
                     nix_template(contents)
                 )?;
             }
             Item::Script { contents, .. } => {
                 writeln!(
                     expression,
-                    "  script{index} = pkgs.writeText \"cixfile-script-{index}\" (\"#!${{pkgs.runtimeShell}}\\n\" + {});",
+                    "  script{index} = universes.{}.writeText \"cixfile-script-{index}\" (\"#!${{universes.{}.runtimeShell}}\\n\" + {});",
+                    nix_attr(primary_namespace(cixfile)?),
+                    nix_attr(primary_namespace(cixfile)?),
                     nix_template(contents)
                 )?;
             }
@@ -106,12 +107,14 @@ pub fn generate_nix(
     }
     writeln!(
         expression,
-        "  specFile = pkgs.writeText \"cix-spec.json\" (builtins.toJSON spec + \"\\n\");"
+        "  specFile = universes.{}.writeText \"cix-spec.json\" (builtins.toJSON spec + \"\\n\");",
+        nix_attr(primary_namespace(cixfile)?)
     )?;
     writeln!(expression, "in")?;
     writeln!(
         expression,
-        "pkgs.runCommand \"cixfile-item\" {{ preferLocalBuild = true; allowSubstitutes = false; }} ''"
+        "universes.{}.runCommand \"cixfile-item\" {{ preferLocalBuild = true; allowSubstitutes = false; }} ''",
+        nix_attr(primary_namespace(cixfile)?)
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
@@ -129,7 +132,8 @@ pub fn generate_nix(
             };
             writeln!(
                 expression,
-                "  test -x ${{pkgs.lib.escapeShellArg (resolveExecutable {line} {})}} || {{ echo {} >&2; exit 1; }}",
+                "  test -x ${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}} || {{ echo {} >&2; exit 1; }}",
+                nix_attr(primary_namespace(cixfile)?),
                 nix_string(&command),
                 nix_string(&format!("line {line}: resolved PATH command {command:?} is not executable")),
             )?;
@@ -162,7 +166,8 @@ pub fn generate_nix(
             )?,
             Item::Link { dst, .. } => writeln!(
                 expression,
-                "  ln -s ${{pkgs.lib.escapeShellArg link{index}}} \"$out/{}\"",
+                "  ln -s ${{universes.{}.lib.escapeShellArg link{index}}} \"$out/{}\"",
+                nix_attr(primary_namespace(cixfile)?),
                 shell_double_quoted(dst)
             )?,
         }
@@ -205,6 +210,36 @@ fn github_repository(url: &str) -> Result<(&str, &str)> {
         (Some(owner), Some(repo)) => Ok((owner, repo)),
         _ => bail!("invalid github nixpkgs URL {url:?}"),
     }
+}
+
+fn fetch_tree(input: &InputLock) -> Result<String> {
+    if input.url.starts_with("github:") {
+        let (owner, repo) = github_repository(&input.url)?;
+        return Ok(format!(
+            "builtins.fetchTree {{ type = \"github\"; owner = {}; repo = {}; rev = {}; narHash = {}; }}",
+            nix_string(owner),
+            nix_string(repo),
+            nix_string(&input.rev),
+            nix_string(&input.nar_hash),
+        ));
+    }
+    if input.url.starts_with("https://") {
+        return Ok(format!(
+            "builtins.fetchTree {{ type = \"tarball\"; url = {}; narHash = {}; }}",
+            nix_string(&input.url),
+            nix_string(&input.nar_hash),
+        ));
+    }
+    bail!("unsupported FROM URL {:?}", input.url)
+}
+
+fn primary_namespace(cixfile: &Cixfile) -> Result<&str> {
+    cixfile
+        .inputs
+        .keys()
+        .next()
+        .map(String::as_str)
+        .context("Cixfile has no FROM input")
 }
 
 fn nix_spec(cixfile: &Cixfile) -> String {
@@ -372,14 +407,19 @@ fn nix_template(template: &Template) -> String {
     for part in &template.parts {
         match part {
             TemplatePart::Literal(value) => output.push_str(&escape_nix_string(value)),
-            TemplatePart::Nixpkgs { attrpath, line } => {
+            TemplatePart::Package {
+                namespace,
+                attrpath,
+                line,
+            } => {
                 output.push_str("${");
                 output.push_str("builtins.addErrorContext ");
                 output.push_str(&nix_string(&format!(
-                    "Cixfile line {line}: resolving pkgs.{attrpath}"
+                    "Cixfile line {line}: resolving {namespace}.{attrpath}"
                 )));
                 output.push(' ');
-                output.push_str("pkgs");
+                output.push_str("universes.");
+                output.push_str(&nix_attr(namespace));
                 for component in attrpath.split('.') {
                     output.push('.');
                     output.push_str(&nix_attr(component));
@@ -624,21 +664,16 @@ mod tests {
     use super::*;
     use crate::parse;
 
-    const LOCK: LockFile = LockFile {
-        nixpkgs: crate::NixpkgsLock {
-            url: String::new(),
-            rev: String::new(),
-            nar_hash: String::new(),
-        },
-    };
-
     fn fixture_lock() -> LockFile {
         LockFile {
-            nixpkgs: crate::NixpkgsLock {
-                url: "github:NixOS/nixpkgs/nixos-unstable".into(),
-                rev: "0123456789abcdef".into(),
-                nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-            },
+            inputs: std::collections::BTreeMap::from([(
+                "pkgs".into(),
+                crate::InputLock {
+                    url: "github:NixOS/nixpkgs/nixos-unstable".into(),
+                    rev: "0123456789abcdef".into(),
+                    nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                },
+            )]),
         }
     }
 
@@ -652,7 +687,7 @@ mod tests {
     #[test]
     fn groups_projected_destinations_without_broadening_mounts() {
         let cixfile = parse(
-            "FILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /etc/nginx/mime.types /mime.types\nFILE /srv/www/index.html <<E\nhello\nE\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE app\nEXEC bin/app\n",
+            "FROM nixpkgs AS pkgs\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /etc/nginx/mime.types /mime.types\nFILE /srv/www/index.html <<E\nhello\nE\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE app\nEXEC bin/app\n",
         )
         .unwrap();
         let spec = generate_spec_json(&cixfile).unwrap();
@@ -670,7 +705,10 @@ mod tests {
 
     #[test]
     fn listener_emits_the_v3_stream_contract() {
-        let cixfile = parse("SERVICE web\nEXEC bin/web\nLISTENER http\nLISTENER admin\n").unwrap();
+        let cixfile = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC bin/web\nLISTENER http\nLISTENER admin\n",
+        )
+        .unwrap();
         let spec = generate_spec_json(&cixfile).unwrap();
         assert!(spec.contains("\"cixSpec\": 3"), "{spec}");
         assert!(
@@ -700,7 +738,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("asset"), "hello").unwrap();
         let cixfile = parse(
-            "COPY asset share/asset\nLINK bin/hello ${pkgs.hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
+            "FROM nixpkgs AS pkgs\nCOPY asset share/asset\nLINK bin/hello ${pkgs.hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
         )
         .unwrap();
         let first =
@@ -710,15 +748,16 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.contains("builtins.fetchTree"));
         assert!(first.contains("narHash = \"sha256-"));
-        assert!(first.contains("pkgs.\"hello\""));
-        assert!(first.contains("Cixfile line 2: resolving pkgs.hello"));
+        assert!(first.contains("universes.\"pkgs\".\"hello\""));
+        assert!(first.contains("Cixfile line 3: resolving pkgs.hello"));
         assert!(first.contains("builtins.path"));
     }
 
     #[test]
     fn copy_must_name_an_existing_regular_file() {
         let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse("COPY missing x\nSERVICE app\nEXEC /bin/x\n").unwrap();
+        let cixfile =
+            parse("FROM nixpkgs AS pkgs\nCOPY missing x\nSERVICE app\nEXEC /bin/x\n").unwrap();
         let error = generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux")
             .unwrap_err()
             .to_string();
@@ -728,10 +767,13 @@ mod tests {
     #[test]
     fn rejects_non_github_lock_urls() {
         let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse("SERVICE app\nEXEC /bin/x\n").unwrap();
-        let error = generate_nix(&cixfile, directory.path(), &LOCK, "x86_64-linux")
+        let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/x\n").unwrap();
+        let lock = LockFile {
+            inputs: std::collections::BTreeMap::new(),
+        };
+        let error = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux")
             .unwrap_err()
             .to_string();
-        assert!(error.contains("unsupported nixpkgs URL"), "{error}");
+        assert!(error.contains("missing FROM input"), "{error}");
     }
 }

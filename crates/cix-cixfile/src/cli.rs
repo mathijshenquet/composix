@@ -10,8 +10,8 @@ pub enum Command {
         dir: PathBuf,
         #[arg(short = 't', long)]
         tag: Option<String>,
-        #[arg(long)]
-        update_lock: bool,
+        #[arg(long, num_args = 0..=1, default_missing_value = "")]
+        update_lock: Option<String>,
     },
 }
 

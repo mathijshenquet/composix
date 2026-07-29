@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 PATH ${pkgs.nodejs}/bin
 
 COPY server.js /app/server.js

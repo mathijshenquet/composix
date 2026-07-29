@@ -14,10 +14,12 @@ use regex::Regex;
 
 const TOUR_LISTEN: &str = "127.0.0.1:8420";
 const TOUR_CIXFILE_LOCK: &str = r#"{
-  "nixpkgs": {
-    "url": "github:NixOS/nixpkgs/nixos-unstable",
-    "rev": "624af665418d3c65d544145b4d34ad696439570e",
-    "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
   }
 }
 "#;
@@ -772,7 +774,9 @@ fn scenario_building_from_a_cixfile() -> String {
     let mut doc = Doc::new("building-cixfile");
     fs::write(
         doc.base.join("Cixfile"),
-        r#"FILE share/greeting <<GREETING
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FILE share/greeting <<GREETING
 hello from Cixfile
 GREETING
 SCRIPT bin/tour-app <<APP
@@ -786,7 +790,7 @@ EXEC bin/tour-app
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing Cixfile lock fixture");
 
-    doc.para("A Cixfile can build a runnable item without declaring a package. The checked-in lock still pins nixpkgs because `SCRIPT` uses its runtime shell; it makes generation deterministic, and a fresh store may fetch that pinned source once.");
+    doc.para("Every Cixfile begins by binding its package universe: `FROM <flakeref> AS pkgs`. The checked-in lock pins that universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.");
     let built = doc.sh("cix build . -t tour-app:v1", true);
     let store_path = built
         .lines()

@@ -1,3 +1,4 @@
+FROM nixpkgs AS pkgs
 PATH /tools/first /tools/second
 SERVICE app
 EXEC app $PORT

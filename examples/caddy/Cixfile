@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 COPY index.html /srv/www/index.html
 
 SERVICE caddy

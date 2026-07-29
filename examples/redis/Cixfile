@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 PATH ${pkgs.redis}/bin
 
 COPY redis.conf /etc/redis/redis.conf

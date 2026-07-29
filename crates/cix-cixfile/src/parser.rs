@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Component, Path};
 
-use crate::model::{Cixfile, Env, Item, Port, Service, Template, TemplatePart};
+use crate::model::{Cixfile, Env, Input, Item, Port, Service, Template, TemplatePart};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseError {
@@ -36,6 +36,7 @@ impl std::error::Error for ParseError {}
 struct Parser<'a> {
     lines: Vec<&'a str>,
     index: usize,
+    inputs: BTreeMap<String, Input>,
     paths: Vec<Template>,
     items: Vec<Item>,
     destinations: BTreeSet<String>,
@@ -56,6 +57,7 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
     Parser {
         lines: input.lines().collect(),
         index: 0,
+        inputs: BTreeMap::new(),
         paths: Vec::new(),
         items: Vec::new(),
         destinations: BTreeSet::new(),
@@ -83,7 +85,20 @@ impl Parser<'_> {
                 .map_or((trimmed, ""), |(directive, arguments)| {
                     (directive, arguments.trim())
                 });
+            if self.inputs.is_empty()
+                && self.items.is_empty()
+                && self.services.is_empty()
+                && self.paths.is_empty()
+                && directive != "FROM"
+            {
+                return Err(ParseError::new(
+                    line_number,
+                    source,
+                    "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
+                ));
+            }
             match directive {
+                "FROM" => self.from(line_number, source, arguments)?,
                 "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 "PATH" => self.path(line_number, source, arguments)?,
                 "COPY" => self.copy(line_number, source, arguments)?,
@@ -109,6 +124,19 @@ impl Parser<'_> {
             }
         }
 
+        if self.inputs.is_empty() {
+            let (line, source) = self
+                .lines
+                .iter()
+                .enumerate()
+                .find(|(_, line)| !line.trim().is_empty() && !line.trim().starts_with('#'))
+                .map_or((1, ""), |(line, source)| (line + 1, *source));
+            return Err(ParseError::new(
+                line,
+                source,
+                "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
+            ));
+        }
         if self.services.is_empty() {
             let (line, source) = self
                 .lines
@@ -136,10 +164,47 @@ impl Parser<'_> {
         }
 
         Ok(Cixfile {
+            inputs: self.inputs,
             paths: self.paths,
             items: self.items,
             services: self.services,
         })
+    }
+
+    fn from(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if self.inputs.is_empty()
+            && self.items.is_empty()
+            && self.services.is_empty()
+            && self.paths.is_empty()
+        {
+            // The first meaningful directive is permitted to establish the input universe.
+        } else if self.inputs.is_empty() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
+            ));
+        }
+        let fields = arguments.split_whitespace().collect::<Vec<_>>();
+        if fields.len() != 3 || fields.get(1) != Some(&"AS") {
+            return Err(ParseError::new(
+                line,
+                source,
+                "FROM requires an explicit namespace: FROM <flakeref> AS <name>",
+            ));
+        }
+        let url = normalize_flakeref(fields[0], line, source)?;
+        let namespace = fields[2];
+        validate_namespace(namespace, line, source)?;
+        if self.inputs.contains_key(namespace) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("FROM namespace {namespace:?} is already declared"),
+            ));
+        }
+        self.inputs.insert(namespace.to_owned(), Input { url });
+        Ok(())
     }
 
     fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
@@ -157,7 +222,7 @@ impl Parser<'_> {
         }
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = build_template(field, line, source, false)?;
+            let path = self.build_template(field, line, source, false)?;
             validate_path_template(&path, line, source)?;
             if self.paths.iter().any(|existing| existing.same_value(&path)) {
                 return Err(ParseError::new(
@@ -227,7 +292,7 @@ impl Parser<'_> {
             }
             append_template(
                 &mut contents,
-                build_template(body_line, body_line_number, body_line, true)?,
+                self.build_template(body_line, body_line_number, body_line, true)?,
             );
             push_literal(&mut contents, "\n");
         }
@@ -260,7 +325,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = build_template(fields[1], line, source, false)?;
+        let target = self.build_template(fields[1], line, source, false)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -312,7 +377,7 @@ impl Parser<'_> {
         let fields = at_least_one_field(arguments, line, source, directive)?;
         let templates = fields
             .iter()
-            .map(|field| build_template(field, line, source, false))
+            .map(|field| self.build_template(field, line, source, false))
             .collect::<Result<Vec<_>, _>>()?;
         let service_name = self
             .current_service_name(directive, line, source)?
@@ -368,7 +433,7 @@ impl Parser<'_> {
             };
             index += 1;
             reject_runtime_variable(value, "ENV default", line, source)?;
-            Some(build_template(value, line, source, false)?)
+            Some(self.build_template(value, line, source, false)?)
         } else {
             None
         };
@@ -601,6 +666,16 @@ impl Parser<'_> {
         }
         Ok(())
     }
+
+    fn build_template(
+        &self,
+        input: &str,
+        line: usize,
+        source: &str,
+        heredoc: bool,
+    ) -> Result<Template, ParseError> {
+        build_template(input, line, source, heredoc, &self.inputs)
+    }
 }
 
 fn exact_fields<'a>(
@@ -639,6 +714,7 @@ fn build_template(
     line: usize,
     source: &str,
     heredoc: bool,
+    inputs: &BTreeMap<String, Input>,
 ) -> Result<Template, ParseError> {
     let mut parts = Vec::new();
     let mut literal = String::new();
@@ -670,36 +746,44 @@ fn build_template(
             };
             let close = index + 2 + close_offset;
             let reference = &input[index + 2..close];
-            let attrpath = reference.strip_prefix("pkgs.").ok_or_else(|| {
+            let (namespace, attrpath) = reference.split_once('.').ok_or_else(|| {
                 if !reference.contains('.') {
+                    let namespace = inputs.keys().next().map(String::as_str).unwrap_or("<namespace>");
                     ParseError::new(
                         line,
                         source,
-                        format!(
-                            "bare build-time interpolation ${{{reference}}}; use ${{pkgs.{reference}}}"
-                        ),
+                        format!("bare build-time interpolation ${{{reference}}}; use ${{{namespace}.{reference}}}"),
                     )
                 } else {
                     ParseError::new(
                         line,
                         source,
-                        format!(
-                            "build-time interpolation must use the pkgs namespace, for example ${{pkgs.{reference}}}"
-                        ),
+                        "build-time interpolation must use <namespace>.<attrpath>",
                     )
                 }
             })?;
+            if !inputs.contains_key(namespace) {
+                let declared = inputs.keys().cloned().collect::<Vec<_>>().join(", ");
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "unknown package namespace {namespace:?}; declared namespaces: {declared}"
+                    ),
+                ));
+            }
             if !valid_attrpath(attrpath) {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "nixpkgs interpolation must name a dot-separated attribute path after pkgs.",
+                    "package interpolation must name a dot-separated attribute path after its namespace.",
                 ));
             }
             if !literal.is_empty() {
                 parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
             }
-            parts.push(TemplatePart::Nixpkgs {
+            parts.push(TemplatePart::Package {
+                namespace: namespace.to_owned(),
                 attrpath: attrpath.to_owned(),
                 line,
             });
@@ -720,9 +804,15 @@ fn append_template(target: &mut Template, source: Template) {
     for part in source.parts {
         match part {
             TemplatePart::Literal(value) => push_literal(target, &value),
-            TemplatePart::Nixpkgs { attrpath, line } => {
-                target.parts.push(TemplatePart::Nixpkgs { attrpath, line })
-            }
+            TemplatePart::Package {
+                namespace,
+                attrpath,
+                line,
+            } => target.parts.push(TemplatePart::Package {
+                namespace,
+                attrpath,
+                line,
+            }),
         }
     }
 }
@@ -864,7 +954,7 @@ fn validate_bare_commands(
             return Err(ParseError::new(
                 *line,
                 source,
-                "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${pkgs.<attrpath>}/bin/... path",
+            "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${<namespace>.<attrpath>}/bin/... path",
             ));
         }
     }
@@ -883,7 +973,7 @@ fn validate_path_template(
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Nixpkgs { .. }) => Ok(()),
+        Some(TemplatePart::Package { .. }) => Ok(()),
         _ => Err(ParseError::new(
             line,
             source,
@@ -933,6 +1023,35 @@ fn valid_attr_component(value: &str) -> bool {
         .next()
         .is_some_and(|value| value.is_ascii_alphabetic() || value == b'_')
         && bytes.all(|value| value.is_ascii_alphanumeric() || matches!(value, b'_' | b'-' | b'\''))
+}
+
+fn validate_namespace(value: &str, line: usize, source: &str) -> Result<(), ParseError> {
+    if !valid_attr_component(value) {
+        return Err(ParseError::new(
+            line,
+            source,
+            "FROM namespace must be a Nix-style identifier",
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_flakeref(value: &str, line: usize, source: &str) -> Result<String, ParseError> {
+    if value == "nixpkgs" {
+        return Ok(crate::DEFAULT_NIXPKGS_URL.to_owned());
+    }
+    let github = value.strip_prefix("github:").is_some_and(|path| {
+        let parts = path.split('/').collect::<Vec<_>>();
+        (2..=3).contains(&parts.len()) && parts.iter().all(|part| !part.is_empty())
+    });
+    if github || value.starts_with("https://") {
+        return Ok(value.to_owned());
+    }
+    Err(ParseError::new(
+        line,
+        source,
+        "FROM accepts nixpkgs, github:owner/repo[/ref], or an https tarball URL",
+    ))
 }
 
 fn pkg_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
@@ -1127,6 +1246,7 @@ mod tests {
 
     const COMPLETE: &str = r#"
 # assembly
+FROM nixpkgs AS pkgs
 COPY index.html www/index.html
 FILE etc/app.conf <<CONF
 package=${pkgs.nginx}
@@ -1174,9 +1294,10 @@ JIT
         let Item::File { contents, .. } = &parsed.items[1] else {
             panic!("expected FILE");
         };
-        assert!(contents.parts.contains(&TemplatePart::Nixpkgs {
+        assert!(contents.parts.contains(&TemplatePart::Package {
+            namespace: "pkgs".into(),
             attrpath: "nginx".into(),
-            line: 5,
+            line: 6,
         }));
         assert!(contents.literal_value().is_none());
         assert!(contents.parts.iter().any(
@@ -1187,34 +1308,85 @@ JIT
     #[test]
     fn parses_fixed_port_and_multiple_services() {
         let parsed =
-            parse("SERVICE one\nEXEC bin/one\nPORT http = 8080\nSERVICE two\nEXEC bin/two\n")
+            parse("FROM nixpkgs AS pkgs\nSERVICE one\nEXEC bin/one\nPORT http = 8080\nSERVICE two\nEXEC bin/two\n")
                 .unwrap();
         assert_eq!(parsed.services["one"].ports["http"], Port::Value(8080));
         assert_eq!(parsed.services.len(), 2);
     }
 
     #[test]
+    fn from_requires_an_explicit_unique_namespace_before_interpolation() {
+        let missing = parse("SERVICE app\nEXEC /bin/app\n").unwrap_err();
+        assert!(
+            missing.message.contains("every Cixfile begins with FROM"),
+            "{missing}"
+        );
+
+        let missing_as = parse("FROM nixpkgs\nSERVICE app\nEXEC /bin/app\n").unwrap_err();
+        assert!(
+            missing_as.message.contains("FROM <flakeref> AS <name>"),
+            "{missing_as}"
+        );
+
+        let duplicate = parse(
+            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS pkgs\nSERVICE app\nEXEC /bin/app\n",
+        )
+        .unwrap_err();
+        assert!(
+            duplicate.message.contains("already declared"),
+            "{duplicate}"
+        );
+
+        let unknown = parse(
+            "FROM nixpkgs AS pkgs\nLINK bin/app ${stable.hello}/bin/hello\nSERVICE app\nEXEC bin/app\n",
+        )
+        .unwrap_err();
+        assert!(
+            unknown
+                .message
+                .contains("unknown package namespace \"stable\""),
+            "{unknown}"
+        );
+        assert!(
+            unknown.message.contains("declared namespaces: pkgs"),
+            "{unknown}"
+        );
+
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS stable\nLINK bin/hello ${stable.hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.inputs.len(), 2);
+        assert_eq!(
+            parsed.inputs["stable"].url,
+            "github:NixOS/nixpkgs/nixos-25.05"
+        );
+    }
+
+    #[test]
     fn path_preserves_declaration_order_and_rejects_duplicates() {
         let parsed =
-            parse("PATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nSERVICE app\nEXEC /bin/app\n")
+            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nSERVICE app\nEXEC /bin/app\n")
                 .unwrap();
         assert_eq!(
             parsed.paths,
             vec![
                 Template {
                     parts: vec![
-                        TemplatePart::Nixpkgs {
+                        TemplatePart::Package {
+                            namespace: "pkgs".into(),
                             attrpath: "first".into(),
-                            line: 1,
+                            line: 2,
                         },
                         TemplatePart::Literal("/bin".into()),
                     ],
                 },
                 Template {
                     parts: vec![
-                        TemplatePart::Nixpkgs {
+                        TemplatePart::Package {
+                            namespace: "pkgs".into(),
                             attrpath: "second".into(),
-                            line: 2,
+                            line: 3,
                         },
                         TemplatePart::Literal("/bin".into()),
                     ],
@@ -1223,24 +1395,24 @@ JIT
         );
 
         let error =
-            parse("PATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nSERVICE app\nEXEC /bin/app\n")
+            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nSERVICE app\nEXEC /bin/app\n")
                 .unwrap_err();
-        assert_eq!(error.line, 2);
+        assert_eq!(error.line, 3);
         assert!(error.message.contains("duplicated"));
     }
 
     #[test]
     fn path_rejects_explicit_env_path_and_bare_commands_without_path() {
         for input in [
-            "PATH /tools\nSERVICE app\nENV PATH = /other\nEXEC /bin/app\n",
-            "SERVICE app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
+            "FROM nixpkgs AS pkgs\nPATH /tools\nSERVICE app\nENV PATH = /other\nEXEC /bin/app\n",
+            "FROM nixpkgs AS pkgs\nSERVICE app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
         ] {
             let error = parse(input).unwrap_err();
             assert!(error.message.contains("PATH conflicts"), "{error}");
         }
 
-        let error = parse("SERVICE app\nEXEC tool\n").unwrap_err();
-        assert_eq!(error.line, 2);
+        let error = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC tool\n").unwrap_err();
+        assert_eq!(error.line, 3);
         assert!(error.message.contains("requires PATH"));
     }
 
@@ -1287,9 +1459,10 @@ JIT
             ("SERVICE x\nEXEC x\nEXEC y\n", 3, "already declared"),
             ("SERVICE x\nEXEC x\nSERVICE x\n", 3, "already declared"),
         ] {
-            let error = parse(input).unwrap_err();
+            let input = format!("FROM nixpkgs AS pkgs\n{input}");
+            let error = parse(&input).unwrap_err();
             let rendered = error.to_string();
-            assert_eq!(error.line, line, "{input:?}: {rendered}");
+            assert_eq!(error.line, line + 1, "{input:?}: {rendered}");
             assert!(rendered.contains(message), "{input:?}: {rendered}");
             assert!(
                 rendered.contains(&format!("{:?}", error.source)),
@@ -1301,7 +1474,7 @@ JIT
     #[test]
     fn interpolation_uses_the_pkgs_namespace_and_accepts_nested_attributes() {
         let parsed = parse(
-            "LINK bin/black ${pkgs.python3Packages.black}/bin/black\nSERVICE x\nEXEC bin/black\n",
+            "FROM nixpkgs AS pkgs\nLINK bin/black ${pkgs.python3Packages.black}/bin/black\nSERVICE x\nEXEC bin/black\n",
         )
         .unwrap();
         let Item::Link { target, .. } = &parsed.items[0] else {
@@ -1310,22 +1483,26 @@ JIT
         assert_eq!(
             target.parts,
             [
-                TemplatePart::Nixpkgs {
+                TemplatePart::Package {
+                    namespace: "pkgs".into(),
                     attrpath: "python3Packages.black".into(),
-                    line: 1,
+                    line: 2,
                 },
                 TemplatePart::Literal("/bin/black".into()),
             ]
         );
 
-        let error =
-            parse("LINK bin/nginx ${nginx}/bin/nginx\nSERVICE x\nEXEC bin/nginx\n").unwrap_err();
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nLINK bin/nginx ${nginx}/bin/nginx\nSERVICE x\nEXEC bin/nginx\n",
+        )
+        .unwrap_err();
         assert!(error.message.contains("use ${pkgs.nginx}"), "{error}");
     }
 
     #[test]
     fn copy_is_never_interpolated() {
-        let error = parse("COPY ${pkgs.nginx} x\nSERVICE x\nEXEC x\n").unwrap_err();
+        let error =
+            parse("FROM nixpkgs AS pkgs\nCOPY ${pkgs.nginx} x\nSERVICE x\nEXEC x\n").unwrap_err();
         assert!(error
             .message
             .contains("does not support build-time interpolation"));
@@ -1333,8 +1510,9 @@ JIT
 
     #[test]
     fn pkg_directive_explains_the_d32_rewrite() {
-        let error = parse("PKG python3Packages.black\nSERVICE x\nEXEC x\n").unwrap_err();
-        assert_eq!(error.line, 1);
+        let error = parse("FROM nixpkgs AS pkgs\nPKG python3Packages.black\nSERVICE x\nEXEC x\n")
+            .unwrap_err();
+        assert_eq!(error.line, 2);
         assert!(
             error
                 .message
@@ -1346,9 +1524,9 @@ JIT
     #[test]
     fn rejects_unsafe_item_paths_and_duplicate_destinations() {
         for input in [
-            "COPY ../x x\nSERVICE x\nEXEC x\n",
-            "FILE / <<E\nx\nE\nSERVICE x\nEXEC x\n",
-            "COPY a x\nLINK x /target\nSERVICE x\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nCOPY ../x x\nSERVICE x\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nFILE / <<E\nx\nE\nSERVICE x\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nCOPY a x\nLINK x /target\nSERVICE x\nEXEC x\n",
         ] {
             assert!(parse(input).is_err(), "{input}");
         }
@@ -1357,7 +1535,7 @@ JIT
     #[test]
     fn accepts_projected_destinations_and_rejects_d22_denied_paths() {
         let parsed = parse(
-            "FILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE x\nEXEC bin/x\n",
+            "FROM nixpkgs AS pkgs\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE x\nEXEC bin/x\n",
         )
         .unwrap();
         assert_eq!(parsed.items.len(), 3);
@@ -1381,7 +1559,8 @@ JIT
             "/lib",
             "/lib64",
         ] {
-            let input = format!("FILE {denied} <<E\nx\nE\nSERVICE x\nEXEC bin/x\n");
+            let input =
+                format!("FROM nixpkgs AS pkgs\nFILE {denied} <<E\nx\nE\nSERVICE x\nEXEC bin/x\n");
             let error = parse(&input).unwrap_err();
             assert!(error.message.contains("D22 v3"), "{denied}: {error}");
         }

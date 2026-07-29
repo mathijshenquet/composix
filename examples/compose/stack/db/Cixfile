@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 LINK bin/id ${pkgs.coreutils}/bin/id
 LINK bin/mkdir ${pkgs.coreutils}/bin/mkdir
 LINK bin/mv ${pkgs.coreutils}/bin/mv

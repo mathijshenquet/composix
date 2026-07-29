@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 PATH ${pkgs.postgresql}/bin ${pkgs.coreutils}/bin
 
 LINK /opt/postgres/libnss_wrapper.so ${pkgs.nss_wrapper}/lib/libnss_wrapper.so

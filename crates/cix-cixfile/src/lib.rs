@@ -9,6 +9,6 @@ mod parser;
 
 pub use build::{build, BuildOptions};
 pub use codegen::{generate_nix, generate_spec_json};
-pub use lock::{ensure_lock, LockFile, NixpkgsLock, DEFAULT_NIXPKGS_URL};
-pub use model::{Cixfile, Dirs, Env, Item, Port, Service, Template, TemplatePart};
+pub use lock::{ensure_lock, InputLock, LockFile, DEFAULT_NIXPKGS_URL};
+pub use model::{Cixfile, Dirs, Env, Input, Item, Port, Service, Template, TemplatePart};
 pub use parser::{parse, ParseError};

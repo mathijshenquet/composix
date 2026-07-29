@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 LINK bin/nginx ${pkgs.nginx}/bin/nginx
 LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 COPY nginx.conf /etc/nginx/nginx.conf
