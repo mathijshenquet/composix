@@ -1,0 +1,68 @@
+{
+  "first": {
+    "version": 1,
+    "command_hash": "603c7313cd5de7984511dbeea1ba44eeb2d832ddff8239fa19705a852b1d5669",
+    "request_hash": "8cac9dd4bd312aebd551c86038a854e17485031de0318231e3c0a13f55c8bca9",
+    "workdir_hash": "sha256-apmPebC4z5/zCe9Xmv4V5iC6nD/VPzv+BT3RHQtukLo=",
+    "traced_store_paths": [
+      "/nix/store/1xklj6dmgcpgz60c9w2ynaq7ynzfsrrq-go-1.26.4",
+      "/nix/store/3yfiiflma4rfll7fyjzk5f2k58j859jq-readline-8.3p3",
+      "/nix/store/62qhvy2m2lpqj7ca39j9wvp2kkcxwdcg-ncurses-6.6",
+      "/nix/store/bbzjxfam8vv1nyikn5dsrazsw4ya5vzx-bash-interactive-5.3p9",
+      "/nix/store/ias8xacs1h3jy7xgwi2awvim61k2ji6c-glibc-2.42-67"
+    ],
+    "output_hash": "sha256-lEaLYtAti521HsaakxxIIaA90EKojxn4cEmqjeFRHg0=",
+    "output_store_path": "/nix/store/hvb1hn9ac1p5gik5gp17d5yyyfd4snws-out",
+    "wall_ms": 2786
+  },
+  "second": {
+    "version": 1,
+    "command_hash": "603c7313cd5de7984511dbeea1ba44eeb2d832ddff8239fa19705a852b1d5669",
+    "request_hash": "8cac9dd4bd312aebd551c86038a854e17485031de0318231e3c0a13f55c8bca9",
+    "workdir_hash": "sha256-apmPebC4z5/zCe9Xmv4V5iC6nD/VPzv+BT3RHQtukLo=",
+    "traced_store_paths": [
+      "/nix/store/1xklj6dmgcpgz60c9w2ynaq7ynzfsrrq-go-1.26.4",
+      "/nix/store/3yfiiflma4rfll7fyjzk5f2k58j859jq-readline-8.3p3",
+      "/nix/store/62qhvy2m2lpqj7ca39j9wvp2kkcxwdcg-ncurses-6.6",
+      "/nix/store/bbzjxfam8vv1nyikn5dsrazsw4ya5vzx-bash-interactive-5.3p9",
+      "/nix/store/ias8xacs1h3jy7xgwi2awvim61k2ji6c-glibc-2.42-67"
+    ],
+    "output_hash": "sha256-lEaLYtAti521HsaakxxIIaA90EKojxn4cEmqjeFRHg0=",
+    "output_store_path": "/nix/store/hvb1hn9ac1p5gik5gp17d5yyyfd4snws-out",
+    "wall_ms": 2499
+  },
+  "memo_hit": {
+    "status": "hit",
+    "output_hash": "sha256-lEaLYtAti521HsaakxxIIaA90EKojxn4cEmqjeFRHg0=",
+    "output_store_path": "/nix/store/hvb1hn9ac1p5gik5gp17d5yyyfd4snws-out",
+    "traced_path_count": 5
+  },
+  "miss": {
+    "version": 1,
+    "command_hash": "603c7313cd5de7984511dbeea1ba44eeb2d832ddff8239fa19705a852b1d5669",
+    "request_hash": "77245a0b0a18ee0a74d5d819fe4dbcb917747e170216bd003048763d70860327",
+    "workdir_hash": "sha256-A3v0UMpx9ZV29XdVlOa+V7b6w9VkC7Q7b+DjtV8+aQs=",
+    "traced_store_paths": [
+      "/nix/store/1xklj6dmgcpgz60c9w2ynaq7ynzfsrrq-go-1.26.4",
+      "/nix/store/3yfiiflma4rfll7fyjzk5f2k58j859jq-readline-8.3p3",
+      "/nix/store/62qhvy2m2lpqj7ca39j9wvp2kkcxwdcg-ncurses-6.6",
+      "/nix/store/bbzjxfam8vv1nyikn5dsrazsw4ya5vzx-bash-interactive-5.3p9",
+      "/nix/store/ias8xacs1h3jy7xgwi2awvim61k2ji6c-glibc-2.42-67"
+    ],
+    "output_hash": "sha256-jv2Pps1y0wcEZLFWiVq0bEC+ShLYjpXrL5xuLI7falo=",
+    "output_store_path": "/nix/store/frhxgj8kfakmmpnb3makk0ab939p9vb8-out",
+    "wall_ms": 2539
+  },
+  "closure_stable": true,
+  "output_stable": true,
+  "miss_output_changed": true,
+  "miss_trace_changed": false,
+  "untraced": {
+    "status": "miss",
+    "mode": "untraced",
+    "wall_ms": 1790,
+    "output_hash": "sha256-lEaLYtAti521HsaakxxIIaA90EKojxn4cEmqjeFRHg0=",
+    "output_store_path": "/nix/store/hvb1hn9ac1p5gik5gp17d5yyyfd4snws-out",
+    "traced_path_count": 0
+  }
+}
