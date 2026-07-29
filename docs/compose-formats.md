@@ -1499,3 +1499,21 @@ for nicer nested records without solving reuse. CUE would add a powerful
 constraint/programming system precisely when this prototype argues to keep
 compose as validated data. Either deserves a new prototype only after real
 composites demonstrate a requirement the four candidates cannot express.
+
+---
+
+## Addendum (2026-07-29): the question, dissolved — D28
+
+After this document was written, the format question was reframed by Mathijs and decided as
+D28 (see `design.md`): compose's canonical form is **machine-format `compose.json`**; human
+authoring is a generator concern (config-as-code in any language against the published
+schema), with hand-written JSON fine for trivial composites. At production complexity,
+compose config is program output, not a document — the working precedent is a real fleet
+config in Python computing placements and rendering gitignored artifacts, regenerated before
+every command.
+
+This document remains the *encoding archive*: its TOML recommendation and the Cixfile-DSL
+challenger are now candidate **sugar encodings** over the same schema, evidence-gated on
+people demonstrably hand-writing composites at scale. Its scenario definitions and the
+adversarial criteria remain the test-bed for any such encoding — and for the JSON Schema
+itself.

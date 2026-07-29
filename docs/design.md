@@ -398,6 +398,24 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   systemd's `NFTSet=` integration are the candidate refinement. No pretending: coarse
   enforcement is reported as coarse.
 
+## Part 3 amendment — the compose language question, dissolved (2026-07-29)
+
+- ✅ D28 — **compose's canonical form is machine format: `compose.json`.** Strictly schema'd
+  (unknown keys rejected, JSON-path source-spanned errors), validated semantically
+  (`cix compose check`), consumed deterministically, diffable (`cix compose diff` between
+  generations). Human authoring is a *generator* concern outside cix's core: trivial
+  composites are hand-written JSON; real ones are config-as-code in any language emitting
+  compose.json against the published JSON Schema (precedent: the private fleet repo's
+  `infra/config/config.py` + `generate.py` — computed placements, gitignored rendered
+  artifacts, regenerate-before-use behind a content hash; at production complexity compose
+  config is program output, not a document). The k8s lesson re-read: machine-format manifests
+  were right, leaving generation to text templating (Helm) was the mistake — we bless
+  generation-as-code from day one and the data format never grows a template feature.
+  `docs/compose-formats.md` stands as the encoding archive: TOML (its recommendation) and the
+  Cixfile-DSL become *candidate sugar encodings*, evidence-gated on people actually
+  hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
+  composite — human languages at the edges, JSON contracts throughout.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
