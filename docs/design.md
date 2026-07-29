@@ -591,6 +591,26 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   init-shim grant in the spec (docker `--init` analogue), not something to patch around.
   Proven by the dogfood/VM gate, not by assertion.
 
+- ✅ D37 (2026-07-29) — **honest examples: the pack/compose/build layout, the withSpec rung
+  built, and the BUILD surface split in two.**
+  (a) *Layout:* `examples/pack/<name>/` (the service items; Cixfile is the canonical form),
+  `examples/compose/` (composites that consume the packs **via tags** — the compose examples
+  become an integration test of the tag→resolve→lock chain), `examples/build/` (build-story
+  projects; `buildshape` becomes `build/proj1`). `dstyle/` stays in place as a design-era
+  archive, labeled as such.
+  (b) *Honesty fix (Mathijs):* the hand-rolled `runCommand` default.nix files (heredoc
+  scripts + hand-written manifest JSON) are neither what a docker refugee writes (Cixfile)
+  nor what a nix-native writes — they are dogfood-era artifacts and unfair for
+  apples-to-apples. D16's middle rung gets built: `composix.lib.withSpec` (attach a manifest
+  + mount links to an existing derivation), demonstrated on one simple pack as the idiomatic
+  `.nix` form; duplicate default.nix files are deleted where the Cixfile is canonical.
+  (c) *BUILD split (Mathijs): tooling integration ⊥ multi-stage.* Increment 1 = single-stage
+  tooling integration: `BUILD rust` with Variant A's fixed crane semantics but NO
+  stage surface — proven by `examples/build/projB`, a plain single-binary rust service.
+  Increment 2 (separate, later) = the multi-stage machinery (`STAGE`, `COPY --from`,
+  `OUTPUT`, `BUILD pnpm`) proven by `build/proj1`. Variant B stays behind its evidence bar
+  (cixfile-build.md unchanged).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
