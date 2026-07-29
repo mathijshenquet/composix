@@ -119,6 +119,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cix-cixfile",
+ "cix-compose",
  "cix-index",
  "cix-run",
  "clap",

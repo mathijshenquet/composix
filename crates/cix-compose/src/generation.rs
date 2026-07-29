@@ -317,8 +317,9 @@ fn render_edge_unit(
     members: &[String],
 ) -> String {
     format!(
-        "[Unit]\nDescription=cix compose Unix edge: {edge}\nPartOf={target}\nBefore={}\n\n[Service]\nType=oneshot\nExecStart=/bin/sh -c true\nRemainAfterExit=yes\nGroup={group}\nRuntimeDirectory={runtime}\nRuntimeDirectoryMode=2770\nUMask=0007\n",
-        members.join(" ")
+        "[Unit]\nDescription=cix compose Unix edge: {edge}\nPartOf={target}\nBefore={}\n\n[Service]\nType=oneshot\nSlice={}.slice\nExecStart=/bin/sh -c true\nRemainAfterExit=yes\nGroup={group}\nRuntimeDirectory={runtime}\nRuntimeDirectoryMode=2770\nUMask=0007\n",
+        members.join(" "),
+        target.trim_end_matches(".target")
     )
 }
 

@@ -32,3 +32,25 @@
   FileDescriptorName wiring. The generation contains units, sysusers.d, source compose.json,
   canonical cix.lock, and manifest.json; `nix store add-path` gives the immutable generation.
   Next: fill and verify unit goldens, then implement profile activation/diff/down/rollback.
+- 2026-07-29 01:22 UTC — Generation goldens (service, edge owner, listener socket, target), byte
+  determinism, and identical-input Nix store-path determinism are green. Implemented the root
+  runtime: per-composite nix-env profiles, sysusers application, guarded atomic links into
+  /etc/systemd/system, daemon reload, target start, changed-unit restarts, disappeared-unit
+  stop/unlink, down with profile retention, and profile rollback followed by reactivation. Unit
+  links are only replaced/removed when they point into the expected prior generation, preventing
+  accidental overwrite of administrator units. Diff dry-builds and reports sorted unit
+  add/remove/change plus service storePath old→new. Next: compile and test the runtime/CLI, wire the
+  root cix binary and composite-aware ps, then exercise activation against the real example.
+- 2026-07-29 01:28 UTC — Runtime and CLI unit tests pass. Wired `cix compose check/diff`,
+  `cix up/down/rollback`, and replaced the root `cix ps` dispatch with a compatible all-cix unit
+  view that adds COMPOSITE and SERVICE columns based on each service's slice. Edge owners now also
+  live in the composite slice, making the grouping and resource boundary complete. Existing
+  one-shot `cix run` units remain visible with no composite. Next: verify workspace CLI/tests,
+  commit this increment, then build the three-item real stack and root-gated demo.
+- 2026-07-29 01:31 UTC — The first cix tour run exposed two environmental/compatibility facts:
+  stale failed cix-run listener probes remained in the user manager, and unconditional ps columns
+  would drift the established non-compose tour. Reset only the stale `cix-*` failures and stopped
+  the empty cix-run slice, leaving both managers clean. `cix ps` now preserves its exact legacy
+  view when no composite is loaded and switches to grouped COMPOSITE/SERVICE columns when one is
+  present. Targeted cix-compose/cix tests, tour drift/determinism, fmt, and denied-warning clippy
+  now pass. Next: commit activation/CLI, then implement and empirically drive the example stack.
