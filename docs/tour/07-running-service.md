@@ -30,8 +30,8 @@ $ systemctl --user stop cix-run-tour-service-NONCE.service
 
 ```sh
 $ cix ps
-MANAGER  UNIT           STATE       DESCRIPTION
-user     cix-run.slice  active/active  Slice /cix/run
+MANAGER  UNIT                                         STATE       DESCRIPTION
+user     cix-run.slice                                active/active  Slice /cix/run
 ```
 
 The unit disappears once stopped; its managed state directory follows the user-manager lifecycle.
@@ -39,4 +39,4 @@ The unit disappears once stopped; its managed state directory follows the user-m
 
 ---
 
-[← Previous](06-pull-follows.html) · [Tour index](index.html)
+[← Previous](06-pull-follows.html) · [Tour index](index.html) · [Next →](08-building-cixfile.html)

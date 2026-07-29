@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-This five-minute tour covers local tags, serving a store, pulling from it, and running a service.
+This five-minute tour covers local tags, serving and pulling a store, building from a Cixfile, and running rootless services with or without socket activation.
 
 ## Scenarios
 
@@ -22,3 +22,7 @@ This five-minute tour covers local tags, serving a store, pulling from it, and r
 - [Tags move; pull follows](06-pull-follows.html) — Refresh a remote mirror after its publisher retags it.
 
 - [Running a service](07-running-service.html) — Start and inspect a spec'd service in rootless development mode.
+
+- [Building from a Cixfile](08-building-cixfile.html) — Build, inspect, and tag a self-contained Cixfile item.
+
+- [Running with a listener](09-running-listener.html) — Serve through a systemd-activated socket in rootless development mode.

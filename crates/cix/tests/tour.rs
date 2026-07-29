@@ -13,6 +13,14 @@ use std::time::{Duration, Instant};
 use regex::Regex;
 
 const TOUR_LISTEN: &str = "127.0.0.1:8420";
+const TOUR_CIXFILE_LOCK: &str = r#"{
+  "nixpkgs": {
+    "url": "github:NixOS/nixpkgs/nixos-unstable",
+    "rev": "624af665418d3c65d544145b4d34ad696439570e",
+    "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+  }
+}
+"#;
 static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
 static TOUR_RENDER_LOCK: Mutex<()> = Mutex::new(());
 
@@ -147,8 +155,12 @@ fn normalize(raw: &str, base: &Path) -> String {
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"age=\d+s").expect("valid age regex");
-    let unit_name =
-        Regex::new(r"cix-run-tour-service-[0-9a-f]+\.service").expect("valid unit name regex");
+    let unit_name = Regex::new(r"cix-run-(tour-service|listenfds)-[0-9a-f]+\.service")
+        .expect("valid unit name regex");
+    let stale_failed_unit = Regex::new(
+        r"(?m)^user\s+cix-run-(?:tour-service|listenfds)-NONCE\.service\s+failed/failed.*\n?",
+    )
+    .expect("valid stale unit regex");
     let capability_diagnostic = Regex::new(
         r"(?s)(warning: user manager rejected capability controls \().*?(\)\nwarning: retrying)",
     )
@@ -162,11 +174,12 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "age=0s");
-    let normalized = unit_name.replace_all(&normalized, "cix-run-tour-service-NONCE.service");
+    let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized =
         capability_diagnostic.replace_all(&normalized, "${1}host-specific diagnostic${2}");
     let normalized =
         namespace_diagnostic.replace_all(&normalized, "${1}host-specific diagnostic${2}");
+    let normalized = stale_failed_unit.replace_all(&normalized, "");
     normalized
         .replace(base.to_string_lossy().as_ref(), "~")
         .trim_end()
@@ -243,6 +256,78 @@ fn service_fixture(doc: &Doc) -> String {
         .to_owned()
 }
 
+fn listener_fixture(doc: &Doc) -> String {
+    let fixture = doc.base.join("listener-fixture");
+    let executable = fixture.join("bin/listenfds");
+    fs::create_dir_all(executable.parent().expect("listener executable parent"))
+        .expect("creating listener fixture directory");
+    fs::write(
+        &executable,
+        r#"#!/usr/bin/python3
+import os
+import socket
+
+listen_fds = int(os.environ.get("LISTEN_FDS", "0"))
+listen_pid = int(os.environ.get("LISTEN_PID", "0"))
+if listen_fds != 1 or listen_pid != os.getpid():
+    raise SystemExit("expected one named systemd listener")
+
+listener = socket.fromfd(3, socket.AF_INET, socket.SOCK_STREAM)
+while True:
+    connection, _ = listener.accept()
+    with connection:
+        connection.recv(4096)
+        body = b"LISTEN_FDS=1; no socket() authority\n"
+        connection.sendall(
+            b"HTTP/1.1 200 OK\r\n"
+            + b"Content-Type: text/plain\r\n"
+            + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
+            + b"Connection: close\r\n\r\n" + body
+        )
+"#,
+    )
+    .expect("writing listener executable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut permissions = fs::metadata(&executable)
+            .expect("reading listener executable permissions")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).expect("making listener executable");
+    }
+    fs::write(
+        fixture.join("cix-spec.json"),
+        r#"{
+  "cixSpec": 3,
+  "services": {
+    "listenfds": {
+      "exec": ["bin/listenfds"],
+      "listeners": {"http": {"type": "stream"}}
+    }
+  }
+}
+"#,
+    )
+    .expect("writing listener spec");
+
+    let output = Command::new("nix")
+        .args(["store", "add-path"])
+        .arg(&fixture)
+        .output()
+        .expect("adding listener fixture to the Nix store");
+    assert!(
+        output.status.success(),
+        "nix store add-path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("Nix store path is UTF-8")
+        .trim()
+        .to_owned()
+}
+
 fn next_listen() -> String {
     let port = NEXT_TOUR_PORT.fetch_add(1, Ordering::Relaxed);
     format!("127.0.0.1:{port}")
@@ -278,6 +363,29 @@ fn start_server(doc: &Doc, state_dir: &Path, listen: &str) -> Server {
             return server;
         }
         assert!(Instant::now() < deadline, "timed out waiting for cix serve");
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+fn wait_for_http(listen: &str, expected: &str) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let output = Command::new("curl")
+            .args(["-fsS", "--max-time", "1", &format!("http://{listen}")])
+            .output();
+        if output.as_ref().is_ok_and(|output| {
+            output.status.success() && String::from_utf8_lossy(&output.stdout).trim() == expected
+        }) {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for listener on {listen}: {}",
+            output
+                .as_ref()
+                .map(|output| String::from_utf8_lossy(&output.stderr).trim().to_owned())
+                .unwrap_or_else(|error| error.to_string())
+        );
         std::thread::sleep(Duration::from_millis(25));
     }
 }
@@ -502,6 +610,70 @@ fn scenario_running_a_service() -> String {
     doc.finish()
 }
 
+fn scenario_building_from_a_cixfile() -> String {
+    let mut doc = Doc::new("building-cixfile");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FILE share/greeting <<GREETING
+hello from Cixfile
+GREETING
+SCRIPT bin/tour-app <<APP
+echo "hello from the Cixfile app"
+APP
+SERVICE tour-app
+EXEC bin/tour-app
+"#,
+    )
+    .expect("writing Cixfile fixture");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+        .expect("writing Cixfile lock fixture");
+
+    doc.para("A Cixfile can build a runnable item without declaring a package. The checked-in lock still pins nixpkgs because `SCRIPT` uses its runtime shell; it makes generation deterministic, and a fresh store may fetch that pinned source once.");
+    let built = doc.sh("cix build . -t tour-app:v1", true);
+    let store_path = built
+        .lines()
+        .rev()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("cix build printed a store path");
+
+    doc.para("The generated spec is the build's runtime contract: it records the service name and executable independently of the Cixfile source.");
+    let spec = doc.sh(&format!("cat {store_path}/cix-spec.json"), true);
+    assert!(spec.contains("\"tour-app\""));
+    assert!(spec.contains("\"bin/tour-app\""));
+
+    let listing = doc.sh("cix ls", true);
+    assert!(listing.contains("tour-app:v1"));
+    doc.finish()
+}
+
+fn scenario_running_with_a_listener() -> String {
+    let mut doc = Doc::new("running-listener");
+    doc.para("A spec-v3 listener gives the service an already-bound socket, so the process has no authority to create another network socket.");
+
+    let store_path = listener_fixture(&doc);
+    let listen = next_listen();
+    let started = doc.sh(
+        &format!("cix run {store_path} --user -p http={listen} --detach"),
+        true,
+    );
+    let unit_name = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-listenfds-") && line.ends_with(".service"))
+        .expect("cix run printed a listener unit name")
+        .to_owned();
+    let _unit = UserUnit {
+        name: unit_name.clone(),
+    };
+
+    wait_for_http(&listen, "LISTEN_FDS=1; no socket() authority");
+    let response = doc.sh(&format!("curl -fsS http://{listen}"), true);
+    assert_eq!(response.trim(), "LISTEN_FDS=1; no socket() authority");
+
+    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
+    doc.para("The user-manager path is suitable for rootless development; production uses the system manager. Stopping the transient service also removes its companion `.socket` unit.");
+    doc.finish()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct GeneratedFile {
     name: &'static str,
@@ -525,7 +697,7 @@ fn auto_generated_notice() -> String {
 
 fn render_index(scenarios: &[Scenario]) -> String {
     let mut index = format!(
-        "# cix — local index tour\n\n{}\nThis five-minute tour covers local tags, serving a store, pulling from it, and running a service.\n\n## Scenarios\n",
+        "# cix — local index tour\n\n{}\nThis five-minute tour covers local tags, serving and pulling a store, building from a Cixfile, and running rootless services with or without socket activation.\n\n## Scenarios\n",
         auto_generated_notice()
     );
     for scenario in scenarios {
@@ -611,6 +783,18 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Running a service",
             description: "Start and inspect a spec'd service in rootless development mode.",
             body: scenario_running_a_service(),
+        },
+        Scenario {
+            filename: "08-building-cixfile.md",
+            title: "Building from a Cixfile",
+            description: "Build, inspect, and tag a self-contained Cixfile item.",
+            body: scenario_building_from_a_cixfile(),
+        },
+        Scenario {
+            filename: "09-running-listener.md",
+            title: "Running with a listener",
+            description: "Serve through a systemd-activated socket in rootless development mode.",
+            body: scenario_running_with_a_listener(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);
