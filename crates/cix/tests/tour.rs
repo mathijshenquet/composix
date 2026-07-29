@@ -236,24 +236,21 @@ fn normalize(raw: &str, base: &Path) -> String {
         r"(?m)^user\s+cix-run-(?:tour-service|listenfds)-NONCE\.service\s+failed/failed.*\n?",
     )
     .expect("valid stale unit regex");
-    let capability_diagnostic = Regex::new(
-        r"(?s)(warning: user manager rejected capability controls \().*?(\)\nwarning: retrying)",
-    )
-    .expect("valid capability diagnostic regex");
-    let namespace_diagnostic = Regex::new(
-        r"(?s)(warning: the user manager rejected mount-namespace sandboxing \().*?(\)\nwarning: retrying)",
-    )
-    .expect("valid namespace diagnostic regex");
+    // The user manager determines both the rejected controls and the error text. Match the
+    // complete warning pair so no host-specific property list can reach the rendered tour.
+    let degraded_fallback =
+        Regex::new(r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*")
+            .expect("valid degraded fallback regex");
 
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "age=0s");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
-    let normalized =
-        capability_diagnostic.replace_all(&normalized, "${1}host-specific diagnostic${2}");
-    let normalized =
-        namespace_diagnostic.replace_all(&normalized, "${1}host-specific diagnostic${2}");
+    let normalized = degraded_fallback.replace_all(
+        &normalized,
+        "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)",
+    );
     let normalized = stale_failed_unit.replace_all(&normalized, "");
     // Nix emits fetch/build progress on cold stores (CI runners, fresh machines); those
     // lines are environment noise, not command output.
@@ -1089,6 +1086,17 @@ fn generate_tour() {
 #[test]
 fn generated_tour_is_deterministic() {
     assert_eq!(render_tour(), render_tour());
+}
+
+#[test]
+fn normalize_swallows_every_host_specific_degraded_fallback_detail() {
+    let base = Path::new("/tour");
+    let namespace = "warning: the user manager rejected mount-namespace sandboxing (Operation not supported\ncaused by: host policy)\nwarning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains";
+    let capability = "warning: user manager rejected capability controls (Failed to set capabilities)\nwarning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs";
+    let expected = "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)";
+
+    assert_eq!(normalize(namespace, base), expected);
+    assert_eq!(normalize(capability, base), expected);
 }
 
 #[test]
