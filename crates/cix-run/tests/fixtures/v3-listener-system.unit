@@ -1,0 +1,24 @@
+[Unit]
+Description=cix run: web
+
+[Service]
+Type=exec
+Slice=cix-run.slice
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+SocketBindDeny=any
+ExecStart="/nix/store/00000000000000000000000000000000-web/bin/web"

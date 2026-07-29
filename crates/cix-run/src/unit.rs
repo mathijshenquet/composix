@@ -683,18 +683,8 @@ mod tests {
 
     #[test]
     fn v3_listener_unit_keeps_network_private_and_denies_binds() {
-        let spec = Spec::from_slice(
-            br#"{
-                "cixSpec": 3,
-                "services": {
-                    "web": {
-                        "exec": ["bin/web"],
-                        "listeners": {"http": {"type": "stream"}}
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
+        let spec =
+            Spec::from_slice(include_bytes!("../tests/fixtures/v3-listener-spec.json")).unwrap();
         let service = &spec.services["web"];
         let config =
             ResolvedConfig::resolve(service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
@@ -706,6 +696,10 @@ mod tests {
             UnitMode::System,
         )
         .unwrap();
+        assert_eq!(
+            actual,
+            include_str!("../tests/fixtures/v3-listener-system.unit")
+        );
         assert!(actual.contains("PrivateNetwork=yes"));
         assert!(actual.contains("RestrictAddressFamilies=AF_UNIX"));
         assert!(actual.contains("CapabilityBoundingSet=\n"));
