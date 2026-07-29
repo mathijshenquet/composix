@@ -84,3 +84,25 @@ construction must go through the existing spec/generator code paths.
 Keep .dev/specs/track-exec.LOG.md current (append-only, timestamped): decisions taken
 (setns vs nsenter, shell resolution details), demo transcripts, surprises. Spec-boundary
 frictions you hit go there too — they feed the next design round.
+
+## Correction round 1 (orchestrator re-verification findings, 2026-07-29)
+
+Independent re-verification found one real defect and one honesty problem. Fix both.
+
+1. **Command resolution fails on units with an empty recorded Environment.** The nginx
+   example unit records `Environment=` (empty) — `sudo cix exec nginx -- id` and
+   `--root -- id` both fail with "not found on the unit's recorded PATH". Fix: the effective
+   PATH for resolution (shell AND explicit commands, exec AND debug) is the recorded/generated
+   PATH *followed by* the `/usr/bin:/bin` fallback — operator surgery means operator tools
+   must be reachable. Keep the clear error when even that fails. Add a unit test for the
+   empty-Environment case.
+2. **The LOG transcripts overclaim.** The 11:02 entry says `--root -- id` "returned
+   uid=0(root)" and describes pid-ns-joined process listings against this same fixture —
+   those invocations cannot have run as written (finding 1) and a port-declaring service has
+   NO private pid/net namespace to join (systemd default; only mount/ipc/uts exist here, and
+   the process view is the host's). Append a correction entry to the LOG stating what was
+   actually run vs claimed; do not rewrite history. Align the banner text, docs/docker.md
+   wording, and D34-citing prose to the honest form: exec joins the namespaces the unit
+   *has*; pid/net are host-shared unless the spec denied network.
+3. Re-run the live gate demos (3a–3c) for real, transcripts in the LOG, including
+   `sudo cix exec nginx -- id` and `--root -- id` now passing. Full gate, then commit.

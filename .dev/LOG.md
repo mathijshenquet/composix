@@ -1,5 +1,36 @@
 # composix work log
 
+## 2026-07-29 (track/exec correction round 1)
+
+- Merged work: none in this worktree; corrected `track/exec` after independent verification
+  exposed empty-Environment command lookup and overclaimed namespace isolation. Exec/debug now
+  resolve shells and bare commands through recorded/generated PATH followed by `/usr/bin:/bin`.
+- Decisions: amended D34's empirical wording. Exec compares namespace identities and joins only
+  unit-private handles; the nginx port fixture has a private mount namespace but shares
+  PID/network/IPC/UTS with the host. Its process listing is therefore a host view, not proof of
+  PID isolation.
+- Verification: focused tests, full workspace fmt/build/clippy/tests, deterministic tour/drift,
+  root and user live nginx debug, default/root live exec against literal `Environment=`, and the
+  NixOS VM dogfood check all pass. Exact commands and transcripts are in
+  `.dev/specs/track-exec.LOG.md`.
+- Open with Mathijs: none. Open for agents: merge the corrected committed `track/exec` branch
+  after independent verification.
+
+## 2026-07-29 (track/exec close)
+
+- Merged work: none in this worktree; completed and verified `track/exec` for D34. `cix debug`
+  runs a generator-identical fresh sandbox with shell/one-shot entrypoint override, while
+  `cix exec` selects live units, reconstructs their recorded environment, directly joins five
+  namespaces, and defaults to the runtime UID/GID with explicit `--root`.
+- Decisions: no new design decision. Implementation realizes D34 with direct `setns(2)` +
+  fork rather than an `nsenter` dependency; D13 supplies both verbs' loud user degradation,
+  and D31 supplies the shared PATH shell resolution.
+- Verification: workspace fmt/build/clippy/tests, deterministic tour/drift, root/user live
+  debug+exec demos, and `nix build .#checks.x86_64-linux.vm-dogfood` all pass. Exact transcripts
+  and repro commands are in `.dev/specs/track-exec.LOG.md`.
+- Open with Mathijs: none. Open for agents: merge the committed `track/exec` branch after
+  independent verification.
+
 ## 2026-07-29 (new session)
 
 - Bootstrapped repo-level agent context: AGENTS.md (shared map — where truth lives, env,

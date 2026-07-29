@@ -3,6 +3,9 @@
 
 pub mod cli;
 pub mod config;
+pub mod debug;
+pub mod exec;
 pub mod runtime;
+pub mod shell;
 pub mod spec;
 pub mod unit;

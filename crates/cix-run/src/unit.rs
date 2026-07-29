@@ -90,6 +90,20 @@ pub struct CompiledUnit {
     pub argv: Vec<String>,
 }
 
+impl CompiledUnit {
+    pub(crate) fn override_argv(&mut self, argv: Vec<String>) {
+        self.argv = argv;
+        let replacement = format!("ExecStart={}", exec_command(&self.argv));
+        if let Some(start) = self.text.find("ExecStart=") {
+            let end = self.text[start..]
+                .find('\n')
+                .map(|offset| start + offset)
+                .unwrap_or(self.text.len());
+            self.text.replace_range(start..end, &replacement);
+        }
+    }
+}
+
 pub(crate) type UnitDefinition = CompiledUnit;
 
 pub fn generate_unit(

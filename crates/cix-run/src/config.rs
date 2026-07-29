@@ -19,6 +19,19 @@ impl ResolvedConfig {
         env_overrides: &[String],
         port_overrides: &[String],
     ) -> Result<Self> {
+        Self::resolve_inner(service, env_overrides, port_overrides, true)
+    }
+
+    pub(crate) fn resolve_debug(service: &Service, env_overrides: &[String]) -> Result<Self> {
+        Self::resolve_inner(service, env_overrides, &[], false)
+    }
+
+    fn resolve_inner(
+        service: &Service,
+        env_overrides: &[String],
+        port_overrides: &[String],
+        require_listeners: bool,
+    ) -> Result<Self> {
         let env_overrides = parse_assignments("-e/--env", env_overrides)?;
         let overrides = parse_assignments("-p/--port", port_overrides)?;
         let mut port_overrides = BTreeMap::new();
@@ -55,11 +68,13 @@ impl ResolvedConfig {
                 bail!("-p/--port target {name:?} is neither a declared port nor listener");
             }
         }
-        for name in service.listeners.keys() {
-            if !listeners.contains_key(name) {
-                bail!(
-                    "listener {name:?} has no binding; pass -p {name}=ADDR:PORT when running this service"
-                );
+        if require_listeners {
+            for name in service.listeners.keys() {
+                if !listeners.contains_key(name) {
+                    bail!(
+                        "listener {name:?} has no binding; pass -p {name}=ADDR:PORT when running this service"
+                    );
+                }
             }
         }
 
