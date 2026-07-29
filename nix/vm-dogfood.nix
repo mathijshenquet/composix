@@ -88,6 +88,23 @@ let
     }
     EOF
   '';
+  pidProbe = pkgs.runCommand "pid-probe-cix" { } ''
+    mkdir -p $out/bin
+    cat > $out/bin/pid-probe <<'EOF'
+    #!${pkgs.runtimeShell}
+    trap 'exit 0' TERM INT
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
+    EOF
+    chmod +x $out/bin/pid-probe
+    cat > $out/cix-manifest.json <<'EOF'
+    {
+      "cixManifest": 2,
+      "services": {
+        "pid-probe": { "exec": ["bin/pid-probe"] }
+      }
+    }
+    EOF
+  '';
 in
 pkgs.testers.runNixOSTest {
   name = "vm-dogfood";
@@ -103,6 +120,10 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     start_all()
+    pid_unit = machine.succeed("cix run ${pidProbe} --detach").strip()
+    machine.succeed("systemctl show " + pid_unit + " --property=PrivatePIDs --value | grep -Fx yes")
+    machine.succeed("cix exec " + pid_unit + " --root -- /bin/sh -c 'read -r comm < /proc/1/comm; test \"$comm\" = pid-probe'")
+    machine.succeed("systemctl stop " + pid_unit)
 
     nginx_unit = machine.succeed("cix run ${nginx} --detach").strip()
     machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:8080/ | grep -F 'hello from composix'")

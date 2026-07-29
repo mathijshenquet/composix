@@ -195,6 +195,7 @@ pub(crate) fn build_unit_with_options(
         properties.push(("ProtectSystem".into(), "strict".into()));
         properties.push(("ProtectHome".into(), "yes".into()));
         properties.push(("PrivateTmp".into(), "yes".into()));
+        properties.push(("PrivatePIDs".into(), "yes".into()));
     }
     properties.extend([
         ("NoNewPrivileges".into(), "yes".into()),
@@ -611,6 +612,7 @@ mod tests {
             include_str!("../tests/fixtures/minimal-system.unit")
         );
         assert!(actual.contains("PrivateNetwork=yes"));
+        assert!(actual.contains("PrivatePIDs=yes"));
     }
 
     #[test]
@@ -657,6 +659,23 @@ mod tests {
             "CIX_APP".into(),
             output.path().to_string_lossy().into_owned(),
         )));
+
+        let degraded_definition = build_unit(
+            output.path(),
+            "worker",
+            service,
+            &config,
+            UnitMode::UserDegraded,
+        )
+        .unwrap();
+        assert!(user_definition
+            .properties
+            .iter()
+            .any(|(name, value)| name == "PrivatePIDs" && value == "yes"));
+        assert!(!degraded_definition
+            .properties
+            .iter()
+            .any(|(name, _)| name == "PrivatePIDs"));
     }
 
     #[test]
