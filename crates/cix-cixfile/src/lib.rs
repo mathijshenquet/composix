@@ -7,6 +7,7 @@ mod codegen;
 mod lock;
 mod model;
 mod parser;
+mod seccomp;
 
 pub use build::{build, BuildOptions};
 pub use codegen::{generate_nix, generate_spec_json};
