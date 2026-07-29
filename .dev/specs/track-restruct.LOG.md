@@ -2,6 +2,17 @@
 
 ## 2026-07-29 UTC
 
+- Correction round 1 started: post-merge review found `pack/listenfds` had no Cixfile or
+  `default.nix`, while its v3 listener contract cannot be represented by Cixfile v1 (D29).
+  Recreate it as a `withSpec` item, change its demo to Nix-build that item, then run the
+  correction gate including the mandatory live listener demo.
+
+- First live listener attempt built the item but failed at systemd exec: its linked program was
+  not a declared service mount, so D22's sparse projection did not expose it inside
+  `RootDirectory`. `/bin` is deliberately denied by D22, so the program instead projects at
+  `/opt/listenfds`, and its item-relative executable is declared beneath that mount. Rebuild and
+  rerun the demo.
+
 - Started D37(a+b) restructuring. Read `AGENTS.md`, `.dev/LOG.md`, design decisions D16, D22, and D37, plus this track spec. Baseline is clean on `track/restruct`; next step is to relocate packs/buildshape and add the small `composix.lib.withSpec` helper.
 
 - Moved the six service examples under `examples/pack/` and `buildshape` to `examples/build/proj1`; removed the old hand-rolled nginx, postgres, and listenfds defaults. Added the Redis `withSpec` rung and began moving all active references, including the VM dogfood fixture, to the new paths. Next: evaluate/build the helper and correct any Nix integration issues before the full gate.
@@ -23,6 +34,19 @@
 - Corrected VM gate passed (Redis PING over TCP and its mounted Unix socket both succeeded, followed by caddy/node checks and unit cleanup). Nginx's Cixfile-built live demo passed and cleaned its unit. The Redis withSpec live demo exposed a stale whitespace-sensitive manifest `sed` pattern; it started Redis but could not locate `redis-cli`, then its cleanup trap stopped the unit. Made the parser accept the compact JSON emitted by `builtins.toJSON`; rerun that live demo next.
 
 ## 2026-07-29 12:32 UTC
+
+- Correction round 1 complete. `examples/pack/listenfds/default.nix` is now the second
+  `composix.lib.withSpec` example: it assembles the Python listener program at
+  `/opt/listenfds`, declares that D22-safe mount, and emits the v3 `listeners.http` contract.
+  `demo.sh` uses `nix-build` (not `cix build`), and `examples/README.md` records why listeners
+  are necessarily the Nix rung rather than Cixfile v1.
+- Gates passed: `cargo build --workspace`; `cargo test --workspace`; `cargo fmt --check`;
+  `cargo clippy --workspace -- -D warnings`; tour regeneration with
+  `cargo test --test tour -- --ignored generate_tour` followed by `cargo test --test tour`; and
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link --print-out-paths`. The mandatory live
+  run `CIX_BIN="$PWD/target/debug/cix" examples/pack/listenfds/demo.sh` served
+  `LISTEN_FDS=1; no socket() authority`, checked its private-network/no-bind sandbox profile,
+  and cleaned both transient units.
 
 - Verification complete. `cargo build --workspace`, `cargo test --workspace`, `cargo fmt --check`, and `cargo clippy --workspace -- -D warnings` passed. Tour regeneration (`cargo test --test tour -- --ignored generate_tour`) and drift check (`cargo test --test tour`) passed.
 - `nix build .#checks.x86_64-linux.vm-dogfood --no-link --print-out-paths` passed; the final VM test completed in 60.48s. `nix build .#checks.x86_64-linux.with-spec-redis --no-link --print-out-paths` passed, and `nix eval .#lib.withSpec --apply 'f: builtins.isFunction f'` returned `true`.
