@@ -178,29 +178,30 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`network create` / `connect` / `disconnect` / `inspect` / `ls` / `prune` / `rm`](https://docs.docker.com/reference/cli/docker/network/) | ❓ no composix network object | ❓ No lifecycle surface: create, inspect, connect/disconnect, list, prune, or remove. |
 | [host, none, macvlan, ipvlan network drivers](https://docs.docker.com/engine/network/drivers/) | ❓ the ledger only discusses bridge and overlay | ❓ Decide whether these modes are unsupported, operator overrides, or future capabilities. |
 
-## 6. Compose (activation mechanism designed; product absent)
+## 6. Compose (v0 built; deliberate walls remain)
+
+Compose v0 is a root-managed systemd activation path, not a Docker Compose compatibility
+layer. It has a strict `compose.json`, deterministic resolution and generation, a per-composite
+Nix profile, and `cix up`/`down`/`rollback`; see `crates/cix-compose/` and the end-to-end
+[`examples/compose/stack/demo.sh`](../examples/compose/stack/demo.sh). `cix compose check` and
+`cix compose diff` dry-build without activation and work without root; `up`, `down`, and
+`rollback` operate the system manager and require root. Netns, scale, health, secrets, limits,
+and a reconciler remain deferred.
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-Nothing in this section is built; every 🔁/✅ below grades the *design* (D9). One sentence
-covers what would otherwise be ten rows of ❓: the entire user-facing compose surface —
-language, `up`/`down`/rollback commands, validation/dry-run, per-composite observation
-(`ps`/`logs`/`stats`), one-offs (`run`/`exec`/`cp`), multi-file merging, and distributing
-composite definitions — exists only as the D9 mechanism sketch and is part-3 work.
-
-| docker | disposition | still missing |
-| --- | --- | --- |
-| [Compose services](https://docs.docker.com/reference/compose-file/services/) | 🔁 part 3; surface language TBD (prototyping planned) | An implemented, widely deployed Compose product; composix is only a D9 mechanism sketch. |
-| [`depends_on` / ordering](https://docs.docker.com/reference/compose-file/services/#depends_on) | ⏳ systemd `After`/`Wants` natively | ❓ Compose also has health/completion conditions; map failure and restart propagation, not just ordering. |
-| [scale / replicas](https://docs.docker.com/reference/cli/docker/compose/scale/) | ⏳ template units (`@n`) | — |
-| [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | ⏳ `LoadCredential=` (D20b: operator territory) | — |
-| [resource limits](https://docs.docker.com/reference/compose-file/deploy/#resources) | ⏳ slice properties, natively | — |
-| [project namespacing](https://docs.docker.com/compose/how-tos/project-name/) | 🔁 designed: `cix-<composite>.slice`/`.target` | — |
-| [`up`](https://docs.docker.com/reference/cli/docker/compose/up/) / [`down`](https://docs.docker.com/reference/cli/docker/compose/down/) / rollback | 🔁 designed: resolve→lock→build→activate, per-composite profiles (D9) | User-facing commands, validation/dry-run, observation, one-offs, multi-file merging, and distributing composite definitions remain part-3 work. |
+| [Compose services](https://docs.docker.com/reference/compose-file/services/) | ✅ strict machine-format `compose.json` services resolve local tags/store paths, select item services, and apply declared env/listener bindings (`crates/cix-compose/src/{model,resolve,generation}.rs`; `examples/compose/stack/compose.json`) | Docker Compose YAML compatibility, multi-file merging/includes, `extends`, and broad Compose-field coverage. |
+| [`depends_on` / ordering](https://docs.docker.com/reference/compose-file/services/#depends_on) | 🔁 v0 Unix `edges` create setup units and consumer `Requires=`/`After=` ordering while granting only declared runtime paths (`crates/cix-compose/src/generation.rs`; stack `database`/`http` edges) | Docker's health/completion conditions and restart propagation; network dependency/discovery waits for the networking work. |
+| [scale / replicas](https://docs.docker.com/reference/cli/docker/compose/scale/) | ⏳ no replica field or template units in v0 | Scaling, stable replica identities, placement, and lifecycle semantics. |
+| [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | 🔁 v0 has explicit string `env` overrides (`crates/cix-compose/src/model.rs`); `env_file` and credential delivery are deferred | File-based environment loading, secrets, and `LoadCredential=` integration. |
+| [resource limits](https://docs.docker.com/reference/compose-file/deploy/#resources) | ⏳ no compose limits yet; future operator policy maps to systemd slice/unit properties | CPU, memory, IO, PID, and reservation controls. |
+| [project namespacing](https://docs.docker.com/compose/how-tos/project-name/) | ✅ the compose name produces `cix-<name>.slice`/`.target`, `cix-<name>-<service>` units, and a `cix-compose-<name>` Nix profile (`crates/cix-compose/src/{generation,runtime}.rs`) | Docker's project-name flags and compatibility naming rules. |
+| [`up`](https://docs.docker.com/reference/cli/docker/compose/up/) / [`down`](https://docs.docker.com/reference/cli/docker/compose/down/) / rollback | ✅ `cix up` resolves, writes `cix.lock`, builds/activates a profile; `cix down` unlinks managed units while retaining it; `cix rollback` activates the preceding generation (`crates/cix-compose/src/runtime.rs`; `examples/compose/stack/demo.sh`) | Rootless activation, a long-running reconciler, and Docker-compatible lifecycle flags/observation commands. |
+| [`docker compose config`](https://docs.docker.com/reference/cli/docker/compose/config/) | 🔁 `cix compose check` resolves and semantically validates; `cix compose diff` dry-builds and compares the prospective generation without activation (`crates/cix-compose/src/{cli,runtime}.rs`) | A merged/canonical Compose configuration emitter, multi-file inputs, and Docker's config command/options. |
 | [`watch` (dev mode)](https://docs.docker.com/compose/how-tos/file-watch/) | ❓ interesting dev loop, unscoped | ❓ Unscoped. |
-| [profiles](https://docs.docker.com/reference/compose-file/profiles/) | ❓ | ❓ Decide selection, dependency validation, and lock/profile interaction. |
-| [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ compose config story (`ConfigurationDirectory` content) | — |
-| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ❓ | ❓ Object identity, external resources, and lifecycle are undesigned — the named-volume analog especially. |
+| [profiles](https://docs.docker.com/reference/compose-file/profiles/) | 🔁 each composite has a Nix profile whose retained generations power rollback (`crates/cix-compose/src/runtime.rs`) | Docker Compose service-profile selection, dependency validation, and profile-aware locking are not implemented. |
+| [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ no compose config object in v0 | Top-level config objects, `ConfigurationDirectory=` materialization, ownership/mode, and attachment semantics. |
+| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ⏳ v0's named Unix edges are narrowly scoped runtime-path grants, not reusable Docker objects (`crates/cix-compose/src/{model,generation}.rs`) | Object identity, external resources, lifecycle, named volumes, networks, secrets, and configs. |
 | [`version` marker (obsolete)](https://docs.docker.com/reference/compose-file/version-and-name/#version-top-level-element-obsolete) | ❌ | — |
 
 ## 7. Daemon & platform
