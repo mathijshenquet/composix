@@ -516,6 +516,34 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   declaration can't be fixed without a new store path — for a capability grant (D20a),
   editable-in-place would be the bug; closure sharing makes the rebuild ~free.
 
+- ✅ D34 (2026-07-29) — **`cix exec` + `cix debug`: two verbs, derived from user stories, not
+  one knob-laden exec.** The stories resolve every design tension:
+  *Story A (spec author, service won't start / "would the sandbox permit X?")* — there is
+  nothing to join; served by **`cix debug <installable-or-ref>[#service] [--user] [-- cmd]`**:
+  a fresh transient unit built through the D29c generator library with the *identical* sandbox
+  (projection, seccomp, caps, dirs), but the entrypoint is an interactive shell
+  (`systemd-run --pty`, `--collect`, `cix-debug-<svc>-<nonce>`) or a one-shot `-- cmd`. Full
+  confinement fidelity for free — which is the point: the question is what the sandbox
+  permits. Works with zero running instances (docker-debug's stopped-container story);
+  `--user` is the D13 loud degraded variant. Listener sockets are not wired (a debug shell
+  inherits no fds).
+  *Stories B/C (operator: admin against a live service — psql, migrations, state-dir surgery;
+  live inspection — procs, sockets, strace)* — served by **`cix exec <unit-or-service>
+  [--root] [-- cmd]`**: join the *running* unit's namespaces (mount/pid/net/ipc/uts;
+  nsenter-style — systemd has no first-class join, `JoinsNamespaceOf=` never shares the mount
+  ns), env from the unit's recorded `Environment=` (which carries the generated PATH and any
+  `-e` overrides), default identity = the service's DynamicUser uid (story B: files created
+  during data surgery must carry the ownership the service expects; `--root` is the explicit
+  escape, and root-in-namespace is real root — no userns). Deliberately **no synthetic
+  seccomp/cgroup confinement on the joined shell**: the service's `@system-service` filter
+  would block strace/tcpdump — the operator's tools working is story C's point. The grant
+  confines the service (D20a); exec is operator surgery (D20b). Documented loudly.
+  Shared mechanics: shell fallback `sh` on the effective PATH → `/bin/sh` (visible under
+  `ProtectSystem=strict`; exists on NixOS) → hard error demanding `-- cmd`; future
+  `--with <pkg>` = prepend a store path to that PATH (D31 addendum). Consciously refused:
+  shell-into-container as a pet-server workflow — transient units, `--collect`, and immutable
+  items already lean against it; the ledger says so rather than staying silent.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
