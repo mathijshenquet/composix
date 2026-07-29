@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cixfile {
     pub packages: BTreeSet<String>,
+    pub paths: Vec<Template>,
     pub items: Vec<Item>,
     pub services: BTreeMap<String, Service>,
 }
@@ -18,7 +19,9 @@ pub enum Item {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Service {
     pub exec: Vec<Template>,
+    pub exec_line: usize,
     pub setup: Option<Vec<Template>>,
+    pub setup_line: Option<usize>,
     pub env: BTreeMap<String, Env>,
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
@@ -30,7 +33,9 @@ impl Service {
     pub(crate) fn empty() -> Self {
         Self {
             exec: Vec::new(),
+            exec_line: 0,
             setup: None,
+            setup_line: None,
             env: BTreeMap::new(),
             ports: BTreeMap::new(),
             listeners: BTreeSet::new(),

@@ -6,6 +6,7 @@ use std::path::{Component, Path};
 use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
+use crate::parser::bare_command;
 use crate::{Cixfile, Item, LockFile, Port, Service, Template, TemplatePart};
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
@@ -44,6 +45,29 @@ pub fn generate_nix(
         "  pkgs = import nixpkgsSource {{ system = {}; }};",
         nix_string(system)
     )?;
+    writeln!(
+        expression,
+        "  pathDirs = {};",
+        nix_templates(&cixfile.paths)
+    )?;
+    if !cixfile.paths.is_empty() {
+        writeln!(expression, "  resolveExecutable = line: command:")?;
+        writeln!(expression, "    let")?;
+        writeln!(
+            expression,
+            "      candidates = map (directory: \"${{directory}}/${{command}}\") pathDirs;"
+        )?;
+        writeln!(
+            expression,
+            "      found = builtins.filter builtins.pathExists candidates;"
+        )?;
+        writeln!(expression, "    in if found == [] then")?;
+        writeln!(
+            expression,
+            r#"      throw "line ${{builtins.toString line}}: command ${{command}} was not found in declared PATH directories: ${{builtins.concatStringsSep ", " pathDirs}}""#
+        )?;
+        writeln!(expression, "    else builtins.head found;")?;
+    }
     writeln!(expression, "  spec = {};", nix_spec(cixfile))?;
 
     for (index, item) in cixfile.items.iter().enumerate() {
@@ -91,6 +115,26 @@ pub fn generate_nix(
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
+
+    for service in cixfile.services.values() {
+        for (arguments, line) in [
+            (&service.exec[..], service.exec_line),
+            (
+                service.setup.as_deref().unwrap_or_default(),
+                service.setup_line.unwrap_or_default(),
+            ),
+        ] {
+            let Some(command) = bare_command(arguments) else {
+                continue;
+            };
+            writeln!(
+                expression,
+                "  test -x ${{pkgs.lib.escapeShellArg (resolveExecutable {line} {})}} || {{ echo {} >&2; exit 1; }}",
+                nix_string(&command),
+                nix_string(&format!("line {line}: resolved PATH command {command:?} is not executable")),
+            )?;
+        }
+    }
 
     for directory in item_directories(cixfile) {
         writeln!(
@@ -180,7 +224,7 @@ fn nix_spec(cixfile: &Cixfile) -> String {
             output,
             " {} = {};",
             nix_attr(name),
-            nix_service(service, &mounts)
+            nix_service(service, &mounts, &cixfile.paths)
         )
         .unwrap();
     }
@@ -188,9 +232,14 @@ fn nix_spec(cixfile: &Cixfile) -> String {
     output
 }
 
-fn nix_service(service: &Service, mounts: &BTreeSet<String>) -> String {
+fn nix_service(service: &Service, mounts: &BTreeSet<String>, paths: &[Template]) -> String {
     let mut output = String::from("{");
-    write!(output, " exec = {};", nix_templates(&service.exec)).unwrap();
+    write!(
+        output,
+        " exec = {};",
+        nix_command(&service.exec, service.exec_line)
+    )
+    .unwrap();
     if !mounts.is_empty() {
         write!(
             output,
@@ -204,10 +253,18 @@ fn nix_service(service: &Service, mounts: &BTreeSet<String>) -> String {
         .unwrap();
     }
     if let Some(setup) = &service.setup {
-        write!(output, " setup = {};", nix_templates(setup)).unwrap();
+        write!(
+            output,
+            " setup = {};",
+            nix_command(setup, service.setup_line.expect("SETUP has a line"))
+        )
+        .unwrap();
     }
-    if !service.env.is_empty() {
+    if !service.env.is_empty() || !paths.is_empty() {
         output.push_str(" env = {");
+        if !paths.is_empty() {
+            output.push_str(" \"PATH\" = { default = builtins.concatStringsSep \":\" pathDirs; };");
+        }
         for (name, env) in &service.env {
             write!(output, " {} = {{", nix_attr(name)).unwrap();
             if let Some(default) = &env.default {
@@ -298,6 +355,18 @@ fn nix_templates(templates: &[Template]) -> String {
     )
 }
 
+fn nix_command(arguments: &[Template], line: usize) -> String {
+    let Some(command) = bare_command(arguments) else {
+        return nix_templates(arguments);
+    };
+    let mut output = format!("[ (resolveExecutable {line} {})", nix_string(&command));
+    for argument in &arguments[1..] {
+        write!(output, " {}", nix_template(argument)).unwrap();
+    }
+    output.push_str(" ]");
+    output
+}
+
 fn nix_template(template: &Template) -> String {
     let mut output = String::from("\"");
     for part in &template.parts {
@@ -355,7 +424,10 @@ fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
     let mut services = Map::new();
     let mounts = projected_mounts(cixfile);
     for (name, service) in &cixfile.services {
-        services.insert(name.clone(), literal_service(service, &mounts)?);
+        services.insert(
+            name.clone(),
+            literal_service(service, &mounts, &cixfile.paths)?,
+        );
     }
     let version = if cixfile
         .services
@@ -372,9 +444,13 @@ fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
     ])))
 }
 
-fn literal_service(service: &Service, mounts: &BTreeSet<String>) -> Result<Value> {
+fn literal_service(
+    service: &Service,
+    mounts: &BTreeSet<String>,
+    paths: &[Template],
+) -> Result<Value> {
     let mut value = Map::new();
-    value.insert("exec".into(), literal_templates(&service.exec)?);
+    value.insert("exec".into(), literal_command(&service.exec, paths)?);
     if !mounts.is_empty() {
         value.insert(
             "mounts".into(),
@@ -382,10 +458,25 @@ fn literal_service(service: &Service, mounts: &BTreeSet<String>) -> Result<Value
         );
     }
     if let Some(setup) = &service.setup {
-        value.insert("setup".into(), literal_templates(setup)?);
+        value.insert("setup".into(), literal_command(setup, paths)?);
     }
-    if !service.env.is_empty() {
+    if !service.env.is_empty() || !paths.is_empty() {
         let mut envs = Map::new();
+        if !paths.is_empty() {
+            envs.insert(
+                "PATH".into(),
+                Value::Object(Map::from_iter([(
+                    "default".into(),
+                    Value::String(
+                        paths
+                            .iter()
+                            .map(literal_template)
+                            .collect::<Result<Vec<_>>>()?
+                            .join(":"),
+                    ),
+                )])),
+            );
+        }
         for (name, env) in &service.env {
             let mut declaration = Map::new();
             if let Some(default) = &env.default {
@@ -498,13 +589,22 @@ fn literal_dirs(service: &Service) -> Map<String, Value> {
     dirs
 }
 
-fn literal_templates(templates: &[Template]) -> Result<Value> {
+fn literal_command(arguments: &[Template], paths: &[Template]) -> Result<Value> {
+    let mut values = arguments
+        .iter()
+        .map(literal_template)
+        .collect::<Result<Vec<_>>>()?;
+    if let Some(command) = bare_command(arguments) {
+        let directory = paths
+            .first()
+            .context("cannot render a bare command without PATH")?;
+        values[0] = format!(
+            "{}/{command}",
+            literal_template(directory)?.trim_end_matches('/')
+        );
+    }
     Ok(Value::Array(
-        templates
-            .iter()
-            .map(literal_template)
-            .map(|value| value.map(Value::String))
-            .collect::<Result<Vec<_>>>()?,
+        values.into_iter().map(Value::String).collect(),
     ))
 }
 
@@ -612,7 +712,7 @@ mod tests {
     #[test]
     fn copy_must_name_an_existing_regular_file() {
         let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse("COPY missing x\nSERVICE app\nEXEC x\n").unwrap();
+        let cixfile = parse("COPY missing x\nSERVICE app\nEXEC /bin/x\n").unwrap();
         let error = generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux")
             .unwrap_err()
             .to_string();
@@ -622,7 +722,7 @@ mod tests {
     #[test]
     fn rejects_non_github_lock_urls() {
         let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse("SERVICE app\nEXEC x\n").unwrap();
+        let cixfile = parse("SERVICE app\nEXEC /bin/x\n").unwrap();
         let error = generate_nix(&cixfile, directory.path(), &LOCK, "x86_64-linux")
             .unwrap_err()
             .to_string();

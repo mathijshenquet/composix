@@ -28,8 +28,7 @@ let
   '';
 in
 pkgs.runCommand "nginx-cix" { } ''
-  mkdir -p $out/bin $out/etc/nginx $out/srv/www
-  ln -s ${pkgs.nginx}/bin/nginx $out/bin/nginx
+  mkdir -p $out/etc/nginx $out/srv/www
   ln -s ${pkgs.nginx}/conf/mime.types $out/etc/nginx/mime.types
   install -m 0644 ${html} $out/srv/www/index.html
   install -m 0644 ${conf} $out/etc/nginx/nginx.conf
@@ -38,7 +37,7 @@ pkgs.runCommand "nginx-cix" { } ''
     "cixSpec": 2,
     "services": {
       "nginx": {
-        "exec": ["bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
+        "exec": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
         "mounts": ["/etc/nginx", "/srv/www"],
         "ports": { "http": { "value": 8080, "protocol": "tcp" } },
         "dirs": {

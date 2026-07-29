@@ -25,13 +25,12 @@ PKG nginx
 
 COPY index.html /srv/www/index.html
 
-LINK bin/nginx ${nginx}/bin/nginx
 LINK /etc/nginx/mime.types ${nginx}/conf/mime.types
 
 COPY nginx.conf /etc/nginx/nginx.conf
 
 SERVICE nginx
-EXEC bin/nginx -c /etc/nginx/nginx.conf -e stderr
+EXEC ${nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx
@@ -61,8 +60,8 @@ http {
 ```
 
 `COPY` is the natural choice for checked-in, verbatim assets; use `FILE` when an inline file
-needs build-time `${…}` interpolation. The executable is `LINK`ed into the item and exec'd as
-`bin/nginx` — cross-package references are always pulled in via `LINK`.
+needs build-time `${…}` interpolation. `LINK` brings in the `mime.types` asset; the one-off
+nginx executable stays a direct `${nginx}/bin/nginx` reference.
 
 The Cixfile is longer — because it states things the Dockerfile leaves implicit in the base
 image (the config, the writable paths, what the process actually is). Nothing here is
@@ -73,6 +72,7 @@ boilerplate; every line is contract.
 | directive | what it does | closest docker |
 | --- | --- | --- |
 | `PKG <attr>` | bring a nixpkgs package into scope; enables `${attr}` in directive arguments | `FROM` (spiritually — see below) |
+| `PATH <dir>…` | ordered package tool directories; resolves bare `EXEC`/`SETUP` commands at build time and supplies the runtime `PATH` default | `PATH` |
 | `COPY <src> <dst>` | copy a regular sibling file into the item, **verbatim, never substituted** | `COPY` (identical intent) |
 | `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time; use `COPY` for verbatim sibling content | `COPY <<EOF` (buildkit heredoc) |
 | `SCRIPT <dst> <<EOF` | inline executable script (shebang added) | — |
@@ -85,14 +85,15 @@ boilerplate; every line is contract.
 | `STATE` `CACHE` `LOGS` `CONFIG` `RUNDIR` | writable dirs by role, at the path the app expects | `VOLUME` (roleless) |
 | `JIT` | the service maps writable+executable memory | — (docker allows W+X silently) |
 
-### Scripts and their tools — sibling links, `$(dirname "$0")`, no templating
+### Scripts and tools
 
-Keep checked-in shell scripts as verbatim sibling files and `COPY` them into the item. `COPY`
-files are not executable, so invoke them through a `LINK`ed shell (`EXEC bin/sh bin/start`).
-`LINK` every tool the scripts use beside them, then have a script find that item-relative view
-with `"$(dirname "$0")/…"`; it can also source a shared copied environment file via
-`. "$(dirname "$0")/../lib/runtime-env.sh"`. This avoids build-time interpolation and keeps
-the script runnable and reviewable outside the Cixfile.
+Keep checked-in shell scripts as verbatim sibling files and `COPY` them to native projected
+paths. Invoke a non-executable copied script through a direct shell path, such as
+`EXEC ${bash}/bin/sh /opt/app/start`. Declare the tools it calls with `PATH`, then scripts can
+use ordinary `initdb`, `postgres`, `id`, or `mkdir`; the generated PATH default is still an
+ordinary, operator-overridable `ENV` value. `LINK` is for non-executable assets a script needs,
+such as a preload library or a package data tree. This removes item-local bin symlinks and
+`$(dirname "$0")` plumbing while leaving checked-in scripts verbatim and reviewable.
 
 Two interpolation worlds, one rule: `${name}` is **build time** (in directive arguments and
 inline `FILE`/`SCRIPT` bodies); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). `COPY` content is
@@ -119,14 +120,15 @@ scan, no `ONBUILD`, no layer-cache ordering games, no image-size golf (deduplica
 store-wide and automatic). The role of "which base am I on" is played by the nixpkgs pin in
 `Cixfile.lock`.
 
-**The LINK shift — you assemble a view, not a filesystem.** This is the real mental-model
-change. A docker image is a whole root filesystem: software you use lives at global paths
-(`/usr/bin/…`, `/etc/…`) because it was *installed* there. A composix item is a small
-directory of your own files plus symlinks into other packages (`LINK /etc/nginx/mime.types
-${nginx}/conf/mime.types`). Projected destinations appear at their native absolute paths at
-runtime, while at authoring time you think in references, not installations. In
-exchange: your item is kilobytes, its dependencies are exact and inspectable
-(`nix path-info -r`), and two items sharing nginx share it fully.
+**The LINK shift — assets, not executable shims.** A docker image is a whole root filesystem:
+software you use lives at global paths (`/usr/bin/…`, `/etc/…`) because it was *installed*
+there. A composix item is a small directory of your own files plus asset symlinks into other
+packages (`LINK /etc/nginx/mime.types ${nginx}/conf/mime.types`). Use `PATH` for tools called by
+scripts, or a direct `${pkg}/bin/tool` for a trivial one-off executable; the compiler records
+the real store path in the spec. Projected destinations appear at their native absolute paths at
+runtime, while at authoring time you think in references, not installations. In exchange: your
+item is kilobytes, its dependencies are exact and inspectable (`nix path-info -r`), and two
+items sharing nginx share them fully.
 
 **`ENV` declares a config surface, not just a value.** `ENV FOO = bar` behaves like docker's.
 But `ENV DB_URL required secret` is something a Dockerfile cannot say: the runtime refuses to

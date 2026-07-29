@@ -13,13 +13,15 @@ cleanup() {
 trap cleanup EXIT
 
 store_path=$("$cix_bin" build "$example_dir")
+redis_bin=$(sed -n 's/.*"default": "\([^"]*\)".*/\1/p' "$store_path/cix-spec.json")
+[[ -n "$redis_bin" ]]
 unit=$(sudo "$cix_bin" run "$store_path" --detach)
 echo "started $unit"
 
 for _ in {1..100}; do
   if tcp=$(
-    "$store_path/bin/redis-cli" -h 127.0.0.1 -p 6379 PING 2>/dev/null
-  ) && socket=$(sudo "$store_path/bin/redis-cli" -s /run/redis/redis.sock PING 2>/dev/null); then
+    "$redis_bin/redis-cli" -h 127.0.0.1 -p 6379 PING 2>/dev/null
+  ) && socket=$(sudo "$redis_bin/redis-cli" -s /run/redis/redis.sock PING 2>/dev/null); then
     break
   fi
   sleep 0.1

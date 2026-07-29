@@ -1,15 +1,15 @@
 set -eu
-. "$(dirname "$0")/../lib/runtime-env.sh"
+. /opt/postgres/runtime-env.sh
 
 if [ ! -s "$data_dir/PG_VERSION" ]; then
-  "$item_dir/bin/rm" -rf "$init_dir"
-  "$item_dir/bin/mkdir" -p "$init_dir"
-  LANG=C LC_ALL=C "$item_dir/bin/initdb" \
+  rm -rf "$init_dir"
+  mkdir -p "$init_dir"
+  LANG=C LC_ALL=C initdb \
     --pgdata="$init_dir" \
     --username=cix \
     --auth-local=trust \
     --auth-host=trust \
     --encoding=UTF8 \
     --no-locale
-  "$item_dir/bin/mv" "$init_dir" "$data_dir"
+  mv "$init_dir" "$data_dir"
 fi

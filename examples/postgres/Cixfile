@@ -1,27 +1,19 @@
-PKG bash
 PKG coreutils
 PKG nss_wrapper
 PKG postgresql
+PKG bash
 
-LINK bin/sh ${bash}/bin/sh
-LINK bin/dirname ${coreutils}/bin/dirname
-LINK bin/id ${coreutils}/bin/id
-LINK bin/mkdir ${coreutils}/bin/mkdir
-LINK bin/mv ${coreutils}/bin/mv
-LINK bin/rm ${coreutils}/bin/rm
-LINK bin/initdb ${postgresql}/bin/initdb
-LINK bin/postgres ${postgresql}/bin/postgres
-LINK bin/psql ${postgresql}/bin/psql
-LINK lib/libnss_wrapper.so ${nss_wrapper}/lib/libnss_wrapper.so
-LINK share/postgresql ${postgresql}/share/postgresql
+PATH ${postgresql}/bin ${coreutils}/bin
 
-COPY runtime-env.sh lib/runtime-env.sh
-COPY setup bin/setup
-COPY start bin/start
+LINK /opt/postgres/libnss_wrapper.so ${nss_wrapper}/lib/libnss_wrapper.so
+
+COPY runtime-env.sh /opt/postgres/runtime-env.sh
+COPY setup /opt/postgres/setup
+COPY start /opt/postgres/start
 
 SERVICE postgres
-SETUP bin/sh bin/setup
-EXEC bin/sh bin/start $PORT
+SETUP ${bash}/bin/sh /opt/postgres/setup
+EXEC ${bash}/bin/sh /opt/postgres/start $PORT
 ENV PORT = 5432
 PORT postgres = $PORT
 STATE /var/lib/postgresql
