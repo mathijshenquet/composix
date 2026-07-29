@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-store_path=$(nix-build "$example_dir" --no-out-link)
+store_path=$("$cix_bin" build "$example_dir")
 unit=$(sudo "$cix_bin" run "$store_path" --detach)
 echo "started $unit"
 

@@ -1,8 +1,7 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-LINK bin/psql ${pkgs.postgresql}/bin/psql
+LINK bin/redis-cli ${pkgs.redis}/bin/redis-cli
 LINK bin/python3 ${pkgs.python3}/bin/python3
-LINK share/postgresql ${pkgs.postgresql}/share/postgresql
 COPY greeting.txt /srv/backend/greeting.txt
 
 FILE bin/backend.py <<PY
@@ -37,13 +36,10 @@ while True:
         try:
             query = subprocess.run(
                 [
-                    str(item_dir / "bin/psql"),
-                    "--host=/run/postgresql",
-                    "--username=cix",
-                    "--dbname=postgres",
-                    "--tuples-only",
-                    "--no-align",
-                    "--command=SELECT 'database-ok'",
+                    str(item_dir / "bin/redis-cli"),
+                    "-s",
+                    "/run/redis/redis.sock",
+                    "PING",
                 ],
                 check=True,
                 capture_output=True,

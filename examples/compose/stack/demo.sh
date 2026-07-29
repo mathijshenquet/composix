@@ -57,12 +57,12 @@ root_cix down stack >/dev/null 2>&1 || true
 assert_manager_clean system
 assert_manager_clean user
 
-cp -a "$stack_dir/db" "$stack_dir/backend" "$stack_dir/web" "$work_dir/"
+cp -a "$stack_dir/backend" "$stack_dir/web" "$work_dir/"
 cp "$stack_dir/compose.json" "$stack_dir/generate.py" "$work_dir/"
 python3 "$work_dir/generate.py" >"$work_dir/generated.json"
 cmp "$work_dir/compose.json" "$work_dir/generated.json"
 
-db_path=$("$cix_bin" build "$work_dir/db")
+db_path=$(nix-build "$repo_root/examples/pack/redis" --no-out-link)
 backend_v1=$("$cix_bin" build "$work_dir/backend")
 web_path=$("$cix_bin" build "$work_dir/web")
 cp -a "$work_dir/backend" "$work_dir/backend-v2"
@@ -75,7 +75,7 @@ root_cix tag "$web_path" stack-web:v1
 root_cix compose check "$work_dir/compose.json"
 root_cix up "$work_dir/compose.json"
 
-v1='hello from backend v1 via compose: database-ok'
+v1='hello from backend v1 via compose: PONG'
 wait_for_page "$v1"
 root_cix ps | grep -F 'stack' | grep -F 'backend'
 [[ $(sudo systemctl show cix-stack-web.service -p PrivateNetwork --value) == yes ]]
@@ -99,7 +99,7 @@ root_cix up "$work_dir/compose.json"
 [[ $(sudo systemctl show cix-stack-web.service -p ActiveEnterTimestampMonotonic --value) == "$web_before" ]]
 [[ $(sudo systemctl show cix-stack-db.service -p ActiveEnterTimestampMonotonic --value) == "$db_before" ]]
 [[ $(sudo systemctl show cix-stack-backend.service -p ActiveEnterTimestampMonotonic --value) != "$backend_before" ]]
-v2='hello from backend v2 via compose: database-ok'
+v2='hello from backend v2 via compose: PONG'
 wait_for_page "$v2"
 
 root_cix rollback stack
@@ -108,7 +108,7 @@ root_cix down stack
 sudo systemctl reset-failed 'cix-stack*' >/dev/null 2>&1 || true
 
 ! ss -ltn '( sport = :8080 )' | grep -q "$address"
-for path in /run/postgresql /run/backend; do
+for path in /run/redis /run/backend; do
   [[ ! -e $path ]]
 done
 for link in /etc/systemd/system/cix-stack*; do

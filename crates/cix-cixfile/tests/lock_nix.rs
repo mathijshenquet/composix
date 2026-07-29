@@ -7,7 +7,7 @@ use cix_cixfile::{generate_nix, parse, LockFile};
 fn committed_lock() -> LockFile {
     let input = serde_json::from_value(
         serde_json::from_str::<serde_json::Value>(include_str!(
-            "../../../examples/nginx/Cixfile.lock"
+            "../../../examples/pack/nginx/Cixfile.lock"
         ))
         .unwrap()["inputs"]["pkgs"]
             .clone(),
@@ -16,6 +16,26 @@ fn committed_lock() -> LockFile {
     LockFile {
         inputs: std::collections::BTreeMap::from([("pkgs".into(), input)]),
     }
+}
+
+#[test]
+fn with_spec_redis_builds_mounts_and_parses() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = root.canonicalize().unwrap();
+    let expression = format!(
+        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in import {}/examples/pack/redis {{ inherit pkgs; }}"#,
+        root.display(),
+        root.display(),
+    );
+    let output = build_expression(&expression).unwrap();
+
+    assert!(output.join("etc/redis/redis.conf").is_file());
+    let spec = cix_run::spec::Spec::load(&output).unwrap();
+    assert_eq!(spec.cix_manifest, 2);
+    assert_eq!(
+        spec.services["redis"].mounts.as_deref().unwrap(),
+        [PathBuf::from("/etc/redis")]
+    );
 }
 
 fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {

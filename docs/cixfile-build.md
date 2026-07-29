@@ -4,7 +4,7 @@
 language. Syntax on this page is proposed Cixfile v2 syntax.*
 
 The useful test is not whether a BUILD syntax can compile one hello world. It is whether one
-file can preserve the build shape in [`examples/buildshape`](../examples/buildshape/):
+file can preserve the build shape in [`examples/build/proj1`](../examples/build/proj1/):
 
 - one Cargo workspace with a shared internal library and three binary outputs;
 - one dependency build reused by all three binary builds;
