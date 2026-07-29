@@ -8,3 +8,9 @@
   profiles and activation/rollback/down, env/listeners/Unix edges, pin/track, diff, and grouped
   ps. D30 OUT remains unimplemented. First increment: wire the new crate, then add the one missing
   boring cix-index library resolver before building the data-model and lock lifecycle.
+- 2026-07-29 00:42 UTC — Added the narrowly-scoped cix-index resolver needed by compose: one
+  library call resolves a store path, bare local tag, or qualified HTTP index ref for the current
+  system and returns storePath/narHash. Remote resolution reuses index content negotiation and
+  substituter verification without creating a mirror tag; `pull` now shares the same fetch helper.
+  This is the only currently identified cross-territory extension. Next: strict compose/lock
+  models, JSON-path diagnostics, and semantic validation with injected resolution tests.
