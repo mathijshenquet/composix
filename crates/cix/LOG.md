@@ -1,5 +1,7 @@
 # litdoc work log
 
+- 2026-07-29T00:40:54Z — Started `.dev/specs/track-tour5.md`. Scope is confined to the cix tour harness and generated `docs/tour/` pages; examples remain read-only. The checked-out shell has not entered the repository’s `devenv` environment (`IN_NIX_SHELL` is empty), so I will obtain confirmation before running Nix/Rust work that needs the project environment. Next: establish the Cixfile fixture/lock behavior and probe user-manager transient socket feasibility.
+
 - 2026-07-28T21:00:00Z — Started the tour fixture one-liner update. On this host (Determinate Nix 2.34), `echo 'hello from my app v1' | nix store add --name my-app-v1 /dev/stdin` exits successfully but stores a `/proc/self/fd/0` symlink rather than stdin content; `--mode flat` rejects that symlink. The honest one-line fallback writes a named regular file before adding and tagging it.
 - 2026-07-28T21:05:00Z — Updated every ordinary tour fixture transcript to one executable line: `echo … > my-app-vN && cix tag "$(nix store add my-app-vN)" my-app:v1`. The helper reads cix's real GC root for its assertions, so displayed and executed commands remain identical. Regenerated all tour pages; focused drift and consecutive-render determinism tests pass.
 - 2026-07-28T21:49:17Z — Final verification passed three times in `devenv`: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`. Each full run included the tour drift/determinism checks and user-run integration test. No open questions remain.
