@@ -28,7 +28,7 @@ if ss -ltn '( sport = :18081 )' | grep -q "$address"; then
   exit 1
 fi
 
-store_path=$("$cix_bin" build "$example_dir")
+store_path=$(nix-build "$example_dir" --no-out-link)
 unit=$(sudo "$cix_bin" run "$store_path" -p http="$address" --detach)
 socket=${unit%.service}-http.socket
 echo "started $unit and $socket"
