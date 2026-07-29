@@ -85,6 +85,15 @@ boilerplate; every line is contract.
 | `STATE` `CACHE` `LOGS` `CONFIG` `RUNDIR` | writable dirs by role, at the path the app expects | `VOLUME` (roleless) |
 | `JIT` | the service maps writable+executable memory | — (docker allows W+X silently) |
 
+### Scripts and their tools — sibling links, `$(dirname "$0")`, no templating
+
+Keep checked-in shell scripts as verbatim sibling files and `COPY` them into the item. `COPY`
+files are not executable, so invoke them through a `LINK`ed shell (`EXEC bin/sh bin/start`).
+`LINK` every tool the scripts use beside them, then have a script find that item-relative view
+with `"$(dirname "$0")/…"`; it can also source a shared copied environment file via
+`. "$(dirname "$0")/../lib/runtime-env.sh"`. This avoids build-time interpolation and keeps
+the script runnable and reviewable outside the Cixfile.
+
 Two interpolation worlds, one rule: `${name}` is **build time** (in directive arguments and
 inline `FILE`/`SCRIPT` bodies); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). `COPY` content is
 always verbatim. Destinations beginning with `/` are projected read-only at that native path;

@@ -1,0 +1,10 @@
+PKG nodejs
+
+LINK bin/node ${nodejs}/bin/node
+
+COPY server.js /app/server.js
+
+SERVICE node-app
+EXEC bin/node /app/server.js
+PORT http = 8081
+JIT
