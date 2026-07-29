@@ -2,7 +2,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-use cix_cixfile::{generate_nix, parse, LockFile};
+use cix_cixfile::{build, generate_nix, parse, BuildOptions, LockFile};
 
 fn committed_lock() -> LockFile {
     let input = serde_json::from_value(
@@ -15,6 +15,8 @@ fn committed_lock() -> LockFile {
     .unwrap();
     LockFile {
         inputs: std::collections::BTreeMap::from([("pkgs".into(), input)]),
+        fetches: std::collections::BTreeMap::new(),
+        memo: std::collections::BTreeMap::new(),
     }
 }
 
@@ -234,4 +236,55 @@ EXEC definitely-not-a-coreutils-command
     assert!(error.contains("line 4"), "{error}");
     assert!(error.contains("declared PATH directories"), "{error}");
     assert!(error.contains("/bin"), "{error}");
+}
+
+#[test]
+fn run_executes_outside_nix_and_build_interpolation_reaches_the_snapshot() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("input"), "sandboxed\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM nixpkgs AS pkgs
+PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
+COPY input input
+RUN cp input output
+SERVICE fixture
+EXEC ${build}/output
+"#,
+    )
+    .unwrap();
+    let mut lock_json = serde_json::to_value(committed_lock()).unwrap();
+    lock_json.as_object_mut().unwrap().remove("fetches");
+    lock_json.as_object_mut().unwrap().remove("memo");
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!("{}\n", serde_json::to_string_pretty(&lock_json).unwrap()),
+    )
+    .unwrap();
+
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&output).join("output")).unwrap(),
+        "sandboxed\n"
+    );
+    let spec = cix_run::spec::Spec::load(&PathBuf::from(&output)).unwrap();
+    assert!(spec.services["fixture"].exec[0].starts_with("/nix/store/"));
+    assert!(spec.services["fixture"].exec[0].ends_with("-cix-build-snapshot/output"));
+
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(lock.memo.len(), 1);
+
+    let repeated = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+    })
+    .unwrap();
+    assert_eq!(repeated, output);
 }

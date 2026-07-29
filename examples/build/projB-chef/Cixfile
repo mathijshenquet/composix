@@ -1,0 +1,15 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.cargo-chef}/bin ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
+
+COPY recipe.json recipe.json
+FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --release --offline --recipe-path recipe.json
+COPY Cargo.toml Cargo.toml
+COPY Cargo.lock Cargo.lock
+COPY src/main.rs src/main.rs
+RUN cargo build --release --locked --offline
+
+SERVICE projb-chef
+EXEC ${build}/target/release/projb-chef
+PORT http = 18083

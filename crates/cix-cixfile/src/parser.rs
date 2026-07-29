@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Component, Path};
 
-use crate::model::{Cixfile, Env, Input, Item, Port, Service, Template, TemplatePart};
+use crate::model::{BuildStep, Cixfile, Env, Input, Item, Port, Service, Template, TemplatePart};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseError {
@@ -38,6 +38,7 @@ struct Parser<'a> {
     index: usize,
     inputs: BTreeMap<String, Input>,
     paths: Vec<Template>,
+    steps: Vec<BuildStep>,
     items: Vec<Item>,
     destinations: BTreeSet<String>,
     services: BTreeMap<String, Service>,
@@ -59,6 +60,7 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
         index: 0,
         inputs: BTreeMap::new(),
         paths: Vec::new(),
+        steps: Vec::new(),
         items: Vec::new(),
         destinations: BTreeSet::new(),
         services: BTreeMap::new(),
@@ -87,6 +89,7 @@ impl Parser<'_> {
                 });
             if self.inputs.is_empty()
                 && self.items.is_empty()
+                && self.steps.is_empty()
                 && self.services.is_empty()
                 && self.paths.is_empty()
                 && directive != "FROM"
@@ -102,6 +105,7 @@ impl Parser<'_> {
                 "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 "PATH" => self.path(line_number, source, arguments)?,
                 "COPY" => self.copy(line_number, source, arguments)?,
+                "FETCH" | "RUN" => self.build_step(directive, line_number, source, arguments)?,
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
                 "LINK" => self.link(line_number, source, arguments)?,
                 "SERVICE" => self.begin_service(line_number, source, arguments)?,
@@ -162,10 +166,22 @@ impl Parser<'_> {
             validate_service_references(service, &self.service_metadata[name])?;
             validate_bare_commands(service, &self.service_metadata[name], &self.paths)?;
         }
+        if self.steps.is_empty() {
+            if let Some(line) =
+                first_build_reference(&self.paths, &self.items, self.services.values())
+            {
+                return Err(ParseError::new(
+                    line,
+                    self.lines.get(line - 1).copied().unwrap_or_default(),
+                    "${build} requires at least one COPY, FETCH, or RUN step",
+                ));
+            }
+        }
 
         Ok(Cixfile {
             inputs: self.inputs,
             paths: self.paths,
+            steps: self.steps,
             items: self.items,
             services: self.services,
         })
@@ -174,6 +190,7 @@ impl Parser<'_> {
     fn from(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         if self.inputs.is_empty()
             && self.items.is_empty()
+            && self.steps.is_empty()
             && self.services.is_empty()
             && self.paths.is_empty()
         {
@@ -183,6 +200,16 @@ impl Parser<'_> {
                 line,
                 source,
                 "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
+            ));
+        } else if !self.items.is_empty()
+            || !self.steps.is_empty()
+            || !self.services.is_empty()
+            || !self.paths.is_empty()
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                "FROM declarations must be contiguous at the beginning of the Cixfile",
             ));
         }
         let fields = arguments.split_whitespace().collect::<Vec<_>>();
@@ -220,9 +247,23 @@ impl Parser<'_> {
                 "PATH conflicts with an explicit ENV PATH declaration",
             ));
         }
+        if self.current_service.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "PATH must appear before SERVICE blocks",
+            ));
+        }
+        if !self.steps.is_empty() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "PATH must appear before the COPY/FETCH/RUN chain",
+            ));
+        }
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = self.build_template(field, line, source, false)?;
+            let path = self.build_template(field, line, source, false, true)?;
             validate_path_template(&path, line, source)?;
             if self.paths.iter().any(|existing| existing.same_value(&path)) {
                 return Err(ParseError::new(
@@ -237,6 +278,13 @@ impl Parser<'_> {
     }
 
     fn copy(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if self.current_service.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "COPY must appear before SERVICE blocks",
+            ));
+        }
         let fields = exact_fields(arguments, 2, line, source, "COPY <src> <dst>")?;
         validate_local_path(fields[0], "COPY source", line, source)?;
         validate_item_path(fields[1], "COPY destination", line, source)?;
@@ -249,6 +297,51 @@ impl Parser<'_> {
             src: fields[0].to_owned(),
             dst: fields[1].to_owned(),
         });
+        self.steps.push(BuildStep::Copy {
+            src: fields[0].to_owned(),
+            dst: fields[1].to_owned(),
+            line,
+            source: source.to_owned(),
+        });
+        Ok(())
+    }
+
+    fn build_step(
+        &mut self,
+        directive: &str,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        if self.current_service.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} must appear before SERVICE blocks"),
+            ));
+        }
+        if arguments.is_empty() {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} requires a command"),
+            ));
+        }
+        let command = self.build_template(arguments, line, source, false, false)?;
+        let step = if directive == "FETCH" {
+            BuildStep::Fetch {
+                command,
+                line,
+                source: source.to_owned(),
+            }
+        } else {
+            BuildStep::Run {
+                command,
+                line,
+                source: source.to_owned(),
+            }
+        };
+        self.steps.push(step);
         Ok(())
     }
 
@@ -292,7 +385,7 @@ impl Parser<'_> {
             }
             append_template(
                 &mut contents,
-                self.build_template(body_line, body_line_number, body_line, true)?,
+                self.build_template(body_line, body_line_number, body_line, true, false)?,
             );
             push_literal(&mut contents, "\n");
         }
@@ -325,7 +418,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = self.build_template(fields[1], line, source, false)?;
+        let target = self.build_template(fields[1], line, source, false, true)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -377,7 +470,7 @@ impl Parser<'_> {
         let fields = at_least_one_field(arguments, line, source, directive)?;
         let templates = fields
             .iter()
-            .map(|field| self.build_template(field, line, source, false))
+            .map(|field| self.build_template(field, line, source, false, true))
             .collect::<Result<Vec<_>, _>>()?;
         let service_name = self
             .current_service_name(directive, line, source)?
@@ -433,7 +526,7 @@ impl Parser<'_> {
             };
             index += 1;
             reject_runtime_variable(value, "ENV default", line, source)?;
-            Some(self.build_template(value, line, source, false)?)
+            Some(self.build_template(value, line, source, false, true)?)
         } else {
             None
         };
@@ -673,8 +766,9 @@ impl Parser<'_> {
         line: usize,
         source: &str,
         heredoc: bool,
+        allow_build: bool,
     ) -> Result<Template, ParseError> {
-        build_template(input, line, source, heredoc, &self.inputs)
+        build_template(input, line, source, heredoc, allow_build, &self.inputs)
     }
 }
 
@@ -714,6 +808,7 @@ fn build_template(
     line: usize,
     source: &str,
     heredoc: bool,
+    allow_build: bool,
     inputs: &BTreeMap<String, Input>,
 ) -> Result<Template, ParseError> {
     let mut parts = Vec::new();
@@ -746,6 +841,21 @@ fn build_template(
             };
             let close = index + 2 + close_offset;
             let reference = &input[index + 2..close];
+            if reference == "build" {
+                if !allow_build {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "${build} is only valid in PATH, LINK, and SERVICE context",
+                    ));
+                }
+                if !literal.is_empty() {
+                    parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
+                }
+                parts.push(TemplatePart::Build { line });
+                index = close + 1;
+                continue;
+            }
             let (namespace, attrpath) = reference.split_once('.').ok_or_else(|| {
                 if !reference.contains('.') {
                     let namespace = inputs.keys().next().map(String::as_str).unwrap_or("<namespace>");
@@ -813,6 +923,7 @@ fn append_template(target: &mut Template, source: Template) {
                 attrpath,
                 line,
             }),
+            TemplatePart::Build { line } => target.parts.push(TemplatePart::Build { line }),
         }
     }
 }
@@ -973,13 +1084,58 @@ fn validate_path_template(
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Package { .. }) => Ok(()),
+        Some(TemplatePart::Package { .. }) | Some(TemplatePart::Build { .. }) => Ok(()),
         _ => Err(ParseError::new(
             line,
             source,
             "PATH directory must be an absolute path (for example ${pkgs.coreutils}/bin)",
         )),
     }
+}
+
+fn first_build_reference<'a>(
+    paths: &[Template],
+    items: &[Item],
+    services: impl Iterator<Item = &'a Service>,
+) -> Option<usize> {
+    fn line(template: &Template) -> Option<usize> {
+        template.parts.iter().find_map(|part| match part {
+            TemplatePart::Build { line } => Some(*line),
+            _ => None,
+        })
+    }
+
+    paths
+        .iter()
+        .find_map(line)
+        .or_else(|| {
+            items.iter().find_map(|item| match item {
+                Item::File { contents, .. } | Item::Script { contents, .. } => line(contents),
+                Item::Link { target, .. } => line(target),
+                Item::Copy { .. } => None,
+            })
+        })
+        .or_else(|| {
+            services.into_iter().find_map(|service| {
+                service
+                    .exec
+                    .iter()
+                    .find_map(line)
+                    .or_else(|| {
+                        service
+                            .setup
+                            .as_ref()
+                            .and_then(|values| values.iter().find_map(line))
+                    })
+                    .or_else(|| {
+                        service
+                            .env
+                            .values()
+                            .filter_map(|env| env.default.as_ref())
+                            .find_map(line)
+                    })
+            })
+        })
 }
 
 fn runtime_variables(
@@ -1312,6 +1468,68 @@ JIT
                 .unwrap();
         assert_eq!(parsed.services["one"].ports["http"], Port::Value(8080));
         assert_eq!(parsed.services.len(), 2);
+    }
+
+    #[test]
+    fn parses_a_linear_copy_fetch_run_chain_without_losing_shell_syntax() {
+        let parsed = parse(
+            r#"FROM nixpkgs AS pkgs
+PATH ${pkgs.bash}/bin
+COPY Cargo.toml Cargo.toml
+FETCH cargo fetch --locked
+RUN printf '%s\n' "hello world" > result
+COPY src.rs src/main.rs
+RUN cargo build --release
+SERVICE app
+EXEC ${build}/target/release/app
+"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.steps.len(), 5);
+        assert!(matches!(parsed.steps[0], BuildStep::Copy { .. }));
+        let BuildStep::Run { command, line, .. } = &parsed.steps[2] else {
+            panic!("expected RUN");
+        };
+        assert_eq!(*line, 5);
+        assert_eq!(
+            command.literal_value().as_deref(),
+            Some("printf '%s\\n' \"hello world\" > result")
+        );
+        assert!(matches!(
+            parsed.services["app"].exec[0].parts[0],
+            TemplatePart::Build { line: 9 }
+        ));
+    }
+
+    #[test]
+    fn run_fetch_and_build_interpolation_have_line_numbered_position_errors() {
+        for (input, line, message) in [
+            (
+                "FROM nixpkgs AS pkgs\nRUN\nSERVICE app\nEXEC /bin/app\n",
+                2,
+                "requires a command",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/app\nRUN true\n",
+                4,
+                "before SERVICE",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nRUN echo ${build}\nSERVICE app\nEXEC /bin/app\n",
+                2,
+                "only valid in PATH, LINK, and SERVICE",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC ${build}/bin/app\n",
+                3,
+                "requires at least one",
+            ),
+        ] {
+            let error = parse(input).unwrap_err();
+            assert_eq!(error.line, line, "{error}");
+            assert!(error.message.contains(message), "{error}");
+            assert!(error.to_string().contains(&format!("{:?}", error.source)));
+        }
     }
 
     #[test]

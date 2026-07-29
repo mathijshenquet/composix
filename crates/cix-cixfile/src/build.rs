@@ -3,7 +3,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::{ensure_lock, generate_nix, parse};
+use crate::build_chain;
+use crate::codegen::generate_nix_with_snapshot;
+use crate::lock::save_lock;
+use crate::{ensure_lock, parse};
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
@@ -21,13 +24,25 @@ pub fn build(options: &BuildOptions) -> Result<String> {
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
-    let lock = ensure_lock(
-        &directory.join("Cixfile.lock"),
-        &cixfile.inputs,
-        options.update_lock.as_deref(),
-    )?;
+    let lock_path = directory.join("Cixfile.lock");
+    let mut lock = ensure_lock(&lock_path, &cixfile.inputs, options.update_lock.as_deref())?;
     let system = cix_common::current_system()?;
-    let expression = generate_nix(&cixfile, &directory, &lock, &system)?;
+    let build_snapshot = build_chain::execute(
+        &cixfile,
+        &directory,
+        &mut lock,
+        &system,
+        options.update_lock.as_deref() == Some(""),
+    );
+    save_lock(&lock_path, &lock)?;
+    let build_snapshot = build_snapshot?;
+    let expression = generate_nix_with_snapshot(
+        &cixfile,
+        &directory,
+        &lock,
+        &system,
+        build_snapshot.as_deref(),
+    )?;
     let store_path = build_expression(&expression)?;
     if let Some(tag) = &options.tag {
         cix_index::tag(&store_path, tag, None)

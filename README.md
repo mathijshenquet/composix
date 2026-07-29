@@ -18,7 +18,7 @@ built now. Everything may change.
 | --- | --- | --- |
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
 | **spec + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (spec v3) |
-| **Cixfile** | dockerfile-shaped authoring without writing nix; `cix build` with a lockfile | working (v1: assembly) |
+| **Cixfile** | dockerfile-shaped authoring without writing nix; locked assembly plus linear sandboxed `FETCH`/`RUN` builds | working (v1) |
 | **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
 
 ## A taste
@@ -83,8 +83,8 @@ is the design-era archive. Each runnable pack has a `demo.sh`; a NixOS VM check
   composix does instead (adopted / adapted / rejected / deferred) plus what is honestly still
   missing.
 - [cixfile.md](docs/cixfile.md) — the Cixfile, and where it is honestly not a Dockerfile.
-- [cixfile-build.md](docs/cixfile-build.md) — the design study for building code (not just
-  assembling it) from a Cixfile.
+- [cixfile-build.md](docs/cixfile-build.md) — the superseded engine-specific build design
+  study retained as decision context for D39.
 - [compose-formats.md](docs/compose-formats.md) — how the compose-language question was
   explored and then dissolved: canonical `compose.json`, authoring as code.
 

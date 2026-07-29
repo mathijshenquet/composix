@@ -7,7 +7,7 @@ use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
 use crate::parser::bare_command;
-use crate::{Cixfile, InputLock, Item, LockFile, Port, Service, Template, TemplatePart};
+use crate::{BuildStep, Cixfile, InputLock, Item, LockFile, Port, Service, Template, TemplatePart};
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let value = literal_spec(cixfile)?;
@@ -22,7 +22,25 @@ pub fn generate_nix(
     lock: &LockFile,
     system: &str,
 ) -> Result<String> {
+    generate_nix_with_snapshot(cixfile, source_dir, lock, system, None)
+}
+
+pub(crate) fn generate_nix_with_snapshot(
+    cixfile: &Cixfile,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+    build_snapshot: Option<&str>,
+) -> Result<String> {
     lock.validate_for(&cixfile.inputs)?;
+    if build_snapshot.is_none() && cixfile_uses_build(cixfile) {
+        bail!("${{build}} requires cix build to execute at least one COPY/FETCH/RUN step");
+    }
+    if let Some(snapshot) = build_snapshot {
+        if !snapshot.starts_with("/nix/store/") {
+            bail!("build snapshot is not a Nix store path: {snapshot}");
+        }
+    }
     let source_dir = source_dir
         .canonicalize()
         .with_context(|| format!("resolving Cixfile directory {}", source_dir.display()))?;
@@ -43,10 +61,17 @@ pub fn generate_nix(
         )?;
     }
     writeln!(expression, "  }};")?;
+    if let Some(snapshot) = build_snapshot {
+        writeln!(
+            expression,
+            "  buildSnapshot = builtins.storePath {};",
+            nix_string(snapshot)
+        )?;
+    }
     writeln!(
         expression,
         "  pathDirs = {};",
-        nix_templates(&cixfile.paths)
+        nix_templates(&cixfile.paths, build_snapshot)
     )?;
     if !cixfile.paths.is_empty() {
         writeln!(expression, "  resolveExecutable = line: command:")?;
@@ -66,11 +91,15 @@ pub fn generate_nix(
         )?;
         writeln!(expression, "    else builtins.head found;")?;
     }
-    writeln!(expression, "  spec = {};", nix_spec(cixfile))?;
+    writeln!(
+        expression,
+        "  spec = {};",
+        nix_spec(cixfile, build_snapshot)
+    )?;
 
     for (index, item) in cixfile.items.iter().enumerate() {
         match item {
-            Item::Copy { src, .. } => {
+            Item::Copy { src, .. } if build_snapshot.is_none() => {
                 let path = source_dir.join(src);
                 let metadata = fs::metadata(&path)
                     .with_context(|| format!("COPY source {} does not exist", path.display()))?;
@@ -88,7 +117,7 @@ pub fn generate_nix(
                     expression,
                     "  file{index} = universes.{}.writeText \"cixfile-file-{index}\" {};",
                     nix_attr(primary_namespace(cixfile)?),
-                    nix_template(contents)
+                    nix_template(contents, build_snapshot)
                 )?;
             }
             Item::Script { contents, .. } => {
@@ -97,12 +126,17 @@ pub fn generate_nix(
                     "  script{index} = universes.{}.writeText \"cixfile-script-{index}\" (\"#!${{universes.{}.runtimeShell}}\\n\" + {});",
                     nix_attr(primary_namespace(cixfile)?),
                     nix_attr(primary_namespace(cixfile)?),
-                    nix_template(contents)
+                    nix_template(contents, build_snapshot)
                 )?;
             }
             Item::Link { target, .. } => {
-                writeln!(expression, "  link{index} = {};", nix_template(target))?;
+                writeln!(
+                    expression,
+                    "  link{index} = {};",
+                    nix_template(target, build_snapshot)
+                )?;
             }
+            Item::Copy { .. } => {}
         }
     }
     writeln!(
@@ -118,6 +152,10 @@ pub fn generate_nix(
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
+    if build_snapshot.is_some() {
+        writeln!(expression, "  cp -a \"${{buildSnapshot}}/.\" \"$out/\"")?;
+        writeln!(expression, "  chmod -R u+w \"$out\"")?;
+    }
 
     for service in cixfile.services.values() {
         for (arguments, line) in [
@@ -149,7 +187,7 @@ pub fn generate_nix(
     }
     for (index, item) in cixfile.items.iter().enumerate() {
         match item {
-            Item::Copy { dst, .. } => writeln!(
+            Item::Copy { dst, .. } if build_snapshot.is_none() => writeln!(
                 expression,
                 "  install -m 0644 ${{copy{index}}} \"$out/{}\"",
                 shell_double_quoted(dst)
@@ -170,6 +208,7 @@ pub fn generate_nix(
                 nix_attr(primary_namespace(cixfile)?),
                 shell_double_quoted(dst)
             )?,
+            Item::Copy { .. } => {}
         }
     }
     writeln!(
@@ -178,6 +217,200 @@ pub fn generate_nix(
     )?;
     writeln!(expression, "''")?;
     Ok(expression)
+}
+
+pub(crate) fn generate_build_context_nix(
+    cixfile: &Cixfile,
+    lock: &LockFile,
+    system: &str,
+) -> Result<String> {
+    lock.validate_for(&cixfile.inputs)?;
+    let mut expression = nix_prelude(cixfile, lock, system)?;
+    let package_refs = package_references(cixfile);
+    writeln!(expression, "in {{")?;
+    writeln!(
+        expression,
+        "  offers = [ {} ];",
+        package_refs
+            .iter()
+            .map(|(namespace, attrpath)| {
+                format!(
+                    "(builtins.toString {})",
+                    package_expression(namespace, attrpath)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+    let build_paths = cixfile
+        .paths
+        .iter()
+        .filter(|path| {
+            !path
+                .parts
+                .iter()
+                .any(|part| matches!(part, TemplatePart::Build { .. }))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    writeln!(
+        expression,
+        "  paths = {};",
+        nix_templates(&build_paths, None)
+    )?;
+    let commands = cixfile
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
+            BuildStep::Copy { .. } => None,
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    writeln!(
+        expression,
+        "  commands = {};",
+        nix_templates(&commands, None)
+    )?;
+    writeln!(expression, "  environment = {{")?;
+    for (name, template) in build_environment(cixfile)? {
+        writeln!(
+            expression,
+            "    {} = {};",
+            nix_attr(&name),
+            nix_template(&template, None)
+        )?;
+    }
+    writeln!(expression, "  }};")?;
+    writeln!(expression, "}}")?;
+    Ok(expression)
+}
+
+pub(crate) fn generate_offer_build_nix(
+    cixfile: &Cixfile,
+    lock: &LockFile,
+    system: &str,
+) -> Result<String> {
+    lock.validate_for(&cixfile.inputs)?;
+    let mut expression = nix_prelude(cixfile, lock, system)?;
+    writeln!(
+        expression,
+        "in [ {} ]",
+        package_references(cixfile)
+            .iter()
+            .map(|(namespace, attrpath)| package_expression(namespace, attrpath))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+    Ok(expression)
+}
+
+fn nix_prelude(cixfile: &Cixfile, lock: &LockFile, system: &str) -> Result<String> {
+    let mut expression = String::new();
+    writeln!(expression, "let")?;
+    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
+        let input = &lock.inputs[name];
+        writeln!(expression, "  input{index}Source = {};", fetch_tree(input)?)?;
+    }
+    writeln!(expression, "  universes = {{")?;
+    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
+        writeln!(
+            expression,
+            "    {} = import input{index}Source {{ system = {}; }};",
+            nix_attr(name),
+            nix_string(system)
+        )?;
+    }
+    writeln!(expression, "  }};")?;
+    Ok(expression)
+}
+
+fn package_expression(namespace: &str, attrpath: &str) -> String {
+    let mut expression = format!("universes.{}", nix_attr(namespace));
+    for component in attrpath.split('.') {
+        expression.push('.');
+        expression.push_str(&nix_attr(component));
+    }
+    expression
+}
+
+fn package_references(cixfile: &Cixfile) -> BTreeSet<(String, String)> {
+    fn add(template: &Template, refs: &mut BTreeSet<(String, String)>) {
+        for part in &template.parts {
+            if let TemplatePart::Package {
+                namespace,
+                attrpath,
+                ..
+            } = part
+            {
+                refs.insert((namespace.clone(), attrpath.clone()));
+            }
+        }
+    }
+
+    let mut refs = BTreeSet::new();
+    for path in &cixfile.paths {
+        add(path, &mut refs);
+    }
+    for step in &cixfile.steps {
+        if let BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } = step {
+            add(command, &mut refs);
+        }
+    }
+    for item in &cixfile.items {
+        match item {
+            Item::File { contents, .. } | Item::Script { contents, .. } => add(contents, &mut refs),
+            Item::Link { target, .. } => add(target, &mut refs),
+            Item::Copy { .. } => {}
+        }
+    }
+    for service in cixfile.services.values() {
+        for argument in &service.exec {
+            add(argument, &mut refs);
+        }
+        if let Some(arguments) = &service.setup {
+            for argument in arguments {
+                add(argument, &mut refs);
+            }
+        }
+        for default in service
+            .env
+            .values()
+            .filter_map(|environment| environment.default.as_ref())
+        {
+            add(default, &mut refs);
+        }
+    }
+    refs
+}
+
+fn build_environment(cixfile: &Cixfile) -> Result<std::collections::BTreeMap<String, Template>> {
+    let mut environment: std::collections::BTreeMap<String, Template> =
+        std::collections::BTreeMap::new();
+    for service in cixfile.services.values() {
+        for (name, declaration) in &service.env {
+            let Some(default) = &declaration.default else {
+                continue;
+            };
+            if default
+                .parts
+                .iter()
+                .any(|part| matches!(part, TemplatePart::Build { .. }))
+            {
+                continue;
+            }
+            if let Some(existing) = environment.get(name) {
+                if !existing.same_value(default) {
+                    bail!(
+                        "build environment {name:?} has conflicting defaults across SERVICE blocks"
+                    );
+                }
+            } else {
+                environment.insert(name.clone(), default.clone());
+            }
+        }
+    }
+    Ok(environment)
 }
 
 fn item_directories(cixfile: &Cixfile) -> BTreeSet<String> {
@@ -242,7 +475,7 @@ fn primary_namespace(cixfile: &Cixfile) -> Result<&str> {
         .context("Cixfile has no FROM input")
 }
 
-fn nix_spec(cixfile: &Cixfile) -> String {
+fn nix_spec(cixfile: &Cixfile, build_snapshot: Option<&str>) -> String {
     let version = if cixfile
         .services
         .values()
@@ -259,7 +492,7 @@ fn nix_spec(cixfile: &Cixfile) -> String {
             output,
             " {} = {};",
             nix_attr(name),
-            nix_service(service, &mounts, &cixfile.paths)
+            nix_service(service, &mounts, &cixfile.paths, build_snapshot)
         )
         .unwrap();
     }
@@ -267,12 +500,17 @@ fn nix_spec(cixfile: &Cixfile) -> String {
     output
 }
 
-fn nix_service(service: &Service, mounts: &BTreeSet<String>, paths: &[Template]) -> String {
+fn nix_service(
+    service: &Service,
+    mounts: &BTreeSet<String>,
+    paths: &[Template],
+    build_snapshot: Option<&str>,
+) -> String {
     let mut output = String::from("{");
     write!(
         output,
         " exec = {};",
-        nix_command(&service.exec, service.exec_line)
+        nix_command(&service.exec, service.exec_line, build_snapshot)
     )
     .unwrap();
     if !mounts.is_empty() {
@@ -291,7 +529,11 @@ fn nix_service(service: &Service, mounts: &BTreeSet<String>, paths: &[Template])
         write!(
             output,
             " setup = {};",
-            nix_command(setup, service.setup_line.expect("SETUP has a line"))
+            nix_command(
+                setup,
+                service.setup_line.expect("SETUP has a line"),
+                build_snapshot,
+            )
         )
         .unwrap();
     }
@@ -303,7 +545,12 @@ fn nix_service(service: &Service, mounts: &BTreeSet<String>, paths: &[Template])
         for (name, env) in &service.env {
             write!(output, " {} = {{", nix_attr(name)).unwrap();
             if let Some(default) = &env.default {
-                write!(output, " default = {};", nix_template(default)).unwrap();
+                write!(
+                    output,
+                    " default = {};",
+                    nix_template(default, build_snapshot)
+                )
+                .unwrap();
             }
             if env.required {
                 output.push_str(" required = true;");
@@ -379,30 +626,30 @@ fn nix_dirs(service: &Service) -> Option<String> {
     Some(output)
 }
 
-fn nix_templates(templates: &[Template]) -> String {
+fn nix_templates(templates: &[Template], build_snapshot: Option<&str>) -> String {
     format!(
         "[ {} ]",
         templates
             .iter()
-            .map(nix_template)
+            .map(|template| nix_template(template, build_snapshot))
             .collect::<Vec<_>>()
             .join(" ")
     )
 }
 
-fn nix_command(arguments: &[Template], line: usize) -> String {
+fn nix_command(arguments: &[Template], line: usize, build_snapshot: Option<&str>) -> String {
     let Some(command) = bare_command(arguments) else {
-        return nix_templates(arguments);
+        return nix_templates(arguments, build_snapshot);
     };
     let mut output = format!("[ (resolveExecutable {line} {})", nix_string(&command));
     for argument in &arguments[1..] {
-        write!(output, " {}", nix_template(argument)).unwrap();
+        write!(output, " {}", nix_template(argument, build_snapshot)).unwrap();
     }
     output.push_str(" ]");
     output
 }
 
-fn nix_template(template: &Template) -> String {
+fn nix_template(template: &Template, build_snapshot: Option<&str>) -> String {
     let mut output = String::from("\"");
     for part in &template.parts {
         match part {
@@ -426,10 +673,41 @@ fn nix_template(template: &Template) -> String {
                 }
                 output.push('}');
             }
+            TemplatePart::Build { .. } => {
+                build_snapshot.expect("${build} was validated before codegen");
+                output.push_str("${buildSnapshot}");
+            }
         }
     }
     output.push('"');
     output
+}
+
+fn cixfile_uses_build(cixfile: &Cixfile) -> bool {
+    let uses = |template: &Template| {
+        template
+            .parts
+            .iter()
+            .any(|part| matches!(part, TemplatePart::Build { .. }))
+    };
+    cixfile.paths.iter().any(uses)
+        || cixfile.items.iter().any(|item| match item {
+            Item::File { contents, .. } | Item::Script { contents, .. } => uses(contents),
+            Item::Link { target, .. } => uses(target),
+            Item::Copy { .. } => false,
+        })
+        || cixfile.services.values().any(|service| {
+            service.exec.iter().any(uses)
+                || service
+                    .setup
+                    .as_ref()
+                    .is_some_and(|arguments| arguments.iter().any(uses))
+                || service
+                    .env
+                    .values()
+                    .filter_map(|env| env.default.as_ref())
+                    .any(uses)
+        })
 }
 
 fn nix_string(value: &str) -> String {
@@ -674,6 +952,8 @@ mod tests {
                     nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
                 },
             )]),
+            fetches: std::collections::BTreeMap::new(),
+            memo: std::collections::BTreeMap::new(),
         }
     }
 
@@ -770,6 +1050,8 @@ mod tests {
         let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/x\n").unwrap();
         let lock = LockFile {
             inputs: std::collections::BTreeMap::new(),
+            fetches: std::collections::BTreeMap::new(),
+            memo: std::collections::BTreeMap::new(),
         };
         let error = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux")
             .unwrap_err()

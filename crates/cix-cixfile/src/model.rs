@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct Cixfile {
     pub inputs: BTreeMap<String, Input>,
     pub paths: Vec<Template>,
+    pub steps: Vec<BuildStep>,
     pub items: Vec<Item>,
     pub services: BTreeMap<String, Service>,
 }
@@ -11,6 +12,26 @@ pub struct Cixfile {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Input {
     pub url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum BuildStep {
+    Copy {
+        src: String,
+        dst: String,
+        line: usize,
+        source: String,
+    },
+    Fetch {
+        command: Template,
+        line: usize,
+        source: String,
+    },
+    Run {
+        command: Template,
+        line: usize,
+        source: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -95,7 +116,7 @@ impl Template {
         for part in &self.parts {
             match part {
                 TemplatePart::Literal(part) => value.push_str(part),
-                TemplatePart::Package { .. } => return None,
+                TemplatePart::Package { .. } | TemplatePart::Build { .. } => return None,
             }
         }
         Some(value)
@@ -121,6 +142,7 @@ impl Template {
                             ..
                         },
                     ) => left_namespace == right_namespace && left == right,
+                    (TemplatePart::Build { .. }, TemplatePart::Build { .. }) => true,
                     _ => false,
                 })
     }
@@ -132,6 +154,9 @@ pub enum TemplatePart {
     Package {
         namespace: String,
         attrpath: String,
+        line: usize,
+    },
+    Build {
         line: usize,
     },
 }

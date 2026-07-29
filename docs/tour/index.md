@@ -30,3 +30,5 @@ This five-minute tour covers local tags, serving and pulling a store, building f
 - [Composing services](10-composing-services.html) — Validate and dry-diff a tracked compose service without root.
 
 - [Debugging a service](11-debugging-service.html) — Run a deterministic command in a fresh service sandbox.
+
+- [Building with RUN](12-building-with-run.html) — Execute and memoize a networkless build step outside Nix evaluation.

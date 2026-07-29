@@ -230,6 +230,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"age=\d+s").expect("valid age regex");
+    let build_wall_time = Regex::new(r"\(\d+ ms\)").expect("valid build wall-time regex");
     let unit_name = Regex::new(r"cix-run-(tour-service|listenfds)-[0-9a-f]+\.service")
         .expect("valid unit name regex");
     let stale_failed_unit = Regex::new(
@@ -250,6 +251,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "age=0s");
+    let normalized = build_wall_time.replace_all(&normalized, "(… ms)");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(
@@ -818,6 +820,58 @@ EXEC bin/tour-app
     doc.finish()
 }
 
+fn scenario_building_with_run() -> String {
+    let mut doc = Doc::new("building-with-run");
+    fs::write(
+        doc.base.join("app"),
+        "#!/bin/sh\necho hello-from-run-tour\n",
+    )
+    .expect("writing RUN fixture input");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(doc.base.join("app"))
+            .expect("reading RUN fixture mode")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(doc.base.join("app"), permissions)
+            .expect("making RUN fixture executable");
+    }
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
+COPY app app
+RUN mkdir -p result && tr '[:lower:]' '[:upper:]' < app > result/upper && chmod +x app
+SERVICE run-tour
+EXEC ${build}/app
+"#,
+    )
+    .expect("writing RUN Cixfile fixture");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+        .expect("writing RUN Cixfile lock fixture");
+
+    doc.para("`RUN` executes outside Nix evaluation in a networkless bubblewrap sandbox. Its only store inputs are the closure offered by the declared package references; the incoming COPY snapshot and fixed environment complete the memo key.");
+    let first = doc.sh("cix build .", true);
+    let first_path = first
+        .lines()
+        .rev()
+        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cixfile-item"))
+        .expect("first RUN build printed a final item")
+        .to_owned();
+    let transformed = doc.sh(&format!("tail -n 1 {first_path}/result/upper"), true);
+    assert_eq!(transformed.trim(), "ECHO HELLO-FROM-RUN-TOUR");
+
+    doc.para("The lock now records the content-addressed workdir realization. Repeating the same build replays the COPY snapshot and hits RUN's memo; the final item path stays identical.");
+    let second = doc.sh("cix build .", true);
+    let second_path = second
+        .lines()
+        .rev()
+        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cixfile-item"))
+        .expect("second RUN build printed a final item");
+    assert_eq!(first_path, second_path);
+    doc.finish()
+}
+
 fn scenario_running_with_a_listener() -> String {
     let mut doc = Doc::new("running-listener");
     doc.para("A spec-v3 listener gives the service an already-bound socket, so the process has no authority to create another network socket.");
@@ -1046,6 +1100,12 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Debugging a service",
             description: "Run a deterministic command in a fresh service sandbox.",
             body: scenario_debugging_a_service(),
+        },
+        Scenario {
+            filename: "12-building-with-run.md",
+            title: "Building with RUN",
+            description: "Execute and memoize a networkless build step outside Nix evaluation.",
+            body: scenario_building_with_run(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);
