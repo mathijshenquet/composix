@@ -36,7 +36,6 @@ impl std::error::Error for ParseError {}
 struct Parser<'a> {
     lines: Vec<&'a str>,
     index: usize,
-    packages: BTreeSet<String>,
     paths: Vec<Template>,
     items: Vec<Item>,
     destinations: BTreeSet<String>,
@@ -57,7 +56,6 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
     Parser {
         lines: input.lines().collect(),
         index: 0,
-        packages: BTreeSet::new(),
         paths: Vec::new(),
         items: Vec::new(),
         destinations: BTreeSet::new(),
@@ -86,7 +84,7 @@ impl Parser<'_> {
                     (directive, arguments.trim())
                 });
             match directive {
-                "PKG" => self.package(line_number, source, arguments)?,
+                "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 "PATH" => self.path(line_number, source, arguments)?,
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
@@ -138,31 +136,10 @@ impl Parser<'_> {
         }
 
         Ok(Cixfile {
-            packages: self.packages,
             paths: self.paths,
             items: self.items,
             services: self.services,
         })
-    }
-
-    fn package(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 1, line, source, "PKG <attr>")?;
-        let attribute = fields[0];
-        if !valid_package_attr(attribute) {
-            return Err(ParseError::new(
-                line,
-                source,
-                "PKG attribute must be a dot-separated Nix attribute path",
-            ));
-        }
-        if !self.packages.insert(attribute.to_owned()) {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("package {attribute:?} is already declared"),
-            ));
-        }
-        Ok(())
     }
 
     fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
@@ -180,9 +157,9 @@ impl Parser<'_> {
         }
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = build_template(field, &self.packages, line, source, false)?;
+            let path = build_template(field, line, source, false)?;
             validate_path_template(&path, line, source)?;
-            if self.paths.contains(&path) {
+            if self.paths.iter().any(|existing| existing.same_value(&path)) {
                 return Err(ParseError::new(
                     line,
                     source,
@@ -250,7 +227,7 @@ impl Parser<'_> {
             }
             append_template(
                 &mut contents,
-                build_template(body_line, &self.packages, body_line_number, body_line, true)?,
+                build_template(body_line, body_line_number, body_line, true)?,
             );
             push_literal(&mut contents, "\n");
         }
@@ -283,7 +260,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = build_template(fields[1], &self.packages, line, source, false)?;
+        let target = build_template(fields[1], line, source, false)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -335,7 +312,7 @@ impl Parser<'_> {
         let fields = at_least_one_field(arguments, line, source, directive)?;
         let templates = fields
             .iter()
-            .map(|field| build_template(field, &self.packages, line, source, false))
+            .map(|field| build_template(field, line, source, false))
             .collect::<Result<Vec<_>, _>>()?;
         let service_name = self
             .current_service_name(directive, line, source)?
@@ -391,7 +368,7 @@ impl Parser<'_> {
             };
             index += 1;
             reject_runtime_variable(value, "ENV default", line, source)?;
-            Some(build_template(value, &self.packages, line, source, false)?)
+            Some(build_template(value, line, source, false)?)
         } else {
             None
         };
@@ -659,7 +636,6 @@ fn at_least_one_field<'a>(
 
 fn build_template(
     input: &str,
-    packages: &BTreeSet<String>,
     line: usize,
     source: &str,
     heredoc: bool,
@@ -689,22 +665,44 @@ fn build_template(
                 return Err(ParseError::new(
                     line,
                     source,
-                    "unterminated ${…} package interpolation",
+                    "unterminated ${…} build-time interpolation",
                 ));
             };
             let close = index + 2 + close_offset;
-            let name = &input[index + 2..close];
-            if !packages.contains(name) {
+            let reference = &input[index + 2..close];
+            let attrpath = reference.strip_prefix("pkgs.").ok_or_else(|| {
+                if !reference.contains('.') {
+                    ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "bare build-time interpolation ${{{reference}}}; use ${{pkgs.{reference}}}"
+                        ),
+                    )
+                } else {
+                    ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "build-time interpolation must use the pkgs namespace, for example ${{pkgs.{reference}}}"
+                        ),
+                    )
+                }
+            })?;
+            if !valid_attrpath(attrpath) {
                 return Err(ParseError::new(
                     line,
                     source,
-                    format!("unknown package interpolation ${{{name}}}; declare it with PKG"),
+                    "nixpkgs interpolation must name a dot-separated attribute path after pkgs.",
                 ));
             }
             if !literal.is_empty() {
                 parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
             }
-            parts.push(TemplatePart::Package(name.to_owned()));
+            parts.push(TemplatePart::Nixpkgs {
+                attrpath: attrpath.to_owned(),
+                line,
+            });
             index = close + 1;
             continue;
         }
@@ -722,7 +720,9 @@ fn append_template(target: &mut Template, source: Template) {
     for part in source.parts {
         match part {
             TemplatePart::Literal(value) => push_literal(target, &value),
-            TemplatePart::Package(package) => target.parts.push(TemplatePart::Package(package)),
+            TemplatePart::Nixpkgs { attrpath, line } => {
+                target.parts.push(TemplatePart::Nixpkgs { attrpath, line })
+            }
         }
     }
 }
@@ -745,7 +745,7 @@ fn reject_build_interpolation(
         return Err(ParseError::new(
             line,
             source,
-            format!("{label} does not support package interpolation"),
+            format!("{label} does not support build-time interpolation"),
         ));
     }
     Ok(())
@@ -864,7 +864,7 @@ fn validate_bare_commands(
             return Err(ParseError::new(
                 *line,
                 source,
-                "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${pkg}/bin/... path",
+                "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${pkgs.<attrpath>}/bin/... path",
             ));
         }
     }
@@ -883,11 +883,11 @@ fn validate_path_template(
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Package(_)) => Ok(()),
+        Some(TemplatePart::Nixpkgs { .. }) => Ok(()),
         _ => Err(ParseError::new(
             line,
             source,
-            "PATH directory must be an absolute path (for example ${pkg}/bin)",
+            "PATH directory must be an absolute path (for example ${pkgs.coreutils}/bin)",
         )),
     }
 }
@@ -923,16 +923,33 @@ fn runtime_variables(
     Ok(variables)
 }
 
-fn valid_package_attr(value: &str) -> bool {
-    !value.is_empty() && value.split('.').all(valid_package_component)
+fn valid_attrpath(value: &str) -> bool {
+    !value.is_empty() && value.split('.').all(valid_attr_component)
 }
 
-fn valid_package_component(value: &str) -> bool {
+fn valid_attr_component(value: &str) -> bool {
     let mut bytes = value.bytes();
     bytes
         .next()
         .is_some_and(|value| value.is_ascii_alphabetic() || value == b'_')
         && bytes.all(|value| value.is_ascii_alphanumeric() || matches!(value, b'_' | b'-' | b'\''))
+}
+
+fn pkg_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
+    let rewrite = arguments
+        .split_whitespace()
+        .next()
+        .filter(|attribute| valid_attrpath(attribute))
+        .map_or_else(
+            || "PKG was removed by D32; reference packages directly as ${pkgs.<attrpath>}"
+                .to_owned(),
+            |attribute| {
+                format!(
+                    "PKG was removed by D32; delete this line and replace ${{{attribute}}} with ${{pkgs.{attribute}}}"
+                )
+            },
+        );
+    ParseError::new(line, source, rewrite)
 }
 
 fn validate_name(kind: &str, value: &str, line: usize, source: &str) -> Result<(), ParseError> {
@@ -1110,17 +1127,16 @@ mod tests {
 
     const COMPLETE: &str = r#"
 # assembly
-PKG nginx
 COPY index.html www/index.html
 FILE etc/app.conf <<CONF
-package=${nginx}
+package=${pkgs.nginx}
 escaped=$${literal}
 runtime=$PORT
 CONF
 SCRIPT bin/start <<SCRIPT
 exec /app/bin/nginx "$PORT"
 SCRIPT
-LINK bin/nginx ${nginx}/bin/nginx
+LINK bin/nginx ${pkgs.nginx}/bin/nginx
 
 SERVICE web
 EXEC bin/start $PORT
@@ -1139,7 +1155,6 @@ JIT
     #[test]
     fn parses_every_v1_directive() {
         let parsed = parse(COMPLETE).unwrap();
-        assert_eq!(parsed.packages, BTreeSet::from(["nginx".to_owned()]));
         assert_eq!(parsed.items.len(), 4);
         let service = &parsed.services["web"];
         assert_eq!(service.exec.len(), 2);
@@ -1159,9 +1174,10 @@ JIT
         let Item::File { contents, .. } = &parsed.items[1] else {
             panic!("expected FILE");
         };
-        assert!(contents
-            .parts
-            .contains(&TemplatePart::Package("nginx".into())));
+        assert!(contents.parts.contains(&TemplatePart::Nixpkgs {
+            attrpath: "nginx".into(),
+            line: 5,
+        }));
         assert!(contents.literal_value().is_none());
         assert!(contents.parts.iter().any(
             |part| matches!(part, TemplatePart::Literal(value) if value.contains("${literal}") && value.contains("$PORT"))
@@ -1179,22 +1195,27 @@ JIT
 
     #[test]
     fn path_preserves_declaration_order_and_rejects_duplicates() {
-        let parsed = parse(
-            "PKG first\nPKG second\nPATH ${first}/bin\nPATH ${second}/bin\nSERVICE app\nEXEC /bin/app\n",
-        )
-        .unwrap();
+        let parsed =
+            parse("PATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nSERVICE app\nEXEC /bin/app\n")
+                .unwrap();
         assert_eq!(
             parsed.paths,
             vec![
                 Template {
                     parts: vec![
-                        TemplatePart::Package("first".into()),
+                        TemplatePart::Nixpkgs {
+                            attrpath: "first".into(),
+                            line: 1,
+                        },
                         TemplatePart::Literal("/bin".into()),
                     ],
                 },
                 Template {
                     parts: vec![
-                        TemplatePart::Package("second".into()),
+                        TemplatePart::Nixpkgs {
+                            attrpath: "second".into(),
+                            line: 2,
+                        },
                         TemplatePart::Literal("/bin".into()),
                     ],
                 },
@@ -1202,9 +1223,9 @@ JIT
         );
 
         let error =
-            parse("PKG tool\nPATH ${tool}/bin\nPATH ${tool}/bin\nSERVICE app\nEXEC /bin/app\n")
+            parse("PATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nSERVICE app\nEXEC /bin/app\n")
                 .unwrap_err();
-        assert_eq!(error.line, 3);
+        assert_eq!(error.line, 2);
         assert!(error.message.contains("duplicated"));
     }
 
@@ -1227,13 +1248,13 @@ JIT
     fn all_errors_include_line_and_quoted_source() {
         for (input, line, message) in [
             ("NOPE value\n", 1, "unknown directive"),
-            ("PKG\n", 1, "expected PKG"),
+            ("PKG nginx\n", 1, "PKG was removed by D32"),
             ("COPY only\nSERVICE x\nEXEC x\n", 1, "expected COPY"),
             ("FILE x <<EOF\nbody\n", 1, "unterminated FILE heredoc"),
             (
                 "LINK x ${missing}\nSERVICE x\nEXEC x\n",
                 1,
-                "unknown package interpolation",
+                "use ${pkgs.missing}",
             ),
             (
                 "SERVICE x\nENV BAD-NAME\nEXEC x\n",
@@ -1278,18 +1299,48 @@ JIT
     }
 
     #[test]
-    fn rejects_interpolation_before_package_declaration() {
+    fn interpolation_uses_the_pkgs_namespace_and_accepts_nested_attributes() {
+        let parsed = parse(
+            "LINK bin/black ${pkgs.python3Packages.black}/bin/black\nSERVICE x\nEXEC bin/black\n",
+        )
+        .unwrap();
+        let Item::Link { target, .. } = &parsed.items[0] else {
+            panic!("expected LINK");
+        };
+        assert_eq!(
+            target.parts,
+            [
+                TemplatePart::Nixpkgs {
+                    attrpath: "python3Packages.black".into(),
+                    line: 1,
+                },
+                TemplatePart::Literal("/bin/black".into()),
+            ]
+        );
+
         let error =
-            parse("LINK bin/nginx ${nginx}/bin/nginx\nPKG nginx\nSERVICE x\nEXEC x\n").unwrap_err();
-        assert!(error.message.contains("declare it with PKG"));
+            parse("LINK bin/nginx ${nginx}/bin/nginx\nSERVICE x\nEXEC bin/nginx\n").unwrap_err();
+        assert!(error.message.contains("use ${pkgs.nginx}"), "{error}");
     }
 
     #[test]
     fn copy_is_never_interpolated() {
-        let error = parse("PKG nginx\nCOPY ${nginx} x\nSERVICE x\nEXEC x\n").unwrap_err();
+        let error = parse("COPY ${pkgs.nginx} x\nSERVICE x\nEXEC x\n").unwrap_err();
         assert!(error
             .message
-            .contains("does not support package interpolation"));
+            .contains("does not support build-time interpolation"));
+    }
+
+    #[test]
+    fn pkg_directive_explains_the_d32_rewrite() {
+        let error = parse("PKG python3Packages.black\nSERVICE x\nEXEC x\n").unwrap_err();
+        assert_eq!(error.line, 1);
+        assert!(
+            error
+                .message
+                .contains("replace ${python3Packages.black} with ${pkgs.python3Packages.black}"),
+            "{error}"
+        );
     }
 
     #[test]

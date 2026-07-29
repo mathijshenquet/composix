@@ -35,6 +35,25 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 }
 
 #[test]
+fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = parse(
+        "LINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nSERVICE fixture\nEXEC bin/missing\n",
+    )
+    .unwrap();
+    let expression = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    let error = build_expression(&expression).unwrap_err().to_string();
+    assert!(error.contains("Cixfile line 1"), "{error}");
+    assert!(error.contains("thisAttributeDoesNotExist"), "{error}");
+}
+
+#[test]
 fn real_nix_build_assembles_files_scripts_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
@@ -43,17 +62,16 @@ fn real_nix_build_assembles_files_scripts_links_and_spec() {
     )
     .unwrap();
     let cixfile = parse(
-        r#"PKG hello
-COPY asset share/copied
+        r#"COPY asset share/copied
 FILE share/content <<EOF
-package=${hello}
+package=${pkgs.hello}
 escaped=$${literal}
 runtime=$VALUE
 EOF
 SCRIPT bin/start <<EOF
 exec /app/bin/hello
 EOF
-LINK bin/hello ${hello}/bin/hello
+LINK bin/hello ${pkgs.hello}/bin/hello
 SERVICE fixture
 EXEC bin/start
 "#,
@@ -100,8 +118,7 @@ EXEC bin/start
 fn path_resolution_writes_the_real_executable_and_runtime_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PKG coreutils
-PATH ${coreutils}/bin
+        r#"PATH ${pkgs.coreutils}/bin
 SERVICE fixture
 SETUP true
 EXEC true
@@ -135,9 +152,7 @@ EXEC true
 fn path_resolution_prefers_the_first_matching_directory() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PKG bash
-PKG bashInteractive
-PATH ${bash}/bin ${bashInteractive}/bin
+        r#"PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
 SERVICE fixture
 EXEC bash
 "#,
@@ -167,8 +182,7 @@ EXEC bash
 fn path_resolution_fails_with_line_and_searched_directories() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PKG coreutils
-PATH ${coreutils}/bin
+        r#"PATH ${pkgs.coreutils}/bin
 SERVICE fixture
 EXEC definitely-not-a-coreutils-command
 "#,
@@ -182,7 +196,7 @@ EXEC definitely-not-a-coreutils-command
     )
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
-    assert!(error.contains("line 4"), "{error}");
+    assert!(error.contains("line 3"), "{error}");
     assert!(error.contains("declared PATH directories"), "{error}");
     assert!(error.contains("/bin"), "{error}");
 }

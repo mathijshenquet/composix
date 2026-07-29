@@ -372,10 +372,15 @@ fn nix_template(template: &Template) -> String {
     for part in &template.parts {
         match part {
             TemplatePart::Literal(value) => output.push_str(&escape_nix_string(value)),
-            TemplatePart::Package(package) => {
+            TemplatePart::Nixpkgs { attrpath, line } => {
                 output.push_str("${");
+                output.push_str("builtins.addErrorContext ");
+                output.push_str(&nix_string(&format!(
+                    "Cixfile line {line}: resolving pkgs.{attrpath}"
+                )));
+                output.push(' ');
                 output.push_str("pkgs");
-                for component in package.split('.') {
+                for component in attrpath.split('.') {
                     output.push('.');
                     output.push_str(&nix_attr(component));
                 }
@@ -695,7 +700,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("asset"), "hello").unwrap();
         let cixfile = parse(
-            "PKG hello\nCOPY asset share/asset\nLINK bin/hello ${hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
+            "COPY asset share/asset\nLINK bin/hello ${pkgs.hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
         )
         .unwrap();
         let first =
@@ -705,7 +710,8 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.contains("builtins.fetchTree"));
         assert!(first.contains("narHash = \"sha256-"));
-        assert!(first.contains("${pkgs.\"hello\"}/bin/hello"));
+        assert!(first.contains("pkgs.\"hello\""));
+        assert!(first.contains("Cixfile line 2: resolving pkgs.hello"));
         assert!(first.contains("builtins.path"));
     }
 
