@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-A Cixfile can build a runnable item without declaring a package. The checked-in lock still pins nixpkgs because `SCRIPT` uses its runtime shell; it makes generation deterministic, and a fresh store may fetch that pinned source once.
+Every Cixfile begins by binding its package universe: `FROM <flakeref> AS pkgs`. The checked-in lock pins that universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.
 
 ```sh
 $ cix build . -t tour-app:v1
