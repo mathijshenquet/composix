@@ -7,6 +7,25 @@
 - Verification: explicit tour regeneration, tour determinism/drift, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` passed. The generated pages are unchanged on the current systemd ≥257 host; synthetic coverage proves old-host output normalizes identically.
 - Open with Mathijs: none. Open for agents: merge the committed `track/tourfix` branch after independent verification.
 
+## 2026-07-29 (evening: RUN v0 lands)
+
+- Merged track/inspect (terra): cix inspect both worlds + ls -l SYSTEMS column; verified
+  live in both worlds independently. Merged track/runv0 (sol): FETCH/RUN directives,
+  bubblewrap offer-only sandbox, memo+pin sections in Cixfile.lock, ${build}, projB +
+  projB-chef; tour conflict resolved at merge (build-with-run=12, inspecting=13).
+- Independent verification of runv0: 17 suites; chef selectivity PROVEN by hand (real src
+  edit -> cook memo-hit, only final RUN re-ran; two earlier sed attempts silently matched
+  nothing - always verify the edit landed); e2e run+curl of the RUN-built binary under full
+  hardening. Honest finding: forced re-execution of the same RUN key gives a DIFFERENT
+  snapshot hash (cargo .fingerprint noise) while the binary inside is byte-identical -
+  D39.1 layer-ruis confirmed at v0 granularity; memo consistency holds, re-execution
+  byte-determinism does not (sol's tour showed miss->hit, not re-execution determinism).
+- Design follow-up for Mathijs: ${build} ships the whole final workdir snapshot, so items
+  carry cargo bookkeeping (bloat + the nondeterminism lives exactly there); candidate fix =
+  prune item assembly to referenced subpaths (or declared outputs). Also queued: netns
+  proposal (docs/compose-netns.md) awaiting his read; FETCH-prelude fence rejected as YAGNI
+  (positional rule does not even cover the abuse class).
+
 ## 2026-07-29 (afternoon: exec-era closes, RUN-era opens)
 
 - All tracks landed and CI-green on the runner host: D33 manifest rename, D34 exec/debug
