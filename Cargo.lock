@@ -148,6 +148,7 @@ dependencies = [
  "cix-index",
  "cix-run",
  "clap",
+ "libc",
  "serde",
  "serde_json",
  "sha2",

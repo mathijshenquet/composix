@@ -143,8 +143,15 @@ workdir NAR, and the complete offered store closure. A live matching entry in th
 section is reused. On a miss, bubblewrap exposes only the closure of package paths referenced by
 the Cixfile, read-only at their real `/nix/store` paths, plus the writable workdir and minimal
 `/proc`, `/dev`, `/tmp`, and `/etc`. PID, UTS, IPC, cgroup, and user namespaces are fresh.
-`RUN` also gets a fresh network namespace with only loopback; `FETCH` deliberately shares host
-networking and receives only the host resolver files.
+`RUN` cannot create internet sockets. The preferred mechanism is a fresh network namespace with
+only loopback. On hosts whose user-namespace policy lets bubblewrap build the sandbox but prevents
+it from configuring that namespace, `cix build` instead applies a seccomp filter that returns
+`EPERM` from `socket(2)` and `socketpair(2)` for `AF_INET`, `AF_INET6`, and `AF_PACKET`;
+local-only `AF_UNIX` and `AF_NETLINK` remain available. The fallback also denies
+`io_uring_setup(2)`, because io_uring can otherwise create a socket without calling `socket(2)`.
+Non-native syscall ABIs are rejected rather than allowed around the filter. The isolation promise
+is identical in both tiers, and a failed fallback RUN notes that localhost was unavailable.
+`FETCH` deliberately shares host networking and receives only the host resolver files.
 
 The environment is cleared and rebuilt from declared defaults plus `PATH`, `HOME=/work`,
 `SOURCE_DATE_EPOCH=1`, `TZ=UTC`, `LC_ALL=C`, `TMPDIR=/tmp`, and umask 022. A successful step is

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::codegen::{generate_build_context_nix, generate_offer_build_nix};
+use crate::seccomp;
 use crate::{BuildStep, Cixfile, FetchPin, LockFile, MemoEntry};
 
 #[derive(Debug, Deserialize)]
@@ -27,6 +28,12 @@ struct MemoRequest<'a> {
     offered_closure: &'a BTreeSet<String>,
     incoming_nar_hash: &'a str,
     environment: &'a BTreeMap<String, String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RunNetwork {
+    Namespace,
+    SocketFilter,
 }
 
 pub(crate) fn execute(
@@ -72,6 +79,17 @@ pub(crate) fn execute(
         None
     } else {
         Some(find_shell(&context.paths)?)
+    };
+    let run_network = if cixfile
+        .steps
+        .iter()
+        .any(|step| matches!(step, BuildStep::Run { .. }))
+    {
+        Some(probe_run_network(
+            shell.as_deref().expect("RUN steps have a shell"),
+        )?)
+    } else {
+        None
     };
     let mut environment = context.environment;
     environment.insert("HOME".into(), "/work".into());
@@ -166,7 +184,7 @@ pub(crate) fn execute(
                     command,
                     &environment,
                     &offered_closure,
-                    !is_fetch,
+                    if is_fetch { None } else { run_network },
                 )
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -284,7 +302,7 @@ fn run_sandbox(
     command: &str,
     environment: &BTreeMap<String, String>,
     offered_closure: &BTreeSet<String>,
-    isolate_network: bool,
+    run_network: Option<RunNetwork>,
 ) -> Result<()> {
     let mut process = Command::new("bwrap");
     process.args([
@@ -300,9 +318,14 @@ fn run_sandbox(
         "--unshare-ipc",
         "--unshare-cgroup",
     ]);
-    if isolate_network {
+    if run_network == Some(RunNetwork::Namespace) {
         process.arg("--unshare-net");
     }
+    let _seccomp_filter = if run_network == Some(RunNetwork::SocketFilter) {
+        Some(seccomp::attach_socket_filter(&mut process)?)
+    } else {
+        None
+    };
     process.args(["--dir", "/nix", "--dir", "/nix/store"]);
     for path in offered_closure {
         process.args(["--ro-bind", path, path]);
@@ -320,7 +343,7 @@ fn run_sandbox(
         "/work",
         "--clearenv",
     ]);
-    if !isolate_network {
+    if run_network.is_none() {
         for path in ["/etc/hosts", "/etc/nsswitch.conf", "/etc/resolv.conf"] {
             if Path::new(path).is_file() {
                 process.args(["--ro-bind", path, path]);
@@ -338,11 +361,51 @@ fn run_sandbox(
             "starting bubblewrap sandbox; this host may restrict unprivileged user namespaces",
         )?;
     if !status.success() {
-        bail!(
-            "bubblewrap sandbox or command exited {status}; sandboxing was not weakened (enable unprivileged user namespaces if bwrap reported a namespace permission error)"
-        );
+        bail!("{}", sandbox_failure(status, run_network));
     }
     Ok(())
+}
+
+fn probe_run_network(shell: &str) -> Result<RunNetwork> {
+    let output = Command::new("bwrap")
+        .args([
+            "--die-with-parent",
+            "--new-session",
+            "--unshare-user",
+            "--uid",
+            "0",
+            "--gid",
+            "0",
+            "--unshare-net",
+            "--ro-bind",
+            "/",
+            "/",
+            "--",
+            shell,
+            "-c",
+            "true",
+        ])
+        .output()
+        .context(
+            "probing bubblewrap network isolation; this host may restrict unprivileged user namespaces",
+        )?;
+    Ok(if output.status.success() {
+        RunNetwork::Namespace
+    } else {
+        RunNetwork::SocketFilter
+    })
+}
+
+fn sandbox_failure(status: impl std::fmt::Display, run_network: Option<RunNetwork>) -> String {
+    let mut message = format!(
+        "bubblewrap sandbox or command exited {status}; sandboxing was not weakened (enable unprivileged user namespaces if bwrap reported a namespace permission error)"
+    );
+    if run_network == Some(RunNetwork::SocketFilter) {
+        message.push_str(
+            "\nhint: this RUN used the socket-filter fallback because the host rejected bubblewrap's network namespace (often an AppArmor restriction); localhost networking (127.0.0.1) was unavailable",
+        );
+    }
+    message
 }
 
 fn seeded_workdir(snapshot: &str) -> Result<tempfile::TempDir> {
@@ -590,5 +653,53 @@ mod tests {
         .to_string();
         assert!(error.contains("hash mismatch"), "{error}");
         assert!(error.contains("--update-lock"), "{error}");
+    }
+
+    #[test]
+    fn socket_filter_failure_adds_localhost_hint() {
+        let error = sandbox_failure("exit status: 1", Some(RunNetwork::SocketFilter));
+        assert!(error.contains("sandboxing was not weakened"), "{error}");
+        assert!(error.contains("socket-filter fallback"), "{error}");
+        assert!(
+            error.contains("localhost networking (127.0.0.1) was unavailable"),
+            "{error}"
+        );
+        assert_eq!(error.lines().count(), 2, "{error}");
+
+        let preferred = sandbox_failure("exit status: 1", Some(RunNetwork::Namespace));
+        assert!(!preferred.contains("localhost"), "{preferred}");
+    }
+
+    #[test]
+    fn socket_filter_is_accepted_by_bubblewrap() {
+        let shell = fs::read_dir("/nix/store")
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path().join("bin/bash"))
+            .find(|candidate| candidate.is_file())
+            .expect("the Nix test host provides bash");
+        let offer = shell
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let offered_closure = query_closure(&[offer]).unwrap();
+        let work = tempfile::tempdir().unwrap();
+
+        run_sandbox(
+            work.path(),
+            shell.to_str().unwrap(),
+            "printf fallback-ok > result",
+            &BTreeMap::new(),
+            &offered_closure,
+            Some(RunNetwork::SocketFilter),
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(work.path().join("result")).unwrap(),
+            "fallback-ok"
+        );
     }
 }
