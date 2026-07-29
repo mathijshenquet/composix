@@ -5,21 +5,28 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::Input;
+
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LockFile {
-    pub nixpkgs: NixpkgsLock,
+    pub inputs: BTreeMap<String, InputLock>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct NixpkgsLock {
+pub struct InputLock {
     pub url: String,
     pub rev: String,
     #[serde(rename = "narHash")]
     pub nar_hash: String,
+}
+
+#[derive(Deserialize)]
+struct LegacyLockFile {
+    nixpkgs: InputLock,
 }
 
 #[derive(Deserialize)]
@@ -30,10 +37,14 @@ struct FlakeMetadata {
 
 #[derive(Deserialize)]
 struct LockedMetadata {
-    rev: String,
+    #[serde(default)]
+    rev: Option<String>,
     #[serde(default)]
     #[serde(rename = "narHash")]
     nar_hash: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "lastModified")]
+    last_modified: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -47,95 +58,151 @@ struct PathInfo {
     nar_hash: String,
 }
 
-pub fn ensure_lock(path: &Path, update: bool) -> Result<LockFile> {
-    ensure_lock_with(path, update, resolve_default)
+/// Reads, migrates, or resolves lock entries for the Cixfile's explicit FROM inputs.
+/// `update` is None for reuse, Some(name) for one input, and Some("") for all inputs.
+pub fn ensure_lock(
+    path: &Path,
+    inputs: &BTreeMap<String, Input>,
+    update: Option<&str>,
+) -> Result<LockFile> {
+    ensure_lock_with(path, inputs, update, resolve_input)
 }
 
-fn ensure_lock_with<F>(path: &Path, update: bool, resolve: F) -> Result<LockFile>
+fn ensure_lock_with<F>(
+    path: &Path,
+    inputs: &BTreeMap<String, Input>,
+    update: Option<&str>,
+    mut resolve: F,
+) -> Result<LockFile>
 where
-    F: FnOnce(bool) -> Result<LockFile>,
+    F: FnMut(&str, bool) -> Result<InputLock>,
 {
-    if !update {
-        match fs::read(path) {
-            Ok(contents) => {
-                let lock: LockFile = serde_json::from_slice(&contents)
-                    .with_context(|| format!("parsing lock file {}", path.display()))?;
-                lock.validate()?;
-                return Ok(lock);
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                return Err(error).with_context(|| format!("reading lock file {}", path.display()));
-            }
+    if let Some(name) = update.filter(|name| !name.is_empty()) {
+        if !inputs.contains_key(name) {
+            bail!("--update-lock names undeclared FROM namespace {name:?}");
         }
     }
 
-    let lock = resolve(update)?;
-    lock.validate()?;
-    let mut contents = serde_json::to_vec_pretty(&lock)?;
+    let mut migrated = false;
+    let existing = match fs::read(path) {
+        Ok(contents) => {
+            migrated = serde_json::from_slice::<LockFile>(&contents).is_err();
+            Some(read_lock(&contents, inputs)?)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(error).with_context(|| format!("reading lock file {}", path.display()))
+        }
+    };
+    let was_missing = existing.is_none();
+    let mut lock = existing.unwrap_or_else(|| LockFile {
+        inputs: BTreeMap::new(),
+    });
+    let mut changed = false;
+    for (name, input) in inputs {
+        let refresh = update.is_some_and(|requested| requested.is_empty() || requested == name);
+        if refresh || !lock.inputs.contains_key(name) {
+            lock.inputs
+                .insert(name.clone(), resolve(&input.url, refresh)?);
+            changed = true;
+        }
+    }
+    lock.inputs.retain(|name, _| inputs.contains_key(name));
+    lock.validate_for(inputs)?;
+    if changed || was_missing || migrated {
+        write_lock(path, &lock)?;
+    }
+    Ok(lock)
+}
+
+fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFile> {
+    if let Ok(lock) = serde_json::from_slice::<LockFile>(contents) {
+        return Ok(lock);
+    }
+    let legacy: LegacyLockFile = serde_json::from_slice(contents).context("parsing lock file")?;
+    if inputs.len() != 1 {
+        bail!("legacy single-input Cixfile.lock needs exactly one FROM input to migrate");
+    }
+    let name = inputs.keys().next().expect("one input").clone();
+    Ok(LockFile {
+        inputs: BTreeMap::from([(name, legacy.nixpkgs)]),
+    })
+}
+
+fn write_lock(path: &Path, lock: &LockFile) -> Result<()> {
+    let mut contents = serde_json::to_vec_pretty(lock)?;
     contents.push(b'\n');
     let temporary = path.with_extension("lock.tmp");
     fs::write(&temporary, contents)
         .with_context(|| format!("writing temporary lock file {}", temporary.display()))?;
     fs::rename(&temporary, path)
         .with_context(|| format!("atomically replacing lock file {}", path.display()))?;
-    Ok(lock)
+    Ok(())
 }
 
-fn resolve_default(refresh: bool) -> Result<LockFile> {
+fn resolve_input(url: &str, refresh: bool) -> Result<InputLock> {
     let mut arguments = vec!["flake", "metadata", "--json"];
     if refresh {
         arguments.push("--refresh");
     }
-    arguments.push(DEFAULT_NIXPKGS_URL);
-    let raw = cix_common::nix(&arguments).context("resolving the default nixpkgs channel")?;
+    arguments.push(url);
+    let raw = cix_common::nix(&arguments).with_context(|| format!("resolving FROM input {url}"))?;
     let metadata: FlakeMetadata =
         serde_json::from_str(&raw).context("parsing nix flake metadata")?;
     let nar_hash = match metadata.locked.nar_hash {
         Some(nar_hash) => nar_hash,
         None => archive_nar_hash(&metadata.url)?,
     };
-    Ok(LockFile {
-        nixpkgs: NixpkgsLock {
-            url: DEFAULT_NIXPKGS_URL.to_owned(),
-            rev: metadata.locked.rev,
-            nar_hash,
-        },
+    Ok(InputLock {
+        url: url.to_owned(),
+        rev: metadata
+            .locked
+            .rev
+            .or_else(|| metadata.locked.last_modified.map(|value| value.to_string()))
+            .context("nix did not report a revision or lastModified pin for FROM input")?,
+        nar_hash,
     })
 }
 
 fn archive_nar_hash(url: &str) -> Result<String> {
     let archive_raw = cix_common::nix(&["flake", "archive", "--json", url])
-        .with_context(|| format!("archiving pinned nixpkgs source {url}"))?;
+        .with_context(|| format!("archiving pinned source {url}"))?;
     let archive: FlakeArchive =
         serde_json::from_str(&archive_raw).context("parsing nix flake archive JSON")?;
     let info_raw = cix_common::nix(&["path-info", "--json", "--json-format", "1", &archive.path])
-        .context("reading archived nixpkgs path information")?;
+        .context("reading archived source path information")?;
     let infos: BTreeMap<String, PathInfo> =
         serde_json::from_str(&info_raw).context("parsing nix path-info JSON")?;
     infos
         .get(&archive.path)
         .or_else(|| infos.values().next())
         .map(|info| info.nar_hash.clone())
-        .context("nix path-info returned no archived nixpkgs path")
+        .context("nix path-info returned no archived source path")
 }
 
 impl LockFile {
-    fn validate(&self) -> Result<()> {
-        if !self.nixpkgs.url.starts_with("github:") {
-            bail!(
-                "lock nixpkgs.url must be a github: URL, got {:?}",
-                self.nixpkgs.url
-            );
-        }
-        if self.nixpkgs.rev.is_empty() {
-            bail!("lock nixpkgs.rev must not be empty");
-        }
-        if !self.nixpkgs.nar_hash.starts_with("sha256-") {
-            bail!(
-                "lock nixpkgs.narHash must be an SRI sha256 hash, got {:?}",
-                self.nixpkgs.nar_hash
-            );
+    pub fn validate_for(&self, declared: &BTreeMap<String, Input>) -> Result<()> {
+        for (name, input) in declared {
+            let lock = self
+                .inputs
+                .get(name)
+                .with_context(|| format!("lock is missing FROM input {name:?}"))?;
+            if lock.url != input.url {
+                bail!(
+                    "lock input {name:?} URL differs from FROM: {:?} != {:?}",
+                    lock.url,
+                    input.url
+                );
+            }
+            if lock.rev.is_empty() {
+                bail!("lock input {name:?}.rev must not be empty");
+            }
+            if !lock.nar_hash.starts_with("sha256-") {
+                bail!(
+                    "lock input {name:?}.narHash must be an SRI sha256 hash, got {:?}",
+                    lock.nar_hash
+                );
+            }
         }
         Ok(())
     }
@@ -143,68 +210,73 @@ impl LockFile {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::cell::Cell;
 
-    use super::*;
-
-    fn lock(revision: &str, hash: &str) -> LockFile {
-        LockFile {
-            nixpkgs: NixpkgsLock {
-                url: DEFAULT_NIXPKGS_URL.into(),
-                rev: revision.into(),
-                nar_hash: hash.into(),
-            },
+    fn inputs() -> BTreeMap<String, Input> {
+        BTreeMap::from([
+            (
+                "pkgs".into(),
+                Input {
+                    url: DEFAULT_NIXPKGS_URL.into(),
+                },
+            ),
+            (
+                "stable".into(),
+                Input {
+                    url: "github:NixOS/nixpkgs/nixos-25.05".into(),
+                },
+            ),
+        ])
+    }
+    fn entry(url: &str, revision: &str) -> InputLock {
+        InputLock {
+            url: url.into(),
+            rev: revision.into(),
+            nar_hash: "sha256-one".into(),
         }
     }
 
     #[test]
-    fn creates_reuses_and_updates_lock() {
+    fn creates_reuses_and_updates_each_input() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("Cixfile.lock");
         let resolutions = Cell::new(0);
-
-        let created = ensure_lock_with(&path, false, |_| {
+        let created = ensure_lock_with(&path, &inputs(), None, |url, _| {
             resolutions.set(resolutions.get() + 1);
-            Ok(lock("one", "sha256-one"))
+            Ok(entry(url, "one"))
         })
         .unwrap();
-        assert_eq!(created.nixpkgs.rev, "one");
-        assert_eq!(resolutions.get(), 1);
-
-        let reused = ensure_lock_with(&path, false, |_| {
-            resolutions.set(resolutions.get() + 1);
-            Ok(lock("unexpected", "sha256-unexpected"))
-        })
-        .unwrap();
+        assert_eq!(created.inputs.len(), 2);
+        let reused = ensure_lock_with(&path, &inputs(), None, |_, _| panic!("must reuse")).unwrap();
         assert_eq!(reused, created);
-        assert_eq!(resolutions.get(), 1);
-
-        let updated = ensure_lock_with(&path, true, |refresh| {
+        let updated = ensure_lock_with(&path, &inputs(), Some("pkgs"), |url, refresh| {
             assert!(refresh);
             resolutions.set(resolutions.get() + 1);
-            Ok(lock("two", "sha256-two"))
+            Ok(entry(url, "two"))
         })
         .unwrap();
-        assert_eq!(updated.nixpkgs.rev, "two");
-        assert_eq!(resolutions.get(), 2);
-        assert_eq!(
-            serde_json::from_slice::<LockFile>(&fs::read(path).unwrap()).unwrap(),
-            updated
-        );
+        assert_eq!(updated.inputs["pkgs"].rev, "two");
+        assert_eq!(updated.inputs["stable"].rev, "one");
+        assert_eq!(resolutions.get(), 3);
     }
 
     #[test]
-    fn malformed_or_invalid_lock_fails_loudly_without_resolution() {
+    fn migrates_a_legacy_single_input_lock_and_writes_the_new_shape() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("Cixfile.lock");
-        fs::write(
-            &path,
-            r#"{"nixpkgs":{"url":"github:NixOS/nixpkgs","rev":"x","narHash":"wrong"}}"#,
-        )
+        fs::write(&path, r#"{"nixpkgs":{"url":"github:NixOS/nixpkgs/nixos-unstable","rev":"one","narHash":"sha256-one"}}"#).unwrap();
+        let declared = BTreeMap::from([(
+            "pkgs".into(),
+            Input {
+                url: DEFAULT_NIXPKGS_URL.into(),
+            },
+        )]);
+        let lock = ensure_lock_with(&path, &declared, None, |_, _| {
+            panic!("must migrate without resolving")
+        })
         .unwrap();
-        let error = ensure_lock_with(&path, false, |_| panic!("must not resolve"))
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("SRI sha256 hash"), "{error}");
+        assert_eq!(lock.inputs["pkgs"].rev, "one");
+        assert!(fs::read_to_string(path).unwrap().contains("\"inputs\""));
     }
 }

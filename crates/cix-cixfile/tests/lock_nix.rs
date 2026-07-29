@@ -5,7 +5,17 @@ use std::path::PathBuf;
 use cix_cixfile::{generate_nix, parse, LockFile};
 
 fn committed_lock() -> LockFile {
-    serde_json::from_str(include_str!("../../../examples/nginx/Cixfile.lock")).unwrap()
+    let input = serde_json::from_value(
+        serde_json::from_str::<serde_json::Value>(include_str!(
+            "../../../examples/nginx/Cixfile.lock"
+        ))
+        .unwrap()["nixpkgs"]
+            .clone(),
+    )
+    .unwrap();
+    LockFile {
+        inputs: std::collections::BTreeMap::from([("pkgs".into(), input)]),
+    }
 }
 
 fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
@@ -23,9 +33,10 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 #[test]
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
-    let cixfile = parse("SERVICE fixture\nEXEC bin/fixture\n").unwrap();
+    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC bin/fixture\n").unwrap();
     let mut lock = committed_lock();
-    lock.nixpkgs.nar_hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
+    lock.inputs.get_mut("pkgs").unwrap().nar_hash =
+        "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
     let expression = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux").unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
     assert!(
@@ -38,7 +49,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "LINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nSERVICE fixture\nEXEC bin/missing\n",
+        "FROM nixpkgs AS pkgs\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nSERVICE fixture\nEXEC bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -49,7 +60,7 @@ fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     )
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
-    assert!(error.contains("Cixfile line 1"), "{error}");
+    assert!(error.contains("Cixfile line 2"), "{error}");
     assert!(error.contains("thisAttributeDoesNotExist"), "{error}");
 }
 
@@ -62,7 +73,8 @@ fn real_nix_build_assembles_files_scripts_links_and_spec() {
     )
     .unwrap();
     let cixfile = parse(
-        r#"COPY asset share/copied
+        r#"FROM nixpkgs AS pkgs
+COPY asset share/copied
 FILE share/content <<EOF
 package=${pkgs.hello}
 escaped=$${literal}
@@ -118,7 +130,8 @@ EXEC bin/start
 fn path_resolution_writes_the_real_executable_and_runtime_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PATH ${pkgs.coreutils}/bin
+        r#"FROM nixpkgs AS pkgs
+PATH ${pkgs.coreutils}/bin
 SERVICE fixture
 SETUP true
 EXEC true
@@ -152,7 +165,8 @@ EXEC true
 fn path_resolution_prefers_the_first_matching_directory() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
+        r#"FROM nixpkgs AS pkgs
+PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
 SERVICE fixture
 EXEC bash
 "#,
@@ -182,7 +196,8 @@ EXEC bash
 fn path_resolution_fails_with_line_and_searched_directories() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"PATH ${pkgs.coreutils}/bin
+        r#"FROM nixpkgs AS pkgs
+PATH ${pkgs.coreutils}/bin
 SERVICE fixture
 EXEC definitely-not-a-coreutils-command
 "#,
@@ -196,7 +211,7 @@ EXEC definitely-not-a-coreutils-command
     )
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
-    assert!(error.contains("line 3"), "{error}");
+    assert!(error.contains("line 4"), "{error}");
     assert!(error.contains("declared PATH directories"), "{error}");
     assert!(error.contains("/bin"), "{error}");
 }

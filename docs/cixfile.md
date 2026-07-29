@@ -21,6 +21,8 @@ EXPOSE 8080
 
 ```dockerfile
 # Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 COPY index.html /srv/www/index.html
 
 LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
@@ -69,6 +71,7 @@ boilerplate; every line is contract.
 
 | directive | what it does | closest docker |
 | --- | --- | --- |
+| `FROM <flakeref> AS <name>` | bind a pinned package universe; this is **not** filesystem/layer inheritance | `FROM` (truthful meaning differs) |
 | `PATH <dir>…` | ordered package tool directories; resolves bare `EXEC`/`SETUP` commands at build time and supplies the runtime `PATH` default | `PATH` |
 | `COPY <src> <dst>` | copy a regular sibling file into the item, **verbatim, never substituted** | `COPY` (identical intent) |
 | `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time; use `COPY` for verbatim sibling content | `COPY <<EOF` (buildkit heredoc) |
@@ -94,17 +97,21 @@ such as a preload library or a package data tree. This removes item-local bin sy
 
 ### Package interpolation
 
-`${pkgs.<attrpath>}` is **build time**: it resolves an arbitrary attribute path from the nixpkgs
-revision locked in `Cixfile.lock`, in directive arguments and inline `FILE`/`SCRIPT` bodies. For
-example, `${pkgs.postgresql}/bin` and `${pkgs.python3Packages.black}/bin/black` are both valid.
-Bare `${name}` is an error with the rewrite `${pkgs.name}`. `$VAR` remains **runtime** and is only
-valid in `EXEC`/`SETUP`; `COPY` content is always verbatim.
+Every Cixfile begins by naming its package universes: `FROM <flakeref> AS <name>`. `AS` is
+required—there is no implicit `pkgs` binding—and a `FROM` must appear before that namespace is
+used. `nixpkgs` is the documented registry spelling; otherwise use
+`github:owner/repo[/ref]` or an HTTPS tarball URL. `${<name>.<attrpath>}` is **build time**: it
+resolves an arbitrary attribute path from that named universe's revision locked in
+`Cixfile.lock`, in directive arguments and inline `FILE`/`SCRIPT` bodies. For example,
+`${pkgs.postgresql}/bin` and `${pkgs.python3Packages.black}/bin/black` are both valid. Bare
+`${name}` is an error; an unknown namespace lists the declared ones. `$VAR` remains **runtime**
+and is only valid in `EXEC`/`SETUP`; `COPY` content is always verbatim.
 
-References define dependencies: there is no declaration to keep in sync. Each `pkgs.*` reference
-becomes part of the built item's Nix closure, which is the authoritative manifest—inspect it with
-`nix path-info -r`. Destinations beginning with `/` are projected read-only at that native path;
-bare-relative destinations stay inside the item for executable and script targets. Native paths
-let copied configs remain plain files rather than templates.
+References define dependencies: there is no package declaration to keep in sync. Each namespaced
+reference becomes part of the built item's Nix closure, which is the authoritative manifest—inspect
+it with `nix path-info -r`. Destinations beginning with `/` are projected read-only at that native
+path; bare-relative destinations stay inside the item for executable and script targets. Native
+paths let copied configs remain plain files rather than templates.
 
 ## Where this is honestly not a Dockerfile
 
@@ -118,12 +125,11 @@ Dockerfile builds differently tomorrow); refusing it is where composix reproduci
 from. Building *your own* code is the ecosystem-builder story (cargo/pnpm/uv lockfiles,
 planned) or a `.nix` file (today).
 
-**There is no `FROM`, no layers, no inheritance.** Docker composes by stacking filesystems;
-a Cixfile composes by *referencing packages*. `${pkgs.nginx}` doesn't copy nginx into your item —
-nginx stays in the nix store, your item points at it. Consequences: no base image to patch or
-scan, no `ONBUILD`, no layer-cache ordering games, no image-size golf (deduplication is
-store-wide and automatic). The role of "which base am I on" is played by the nixpkgs pin in
-`Cixfile.lock`.
+**`FROM` is not layer inheritance.** Docker composes by stacking filesystems; a Cixfile's
+`FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs` binds the package universe visible as `pkgs`.
+`${pkgs.nginx}` doesn't copy nginx into your item—nginx stays in the nix store, your item points
+at it. Consequences: no base image to patch or scan, no `ONBUILD`, no layer-cache ordering games,
+no image-size golf (deduplication is store-wide and automatic). The lock pins each named universe.
 
 **The LINK shift — assets, not executable shims.** A docker image is a whole root filesystem:
 software you use lives at global paths (`/usr/bin/…`, `/etc/…`) because it was *installed*
@@ -149,10 +155,11 @@ network (and below 1024, what grants the capability). Everything undeclared is d
 read-only filesystem, no network, no capabilities. A Dockerfile inherits docker's defaults;
 a Cixfile *is* the security policy.
 
-**Determinism is enforced, not hoped for.** `cix build` pins nixpkgs in `Cixfile.lock`
-(revision + content hash, `--update-lock` to roll). Same Cixfile + same lock = same item,
-bit-for-bit, on any machine. There is no docker equivalent — `docker build` today and
-tomorrow are different images.
+**Determinism is enforced, not hoped for.** `cix build` pins every `FROM` input in
+`Cixfile.lock`, keyed by its `AS` name with URL, revision, and content hash. Use
+`cix build --update-lock` to roll all inputs or `cix build --update-lock pkgs` to roll one.
+Same Cixfile + same lock = same item, bit-for-bit, on any machine. There is no docker equivalent
+— `docker build` today and tomorrow are different images.
 
 ## When to drop to `.nix`
 

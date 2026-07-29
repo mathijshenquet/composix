@@ -2,9 +2,15 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cixfile {
+    pub inputs: BTreeMap<String, Input>,
     pub paths: Vec<Template>,
     pub items: Vec<Item>,
     pub services: BTreeMap<String, Service>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Input {
+    pub url: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -89,7 +95,7 @@ impl Template {
         for part in &self.parts {
             match part {
                 TemplatePart::Literal(part) => value.push_str(part),
-                TemplatePart::Nixpkgs { .. } => return None,
+                TemplatePart::Package { .. } => return None,
             }
         }
         Some(value)
@@ -104,11 +110,17 @@ impl Template {
                 .all(|(left, right)| match (left, right) {
                     (TemplatePart::Literal(left), TemplatePart::Literal(right)) => left == right,
                     (
-                        TemplatePart::Nixpkgs { attrpath: left, .. },
-                        TemplatePart::Nixpkgs {
-                            attrpath: right, ..
+                        TemplatePart::Package {
+                            namespace: left_namespace,
+                            attrpath: left,
+                            ..
                         },
-                    ) => left == right,
+                        TemplatePart::Package {
+                            namespace: right_namespace,
+                            attrpath: right,
+                            ..
+                        },
+                    ) => left_namespace == right_namespace && left == right,
                     _ => false,
                 })
     }
@@ -117,5 +129,9 @@ impl Template {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplatePart {
     Literal(String),
-    Nixpkgs { attrpath: String, line: usize },
+    Package {
+        namespace: String,
+        attrpath: String,
+        line: usize,
+    },
 }

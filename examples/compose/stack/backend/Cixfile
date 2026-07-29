@@ -1,3 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
 LINK bin/psql ${pkgs.postgresql}/bin/psql
 LINK bin/python3 ${pkgs.python3}/bin/python3
 LINK share/postgresql ${pkgs.postgresql}/share/postgresql
