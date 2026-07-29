@@ -17,11 +17,12 @@ warning: retrying without PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, 
 
 `--user` is the rootless development mode. The product target is the system manager, with `DynamicUser` and the full hardening profile; see the [design document](../design.html). The VM check exercises that system path.
 
+The listing is filtered to units created by this scenario, so unrelated `cix-*` units already present on the host do not become part of the tour transcript.
+
 ```sh
 $ cix ps
 MANAGER  UNIT                                            STATE       DESCRIPTION
 user     cix-run-tour-service-NONCE.service  active/running  [systemd-run] /nix/store/…-service-fixture/bin/service
-user     cix-run.slice                                   active/active  Slice /cix/run
 ```
 
 ```sh
@@ -30,8 +31,7 @@ $ systemctl --user stop cix-run-tour-service-NONCE.service
 
 ```sh
 $ cix ps
-MANAGER  UNIT                                         STATE       DESCRIPTION
-user     cix-run.slice                                active/active  Slice /cix/run
+MANAGER  UNIT  STATE       DESCRIPTION
 ```
 
 The unit disappears once stopped; its managed state directory follows the user-manager lifecycle.
