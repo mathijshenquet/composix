@@ -3,9 +3,9 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Spec {
     #[serde(rename = "cixManifest")]
@@ -13,7 +13,7 @@ pub struct Spec {
     pub services: BTreeMap<String, Service>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Service {
     pub exec: Vec<String>,
@@ -38,7 +38,7 @@ pub struct Service {
     pub jit: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Env {
     #[serde(rename = "type")]
@@ -54,7 +54,7 @@ pub struct Env {
     pub secret: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Port {
     pub env: Option<String>,
@@ -66,21 +66,21 @@ pub struct Port {
 ///
 /// Spec v3 deliberately supports only TCP stream listeners. The listener name is passed to the
 /// service through systemd's `LISTEN_FDNAMES` protocol.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Listener {
     #[serde(rename = "type")]
     pub listener_type: String,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Protocol {
     Tcp,
     Udp,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Dirs {
     #[serde(default)]
@@ -94,14 +94,14 @@ pub struct Dirs {
     pub run: Option<Vec<PathBuf>>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Health {
     pub exec: Vec<String>,
     pub interval: String,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Network {
     Host,

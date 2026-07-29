@@ -31,7 +31,8 @@ updated 1 tag(s)
 
 ```sh
 consumer $ cix ls -l
-127.0.0.1:8420/my-app:v1	systems=x86_64-linux	path=/nix/store/…-my-app-v2	upstream=127.0.0.1:8420	age=0s
+REF                        SYSTEMS       PATH                                                   UPSTREAM         AGE
+127.0.0.1:8420/my-app:v1  x86_64-linux  /nix/store/…-my-app-v2  127.0.0.1:8420  0s
 ```
 
 Tags are mutable names over immutable paths, refreshed like git remotes. GC follows the pins: after the refresh, this consumer tag roots the new path, not the old one.

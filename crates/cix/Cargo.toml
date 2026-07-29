@@ -6,11 +6,14 @@ license.workspace = true
 
 [dependencies]
 cix-cixfile.workspace = true
+cix-common.workspace = true
 cix-compose.workspace = true
 cix-index.workspace = true
 cix-run.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 regex = "1"

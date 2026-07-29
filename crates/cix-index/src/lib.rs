@@ -47,6 +47,13 @@ pub struct TagMetadata {
     pub upstream: Option<String>,
 }
 
+/// The artifact-facing data behind `cix inspect`.
+#[derive(Clone, Debug)]
+pub struct Artifact {
+    pub output: Output,
+    pub metadata: Option<TagMetadata>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathInfo {
@@ -253,13 +260,13 @@ pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
     let store = Store::open()?;
     let system = current_system()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let lines = store
+    let rows = store
         .all()?
         .into_iter()
         .filter(|tag| prefix.is_none_or(|prefix| tag.reference.starts_with(prefix)))
         .map(|tag| {
             if !long {
-                return tag.reference;
+                return vec![tag.reference];
             }
             let systems = tag
                 .entry
@@ -281,17 +288,112 @@ pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
                 .ok()
                 .map(|created| format!("{}s", now.saturating_sub(created)))
                 .unwrap_or_else(|| "unknown".into());
-            format!(
-                "{}\tsystems={}\tpath={}\tupstream={}\tage={}",
+            vec![
                 tag.reference,
                 systems,
-                path,
+                path.to_owned(),
                 tag.upstream.unwrap_or_else(|| "-".into()),
-                age
-            )
+                age,
+            ]
         })
         .collect::<Vec<_>>();
+    if !long {
+        return Ok(rows
+            .into_iter()
+            .filter_map(|row| row.into_iter().next())
+            .collect::<Vec<_>>()
+            .join("\n"));
+    }
+    let headers = ["REF", "SYSTEMS", "PATH", "UPSTREAM", "AGE"];
+    let widths = (0..headers.len())
+        .map(|column| {
+            rows.iter()
+                .filter_map(|row| row.get(column))
+                .map(String::len)
+                .max()
+                .unwrap_or_default()
+                .max(headers[column].len())
+        })
+        .collect::<Vec<_>>();
+    let render = |row: &[String]| {
+        row.iter()
+            .enumerate()
+            .map(|(column, value)| format!("{value:<width$}", width = widths[column]))
+            .collect::<Vec<_>>()
+            .join("  ")
+    };
+    let mut lines = vec![render(&headers.map(str::to_owned))];
+    lines.extend(rows.iter().map(|row| render(row)));
     Ok(lines.join("\n"))
+}
+
+/// Resolve an artifact without discarding the index entry that named it.
+pub fn inspect_artifact(installable: &str) -> Result<Artifact> {
+    if installable.starts_with("/nix/store/") {
+        return Ok(Artifact {
+            output: path_info(installable)?,
+            metadata: None,
+        });
+    }
+
+    if let Ok(reference) = Ref::parse(installable) {
+        if reference.root_url.is_some() {
+            let entry = resolve_remote(&reference)?;
+            let system = current_system()?;
+            let output = entry.outputs.get(&system).cloned().with_context(|| {
+                format!(
+                    "remote `{}` has no output for {system}",
+                    reference.display()
+                )
+            })?;
+            fetch_output(&reference, &entry, &output)?;
+            return Ok(Artifact {
+                output,
+                metadata: Some(TagMetadata {
+                    reference: reference.display(),
+                    entry,
+                    upstream: reference.root_url,
+                }),
+            });
+        }
+        let store = Store::open()?;
+        if let Some(metadata) = store.load(&reference)? {
+            let system = current_system()?;
+            let output = metadata
+                .entry
+                .outputs
+                .get(&system)
+                .cloned()
+                .with_context(|| {
+                    format!(
+                        "local tag `{}` has no output for {system}",
+                        reference.display()
+                    )
+                })?;
+            return Ok(Artifact {
+                output,
+                metadata: Some(metadata),
+            });
+        }
+    }
+
+    let path = build_installable(installable)?;
+    Ok(Artifact {
+        output: path_info(&path)?,
+        metadata: None,
+    })
+}
+
+/// Return the closure size when the host's Nix supports `path-info -S`.
+pub fn closure_size(store_path: &str) -> Option<u64> {
+    nix(&["path-info", "-S", store_path])
+        .ok()
+        .and_then(|output| {
+            output
+                .split_whitespace()
+                .last()
+                .and_then(|size| size.parse().ok())
+        })
 }
 
 fn api_entry(metadata: &TagMetadata, substituters: &[String]) -> Entry {
@@ -353,7 +455,7 @@ fn age(created_at: &str) -> String {
         .unwrap_or_else(|_| "unknown".into())
 }
 
-fn closure_size(store_path: &str) -> Option<String> {
+fn closure_size_text(store_path: &str) -> Option<String> {
     nix(&["path-info", "-S", store_path])
         .ok()
         .and_then(|output| {
@@ -486,7 +588,7 @@ fn name_page(host: &str, name: &str, tags: &[(Ref, TagMetadata)]) -> String {
             .unwrap_or("-");
         let nar_hash = output.map(|output| output.nar_hash.as_str()).unwrap_or("-");
         let size = output
-            .and_then(|output| closure_size(&output.store_path))
+            .and_then(|output| closure_size_text(&output.store_path))
             .unwrap_or_else(|| "unknown".into());
         let permalink = format!("/{}:{}", reference.name, reference.tag);
         rows.push_str(&format!(
