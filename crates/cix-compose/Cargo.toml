@@ -1,0 +1,18 @@
+[package]
+name = "cix-compose"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cix-common.workspace = true
+cix-index.workspace = true
+cix-run.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

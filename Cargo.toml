@@ -4,6 +4,7 @@ members = [
   "crates/cix",
   "crates/cix-cixfile",
   "crates/cix-common",
+  "crates/cix-compose",
   "crates/cix-index",
   "crates/cix-run",
 ]
@@ -16,6 +17,7 @@ license = "MIT"
 [workspace.dependencies]
 cix-common = { path = "crates/cix-common" }
 cix-cixfile = { path = "crates/cix-cixfile" }
+cix-compose = { path = "crates/cix-compose" }
 cix-index = { path = "crates/cix-index" }
 cix-run = { path = "crates/cix-run" }
 
@@ -23,6 +25,7 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_path_to_error = "0.1"
 thiserror = "2"
 base64 = "0.22"
 tiny_http = "0.12"
