@@ -2,7 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cixfile {
-    pub packages: BTreeSet<String>,
     pub paths: Vec<Template>,
     pub items: Vec<Item>,
     pub services: BTreeMap<String, Service>,
@@ -90,15 +89,33 @@ impl Template {
         for part in &self.parts {
             match part {
                 TemplatePart::Literal(part) => value.push_str(part),
-                TemplatePart::Package(_) => return None,
+                TemplatePart::Nixpkgs { .. } => return None,
             }
         }
         Some(value)
+    }
+
+    pub fn same_value(&self, other: &Self) -> bool {
+        self.parts.len() == other.parts.len()
+            && self
+                .parts
+                .iter()
+                .zip(&other.parts)
+                .all(|(left, right)| match (left, right) {
+                    (TemplatePart::Literal(left), TemplatePart::Literal(right)) => left == right,
+                    (
+                        TemplatePart::Nixpkgs { attrpath: left, .. },
+                        TemplatePart::Nixpkgs {
+                            attrpath: right, ..
+                        },
+                    ) => left == right,
+                    _ => false,
+                })
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplatePart {
     Literal(String),
-    Package(String),
+    Nixpkgs { attrpath: String, line: usize },
 }

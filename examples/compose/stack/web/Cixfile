@@ -1,8 +1,5 @@
-PKG coreutils
-PKG nginx
-
-LINK bin/nginx ${nginx}/bin/nginx
-LINK /etc/nginx/mime.types ${nginx}/conf/mime.types
+LINK bin/nginx ${pkgs.nginx}/bin/nginx
+LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 COPY nginx.conf /etc/nginx/nginx.conf
 
 SCRIPT bin/start <<SH
@@ -10,7 +7,7 @@ set -eu
 test "$LISTEN_FDS" = 1
 test "$LISTEN_FDNAMES" = http
 export NGINX='3;'
-exec "$("${coreutils}/bin/dirname" "$0")/nginx" -c /etc/nginx/nginx.conf -e stderr
+exec "$("${pkgs.coreutils}/bin/dirname" "$0")/nginx" -c /etc/nginx/nginx.conf -e stderr
 SH
 
 SERVICE nginx

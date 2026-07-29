@@ -1,22 +1,18 @@
-PKG coreutils
-PKG nss_wrapper
-PKG postgresql
-
-LINK bin/id ${coreutils}/bin/id
-LINK bin/mkdir ${coreutils}/bin/mkdir
-LINK bin/mv ${coreutils}/bin/mv
-LINK bin/rm ${coreutils}/bin/rm
-LINK bin/initdb ${postgresql}/bin/initdb
-LINK bin/postgres ${postgresql}/bin/postgres
-LINK lib ${postgresql}/lib
-LINK nss/libnss_wrapper.so ${nss_wrapper}/lib/libnss_wrapper.so
-LINK share/postgresql ${postgresql}/share/postgresql
+LINK bin/id ${pkgs.coreutils}/bin/id
+LINK bin/mkdir ${pkgs.coreutils}/bin/mkdir
+LINK bin/mv ${pkgs.coreutils}/bin/mv
+LINK bin/rm ${pkgs.coreutils}/bin/rm
+LINK bin/initdb ${pkgs.postgresql}/bin/initdb
+LINK bin/postgres ${pkgs.postgresql}/bin/postgres
+LINK lib ${pkgs.postgresql}/lib
+LINK nss/libnss_wrapper.so ${pkgs.nss_wrapper}/lib/libnss_wrapper.so
+LINK share/postgresql ${pkgs.postgresql}/share/postgresql
 
 FILE share/runtime-env.sh <<EOF
 state_dir=/var/lib/postgresql
 data_dir="$state_dir/data"
 init_dir="$state_dir/.init"
-item_dir="$("${coreutils}/bin/dirname" "$0")/.."
+item_dir="$("${pkgs.coreutils}/bin/dirname" "$0")/.."
 uid="$("$item_dir/bin/id" -u)"
 gid="$("$item_dir/bin/id" -g)"
 
@@ -30,7 +26,7 @@ EOF
 
 SCRIPT bin/setup <<EOF
 set -eu
-. "$("${coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
+. "$("${pkgs.coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
 
 if [ ! -s "$data_dir/PG_VERSION" ]; then
   "$item_dir/bin/rm" -rf "$init_dir"
@@ -47,7 +43,7 @@ EOF
 
 SCRIPT bin/start <<EOF
 set -eu
-. "$("${coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
+. "$("${pkgs.coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
 
 exec "$item_dir/bin/postgres" \
   -D "$data_dir" \

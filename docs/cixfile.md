@@ -21,16 +21,14 @@ EXPOSE 8080
 
 ```dockerfile
 # Cixfile (composix) — examples/nginx/Cixfile in this repo, verbatim
-PKG nginx
-
 COPY index.html /srv/www/index.html
 
-LINK /etc/nginx/mime.types ${nginx}/conf/mime.types
+LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 
 COPY nginx.conf /etc/nginx/nginx.conf
 
 SERVICE nginx
-EXEC ${nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
 RUNDIR /run/nginx
@@ -61,7 +59,7 @@ http {
 
 `COPY` is the natural choice for checked-in, verbatim assets; use `FILE` when an inline file
 needs build-time `${…}` interpolation. `LINK` brings in the `mime.types` asset; the one-off
-nginx executable stays a direct `${nginx}/bin/nginx` reference.
+nginx executable stays a direct `${pkgs.nginx}/bin/nginx` reference.
 
 The Cixfile is longer — because it states things the Dockerfile leaves implicit in the base
 image (the config, the writable paths, what the process actually is). Nothing here is
@@ -71,7 +69,6 @@ boilerplate; every line is contract.
 
 | directive | what it does | closest docker |
 | --- | --- | --- |
-| `PKG <attr>` | bring a nixpkgs package into scope; enables `${attr}` in directive arguments | `FROM` (spiritually — see below) |
 | `PATH <dir>…` | ordered package tool directories; resolves bare `EXEC`/`SETUP` commands at build time and supplies the runtime `PATH` default | `PATH` |
 | `COPY <src> <dst>` | copy a regular sibling file into the item, **verbatim, never substituted** | `COPY` (identical intent) |
 | `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time; use `COPY` for verbatim sibling content | `COPY <<EOF` (buildkit heredoc) |
@@ -89,15 +86,23 @@ boilerplate; every line is contract.
 
 Keep checked-in shell scripts as verbatim sibling files and `COPY` them to native projected
 paths. Invoke a non-executable copied script through a direct shell path, such as
-`EXEC ${bash}/bin/sh /opt/app/start`. Declare the tools it calls with `PATH`, then scripts can
+`EXEC ${pkgs.bash}/bin/sh /opt/app/start`. Declare the tools it calls with `PATH`, then scripts can
 use ordinary `initdb`, `postgres`, `id`, or `mkdir`; the generated PATH default is still an
 ordinary, operator-overridable `ENV` value. `LINK` is for non-executable assets a script needs,
 such as a preload library or a package data tree. This removes item-local bin symlinks and
 `$(dirname "$0")` plumbing while leaving checked-in scripts verbatim and reviewable.
 
-Two interpolation worlds, one rule: `${name}` is **build time** (in directive arguments and
-inline `FILE`/`SCRIPT` bodies); `$VAR` is **runtime** (only in `EXEC`/`SETUP`). `COPY` content is
-always verbatim. Destinations beginning with `/` are projected read-only at that native path;
+### Package interpolation
+
+`${pkgs.<attrpath>}` is **build time**: it resolves an arbitrary attribute path from the nixpkgs
+revision locked in `Cixfile.lock`, in directive arguments and inline `FILE`/`SCRIPT` bodies. For
+example, `${pkgs.postgresql}/bin` and `${pkgs.python3Packages.black}/bin/black` are both valid.
+Bare `${name}` is an error with the rewrite `${pkgs.name}`. `$VAR` remains **runtime** and is only
+valid in `EXEC`/`SETUP`; `COPY` content is always verbatim.
+
+References define dependencies: there is no declaration to keep in sync. Each `pkgs.*` reference
+becomes part of the built item's Nix closure, which is the authoritative manifest—inspect it with
+`nix path-info -r`. Destinations beginning with `/` are projected read-only at that native path;
 bare-relative destinations stay inside the item for executable and script targets. Native paths
 let copied configs remain plain files rather than templates.
 
@@ -114,7 +119,7 @@ from. Building *your own* code is the ecosystem-builder story (cargo/pnpm/uv loc
 planned) or a `.nix` file (today).
 
 **There is no `FROM`, no layers, no inheritance.** Docker composes by stacking filesystems;
-a Cixfile composes by *referencing packages*. `PKG nginx` doesn't copy nginx into your item —
+a Cixfile composes by *referencing packages*. `${pkgs.nginx}` doesn't copy nginx into your item —
 nginx stays in the nix store, your item points at it. Consequences: no base image to patch or
 scan, no `ONBUILD`, no layer-cache ordering games, no image-size golf (deduplication is
 store-wide and automatic). The role of "which base am I on" is played by the nixpkgs pin in
@@ -123,8 +128,8 @@ store-wide and automatic). The role of "which base am I on" is played by the nix
 **The LINK shift — assets, not executable shims.** A docker image is a whole root filesystem:
 software you use lives at global paths (`/usr/bin/…`, `/etc/…`) because it was *installed*
 there. A composix item is a small directory of your own files plus asset symlinks into other
-packages (`LINK /etc/nginx/mime.types ${nginx}/conf/mime.types`). Use `PATH` for tools called by
-scripts, or a direct `${pkg}/bin/tool` for a trivial one-off executable; the compiler records
+packages (`LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types`). Use `PATH` for tools called by
+scripts, or a direct `${pkgs.<attrpath>}/bin/tool` for a trivial one-off executable; the compiler records
 the real store path in the spec. Projected destinations appear at their native absolute paths at
 runtime, while at authoring time you think in references, not installations. In exchange: your
 item is kilobytes, its dependencies are exact and inspectable (`nix path-info -r`), and two
