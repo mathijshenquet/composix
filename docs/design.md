@@ -546,6 +546,39 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   shell-into-container as a pet-server workflow — transient units, `--collect`, and immutable
   items already lean against it; the ledger says so rather than staying silent.
 
+- ✅ D35 (2026-07-29) — **part-1 ledger resolutions** (Mathijs's docker.md review, bundled):
+  (a) *Signing, scoped honestly:* content signing is ✅ today (nix path signatures are
+  content-bound — trust travels with the signature regardless of which cache serves the
+  bytes; `trustedKeys` in entries). What is NOT signed is the **entry** (the tag→path
+  binding): trust there = TLS to the origin, which is docker-without-DCT parity (DCT/Notary
+  adoption was ~nil; the ecosystem moved to sigstore). Entry signing + key lifecycle
+  (rotation, revocation, delegation, policy) is ⏳ publish-era — it becomes *necessary*
+  exactly when third parties sit between origin and consumer.
+  (b) *Image lifecycle = tag lifecycle:* the tag is the object, store items are shared
+  substrate, nix GC is the collector (untagged = unrooted = collected). No dangling-image
+  objects, no prune verb, no `cix gc` machinery — at most a "run `nix store gc` to reclaim
+  disk space" hint in relevant output. Auto-gc refused: `nix store gc` is store-wide and a
+  shared nix host may root things cix doesn't know about.
+  (c) *Mirrors: don't build them.* Bytes: substituters ARE the mirror surface — an entry may
+  list multiple locations, and content-bound signatures make untrusted mirrors harmless
+  (they can refuse to serve, never lie). Index availability: D18 made the API plain
+  content-negotiated HTTP GET, so ordinary HTTP infrastructure (CDN, caching proxy, DNS
+  round-robin) is the availability story — no cix feature. Independent index
+  *redistribution* (re-serving entries under another name) is ⏳ publish-era, gated on
+  entry signing per (a).
+  (d) *`cix inspect` 🔶 designed, build later; `cix du` parked.* One verb, two worlds:
+  `cix inspect <ref>` → store path, narHash, per-system outputs, the resolved manifest,
+  closure size, signatures/keys, upstream, drvPath-if-present; `cix inspect <unit>` → state,
+  MainPID, exit cause, the *effective* generated properties (the D20a mapping), port/listener
+  bindings, host paths of the role dirs. JSON-vs-human default is an implementation-round
+  taste call. `cix du` (per-tag self/shared closure breakdown; prior art `nix path-info -S`,
+  nix-du; docker analogue `docker system df -v`'s SHARED/UNIQUE columns) is parked until
+  wanted.
+  (e) *`docker manifest`: no verb, ever.* It exists because docker's multi-arch is a bolted-on
+  registry object needing create/annotate/push; our entries are natively per-system (D14).
+  The residual gap is visibility only: a systems column in `cix ls -l` and the inspect
+  output.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

@@ -1,5 +1,17 @@
 # composix work log
 
+## 2026-07-29 (part-1 ledger round)
+
+- D35 recorded (Mathijs's docker.md part-1 review): signing scoped (content ✅ now, entry
+  signing ⏳ publish-era), image lifecycle = tag lifecycle + nix GC (no gc machinery, hint
+  only), mirrors refused (substituters for bytes, HTTP infra for the index, redistribution
+  gated on entry signing), cix inspect designed 🔶 (du parked; docker prior art: system df),
+  docker manifest = no verb (native per-system entries; ls -l systems column still owed).
+- Ledger rows flipped accordingly (+ new registry-mirrors row). Naming noted: cixpkgs = the
+  catalog (working title), artifact word stays "item"; "cixpack" floated as working title.
+- New ❓ for Mathijs: PrivatePIDs=yes in the generator (systemd 257+) — real pid ns per
+  service, but the app becomes ns-PID 1 (docker's zombie-reaping/tini problem).
+
 ## 2026-07-29 (track/exec correction round 1)
 
 - Merged work: none in this worktree; corrected `track/exec` after independent verification
