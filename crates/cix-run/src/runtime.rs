@@ -191,7 +191,16 @@ fn without_properties(definition: &UnitDefinition, names: &[&str]) -> UnitDefini
     definition
         .properties
         .retain(|(name, _)| !names.contains(&name.as_str()));
-    definition.text.clear();
+    definition.text = definition
+        .text
+        .lines()
+        .filter(|line| {
+            line.split_once('=')
+                .is_none_or(|(name, _)| !names.contains(&name))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    definition.text.push('\n');
     definition
 }
 
