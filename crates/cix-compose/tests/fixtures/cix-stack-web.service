@@ -7,8 +7,6 @@ After=cix-stack-edge-shared.service cix-stack-web-http.socket
 [Service]
 Type=exec
 Slice=cix-stack.slice
-RuntimeDirectory=cix-stack-web:app
-RuntimeDirectoryMode=0700
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes

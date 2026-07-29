@@ -76,3 +76,46 @@
   `/run/<name>` edge mount destinations (the dstyle proposal's post-gate amendment); arbitrary
   consumer destinations are deliberately not removed. Next: run the live demo, diagnose each
   systemd/application wall, and keep cleanup asserted after every attempt.
+- 2026-07-29 02:06 UTC — Live pass 1 stopped before compose activation because the system manager
+  retained an empty `cix-run.slice` from preceding tests; stopped/reset the scoped cix units in
+  both managers. Pass 2 stopped during root tagging: sudo's secure PATH omits Nix, and cix-index's
+  tag path-info helper does not have cix-run's Nix fallback. No stack units or links were created.
+  The demo now gives root the explicit default Nix profile plus standard system paths. This is
+  demo plumbing, not a library/API expansion. Next: retry from clean managers.
+- 2026-07-29 02:11 UTC — First activation reached nginx on its inherited TCP fd, but db and
+  backend failed at NAMESPACE with `File exists`: the service compiler's own RuntimeDirectory
+  alias and compose's edge BindPaths both targeted the same `/run/<name>` path. Fixed generation
+  by cloning each checked service and suppressing only run paths owned by one of its edge grants
+  before calling cix-run; the original item spec still drives semantic validation, and unrelated
+  run dirs remain managed normally. Updated the golden to assert the edge-owned service has no
+  competing RuntimeDirectory. The demo trap removed all stack units, links, listener, and edge
+  paths. Next: rebuild cix and retry live.
+- 2026-07-29 02:16 UTC — Live pass after the namespace fix proved both edge projections mount,
+  backend starts, and nginx reaches `/run/backend/backend.sock`. PostgreSQL initdb then failed
+  loading `dict_snowball`: because its executable is symlinked into the assembled item, PostgreSQL
+  derives `$libdir` from the item prefix. Moved the NSS helper/runtime file aside and linked the
+  package's complete `lib` at the expected item path. The first nginx readiness request also
+  reached backend before db was ready and caused `check=True` to terminate it; backend now returns
+  503 and stays alive until PostgreSQL is queryable. Cleanup again removed all stack state. Next:
+  rebuild the changed items and retry.
+- 2026-07-29 02:19 UTC — PostgreSQL now initializes and listens only on the database edge; backend
+  stays healthy through readiness retries. The remaining example error was explicit in the server
+  log: psql defaulted its database name from `--username=cix`, but initdb creates `postgres`, not a
+  `cix` database. Added `--dbname=postgres`. The timed-out pass was then downed by the trap with no
+  stack residue. Next: rebuild backend and continue the full update/rollback flow.
+- 2026-07-29 02:22 UTC — First full live demo is green. v1 returned
+  `hello from backend v1 via compose: database-ok`; system properties confirmed nginx retained
+  PrivateNetwork, AF_UNIX-only, SocketBindDeny=any and the named inherited fd. Grouped ps showed
+  `stack/backend`. After retag, diff reported exactly the backend service unit and store path;
+  up left web/db ActiveEnterTimestampMonotonic unchanged and restarted backend; v2 was served.
+  Rollback reactivated the v1 generation and response, then down removed all stack units, socket,
+  links, `/run` edge paths, and port 8080. Root ps warned that it cannot reach the invoking user's
+  bus under sudo, as the pre-existing ps implementation does; the system composite view is correct.
+  Next: focused fmt/clippy/tests, commit live fixes, then run every required gate twice.
+- 2026-07-29 02:25 UTC — Focused compose/Cixfile fmt, tests, and denied-warning clippy pass. The
+  combined cix test initially failed only because a concurrent listenfds loop populated the user
+  manager between the tour's two live ps captures. Reset those failed transient units and the
+  empty slices in both managers; the cix tour drift and determinism tests then pass. The tour
+  itself leaves its known empty user cix-run slice, which is stopped during every final cleanup
+  audit. No compose code failure was involved. Next: commit the empirically required generator and
+  example fixes.

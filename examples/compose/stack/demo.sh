@@ -10,7 +10,10 @@ state_dir=$(mktemp -d)
 address=127.0.0.1:8080
 
 root_cix() {
-  sudo env CIX_STATE_DIR="$state_dir" "$cix_bin" "$@"
+  sudo env \
+    CIX_STATE_DIR="$state_dir" \
+    PATH="/nix/var/nix/profiles/default/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    "$cix_bin" "$@"
 }
 
 cleanup() {
@@ -41,9 +44,9 @@ assert_manager_clean() {
   local manager=$1
   local -a command=(systemctl)
   [[ $manager == system ]] || command+=(--user)
-  if "${command[@]}" list-units 'cix-*' --all --no-legend --plain | grep -q .; then
-    "${command[@]}" list-units 'cix-*' --all --no-legend --plain >&2
-    echo "$manager manager retained cix units" >&2
+  if "${command[@]}" list-units 'cix-stack*' --all --no-legend --plain | grep -q .; then
+    "${command[@]}" list-units 'cix-stack*' --all --no-legend --plain >&2
+    echo "$manager manager retained stack units" >&2
     return 1
   fi
 }

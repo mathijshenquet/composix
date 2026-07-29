@@ -35,19 +35,30 @@ while True:
             if not chunk:
                 break
             request += chunk
-        query = subprocess.run(
-            [
-                str(item_dir / "bin/psql"),
-                "--host=/run/postgresql",
-                "--username=cix",
-                "--tuples-only",
-                "--no-align",
-                "--command=SELECT 'database-ok'",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
+        try:
+            query = subprocess.run(
+                [
+                    str(item_dir / "bin/psql"),
+                    "--host=/run/postgresql",
+                    "--username=cix",
+                    "--dbname=postgres",
+                    "--tuples-only",
+                    "--no-align",
+                    "--command=SELECT 'database-ok'",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        except subprocess.CalledProcessError:
+            body = b"database not ready\n"
+            connection.sendall(
+                b"HTTP/1.1 503 Service Unavailable\r\n"
+                + f"Content-Length: {len(body)}\r\n".encode()
+                + b"Connection: close\r\n\r\n"
+                + body
+            )
+            continue
         body = f"{greeting}{os.environ['SUFFIX']}: {query}\n".encode()
         connection.sendall(
             b"HTTP/1.1 200 OK\r\n"

@@ -8,10 +8,11 @@ LINK bin/mv ${coreutils}/bin/mv
 LINK bin/rm ${coreutils}/bin/rm
 LINK bin/initdb ${postgresql}/bin/initdb
 LINK bin/postgres ${postgresql}/bin/postgres
-LINK lib/libnss_wrapper.so ${nss_wrapper}/lib/libnss_wrapper.so
+LINK lib ${postgresql}/lib
+LINK nss/libnss_wrapper.so ${nss_wrapper}/lib/libnss_wrapper.so
 LINK share/postgresql ${postgresql}/share/postgresql
 
-FILE lib/runtime-env.sh <<EOF
+FILE share/runtime-env.sh <<EOF
 state_dir=/var/lib/postgresql
 data_dir="$state_dir/data"
 init_dir="$state_dir/.init"
@@ -24,12 +25,12 @@ printf 'cix:x:%s:%s:PostgreSQL:%s:/noshell\n' \
 printf 'cix:x:%s:\n' "$gid" > "$state_dir/group"
 export NSS_WRAPPER_PASSWD="$state_dir/passwd"
 export NSS_WRAPPER_GROUP="$state_dir/group"
-export LD_PRELOAD="$item_dir/lib/libnss_wrapper.so"
+export LD_PRELOAD="$item_dir/nss/libnss_wrapper.so"
 EOF
 
 SCRIPT bin/setup <<EOF
 set -eu
-. "$("${coreutils}/bin/dirname" "$0")/../lib/runtime-env.sh"
+. "$("${coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
 
 if [ ! -s "$data_dir/PG_VERSION" ]; then
   "$item_dir/bin/rm" -rf "$init_dir"
@@ -46,7 +47,7 @@ EOF
 
 SCRIPT bin/start <<EOF
 set -eu
-. "$("${coreutils}/bin/dirname" "$0")/../lib/runtime-env.sh"
+. "$("${coreutils}/bin/dirname" "$0")/../share/runtime-env.sh"
 
 exec "$item_dir/bin/postgres" \
   -D "$data_dir" \

@@ -195,10 +195,18 @@ fn render_units(checked: &CheckResult) -> Result<Rendered> {
         if !sockets.is_empty() {
             extra_properties.push(("Sockets".into(), sockets.join(" ")));
         }
+        let mut compiled_service = checked_service.spec.clone();
+        if let Some(run_paths) = &mut compiled_service.dirs.run {
+            run_paths.retain(|path| {
+                !grants
+                    .iter()
+                    .any(|grant| Path::new(&grant.destination) == path)
+            });
+        }
         let compiled = compile_unit(
             &checked_service.store_path,
             service_name,
-            &checked_service.spec,
+            &compiled_service,
             &checked_service.config,
             UnitMode::System,
             &UnitCompileOptions {
@@ -504,6 +512,8 @@ mod tests {
                 fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(&fixture)).unwrap();
             assert_eq!(actual, expected, "{name}");
         }
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(!web.contains("RuntimeDirectory="));
     }
 
     #[test]
