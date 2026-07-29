@@ -12,8 +12,8 @@ $ cix debug /nix/store/…-service-fixture --user -- /bin/sh -c 'test -n "$CIX_A
 debug-command-ran
 warning: cix debug --user is degraded development mode; it does not provide the full system-manager sandbox or DynamicUser identity
 === cix debug: degraded service sandbox; service=tour-service; identity=caller (--user) ===
-warning: the user manager rejected mount-namespace sandboxing (host-specific diagnostic)
-warning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; this is the D13 degraded development path
+warning: user manager rejected sandbox controls; degraded fallback required
+warning: retrying with degraded sandbox controls (D13)
 ```
 
 The system-manager form runs as the service's DynamicUser with the complete projection and hardening profile. This rootless tour uses D13's loudly labeled development fallback; a one-shot command keeps the transcript deterministic, while omitting `-- command` opens an interactive shell.
