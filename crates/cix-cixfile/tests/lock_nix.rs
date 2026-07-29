@@ -9,7 +9,7 @@ fn committed_lock() -> LockFile {
         serde_json::from_str::<serde_json::Value>(include_str!(
             "../../../examples/nginx/Cixfile.lock"
         ))
-        .unwrap()["nixpkgs"]
+        .unwrap()["inputs"]["pkgs"]
             .clone(),
     )
     .unwrap();
