@@ -22,7 +22,8 @@ updated 1 tag(s)
 
 ```sh
 consumer $ cix ls -l
-my-app:latest	systems=x86_64-linux	path=/nix/store/…-my-app-v1	upstream=127.0.0.1:8420	age=0s
+REF            SYSTEMS       PATH                                                   UPSTREAM         AGE
+my-app:latest  x86_64-linux  /nix/store/…-my-app-v1  127.0.0.1:8420  0s
 ```
 
 The qualified ref is self-describing; `--as` adopts it under a bare local name. A mirror keeps its qualified remote identity, while adoption makes the name local.

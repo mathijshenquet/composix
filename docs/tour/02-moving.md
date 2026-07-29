@@ -17,7 +17,8 @@ $ echo 'hello from my app v2' > my-app-v2 && cix tag "$(nix store add my-app-v2)
 
 ```sh
 $ cix ls -l
-my-app:v1	systems=x86_64-linux	path=/nix/store/…-my-app-v2	upstream=-	age=0s
+REF        SYSTEMS       PATH                                                   UPSTREAM  AGE
+my-app:v1  x86_64-linux  /nix/store/…-my-app-v2  -         0s
 ```
 
 Tags are mutable pointers over immutable store paths. Retagging changes the symlink; the old path is now unpinned by this tag.

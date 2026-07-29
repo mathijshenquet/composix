@@ -229,7 +229,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let port = Regex::new(r"127\.0\.0\.1:\d+").expect("valid port regex");
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
-    let age = Regex::new(r"age=\d+s").expect("valid age regex");
+    let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
     let unit_name = Regex::new(r"cix-run-(tour-service|listenfds)-[0-9a-f]+\.service")
         .expect("valid unit name regex");
     let stale_failed_unit = Regex::new(
@@ -249,7 +249,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
-    let normalized = age.replace_all(&normalized, "age=0s");
+    let normalized = age.replace_all(&normalized, "0s");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(
@@ -695,7 +695,7 @@ fn scenario_pulling_on_another_machine() -> String {
     let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
     assert!(listing.contains("my-app:latest"));
     assert!(listing.contains(&store_path));
-    assert!(listing.contains(&format!("upstream={listen}")));
+    assert!(listing.contains(&listen));
 
     doc.para("The qualified ref is self-describing; `--as` adopts it under a bare local name. A mirror keeps its qualified remote identity, while adoption makes the name local.");
     drop(server);
@@ -913,6 +913,22 @@ fn scenario_debugging_a_service() -> String {
     doc.finish()
 }
 
+fn scenario_inspecting_an_artifact() -> String {
+    let mut doc = Doc::new("inspecting");
+    doc.para("`cix inspect` defaults to stable JSON. For a tag it combines the index entry with the validated, parsed manifest from the resolved store item.");
+
+    let store_path = service_fixture(&doc);
+    doc.sh(&format!("cix tag {store_path} inspect-demo:v1"), true);
+    let output = doc.sh("cix inspect inspect-demo:v1", true);
+    assert!(output.contains("\"kind\": \"artifact\""));
+    assert!(output.contains("\"outputs\": {"));
+    assert!(output.contains("\"manifest\": {"));
+    assert!(output.contains("\"closureSize\":"));
+
+    doc.para("The entry retains per-system output slots while the selected store path supplies the manifest and Nix closure measurement. `cix inspect --human inspect-demo:v1` is the compact operator view; a live unit is selected by its exact name or unique running service name.");
+    doc.finish()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct GeneratedFile {
     name: &'static str,
@@ -1046,6 +1062,12 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Debugging a service",
             description: "Run a deterministic command in a fresh service sandbox.",
             body: scenario_debugging_a_service(),
+        },
+        Scenario {
+            filename: "12-inspecting.md",
+            title: "Inspecting artifacts",
+            description: "Read a tag's index entry and parsed manifest as stable JSON.",
+            body: scenario_inspecting_an_artifact(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

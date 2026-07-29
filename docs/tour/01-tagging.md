@@ -13,7 +13,8 @@ $ echo 'hello from my app v1' > my-app-v1 && cix tag "$(nix store add my-app-v1)
 
 ```sh
 $ cix ls -l
-my-app:v1	systems=x86_64-linux	path=/nix/store/…-my-app-v1	upstream=-	age=0s
+REF        SYSTEMS       PATH                                                   UPSTREAM  AGE
+my-app:v1  x86_64-linux  /nix/store/…-my-app-v1  -         0s
 ```
 
 The tag database is an `ls`-able symlink farm. Each symlink is a Nix GC root, so the pin *is* the name.

@@ -19,9 +19,9 @@ pub struct ExecOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Candidate {
-    unit: String,
-    service: String,
+pub struct RunningTarget {
+    pub unit: String,
+    pub service: String,
 }
 
 #[derive(Debug)]
@@ -50,9 +50,8 @@ pub fn exec(options: ExecOptions) -> Result<()> {
         );
     }
 
-    let candidates = running_candidates(options.user)?;
-    let unit = select_target(&options.target, &candidates)?;
-    let mut state = inspect_unit(options.user, &unit)?;
+    let target = select_running_target(&options.target, options.user)?;
+    let mut state = inspect_unit(options.user, &target.unit)?;
     if let Ok(term) = std::env::var("TERM") {
         state.env.insert("TERM".into(), term);
     }
@@ -78,7 +77,8 @@ pub fn exec(options: ExecOptions) -> Result<()> {
 
     let namespace_set = open_namespaces(state.pid)?;
     eprintln!(
-        "=== warning: cix exec is operator surgery; joining {unit} private namespaces [{}]; caller-shared namespaces [{}] remain shared; no service seccomp, capability, or cgroup confinement; identity={} ===",
+            "=== warning: cix exec is operator surgery; joining {} private namespaces [{}]; caller-shared namespaces [{}] remain shared; no service seccomp, capability, or cgroup confinement; identity={} ===",
+        target.unit,
         namespace_set
             .private
             .iter()
@@ -102,7 +102,7 @@ pub fn exec(options: ExecOptions) -> Result<()> {
     )
 }
 
-fn running_candidates(user: bool) -> Result<Vec<Candidate>> {
+fn running_candidates(user: bool) -> Result<Vec<RunningTarget>> {
     let mut command = Command::new("systemctl");
     if user {
         command.arg("--user");
@@ -135,7 +135,7 @@ fn running_candidates(user: bool) -> Result<Vec<Candidate>> {
                 .strip_prefix("cix run: ")
                 .map(str::to_owned)
                 .or_else(|| service_from_transient_name(&unit.unit));
-            service.map(|service| Candidate {
+            service.map(|service| RunningTarget {
                 unit: unit.unit,
                 service,
             })
@@ -153,16 +153,22 @@ fn service_from_transient_name(unit: &str) -> Option<String> {
     None
 }
 
-fn select_target(target: &str, candidates: &[Candidate]) -> Result<String> {
+/// Apply the same exact-unit / unique-service selection used by `cix exec`.
+pub fn select_running_target(target: &str, user: bool) -> Result<RunningTarget> {
+    let candidates = running_candidates(user)?;
+    select_target(target, &candidates)
+}
+
+fn select_target(target: &str, candidates: &[RunningTarget]) -> Result<RunningTarget> {
     if let Some(candidate) = candidates.iter().find(|candidate| candidate.unit == target) {
-        return Ok(candidate.unit.clone());
+        return Ok(candidate.clone());
     }
     let matching = candidates
         .iter()
         .filter(|candidate| candidate.service == target)
         .collect::<Vec<_>>();
     match matching.as_slice() {
-        [candidate] => Ok(candidate.unit.clone()),
+        [candidate] => Ok((*candidate).clone()),
         [] => bail!(
             "no running cix service matches {target:?}; use the exact unit from `cix ps`, or use `cix debug` when the service is not running"
         ),
@@ -482,8 +488,8 @@ fn child_error(message: &'static str, code: i32) -> ! {
 mod tests {
     use super::*;
 
-    fn candidate(unit: &str, service: &str) -> Candidate {
-        Candidate {
+    fn candidate(unit: &str, service: &str) -> RunningTarget {
+        RunningTarget {
             unit: unit.into(),
             service: service.into(),
         }
@@ -496,11 +502,13 @@ mod tests {
             candidate("cix-stack-api.service", "api"),
         ];
         assert_eq!(
-            select_target("cix-run-web-a.service", &candidates).unwrap(),
+            select_target("cix-run-web-a.service", &candidates)
+                .unwrap()
+                .unit,
             "cix-run-web-a.service"
         );
         assert_eq!(
-            select_target("api", &candidates).unwrap(),
+            select_target("api", &candidates).unwrap().unit,
             "cix-stack-api.service"
         );
 
