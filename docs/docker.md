@@ -35,8 +35,9 @@ schedule:
   skeleton, reusing the parsing without runtime promises. Measured: ~25 MiB compressed OCI
   nginx → ~65 MiB rootfs item (Evidence-we-owe datapoint).
 - **Networking between networked services.** Two apps that both need the network share the host
-  stack: no per-app netns, no service DNS, no bind-address control, no port inventory or
-  collision management. This is *the* design debt the compose era must pay first
+  stack: no per-app netns, no service DNS, no port inventory or collision management. A v3
+  listener can bind an address through `cix run -p name=addr`, but ordinary declared ports still
+  have no policy-level bind-address control. This is *the* design debt the compose era must pay first
   (part 3/part 5); until then the ledger's networking rows are honest IOUs.
 - **The operational verb set is thin.** No `cix logs`, `inspect`, `stats`, `exec`, `wait`; no
   status/exit-cause view; stop/restart go through raw `systemctl`. Each is small and
@@ -50,8 +51,10 @@ schedule:
 
 Claims made elsewhere in this ledger that need measurements or documents before they count:
 
-- Cold-transfer bytes and shared-content dedup: nix closure via binary cache vs docker
-  compressed layers, for representative services.
+- Cold-transfer bytes and shared-content dedup: one prototype datum is ~25 MiB compressed OCI
+  nginx → ~65 MiB *imported full-rootfs* item (`track/ocimport`), not a native sparse item;
+  native items are kilobytes plus their shared store closure. Measure representative native
+  services via Nix binary cache vs Docker compressed layers.
 - The effective writable-mount and namespace set of a hardened unit, verified against docker's
   `--read-only` + default seccomp/userns behavior (incl. whether lacking a user namespace
   changes the containment boundary claim in §9).
@@ -59,8 +62,9 @@ Claims made elsewhere in this ledger that need measurements or documents before 
   travels, what doesn't).
 - Multi-arch end to end: build, serve, and pull every claimed system (D14 is metadata until
   then).
-- Reproducibility enforcement: locked-input checks and rebuild verification — nix *permits*
-  impure derivations; the product must refuse them.
+- Reproducibility enforcement: Cixfile v1 verifies the locked nixpkgs `narHash`
+  (`crates/cix-cixfile/tests/lock_nix.rs`); rebuild verification remains, and nix *permits*
+  impure derivations the product must refuse.
 - The exact digest-semantics story: which docker `@sha256` properties a store path does and
   does not provide (D12).
 
@@ -68,7 +72,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-| [image (artifact)](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) | ✅ spec'd store item (vocabulary naming still open) | Pulling or running existing OCI/Docker images; composix distributes only Nix closures described by its own entries. |
+| [image (artifact)](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) | ✅ spec'd store item; D22 projects its sparse rootfs fragments read-only at native paths (`crates/cix-run/tests/system_projection.rs`) | Pulling or running existing OCI/Docker images; composix distributes only Nix closures described by its own entries. |
 | [tag (mutable pointer)](https://docs.docker.com/reference/cli/docker/image/tag/) | ✅ `cix tag` (D5, D7: tags are GC roots) | — |
 | [digest (`@sha256:…`)](https://docs.docker.com/dhi/core-concepts/digests/) | ✅ the store path *is* the digest (D12); no `@` syntax needed | — |
 | [registry + pull](https://docs.docker.com/reference/cli/docker/image/pull/) | ✅ `cix serve` / `cix pull` (D6, D17) | OCI registry interoperability. |
@@ -81,7 +85,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`save`](https://docs.docker.com/reference/cli/docker/image/save/) / [`load`](https://docs.docker.com/reference/cli/docker/image/load/) (tar transport) | 🔁 `nix copy --to file://…/ssh://…` is native | Streaming tagged images through Docker-compatible `save`/`load`. |
 | [`image ls`](https://docs.docker.com/reference/cli/docker/image/ls/) / [`image rm`](https://docs.docker.com/reference/cli/docker/image/rm/) | ❓ `cix ls` / `cix untag` plus Nix GC look adjacent | ❓ Decide whether tag inventory and indirect shared-store collection satisfy Docker's image-object lifecycle. |
 | [`image inspect`](https://docs.docker.com/reference/cli/docker/image/inspect/) | 🔁 informative URL page (D18) + `cix ls -l`; a `cix inspect` ❓ | Much less runtime/config metadata than Docker inspect. |
-| [layers / `image history`](https://docs.docker.com/reference/cli/docker/image/history/) | ❌ no layers; provenance = `drvPath` + `nix log` | Layer-level transfer reuse, authoring history, and a ubiquitous debugging vocabulary; no measured cold-transfer or shared-content comparison with compressed layers. |
+| [layers / `image history`](https://docs.docker.com/reference/cli/docker/image/history/) | ❌ no layers; native items are sparse D22 fragments, provenance = `drvPath` + `nix log` | Layer-level transfer reuse, authoring history, and a ubiquitous debugging vocabulary; no representative native-item cold-transfer or shared-content comparison with compressed layers. |
 | [build-cache export/import](https://docs.docker.com/build/cache/backends/) | 🔁 Nix binary caches provide remote build results | — |
 | [`image prune` / dangling images](https://docs.docker.com/reference/cli/docker/image/prune/) | 🔁 `cix untag` + Nix GC; `cix prune` sugar ⏳ | — |
 | [registry mirrors / pull-through cache](https://docs.docker.com/docker-hub/image-library/mirror/) | 🔁 `substituters` list in entries (D6) | ❓ A list of content sources is not a pull-through mirror with upstream fill, freshness checks, and cache lifecycle. |
@@ -94,8 +98,8 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | --- | --- | --- |
 | [`run`](https://docs.docker.com/reference/cli/docker/container/run/) | ✅ `cix run` (transient hardened unit) | — |
 | [`-e` environment](https://docs.docker.com/reference/cli/docker/container/run/#env) | ✅ declared string environment + validated `-e` (D21) | — |
-| [`-p` port publish](https://docs.docker.com/reference/cli/docker/container/run/#publish) | 🔁 declared ports = the network grant; host networking, no NAT. Remapping ❓ compose era. | ❓ Host exposure without NAT, bind-address choice, collision management, or a port inventory is a materially smaller facility. |
-| [`-v` / `--mount`](https://docs.docker.com/engine/storage/bind-mounts/) | 🔁 role dirs (state/cache/logs/config/run, D11 narrowed); operator host-binds ⏳ compose | Arbitrary mounts; D11 deliberately narrows mount compatibility. |
+| [`-p` port publish](https://docs.docker.com/reference/cli/docker/container/run/#publish) | 🔁 D24 compiles declared ports to kernel-enforced `SocketBindAllow=`/`SocketBindDeny=`; v3 `cix run -p name=addr` binds a listener through a transient socket unit (D29; `crates/cix-run/tests/system_projection.rs`). This is stronger than Docker's metadata-only `EXPOSE`, but host networking has no NAT. | ❓ No Docker-style remapping/NAT, port inventory, or collision management; ordinary declared ports have no policy-level bind-address choice. |
+| [`-v` / `--mount`](https://docs.docker.com/engine/storage/bind-mounts/) | 🔁 role dirs (state/cache/logs/config/run, D11 narrowed); D22 sparse item paths are read-only projections, while operator host-binds are ⏳ compose | Arbitrary mutable host mounts; D11 deliberately narrows mount compatibility. |
 | [`--restart` policies](https://docs.docker.com/engine/containers/start-containers-automatically/) | ⏳ compose (systemd `Restart=` natively) | — |
 | [`HEALTHCHECK` / health status](https://docs.docker.com/reference/dockerfile/#healthcheck) | ⏳ parsed today, wired in compose era | Health state today. |
 | [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 journald; foreground `cix run` streams and `journalctl -u cix-*` works | ❓ No `cix logs`, stable selector, per-app retention contract, or logging-driver integration. |
@@ -119,7 +123,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [resource flags (`--cpu-*`, `--memory-*`, `--blkio-*`, `--ulimit`, `--oom-*`)](https://docs.docker.com/reference/cli/docker/container/run/#runtime-constraints-on-resources) | ⏳ compose: slice/unit limits, systemd-native | Resource knobs today. |
 | [namespace modes (`--ipc`, `--pid`, `--uts`)](https://docs.docker.com/reference/cli/docker/container/run/#ipc) | 🔁 systemd sandboxing covers some isolation; *sharing* modes ⏳ compose ❓ | Explicit namespace controls and sharing modes. |
 | [`--device` / `--gpus` / `--device-cgroup-rule`](https://docs.docker.com/reference/cli/docker/container/run/#device) | ⏳ deliberate (spec v2 deferral): needs a dogfood case; `DeviceAllow=` exists | Device access today. |
-| [`--read-only`](https://docs.docker.com/reference/cli/docker/container/run/#read-only) | ✅ `ProtectSystem=strict` by default | — |
+| [`--read-only`](https://docs.docker.com/reference/cli/docker/container/run/#read-only) | ✅ `ProtectSystem=strict` by default; D22 projects sparse item paths read-only at native locations, stress-tested for host-dir shadowing, symlink escape, and 25 mounts (`crates/cix-run/tests/system_projection.rs`) | — |
 | [`--shm-size`](https://docs.docker.com/reference/cli/docker/container/run/#shm-size) | ⏳ PostgreSQL already brushed `/dev/shm`; no direct systemd knob, needs design | Configurable shared-memory size. |
 | [`--sysctl`](https://docs.docker.com/reference/cli/docker/container/run/#sysctl) | ❌ host policy; per-netns sysctls ⏳ networking era | Safe namespaced tuning required by some databases, proxies, and network appliances. |
 | [`--name`](https://docs.docker.com/reference/cli/docker/container/run/#name) | 🔁 unit names are systematic (`cix-run-<svc>-<nonce>`; compose plans `cix-<comp>-<svc>`) | ❓ A random run nonce is not a user-chosen stable handle. |
@@ -130,20 +134,20 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`container prune`](https://docs.docker.com/reference/cli/docker/container/prune/) | ❓ transient units should collect automatically | ❓ Persistent compose units and role-directory lifecycle have no equivalent cleanup contract yet. |
 | [`docker debug`](https://docs.docker.com/reference/cli/docker/debug/) | ❓ Docker offers a toolbox shell even for slim images | ❓ No image shell or packaged debug-tool injection story. |
 
-## 3. Building (part 4 designed, not built)
+## 3. Building (part 4 assembly subset built)
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-| [Dockerfile](https://docs.docker.com/reference/dockerfile/) | 🔁 Cixfile (D4) + always the `.nix` escape hatch | Implemented, versioned Dockerfile frontend; Cixfile has no parser or `cix build`, and the `.nix` escape hatch is a migration burden rather than Dockerfile compatibility. |
+| [Dockerfile](https://docs.docker.com/reference/dockerfile/) | 🔁 Cixfile v1 + `cix build`, with line-numbered parse errors (D4; `crates/cix-cixfile/src/{parser,build}.rs`) + always the `.nix` escape hatch | Not a Dockerfile frontend: no arbitrary Dockerfile compatibility, `FROM`, layers, or `RUN`; the `.nix` escape hatch remains a migration burden. |
 | [`FROM` / base images](https://docs.docker.com/reference/dockerfile/#from) | 🔁 nixpkgs + ecosystem builders; no layer inheritance | ❓ This only helps software packaged in Nix or newly packaged for it; it cannot consume an arbitrary base image. |
 | [`RUN`](https://docs.docker.com/reference/dockerfile/#run) | ❌ imperative impure steps; blessed builders instead | The universal escape hatch that makes existing installation instructions and most Dockerfiles directly expressible; broad packageability is traded for discipline. |
-| [`COPY`](https://docs.docker.com/reference/dockerfile/#copy) / [`ADD`](https://docs.docker.com/reference/dockerfile/#add) / [`.dockerignore`](https://docs.docker.com/build/concepts/context/#dockerignore-files) | 🔁 Cixfile source assembly/filtering | — |
-| [`ENV`, `EXPOSE`, `VOLUME`, `ENTRYPOINT`, `CMD`, `WORKDIR`, `HEALTHCHECK`, `USER`, `LABEL`](https://docs.docker.com/reference/dockerfile/#overview) | 🔁 Cixfile `SERVICE` blocks → `cix-spec.json` | ❓ No equivalent yet for `LABEL`, arbitrary `USER`, or `WORKDIR`; decide adopt/reject each. |
+| [`COPY`](https://docs.docker.com/reference/dockerfile/#copy) / [`ADD`](https://docs.docker.com/reference/dockerfile/#add) / [`.dockerignore`](https://docs.docker.com/build/concepts/context/#dockerignore-files) | 🔁 implemented Cixfile sibling-file `COPY`, `FILE`/`SCRIPT` heredocs, and `LINK` assembly (`crates/cix-cixfile/tests/lock_nix.rs`) | No Docker-compatible recursive copy, URL/tar `ADD`, or `.dockerignore` rules. |
+| [`ENV`, `EXPOSE`, `VOLUME`, `ENTRYPOINT`, `CMD`, `WORKDIR`, `HEALTHCHECK`, `USER`, `LABEL`](https://docs.docker.com/reference/dockerfile/#overview) | 🔁 implemented Cixfile `SERVICE` blocks compile `ENV`, `EXEC`, declared `PORT`, and role dirs to `cix-spec.json`; `PORT` is an enforced grant, not metadata (D24). v3 `listeners` are a separate cix-spec/run contract (D29), not a Cixfile v1 directive. | No native `LABEL`, arbitrary `USER`, `WORKDIR`, or `HEALTHCHECK`; `EXEC` combines entrypoint/command and role dirs are not Docker volume objects. |
 | [`ARG` / build args](https://docs.docker.com/reference/dockerfile/#arg) | ❓ | ❓ Decide how configurable builds coexist with pinned inputs and cache identity. |
 | [multi-stage builds](https://docs.docker.com/build/building/multi-stage/) | 🔁 derivations compose naturally | ❓ Show how Cixfile users—not `.nix` authors—express private intermediate tools and selective copying. |
 | [BuildKit secret/SSH mounts](https://docs.docker.com/build/building/secrets/) | ❓ private dependencies—Nix has netrc/access tokens | ❓ The non-leaking Cixfile and remote-builder story is unspecified. |
-| [reproducible builds](https://docs.docker.com/build/ci/github-actions/reproducible-builds/) | ✅ the point of the Nix foundation | — |
-| [Dockerfile here-documents](https://docs.docker.com/reference/dockerfile/#here-documents) | ✅ the Cixfile design is heredoc-first (`FILE`/`SCRIPT <<EOF`) | — |
+| [reproducible builds](https://docs.docker.com/build/ci/github-actions/reproducible-builds/) | 🔁 Cixfile v1 locks nixpkgs revision + `narHash`, and a tampered hash fails (`crates/cix-cixfile/tests/lock_nix.rs`) | Rebuild verification is still absent; Nix permits impure derivations and composix does not yet refuse them product-wide. |
+| [Dockerfile here-documents](https://docs.docker.com/reference/dockerfile/#here-documents) | ✅ implemented Cixfile `FILE`/`SCRIPT <<EOF` heredocs (`crates/cix-cixfile/tests/lock_nix.rs`) | — |
 | [`STOPSIGNAL`](https://docs.docker.com/reference/dockerfile/#stopsignal) | ⏳ spec v3 candidate (`KillSignal=`), with stop timeouts | — |
 | [`SHELL`, `ONBUILD`, `MAINTAINER`, parser directives](https://docs.docker.com/reference/dockerfile/#parser-directives) | ❌ `SCRIPT` has a fixed shell; no image inheritance; no parser magic | Inherited downstream triggers, per-image shell choice, frontend versioning, and direct compatibility with those Dockerfiles. |
 | [`RUN --mount=cache/bind/tmpfs`, `--network`, `--security`](https://docs.docker.com/reference/dockerfile/#run) | ❌ falls with `RUN`; Nix builders are the proposed answer | Concise per-step cache, secret-adjacent, network, and security controls familiar to BuildKit users. |
@@ -155,7 +159,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ⏳ compose era | Named volume objects, cross-service attachment, copy-up/`volume-subpath`, shared volumes, backup/restore, quota, snapshots, and encryption. |
+| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ⏳ compose era; D22 sparse projections are immutable item paths, not volume objects (`crates/cix-run/tests/system_projection.rs`) | Named volume objects, cross-service attachment, copy-up/`volume-subpath`, shared volumes, backup/restore, quota, snapshots, and encryption. |
 | [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ⏳ compose era, operator territory | Arbitrary mounts; today composix creates service-specific FHS role directories indirectly through systemd. |
 | [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/) | ✅ `PrivateTmp`; more ⏳ | ❓ A private `/tmp` and `/var/tmp` does not cover arbitrary tmpfs destinations, sizing, modes, or swap behavior. |
 | [volume drivers / plugins](https://docs.docker.com/engine/extend/plugins_volume/) | ❌ filesystems are the host's business | Portable Compose declarations for remote, encrypted, cloud, clustered, and vendor storage backends; a driver interface. |
@@ -166,7 +170,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-| [port publish / NAT](https://docs.docker.com/engine/network/port-publishing/) | 🔁 host networking + explicit port allocation (MVP position, part 3) | ❓ Networked services get the host stack: no address translation or per-service exposure control. |
+| [port publish / NAT](https://docs.docker.com/engine/network/port-publishing/) | 🔁 D24 makes each declared port a kernel-enforced bind grant; D29 listeners bind `-p name=addr` through transient socket units (`crates/cix-run/tests/system_projection.rs`) | No address translation, port inventory/collision manager, or per-service network namespace; ordinary declared ports have no policy-level bind-address control. |
 | [bridge networks and service DNS](https://docs.docker.com/engine/network/drivers/bridge/) | ⏳ compose-era decision (per-slice netns? socket activation?) | Per-container namespaces, bridge networks, user-defined networks, embedded DNS, aliases, and IPAM. |
 | [network isolation](https://docs.docker.com/engine/network/) | ✅ coarse today (no ports ⇒ `PrivateNetwork`); finer ⏳ | ❓ A binary no-network switch does not isolate one networked composix app from another or from host interfaces. |
 | [overlay / multi-host networking](https://docs.docker.com/engine/network/drivers/overlay/) | ❌ now; k8s-lite ambitions much later | Encrypted multi-daemon service networks and the basis for multi-host orchestration. |
@@ -232,7 +236,7 @@ composite definitions — exists only as the D9 mechanism sketch and is part-3 w
 | docker | disposition | still missing |
 | --- | --- | --- |
 | [seccomp profiles](https://docs.docker.com/engine/security/seccomp/) | ✅ `SystemCallFilter=@system-service` default; custom profiles ❌ (D20a) | Years of deployment exposure and published seccomp behavior; composix has no published threat model, audit, or compatibility corpus. |
-| [capabilities (`--cap-add`)](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) | ✅ semantic grants only (for example, a port below 1024 ⇒ `NET_BIND_SERVICE`, spec v2) | ❓ One implemented semantic grant is not coverage of real workloads that need other narrowly scoped capabilities. |
+| [capabilities (`--cap-add`)](https://docs.docker.com/engine/containers/run/#runtime-privilege-and-linux-capabilities) | ✅ semantic grants only: declared ports compile to kernel-enforced `SocketBindAllow=`/`SocketBindDeny=` (and <1024 ⇒ `NET_BIND_SERVICE`); undeclared bind denial is live-tested in `crates/cix-run/tests/system_projection.rs`. Docker has no equivalent port declaration enforcement. | ❓ One implemented semantic grant is not coverage of real workloads that need other narrowly scoped capabilities. |
 | [userns-remap](https://docs.docker.com/engine/security/userns-remap/) | ✅ `DynamicUser` + idmapped mounts | ❓ Services do not run in a user namespace—the containment boundary differs from Docker's userns; verify before claiming parity (see Evidence). |
 | [AppArmor](https://docs.docker.com/engine/security/apparmor/) / [SELinux](https://docs.docker.com/engine/storage/bind-mounts/#configure-the-selinux-label) | ❓ host policy, likely out of spec scope | ❓ Define labeling/profile behavior for store items and managed writable directories. |
 | [secrets](https://docs.docker.com/compose/how-tos/use-secrets/) | ⏳ `LoadCredential=`, compose era | Secret delivery today. |
