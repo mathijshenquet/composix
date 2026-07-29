@@ -449,8 +449,9 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   changes.
   **Amendment (same day, Mathijs): `FROM` returns, honestly.** An unbound `pkgs` is itself
   ambient magic, so every Cixfile REQUIRES a `FROM <flakeref> [AS <name>]` heading that binds
-  a package universe to a namespace (`FROM nixpkgs` → `pkgs`; `AS stable` → `${stable.x}`;
-  bare `nixpkgs` is the registry ref). `Cixfile.lock` is keyed per input
+  a package universe to a namespace — and `AS` is REQUIRED: no default binding, the name is
+  always written (`FROM nixpkgs AS pkgs`; `FROM github:… AS stable` → `${stable.x}`; bare
+  `nixpkgs` is the registry ref). `Cixfile.lock` is keyed per input
   (`--update-lock [name]`). Docker muscle memory restored with a truthful meaning: not "which
   layer do I inherit" but "which package universe do I draw from".
 - ✅ D31 (2026-07-29) — **the `PATH` directive; LINK is for assets, not bins.** Cixfile gains
