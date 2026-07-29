@@ -240,9 +240,10 @@ fn normalize(raw: &str, base: &Path) -> String {
     // The user manager determines both the rejected controls and the error text — and on
     // permissive kernels (unrestricted userns) the manager accepts everything and the pair
     // never appears at all. Presence is host-specific, so the pair is removed entirely.
-    let degraded_fallback =
-        Regex::new(r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*\n?")
-            .expect("valid degraded fallback regex");
+    let degraded_fallback = Regex::new(
+        r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*\n?",
+    )
+    .expect("valid degraded fallback regex");
     // systemd before version 257 rejects newer unit properties while parsing them. The property
     // name is host-version-specific and is captured by cix's following fallback warning.
     let unknown_assignment = Regex::new(r"(?m)^Unknown assignment: [^\r\n]*(?:\r?\n|$)")
