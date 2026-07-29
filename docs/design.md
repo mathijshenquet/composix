@@ -473,6 +473,48 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   an ordinary env var (D20b: item territory). The LINK-for-executables convention is dropped;
   `LINK` remains for non-executable assets (`mime.types`, `LD_PRELOAD` libraries, share
   trees). `EXEC ${pkg}/bin/x` stays valid for the trivial single-binary case.
+  **Addendum (2026-07-29, Mathijs): the toolbox-LINK exception is refused; rationale
+  refined.** The proposal to re-admit relative LINK for debug-shell tooling is dead: the
+  manifest already carries the generated runtime PATH, so `cix exec` (the docker-exec
+  analogue) reconstructs the service's environment from the manifest — tools are reachable in
+  a debug shell without ever being shimmed into the item, and ad-hoc tool injection is just
+  prepending another store path to that PATH (a future `exec --with <pkg>`), no image surgery.
+  Residual cases don't exist: hardcoded paths and shebangs need *absolute* LINK anyway.
+  Also correcting the D31/D32 record: the argument against `PKG`-style implicit `/bin` was
+  never "new magic" — `bin/` magic is *existing* nix magic (profiles, `nix shell`, buildEnv).
+  The real arguments: it *borrows the convention's name recognition without its mechanism* (a
+  Cixfile builds no symlink-forest profile, it generates a PATH string — implying `/bin`
+  gestures at machinery that isn't running), and it *covers only the bin half* (`share/`,
+  `conf/` still need explicit paths), so PATH survives alongside it and PKG is a second
+  spelling for one case of it. Less magic stays better magic, for these reasons.
+
+- ✅ D33 (2026-07-29) — **the file is `$out/cix-manifest.json` (renames D8's
+  `cix-spec.json`), and baking it is nix-philosophically correct.** Terminology: *spec* = the
+  declaration schema/language (spec v2, v3 …); *manifest* = the concrete instance baked into
+  an item. Naming: OCI's analogue of this file is the image *config*
+  (`vnd.oci.image.config.v1+json`; OCI "manifest" is the registry-side layer descriptor), but
+  "config" here would collide head-on with operator territory (D20b) — and "manifest" is what
+  the docker world colloquially calls the baked metadata, matching our own narrative ("a
+  closure is an image with the manifest ripped out; composix puts it back"). OCI terminology
+  mismatch footnoted in docker.md. Version key `cixSpec` → `cixManifest`.
+  **Why baked, when nix refuses to bake `meta`:** nix's eval-time `meta` is genius *scoped to
+  non-load-bearing catalog data* (descriptions, licenses churn without rebuilds). Nix's deeper
+  principle is that the hash covers everything that affects behavior — and the manifest is
+  load-bearing interface: if `exec` or a port grant changes, a new store path is exactly
+  right. Nix itself bakes load-bearing, tool-consumed metadata into `$out` when consumers
+  shouldn't need the producer's expression: `nix-support/setup-hook`,
+  `nix-support/propagated-build-inputs`. **The manifest is a nix-support file with a
+  schema.** The gap composix fills: in nix, learning an artifact's runtime interface requires
+  evaluating its producer's expression (and the run-contract layer — NixOS modules — is
+  host-coupled); composix makes the interface travel with the closure, so `cix pull && cix
+  run` needs no eval and no nixpkgs on the consumer box. The eval-time object still exists
+  and stays authoritative for *production*: the Cixfile + `Cixfile.lock` (or the `.nix`
+  escape hatch); `drvPath` in index entries remains provenance. Identity-for-distribution is
+  the digest-addressed artifact (D5), not the expression — tags point at store items, and
+  "cixpkgs as a source registry" is explicitly refused (it would re-solve nixpkgs's problem
+  and break tagging locally-built results). Accepted cost, deliberately: a wrong port
+  declaration can't be fixed without a new store path — for a capability grant (D20a),
+  editable-in-place would be the bug; closure sharing makes the rebuild ~free.
 
 ## Non-goals (for now)
 

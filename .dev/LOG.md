@@ -1,5 +1,12 @@
 # composix work log
 
+## 2026-07-29 (new session)
+
+- Bootstrapped repo-level agent context: AGENTS.md (shared map — where truth lives, env,
+  conventions, session-close ritual) + thin CLAUDE.md (@AGENTS.md + orchestrator notes:
+  start ritual, decision queue, delegation policy: codex-exclusive implementation —
+  luna=rote, terra=tight spec, sol=taste/on-the-fly decisions).
+
 ## 2026-07-29 (session close)
 
 - Compose v0 merged: the fourth part works (schema/check/diff, lock, profiles, activation,

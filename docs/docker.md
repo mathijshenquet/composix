@@ -10,6 +10,11 @@ Legend: ✅ have · 🔁 adapted (solved differently) · ❌ rejected · ⏳ def
 target era) · ❓ needs discussion. The third column names what Docker still provides that
 composix does not.
 
+Terminology note (D33): composix's `cix-manifest.json` corresponds to what OCI calls the
+image **config** (`vnd.oci.image.config.v1+json`) — in OCI, "manifest" is the registry-side
+descriptor listing layers. We say *manifest* anyway: it's what the docker world colloquially
+calls the baked metadata, and "config" in composix means operator territory (D20b).
+
 ## Scope, stated once
 
 Two facts are theses, not gaps — they will never change and everything below assumes them:
@@ -132,7 +137,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [Docker-machinery flags (`--cidfile`, `--detach-keys`, `--label*`, `--annotation`, `--cgroup-parent`, `--isolation`, `--runtime`, `--publish-all`, `--volumes-from`)](https://docs.docker.com/reference/cli/docker/container/run/#options) | ❌ no composix analog planned | Machine-readable identity handoff, selectable runtimes/isolation, metadata-based automation, cgroup placement, automatic publication, and volume sharing. |
 | [`container inspect`](https://docs.docker.com/reference/cli/docker/container/inspect/) | ❓ `cix ps` only lists running units | ❓ Define how users obtain resolved environment, mounts, sandbox, ports, state paths, status, and exit cause. |
 | [`container prune`](https://docs.docker.com/reference/cli/docker/container/prune/) | ❓ transient units should collect automatically | ❓ Persistent compose units and role-directory lifecycle have no equivalent cleanup contract yet. |
-| [`docker debug`](https://docs.docker.com/reference/cli/docker/debug/) | ❓ Docker offers a toolbox shell even for slim images | ❓ No image shell or packaged debug-tool injection story. |
+| [`docker debug`](https://docs.docker.com/reference/cli/docker/debug/) | ⏳ designed (D31 addendum): `cix exec` reconstructs the service environment from the manifest (incl. the generated PATH), so a debug shell gets the item's tools with no shims baked into the image; ad-hoc tool injection is prepending a store path to that PATH (future `exec --with <pkg>`) — docker debug needs a sidecar toolbox image for this | `cix exec` implementation. |
 
 ## 3. Building (part 4 assembly subset built)
 
