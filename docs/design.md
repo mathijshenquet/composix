@@ -416,6 +416,28 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
 
+## Building now (decided 2026-07-29, Mathijs: "bouw maar naar eigen inzicht")
+
+- ✅ D29 — **spec v3**: (a) `listeners` field per the dstyle proposal — an activated-listener
+  contract *distinct from* `ports` (fd-inherit means NO IP-socket grant; `FileDescriptorName=`
+  from the listener name; `cix run -p name=addr` binds it via a transient `.socket` unit with
+  explicit `Sockets=`/`Requires=` wiring); (b) D24 built: `SocketBindAllow=`/`SocketBindDeny=`
+  compiled from declared ports (kernel-enforced declarations); (c) the unit generator exposed
+  as a library API (naming scheme + extra properties injectable) so compose can compile
+  services without going through `cix run`. Version gating per D15: new fields ⇒ `cixSpec: 3`,
+  runner accepts 1–3.
+- ✅ D30 — **compose v0 scope** (deliberately lean; each deferral recorded in the ledger):
+  IN: `compose.json` schema + `cix compose check` (D28), resolve→`cix.lock` (local tags +
+  qualified refs via index), per-composite generation built as a store item + **nix profile
+  per composite** (atomic upgrade/rollback), activation via `/etc/systemd/system` links +
+  daemon-reload + restart-changed, `cix up`/`down`/`rollback`/`compose diff`,
+  `cix-<comp>-<svc>.service` in `cix-<comp>.slice` under `cix-<comp>.target`, env overrides,
+  listener bindings, **unix edges** (per-edge groups, the proven dstyle mechanism), update
+  policy per service (`pin`/`track`).
+  OUT (v1+): composite netns (D23 — v0 is host networking, honestly), scale/replicas,
+  socket-proxy publish (v0 publishes via ordinary declared ports), health wiring, secrets
+  (`LoadCredential`), resource limits, the reconciler daemon (v0 `cix up` is one-shot).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
