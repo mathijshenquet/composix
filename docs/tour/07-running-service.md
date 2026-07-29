@@ -22,7 +22,7 @@ The listing is filtered to units created by this scenario, so unrelated `cix-*` 
 ```sh
 $ cix ps
 MANAGER  UNIT                                            STATE       DESCRIPTION
-user     cix-run-tour-service-NONCE.service  active/running  [systemd-run] /nix/store/…-service-fixture/bin/service
+user     cix-run-tour-service-NONCE.service  active/running  /nix/store/…-service-fixture/bin/service
 ```
 
 ```sh

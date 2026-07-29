@@ -264,6 +264,9 @@ fn normalize(raw: &str, base: &Path) -> String {
     )
     .expect("valid nix progress regex");
     let normalized = nix_progress.replace_all(&normalized, "");
+    // Older systemd prefixes transient unit descriptions with "[systemd-run] "; newer does
+    // not. The prefix is environment noise.
+    let normalized = normalized.replace("[systemd-run] ", "");
     normalized
         .replace(base.to_string_lossy().as_ref(), "~")
         .trim_end()
