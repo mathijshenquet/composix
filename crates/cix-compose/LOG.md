@@ -24,3 +24,11 @@
   boring choice: a bind with an unspecified address conflicts with either IP family on the same
   port; false negatives would otherwise defer failure to activation. Next: compile checked input
   into deterministic service/edge/socket/target generations and golden fixtures.
+- 2026-07-29 01:08 UTC — Added deterministic generation rendering around cix-run's public
+  compiler. Services receive composite naming/slice, target ownership, explicit socket
+  dependencies, and per-edge SupplementaryGroups/UMask/BindPaths. Generated edge owners hold a
+  root:edge-group 2770 RuntimeDirectory for target lifetime; the stable per-edge group comes from
+  an in-tree FNV-1a hash to avoid another dependency. Listener sockets carry explicit Service and
+  FileDescriptorName wiring. The generation contains units, sysusers.d, source compose.json,
+  canonical cix.lock, and manifest.json; `nix store add-path` gives the immutable generation.
+  Next: fill and verify unit goldens, then implement profile activation/diff/down/rollback.

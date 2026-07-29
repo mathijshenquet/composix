@@ -1,0 +1,9 @@
+[Unit]
+Description=cix compose listener: http for cix-stack-web.service
+PartOf=cix-stack.target
+Before=cix-stack-web.service
+
+[Socket]
+ListenStream=127.0.0.1:8080
+FileDescriptorName=http
+Service=cix-stack-web.service

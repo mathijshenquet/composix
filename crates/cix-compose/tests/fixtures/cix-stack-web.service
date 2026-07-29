@@ -1,0 +1,33 @@
+[Unit]
+Description=cix run: web
+PartOf=cix-stack.target
+Requires=cix-stack-edge-shared.service cix-stack-web-http.socket
+After=cix-stack-edge-shared.service cix-stack-web-http.socket
+
+[Service]
+Type=exec
+Slice=cix-stack.slice
+RuntimeDirectory=cix-stack-web:app
+RuntimeDirectoryMode=0700
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+SocketBindDeny=any
+SupplementaryGroups=cix-e-564848da9e662aec
+UMask=0007
+BindPaths=/run/cix-stack-edge-shared:/run/app:rbind
+Sockets=cix-stack-web-http.socket
+ExecStart="/nix/store/00000000000000000000000000000000-app/bin/app"
