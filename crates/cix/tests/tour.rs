@@ -237,10 +237,11 @@ fn normalize(raw: &str, base: &Path) -> String {
         r"(?m)^user\s+cix-run-(?:tour-service|listenfds)-NONCE\.service\s+failed/failed.*\n?",
     )
     .expect("valid stale unit regex");
-    // The user manager determines both the rejected controls and the error text. Match the
-    // complete warning pair so no host-specific property list can reach the rendered tour.
+    // The user manager determines both the rejected controls and the error text — and on
+    // permissive kernels (unrestricted userns) the manager accepts everything and the pair
+    // never appears at all. Presence is host-specific, so the pair is removed entirely.
     let degraded_fallback =
-        Regex::new(r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*")
+        Regex::new(r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*\n?")
             .expect("valid degraded fallback regex");
     // systemd before version 257 rejects newer unit properties while parsing them. The property
     // name is host-version-specific and is captured by cix's following fallback warning.
@@ -254,10 +255,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = build_wall_time.replace_all(&normalized, "(… ms)");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized = unknown_assignment.replace_all(&normalized, "");
-    let normalized = degraded_fallback.replace_all(
-        &normalized,
-        "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)",
-    );
+    let normalized = degraded_fallback.replace_all(&normalized, "");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
     // Nix emits fetch/build progress on cold stores (CI runners, fresh machines); those
     // lines are environment noise, not command output.
@@ -1181,11 +1179,11 @@ fn normalize_swallows_every_host_specific_degraded_fallback_detail() {
     let namespace = "warning: the user manager rejected mount-namespace sandboxing (Operation not supported\ncaused by: host policy)\nwarning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains";
     let capability = "warning: user manager rejected capability controls (Failed to set capabilities)\nwarning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs";
     let old_systemd = "Unknown assignment: PrivatePIDs=yes\nwarning: the user manager rejected mount-namespace sandboxing (Operation not supported)\nwarning: retrying without PrivateUsers";
-    let expected = "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)";
-
-    assert_eq!(normalize(namespace, base), expected);
-    assert_eq!(normalize(capability, base), expected);
-    assert_eq!(normalize(old_systemd, base), expected);
+    // Presence of the pair is itself host-specific (permissive kernels emit nothing), so
+    // normalization removes it entirely: degraded and non-degraded hosts must render alike.
+    assert_eq!(normalize(namespace, base), "");
+    assert_eq!(normalize(capability, base), "");
+    assert_eq!(normalize(old_systemd, base), "");
 }
 
 #[test]

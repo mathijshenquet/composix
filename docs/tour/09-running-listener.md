@@ -11,8 +11,6 @@ A spec-v3 listener gives the service an already-bound socket, so the process has
 $ cix run /nix/store/…-listener-fixture --user -p http=127.0.0.1:8420 --detach
 cix-run-listenfds-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
-warning: user manager rejected sandbox controls; degraded fallback required
-warning: retrying with degraded sandbox controls (D13)
 ```
 
 ```sh

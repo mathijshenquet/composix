@@ -11,8 +11,6 @@ A spec'd store item can become a transient systemd service without root.
 $ cix run /nix/store/…-service-fixture --detach --user
 cix-run-tour-service-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
-warning: user manager rejected sandbox controls; degraded fallback required
-warning: retrying with degraded sandbox controls (D13)
 ```
 
 `--user` is the rootless development mode. The product target is the system manager, with `DynamicUser` and the full hardening profile; see the [design document](../design.html). The VM check exercises that system path.
