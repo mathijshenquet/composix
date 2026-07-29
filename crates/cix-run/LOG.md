@@ -10,6 +10,8 @@
 
 - 2026-07-29 01:05 UTC — Final interface review aligned `-p` help with its v3 listener-address form and retained rendered unit text when the existing user-manager capability fallback removes properties, so listener-backed user retries remain valid. Next: focused verification, commit, and clean audit.
 
+- 2026-07-29 01:12 UTC — Current-HEAD final sweep: fmt, warning-denied all-target workspace clippy, and the complete workspace test suite passed twice consecutively, including tour drift/determinism and the self-skipping system integration harness. The earlier explicit-root v3 listener/kernel test, all three sudo demos, and VM gate remain green. Final step: remove the generated devenv lock, audit both managers/runtime units, and commit this log update.
+
 - 2026-07-28 22:24 UTC — Started `.dev/specs/track-fsproj.md`. Read D22 v3 and inventoried the stable `/app` implementation, Cixfile compiler, examples, docs, and tour. Contract choice: `mounts` is an additive cixSpec 2 service field (v1 rejects it); D22’s “exact roots” wording is implemented literally, so a denied root itself is rejected while a dedicated child can be projected unless it collides with a declared writable role directory. First milestone: schema validation plus adversarial coverage, then commit.
 
 - 2026-07-28 22:28 UTC — Completed the schema boundary. Mounts reject non-absolute/non-normalized forms, every D22 v3 denied root/file (including `/lib*`), nesting/duplicates, and role-directory overlap independent of JSON field order; valid root-level and deep projections remain accepted. Focused `cix-run` fmt, 24 unit tests, and warning-denied clippy pass. Next: replace `/app` with source-checked per-mount system binds and exercise systemd behavior.
