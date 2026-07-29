@@ -6,6 +6,18 @@
   conventions, session-close ritual) + thin CLAUDE.md (@AGENTS.md + orchestrator notes:
   start ritual, decision queue, delegation policy: codex-exclusive implementation —
   luna=rote, terra=tight spec, sol=taste/on-the-fly decisions).
+- Design round with Mathijs on the nature of the baked spec: D33 recorded — baking is
+  nix-correct (load-bearing interface ⇒ hash-covered; nix-support precedent; gap filled =
+  eval-free distribution of the runtime contract). File renamed cix-spec.json →
+  cix-manifest.json, key cixSpec → cixManifest (spec = schema, manifest = baked instance).
+  D31 addendum: toolbox-LINK refused; cix exec reconstructs env from the manifest; PKG
+  rationale corrected (borrowed magic + half-coverage, not "new magic").
+- Merged track/manifestrename (terra, clean run; gate re-verified independently: tests green,
+  residue scan clean, tour regenerated). Not yet pushed.
+- cix exec designed (nsenter-join of unit namespaces, env from unit's recorded Environment,
+  default = service uid, sh fallback chain, --user = loud no-join degraded). Three decisions
+  parked with Mathijs: confinement fidelity (no seccomp/cgroup join — operator surgery per
+  D20a/b), default-user choice, shell fallback. Implementation (sol) blocked on his verdict.
 
 ## 2026-07-29 (session close)
 
