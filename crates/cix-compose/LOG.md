@@ -61,3 +61,18 @@
   and selects cixSpec 3 when present. Existing Cixfiles remain byte-for-byte spec v2. This is a
   prerequisite extension rather than new compose scope. Next: verify and commit it separately,
   then finish the stack items.
+- 2026-07-29 01:52 UTC — Added the compose stack sources: PostgreSQL is Unix-only with the proven
+  DynamicUser NSS wrapper and `/run/postgresql`; the Python backend queries it through that edge
+  and serves HTTP on `/run/backend`; nginx maps systemd fd 3 into its inherited-socket mechanism,
+  retains AF_UNIX-only/private-network service policy, and proxies to the backend edge. Each item
+  has its own Cixfile. Added hand-written compose.json plus a 37-line stdlib-only generator and a
+  byte-equivalence test, along with the root-gated integration-test entry point. Backend content
+  and a compose env override are deliberately separate so the demo can prove both item updates and
+  env overlay. Next: implement demo.sh, build all three items, and begin the live activation loop.
+- 2026-07-29 02:02 UTC — All three Cixfiles build and emit valid v2/v3 specs. Added the sudo demo:
+  isolated root tag state, config-generator byte check, v1 activation and fd-only web assertions,
+  grouped ps, v2 retag/diff, unchanged web/db timestamps, backend-only restart, rollback to v1,
+  down, listener/path/link audits, and both-manager cleanliness. Down now also removes empty direct
+  `/run/<name>` edge mount destinations (the dstyle proposal's post-gate amendment); arbitrary
+  consumer destinations are deliberately not removed. Next: run the live demo, diagnose each
+  systemd/application wall, and keep cleanup asserted after every attempt.

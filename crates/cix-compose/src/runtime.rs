@@ -96,6 +96,7 @@ pub fn down(name: &str) -> Result<()> {
         unlink_managed_unit(unit, Some(&generation))?;
     }
     systemctl(&["daemon-reload"])?;
+    cleanup_edge_destinations(&generation)?;
     println!("stopped {name}; profile retained");
     Ok(())
 }
@@ -118,6 +119,11 @@ fn activate_generation(name: &str, old: Option<&Path>, new: &Path) -> Result<()>
     for unit in &changes.removed {
         let _ = systemctl(&["stop", unit]);
         unlink_managed_unit(unit, old)?;
+    }
+    if !changes.removed.is_empty() {
+        if let Some(old) = old {
+            cleanup_edge_destinations(old)?;
+        }
     }
     for unit in new_manifest.units.keys() {
         link_managed_unit(unit, old, new)?;
@@ -391,6 +397,37 @@ fn stop_order(unit: &str) -> u8 {
     } else {
         2
     }
+}
+
+fn cleanup_edge_destinations(generation: &Path) -> Result<()> {
+    let compose = Compose::load(&generation.join("compose.json"))?;
+    let paths = compose
+        .edges
+        .values()
+        .flat_map(|edge| {
+            std::iter::once(edge.producer.path.as_path()).chain(
+                edge.consumers
+                    .values()
+                    .filter_map(|consumer| consumer.path.as_deref()),
+            )
+        })
+        .filter(|path| path.parent() == Some(Path::new("/run")))
+        .collect::<BTreeSet<_>>();
+    for path in paths {
+        match fs::remove_dir(path) {
+            Ok(()) => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    ErrorKind::NotFound | ErrorKind::DirectoryNotEmpty
+                ) => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("removing edge mountpoint {}", path.display()))
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
