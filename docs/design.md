@@ -596,6 +596,14 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   and any example that misbehaves as PID 1 is *spec-boundary evidence* for a future
   init-shim grant in the spec (docker `--init` analogue), not something to patch around.
   Proven by the dogfood/VM gate, not by assertion.
+  **Empirical addenda (2026-07-29, at merge):** (1) systemd realizes PrivatePIDs for a
+  DynamicUser service via an unprivileged user namespace, so hosts that restrict those
+  (stock Ubuntu's `apparmor_restrict_unprivileged_userns=1` — observed live on the dev
+  host) take the loud fallback; the private-pid path is proven in the NixOS VM gate
+  (`/proc/1/comm` probe). Real-world coverage therefore varies by distro userns policy —
+  documented, not hidden. (2) First init-shim datapoint, exactly as predicted: node serves
+  fine as ns-PID 1 but ignores SIGTERM (unit needs SIGKILL); recorded as spec-boundary
+  evidence for a future init grant, no workaround applied.
 
 - ✅ D37 (2026-07-29) — **honest examples: the pack/compose/build layout, the withSpec rung
   built, and the BUILD surface split in two.**
