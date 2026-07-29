@@ -1,0 +1,13 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
+
+COPY Cargo.toml Cargo.toml
+COPY Cargo.lock Cargo.lock
+COPY src/main.rs src/main.rs
+FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
+RUN cargo build --release --locked --offline
+
+SERVICE projb
+EXEC ${build}/target/release/projb
+PORT http = 18082

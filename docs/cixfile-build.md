@@ -1,5 +1,9 @@
 # The Cixfile BUILD half: two designs against buildshape
 
+> **Superseded by D39.** `BUILD rust`, `STAGE`, and the engine-specific variants below were
+> not implemented. Cixfile now uses the ecosystem-agnostic linear `FETCH`/`RUN` workdir chain
+> documented in [The Cixfile](cixfile.md). This page remains as the decision record context.
+
 *Status: exploratory design, not implemented. The existing Cixfile v1 remains an assembly
 language. Syntax on this page is proposed Cixfile v2 syntax.*
 

@@ -1,0 +1,26 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  },
+  "fetches": {
+    "3-b27048b58e57": {
+      "narHash": "sha256-6P+8h09cJalXWS8TDH+saVj2/w6krO4oH0tUsEXTJoU="
+    }
+  },
+  "memo": {
+    "03d9b7a7498655e4633461d93d82f5e7c1decbfc07293309f4ee95ca59627c5c": {
+      "outputNarHash": "sha256-6P+8h09cJalXWS8TDH+saVj2/w6krO4oH0tUsEXTJoU=",
+      "storePath": "/nix/store/ip2qyxk4k1zhabwkqgwz1bcqqxbfazn9-cix-build-snapshot",
+      "wallMs": 152
+    },
+    "f09bad3d36282c6819d444b06300a0c30a43e5c4f77f968d50eda2c8fafb73d2": {
+      "outputNarHash": "sha256-2v1gwYZSe3Gmh52ehNuNFxkZ6yugfgWouJPyZddVvnw=",
+      "storePath": "/nix/store/7cmbky44sycgcf542n7ahsdmxc73807x-cix-build-snapshot",
+      "wallMs": 1056
+    }
+  }
+}

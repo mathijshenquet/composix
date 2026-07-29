@@ -2,7 +2,9 @@
 
 - `pack/<name>/` holds individual service items. A `Cixfile` is the canonical form.
 - `compose/` holds composites that consume pack items through tags.
-- `build/` holds build-story projects; `build/proj1` preserves the original build-shape example.
+- `build/` holds build-story projects. `build/projB` proves D39's single Rust FETCH/RUN path;
+  `build/projB-chef` proves that copying source after the dependency cook preserves its memo
+  entry. `build/proj1` preserves the earlier multi-output build-shape design input.
 
 The adoption ladder is: Cixfile for Docker-shaped authoring, `composix.lib.withSpec` for
 attaching a manifest to an existing derivation, then plain Nix for the fully native escape

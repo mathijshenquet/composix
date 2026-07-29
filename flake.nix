@@ -14,6 +14,11 @@
         cargoLock.lockFile = ./Cargo.lock;
         cargoBuildFlags = [ "-p" "cix" ];
         doCheck = false;
+        nativeBuildInputs = [ pkgs.makeWrapper ];
+        postInstall = ''
+          wrapProgram "$out/bin/cix" \
+            --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix ]}
+        '';
       };
       composixLib = import ./nix/lib.nix { inherit pkgs; };
       withSpecRedis = import ./examples/pack/redis {

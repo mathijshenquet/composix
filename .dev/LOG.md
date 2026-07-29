@@ -218,3 +218,19 @@
   nginx/redis live demos, compose integration demo, and active stale-path scan. Exact commands
   and transcripts are in `.dev/specs/track-restruct.LOG.md`.
 - Open with Mathijs: none. Open for agents: commit `track/restruct` after final staged review.
+
+## 2026-07-29 (track/runv0 close)
+
+- Merged work: none in this worktree; completed D39 RUN v0 on `track/runv0`. Cixfile now has
+  a linear COPY/FETCH/RUN snapshot chain, offer-only bubblewrap execution outside Nix eval,
+  networkless memoized RUN, TOFU-pinned networked FETCH, `${build}`, and backward-compatible
+  lock memo/realisation records.
+- Decisions: no new design decision. Implementation follows D39’s no-tracer v0 and strict
+  user-namespace refusal; the only host files admitted are FETCH resolver fixtures. The Nix
+  package supplies bwrap/nix explicitly.
+- Verification: workspace fmt/build/clippy/tests, deterministic regenerated tour/drift, clean-lock
+  projB determinism, live build/run/curl/stop, chef source-edit selectivity, and
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link` pass. Exact transcripts are in
+  `.dev/specs/track-runv0.LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge the committed
+  `track/runv0` branch.

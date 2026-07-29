@@ -31,4 +31,6 @@ This five-minute tour covers local tags, serving and pulling a store, building f
 
 - [Debugging a service](11-debugging-service.html) — Run a deterministic command in a fresh service sandbox.
 
-- [Inspecting artifacts](12-inspecting.html) — Read a tag's index entry and parsed manifest as stable JSON.
+- [Building with RUN](12-building-with-run.html) — Execute and memoize a networkless build step outside Nix evaluation.
+
+- [Inspecting artifacts](13-inspecting.html) — Read a tag's index entry and parsed manifest as stable JSON.

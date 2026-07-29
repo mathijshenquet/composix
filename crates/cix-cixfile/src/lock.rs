@@ -13,6 +13,10 @@ pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 #[serde(deny_unknown_fields)]
 pub struct LockFile {
     pub inputs: BTreeMap<String, InputLock>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fetches: BTreeMap<String, FetchPin>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub memo: BTreeMap<String, MemoEntry>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -22,6 +26,24 @@ pub struct InputLock {
     pub rev: String,
     #[serde(rename = "narHash")]
     pub nar_hash: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FetchPin {
+    #[serde(rename = "narHash")]
+    pub nar_hash: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MemoEntry {
+    #[serde(rename = "outputNarHash")]
+    pub output_nar_hash: String,
+    #[serde(rename = "storePath")]
+    pub store_path: String,
+    #[serde(rename = "wallMs")]
+    pub wall_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -97,6 +119,8 @@ where
     let was_missing = existing.is_none();
     let mut lock = existing.unwrap_or_else(|| LockFile {
         inputs: BTreeMap::new(),
+        fetches: BTreeMap::new(),
+        memo: BTreeMap::new(),
     });
     let mut changed = false;
     for (name, input) in inputs {
@@ -126,6 +150,8 @@ fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFi
     let name = inputs.keys().next().expect("one input").clone();
     Ok(LockFile {
         inputs: BTreeMap::from([(name, legacy.nixpkgs)]),
+        fetches: BTreeMap::new(),
+        memo: BTreeMap::new(),
     })
 }
 
@@ -138,6 +164,10 @@ fn write_lock(path: &Path, lock: &LockFile) -> Result<()> {
     fs::rename(&temporary, path)
         .with_context(|| format!("atomically replacing lock file {}", path.display()))?;
     Ok(())
+}
+
+pub fn save_lock(path: &Path, lock: &LockFile) -> Result<()> {
+    write_lock(path, lock)
 }
 
 fn resolve_input(url: &str, refresh: bool) -> Result<InputLock> {
@@ -201,6 +231,28 @@ impl LockFile {
                 bail!(
                     "lock input {name:?}.narHash must be an SRI sha256 hash, got {:?}",
                     lock.nar_hash
+                );
+            }
+        }
+        for (name, pin) in &self.fetches {
+            if !pin.nar_hash.starts_with("sha256-") {
+                bail!(
+                    "lock FETCH pin {name:?}.narHash must be an SRI sha256 hash, got {:?}",
+                    pin.nar_hash
+                );
+            }
+        }
+        for (key, entry) in &self.memo {
+            if !entry.output_nar_hash.starts_with("sha256-") {
+                bail!(
+                    "lock memo {key:?}.outputNarHash must be an SRI sha256 hash, got {:?}",
+                    entry.output_nar_hash
+                );
+            }
+            if !entry.store_path.starts_with("/nix/store/") {
+                bail!(
+                    "lock memo {key:?}.storePath must be a Nix store path, got {:?}",
+                    entry.store_path
                 );
             }
         }
