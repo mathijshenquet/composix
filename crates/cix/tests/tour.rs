@@ -86,12 +86,28 @@ impl Doc {
         self.sh_in("$", &state_dir, command, expect_success)
     }
 
+    fn sh_units(&mut self, command: &str, expect_success: bool, unit_names: &[String]) -> String {
+        let state_dir = self.state_dir.clone();
+        self.sh_in_with_unit_filter("$", &state_dir, command, expect_success, Some(unit_names))
+    }
+
     fn sh_in(
         &mut self,
         prompt: &str,
         state_dir: &Path,
         command: &str,
         expect_success: bool,
+    ) -> String {
+        self.sh_in_with_unit_filter(prompt, state_dir, command, expect_success, None)
+    }
+
+    fn sh_in_with_unit_filter(
+        &mut self,
+        prompt: &str,
+        state_dir: &Path,
+        command: &str,
+        expect_success: bool,
+        unit_names: Option<&[String]>,
     ) -> String {
         let mut path = self.bin_dir.display().to_string();
         if let Some(existing) = std::env::var_os("PATH") {
@@ -119,7 +135,10 @@ impl Doc {
 
         let displayed_command = normalize(command, &self.base);
         writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
-        let normalized = normalize(&raw, &self.base);
+        let displayed_output = unit_names
+            .map(|unit_names| filter_unit_listing(&raw, unit_names))
+            .unwrap_or_else(|| raw.clone());
+        let normalized = normalize(&displayed_output, &self.base);
         if !normalized.is_empty() {
             self.text.push_str(&normalized);
             if !normalized.ends_with('\n') {
@@ -138,6 +157,44 @@ impl Doc {
     fn finish(self) -> String {
         self.text
     }
+}
+
+fn filter_unit_listing(raw: &str, unit_names: &[String]) -> String {
+    let rows = raw
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split_whitespace();
+            let manager = fields.next()?;
+            let unit = fields.next()?;
+            if !unit_names.iter().any(|name| name == unit) {
+                return None;
+            }
+            Some((
+                manager,
+                unit,
+                fields.next()?,
+                fields.collect::<Vec<_>>().join(" "),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let unit_width = rows
+        .iter()
+        .map(|(_, unit, _, _)| unit.len())
+        .max()
+        .unwrap_or(4)
+        .max(4);
+    let mut listing = format!(
+        "{:<7}  {:<unit_width$}  {:<10}  DESCRIPTION",
+        "MANAGER", "UNIT", "STATE"
+    );
+    for (manager, unit, state, description) in rows {
+        write!(
+            listing,
+            "\n{manager:<7}  {unit:<unit_width$}  {state:<10}  {description}"
+        )
+        .expect("writing filtered unit listing");
+    }
+    listing
 }
 
 fn test_tmp_dir() -> PathBuf {
@@ -593,14 +650,16 @@ fn scenario_running_a_service() -> String {
     };
 
     doc.para("`--user` is the rootless development mode. The product target is the system manager, with `DynamicUser` and the full hardening profile; see the [design document](../design.html). The VM check exercises that system path.");
-    let running = doc.sh("cix ps", true);
+    doc.para("The listing is filtered to units created by this scenario, so unrelated `cix-*` units already present on the host do not become part of the tour transcript.");
+    let own_units = [unit_name.clone()];
+    let running = doc.sh_units("cix ps", true, &own_units);
     assert!(
         running.contains(&unit_name),
         "cix ps did not show {unit_name}"
     );
 
     doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    let stopped = doc.sh("cix ps", true);
+    let stopped = doc.sh_units("cix ps", true, &own_units);
     assert!(
         !stopped.contains(&unit_name),
         "cix ps still showed stopped unit {unit_name}"
@@ -840,6 +899,30 @@ fn generate_tour() {
 #[test]
 fn generated_tour_is_deterministic() {
     assert_eq!(render_tour(), render_tour());
+}
+
+#[test]
+fn tour_ignores_a_foreign_user_unit() {
+    let output = Command::new("systemd-run")
+        .args(["--user", "--unit=cix-run-decoy-x", "sleep", "60"])
+        .output()
+        .expect("starting foreign user unit");
+    assert!(
+        output.status.success(),
+        "starting foreign user unit failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    let _decoy = UserUnit {
+        name: "cix-run-decoy-x.service".into(),
+    };
+
+    let rendered = render_tour();
+    assert!(
+        rendered
+            .iter()
+            .all(|file| !file.content.contains("cix-run-decoy-x")),
+        "the foreign user unit leaked into the tour"
+    );
 }
 
 #[test]
