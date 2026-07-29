@@ -1,5 +1,27 @@
 # composix work log
 
+## 2026-07-29 (session close)
+
+- Compose v0 merged: the fourth part works (schema/check/diff, lock, profiles, activation,
+  up/down/rollback, unix edges, listener binds; 3-tier fd-only demo verified independently).
+- Cixfile language finalized through Mathijs's simplification arc: D31 PATH (explicit, no
+  magic), D32 PKG scrapped → `${pkgs.attr}`, required `FROM <full-flakeref> AS <name>`
+  (registry names refused, WITH rejected, overrides = .nix escape hatch). Per-input
+  Cixfile.lock.
+- Meta loops all fresh: README, 3-column ledger reconciled (+section 6 post-compose), tour at
+  10 scenarios covering all four parts, CI green incl. VM job (fixed three env classes:
+  missing user manager → linger; cold-store nix progress → normalize; systemd description
+  prefix → normalize). Tour hermetic vs foreign units (decoy regression test).
+- History rewritten (filter-repo) + force push: all private identifiers scrubbed from all
+  refs; verified clean across 146 commits.
+- Examples: 6 services + dstyle + buildshape + compose stack. OCI import: prototyped,
+  verdict distraction, branch preserved.
+- Process lessons: codex launches must be bare (memory saved); agents' "green" claims need
+  independent re-verification (lock-fixture staleness caught at merge).
+- Open with Mathijs: D31 toolbox-LINK addendum y/n; model table update (terra exceptional
+  all session); naming (cixpkgs/pack); remaining ledger ❓s; compose v1 backlog (netns,
+  scale, health, secrets, reconciler daemon).
+
 ## 2026-07-28 (night)
 
 - D22 v3 filesystem projection: items are sparse rootfs fragments (mounts field, deny-list,
