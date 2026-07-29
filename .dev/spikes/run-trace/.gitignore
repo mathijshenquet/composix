@@ -1,0 +1,4 @@
+.prepared/
+node_modules/
+work/
+results/**/*.raw

@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+usage() {
+  printf '%s\n' \
+    'usage: runtrace --workdir DIR --output DIR --memo FILE --trace-prefix PATH' \
+    '  --offer STORE_PATH... --env KEY=VALUE... [--dep HOST:GUEST]...' \
+    '  [--seed STORE_PATH]... [--force] [--no-trace] -- COMMAND_STRING'
+}
+
+die() {
+  printf 'runtrace: %s\n' "$*" >&2
+  exit 2
+}
+
+workdir=
+output=
+memo=
+trace_prefix=
+force=0
+trace_enabled=1
+declare -a offers=()
+declare -a envs=()
+declare -a deps=()
+declare -a seeds=()
+
+while (($#)); do
+  case "$1" in
+    --workdir)
+      (($# >= 2)) || die '--workdir requires a value'
+      workdir=$2
+      shift 2
+      ;;
+    --output)
+      (($# >= 2)) || die '--output requires a value'
+      output=$2
+      shift 2
+      ;;
+    --memo)
+      (($# >= 2)) || die '--memo requires a value'
+      memo=$2
+      shift 2
+      ;;
+    --trace-prefix)
+      (($# >= 2)) || die '--trace-prefix requires a value'
+      trace_prefix=$2
+      shift 2
+      ;;
+    --offer)
+      (($# >= 2)) || die '--offer requires a value'
+      offers+=("$2")
+      shift 2
+      ;;
+    --env)
+      (($# >= 2)) || die '--env requires a value'
+      envs+=("$2")
+      shift 2
+      ;;
+    --dep)
+      (($# >= 2)) || die '--dep requires HOST:GUEST'
+      deps+=("$2")
+      shift 2
+      ;;
+    --seed)
+      (($# >= 2)) || die '--seed requires a store path'
+      seeds+=("$2")
+      shift 2
+      ;;
+    --force)
+      force=1
+      shift
+      ;;
+    --no-trace)
+      trace_enabled=0
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -n "$workdir" ]] || die '--workdir is required'
+[[ -n "$output" ]] || die '--output is required'
+[[ -n "$memo" ]] || die '--memo is required'
+[[ -n "$trace_prefix" ]] || die '--trace-prefix is required'
+(($# == 1)) || die 'exactly one command string is required after --'
+((${#offers[@]} > 0)) || die 'at least one --offer is required'
+command_text=$1
+
+workdir=$(realpath "$workdir")
+output=$(realpath -m "$output")
+memo=$(realpath -m "$memo")
+trace_prefix=$(realpath -m "$trace_prefix")
+[[ -d "$workdir" ]] || die "workdir does not exist: $workdir"
+[[ "$output" != / ]] || die 'refusing / as output'
+[[ "$output" != "$workdir" ]] || die 'output must be separate from workdir'
+
+declare -a normalized_offers=()
+for offer in "${offers[@]}" "${seeds[@]}"; do
+  offer=$(realpath "$offer")
+  [[ "$offer" == /nix/store/* ]] || die "offer is not a store path: $offer"
+  normalized_offers+=("$offer")
+done
+mapfile -t offers < <(printf '%s\n' "${normalized_offers[@]}" | sort -u)
+
+declare -a normalized_deps=()
+declare -a dep_hashes=()
+for dep in "${deps[@]}"; do
+  [[ "$dep" == *:* ]] || die "dependency bind must be HOST:GUEST: $dep"
+  host=${dep%%:*}
+  guest=${dep#*:}
+  host=$(realpath "$host")
+  [[ -e "$host" ]] || die "dependency path does not exist: $host"
+  [[ "$guest" == /* ]] || die "dependency guest path must be absolute: $guest"
+  normalized_deps+=("$host:$guest")
+  dep_hashes+=("$guest=$(nix hash path --mode nar "$host")")
+done
+deps=("${normalized_deps[@]}")
+
+path_value=
+for entry in "${envs[@]}"; do
+  [[ "$entry" == *=* ]] || die "environment entry must be KEY=VALUE: $entry"
+  if [[ "${entry%%=*}" == PATH ]]; then
+    path_value=${entry#*=}
+  fi
+done
+[[ -n "$path_value" ]] || die 'explicit PATH environment entry is required'
+
+runner=
+old_ifs=$IFS
+IFS=:
+for directory in $path_value; do
+  if [[ -x "$directory/bash" ]]; then
+    runner="$directory/bash"
+    break
+  fi
+done
+IFS=$old_ifs
+[[ -n "$runner" ]] || die 'PATH must offer bash as the sandbox command runner'
+
+command_hash=$(
+  jq -cn --arg command "$command_text" --args \
+    '{command: $command, environment: $ARGS.positional}' "${envs[@]}" |
+    sha256sum |
+    cut -d' ' -f1
+)
+workdir_hash=$(nix hash path --mode nar "$workdir")
+request_hash=$(
+  jq -cn \
+    --arg commandHash "$command_hash" \
+    --arg workdirHash "$workdir_hash" \
+    --args \
+    '{command_hash: $commandHash, workdir_hash: $workdirHash,
+      additional_inputs: $ARGS.positional}' "${dep_hashes[@]}" "${seeds[@]}" |
+    sha256sum |
+    cut -d' ' -f1
+)
+
+offered_file=$(mktemp)
+missing_file=$(mktemp)
+cleanup() {
+  rm -f "$offered_file" "$missing_file"
+}
+trap cleanup EXIT
+nix-store --query --requisites "${offers[@]}" | sort -u >"$offered_file"
+
+if ((force == 0)) && [[ -f "$memo" ]]; then
+  memo_command=$(jq -r '.command_hash // empty' "$memo")
+  memo_request=$(jq -r '.request_hash // empty' "$memo")
+  if [[ "$memo_command" == "$command_hash" && "$memo_request" == "$request_hash" ]]; then
+    jq -r '.traced_store_paths[]?' "$memo" | sort -u |
+      comm -23 - "$offered_file" >"$missing_file"
+    if [[ ! -s "$missing_file" ]]; then
+      jq -cn \
+        --arg status hit \
+        --arg outputHash "$(jq -r '.output_hash' "$memo")" \
+        --arg outputStorePath "$(jq -r '.output_store_path' "$memo")" \
+        --argjson tracedPathCount "$(jq '.traced_store_paths | length' "$memo")" \
+        '{status: $status, output_hash: $outputHash,
+          output_store_path: $outputStorePath, traced_path_count: $tracedPathCount}'
+      exit 0
+    fi
+  fi
+fi
+
+[[ ! -e "$output" ]] || die "output path already exists for a miss/run: $output"
+mkdir -p "$output" "$(dirname "$memo")" "$(dirname "$trace_prefix")"
+raw_trace="${trace_prefix}.raw"
+paths_trace="${trace_prefix}.store-paths"
+noise_trace="${trace_prefix}.non-store-summary"
+: >"$raw_trace"
+: >"$paths_trace"
+: >"$noise_trace"
+
+declare -a sandbox=(
+  bwrap
+  --die-with-parent
+  --new-session
+  --unshare-net
+  --unshare-pid
+  --unshare-uts
+  --unshare-ipc
+  --unshare-cgroup-try
+  --ro-bind /nix/store /nix/store
+  --bind "$workdir" /work
+  --bind "$output" /out
+  --proc /proc
+  --dev /dev
+  --tmpfs /tmp
+  --dir /tmp/home
+  --dir /bin
+  --dir /etc
+  --dir /deps
+  --symlink "$runner" /bin/sh
+  --symlink "$runner" /bin/bash
+  --ro-bind /etc/passwd /etc/passwd
+  --ro-bind /etc/group /etc/group
+  --chdir /work
+  --clearenv
+  --setenv HOME /tmp/home
+  --setenv TMPDIR /tmp
+  --setenv LC_ALL C
+  --setenv TZ UTC
+)
+for entry in "${envs[@]}"; do
+  sandbox+=(--setenv "${entry%%=*}" "${entry#*=}")
+done
+for dep in "${deps[@]}"; do
+  sandbox+=(--ro-bind "${dep%%:*}" "${dep#*:}")
+done
+
+wrapped_command=
+for seed in "${seeds[@]}"; do
+  printf -v wrapped_command '%scp -a %q/. /out/; ' "$wrapped_command" "$seed"
+done
+if ((${#seeds[@]} > 0)); then
+  wrapped_command+='chmod -R u+w /out; '
+fi
+wrapped_command+="$command_text"
+
+if ((trace_enabled == 1)); then
+  trace_dir=$(dirname "$raw_trace")
+  sandbox+=(--bind "$trace_dir" /trace)
+  trace_guest="/trace/$(basename "$raw_trace")"
+  sandbox+=(strace -f -qq -z -s 4096 -yy -e 'trace=%file,%process,mmap,mmap2' -o "$trace_guest")
+fi
+sandbox+=("$runner" -c "$wrapped_command")
+
+start_ns=$(date +%s%N)
+set +e
+"${sandbox[@]}"
+run_status=$?
+set -e
+end_ns=$(date +%s%N)
+wall_ms=$(((end_ns - start_ns) / 1000000))
+((run_status == 0)) || die "sandboxed command exited $run_status"
+
+if ((trace_enabled == 1)); then
+  grep -oE '/nix/store/[0-9a-z]{32}-[^\"<>[:space:]/]+' "$raw_trace" |
+    sort -u >"$paths_trace" || true
+  {
+    printf 'workdir '
+    (rg -o '"/work(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+    printf 'output '
+    (rg -o '"/out(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+    printf 'deps '
+    (rg -o '"/deps(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+    printf 'proc '
+    (rg -o '"/proc(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+    printf 'tmp '
+    (rg -o '"/tmp(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+    printf 'etc '
+    (rg -o '"/etc(?:/[^"]*)?' "$raw_trace" || true) | wc -l
+  } >"$noise_trace"
+fi
+
+output_hash=$(nix hash path --mode nar "$output")
+output_store_path=$(nix store add --mode nar "$output")
+
+if ((trace_enabled == 1)); then
+  jq -n \
+    --arg command_hash "$command_hash" \
+    --arg request_hash "$request_hash" \
+    --arg workdir_hash "$workdir_hash" \
+    --arg output_hash "$output_hash" \
+    --arg output_store_path "$output_store_path" \
+    --argjson wall_ms "$wall_ms" \
+    --rawfile traced "$paths_trace" \
+    '{
+      version: 1,
+      command_hash: $command_hash,
+      request_hash: $request_hash,
+      workdir_hash: $workdir_hash,
+      traced_store_paths: ($traced | split("\n") | map(select(length > 0))),
+      output_hash: $output_hash,
+      output_store_path: $output_store_path,
+      wall_ms: $wall_ms
+    }' >"$memo"
+fi
+
+jq -cn \
+  --arg status miss \
+  --arg mode "$([[ $trace_enabled == 1 ]] && printf traced || printf untraced)" \
+  --arg outputHash "$output_hash" \
+  --arg outputStorePath "$output_store_path" \
+  --argjson wallMs "$wall_ms" \
+  --argjson tracedPathCount "$(wc -l <"$paths_trace")" \
+  '{status: $status, mode: $mode, wall_ms: $wallMs, output_hash: $outputHash,
+    output_store_path: $outputStorePath, traced_path_count: $tracedPathCount}'
