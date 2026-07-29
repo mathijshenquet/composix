@@ -438,6 +438,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   socket-proxy publish (v0 publishes via ordinary declared ports), health wiring, secrets
   (`LoadCredential`), resource limits, the reconciler daemon (v0 `cix up` is one-shot).
 
+- ✅ D31 (2026-07-29) — **the `PATH` directive; LINK is for assets, not bins.** Cixfile gains
+  an explicit, item-level `PATH <dir>…` declaration (repeatable; order = search order; no
+  implicit PKG⇒PATH magic — Mathijs's call, consistent with the minimal-magic budget). Two
+  mechanics: (1) *build-time resolution* — a bare argv[0] in `EXEC`/`SETUP` resolves against
+  the declared PATH to the real absolute store path, written into the spec (this sidesteps the
+  systemd trap that ExecStart name-lookup uses a fixed compiled-in search path, not the unit's
+  `Environment=PATH`; and it invokes real binaries at their real prefixes, dissolving the
+  symlink prefix-inference bug class); (2) *runtime* — the same dirs become a generated
+  `env.PATH` default so scripts call bare `initdb`/`postgres` — zero spec-schema change, it's
+  an ordinary env var (D20b: item territory). The LINK-for-executables convention is dropped;
+  `LINK` remains for non-executable assets (`mime.types`, `LD_PRELOAD` libraries, share
+  trees). `EXEC ${pkg}/bin/x` stays valid for the trivial single-binary case.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
