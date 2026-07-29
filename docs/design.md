@@ -625,8 +625,8 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `OUTPUT`, `BUILD pnpm`) proven by `build/proj1`. Variant B stays behind its evidence bar
   (cixfile-build.md unchanged).
 
-- 🔶 D38 (2026-07-29, position — Mathijs's hypothesis, shape endorsed) — **the RUN
-  hypothesis: traced read-closures as input declaration.** What nix-land build tooling
+- ✅ D38 (2026-07-29, position; **promoted same day — spike gate passed**, see addendum) —
+  **the RUN hypothesis: traced read-closures as input declaration.** What nix-land build tooling
   (crane/naersk/uv2nix — the shim industry) compensates for is a missing primitive: *run a
   command and use its observed read-closure as its dependencies*. In nix this is unusually
   well-defined — legal reads are immutable store paths, so an observed read-set IS a
@@ -645,6 +645,21 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   the ledger's ❌ on RUN rejected *untracked* RUN. Gate to promote ✅: a spike proving a
   real `cargo chef cook` traces to a stable closure across runs. Until then the engine
   contract (if built) is the pragmatic bridge, explicitly disposable.
+  **Spike evidence (same day; `.dev/spikes/run-trace/REPORT.md`, independently re-verified
+  at merge):** gate PASSED — `cargo chef cook` read an identical 37-path store closure
+  across forced runs; go (5), pnpm (34), uv (13) closures equally stable; memo hit/miss
+  semantics behaved for all four; the harness stayed fully ecosystem-agnostic (the golden
+  path held — all cargo/go/pnpm/uv knowledge lived in the example projects). Honest
+  residuals for productization: (1) *output* nondeterminism exists even where closures are
+  stable (cargo incremental session dirs, uv's embedded timestamps) — sampled-rebuild +
+  realisation policy needed; (2) "offline" ≠ "read-only cache": pnpm/uv need writable cache
+  snapshots (and pnpm 11 needs `--trust-lockfile` to be truly networkless); (3) non-store
+  inputs (source tree, cache snapshots) need generic fingerprinting — whole-tree hashing is
+  sound but over-invalidates; (4) strace is prototype-grade — a product observer
+  (fanotify/FUSE/eBPF) must be auditable enough to sign and share. Tracing overhead
+  1.3–1.7×. Composition across RUN steps works (prior output seeded as a lower layer).
+  Consequence: the engine-contract bridge is NOT built; RUN productization is the build
+  story's next design round.
 
 ## Non-goals (for now)
 

@@ -7,6 +7,26 @@
 - Verification: explicit tour regeneration, tour determinism/drift, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` passed. The generated pages are unchanged on the current systemd ≥257 host; synthetic coverage proves old-host output normalizes identically.
 - Open with Mathijs: none. Open for agents: merge the committed `track/tourfix` branch after independent verification.
 
+## 2026-07-29 (afternoon: exec-era closes, RUN-era opens)
+
+- All tracks landed and CI-green on the runner host: D33 manifest rename, D34 exec/debug
+  (+1 sol correction), D35 part-1 ledger round, D36 PrivatePIDs (+empirical addenda: Ubuntu
+  userns fallback observed live; node-as-PID-1 ignores SIGTERM = init-shim evidence), D37
+  restructure (pack/compose/build + withSpec x2; +1 terra correction: listenfds cannot be a
+  Cixfile per D29, restored as withSpec) and two tourfix rounds (host-variance classes:
+  which properties a user manager rejects, and which properties old systemd knows).
+- Build-story arc with Mathijs: BUILD rust (Variant A) specced and started (sol), then
+  paused on his design doubt; engine-contract model designed as alternative; superseded by
+  his RUN hypothesis -> D38 recorded, spike executed same day (sol) and PROMOTED: stable
+  traced closures across cargo-chef/go/pnpm/uv with an ecosystem-agnostic harness. Engine
+  contract will not be built; buildtool worktree parked (716 uncommitted lines preserved).
+- Open with Mathijs: RUN productization design round (the three problems in the spike
+  report: non-store input granularity, sound observer, writable layers/nondeterministic
+  realisations); compose v1/netns round (W3) still queued; naming cixpack working title.
+- Process: independent re-verification caught 4 real defects today (sol exec resolver +
+  overclaimed transcripts, terra listenfds deletion, 2 CI-only tour drifts). Model table
+  updated in nix-config accordingly (terra tally now has one miss).
+
 ## 2026-07-29 (part-1 ledger round)
 
 - D35 recorded (Mathijs's docker.md part-1 review): signing scoped (content ✅ now, entry
