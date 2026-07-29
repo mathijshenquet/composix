@@ -93,6 +93,7 @@ impl Parser<'_> {
                 "SETUP" => self.exec(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
+                "LISTENER" => self.listener(line_number, source, arguments)?,
                 "STATE" | "CACHE" | "LOGS" | "CONFIG" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
@@ -430,6 +431,16 @@ impl Parser<'_> {
             .services
             .get_mut(&service_name)
             .expect("current service exists");
+        if service.listeners.contains(fields[0]) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "PORT {:?} conflicts with a LISTENER of the same name",
+                    fields[0]
+                ),
+            ));
+        }
         if service.ports.contains_key(fields[0]) {
             return Err(ParseError::new(
                 line,
@@ -443,6 +454,30 @@ impl Parser<'_> {
             .expect("service metadata exists")
             .ports
             .insert(fields[0].to_owned(), (line, source.to_owned()));
+        Ok(())
+    }
+
+    fn listener(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let fields = exact_fields(arguments, 1, line, source, "LISTENER <name>")?;
+        validate_name("listener", fields[0], line, source)?;
+        let service = self.current_service_mut("LISTENER", line, source)?;
+        if service.ports.contains_key(fields[0]) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "LISTENER {:?} conflicts with a PORT of the same name",
+                    fields[0]
+                ),
+            ));
+        }
+        if !service.listeners.insert(fields[0].to_owned()) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("LISTENER {:?} is already declared", fields[0]),
+            ));
+        }
         Ok(())
     }
 
@@ -1002,6 +1037,7 @@ EXEC bin/start $PORT
 SETUP bin/start $PORT
 ENV PORT = 8080 required secret
 PORT http = $PORT
+LISTENER admin
 STATE /var/lib/web
 CACHE /var/cache/web
 LOGS /var/log/web
@@ -1027,6 +1063,7 @@ JIT
             }
         );
         assert_eq!(service.ports["http"], Port::Env("PORT".into()));
+        assert!(service.listeners.contains("admin"));
         assert!(service.jit);
 
         let Item::File { contents, .. } = &parsed.items[1] else {
@@ -1080,6 +1117,11 @@ JIT
             ),
             ("SERVICE x\nEXEC x\nSTATE /tmp/x\n", 3, "under /var/lib"),
             ("SERVICE x\nEXEC x\nJIT yes\n", 3, "takes no arguments"),
+            (
+                "SERVICE x\nEXEC x\nLISTENER http\nLISTENER http\n",
+                4,
+                "already declared",
+            ),
             (
                 "COPY $SRC x\nSERVICE x\nEXEC x\n",
                 1,

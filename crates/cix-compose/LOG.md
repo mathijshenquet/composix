@@ -54,3 +54,10 @@
   view when no composite is loaded and switches to grouped COMPOSITE/SERVICE columns when one is
   present. Targeted cix-compose/cix tests, tour drift/determinism, fmt, and denied-warning clippy
   now pass. Next: commit activation/CLI, then implement and empirically drive the example stack.
+- 2026-07-29 01:39 UTC — Example implementation hit a real API wall: Cixfile cannot express the
+  spec-v3 listener already required by D30, so an nginx item cannot simultaneously have its own
+  Cixfile and accept only inherited fds. Added the minimal `LISTENER <name>` directive in
+  cix-cixfile: it emits only the existing stream-listener object, conflicts with same-named PORT,
+  and selects cixSpec 3 when present. Existing Cixfiles remain byte-for-byte spec v2. This is a
+  prerequisite extension rather than new compose scope. Next: verify and commit it separately,
+  then finish the stack items.
