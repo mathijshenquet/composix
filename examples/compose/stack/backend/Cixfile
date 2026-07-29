@@ -1,9 +1,6 @@
-PKG postgresql
-PKG python3
-
-LINK bin/psql ${postgresql}/bin/psql
-LINK bin/python3 ${python3}/bin/python3
-LINK share/postgresql ${postgresql}/share/postgresql
+LINK bin/psql ${pkgs.postgresql}/bin/psql
+LINK bin/python3 ${pkgs.python3}/bin/python3
+LINK share/postgresql ${pkgs.postgresql}/share/postgresql
 COPY greeting.txt /srv/backend/greeting.txt
 
 FILE bin/backend.py <<PY
@@ -71,7 +68,7 @@ PY
 
 SCRIPT bin/start <<SH
 set -eu
-item_dir="$("${python3}/bin/python3" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve().parent.parent)' "$0")"
+item_dir="$("${pkgs.python3}/bin/python3" -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve().parent.parent)' "$0")"
 exec "$item_dir/bin/python3" "$item_dir/bin/backend.py"
 SH
 

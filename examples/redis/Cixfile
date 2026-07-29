@@ -1,6 +1,4 @@
-PKG redis
-
-PATH ${redis}/bin
+PATH ${pkgs.redis}/bin
 
 COPY redis.conf /etc/redis/redis.conf
 
