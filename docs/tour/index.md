@@ -28,3 +28,5 @@ This five-minute tour covers local tags, serving and pulling a store, building f
 - [Running with a listener](09-running-listener.html) — Serve through a systemd-activated socket in rootless development mode.
 
 - [Composing services](10-composing-services.html) — Validate and dry-diff a tracked compose service without root.
+
+- [Debugging a service](11-debugging-service.html) — Run a deterministic command in a fresh service sandbox.

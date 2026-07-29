@@ -1,7 +1,7 @@
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -37,11 +37,23 @@ struct Target {
     requested_service: Option<String>,
 }
 
+#[derive(Debug)]
+pub(crate) struct ResolvedService {
+    pub output: PathBuf,
+    pub name: String,
+    pub service: Service,
+}
+
 #[derive(Debug, Clone)]
 pub struct StartedUnit {
     pub name: String,
     pub user: bool,
     pub degraded: bool,
+}
+
+pub(crate) struct ForegroundResult {
+    pub status: ExitStatus,
+    pub stderr: String,
 }
 
 pub fn run(options: RunOptions) -> Result<()> {
@@ -56,24 +68,8 @@ pub fn run(options: RunOptions) -> Result<()> {
         );
     }
 
-    let target = resolve_target(&options.installable)?;
-    let spec = Spec::load(&target.output)?;
-    let selected = spec.select_service(target.requested_service.as_deref());
-    let (service_name, service) = match selected {
-        Ok(selected) => selected,
-        Err(original_error) if target.requested_service.is_none() => {
-            if let Some((installable, service_name)) = split_single_hash(&options.installable) {
-                let output = resolve_installable(installable)?;
-                let fallback_spec = Spec::load(&output)?;
-                let (selected_name, selected_service) =
-                    fallback_spec.select_service(Some(service_name))?;
-                return run_resolved(output, selected_name, selected_service, &options);
-            }
-            return Err(original_error);
-        }
-        Err(error) => return Err(error),
-    };
-    run_resolved(target.output, service_name, service, &options)
+    let target = resolve_service(&options.installable)?;
+    run_resolved(target.output, &target.name, &target.service, &options)
 }
 
 fn run_resolved(
@@ -186,7 +182,7 @@ fn namespace_fallback(
     })
 }
 
-fn without_properties(definition: &UnitDefinition, names: &[&str]) -> UnitDefinition {
+pub(crate) fn without_properties(definition: &UnitDefinition, names: &[&str]) -> UnitDefinition {
     let mut definition = definition.clone();
     definition
         .properties
@@ -461,17 +457,94 @@ fn start_once(name: &str, user: bool, definition: &UnitDefinition) -> Result<()>
     Ok(())
 }
 
+pub(crate) fn run_transient_foreground(
+    name: &str,
+    user: bool,
+    definition: &UnitDefinition,
+    interactive: bool,
+) -> Result<ForegroundResult> {
+    let mut command = Command::new("systemd-run");
+    if user {
+        command.arg("--user");
+    }
+    command
+        .arg("--quiet")
+        .arg("--collect")
+        .arg("--wait")
+        .arg(if interactive { "--pty" } else { "--pipe" })
+        .arg("--service-type=exec")
+        .arg(format!("--unit={name}"));
+
+    for (property, value) in &definition.properties {
+        let value = if user && property == "BindPaths" {
+            expand_user_directory_specifiers(value)?
+        } else {
+            value.clone()
+        };
+        match property.as_str() {
+            "Type" => {}
+            "Slice" => {
+                command.arg(format!("--slice={value}"));
+            }
+            _ => {
+                command.arg(format!("--property={property}={value}"));
+            }
+        }
+    }
+    for (name, value) in &definition.environment {
+        command.arg(format!("--setenv={name}={value}"));
+    }
+    command.arg("--").args(&definition.argv);
+    command.stderr(Stdio::piped());
+    let mut child = command
+        .spawn()
+        .with_context(|| format!("failed to invoke systemd-run for {name}"))?;
+    let mut stderr = child
+        .stderr
+        .take()
+        .context("failed to capture systemd-run diagnostics")?;
+    let diagnostics = thread::spawn(move || {
+        let mut captured = Vec::new();
+        let mut buffer = [0; 4096];
+        loop {
+            match stderr.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(count) => {
+                    let bytes = &buffer[..count];
+                    let _ = std::io::stderr().write_all(bytes);
+                    captured.extend_from_slice(bytes);
+                }
+                Err(_) => break,
+            }
+        }
+        captured
+    });
+    let status = child
+        .wait()
+        .with_context(|| format!("failed to wait for systemd-run for {name}"))?;
+    let stderr = diagnostics
+        .join()
+        .map_err(|_| anyhow::anyhow!("systemd-run diagnostics thread panicked"))?;
+    Ok(ForegroundResult {
+        status,
+        stderr: String::from_utf8_lossy(&stderr).into_owned(),
+    })
+}
+
 fn expand_user_directory_specifiers(value: &str) -> Result<String> {
     let home = std::env::var("HOME").context("HOME is not set for the user manager")?;
     let state = std::env::var("XDG_STATE_HOME").unwrap_or_else(|_| format!("{home}/.local/state"));
     let cache = std::env::var("XDG_CACHE_HOME").unwrap_or_else(|_| format!("{home}/.cache"));
     let config = std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
     let logs = format!("{state}/log");
+    let runtime = std::env::var("XDG_RUNTIME_DIR")
+        .context("XDG_RUNTIME_DIR is not set for the user manager")?;
     Ok(value
         .replace("%S", &state)
         .replace("%C", &cache)
         .replace("%L", &logs)
-        .replace("%E", &config))
+        .replace("%E", &config)
+        .replace("%t", &runtime))
 }
 
 fn follow(unit: &StartedUnit) -> Result<()> {
@@ -558,6 +631,32 @@ fn systemctl_value(user: bool, name: &str, property: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
+pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
+    let target = resolve_target(input)?;
+    let spec = Spec::load(&target.output)?;
+    match spec.select_service(target.requested_service.as_deref()) {
+        Ok((name, service)) => Ok(ResolvedService {
+            output: target.output,
+            name: name.to_owned(),
+            service: service.clone(),
+        }),
+        Err(original_error) if target.requested_service.is_none() => {
+            let Some((installable, service_name)) = split_single_hash(input) else {
+                return Err(original_error);
+            };
+            let output = resolve_installable(installable)?;
+            let fallback_spec = Spec::load(&output)?;
+            let (name, service) = fallback_spec.select_service(Some(service_name))?;
+            Ok(ResolvedService {
+                output,
+                name: name.to_owned(),
+                service: service.clone(),
+            })
+        }
+        Err(error) => Err(error),
+    }
+}
+
 fn resolve_target(input: &str) -> Result<Target> {
     if input.starts_with("/nix/store/") || input.matches('#').count() >= 2 {
         if let Some((installable, service)) = input.rsplit_once('#') {
@@ -637,7 +736,7 @@ fn nix_build(installable: &str) -> Result<Output> {
     }
 }
 
-fn current_uid() -> Result<u32> {
+pub(crate) fn current_uid() -> Result<u32> {
     let output = Command::new("id")
         .arg("-u")
         .output()
@@ -651,7 +750,7 @@ fn current_uid() -> Result<u32> {
         .context("id -u returned an invalid user id")
 }
 
-fn nonce() -> String {
+pub(crate) fn nonce() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -660,7 +759,7 @@ fn nonce() -> String {
     format!("{nanos:x}{counter:x}")
 }
 
-fn namespace_failure(error: &anyhow::Error) -> bool {
+pub(crate) fn namespace_failure(error: &anyhow::Error) -> bool {
     let message = format!("{error:#}").to_ascii_lowercase();
     [
         "namespace",
@@ -674,13 +773,13 @@ fn namespace_failure(error: &anyhow::Error) -> bool {
     .any(|needle| message.contains(needle))
 }
 
-fn capability_failure(error: &anyhow::Error) -> bool {
+pub(crate) fn capability_failure(error: &anyhow::Error) -> bool {
     format!("{error:#}")
         .to_ascii_lowercase()
         .contains("capabilit")
 }
 
-fn with_unit_diagnostics(error: anyhow::Error, name: &str, user: bool) -> anyhow::Error {
+pub(crate) fn with_unit_diagnostics(error: anyhow::Error, name: &str, user: bool) -> anyhow::Error {
     match unit_diagnostics(name, user) {
         Ok(diagnostics) if !diagnostics.is_empty() => {
             error.context(format!("unit diagnostics:\n{diagnostics}"))

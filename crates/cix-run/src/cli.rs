@@ -19,6 +19,34 @@ pub enum Command {
         #[arg(long)]
         user: bool,
     },
+    /// Open a shell or run a command in a fresh copy of a service sandbox.
+    Debug {
+        /// Store path or flake installable, optionally with `#service`.
+        installable: String,
+        /// Override a declared environment variable (`NAME=VALUE`).
+        #[arg(short = 'e', long = "env", value_name = "NAME=VALUE")]
+        env: Vec<String>,
+        /// Degraded dev mode against the user manager (no DynamicUser).
+        #[arg(long)]
+        user: bool,
+        /// Command to run instead of the service-PATH shell.
+        #[arg(last = true, value_name = "COMMAND")]
+        command: Vec<String>,
+    },
+    /// Run a command inside a live cix service's namespaces.
+    Exec {
+        /// Exact unit name from `cix ps`, or an unambiguous running service name.
+        target: String,
+        /// Keep root identity after joining the service namespaces.
+        #[arg(long)]
+        root: bool,
+        /// Degraded mode: use a user unit's environment without joining namespaces.
+        #[arg(long)]
+        user: bool,
+        /// Command to run instead of the unit-PATH shell.
+        #[arg(last = true, value_name = "COMMAND")]
+        command: Vec<String>,
+    },
     /// List running cix-* units.
     Ps,
 }
@@ -38,6 +66,28 @@ impl Command {
                 port,
                 detach,
                 user,
+            }),
+            Self::Debug {
+                installable,
+                env,
+                user,
+                command,
+            } => crate::debug::debug(crate::debug::DebugOptions {
+                installable,
+                env,
+                user,
+                command,
+            }),
+            Self::Exec {
+                target,
+                root,
+                user,
+                command,
+            } => crate::exec::exec(crate::exec::ExecOptions {
+                target,
+                root,
+                user,
+                command,
             }),
             Self::Ps => crate::runtime::ps(),
         }

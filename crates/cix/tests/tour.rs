@@ -43,9 +43,7 @@ struct UserUnit {
 
 impl Drop for UserUnit {
     fn drop(&mut self) {
-        let _ = Command::new("systemctl")
-            .args(["--user", "stop", &self.name])
-            .output();
+        let _ = cix_run::runtime::stop_service(&self.name, true);
     }
 }
 
@@ -895,6 +893,24 @@ fn scenario_composing_services() -> String {
     doc.finish()
 }
 
+fn scenario_debugging_a_service() -> String {
+    let mut doc = Doc::new("debugging-service");
+    doc.para("`cix debug` builds a fresh transient unit from the same service manifest and sandbox compiler as `cix run`, but replaces the service entrypoint with a shell or one-shot command.");
+
+    let store_path = service_fixture(&doc);
+    let output = doc.sh(
+        &format!(
+            "cix debug {store_path} --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'"
+        ),
+        true,
+    );
+    assert!(output.contains("debug-command-ran"));
+    assert!(output.contains("cix debug --user is degraded"));
+
+    doc.para("The system-manager form runs as the service's DynamicUser with the complete projection and hardening profile. This rootless tour uses D13's loudly labeled development fallback; a one-shot command keeps the transcript deterministic, while omitting `-- command` opens an interactive shell.");
+    doc.finish()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct GeneratedFile {
     name: &'static str,
@@ -1022,6 +1038,12 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Composing services",
             description: "Validate and dry-diff a tracked compose service without root.",
             body: scenario_composing_services(),
+        },
+        Scenario {
+            filename: "11-debugging-service.md",
+            title: "Debugging a service",
+            description: "Run a deterministic command in a fresh service sandbox.",
+            body: scenario_debugging_a_service(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

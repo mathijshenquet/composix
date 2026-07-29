@@ -44,8 +44,9 @@ schedule:
   listener can bind an address through `cix run -p name=addr`, but ordinary declared ports still
   have no policy-level bind-address control. This is *the* design debt the compose era must pay first
   (part 3/part 5); until then the ledger's networking rows are honest IOUs.
-- **The operational verb set is thin.** No `cix logs`, `inspect`, `stats`, `exec`, `wait`; no
-  status/exit-cause view; stop/restart go through raw `systemctl`. Each is small and
+- **The operational verb set is thin.** `cix exec` and `cix debug` now cover live operator
+  surgery and pre-start sandbox diagnosis (D34), but there is no `cix logs`, `inspect`, `stats`,
+  or `wait`; no status/exit-cause view; stop/restart go through raw `systemctl`. Each is small and
   systemd-backed — this is roadmap material, listed per-row below as ❓, not a structural
   problem, but today an operator lives in two vocabularies.
 - **Security posture is asserted, not published.** The sandbox is real, but "stricter than
@@ -108,7 +109,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`--restart` policies](https://docs.docker.com/engine/containers/start-containers-automatically/) | ⏳ compose (systemd `Restart=` natively) | — |
 | [`HEALTHCHECK` / health status](https://docs.docker.com/reference/dockerfile/#healthcheck) | ⏳ parsed today, wired in compose era | Health state today. |
 | [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 journald; foreground `cix run` streams and `journalctl -u cix-*` works | ❓ No `cix logs`, stable selector, per-app retention contract, or logging-driver integration. |
-| [`exec` (command in container)](https://docs.docker.com/reference/cli/docker/container/exec/) | ❓ no container, but the unit's namespaces exist | ❓ Would `cix exec` enter them, and under which identity/capabilities? |
+| [`exec` (command in container)](https://docs.docker.com/reference/cli/docker/container/exec/) | ✅ `cix exec` joins a running unit's mount/PID/network/IPC/UTS namespaces and recorded environment; it defaults to the service UID/GID, with explicit `--root` (D34) | Deliberately no synthetic service seccomp/capability/cgroup confinement: this is operator surgery, not another service process (D34). |
 | [`attach`](https://docs.docker.com/reference/cli/docker/container/attach/) | 🔁 journal streaming | stdin/TTY attachment. |
 | [`stop`](https://docs.docker.com/reference/cli/docker/container/stop/) / [`kill`](https://docs.docker.com/reference/cli/docker/container/kill/) / signals | ✅ `systemctl stop`; custom stop signal/timeouts ⏳ (spec v3 candidate) | — |
 | [`rm` / `--rm`](https://docs.docker.com/reference/cli/docker/container/rm/) | 🔁 transient units self-collect | — |
@@ -137,7 +138,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [Docker-machinery flags (`--cidfile`, `--detach-keys`, `--label*`, `--annotation`, `--cgroup-parent`, `--isolation`, `--runtime`, `--publish-all`, `--volumes-from`)](https://docs.docker.com/reference/cli/docker/container/run/#options) | ❌ no composix analog planned | Machine-readable identity handoff, selectable runtimes/isolation, metadata-based automation, cgroup placement, automatic publication, and volume sharing. |
 | [`container inspect`](https://docs.docker.com/reference/cli/docker/container/inspect/) | ❓ `cix ps` only lists running units | ❓ Define how users obtain resolved environment, mounts, sandbox, ports, state paths, status, and exit cause. |
 | [`container prune`](https://docs.docker.com/reference/cli/docker/container/prune/) | ❓ transient units should collect automatically | ❓ Persistent compose units and role-directory lifecycle have no equivalent cleanup contract yet. |
-| [`docker debug`](https://docs.docker.com/reference/cli/docker/debug/) | ⏳ designed (D31 addendum): `cix exec` reconstructs the service environment from the manifest (incl. the generated PATH), so a debug shell gets the item's tools with no shims baked into the image; ad-hoc tool injection is prepending a store path to that PATH (future `exec --with <pkg>`) — docker debug needs a sidecar toolbox image for this | `cix exec` implementation. |
+| [`docker debug`](https://docs.docker.com/reference/cli/docker/debug/) | ✅ `cix debug` creates a fresh, fully sandboxed transient unit for a shell/command; `cix exec` joins a live unit with its recorded environment and generated PATH (D34; D31 addendum) | Future `--with <pkg>` toolbox injection. Persistent pet-server shell workflows are consciously refused: debug units are fresh and `--collect`; live exec is explicit operator surgery (D34). |
 
 ## 3. Building (part 4 assembly subset built)
 
