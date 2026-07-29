@@ -241,12 +241,17 @@ fn normalize(raw: &str, base: &Path) -> String {
     let degraded_fallback =
         Regex::new(r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*")
             .expect("valid degraded fallback regex");
+    // systemd before version 257 rejects newer unit properties while parsing them. The property
+    // name is host-version-specific and is captured by cix's following fallback warning.
+    let unknown_assignment = Regex::new(r"(?m)^Unknown assignment: [^\r\n]*(?:\r?\n|$)")
+        .expect("valid unknown assignment regex");
 
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "age=0s");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
+    let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(
         &normalized,
         "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)",
@@ -1093,10 +1098,12 @@ fn normalize_swallows_every_host_specific_degraded_fallback_detail() {
     let base = Path::new("/tour");
     let namespace = "warning: the user manager rejected mount-namespace sandboxing (Operation not supported\ncaused by: host policy)\nwarning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains";
     let capability = "warning: user manager rejected capability controls (Failed to set capabilities)\nwarning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs";
+    let old_systemd = "Unknown assignment: PrivatePIDs=yes\nwarning: the user manager rejected mount-namespace sandboxing (Operation not supported)\nwarning: retrying without PrivateUsers";
     let expected = "warning: user manager rejected sandbox controls; degraded fallback required\nwarning: retrying with degraded sandbox controls (D13)";
 
     assert_eq!(normalize(namespace, base), expected);
     assert_eq!(normalize(capability, base), expected);
+    assert_eq!(normalize(old_systemd, base), expected);
 }
 
 #[test]

@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::{ErrorKind, Read, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -528,20 +528,22 @@ pub(crate) fn run_transient_foreground(
     let mut child = command
         .spawn()
         .with_context(|| format!("failed to invoke systemd-run for {name}"))?;
-    let mut stderr = child
+    let stderr = child
         .stderr
         .take()
         .context("failed to capture systemd-run diagnostics")?;
     let diagnostics = thread::spawn(move || {
         let mut captured = Vec::new();
-        let mut buffer = [0; 4096];
+        let mut stderr = BufReader::new(stderr);
         loop {
-            match stderr.read(&mut buffer) {
+            let mut line = Vec::new();
+            match stderr.read_until(b'\n', &mut line) {
                 Ok(0) => break,
-                Ok(count) => {
-                    let bytes = &buffer[..count];
-                    let _ = std::io::stderr().write_all(bytes);
-                    captured.extend_from_slice(bytes);
+                Ok(_) => {
+                    if should_stream_systemd_diagnostic(&line) {
+                        let _ = std::io::stderr().write_all(&line);
+                    }
+                    captured.extend_from_slice(&line);
                 }
                 Err(_) => break,
             }
@@ -558,6 +560,13 @@ pub(crate) fn run_transient_foreground(
         status,
         stderr: String::from_utf8_lossy(&stderr).into_owned(),
     })
+}
+
+fn should_stream_systemd_diagnostic(line: &[u8]) -> bool {
+    let line = String::from_utf8_lossy(line);
+    line.trim_end_matches(['\r', '\n'])
+        .strip_prefix("Unknown assignment: ")
+        .is_none_or(|property| property.is_empty())
 }
 
 fn expand_user_directory_specifiers(value: &str) -> Result<String> {
@@ -985,5 +994,17 @@ mod tests {
             resolve_installable(store_path.to_str().unwrap()).unwrap(),
             store_path
         );
+    }
+
+    #[test]
+    fn captures_old_systemd_unknown_property_diagnostics_without_streaming_them() {
+        assert!(!should_stream_systemd_diagnostic(
+            b"Unknown assignment: PrivatePIDs=yes\n"
+        ));
+        assert!(!should_stream_systemd_diagnostic(
+            b"Unknown assignment: PrivatePIDs=yes\r\n"
+        ));
+        assert!(should_stream_systemd_diagnostic(b"Failed to start unit\n"));
+        assert!(should_stream_systemd_diagnostic(b"Unknown assignment: \n"));
     }
 }

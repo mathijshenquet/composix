@@ -1,5 +1,12 @@
 # composix work log
 
+## 2026-07-29 (track/tourfix correction round 1)
+
+- Merged work: none in this worktree; corrected the old-systemd `Unknown assignment: PrivatePIDs=yes` tour leak on `track/tourfix`.
+- Decisions: no new design decision. `cix debug` retains the raw old-systemd line in its captured failure diagnostics for fallback classification, but does not stream it separately; its existing loud D13 warning owns the human-facing explanation. Tour normalization removes the full assignment-line class, as it already does host-varying fallback detail and the optional systemd-run description prefix.
+- Verification: explicit tour regeneration, tour determinism/drift, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` passed. The generated pages are unchanged on the current systemd ≥257 host; synthetic coverage proves old-host output normalizes identically.
+- Open with Mathijs: none. Open for agents: merge the committed `track/tourfix` branch after independent verification.
+
 ## 2026-07-29 (part-1 ledger round)
 
 - D35 recorded (Mathijs's docker.md part-1 review): signing scoped (content ✅ now, entry
