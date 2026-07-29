@@ -82,10 +82,10 @@ are held.
 This scenario is intentionally hostile to Docker-shaped defaults: granting a
 shared IP network would be broader and therefore wrong.
 
-### 2. `the private fleet repo` dashboard, as found
+### 2. the fleet dashboard (private repo), as found
 
-This was inspected read-only at `/home/mathijs/the private fleet repo`, commit
-`(redacted)`. The premise "Node frontend + Rust dashboard + presumably nginx"
+This was inspected read-only at `a private fleet repo`, commit
+`redacted`. The premise "Node frontend + Rust dashboard + presumably nginx"
 is stale:
 
 - `frontend/` is React/TypeScript built with pnpm, but Node is a **build-time
@@ -95,10 +95,10 @@ is stale:
 - Development runs Vite on `5173`, proxying `/api` to Rust on `8787`; neither
   Vite nor `5173` belongs in the production composite.
 - Production binds the dashboard to `127.0.0.1:8787`. The deploy script asks
-  the existing the host tunnel host service to expose HTTP `80` and HTTPS `443`.
+  an existing host-level tunnel service to expose HTTP `80` and HTTPS `443`.
   There is no nginx or nginx configuration in this deployment.
 - The dashboard reads PostgreSQL on `data-host:5432`, dataplane gRPC on
-  `data-host:50051`, Chain WebSocket RPC on `archive-host:9944`, and a
+  `data-host:50051`, an external chain WebSocket RPC on `archive-host:9944`, and a
   read-only bot-log rsync module on `host-c:8873`. It also needs outbound
   HTTPS for GitHub identities, subnet images, and optionally ntfy/Slack.
 - Mutable data is cache/state, not a database owned by this deployment:
@@ -259,7 +259,7 @@ DASHBOARD_BLOCK_CACHE = "/var/cache/host-dashboard-block-cache/block-views"
 DASHBOARD_SUBNET_ASSET_CACHE = "/var/cache/host-dashboard/subnets"
 APP_MEV_ANALYSIS_CACHE_DIR = "/var/cache/host-dashboard-block-cache/opportunities"
 APP_MEV_ANALYSIS_RESULT_CACHE_DIR = "/var/cache/host-dashboard-block-cache/analysis-results"
-APP_BOT_LOG_CACHE_DIR = "/var/cache/the-org/bot-logs/host-c"
+APP_BOT_LOG_CACHE_DIR = "/var/cache/app/bot-logs/host-c"
 
 [services.dashboard.override.dirs]
 "/var/cache/host-dashboard-block-cache" = { host = "/home/mthq/.cache/host-dashboard-block-cache", quota = "10G" }
@@ -571,7 +571,7 @@ services:
         DASHBOARD_SUBNET_ASSET_CACHE: /var/cache/host-dashboard/subnets
         APP_MEV_ANALYSIS_CACHE_DIR: /var/cache/host-dashboard-block-cache/opportunities
         APP_MEV_ANALYSIS_RESULT_CACHE_DIR: /var/cache/host-dashboard-block-cache/analysis-results
-        APP_BOT_LOG_CACHE_DIR: /var/cache/the-org/bot-logs/host-c
+        APP_BOT_LOG_CACHE_DIR: /var/cache/app/bot-logs/host-c
       dirs:
         /var/cache/host-dashboard-block-cache:
           host: /home/mthq/.cache/host-dashboard-block-cache
@@ -863,7 +863,7 @@ in
           "/var/cache/host-dashboard-block-cache/opportunities";
         APP_MEV_ANALYSIS_RESULT_CACHE_DIR =
           "/var/cache/host-dashboard-block-cache/analysis-results";
-        APP_BOT_LOG_CACHE_DIR = "/var/cache/the-org/bot-logs/host-c";
+        APP_BOT_LOG_CACHE_DIR = "/var/cache/app/bot-logs/host-c";
       };
       dirs = {
         "/var/cache/host-dashboard-block-cache" = {
@@ -1175,7 +1175,7 @@ SERVICE dashboard cix.example.com/host-dashboard:latest#dashboard
   OVERRIDE ENV DASHBOARD_SUBNET_ASSET_CACHE = /var/cache/host-dashboard/subnets
   OVERRIDE ENV APP_MEV_ANALYSIS_CACHE_DIR = /var/cache/host-dashboard-block-cache/opportunities
   OVERRIDE ENV APP_MEV_ANALYSIS_RESULT_CACHE_DIR = /var/cache/host-dashboard-block-cache/analysis-results
-  OVERRIDE ENV APP_BOT_LOG_CACHE_DIR = /var/cache/the-org/bot-logs/host-c
+  OVERRIDE ENV APP_BOT_LOG_CACHE_DIR = /var/cache/app/bot-logs/host-c
   OVERRIDE DIR /var/cache/host-dashboard-block-cache = /home/mthq/.cache/host-dashboard-block-cache QUOTA 10G
   OVERRIDE DIR /var/cache/host-dashboard = /home/mthq/.cache/host-dashboard
   OVERRIDE DIR /var/cache/the-org = /home/mthq/.cache/the-org

@@ -10,7 +10,7 @@ as named objects, talks-to edges, caps tier), Part 3 parked notes, and cix-spec 
 spec already declares, so compose only carries operator decisions — overrides, wiring,
 policy; never app contracts).
 
-Study a REAL case: `/home/mathijs/the private fleet repo` (read-only!) — a frontend (node), a rust
+Study a REAL case: `a private fleet repo` (read-only!) — a frontend (node), a rust
 workspace with a dashboard webserver, presumably nginx in front and state involved. Extract
 its actual shape (services, ports, who-talks-to-whom, state) as scenario 2. Do not modify
 anything there.

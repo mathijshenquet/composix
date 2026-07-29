@@ -1,7 +1,7 @@
 # Track: buildshape — stub the real-world flake shape + dream the Cixfile BUILD half
 
 Goal: make the Cixfile BUILD story concrete against a REAL flake's shape. Source of truth for
-the shape: `/home/mathijs/the private fleet repo` (READ-ONLY — study `flake.nix`, the `rust/` workspace
+the shape: `a private fleet repo` (READ-ONLY — study `flake.nix`, the `rust/` workspace
 topology, `frontend/` build). PRIVACY RULE, absolute: this repo is public — the stub must
 reproduce ONLY the shape (topology, build patterns, flake techniques), never details: no
 crate/product/company names, no dependency lists, no business logic, no copied comments.
