@@ -625,6 +625,27 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `OUTPUT`, `BUILD pnpm`) proven by `build/proj1`. Variant B stays behind its evidence bar
   (cixfile-build.md unchanged).
 
+- 🔶 D38 (2026-07-29, position — Mathijs's hypothesis, shape endorsed) — **the RUN
+  hypothesis: traced read-closures as input declaration.** What nix-land build tooling
+  (crane/naersk/uv2nix — the shim industry) compensates for is a missing primitive: *run a
+  command and use its observed read-closure as its dependencies*. In nix this is unusually
+  well-defined — legal reads are immutable store paths, so an observed read-set IS a
+  closure — and nix already trusts observation on the output side (runtime references are
+  discovered by scanning, not declared); the primitive extends the same empiricism to
+  build inputs. Soundness conditions: no network in the sandbox (lock-derived fetch FODs
+  cover hash-complete ecosystems) and determinism (verified by sampled rebuilds); under
+  those, cache semantics are Rattle/BuildXL-shaped: memo table `hash(command + traced
+  input hashes) → content-addressed output`; any traced path absent from the offered
+  closure ⇒ miss ⇒ re-run + re-trace. This is retroactive-impossible in input-addressed
+  nix but is exactly the ca-derivations shape (floating outputs + a shared, signed
+  realisation table — observed keys instead of declared ones). A composix prototype needs
+  no nix-core changes: our own sandbox (the cix-run/debug machinery) + read tracing
+  (fanotify/FUSE) + `nix store add` + a memo section in `Cixfile.lock`; sharing later via
+  the index, meeting D35's entry-signing era. Would make `RUN cargo chef cook` honest —
+  the ledger's ❌ on RUN rejected *untracked* RUN. Gate to promote ✅: a spike proving a
+  real `cargo chef cook` traces to a stable closure across runs. Until then the engine
+  contract (if built) is the pragmatic bridge, explicitly disposable.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
