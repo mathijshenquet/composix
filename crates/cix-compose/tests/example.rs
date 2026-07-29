@@ -24,12 +24,7 @@ fn real_stack_demo_is_root_gated() {
         eprintln!("skipping compose stack integration test: requires root");
         return;
     }
-    let Some(cix) = std::env::var_os("CIX_BIN") else {
-        eprintln!("skipping compose stack integration test: root run requires CIX_BIN");
-        return;
-    };
     let status = Command::new(stack().join("demo.sh"))
-        .env("CIX_BIN", cix)
         .status()
         .expect("run compose stack demo");
     assert!(status.success());

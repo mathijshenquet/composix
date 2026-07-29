@@ -119,3 +119,35 @@
   itself leaves its known empty user cix-run slice, which is stopped during every final cleanup
   audit. No compose code failure was involved. Next: commit the empirically required generator and
   example fixes.
+- 2026-07-29 02:31 UTC — Exact verification gate passed twice consecutively:
+  `cargo fmt --all --check`, workspace all-target clippy with `-D warnings`, and
+  `cargo test --workspace`. The complete sudo demo then passed twice consecutively, including both
+  rollback cycles and cleanup audits. `nix build .#checks.x86_64-linux.vm-dogfood --no-link` is
+  green with the updated cix package. Tightened the root-gated integration test: only non-root
+  self-skips; root always invokes demo.sh, which resolves the normal target/debug cix fallback or
+  an explicit CIX_BIN. Next: final D30 IN/OUT and residue audit, then final log/commit.
+- 2026-07-29 02:36 UTC — Final D30 audit is complete. IN is fully represented: strict
+  path-diagnostic compose/lock models and schema; local/qualified/store resolution with pin,
+  track, and targeted update; item/service/env/listener/edge/collision validation; deterministic
+  store generations and manifests; composite profile activation, restart-changed, disappearance
+  cleanup, down, rollback, diff, slice-grouped ps; sysusers-backed Unix-edge capabilities; and the
+  three-Cixfile config-as-code stack. An explicit source scan confirms no composite netns,
+  replicas/scale, socket proxy, health wiring, LoadCredential secrets, resource limits, or
+  reconciler daemon were added.
+- 2026-07-29 02:36 UTC — Final boring choices/deviations: cix.lock is a strict top-level
+  `{"services": ...}` map with no invented lock version; check/diff resolve in memory while only up
+  persists the adjacent lock; wildcard listener addresses conservatively conflict across IP
+  families; down removes only empty direct `/run/<name>` edge destinations and will not delete
+  arbitrary consumer paths; ps preserves the old layout until a composite is present. Two minimal
+  prerequisite extensions are isolated in history: cix-index's non-tagging resolver and Cixfile's
+  stream-only LISTENER directive. Generated edge groups intentionally persist as sysusers metadata,
+  while authority exists only on running member units.
+- 2026-07-29 02:36 UTC — Compose-v1 design walls: an edge-owned run path must replace, not overlay,
+  the service compiler's RuntimeDirectory alias; compose must own direct runtime bind-destination
+  cleanup; sudo callers need Nix available for root-side tag resolution; root ps cannot inspect an
+  unrelated user bus without its runtime environment. Example-only walls were PostgreSQL's
+  symlink-relative `$libdir`, explicit database selection, and readiness errors needing 503 rather
+  than process exit. Final cleanup found both managers unloaded and no system links, stack paths,
+  or port 8080 listener. It also removed only the many unloaded `cix-run-listenfds-*` files left in
+  the user runtime directory by earlier probes, then daemon-reloaded it; those files were not
+  compose artifacts and are not recoverable or needed.
