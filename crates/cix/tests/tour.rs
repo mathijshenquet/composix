@@ -257,6 +257,13 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized =
         namespace_diagnostic.replace_all(&normalized, "${1}host-specific diagnostic${2}");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
+    // Nix emits fetch/build progress on cold stores (CI runners, fresh machines); those
+    // lines are environment noise, not command output.
+    let nix_progress = Regex::new(
+        r"(?m)^(unpacking '|copying path '|building '/nix/store/|querying info about|downloading '|these \d+ (?:derivations|paths) will be (?:built|fetched).*|this (?:derivation|path) will be (?:built|fetched).*)[^\n]*\n?",
+    )
+    .expect("valid nix progress regex");
+    let normalized = nix_progress.replace_all(&normalized, "");
     normalized
         .replace(base.to_string_lossy().as_ref(), "~")
         .trim_end()
