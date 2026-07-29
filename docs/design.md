@@ -579,6 +579,18 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   The residual gap is visibility only: a systems column in `cix ls -l` and the inspect
   output.
 
+- ✅ D36 (2026-07-29) — **`PrivatePIDs=yes` becomes a generator default** (system mode,
+  systemd ≥ 257): every service gets a real PID namespace — private process view (host
+  processes invisible and unsignalable even at equal uid), the unit's main process is ns-PID
+  1, namespace dies with it. Docker-parity isolation, honest `ps`, and `cix exec`'s pid join
+  becomes meaningful. Fallback: where the property is unsupported (older systemd, user
+  manager) it is dropped loudly via the existing degraded-mode path (D13 pattern). The
+  accepted trade-off, documented: the app inherits PID-1 duties (zombie reaping, explicit
+  signal handlers) — a non-issue for master/worker daemons (nginx, postgres reap anyway),
+  and any example that misbehaves as PID 1 is *spec-boundary evidence* for a future
+  init-shim grant in the spec (docker `--init` analogue), not something to patch around.
+  Proven by the dogfood/VM gate, not by assertion.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
