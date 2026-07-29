@@ -1,17 +1,16 @@
 [package]
-name = "cix"
+name = "cix-compose"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-cix-cixfile.workspace = true
-cix-compose.workspace = true
+cix-common.workspace = true
 cix-index.workspace = true
 cix-run.workspace = true
 anyhow.workspace = true
 clap.workspace = true
-
-[dev-dependencies]
-regex = "1"
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
 tempfile = "3"

@@ -21,6 +21,7 @@ pub struct Service {
     pub setup: Option<Vec<Template>>,
     pub env: BTreeMap<String, Env>,
     pub ports: BTreeMap<String, Port>,
+    pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
     pub jit: bool,
 }
@@ -32,6 +33,7 @@ impl Service {
             setup: None,
             env: BTreeMap::new(),
             ports: BTreeMap::new(),
+            listeners: BTreeSet::new(),
             dirs: Dirs::default(),
             jit: false,
         }

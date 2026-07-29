@@ -738,6 +738,93 @@ fn resolve_remote(reference: &Ref) -> Result<Entry> {
         .context("parsing index resolve response")
 }
 
+fn fetch_output(reference: &Ref, entry: &Entry, output: &Output) -> Result<()> {
+    if Path::new(&output.store_path).exists() {
+        let actual = path_info(&output.store_path)?;
+        if actual.nar_hash != output.nar_hash {
+            bail!(
+                "narHash mismatch for {}: index has {}, local store has {}",
+                output.store_path,
+                output.nar_hash,
+                actual.nar_hash
+            );
+        }
+        return Ok(());
+    }
+    if entry.substituters.is_empty() {
+        bail!(
+            "remote `{}` did not advertise a substituter",
+            reference.display()
+        );
+    }
+    let mut failures = Vec::new();
+    for substituter in &entry.substituters {
+        let trusted_keys = entry.trusted_keys.join(" ");
+        let mut arguments = vec!["copy", "--from", substituter.as_str()];
+        if !trusted_keys.is_empty() {
+            arguments.extend(["--option", "trusted-public-keys", &trusted_keys]);
+        }
+        arguments.push(&output.store_path);
+        match nix(&arguments) {
+            Ok(_) => {
+                let actual = path_info(&output.store_path)?;
+                if actual.nar_hash != output.nar_hash {
+                    bail!(
+                        "narHash mismatch for {}: index has {}, local store has {}",
+                        output.store_path,
+                        output.nar_hash,
+                        actual.nar_hash
+                    );
+                }
+                return Ok(());
+            }
+            Err(error) => failures.push(format!("{substituter}: {error:#}")),
+        }
+    }
+    bail!(
+        "could not fetch {} from any substituter: {}",
+        output.store_path,
+        failures.join("; ")
+    )
+}
+
+/// Resolve a store path, local tag, or qualified index ref for the current system.
+///
+/// Qualified refs are resolved directly against the index and fetched from an advertised
+/// substituter when necessary. Unlike [`pull`], this does not create a local mirror tag.
+pub fn resolve(reference: &str) -> Result<Output> {
+    if reference.starts_with("/nix/store/") {
+        return path_info(reference);
+    }
+    let reference = Ref::parse(reference)?;
+    let system = current_system()?;
+    if reference.root_url.is_some() {
+        let entry = resolve_remote(&reference)?;
+        let output = entry.outputs.get(&system).cloned().with_context(|| {
+            format!(
+                "remote `{}` has no output for {system}",
+                reference.display()
+            )
+        })?;
+        fetch_output(&reference, &entry, &output)?;
+        return Ok(output);
+    }
+    let store = Store::open()?;
+    store
+        .load(&reference)?
+        .with_context(|| format!("local tag `{}` does not exist", reference.display()))?
+        .entry
+        .outputs
+        .get(&system)
+        .cloned()
+        .with_context(|| {
+            format!(
+                "local tag `{}` has no output for {system}",
+                reference.display()
+            )
+        })
+}
+
 fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {
     let entry = resolve_remote(remote)?;
     let system = current_system()?;
@@ -753,45 +840,7 @@ fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {
     {
         return Ok(false);
     }
-    if entry.substituters.is_empty() {
-        bail!(
-            "remote `{}` did not advertise a substituter",
-            remote.display()
-        );
-    }
-    let mut copied = false;
-    let mut failures = Vec::new();
-    for substituter in &entry.substituters {
-        let trusted_keys = entry.trusted_keys.join(" ");
-        let mut arguments = vec!["copy", "--from", substituter.as_str()];
-        if !trusted_keys.is_empty() {
-            arguments.extend(["--option", "trusted-public-keys", &trusted_keys]);
-        }
-        arguments.push(&output.store_path);
-        match nix(&arguments) {
-            Ok(_) => {
-                copied = true;
-                break;
-            }
-            Err(error) => failures.push(format!("{substituter}: {error:#}")),
-        }
-    }
-    if !copied {
-        bail!(
-            "could not fetch {} from any substituter: {}",
-            output.store_path,
-            failures.join("; ")
-        );
-    }
-    let actual = path_info(&output.store_path)?;
-    if actual.nar_hash != output.nar_hash {
-        bail!(
-            "narHash mismatch for {}: index has {}, local store has {}",
-            output.store_path,
-            output.nar_hash,
-            actual.nar_hash
-        );
-    }
+    fetch_output(remote, &entry, output)?;
     tag(
         &output.store_path,
         &local.display(),

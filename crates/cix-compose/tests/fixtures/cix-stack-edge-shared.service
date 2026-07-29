@@ -1,0 +1,14 @@
+[Unit]
+Description=cix compose Unix edge: shared
+PartOf=cix-stack.target
+Before=cix-stack-web.service cix-stack-worker.service
+
+[Service]
+Type=oneshot
+Slice=cix-stack.slice
+ExecStart=/bin/sh -c true
+RemainAfterExit=yes
+Group=cix-e-564848da9e662aec
+RuntimeDirectory=cix-stack-edge-shared
+RuntimeDirectoryMode=2770
+UMask=0007

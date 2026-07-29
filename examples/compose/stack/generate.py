@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+import json
+
+compose = {
+    "composeVersion": 1,
+    "name": "stack",
+    "services": {
+        "web": {
+            "item": "stack-web:v1",
+            "bind": {"http": "127.0.0.1:8080"},
+        },
+        "backend": {
+            "item": "stack-backend:current",
+            "update": "track",
+            "env": {"SUFFIX": " via compose"},
+        },
+        "db": {"item": "stack-db:v1"},
+    },
+    "edges": {
+        "database": {
+            "producer": {
+                "service": "db",
+                "path": "/run/postgresql",
+            },
+            "consumers": {"backend": {}},
+        },
+        "http": {
+            "producer": {
+                "service": "backend",
+                "path": "/run/backend",
+            },
+            "consumers": {"web": {}},
+        },
+    },
+}
+
+print(json.dumps(compose, indent=2))

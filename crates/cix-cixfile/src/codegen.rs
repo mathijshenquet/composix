@@ -164,7 +164,16 @@ fn github_repository(url: &str) -> Result<(&str, &str)> {
 }
 
 fn nix_spec(cixfile: &Cixfile) -> String {
-    let mut output = String::from("{ cixSpec = 2; services = {");
+    let version = if cixfile
+        .services
+        .values()
+        .any(|service| !service.listeners.is_empty())
+    {
+        3
+    } else {
+        2
+    };
+    let mut output = format!("{{ cixSpec = {version}; services = {{");
     let mounts = projected_mounts(cixfile);
     for (name, service) in &cixfile.services {
         write!(
@@ -227,6 +236,13 @@ fn nix_service(service: &Service, mounts: &BTreeSet<String>) -> String {
                 }
             }
             output.push_str(" protocol = \"tcp\"; };");
+        }
+        output.push_str(" };");
+    }
+    if !service.listeners.is_empty() {
+        output.push_str(" listeners = {");
+        for name in &service.listeners {
+            write!(output, " {} = {{ type = \"stream\"; }};", nix_attr(name)).unwrap();
         }
         output.push_str(" };");
     }
@@ -341,8 +357,17 @@ fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
     for (name, service) in &cixfile.services {
         services.insert(name.clone(), literal_service(service, &mounts)?);
     }
+    let version = if cixfile
+        .services
+        .values()
+        .any(|service| !service.listeners.is_empty())
+    {
+        3
+    } else {
+        2
+    };
     Ok(Value::Object(Map::from_iter([
-        ("cixSpec".to_owned(), Value::from(2)),
+        ("cixSpec".to_owned(), Value::from(version)),
         ("services".to_owned(), Value::Object(services)),
     ])))
 }
@@ -392,6 +417,26 @@ fn literal_service(service: &Service, mounts: &BTreeSet<String>) -> Result<Value
             ports.insert(name.clone(), Value::Object(declaration));
         }
         value.insert("ports".into(), Value::Object(ports));
+    }
+    if !service.listeners.is_empty() {
+        value.insert(
+            "listeners".into(),
+            Value::Object(
+                service
+                    .listeners
+                    .iter()
+                    .map(|name| {
+                        (
+                            name.clone(),
+                            Value::Object(Map::from_iter([(
+                                "type".into(),
+                                Value::String("stream".into()),
+                            )])),
+                        )
+                    })
+                    .collect(),
+            ),
+        );
     }
     let dirs = literal_dirs(service);
     if !dirs.is_empty() {
@@ -516,6 +561,33 @@ mod tests {
         )
         .unwrap();
         assert!(nix.contains("mounts = [ \"/cix-probe.conf\" \"/etc/nginx\" \"/srv/www\" ];"));
+    }
+
+    #[test]
+    fn listener_emits_the_v3_stream_contract() {
+        let cixfile = parse("SERVICE web\nEXEC bin/web\nLISTENER http\nLISTENER admin\n").unwrap();
+        let spec = generate_spec_json(&cixfile).unwrap();
+        assert!(spec.contains("\"cixSpec\": 3"), "{spec}");
+        assert!(
+            spec.contains(
+                "\"listeners\": {\n        \"admin\": {\n          \"type\": \"stream\"\n        },\n        \"http\": {\n          \"type\": \"stream\"\n        }\n      }"
+            ),
+            "{spec}"
+        );
+        let nix = generate_nix(
+            &cixfile,
+            tempfile::tempdir().unwrap().path(),
+            &fixture_lock(),
+            "x86_64-linux",
+        )
+        .unwrap();
+        assert!(nix.contains("cixSpec = 3;"), "{nix}");
+        assert!(
+            nix.contains(
+                "listeners = { \"admin\" = { type = \"stream\"; }; \"http\" = { type = \"stream\"; }; };"
+            ),
+            "{nix}"
+        );
     }
 
     #[test]

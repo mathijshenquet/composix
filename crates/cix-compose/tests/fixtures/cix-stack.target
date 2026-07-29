@@ -1,0 +1,4 @@
+[Unit]
+Description=cix compose target: stack
+Wants=cix-stack-edge-shared.service cix-stack-web-http.socket cix-stack-web.service cix-stack-worker-http.socket cix-stack-worker.service
+After=cix-stack-edge-shared.service
