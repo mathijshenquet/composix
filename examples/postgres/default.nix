@@ -54,9 +54,9 @@ pkgs.runCommand "postgres-cix" { } ''
 
   chmod +x $out/opt/postgres/setup $out/opt/postgres/start
   ln -s ${pkgs.postgresql}/bin/psql $out/bin/psql
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 2,
+    "cixManifest": 2,
     "services": {
       "postgres": {
         "setup": ["${pkgs.bash}/bin/sh", "/opt/postgres/setup"],

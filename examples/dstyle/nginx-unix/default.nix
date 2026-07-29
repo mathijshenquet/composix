@@ -28,9 +28,9 @@ in
 pkgs.runCommand "dstyle-nginx-unix" { } ''
   mkdir -p $out/bin
   ln -s ${pkgs.nginx}/bin/nginx $out/bin/nginx
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 2,
+    "cixManifest": 2,
     "services": {
       "nginx": {
         "exec": ["bin/nginx", "-c", "${conf}", "-e", "stderr"],

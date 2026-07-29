@@ -396,7 +396,7 @@ mod tests {
         fs::write(&compose_path, b"{\"composeVersion\":1}\n").unwrap();
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 3,
+                "cixManifest": 3,
                 "services": {
                     "app": {
                         "exec": ["/nix/store/00000000000000000000000000000000-app/bin/app"],

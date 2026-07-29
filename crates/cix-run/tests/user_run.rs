@@ -44,7 +44,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     make_executable(&executable)?;
 
     let json = serde_json::json!({
-        "cixSpec": 1,
+        "cixManifest": 1,
         "services": {
             "integration-test": {
                 "exec": ["bin/service"],
@@ -53,7 +53,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
         }
     });
     fs::write(
-        fixture.join("cix-spec.json"),
+        fixture.join("cix-manifest.json"),
         serde_json::to_vec_pretty(&json)?,
     )?;
 

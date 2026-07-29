@@ -144,7 +144,7 @@ mod tests {
     fn service() -> Service {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 1,
+                "cixManifest": 1,
                 "services": {
                     "app": {
                         "exec": ["bin/app"],
@@ -211,7 +211,7 @@ mod tests {
     fn resolves_fixed_ports_and_rejects_overrides() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 2,
+                "cixManifest": 2,
                 "services": {
                     "app": {
                         "exec": ["bin/app"],
@@ -238,7 +238,7 @@ mod tests {
     fn resolves_listener_bindings_and_requires_all_listeners() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 3,
+                "cixManifest": 3,
                 "services": {
                     "app": {
                         "exec": ["bin/app"],

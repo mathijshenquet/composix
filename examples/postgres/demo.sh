@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT
 
 store_path=$(nix-build "$example_dir" --no-out-link)
-postgres_bin=$(sed -n 's/.*"default": "\([^"]*\)".*/\1/p' "$store_path/cix-spec.json" | cut -d: -f1)
+postgres_bin=$(sed -n 's/.*"default": "\([^"]*\)".*/\1/p' "$store_path/cix-manifest.json" | cut -d: -f1)
 [[ -n "$postgres_bin" ]]
 unit=$(sudo "$cix_bin" run "$store_path" --detach)
 echo "started $unit"

@@ -4,7 +4,7 @@
 > implementation contract. Every key and directive below is prototype syntax.
 
 The purpose of compose is to turn already-built, self-describing items into one
-operator-owned deployment. The item's `cix-spec.json` remains the app contract:
+operator-owned deployment. The item's `cix-manifest.json` remains the app contract:
 services and their lifecycle, declared environment surface, ports, writable role
 directories, and capabilities. Compose must not restate those facts. It supplies
 operator decisions: which item refs and item services to use, spec-value
@@ -62,7 +62,7 @@ intentional; differences in meaning are not.
   composite's named published port. It is not an unmanaged service definition.
 
 The prototypes assume schema-aware resolution: syntax parsing alone is
-insufficient. Validation must resolve each ref, load its `cix-spec.json`, select
+insufficient. Validation must resolve each ref, load its `cix-manifest.json`, select
 the item service, reject unknown overrides/credentials/ports/directories, detect
 fixed-port collisions inside the shared namespace, validate graph references,
 and only then write `cix.lock`.
@@ -148,7 +148,7 @@ metrics→api. The API may also call the `ledger` published port of a separate
 
 The adversarial wrinkle is real: the initially considered metrics item and the
 API both declare an env-blind fixed-value port `9000`. Because all services
-share one network namespace, they cannot both bind it. cix-spec v2 explicitly
+share one network namespace, they cannot both bind it. Spec v2 explicitly
 forbids overriding a fixed-value port, and a host-side proxy cannot repair an
 inside-the-namespace bind collision. Every rendering therefore selects
 `observability/metrics:port-9100#metrics`, an operator-rebuilt item whose spec
@@ -1382,7 +1382,7 @@ There are three validation layers regardless of syntax:
 1. parse with duplicate/unknown construct rejection and source spans;
 2. validate the unresolved compose schema and its internal references;
 3. resolve items, validate overrides and credentials against each selected
-   cix-spec, detect shared-namespace collisions, and validate enforcement
+   selected spec, detect shared-namespace collisions, and validate enforcement
    feasibility.
 
 TOML has the cleanest implementation path: strict deserialization for the CLI,

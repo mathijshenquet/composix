@@ -61,7 +61,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
     fs::set_permissions(&executable, permissions)?;
 
     let json = serde_json::json!({
-        "cixSpec": 2,
+        "cixManifest": 2,
         "services": {
             "projection-test": {
                 "exec": ["bin/service"],
@@ -70,7 +70,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
         }
     });
     fs::write(
-        fixture.join("cix-spec.json"),
+        fixture.join("cix-manifest.json"),
         serde_json::to_vec_pretty(&json)?,
     )?;
 
@@ -126,7 +126,7 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
             .unwrap_or_default()
             .as_nanos()
     );
-    let temporary = std::env::temp_dir().join(format!("cix-specv3-{nonce}"));
+    let temporary = std::env::temp_dir().join(format!("cix-manifestv3-{nonce}"));
     let python = find_program("python3")?;
     let listen_port = free_port()?;
     let declared_port = free_port()?;
@@ -141,9 +141,9 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
     fs::write(&listener_executable, listener_script)?;
     make_executable(&listener_executable)?;
     fs::write(
-        listener_fixture.join("cix-spec.json"),
+        listener_fixture.join("cix-manifest.json"),
         br#"{
-            "cixSpec": 3,
+            "cixManifest": 3,
             "services": {
                 "listener-test": {
                     "exec": ["bin/service"],
@@ -205,10 +205,10 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
     fs::write(&ports_executable, ports_script)?;
     make_executable(&ports_executable)?;
     fs::write(
-        ports_fixture.join("cix-spec.json"),
+        ports_fixture.join("cix-manifest.json"),
         format!(
             r#"{{
-                "cixSpec": 3,
+                "cixManifest": 3,
                 "services": {{
                     "port-test": {{
                         "exec": ["bin/service"],

@@ -313,9 +313,9 @@ fn service_fixture(doc: &Doc) -> String {
         fs::set_permissions(&executable, permissions).expect("making service executable");
     }
     fs::write(
-        fixture.join("cix-spec.json"),
+        fixture.join("cix-manifest.json"),
         r#"{
-  "cixSpec": 2,
+  "cixManifest": 2,
   "services": {
     "tour-service": {
       "exec": ["bin/service"],
@@ -385,9 +385,9 @@ while True:
         fs::set_permissions(&executable, permissions).expect("making listener executable");
     }
     fs::write(
-        fixture.join("cix-spec.json"),
+        fixture.join("cix-manifest.json"),
         r#"{
-  "cixSpec": 3,
+  "cixManifest": 3,
   "services": {
     "listenfds": {
       "exec": ["bin/listenfds"],
@@ -441,9 +441,9 @@ fn compose_fixture(doc: &Doc, version: &str) -> String {
             .expect("making compose fixture executable executable");
     }
     fs::write(
-        fixture.join("cix-spec.json"),
+        fixture.join("cix-manifest.json"),
         r#"{
-  "cixSpec": 2,
+  "cixManifest": 2,
   "services": {
     "web": {
       "exec": ["bin/web"]
@@ -809,7 +809,7 @@ EXEC bin/tour-app
         .expect("cix build printed a store path");
 
     doc.para("The generated spec is the build's runtime contract: it records the service name and executable independently of the Cixfile source.");
-    let spec = doc.sh(&format!("cat {store_path}/cix-spec.json"), true);
+    let spec = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
     assert!(spec.contains("\"tour-app\""));
     assert!(spec.contains("\"bin/tour-app\""));
 

@@ -1,5 +1,5 @@
 {
-  "cixSpec": 3,
+  "cixManifest": 3,
   "services": {
     "web": {
       "exec": ["bin/web"],

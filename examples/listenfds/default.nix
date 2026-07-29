@@ -33,9 +33,9 @@ pkgs.runCommand "cix-listenfds" { } ''
   EOF
   chmod +x $out/bin/listenfds
 
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 3,
+    "cixManifest": 3,
     "services": {
       "listenfds": {
         "exec": ["bin/listenfds"],

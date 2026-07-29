@@ -606,7 +606,7 @@ mod tests {
         std::fs::write(output.path().join("etc/nginx/nginx.conf"), "events {}\n").unwrap();
         std::fs::write(output.path().join("cix-probe.conf"), "probe\n").unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixSpec":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}}}"#,
+            br#"{"cixManifest":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}}}"#,
         )
         .unwrap();
         let service = &spec.services["worker"];
@@ -649,7 +649,7 @@ mod tests {
     fn refuses_a_declared_mount_missing_from_the_store_item() {
         let output = tempfile::tempdir().unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixSpec":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}}}"#,
+            br#"{"cixManifest":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}}}"#,
         )
         .unwrap();
         let service = &spec.services["worker"];
@@ -711,7 +711,7 @@ mod tests {
     fn ports_and_listeners_compile_independent_socket_capabilities() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 3,
+                "cixManifest": 3,
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
@@ -745,7 +745,7 @@ mod tests {
     #[test]
     fn public_compiler_accepts_foreign_names_and_extra_properties() {
         let spec = Spec::from_slice(
-            br#"{"cixSpec":1,"services":{"web":{"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}}}"#,
+            br#"{"cixManifest":1,"services":{"web":{"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}}}"#,
         )
         .unwrap();
         let service = &spec.services["web"];
@@ -778,7 +778,7 @@ mod tests {
     fn env_default_and_override_low_ports_grant_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 2,
+                "cixManifest": 2,
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
@@ -811,7 +811,7 @@ mod tests {
     fn high_default_overridden_to_low_port_grants_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 2,
+                "cixManifest": 2,
                 "services": {
                     "web": {
                         "exec": ["bin/web"],
@@ -839,8 +839,8 @@ mod tests {
 
     #[test]
     fn refuses_an_executable_that_escapes_the_store_output() {
-        let spec =
-            Spec::from_slice(br#"{"cixSpec":1,"services":{"x":{"exec":["../bin/x"]}}}"#).unwrap();
+        let spec = Spec::from_slice(br#"{"cixManifest":1,"services":{"x":{"exec":["../bin/x"]}}}"#)
+            .unwrap();
         let service = &spec.services["x"];
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         assert!(generate_unit(
@@ -857,7 +857,7 @@ mod tests {
     fn system_role_paths_preserve_dynamic_user_id_mapping() {
         let spec = Spec::from_slice(
             br#"{
-                "cixSpec": 1,
+                "cixManifest": 1,
                 "services": {
                     "database": {
                         "exec": ["bin/database"],

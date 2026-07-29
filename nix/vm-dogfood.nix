@@ -8,9 +8,9 @@ let
     ln -s ${pkgs.redis}/bin/redis-cli $out/bin/redis-cli
     ln -s ${pkgs.redis}/bin/redis-server $out/bin/redis-server
     install -m 0644 ${../examples/redis/redis.conf} $out/etc/redis/redis.conf
-    cat > $out/cix-spec.json <<'EOF'
+    cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixSpec": 2,
+      "cixManifest": 2,
       "services": {
         "redis": {
           "exec": ["bin/redis-server", "/etc/redis/redis.conf"],
@@ -26,9 +26,9 @@ let
     mkdir -p $out/bin $out/srv/www
     ln -s ${pkgs.caddy}/bin/caddy $out/bin/caddy
     install -m 0644 ${../examples/caddy/index.html} $out/srv/www/index.html
-    cat > $out/cix-spec.json <<'EOF'
+    cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixSpec": 2,
+      "cixManifest": 2,
       "services": {
         "caddy": {
           "exec": ["bin/caddy", "file-server", "--root", "/srv/www", "--listen", ":80"],
@@ -43,9 +43,9 @@ let
     mkdir -p $out/bin $out/app
     ln -s ${pkgs.nodejs}/bin/node $out/bin/node
     install -m 0644 ${../examples/node-app/server.js} $out/app/server.js
-    cat > $out/cix-spec.json <<'EOF'
+    cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixSpec": 2,
+      "cixManifest": 2,
       "services": {
         "node-app": {
           "exec": ["bin/node", "/app/server.js"],

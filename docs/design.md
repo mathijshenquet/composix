@@ -21,7 +21,7 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
 - ✅ D6: Index does **not** host store contents. An index entry points at substituters
   (attic, nix-serve, S3, harmonia, …) where the closure can be fetched.
 - ✅ D7: A local tag is a **nix GC root**. Tagging pins, untagging unpins.
-- ✅ D8: The spec is a file **in the output**: `$out/cix-spec.json` — inspectable without nix
+- ✅ D8: The manifest is a file **in the output**: `$out/cix-manifest.json` — inspectable without nix
   (lingua franca). One store item can declare multiple services.
 - ✅ D9: Compose mechanism is **resolve → lock → build → activate**: tags are mutable, nix is not;
   the bridge is a resolve step writing `cix.lock`, then a per-composite derivation of generated
@@ -41,7 +41,7 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   `cix tag` fills the slot for the tagged path's system; tagging the same ref from another builder
   adds a slot; `cix pull` selects the current system (error if absent).
 - ✅ D15: spec parsing **rejects unknown fields** (no silent ignore) — keeps specs honest and makes
-  `cixSpec` version bumps meaningful.
+  `cixManifest` version bumps meaningful.
 - ✅ D16 — positioning: **baseline composix (parts 1–3) is a complete product for the nix-native
   audience** (they have store items; they lack naming/distribution and service-ization). The
   Cixfile is the adoption bridge for non-nix users, not the foundation. Intermediate rung, cheap
@@ -167,7 +167,7 @@ The URL space IS the name space; representation is negotiated (`Vary: Accept`,
 | URL | browser (HTML) | `Accept: application/vnd.cix+json;version=1` |
 | --- | --- | --- |
 | `/` | list of served names, linked | `{"names": [...]}` |
-| `/{name}` | tag table (tag, systems, closure size, narHash, age), pull snippet, spec summary if the store path carries `cix-spec.json` | `{"tags": {"latest": <entry>, …}}` |
+| `/{name}` | tag table (tag, systems, closure size, narHash, age), pull snippet, spec summary if the store path carries `cix-manifest.json` | `{"tags": {"latest": <entry>, …}}` |
 | `/{name}:{tag}` | that entry's detail, provenance, `cix pull`/`cix run` snippets — the permalink you publicize | `<entry>` (404 if unknown) |
 | `/store/…` | — | nix binary-cache protocol (D10), no negotiation |
 
@@ -191,11 +191,11 @@ Key alignment: systemd already has the spec's primitives first-class (`StateDire
 sandboxing suite). The spec is a runtime-neutral capability declaration that compiles down to
 those. Everything **not** declared is denied.
 
-### Schema v0 — `$out/cix-spec.json`
+### Schema v0 — `$out/cix-manifest.json`
 
 ```json
 {
-  "cixSpec": 1,
+  "cixManifest": 1,
   "services": {
     "my-app": {
       "exec": ["bin/my-app", "--port", "$PORT"],
@@ -259,7 +259,7 @@ Two principles first, more important than any field:
   capabilities); item = app quirks (nss_wrapper, path plumbing); compose = operator decisions
   (overrides, config content, scaling).
 
-v2 fields/changes (`"cixSpec": 2`; runner accepts 1 and 2; new fields rejected under 1):
+v2 fields/changes (`"cixManifest": 2`; runner accepts 1 and 2; new fields rejected under 1):
 
 1. `dirs.run` — runtime-lifetime role → `RuntimeDirectory=` (tmpfs, wiped on stop): sockets,
    pidfiles.
@@ -337,7 +337,7 @@ arguments), `COPY <src> <dst>` (verbatim sibling file — docker semantics, neve
 `FILE <dst> <<EOF` / `SCRIPT <dst> <<EOF` (inline, `${…}`-interpolated; SCRIPT adds shebang +
 exec bit), `LINK <dst> <target>`.
 
-Service directives (compile to cix-spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
+Service directives (compile to spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
 `ENV NAME [= default] [required] [secret]` (docker-compatible: `ENV FOO = bar` behaves like
 docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STATE` `CACHE`
 `LOGS` `CONFIG` `RUNDIR` (role dirs, D11-narrowed paths), `JIT`.
@@ -355,7 +355,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
 - Positioning per D16: not essential to baseline value, but where the non-nix audience is won.
   Sequenced last; `composix.lib.withSpec` (nix helper) lands much earlier as the nix-native rung.
 - Two halves: BUILD (project → store item) and SERVICE (→ spec). SERVICE half is settled by the
-  part-2 schema; blocks compile to `cix-spec.json`.
+  part-2 schema; blocks compile to `cix-manifest.json`.
 - BUILD half MVP position 🔶: no general imperative RUN steps (impurity). Recognize ecosystems
   (cargo/pnpm/uv/go + their lockfiles → nixpkgs deterministic builders); plus the D4 escape hatch
   (write nix yourself). Discipline: Cixfile stays sugar over a small set of blessed builders —
@@ -424,7 +424,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   explicit `Sockets=`/`Requires=` wiring); (b) D24 built: `SocketBindAllow=`/`SocketBindDeny=`
   compiled from declared ports (kernel-enforced declarations); (c) the unit generator exposed
   as a library API (naming scheme + extra properties injectable) so compose can compile
-  services without going through `cix run`. Version gating per D15: new fields ⇒ `cixSpec: 3`,
+  services without going through `cix run`. Version gating per D15: new fields ⇒ `cixManifest: 3`,
   runner accepts 1–3.
 - ✅ D30 — **compose v0 scope** (deliberately lean; each deferral recorded in the ledger):
   IN: `compose.json` schema + `cix compose check` (D28), resolve→`cix.lock` (local tags +
@@ -488,15 +488,15 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `conf/` still need explicit paths), so PATH survives alongside it and PKG is a second
   spelling for one case of it. Less magic stays better magic, for these reasons.
 
-- ✅ D33 (2026-07-29) — **the file is `$out/cix-manifest.json` (renames D8's
-  `cix-spec.json`), and baking it is nix-philosophically correct.** Terminology: *spec* = the
+- ✅ D33 (2026-07-29) — **the file is `$out/cix-manifest.json` (superseding D8's
+  original file name), and baking it is nix-philosophically correct.** Terminology: *spec* = the
   declaration schema/language (spec v2, v3 …); *manifest* = the concrete instance baked into
   an item. Naming: OCI's analogue of this file is the image *config*
   (`vnd.oci.image.config.v1+json`; OCI "manifest" is the registry-side layer descriptor), but
   "config" here would collide head-on with operator territory (D20b) — and "manifest" is what
   the docker world colloquially calls the baked metadata, matching our own narrative ("a
   closure is an image with the manifest ripped out; composix puts it back"). OCI terminology
-  mismatch footnoted in docker.md. Version key `cixSpec` → `cixManifest`.
+  mismatch footnoted in docker.md. Its JSON version key is `cixManifest`.
   **Why baked, when nix refuses to bake `meta`:** nix's eval-time `meta` is genius *scoped to
   non-load-bearing catalog data* (descriptions, licenses churn without rebuilds). Nix's deeper
   principle is that the hash covers everything that affects behavior — and the manifest is

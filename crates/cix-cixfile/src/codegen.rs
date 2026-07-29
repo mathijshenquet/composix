@@ -107,7 +107,7 @@ pub fn generate_nix(
     }
     writeln!(
         expression,
-        "  specFile = universes.{}.writeText \"cix-spec.json\" (builtins.toJSON spec + \"\\n\");",
+        "  manifestFile = universes.{}.writeText \"cix-manifest.json\" (builtins.toJSON spec + \"\\n\");",
         nix_attr(primary_namespace(cixfile)?)
     )?;
     writeln!(expression, "in")?;
@@ -174,7 +174,7 @@ pub fn generate_nix(
     }
     writeln!(
         expression,
-        "  install -m 0644 ${{specFile}} \"$out/cix-spec.json\""
+        "  install -m 0644 ${{manifestFile}} \"$out/cix-manifest.json\""
     )?;
     writeln!(expression, "''")?;
     Ok(expression)
@@ -252,7 +252,7 @@ fn nix_spec(cixfile: &Cixfile) -> String {
     } else {
         2
     };
-    let mut output = format!("{{ cixSpec = {version}; services = {{");
+    let mut output = format!("{{ cixManifest = {version}; services = {{");
     let mounts = projected_mounts(cixfile);
     for (name, service) in &cixfile.services {
         write!(
@@ -484,7 +484,7 @@ fn literal_spec(cixfile: &Cixfile) -> Result<Value> {
         2
     };
     Ok(Value::Object(Map::from_iter([
-        ("cixSpec".to_owned(), Value::from(version)),
+        ("cixManifest".to_owned(), Value::from(version)),
         ("services".to_owned(), Value::Object(services)),
     ])))
 }
@@ -681,7 +681,7 @@ mod tests {
     fn golden_cixfile_generates_expected_spec() {
         let cixfile = parse(include_str!("../tests/golden/Cixfile")).unwrap();
         let actual = generate_spec_json(&cixfile).unwrap();
-        assert_eq!(actual, include_str!("../tests/golden/cix-spec.json"));
+        assert_eq!(actual, include_str!("../tests/golden/cix-manifest.json"));
     }
 
     #[test]
@@ -710,7 +710,7 @@ mod tests {
         )
         .unwrap();
         let spec = generate_spec_json(&cixfile).unwrap();
-        assert!(spec.contains("\"cixSpec\": 3"), "{spec}");
+        assert!(spec.contains("\"cixManifest\": 3"), "{spec}");
         assert!(
             spec.contains(
                 "\"listeners\": {\n        \"admin\": {\n          \"type\": \"stream\"\n        },\n        \"http\": {\n          \"type\": \"stream\"\n        }\n      }"
@@ -724,7 +724,7 @@ mod tests {
             "x86_64-linux",
         )
         .unwrap();
-        assert!(nix.contains("cixSpec = 3;"), "{nix}");
+        assert!(nix.contains("cixManifest = 3;"), "{nix}");
         assert!(
             nix.contains(
                 "listeners = { \"admin\" = { type = \"stream\"; }; \"http\" = { type = \"stream\"; }; };"

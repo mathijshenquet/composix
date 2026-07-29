@@ -260,7 +260,7 @@ mod tests {
     fn write_item(root: &Path, name: &str, spec: &str) -> PathBuf {
         let path = root.join(name);
         fs::create_dir_all(&path).unwrap();
-        fs::write(path.join("cix-spec.json"), spec).unwrap();
+        fs::write(path.join("cix-manifest.json"), spec).unwrap();
         path
     }
 
@@ -272,7 +272,7 @@ mod tests {
     }
 
     fn item_spec(service: &str) -> String {
-        format!(r#"{{"cixSpec":3,"services":{{"app":{{{service}}}}}}}"#)
+        format!(r#"{{"cixManifest":3,"services":{{"app":{{{service}}}}}}}"#)
     }
 
     #[test]
@@ -358,7 +358,7 @@ mod tests {
         let invalid = write_item(
             directory.path(),
             "invalid",
-            r#"{"cixSpec":99,"services":{}}"#,
+            r#"{"cixManifest":99,"services":{}}"#,
         );
         let resolver = |reference: &str| {
             Ok(if reference == "invalid:v1" {
@@ -436,7 +436,7 @@ mod tests {
             )
             .unwrap_err()
         )
-        .contains("unsupported cixSpec"));
+        .contains("unsupported cixManifest"));
     }
 
     #[test]
