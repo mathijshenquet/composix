@@ -7,6 +7,27 @@
 - Verification: explicit tour regeneration, tour determinism/drift, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --workspace` passed. The generated pages are unchanged on the current systemd ≥257 host; synthetic coverage proves old-host output normalizes identically.
 - Open with Mathijs: none. Open for agents: merge the committed `track/tourfix` branch after independent verification.
 
+## 2026-07-29 (night: CI-green saga; D40 pending)
+
+- RUN v0 on CI took five rounds, each a distinct host-variance class, all catalogued:
+  (1) runner missing bwrap -> apt install; (2) apparmor-confined bwrap kills loopback-up ->
+  terra found bwrap's lo-setup is fatal-by-design (honest no-commit), redesigned to a
+  seccomp inet/packet-deny fallback tier (sol; kernel-level filter tests; covers stock
+  Ubuntu 24.04 desktops too); (3) runner is a hybrid (userns probe passes, uid-map denied
+  inside) that satisfies neither tier -> CI runner unrestricted via sysctl+profile removal,
+  CI tests tier 1, tier 2 covered by seccomp tests; (4) degraded-warning-pair PRESENCE is
+  host-specific (permissive kernels never degrade) -> pair stripped entirely from tour;
+  (5) orchestrator's own hand-fix failed fmt -> the full agent gate applies to the
+  orchestrator too. Main green incl. VM job.
+- Policy nuance adopted (pending Mathijs veto): micro-fixes (<~10 lines) inside an active
+  verification loop may be orchestrator-direct; full gate (fmt!) applies.
+- Discussed with Mathijs: dockerfile->cixfile auto-migration direction (trace-classified
+  FETCH/RUN; bottleneck = distro-package -> nixpkgs-attr mapping; future, folds into cix
+  migrate); D40 package designed and PENDING his go: OUTPUT (declared plucks, multi-item
+  Cixfiles - his multistep insight) + CACHE (advisory per-step dirs outside key and
+  snapshot; docker cache-mount analogue; enables ecosystem-incremental builds, bounded by
+  sampled clean rebuilds) + proj1 as gate.
+
 ## 2026-07-29 (evening: RUN v0 lands)
 
 - Merged track/inspect (terra): cix inspect both worlds + ls -l SYSTEMS column; verified
