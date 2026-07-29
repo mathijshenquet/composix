@@ -14,8 +14,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - name: Install bubblewrap (RUN sandbox; apt build is apparmor-whitelisted for userns)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+      - name: Install bubblewrap and unrestrict userns (RUN sandbox; Ubuntu's apparmor
+          bwrap profile passes the userns probe but then denies caps/uid-map inside — a
+          hybrid our tiers cannot satisfy, so CI tests tier 1 on an unrestricted kernel;
+          tier 2 is covered by the kernel-level seccomp tests)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap 2>/dev/null || true
       - name: Start a user systemd manager (tour scenarios need one)
         run: |
           sudo loginctl enable-linger "$(whoami)"
