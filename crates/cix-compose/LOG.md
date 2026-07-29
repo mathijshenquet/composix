@@ -14,3 +14,13 @@
   substituter verification without creating a mirror tag; `pull` now shares the same fetch helper.
   This is the only currently identified cross-territory extension. Next: strict compose/lock
   models, JSON-path diagnostics, and semantic validation with injected resolution tests.
+- 2026-07-29 00:54 UTC — Implemented the compose-v1 contract and published JSON Schema in the
+  crate. Both compose.json and cix.lock reject unknown fields with serde JSON paths. Resolution
+  now covers pin reuse, track refresh, targeted/all update, removed services, item spec loading,
+  optional multi-service selection, D21 env validation, required env, listener binds, edge
+  references/producer run paths, duplicate edge projections, host-port collisions, bind
+  collisions (including wildcard addresses), and port-versus-listener collisions. Tests inject a
+  resolver, so the full semantic matrix and both collision orders run rootlessly. Deliberate
+  boring choice: a bind with an unspecified address conflicts with either IP family on the same
+  port; false negatives would otherwise defer failure to activation. Next: compile checked input
+  into deterministic service/edge/socket/target generations and golden fixtures.

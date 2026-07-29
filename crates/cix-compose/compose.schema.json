@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://composix.dev/schema/compose-v1.json",
+  "title": "composix compose v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["composeVersion", "name", "services"],
+  "properties": {
+    "composeVersion": {"const": 1},
+    "name": {"$ref": "#/$defs/name"},
+    "services": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/service"}
+    },
+    "edges": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/edge"}
+    }
+  },
+  "$defs": {
+    "name": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+    "absolutePath": {"type": "string", "pattern": "^/"},
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["item"],
+      "properties": {
+        "item": {"type": "string", "minLength": 1},
+        "service": {"$ref": "#/$defs/name"},
+        "update": {"enum": ["pin", "track"], "default": "pin"},
+        "env": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "bind": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "endpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "path"],
+      "properties": {
+        "service": {"$ref": "#/$defs/name"},
+        "path": {"$ref": "#/$defs/absolutePath"}
+      }
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {"$ref": "#/$defs/absolutePath"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producer", "consumers"],
+      "properties": {
+        "producer": {"$ref": "#/$defs/endpoint"},
+        "consumers": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"$ref": "#/$defs/name"},
+          "additionalProperties": {"$ref": "#/$defs/consumer"}
+        }
+      }
+    }
+  }
+}
