@@ -4,7 +4,7 @@ use std::path::{Component, Path};
 use anyhow::{bail, Context, Result};
 
 use crate::config::ResolvedConfig;
-use crate::spec::{Dirs, Service};
+use crate::spec::{Dirs, Protocol, Service};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitMode {
@@ -13,13 +13,84 @@ pub enum UnitMode {
     UserDegraded,
 }
 
+/// Names used while compiling one service unit.
+///
+/// `cix run` uses [`UnitNaming::cix_run`] by default. Other callers, notably a compose
+/// generator, can provide their own names without duplicating the hardening compiler.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitNaming {
+    /// The generated service unit name, for example `cix-mycomp-web.service`.
+    pub unit: String,
+    /// The slice owning the generated service, for example `cix-mycomp.slice`.
+    pub slice: String,
+    /// The target that a higher-level generator may use to group generated units.
+    pub target: String,
+    /// Prefix for systemd managed directory names, for example `cix-mycomp`.
+    pub directory_prefix: String,
+}
+
+impl UnitNaming {
+    /// Return cix-run's established naming scheme for `service_name`.
+    pub fn cix_run(service_name: &str) -> Self {
+        Self {
+            unit: format!("cix-run-{service_name}.service"),
+            slice: "cix-run.slice".into(),
+            target: "cix-run.target".into(),
+            directory_prefix: "cix-run".into(),
+        }
+    }
+}
+
+impl Default for UnitNaming {
+    fn default() -> Self {
+        Self::cix_run("service")
+    }
+}
+
+/// Caller-supplied additions to the generated systemd service unit.
+///
+/// This deliberately accepts ordinary unit properties so generators can add narrowly-scoped
+/// composition grants such as `SupplementaryGroups=` or `BindPaths=` without forking cix-run's
+/// sandbox compiler.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UnitCompileOptions {
+    /// Naming scheme for the compiled service.
+    pub naming: UnitNaming,
+    /// Additional systemd service properties appended after cix-run's own properties.
+    pub extra_properties: Vec<(String, String)>,
+}
+
+impl UnitCompileOptions {
+    /// Return the default cix-run options for `service_name`.
+    pub fn cix_run(service_name: &str) -> Self {
+        Self {
+            naming: UnitNaming::cix_run(service_name),
+            extra_properties: Vec::new(),
+        }
+    }
+}
+
+/// A service unit compiled from a cix specification.
+///
+/// The `name` and `target` fields let callers install the generated unit into their own graph;
+/// `text` is suitable for a unit file and `properties`/`environment` support transient-unit APIs.
 #[derive(Debug, Clone)]
-pub(crate) struct UnitDefinition {
+pub struct CompiledUnit {
+    /// Unit name selected by [`UnitCompileOptions::naming`].
+    pub name: String,
+    /// Target name selected by [`UnitCompileOptions::naming`].
+    pub target: String,
+    /// Rendered service unit file.
     pub text: String,
+    /// Service properties in deterministic order.
     pub properties: Vec<(String, String)>,
+    /// Environment assignments in deterministic order.
     pub environment: Vec<(String, String)>,
+    /// Resolved `ExecStart` argv.
     pub argv: Vec<String>,
 }
+
+pub(crate) type UnitDefinition = CompiledUnit;
 
 pub fn generate_unit(
     output: &Path,
@@ -28,7 +99,30 @@ pub fn generate_unit(
     config: &ResolvedConfig,
     mode: UnitMode,
 ) -> Result<String> {
-    Ok(build_unit(output, service_name, service, config, mode)?.text)
+    Ok(compile_unit(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &UnitCompileOptions::cix_run(service_name),
+    )?
+    .text)
+}
+
+/// Compile a cix service into a systemd service unit.
+///
+/// The supplied [`UnitCompileOptions`] controls generated names and permits extra properties.
+/// The default cix-run behavior is available through [`UnitCompileOptions::cix_run`].
+pub fn compile_unit(
+    output: &Path,
+    service_name: &str,
+    service: &Service,
+    config: &ResolvedConfig,
+    mode: UnitMode,
+    options: &UnitCompileOptions,
+) -> Result<CompiledUnit> {
+    build_unit_with_options(output, service_name, service, config, mode, options)
 }
 
 pub(crate) fn build_unit(
@@ -38,6 +132,24 @@ pub(crate) fn build_unit(
     config: &ResolvedConfig,
     mode: UnitMode,
 ) -> Result<UnitDefinition> {
+    build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &UnitCompileOptions::cix_run(service_name),
+    )
+}
+
+pub(crate) fn build_unit_with_options(
+    output: &Path,
+    service_name: &str,
+    service: &Service,
+    config: &ResolvedConfig,
+    mode: UnitMode,
+    options: &UnitCompileOptions,
+) -> Result<UnitDefinition> {
     if !output.is_absolute() {
         bail!("store output path {} is not absolute", output.display());
     }
@@ -45,11 +157,11 @@ pub(crate) fn build_unit(
     let argv = resolved_argv(output, "exec", &service.exec, &config.env)?;
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
-    properties.push(("Slice".into(), "cix-run.slice".into()));
+    properties.push(("Slice".into(), options.naming.slice.clone()));
 
     add_directories(
         &mut properties,
-        service_name,
+        &format!("{}-{service_name}", options.naming.directory_prefix),
         &service.dirs,
         mode != UnitMode::System,
         mode != UnitMode::UserDegraded,
@@ -109,6 +221,7 @@ pub(crate) fn build_unit(
         properties.push(("RestrictAddressFamilies".into(), "AF_UNIX".into()));
         properties.push(("PrivateNetwork".into(), "yes".into()));
     }
+    add_socket_bind_restrictions(&mut properties, service, config);
     if let Some(setup) = &service.setup {
         let setup = resolved_argv(output, "setup", setup, &config.env)?;
         properties.push(("ExecStartPre".into(), exec_command(&setup)));
@@ -129,13 +242,35 @@ pub(crate) fn build_unit(
         ));
     }
 
+    properties.extend(options.extra_properties.iter().cloned());
     let text = render(service_name, &argv, &environment, &properties);
-    Ok(UnitDefinition {
+    Ok(CompiledUnit {
+        name: options.naming.unit.clone(),
+        target: options.naming.target.clone(),
         text,
         properties,
         environment,
         argv,
     })
+}
+
+fn add_socket_bind_restrictions(
+    properties: &mut Vec<(String, String)>,
+    service: &Service,
+    config: &ResolvedConfig,
+) {
+    if service.ports.is_empty() && service.listeners.is_empty() {
+        return;
+    }
+    for (name, port) in &service.ports {
+        let value = config.ports.get(name).expect("resolved declared port");
+        let protocol = match port.protocol {
+            Protocol::Tcp => "tcp",
+            Protocol::Udp => "udp",
+        };
+        properties.push(("SocketBindAllow".into(), format!("{protocol}:{value}")));
+    }
+    properties.push(("SocketBindDeny".into(), "any".into()));
 }
 
 fn add_mounts(
@@ -243,12 +378,11 @@ fn clean_executable(path: &Path) -> Result<()> {
 
 fn add_directories(
     properties: &mut Vec<(String, String)>,
-    service_name: &str,
+    managed_base: &str,
     dirs: &Dirs,
     user: bool,
     bind: bool,
 ) {
-    let managed_base = format!("cix-run-{service_name}");
     for (role, paths, directive, mode_directive, system_root, user_root) in [
         (
             "state",
@@ -294,7 +428,7 @@ fn add_directories(
         if paths.is_empty() {
             continue;
         }
-        let managed = managed_names(&managed_base, role, paths.len());
+        let managed = managed_names(managed_base, role, paths.len());
         let use_directory_aliases = !user && bind && role != "config";
         let mut directory_values = Vec::with_capacity(paths.len());
         let mut bind_values = Vec::new();
@@ -545,6 +679,99 @@ mod tests {
         assert_eq!(actual, include_str!("../tests/fixtures/v2-system.unit"));
         assert!(!actual.contains("TemporaryFileSystem=/run"));
         assert!(!actual.contains("MemoryDenyWriteExecute"));
+    }
+
+    #[test]
+    fn v3_listener_unit_keeps_network_private_and_denies_binds() {
+        let spec =
+            Spec::from_slice(include_bytes!("../tests/fixtures/v3-listener-spec.json")).unwrap();
+        let service = &spec.services["web"];
+        let config =
+            ResolvedConfig::resolve(service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert_eq!(
+            actual,
+            include_str!("../tests/fixtures/v3-listener-system.unit")
+        );
+        assert!(actual.contains("PrivateNetwork=yes"));
+        assert!(actual.contains("RestrictAddressFamilies=AF_UNIX"));
+        assert!(actual.contains("CapabilityBoundingSet=\n"));
+        assert!(actual.contains("SocketBindDeny=any"));
+        assert!(!actual.contains("SocketBindAllow="));
+    }
+
+    #[test]
+    fn ports_and_listeners_compile_independent_socket_capabilities() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixSpec": 3,
+                "services": {
+                    "web": {
+                        "exec": ["bin/web"],
+                        "ports": {
+                            "http": {"value": 8080, "protocol": "tcp"},
+                            "dns": {"value": 5353, "protocol": "udp"}
+                        },
+                        "listeners": {"admin": {"type": "stream"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = &spec.services["web"];
+        let config =
+            ResolvedConfig::resolve(service, &[], &["admin=127.0.0.1:9090".into()]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(actual.contains("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6"));
+        assert!(actual.contains("SocketBindAllow=tcp:8080"));
+        assert!(actual.contains("SocketBindAllow=udp:5353"));
+        assert!(actual.contains("SocketBindDeny=any"));
+    }
+
+    #[test]
+    fn public_compiler_accepts_foreign_names_and_extra_properties() {
+        let spec = Spec::from_slice(
+            br#"{"cixSpec":1,"services":{"web":{"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}}}"#,
+        )
+        .unwrap();
+        let service = &spec.services["web"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let compiled = compile_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service,
+            &config,
+            UnitMode::System,
+            &UnitCompileOptions {
+                naming: UnitNaming {
+                    unit: "cix-mycomp-web.service".into(),
+                    slice: "cix-mycomp.slice".into(),
+                    target: "cix-mycomp.target".into(),
+                    directory_prefix: "cix-mycomp".into(),
+                },
+                extra_properties: vec![("SupplementaryGroups".into(), "cix-edge".into())],
+            },
+        )
+        .unwrap();
+        assert_eq!(compiled.name, "cix-mycomp-web.service");
+        assert_eq!(compiled.target, "cix-mycomp.target");
+        assert!(compiled.text.contains("Slice=cix-mycomp.slice"));
+        assert!(compiled.text.contains("StateDirectory=cix-mycomp-web:web"));
+        assert!(compiled.text.contains("SupplementaryGroups=cix-edge"));
     }
 
     #[test]

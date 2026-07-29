@@ -1,0 +1,11 @@
+{
+  "cixSpec": 3,
+  "services": {
+    "web": {
+      "exec": ["bin/web"],
+      "listeners": {
+        "http": {"type": "stream"}
+      }
+    }
+  }
+}

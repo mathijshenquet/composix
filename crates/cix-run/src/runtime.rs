@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
@@ -100,7 +101,7 @@ pub fn start_service(
     let name = format!("cix-run-{service_name}-{}.service", nonce());
     if !user {
         let definition = build_unit(output, service_name, service, config, UnitMode::System)?;
-        start_once(&name, false, &definition)?;
+        start_with_listeners(&name, false, config, &definition)?;
         return Ok(StartedUnit {
             name,
             user: false,
@@ -109,7 +110,7 @@ pub fn start_service(
     }
 
     let definition = build_unit(output, service_name, service, config, UnitMode::UserFull)?;
-    match start_once(&name, true, &definition) {
+    match start_with_listeners(&name, true, config, &definition) {
         Ok(()) => Ok(StartedUnit {
             name,
             user: true,
@@ -134,7 +135,7 @@ pub fn start_service(
                         "ProtectKernelLogs",
                     ],
                 );
-                match start_once(&capability_name, true, &without_capabilities) {
+                match start_with_listeners(&capability_name, true, config, &without_capabilities) {
                     Ok(()) => {
                         return Ok(StartedUnit {
                             name: capability_name,
@@ -177,7 +178,7 @@ fn namespace_fallback(
         config,
         UnitMode::UserDegraded,
     )?;
-    start_once(&fallback_name, true, &degraded)?;
+    start_with_listeners(&fallback_name, true, config, &degraded)?;
     Ok(StartedUnit {
         name: fallback_name,
         user: true,
@@ -190,24 +191,231 @@ fn without_properties(definition: &UnitDefinition, names: &[&str]) -> UnitDefini
     definition
         .properties
         .retain(|(name, _)| !names.contains(&name.as_str()));
-    definition.text.clear();
+    definition.text = definition
+        .text
+        .lines()
+        .filter(|line| {
+            line.split_once('=')
+                .is_none_or(|(name, _)| !names.contains(&name))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    definition.text.push('\n');
     definition
 }
 
 pub fn stop_service(name: &str, user: bool) -> Result<()> {
+    let sockets = listener_sockets(name, user).unwrap_or_default();
     let mut command = Command::new("systemctl");
     if user {
         command.arg("--user");
     }
     let output = command
-        .args(["stop", name])
+        .arg("stop")
+        .args(&sockets)
+        .arg(name)
         .output()
         .with_context(|| format!("failed to invoke systemctl to stop {name}"))?;
+    for socket in &sockets {
+        let _ = remove_socket_unit(socket, user);
+    }
+    let _ = remove_service_unit(name, user);
     if !output.status.success() {
         bail!(
             "failed to stop {name}: {}",
             String::from_utf8_lossy(&output.stderr).trim()
         );
+    }
+    Ok(())
+}
+
+fn start_with_listeners(
+    name: &str,
+    user: bool,
+    config: &ResolvedConfig,
+    definition: &UnitDefinition,
+) -> Result<()> {
+    if config.listeners.is_empty() {
+        return start_once(name, user, definition);
+    }
+    let sockets = listener_socket_names(name, config);
+    let definition = with_listener_dependencies(definition, &sockets);
+    write_service_unit(name, user, &definition)?;
+    match create_listener_sockets(name, user, config).and_then(|created| {
+        debug_assert_eq!(created, sockets);
+        systemctl_action(user, "start", name)
+    }) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            for socket in &sockets {
+                let _ = remove_socket_unit(socket, user);
+            }
+            let _ = remove_service_unit(name, user);
+            Err(error)
+        }
+    }
+}
+
+fn with_listener_dependencies(definition: &UnitDefinition, sockets: &[String]) -> UnitDefinition {
+    let mut definition = definition.clone();
+    let sockets = sockets.join(" ");
+    definition.properties.extend([
+        ("Requires".into(), sockets.clone()),
+        ("After".into(), sockets.clone()),
+        ("Sockets".into(), sockets.clone()),
+    ]);
+    let unit_properties = format!("Requires={sockets}\nAfter={sockets}\n");
+    definition.text = definition.text.replacen(
+        "\n\n[Service]\n",
+        &format!("\n{unit_properties}\n[Service]\n"),
+        1,
+    );
+    definition.text.push_str(&format!("Sockets={sockets}\n"));
+    definition
+}
+
+fn write_service_unit(name: &str, user: bool, definition: &UnitDefinition) -> Result<()> {
+    let path = socket_unit_directory(user)?.join(name);
+    fs::create_dir_all(socket_unit_directory(user)?)?;
+    fs::write(&path, &definition.text)
+        .with_context(|| format!("failed to write transient service unit {}", path.display()))?;
+    if let Err(error) = daemon_reload(user) {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn create_listener_sockets(
+    service: &str,
+    user: bool,
+    config: &ResolvedConfig,
+) -> Result<Vec<String>> {
+    let mut sockets: Vec<String> = Vec::new();
+    for ((listener, address), socket) in config
+        .listeners
+        .iter()
+        .zip(listener_socket_names(service, config))
+    {
+        if let Err(error) =
+            write_socket_unit(&socket, service, listener, &address.to_string(), user)
+                .and_then(|()| systemctl_action(user, "start", &socket))
+        {
+            for socket in &sockets {
+                let _ = remove_socket_unit(socket, user);
+            }
+            return Err(error);
+        }
+        sockets.push(socket);
+    }
+    Ok(sockets)
+}
+
+fn listener_socket_names(service: &str, config: &ResolvedConfig) -> Vec<String> {
+    config
+        .listeners
+        .keys()
+        .map(|listener| format!("{}-{listener}.socket", service.trim_end_matches(".service")))
+        .collect()
+}
+
+fn write_socket_unit(
+    socket: &str,
+    service: &str,
+    listener: &str,
+    address: &str,
+    user: bool,
+) -> Result<()> {
+    let directory = socket_unit_directory(user)?;
+    fs::create_dir_all(&directory).with_context(|| {
+        format!(
+            "failed to create runtime unit directory {}",
+            directory.display()
+        )
+    })?;
+    let path = directory.join(socket);
+    let text = format!(
+        "[Unit]\nDescription=cix listener: {listener} for {service}\nPartOf={service}\nBefore={service}\n\n[Socket]\nListenStream={address}\nFileDescriptorName={listener}\nService={service}\n"
+    );
+    fs::write(&path, text)
+        .with_context(|| format!("failed to write transient socket unit {}", path.display()))?;
+    if let Err(error) = daemon_reload(user) {
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn socket_unit_directory(user: bool) -> Result<PathBuf> {
+    if !user {
+        return Ok(PathBuf::from("/run/systemd/system"));
+    }
+    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+        .context("XDG_RUNTIME_DIR is not set for the user manager")?;
+    Ok(PathBuf::from(runtime).join("systemd/user"))
+}
+
+fn listener_sockets(service: &str, user: bool) -> Result<Vec<String>> {
+    let configured = systemctl_value(user, service, "Sockets")?;
+    let configured = if configured.is_empty() {
+        let fragment = systemctl_value(user, service, "FragmentPath")?;
+        fs::read_to_string(&fragment)
+            .with_context(|| format!("failed to read service unit {fragment}"))?
+            .lines()
+            .find_map(|line| line.strip_prefix("Sockets="))
+            .unwrap_or_default()
+            .to_owned()
+    } else {
+        configured
+    };
+    Ok(configured
+        .split_whitespace()
+        .filter(|name| name.starts_with("cix-run-") && name.ends_with(".socket"))
+        .map(str::to_owned)
+        .collect())
+}
+
+fn remove_socket_unit(socket: &str, user: bool) -> Result<()> {
+    let _ = systemctl_action(user, "stop", socket);
+    let path = socket_unit_directory(user)?.join(socket);
+    if path.exists() {
+        fs::remove_file(&path).with_context(|| {
+            format!("failed to remove transient socket unit {}", path.display())
+        })?;
+        daemon_reload(user)?;
+    }
+    Ok(())
+}
+
+fn remove_service_unit(service: &str, user: bool) -> Result<()> {
+    let path = socket_unit_directory(user)?.join(service);
+    if path.exists() {
+        fs::remove_file(&path).with_context(|| {
+            format!("failed to remove transient service unit {}", path.display())
+        })?;
+        daemon_reload(user)?;
+    }
+    Ok(())
+}
+
+fn daemon_reload(user: bool) -> Result<()> {
+    systemctl_action(user, "daemon-reload", "")
+}
+
+fn systemctl_action(user: bool, action: &str, unit: &str) -> Result<()> {
+    let mut command = Command::new("systemctl");
+    if user {
+        command.arg("--user");
+    }
+    command.arg(action);
+    if !unit.is_empty() {
+        command.arg(unit);
+    }
+    let output = command
+        .output()
+        .with_context(|| format!("failed to invoke systemctl {action}"))?;
+    if !output.status.success() {
+        bail!("systemctl {action} failed: {}", command_error(&output));
     }
     Ok(())
 }
@@ -559,14 +767,34 @@ pub fn ps() -> Result<()> {
         "MANAGER", "UNIT", "STATE"
     );
     for (manager, unit) in rows {
+        let description = if unit.unit.ends_with(".socket") {
+            socket_description(manager == "user", &unit.unit).unwrap_or(unit.description)
+        } else {
+            unit.description
+        };
         println!(
             "{manager:<manager_width$}  {:<unit_width$}  {:<10}  {}",
             unit.unit,
             format!("{}/{}", unit.active, unit.sub),
-            unit.description
+            description
         );
     }
     Ok(())
+}
+
+fn socket_description(user: bool, unit: &str) -> Result<String> {
+    let fragment = systemctl_value(user, unit, "FragmentPath")?;
+    let text = fs::read_to_string(&fragment)
+        .with_context(|| format!("failed to read socket unit {fragment}"))?;
+    let listen = text
+        .lines()
+        .find_map(|line| line.strip_prefix("ListenStream="))
+        .context("socket unit has no ListenStream")?;
+    let service = text
+        .lines()
+        .find_map(|line| line.strip_prefix("Service="))
+        .context("socket unit has no Service")?;
+    Ok(format!("listening {listen} -> {service}"))
 }
 
 fn list_units(user: bool) -> Result<Vec<ListedUnit>> {

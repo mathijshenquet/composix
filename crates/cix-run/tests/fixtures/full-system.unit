@@ -32,6 +32,8 @@ MemoryDenyWriteExecute=yes
 SystemCallFilter=@system-service
 CapabilityBoundingSet=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SocketBindAllow=tcp:9090
+SocketBindDeny=any
 ExecStart="/nix/store/00000000000000000000000000000000-web/bin/web" "--port" "9090" "--database" "postgres://db/a b" "--enabled=true"
 Environment="DB_URL=postgres://db/a b"
 Environment="ENABLED=true"

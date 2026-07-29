@@ -28,6 +28,9 @@ pub struct Service {
     pub env: BTreeMap<String, Env>,
     #[serde(default)]
     pub ports: BTreeMap<String, Port>,
+    /// Named systemd socket-activation file descriptors accepted by this service.
+    #[serde(default)]
+    pub listeners: BTreeMap<String, Listener>,
     #[serde(default)]
     pub dirs: Dirs,
     pub health: Option<Health>,
@@ -57,6 +60,17 @@ pub struct Port {
     pub env: Option<String>,
     pub value: Option<u16>,
     pub protocol: Protocol,
+}
+
+/// A named inherited listener.
+///
+/// Spec v3 deliberately supports only TCP stream listeners. The listener name is passed to the
+/// service through systemd's `LISTEN_FDNAMES` protocol.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Listener {
+    #[serde(rename = "type")]
+    pub listener_type: String,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
@@ -128,9 +142,9 @@ impl Spec {
     }
 
     fn validate(&self) -> Result<()> {
-        if !matches!(self.cix_spec, 1 | 2) {
+        if !matches!(self.cix_spec, 1..=3) {
             bail!(
-                "unsupported cixSpec version {}; this cix supports versions 1 and 2",
+                "unsupported cixSpec version {}; this cix supports versions 1, 2, and 3",
                 self.cix_spec
             );
         }
@@ -194,6 +208,19 @@ impl Service {
             }
         }
 
+        for (name, listener) in &self.listeners {
+            validate_name("listener", name)?;
+            if self.ports.contains_key(name) {
+                bail!("listener {name:?} conflicts with a port of the same name");
+            }
+            if listener.listener_type != "stream" {
+                bail!(
+                    "listener {name:?} type {:?} is not yet supported; only \"stream\" is supported",
+                    listener.listener_type
+                );
+            }
+        }
+
         let mut seen: Vec<&Path> = Vec::new();
         for (role, root, paths) in self.dirs.roles() {
             for path in paths {
@@ -219,25 +246,27 @@ impl Service {
     }
 
     fn validate_version_fields(&self, version: u32) -> Result<()> {
-        if version != 1 {
-            return Ok(());
-        }
-        if self.setup.is_some() {
-            bail!("field \"setup\" requires cixSpec 2");
-        }
-        if self.dirs.run.is_some() {
-            bail!("field \"dirs.run\" requires cixSpec 2");
-        }
-        if self.jit.is_some() {
-            bail!("field \"jit\" requires cixSpec 2");
-        }
-        if self.mounts.is_some() {
-            bail!("field \"mounts\" requires cixSpec 2");
-        }
-        for (name, port) in &self.ports {
-            if port.value.is_some() {
-                bail!("field \"ports.{name}.value\" requires cixSpec 2");
+        if version == 1 {
+            if self.setup.is_some() {
+                bail!("field \"setup\" requires cixSpec 2");
             }
+            if self.dirs.run.is_some() {
+                bail!("field \"dirs.run\" requires cixSpec 2");
+            }
+            if self.jit.is_some() {
+                bail!("field \"jit\" requires cixSpec 2");
+            }
+            if self.mounts.is_some() {
+                bail!("field \"mounts\" requires cixSpec 2");
+            }
+            for (name, port) in &self.ports {
+                if port.value.is_some() {
+                    bail!("field \"ports.{name}.value\" requires cixSpec 2");
+                }
+            }
+        }
+        if version < 3 && !self.listeners.is_empty() {
+            bail!("field \"listeners\" requires cixSpec 3");
         }
         Ok(())
     }
@@ -418,7 +447,7 @@ fn is_env_continue(value: u8) -> bool {
 
 fn validate_app_path(version: u32, role: &str, root: &str, path: &Path) -> Result<()> {
     validate_absolute_clean_path(path, &format!("{role} directory"))?;
-    if version == 2 {
+    if version >= 2 {
         let relative = path.strip_prefix(root).ok();
         let is_one_component = relative.is_some_and(|relative| {
             let mut components = relative.components();
@@ -527,6 +556,49 @@ mod tests {
             [PathBuf::from("/run/app")]
         );
         assert_eq!(service.jit, Some(true));
+    }
+
+    #[test]
+    fn parses_v3_stream_listeners() {
+        let spec = parse(
+            r#"{
+                "cixSpec": 3,
+                "services": {
+                    "app": {
+                        "exec": ["bin/app"],
+                        "listeners": {"http": {"type": "stream"}}
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(
+            spec.services["app"].listeners["http"].listener_type,
+            "stream"
+        );
+    }
+
+    #[test]
+    fn listener_requires_v3_and_only_stream_is_supported() {
+        for version in [1, 2] {
+            let error = format!(
+                "{:#}",
+                parse(&format!(
+                    r#"{{"cixSpec":{version},"services":{{"app":{{"exec":["bin/app"],"listeners":{{"http":{{"type":"stream"}}}}}}}}}}"#
+                ))
+                .unwrap_err()
+            );
+            assert!(
+                error.contains("field \"listeners\" requires cixSpec 3"),
+                "{error}"
+            );
+        }
+        let error = format!(
+            "{:#}",
+            parse(r#"{"cixSpec":3,"services":{"app":{"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}}}"#)
+                .unwrap_err()
+        );
+        assert!(error.contains("not yet supported"), "{error}");
     }
 
     #[test]

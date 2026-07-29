@@ -1,4 +1,6 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -109,6 +111,142 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
     Ok(())
 }
 
+#[test]
+fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -> Result<()> {
+    if !is_root() || !command_succeeds("systemctl", &["show-environment"]) {
+        eprintln!("skipping: requires root and a system manager");
+        return Ok(());
+    }
+
+    let nonce = format!(
+        "{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    );
+    let temporary = std::env::temp_dir().join(format!("cix-specv3-{nonce}"));
+    let python = find_program("python3")?;
+    let listen_port = free_port()?;
+    let declared_port = free_port()?;
+    let denied_port = free_port()?;
+
+    let listener_fixture = temporary.join("listener");
+    fs::create_dir_all(listener_fixture.join("bin"))?;
+    let listener_script = format!(
+        "#!{python}\nimport os\nimport socket\n\nif os.environ.get('LISTEN_FDS') != '1' or os.environ.get('LISTEN_FDNAMES') != 'http':\n    raise SystemExit('missing named listener')\nlistener = socket.fromfd(3, socket.AF_INET, socket.SOCK_STREAM)\nwhile True:\n    connection, _ = listener.accept()\n    with connection:\n        connection.recv(4096)\n        connection.sendall(b'HTTP/1.1 200 OK\\r\\nContent-Length: 3\\r\\nConnection: close\\r\\n\\r\\nok\\n')\n"
+    );
+    let listener_executable = listener_fixture.join("bin/service");
+    fs::write(&listener_executable, listener_script)?;
+    make_executable(&listener_executable)?;
+    fs::write(
+        listener_fixture.join("cix-spec.json"),
+        br#"{
+            "cixSpec": 3,
+            "services": {
+                "listener-test": {
+                    "exec": ["bin/service"],
+                    "listeners": {"http": {"type": "stream"}}
+                }
+            }
+        }"#,
+    )?;
+    let listener_store = add_to_store(&listener_fixture)?;
+    let listener_spec = Spec::load(&listener_store)?;
+    let listener_service = &listener_spec.services["listener-test"];
+    let listener_config = ResolvedConfig::resolve(
+        listener_service,
+        &[],
+        &[format!("http=127.0.0.1:{listen_port}")],
+    )?;
+    let slice_guard = SystemSliceGuard;
+    let listener_started = start_service(
+        &listener_store,
+        "listener-test",
+        listener_service,
+        &listener_config,
+        false,
+    )?;
+    let listener_guard = UnitGuard {
+        name: listener_started.name.clone(),
+    };
+    wait_for_http(listen_port)?;
+    let socket = format!(
+        "{}-http.socket",
+        listener_started.name.trim_end_matches(".service")
+    );
+    assert_property(&listener_started.name, "PrivateNetwork", "yes")?;
+    assert_property(&listener_started.name, "RestrictAddressFamilies", "AF_UNIX")?;
+    assert_property(&listener_started.name, "CapabilityBoundingSet", "")?;
+    assert_property(&listener_started.name, "SocketBindDeny", "any")?;
+    assert_property(&socket, "ActiveState", "active")?;
+    let socket_text = unit_file(&socket)?;
+    assert!(socket_text.contains(&format!("ListenStream=127.0.0.1:{listen_port}")));
+    assert!(socket_text.contains("FileDescriptorName=http"));
+    assert!(socket_text.contains(&format!("Service={}", listener_started.name)));
+    let service_text = unit_file(&listener_started.name)?;
+    for property in ["Requires", "After", "Sockets"] {
+        assert!(
+            service_text.contains(&format!("{property}={socket}")),
+            "{service_text}"
+        );
+    }
+    stop_service(&listener_started.name, false)?;
+    std::mem::forget(listener_guard);
+    assert_eq!(systemctl_property(&socket, "LoadState")?, "not-found");
+
+    let ports_fixture = temporary.join("ports");
+    fs::create_dir_all(ports_fixture.join("bin"))?;
+    let ports_script = format!(
+        "#!{python}\nimport socket\nimport time\n\nallowed = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\nallowed.bind(('127.0.0.1', {declared_port}))\ndenied = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\ntry:\n    denied.bind(('127.0.0.1', {denied_port}))\nexcept PermissionError:\n    pass\nelse:\n    raise SystemExit('undeclared bind was not denied')\ntime.sleep(300)\n"
+    );
+    let ports_executable = ports_fixture.join("bin/service");
+    fs::write(&ports_executable, ports_script)?;
+    make_executable(&ports_executable)?;
+    fs::write(
+        ports_fixture.join("cix-spec.json"),
+        format!(
+            r#"{{
+                "cixSpec": 3,
+                "services": {{
+                    "port-test": {{
+                        "exec": ["bin/service"],
+                        "ports": {{"declared": {{"value": {declared_port}, "protocol": "tcp"}}}}
+                    }}
+                }}
+            }}"#
+        ),
+    )?;
+    let ports_store = add_to_store(&ports_fixture)?;
+    let ports_spec = Spec::load(&ports_store)?;
+    let ports_service = &ports_spec.services["port-test"];
+    let ports_config = ResolvedConfig::resolve(ports_service, &[], &[])?;
+    let ports_started = start_service(
+        &ports_store,
+        "port-test",
+        ports_service,
+        &ports_config,
+        false,
+    )?;
+    let ports_guard = UnitGuard {
+        name: ports_started.name.clone(),
+    };
+    thread::sleep(Duration::from_millis(500));
+    if !command_succeeds("systemctl", &["is-active", "--quiet", &ports_started.name]) {
+        bail!("{} did not remain active", ports_started.name);
+    }
+    assert!(
+        unit_file(&ports_started.name)?.contains(&format!("SocketBindAllow=tcp:{declared_port}"))
+    );
+    assert_property(&ports_started.name, "SocketBindDeny", "any")?;
+    stop_service(&ports_started.name, false)?;
+    std::mem::forget(ports_guard);
+    drop(slice_guard);
+    fs::remove_dir_all(&temporary)?;
+    Ok(())
+}
+
 struct UnitGuard {
     name: String,
 }
@@ -156,8 +294,63 @@ fn find_program(name: &str) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
 }
 
+fn make_executable(path: &Path) -> Result<()> {
+    let mut permissions = fs::metadata(path)?.permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions)?;
+    Ok(())
+}
+
+fn free_port() -> Result<u16> {
+    Ok(TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
+}
+
+fn wait_for_http(port: u16) -> Result<()> {
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while std::time::Instant::now() < deadline {
+        if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) {
+            stream.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")?;
+            let mut response = String::new();
+            stream.read_to_string(&mut response)?;
+            if response.ends_with("\r\n\r\nok\n") {
+                return Ok(());
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    bail!("timed out waiting for listener on 127.0.0.1:{port}")
+}
+
+fn systemctl_property(unit: &str, property: &str) -> Result<String> {
+    let output = Command::new("systemctl")
+        .args(["show", unit, "--property", property, "--value"])
+        .output()?;
+    if !output.status.success() {
+        bail!("failed to read {property} for {unit}");
+    }
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn assert_property(unit: &str, property: &str, expected: &str) -> Result<()> {
+    let actual = systemctl_property(unit, property)?;
+    if actual != expected {
+        bail!("{unit} has {property}={actual:?}, expected {expected:?}");
+    }
+    Ok(())
+}
+
+fn unit_file(unit: &str) -> Result<String> {
+    let path = systemctl_property(unit, "FragmentPath")?;
+    Ok(fs::read_to_string(path)?)
+}
+
 fn add_to_store(path: &Path) -> Result<PathBuf> {
-    let output = Command::new("nix")
+    let nix = if Command::new("nix").arg("--version").output().is_ok() {
+        "nix"
+    } else {
+        "/nix/var/nix/profiles/default/bin/nix"
+    };
+    let output = Command::new(nix)
         .args(["store", "add-path"])
         .arg(path)
         .output()
