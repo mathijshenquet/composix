@@ -14,6 +14,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Start a user systemd manager (tour scenarios need one)
+        run: |
+          sudo loginctl enable-linger "$(whoami)"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+          for _ in $(seq 1 30); do
+            XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-system-running >/dev/null 2>&1 && break
+            sleep 1
+          done
+          XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-system-running || true
       - run: cargo fmt --check
       - run: cargo clippy --workspace -- -D warnings
       - run: cargo test --workspace
