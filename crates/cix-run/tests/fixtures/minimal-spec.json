@@ -1,5 +1,5 @@
 {
-  "cixSpec": 1,
+  "cixManifest": 1,
   "services": {
     "worker": {
       "exec": [

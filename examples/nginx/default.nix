@@ -32,9 +32,9 @@ pkgs.runCommand "nginx-cix" { } ''
   ln -s ${pkgs.nginx}/conf/mime.types $out/etc/nginx/mime.types
   install -m 0644 ${html} $out/srv/www/index.html
   install -m 0644 ${conf} $out/etc/nginx/nginx.conf
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 2,
+    "cixManifest": 2,
     "services": {
       "nginx": {
         "exec": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],

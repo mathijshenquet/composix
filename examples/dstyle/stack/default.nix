@@ -63,9 +63,9 @@ pkgs.runCommand "dstyle-unix-stack" { } ''
   EOF
   chmod +x $out/bin/backend
 
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 2,
+    "cixManifest": 2,
     "services": {
       "backend": {
         "exec": ["bin/backend"],

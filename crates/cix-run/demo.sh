@@ -34,9 +34,9 @@ exec $sleep_bin 300
 EOF
 chmod +x "$fixture/output/bin/service"
 
-cat >"$fixture/output/cix-spec.json" <<EOF
+cat >"$fixture/output/cix-manifest.json" <<EOF
 {
-  "cixSpec": 1,
+  "cixManifest": 1,
   "services": {
     "demo": {
       "exec": ["bin/service"],

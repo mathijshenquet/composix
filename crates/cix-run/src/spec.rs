@@ -8,8 +8,8 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Spec {
-    #[serde(rename = "cixSpec")]
-    pub cix_spec: u32,
+    #[serde(rename = "cixManifest")]
+    pub cix_manifest: u32,
     pub services: BTreeMap<String, Service>,
 }
 
@@ -44,7 +44,7 @@ pub struct Env {
     #[serde(rename = "type")]
     /// Deprecated compatibility field. It is accepted and ignored; environment values are strings.
     #[deprecated(
-        note = "the cix-spec env `type` field is ignored and will be removed in cixSpec 3"
+        note = "the spec's env `type` field is ignored and will be removed in cixManifest 3"
     )]
     pub legacy_type: Option<String>,
     pub default: Option<String>,
@@ -109,13 +109,14 @@ pub enum Network {
 
 impl Spec {
     pub fn from_slice(json: &[u8]) -> Result<Self> {
-        let spec: Self = serde_json::from_slice(json).context("failed to parse cix-spec.json")?;
+        let spec: Self =
+            serde_json::from_slice(json).context("failed to parse cix-manifest.json")?;
         spec.validate()?;
         Ok(spec)
     }
 
     pub fn load(output: &Path) -> Result<Self> {
-        let path = output.join("cix-spec.json");
+        let path = output.join("cix-manifest.json");
         let json = fs::read(&path)
             .with_context(|| format!("failed to read spec at {}", path.display()))?;
         Self::from_slice(&json)
@@ -142,20 +143,20 @@ impl Spec {
     }
 
     fn validate(&self) -> Result<()> {
-        if !matches!(self.cix_spec, 1..=3) {
+        if !matches!(self.cix_manifest, 1..=3) {
             bail!(
-                "unsupported cixSpec version {}; this cix supports versions 1, 2, and 3",
-                self.cix_spec
+                "unsupported cixManifest version {}; this cix supports versions 1, 2, and 3",
+                self.cix_manifest
             );
         }
         if self.services.is_empty() {
-            bail!("cix-spec.json must declare at least one service");
+            bail!("cix-manifest.json must declare at least one service");
         }
 
         for (name, service) in &self.services {
             validate_name("service", name)?;
             service
-                .validate(self.cix_spec)
+                .validate(self.cix_manifest)
                 .with_context(|| format!("invalid service {name:?}"))?;
         }
         Ok(())
@@ -248,25 +249,25 @@ impl Service {
     fn validate_version_fields(&self, version: u32) -> Result<()> {
         if version == 1 {
             if self.setup.is_some() {
-                bail!("field \"setup\" requires cixSpec 2");
+                bail!("field \"setup\" requires cixManifest 2");
             }
             if self.dirs.run.is_some() {
-                bail!("field \"dirs.run\" requires cixSpec 2");
+                bail!("field \"dirs.run\" requires cixManifest 2");
             }
             if self.jit.is_some() {
-                bail!("field \"jit\" requires cixSpec 2");
+                bail!("field \"jit\" requires cixManifest 2");
             }
             if self.mounts.is_some() {
-                bail!("field \"mounts\" requires cixSpec 2");
+                bail!("field \"mounts\" requires cixManifest 2");
             }
             for (name, port) in &self.ports {
                 if port.value.is_some() {
-                    bail!("field \"ports.{name}.value\" requires cixSpec 2");
+                    bail!("field \"ports.{name}.value\" requires cixManifest 2");
                 }
             }
         }
         if version < 3 && !self.listeners.is_empty() {
-            bail!("field \"listeners\" requires cixSpec 3");
+            bail!("field \"listeners\" requires cixManifest 3");
         }
         Ok(())
     }
@@ -499,7 +500,7 @@ mod tests {
     fn parses_the_complete_schema() {
         let spec = parse(
             r#"{
-                "cixSpec": 1,
+                "cixManifest": 1,
                 "services": {
                     "app": {
                         "exec": ["bin/app", "--port", "$PORT"],
@@ -531,7 +532,7 @@ mod tests {
     fn parses_v2_fields() {
         let spec = parse(
             r#"{
-                "cixSpec": 2,
+                "cixManifest": 2,
                 "services": {
                     "app": {
                         "setup": ["bin/setup", "$PORT"],
@@ -562,7 +563,7 @@ mod tests {
     fn parses_v3_stream_listeners() {
         let spec = parse(
             r#"{
-                "cixSpec": 3,
+                "cixManifest": 3,
                 "services": {
                     "app": {
                         "exec": ["bin/app"],
@@ -584,18 +585,18 @@ mod tests {
             let error = format!(
                 "{:#}",
                 parse(&format!(
-                    r#"{{"cixSpec":{version},"services":{{"app":{{"exec":["bin/app"],"listeners":{{"http":{{"type":"stream"}}}}}}}}}}"#
+                    r#"{{"cixManifest":{version},"services":{{"app":{{"exec":["bin/app"],"listeners":{{"http":{{"type":"stream"}}}}}}}}}}"#
                 ))
                 .unwrap_err()
             );
             assert!(
-                error.contains("field \"listeners\" requires cixSpec 3"),
+                error.contains("field \"listeners\" requires cixManifest 3"),
                 "{error}"
             );
         }
         let error = format!(
             "{:#}",
-            parse(r#"{"cixSpec":3,"services":{"app":{"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}}}"#)
+            parse(r#"{"cixManifest":3,"services":{"app":{"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}}}"#)
                 .unwrap_err()
         );
         assert!(error.contains("not yet supported"), "{error}");
@@ -606,36 +607,36 @@ mod tests {
         for (field, json) in [
             (
                 "setup",
-                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"setup":["bin/setup"]}}}"#,
+                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"setup":["bin/setup"]}}}"#,
             ),
             (
                 "dirs.run",
-                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"run":[]}}}}"#,
+                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"run":[]}}}}"#,
             ),
             (
                 "jit",
-                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"jit":false}}}"#,
+                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"jit":false}}}"#,
             ),
             (
                 "ports.http.value",
-                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}}}"#,
+                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}}}"#,
             ),
             (
                 "mounts",
-                r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app"]}}}"#,
+                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app"]}}}"#,
             ),
         ] {
             let error = format!("{:#}", parse(json).unwrap_err());
             assert!(error.contains(field), "{error}");
-            assert!(error.contains("requires cixSpec 2"), "{error}");
+            assert!(error.contains("requires cixManifest 2"), "{error}");
         }
     }
 
     #[test]
     fn rejects_ports_with_both_or_neither_source() {
         for json in [
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}}}"#,
         ] {
             let error = format!("{:#}", parse(json).unwrap_err());
             assert!(
@@ -648,9 +649,9 @@ mod tests {
     #[test]
     fn v2_paths_must_be_one_component_under_the_role_root() {
         for json in [
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/data"]}}}}"#,
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/cache/app"]}}}}"#,
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"run":["/run/app/socket"]}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/data"]}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/cache/app"]}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"run":["/run/app/socket"]}}}}"#,
         ] {
             let error = format!("{:#}", parse(json).unwrap_err());
             assert!(error.contains("exactly one component"), "{error}");
@@ -661,12 +662,12 @@ mod tests {
     #[test]
     fn rejects_unknown_fields_at_every_level() {
         for json in [
-            r#"{"cixSpec":1,"services":{},"future":true}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"future":true}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"env":{"X":{"type":"string","future":true}}}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"x":{"env":"P","protocol":"tcp","future":true}}}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"future":[]}}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"health":{"exec":["bin/h"],"interval":"1s","future":true}}}}}"#,
+            r#"{"cixManifest":1,"services":{},"future":true}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"future":true}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"env":{"X":{"type":"string","future":true}}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"x":{"env":"P","protocol":"tcp","future":true}}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"future":[]}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"health":{"exec":["bin/h"],"interval":"1s","future":true}}}}}"#,
         ] {
             assert!(parse(json).is_err(), "{json}");
         }
@@ -674,24 +675,24 @@ mod tests {
 
     #[test]
     fn validates_interpolation_ports_and_directories() {
-        let undeclared = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app","$NOPE"]}}}"#;
+        let undeclared = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app","$NOPE"]}}}"#;
         assert!(parse(undeclared)
             .unwrap_err()
             .to_string()
             .contains("invalid service"));
 
-        let undeclared_port = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
+        let undeclared_port = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
         assert!(format!("{:#}", parse(undeclared_port).unwrap_err())
             .contains("refers to undeclared environment variable \"P\""));
 
-        let invalid_port_default = r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"env":{"P":{"default":"nope"}},"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
+        let invalid_port_default = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"env":{"P":{"default":"nope"}},"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
         assert!(format!("{:#}", parse(invalid_port_default).unwrap_err())
             .contains("default for ports-referenced environment variable \"P\" must be a port"));
 
         for json in [
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/nix/data"]}}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/../other"]}}}}"#,
-            r#"{"cixSpec":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/var/lib/app/nested"]}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/nix/data"]}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/../other"]}}}}"#,
+            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/var/lib/app/nested"]}}}}"#,
         ] {
             assert!(parse(json).is_err(), "{json}");
         }
@@ -700,7 +701,7 @@ mod tests {
     #[test]
     fn validates_mounts_adversarially() {
         let error = format!("{:#}", parse(
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"dirs":{"config":["/etc/app"]},"mounts":["/etc/app/config"]}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"config":["/etc/app"]},"mounts":["/etc/app/config"]}}}"#,
         )
         .unwrap_err());
         assert!(
@@ -709,7 +710,7 @@ mod tests {
         );
 
         let reverse_error = format!("{:#}", parse(
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app/config"],"dirs":{"config":["/etc/app"]}}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app/config"],"dirs":{"config":["/etc/app"]}}}}"#,
         )
         .unwrap_err());
         assert!(
@@ -718,7 +719,7 @@ mod tests {
         );
 
         let nested = format!("{:#}", parse(
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/nginx","/etc/nginx/conf.d"]}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/nginx","/etc/nginx/conf.d"]}}}"#,
         )
         .unwrap_err());
         assert!(nested.contains("must not be nested"), "{nested}");
@@ -743,7 +744,7 @@ mod tests {
             "/lib64",
         ] {
             let error = parse(&format!(
-                r#"{{"cixSpec":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{denied}"]}}}}}}"#
+                r#"{{"cixManifest":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{denied}"]}}}}}}"#
             ))
             .unwrap_err()
             .chain()
@@ -754,7 +755,7 @@ mod tests {
         }
 
         parse(
-            r#"{"cixSpec":2,"services":{"app":{"exec":["bin/app"],"mounts":["/cix-probe.conf","/opt/a/b/c/d","/etc/nginx"]}}}"#,
+            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/cix-probe.conf","/opt/a/b/c/d","/etc/nginx"]}}}"#,
         )
         .unwrap();
     }
@@ -769,7 +770,7 @@ mod tests {
             "/etc//nginx",
         ] {
             let error = parse(&format!(
-                r#"{{"cixSpec":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{mount}"]}}}}}}"#
+                r#"{{"cixManifest":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{mount}"]}}}}}}"#
             ))
             .unwrap_err()
             .chain()

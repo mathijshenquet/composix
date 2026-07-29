@@ -39,7 +39,7 @@ $ cat cix.lock
     "web": {
       "ref": "tour-compose:current",
       "storePath": "/nix/store/…-compose-fixture-v1",
-      "narHash": "sha256-Tbi6YgEjyPHrmTOf/kxLMIFUgbRiv2gHaAnpYUm9bMo="
+      "narHash": "sha256-GYkNTMWJCuxhLzBCeDc93nizdXTdHEgewmBXpj+JOXU="
     }
   }
 }

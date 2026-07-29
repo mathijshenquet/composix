@@ -1,5 +1,5 @@
 {
-  "cixSpec": 2,
+  "cixManifest": 2,
   "services": {
     "app": {
       "dirs": {

@@ -122,7 +122,7 @@ EXEC bin/start
         .ends_with("/bin/hello"));
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_spec, 2);
+    assert_eq!(spec.cix_manifest, 2);
     assert_eq!(spec.services["fixture"].exec, ["bin/start"]);
 }
 

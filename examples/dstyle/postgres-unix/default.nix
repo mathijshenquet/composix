@@ -49,9 +49,9 @@ pkgs.runCommand "dstyle-postgres-unix" { } ''
   chmod +x $out/bin/setup $out/bin/start
   ln -s ${pkgs.postgresql}/bin/psql $out/bin/psql
 
-  cat > $out/cix-spec.json <<'EOF'
+  cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixSpec": 2,
+    "cixManifest": 2,
     "services": {
       "postgres": {
         "setup": ["bin/setup"],

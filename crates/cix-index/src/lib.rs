@@ -365,8 +365,8 @@ fn closure_size(store_path: &str) -> Option<String> {
         })
 }
 
-fn spec_summary(store_path: &str) -> Option<String> {
-    let contents = fs::read(Path::new(store_path).join("cix-spec.json")).ok()?;
+fn manifest_summary(store_path: &str) -> Option<String> {
+    let contents = fs::read(Path::new(store_path).join("cix-manifest.json")).ok()?;
     let spec: serde_json::Value = serde_json::from_slice(&contents).ok()?;
     let services = spec.get("services")?.as_object()?;
     let mut rows = String::new();
@@ -472,7 +472,7 @@ fn name_page(host: &str, name: &str, tags: &[(Ref, TagMetadata)]) -> String {
             .as_deref()
             .and_then(|system| metadata.entry.outputs.get(system));
         if summary.is_none() {
-            summary = output.and_then(|output| spec_summary(&output.store_path));
+            summary = output.and_then(|output| manifest_summary(&output.store_path));
         }
         let systems = metadata
             .entry

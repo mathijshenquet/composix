@@ -34,7 +34,7 @@ Both variants use the same output model:
 - `COPY --from=<stage> <src> <dst>` copies or links a declared stage result into the current
   item. Stage paths are logical paths, not host paths or arbitrary Nix store paths.
 
-After assembly, each output is an ordinary composix item with its own `cix-spec.json`.
+After assembly, each output is an ordinary composix item with its own `cix-manifest.json`.
 Selecting an output is a build-time concern; selecting `item#service` remains the existing
 run-time concern.
 
