@@ -438,6 +438,15 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   socket-proxy publish (v0 publishes via ordinary declared ports), health wiring, secrets
   (`LoadCredential`), resource limits, the reconciler daemon (v0 `cix up` is one-shot).
 
+- ✅ D32 (2026-07-29) — **`PKG` is scrapped; interpolation goes flake-shaped.** `PKG` only ever
+  bound a name for `${…}` — it was double bookkeeping with a manifest *suggestion* that was
+  never authoritative, because nix's truth is: **references define dependencies, declarations
+  don't** (the closure is the only non-lying manifest; `nix path-info -r`). Instead,
+  interpolation gets the `pkgs.` namespace bound to the locked nixpkgs, with arbitrary
+  attribute paths for free (`${pkgs.postgresql}/bin`, `${pkgs.python3Packages.x}`). Bare
+  `${name}` without a namespace is an error suggesting `${pkgs.name}`. Future lock inputs
+  beyond nixpkgs arrive as sibling namespaces — flake-inputs semantics without grammar
+  changes.
 - ✅ D31 (2026-07-29) — **the `PATH` directive; LINK is for assets, not bins.** Cixfile gains
   an explicit, item-level `PATH <dir>…` declaration (repeatable; order = search order; no
   implicit PKG⇒PATH magic — Mathijs's call, consistent with the minimal-magic budget). Two
