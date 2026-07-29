@@ -97,12 +97,18 @@ pub fn start_service(
     let name = format!("cix-run-{service_name}-{}.service", nonce());
     if !user {
         let definition = build_unit(output, service_name, service, config, UnitMode::System)?;
-        start_with_listeners(&name, false, config, &definition)?;
-        return Ok(StartedUnit {
-            name,
-            user: false,
-            degraded: false,
-        });
+        return match start_with_listeners(&name, false, config, &definition) {
+            Ok(()) => Ok(StartedUnit {
+                name,
+                user: false,
+                degraded: false,
+            }),
+            Err(error) => {
+                let error = with_unit_diagnostics(error, &name, false);
+                let _ = stop_service(&name, false);
+                private_pids_fallback(service_name, config, &definition, error)
+            }
+        };
     }
 
     let definition = build_unit(output, service_name, service, config, UnitMode::UserFull)?;
@@ -165,7 +171,7 @@ fn namespace_fallback(
     let fallback_name = format!("cix-run-{service_name}-{}.service", nonce());
     eprintln!("warning: the user manager rejected mount-namespace sandboxing ({error:#})");
     eprintln!(
-        "warning: retrying without PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains, but declared app paths will not be remapped"
+        "warning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains, but declared app paths will not be remapped"
     );
     let degraded = build_unit(
         output,
@@ -178,6 +184,29 @@ fn namespace_fallback(
     Ok(StartedUnit {
         name: fallback_name,
         user: true,
+        degraded: true,
+    })
+}
+
+fn private_pids_fallback(
+    service_name: &str,
+    config: &ResolvedConfig,
+    definition: &UnitDefinition,
+    error: anyhow::Error,
+) -> Result<StartedUnit> {
+    if !namespace_failure(&error) {
+        return Err(error);
+    }
+    let fallback_name = format!("cix-run-{service_name}-{}.service", nonce());
+    eprintln!("warning: the system manager rejected PrivatePIDs isolation ({error:#})");
+    eprintln!(
+        "warning: retrying without PrivatePIDs; this service shares the host PID namespace (D36 degraded fallback)"
+    );
+    let fallback = without_properties(definition, &["PrivatePIDs"]);
+    start_with_listeners(&fallback_name, false, config, &fallback)?;
+    Ok(StartedUnit {
+        name: fallback_name,
+        user: false,
         degraded: true,
     })
 }
@@ -932,6 +961,9 @@ mod tests {
     fn identifies_namespace_failures_only() {
         assert!(namespace_failure(&anyhow::anyhow!(
             "Failed at step NAMESPACE: Operation not permitted"
+        )));
+        assert!(namespace_failure(&anyhow::anyhow!(
+            "PrivatePIDs is not supported"
         )));
         assert!(!namespace_failure(&anyhow::anyhow!(
             "executable was not found"

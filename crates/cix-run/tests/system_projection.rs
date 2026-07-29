@@ -177,6 +177,7 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
         listener_started.name.trim_end_matches(".service")
     );
     assert_property(&listener_started.name, "PrivateNetwork", "yes")?;
+    assert_property(&listener_started.name, "PrivatePIDs", "yes")?;
     assert_property(&listener_started.name, "RestrictAddressFamilies", "AF_UNIX")?;
     assert_property(&listener_started.name, "CapabilityBoundingSet", "")?;
     assert_property(&listener_started.name, "SocketBindDeny", "any")?;

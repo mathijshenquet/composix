@@ -78,8 +78,26 @@ pub fn debug(options: DebugOptions) -> Result<()> {
         argv.clone(),
     )?;
     if !options.user {
+        let name = debug_name(&target.name);
+        let result = run_attempt(name.clone(), false, &definition, interactive)?;
+        if result.status.success()
+            || !namespace_failure(&anyhow!(
+                "debug unit {name} failed: {}",
+                result.stderr.trim()
+            ))
+        {
+            return finish(result.status);
+        }
+        eprintln!(
+            "warning: the system manager rejected PrivatePIDs isolation (debug unit {name} failed: {})",
+            result.stderr.trim()
+        );
+        eprintln!(
+            "warning: retrying without PrivatePIDs; this debug sandbox shares the host PID namespace (D36 degraded fallback)"
+        );
+        let fallback = without_properties(&definition, &["PrivatePIDs"]);
         return finish(
-            run_attempt(debug_name(&target.name), false, &definition, interactive)?.status,
+            run_attempt(debug_name(&target.name), false, &fallback, interactive)?.status,
         );
     }
 
@@ -130,7 +148,7 @@ fn run_degraded(
 ) -> Result<()> {
     eprintln!("warning: the user manager rejected mount-namespace sandboxing ({error:#})");
     eprintln!(
-        "warning: retrying without PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; this is the D13 degraded development path"
+        "warning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; this is the D13 degraded development path"
     );
     let degraded = debug_definition(
         &target.output,

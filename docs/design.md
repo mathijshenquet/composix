@@ -235,9 +235,14 @@ those. Everything **not** declared is denied.
 | dirs.state/cache/logs/config | `StateDirectory=` / `CacheDirectory=` / `LogsDirectory=` / `ConfigurationDirectory=` |
 | ports declared | `RestrictAddressFamilies=+AF_INET +AF_INET6` |
 | no network | `PrivateNetwork=yes` |
-| always | `DynamicUser=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `RestrictSUIDSGID=yes`, `ProtectKernelTunables/Modules/Logs=yes`, `ProtectControlGroups=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes` (opt-out for JITs — needs a spec flag), `SystemCallFilter=@system-service`, `CapabilityBoundingSet=` |
+| always | `DynamicUser=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `PrivatePIDs=yes`, `NoNewPrivileges=yes`, `RestrictSUIDSGID=yes`, `ProtectKernelTunables/Modules/Logs=yes`, `ProtectControlGroups=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes` (opt-out for JITs — needs a spec flag), `SystemCallFilter=@system-service`, `CapabilityBoundingSet=` |
 
 Strict-by-default is the point: the spec *is* the capability grant.
+
+`PrivatePIDs=yes` makes the service entrypoint namespace PID 1. The application is therefore
+responsible for PID-1 duties: it must reap children and handle signals explicitly. Master/worker
+daemons such as nginx and PostgreSQL already do this; an item that does not is evidence for a
+future declarative init-shim grant, not a reason to weaken the default.
 
 ### `cix run`
 
@@ -531,7 +536,8 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   live inspection — procs, sockets, strace)* — served by **`cix exec <unit-or-service>
   [--root] [-- cmd]`**: join whichever of the *running* unit's mount/pid/net/ipc/uts namespaces
   differ from the caller's (nsenter-style — systemd has no first-class join,
-  `JoinsNamespaceOf=` never shares the mount ns). PID is host-shared with today's generator;
+  `JoinsNamespaceOf=` never shares the mount ns). PID is host-shared with today's generator
+  *(superseded by D36)*;
   network is host-shared for a port-declaring service and private when the spec denies network.
   Environment comes from the unit's recorded `Environment=` (including any generated PATH and
   `-e` overrides), default identity = the service's DynamicUser uid (story B: files created
