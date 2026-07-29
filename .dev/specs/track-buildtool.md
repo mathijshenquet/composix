@@ -23,9 +23,20 @@ One new directive in the Cixfile grammar:
 - Lock story: whatever input pinning `BUILD rust` needs beyond Cargo.lock goes in
   `Cixfile.lock` per existing per-input conventions (D32); document exactly what is hashed.
   "Determinism is more than having a lockfile" — the full input surface must be pinned.
-- Codegen: emit nix (crane or equivalent fixed mechanism — if you avoid the crane flake
-  dependency, justify in the LOG how you get equivalent lock/vendor behavior) integrated
-  with the existing cix-cixfile codegen path; `cix build` drives it.
+- Codegen (decided with Mathijs, 2026-07-29): **call crane, don't reimplement it.** Crane is
+  a cix-owned pinned tool input: cix knows a fixed crane rev, pins it (rev + narHash) in
+  `Cixfile.lock` automatically next to nixpkgs (the D32 "cix-owned constant" pattern — the
+  user never writes a crane FROM), and the generated non-flake nix does
+  `craneLib = (import (fetchTarball {...narHash...})).mkLib pkgs`, then
+  `cleanCargoSource` → `buildDepsOnly` → `buildPackage`. No ad-hoc flakes, no vendored
+  crane copy (both considered, rejected for now).
+- Toolchain policy (increment 1): build with the locked nixpkgs rustc. `rust-toolchain.toml`
+  is required, READ, and enforced as a *compatibility gate*: hard, line-numbered error when
+  it demands a channel/version the locked nixpkgs rustc does not satisfy — no ambient
+  toolchain, no silent substitution. Full honoring via a pinned rust-overlay is a separate
+  later decision; say so in the docs.
+- Error legibility minimum: `cix build` prefixes crane/nix build failures with the Cixfile
+  source span of the responsible BUILD line.
 
 ## examples/build/projB (the proof)
 
