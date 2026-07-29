@@ -1,0 +1,8 @@
+set -eu
+. "$(dirname "$0")/../lib/runtime-env.sh"
+
+exec "$item_dir/bin/postgres" \
+  -D "$data_dir" \
+  -p "$1" \
+  -h 127.0.0.1 \
+  -k /run/postgresql

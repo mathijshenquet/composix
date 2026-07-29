@@ -1,0 +1,4 @@
+# Examples 2 work log
+
+- 2026-07-29T00:00:00Z — Started `track-examples2`. Scope is limited to the PostgreSQL Cixfile polish, three new Cixfile-only examples, the Cixfile directive documentation, and the VM dogfood check. Next: convert PostgreSQL's generated scripts to checked-in sibling assets and verify both build paths.
+- 2026-07-29T00:10:00Z — Converted PostgreSQL to `COPY`ed `runtime-env.sh`, `setup`, and `start` siblings with item-local package links and `dirname "$0"` discovery. `COPY` inputs are mode 0644, so the service invokes the scripts through a linked `bin/sh`; this preserves verbatim sources without Cixfile heredocs. `devenv shell -- cargo run -p cix -- build examples/postgres`, `nix-build examples/postgres --no-out-link`, and the sudo demo using the freshly built local cix binary passed; its transient unit stopped cleanly. Added the matching directive-reference subsection. Next: add Redis.
