@@ -26,3 +26,5 @@ This five-minute tour covers local tags, serving and pulling a store, building f
 - [Building from a Cixfile](08-building-cixfile.html) — Build, inspect, and tag a self-contained Cixfile item.
 
 - [Running with a listener](09-running-listener.html) — Serve through a systemd-activated socket in rootless development mode.
+
+- [Composing services](10-composing-services.html) — Validate and dry-diff a tracked compose service without root.

@@ -29,4 +29,4 @@ The user-manager path is suitable for rootless development; production uses the 
 
 ---
 
-[← Previous](08-building-cixfile.html) · [Tour index](index.html)
+[← Previous](08-building-cixfile.html) · [Tour index](index.html) · [Next →](10-composing-services.html)

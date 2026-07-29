@@ -86,6 +86,15 @@ impl Doc {
         self.sh_in("$", &state_dir, command, expect_success)
     }
 
+    fn sh_after_warming(&mut self, command: &str, expect_success: bool) -> String {
+        let state_dir = self.state_dir.clone();
+        // Nix may emit first-use progress while constructing a generation. Warm that work
+        // unrecorded so the following, displayed invocation remains one real command whose
+        // transcript is independent of the local Nix cache.
+        self.run(&state_dir, command, expect_success);
+        self.sh_in("$", &state_dir, command, expect_success)
+    }
+
     fn sh_units(&mut self, command: &str, expect_success: bool, unit_names: &[String]) -> String {
         let state_dir = self.state_dir.clone();
         self.sh_in_with_unit_filter("$", &state_dir, command, expect_success, Some(unit_names))
@@ -109,6 +118,30 @@ impl Doc {
         expect_success: bool,
         unit_names: Option<&[String]>,
     ) -> String {
+        let output = self.run(state_dir, command, expect_success);
+        let raw = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let displayed_command = normalize(command, &self.base);
+        writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
+        let displayed_output = unit_names
+            .map(|unit_names| filter_unit_listing(&raw, unit_names))
+            .unwrap_or_else(|| raw.clone());
+        let normalized = normalize(&displayed_output, &self.base);
+        if !normalized.is_empty() {
+            self.text.push_str(&normalized);
+            if !normalized.ends_with('\n') {
+                self.text.push('\n');
+            }
+        }
+        writeln!(self.text, "```\n").expect("writing transcript");
+        raw
+    }
+
+    fn run(&self, state_dir: &Path, command: &str, expect_success: bool) -> std::process::Output {
         let mut path = self.bin_dir.display().to_string();
         if let Some(existing) = std::env::var_os("PATH") {
             path.push(':');
@@ -126,27 +159,12 @@ impl Doc {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-
         assert_eq!(
             output.status.success(),
             expect_success,
             "`{command}` produced:\n{raw}"
         );
-
-        let displayed_command = normalize(command, &self.base);
-        writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
-        let displayed_output = unit_names
-            .map(|unit_names| filter_unit_listing(&raw, unit_names))
-            .unwrap_or_else(|| raw.clone());
-        let normalized = normalize(&displayed_output, &self.base);
-        if !normalized.is_empty() {
-            self.text.push_str(&normalized);
-            if !normalized.ends_with('\n') {
-                self.text.push('\n');
-            }
-        }
-        writeln!(self.text, "```\n").expect("writing transcript");
-        raw
+        output
     }
 
     fn background(&mut self, prompt: &str, command: &str) {
@@ -383,6 +401,87 @@ while True:
         .expect("Nix store path is UTF-8")
         .trim()
         .to_owned()
+}
+
+fn compose_fixture(doc: &Doc, version: &str) -> String {
+    let fixture = doc.base.join(format!("compose-fixture-{version}"));
+    let executable = fixture.join("bin/web");
+    fs::create_dir_all(
+        executable
+            .parent()
+            .expect("compose fixture executable parent"),
+    )
+    .expect("creating compose fixture directory");
+    fs::write(
+        &executable,
+        format!("#!/bin/sh\necho compose fixture {version}\n"),
+    )
+    .expect("writing compose fixture executable");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mut permissions = fs::metadata(&executable)
+            .expect("reading compose fixture executable permissions")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions)
+            .expect("making compose fixture executable executable");
+    }
+    fs::write(
+        fixture.join("cix-spec.json"),
+        r#"{
+  "cixSpec": 2,
+  "services": {
+    "web": {
+      "exec": ["bin/web"]
+    }
+  }
+}
+"#,
+    )
+    .expect("writing compose fixture spec");
+
+    let output = Command::new("nix")
+        .args(["store", "add-path"])
+        .arg(&fixture)
+        .output()
+        .expect("adding compose fixture to the Nix store");
+    assert!(
+        output.status.success(),
+        "nix store add-path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("Nix store path is UTF-8")
+        .trim()
+        .to_owned()
+}
+
+fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) {
+    let metadata = fs::read_dir(doc.state_dir.join("tags"))
+        .expect("listing compose tag metadata")
+        .filter_map(Result::ok)
+        .map(|entry| fs::read_to_string(entry.path()).expect("reading compose tag metadata"))
+        .find(|contents| contents.contains(&format!("\"reference\": \"{reference}\"")))
+        .expect("finding compose tag metadata");
+    let store_path = Regex::new(r#""storePath":\s*"([^"]+)""#)
+        .expect("valid store path regex")
+        .captures(&metadata)
+        .expect("finding compose store path")[1]
+        .to_owned();
+    let nar_hash = Regex::new(r#""narHash":\s*"([^"]+)""#)
+        .expect("valid nar hash regex")
+        .captures(&metadata)
+        .expect("finding compose nar hash")[1]
+        .to_owned();
+    fs::write(
+        cix_compose::Compose::lock_path(compose_path),
+        format!(
+            "{{\n  \"services\": {{\n    \"web\": {{\n      \"ref\": \"{reference}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
+        ),
+    )
+    .expect("writing resolved compose lock");
 }
 
 fn next_listen() -> String {
@@ -733,6 +832,55 @@ fn scenario_running_with_a_listener() -> String {
     doc.finish()
 }
 
+fn scenario_composing_services() -> String {
+    let mut doc = Doc::new("composing-services");
+    let first = compose_fixture(&doc, "v1");
+    doc.sh(&format!("cix tag {first} tour-compose:current"), true);
+    fs::write(
+        doc.base.join("compose.json"),
+        r#"{
+  "composeVersion": 1,
+  "name": "tour-compose",
+  "services": {
+    "web": {
+      "item": "tour-compose:current",
+      "update": "track"
+    }
+  }
+}
+"#,
+    )
+    .expect("writing compose fixture");
+
+    doc.para("Compose v0 accepts strict machine-format JSON. This self-contained item is a Nix store path added by the harness, then named with a local tag.");
+    let compose = doc.sh("cat compose.json", true);
+    assert!(compose.contains("\"update\": \"track\""));
+    let checked = doc.sh("cix compose check compose.json", true);
+    assert_eq!(
+        checked.trim(),
+        "compose tour-compose: 1 services, 0 edges, valid"
+    );
+
+    write_resolved_compose_lock(&doc, &doc.base.join("compose.json"), "tour-compose:current");
+    doc.para("`check` resolves and validates without activation. Root `cix up` owns the persistent lock write, so this rootless harness records the checked tag's actual resolved values in `cix.lock` before inspecting that format.");
+    let lock = doc.sh("cat cix.lock", true);
+    assert!(lock.contains(&first));
+    assert!(lock.contains("\"ref\": \"tour-compose:current\""));
+
+    let initial_diff = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(initial_diff.contains(&first));
+
+    let second = compose_fixture(&doc, "v2");
+    doc.sh(&format!("cix tag {second} tour-compose:current"), true);
+    doc.para("Moving the tracked tag changes the dry-built generation without starting a service. With no root-managed active profile in this rootless scenario, `-` means there is no prior active item to compare.");
+    let changed_diff = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(changed_diff.contains(&second));
+    assert!(!changed_diff.contains(&first));
+
+    doc.para("`cix up`, `cix rollback`, and `cix down` manage the system manager and therefore require root; the [stack example](../../examples/compose/stack/) VM check covers activation, selective update, rollback, and cleanup.");
+    doc.finish()
+}
+
 #[derive(Debug, PartialEq, Eq)]
 struct GeneratedFile {
     name: &'static str,
@@ -854,6 +1002,12 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Running with a listener",
             description: "Serve through a systemd-activated socket in rootless development mode.",
             body: scenario_running_with_a_listener(),
+        },
+        Scenario {
+            filename: "10-composing-services.md",
+            title: "Composing services",
+            description: "Validate and dry-diff a tracked compose service without root.",
+            body: scenario_composing_services(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);
