@@ -450,8 +450,15 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   **Amendment (same day, Mathijs): `FROM` returns, honestly.** An unbound `pkgs` is itself
   ambient magic, so every Cixfile REQUIRES a `FROM <flakeref> [AS <name>]` heading that binds
   a package universe to a namespace — and `AS` is REQUIRED: no default binding, the name is
-  always written (`FROM nixpkgs AS pkgs`; `FROM github:… AS stable` → `${stable.x}`; bare
-  `nixpkgs` is the registry ref). `Cixfile.lock` is keyed per input
+  always written. **Registry names are refused** (the flake registry is ambient host state —
+  the same sin as docker.io, refused in D12): the canonical spelling is a full flakeref,
+  `FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs`. Moving branches are fine — that is the
+  tags philosophy: refs may move, `Cixfile.lock` pins (rev + narHash, `--update-lock` rolls
+  deliberately). If verbosity ever hurts, the evidence-gated sugar is a cix-owned documented
+  constant table, never the host registry. **`WITH` (nix's `with pkgs;`) is rejected**: it
+  breaks name provenance (ambiguous across universes) — every name keeps a visible origin.
+  Package *customization* (`override`, feature flags) is deliberately not Cixfile territory:
+  that is build-land, served by the `.nix` escape hatch (D4). `Cixfile.lock` is keyed per input
   (`--update-lock [name]`). Docker muscle memory restored with a truthful meaning: not "which
   layer do I inherit" but "which package universe do I draw from".
 - ✅ D31 (2026-07-29) — **the `PATH` directive; LINK is for assets, not bins.** Cixfile gains

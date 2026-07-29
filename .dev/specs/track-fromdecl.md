@@ -17,7 +17,7 @@ Territory: `crates/cix-cixfile/`, `examples/` Cixfiles, `docs/cixfile.md`, the F
    one or all. Resolution/pinning per input; multiple FROMs = multiple pinned universes.
 3. Interpolation: `${<ns>.<attrpath>}` resolves against its universe; unknown namespace →
    error listing declared ones.
-4. Examples: add the one `FROM nixpkgs AS pkgs` line everywhere; one example (node-app) additionally
+4. Examples: add the one `FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs` line everywhere; one example (node-app) additionally
    demonstrates `AS` with a second pinned universe ONLY if it stays tasteful — otherwise show
    `AS` in docs alone (your judgment, note it).
 5. Docs: cixfile.md — FROM row in the directives table (with the truthful-meaning framing
