@@ -86,6 +86,15 @@ impl Doc {
         self.sh_in("$", &state_dir, command, expect_success)
     }
 
+    fn sh_after_warming(&mut self, command: &str, expect_success: bool) -> String {
+        let state_dir = self.state_dir.clone();
+        // Nix may emit first-use progress while constructing a generation. Warm that work
+        // unrecorded so the following, displayed invocation remains one real command whose
+        // transcript is independent of the local Nix cache.
+        self.run(&state_dir, command, expect_success);
+        self.sh_in("$", &state_dir, command, expect_success)
+    }
+
     fn sh_units(&mut self, command: &str, expect_success: bool, unit_names: &[String]) -> String {
         let state_dir = self.state_dir.clone();
         self.sh_in_with_unit_filter("$", &state_dir, command, expect_success, Some(unit_names))
@@ -109,6 +118,30 @@ impl Doc {
         expect_success: bool,
         unit_names: Option<&[String]>,
     ) -> String {
+        let output = self.run(state_dir, command, expect_success);
+        let raw = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let displayed_command = normalize(command, &self.base);
+        writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
+        let displayed_output = unit_names
+            .map(|unit_names| filter_unit_listing(&raw, unit_names))
+            .unwrap_or_else(|| raw.clone());
+        let normalized = normalize(&displayed_output, &self.base);
+        if !normalized.is_empty() {
+            self.text.push_str(&normalized);
+            if !normalized.ends_with('\n') {
+                self.text.push('\n');
+            }
+        }
+        writeln!(self.text, "```\n").expect("writing transcript");
+        raw
+    }
+
+    fn run(&self, state_dir: &Path, command: &str, expect_success: bool) -> std::process::Output {
         let mut path = self.bin_dir.display().to_string();
         if let Some(existing) = std::env::var_os("PATH") {
             path.push(':');
@@ -126,27 +159,12 @@ impl Doc {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-
         assert_eq!(
             output.status.success(),
             expect_success,
             "`{command}` produced:\n{raw}"
         );
-
-        let displayed_command = normalize(command, &self.base);
-        writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
-        let displayed_output = unit_names
-            .map(|unit_names| filter_unit_listing(&raw, unit_names))
-            .unwrap_or_else(|| raw.clone());
-        let normalized = normalize(&displayed_output, &self.base);
-        if !normalized.is_empty() {
-            self.text.push_str(&normalized);
-            if !normalized.ends_with('\n') {
-                self.text.push('\n');
-            }
-        }
-        writeln!(self.text, "```\n").expect("writing transcript");
-        raw
+        output
     }
 
     fn background(&mut self, prompt: &str, command: &str) {
@@ -849,13 +867,13 @@ fn scenario_composing_services() -> String {
     assert!(lock.contains(&first));
     assert!(lock.contains("\"ref\": \"tour-compose:current\""));
 
-    let initial_diff = doc.sh("cix compose diff compose.json", true);
+    let initial_diff = doc.sh_after_warming("cix compose diff compose.json", true);
     assert!(initial_diff.contains(&first));
 
     let second = compose_fixture(&doc, "v2");
     doc.sh(&format!("cix tag {second} tour-compose:current"), true);
     doc.para("Moving the tracked tag changes the dry-built generation without starting a service. With no root-managed active profile in this rootless scenario, `-` means there is no prior active item to compare.");
-    let changed_diff = doc.sh("cix compose diff compose.json", true);
+    let changed_diff = doc.sh_after_warming("cix compose diff compose.json", true);
     assert!(changed_diff.contains(&second));
     assert!(!changed_diff.contains(&first));
 
