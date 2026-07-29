@@ -1,6 +1,7 @@
+PATH /tools/first /tools/second
 SERVICE app
-EXEC bin/app $PORT
-SETUP bin/setup
+EXEC app $PORT
+SETUP setup
 ENV PORT = 9000 required
 ENV TOKEN secret
 PORT http = $PORT

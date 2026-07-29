@@ -37,6 +37,7 @@ struct Parser<'a> {
     lines: Vec<&'a str>,
     index: usize,
     packages: BTreeSet<String>,
+    paths: Vec<Template>,
     items: Vec<Item>,
     destinations: BTreeSet<String>,
     services: BTreeMap<String, Service>,
@@ -57,6 +58,7 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
         lines: input.lines().collect(),
         index: 0,
         packages: BTreeSet::new(),
+        paths: Vec::new(),
         items: Vec::new(),
         destinations: BTreeSet::new(),
         services: BTreeMap::new(),
@@ -85,6 +87,7 @@ impl Parser<'_> {
                 });
             match directive {
                 "PKG" => self.package(line_number, source, arguments)?,
+                "PATH" => self.path(line_number, source, arguments)?,
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
                 "LINK" => self.link(line_number, source, arguments)?,
@@ -131,10 +134,12 @@ impl Parser<'_> {
                 ));
             }
             validate_service_references(service, &self.service_metadata[name])?;
+            validate_bare_commands(service, &self.service_metadata[name], &self.paths)?;
         }
 
         Ok(Cixfile {
             packages: self.packages,
+            paths: self.paths,
             items: self.items,
             services: self.services,
         })
@@ -156,6 +161,35 @@ impl Parser<'_> {
                 source,
                 format!("package {attribute:?} is already declared"),
             ));
+        }
+        Ok(())
+    }
+
+    fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let fields = at_least_one_field(arguments, line, source, "PATH")?;
+        if self
+            .services
+            .values()
+            .any(|service| service.env.contains_key("PATH"))
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                "PATH conflicts with an explicit ENV PATH declaration",
+            ));
+        }
+        for field in fields {
+            reject_runtime_variable(field, "PATH directory", line, source)?;
+            let path = build_template(field, &self.packages, line, source, false)?;
+            validate_path_template(&path, line, source)?;
+            if self.paths.contains(&path) {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!("PATH directory {field:?} is duplicated"),
+                ));
+            }
+            self.paths.push(path);
         }
         Ok(())
     }
@@ -319,6 +353,7 @@ impl Parser<'_> {
                 ));
             }
             service.setup = Some(templates);
+            service.setup_line = Some(line);
             self.service_metadata
                 .get_mut(&service_name)
                 .expect("service metadata exists")
@@ -332,6 +367,7 @@ impl Parser<'_> {
                 ));
             }
             service.exec = templates;
+            service.exec_line = line;
             self.service_metadata
                 .get_mut(&service_name)
                 .expect("service metadata exists")
@@ -380,6 +416,13 @@ impl Parser<'_> {
                     ));
                 }
             }
+        }
+        if fields[0] == "PATH" && !self.paths.is_empty() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "ENV PATH conflicts with the item-level PATH directive",
+            ));
         }
         let service = self.current_service_mut("ENV", line, source)?;
         if service.env.contains_key(fields[0]) {
@@ -802,6 +845,53 @@ fn validate_service_references(
     Ok(())
 }
 
+fn validate_bare_commands(
+    service: &Service,
+    metadata: &ServiceMetadata,
+    paths: &[Template],
+) -> Result<(), ParseError> {
+    for (arguments, location) in [
+        (&service.exec[..], metadata.exec.as_ref()),
+        (
+            service.setup.as_deref().unwrap_or_default(),
+            metadata.setup.as_ref(),
+        ),
+    ] {
+        let Some((line, source)) = location else {
+            continue;
+        };
+        if bare_command(arguments).is_some() && paths.is_empty() {
+            return Err(ParseError::new(
+                *line,
+                source,
+                "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${pkg}/bin/... path",
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
+    let command = arguments.first()?.literal_value()?;
+    (!command.is_empty() && !command.contains('/') && !command.contains('$')).then_some(command)
+}
+
+fn validate_path_template(
+    template: &Template,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    match template.parts.first() {
+        Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
+        Some(TemplatePart::Package(_)) => Ok(()),
+        _ => Err(ParseError::new(
+            line,
+            source,
+            "PATH directory must be an absolute path (for example ${pkg}/bin)",
+        )),
+    }
+}
+
 fn runtime_variables(
     input: &str,
     line: usize,
@@ -1085,6 +1175,52 @@ JIT
                 .unwrap();
         assert_eq!(parsed.services["one"].ports["http"], Port::Value(8080));
         assert_eq!(parsed.services.len(), 2);
+    }
+
+    #[test]
+    fn path_preserves_declaration_order_and_rejects_duplicates() {
+        let parsed = parse(
+            "PKG first\nPKG second\nPATH ${first}/bin\nPATH ${second}/bin\nSERVICE app\nEXEC /bin/app\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.paths,
+            vec![
+                Template {
+                    parts: vec![
+                        TemplatePart::Package("first".into()),
+                        TemplatePart::Literal("/bin".into()),
+                    ],
+                },
+                Template {
+                    parts: vec![
+                        TemplatePart::Package("second".into()),
+                        TemplatePart::Literal("/bin".into()),
+                    ],
+                },
+            ]
+        );
+
+        let error =
+            parse("PKG tool\nPATH ${tool}/bin\nPATH ${tool}/bin\nSERVICE app\nEXEC /bin/app\n")
+                .unwrap_err();
+        assert_eq!(error.line, 3);
+        assert!(error.message.contains("duplicated"));
+    }
+
+    #[test]
+    fn path_rejects_explicit_env_path_and_bare_commands_without_path() {
+        for input in [
+            "PATH /tools\nSERVICE app\nENV PATH = /other\nEXEC /bin/app\n",
+            "SERVICE app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
+        ] {
+            let error = parse(input).unwrap_err();
+            assert!(error.message.contains("PATH conflicts"), "{error}");
+        }
+
+        let error = parse("SERVICE app\nEXEC tool\n").unwrap_err();
+        assert_eq!(error.line, 2);
+        assert!(error.message.contains("requires PATH"));
     }
 
     #[test]

@@ -95,3 +95,94 @@ EXEC bin/start
     assert_eq!(spec.cix_spec, 2);
     assert_eq!(spec.services["fixture"].exec, ["bin/start"]);
 }
+
+#[test]
+fn path_resolution_writes_the_real_executable_and_runtime_default() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = parse(
+        r#"PKG coreutils
+PATH ${coreutils}/bin
+SERVICE fixture
+SETUP true
+EXEC true
+"#,
+    )
+    .unwrap();
+    let expression = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    let output = build_expression(&expression).unwrap();
+    let spec = cix_run::spec::Spec::load(&output).unwrap();
+    let service = &spec.services["fixture"];
+    assert!(
+        service.exec[0].starts_with("/nix/store/"),
+        "{:?}",
+        service.exec
+    );
+    assert!(service.exec[0].ends_with("/bin/true"), "{:?}", service.exec);
+    assert_eq!(service.setup.as_ref().unwrap(), &service.exec);
+    assert!(service.env["PATH"]
+        .default
+        .as_deref()
+        .is_some_and(|path| path.starts_with("/nix/store/") && path.ends_with("/bin")));
+}
+
+#[test]
+fn path_resolution_prefers_the_first_matching_directory() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = parse(
+        r#"PKG bash
+PKG bashInteractive
+PATH ${bash}/bin ${bashInteractive}/bin
+SERVICE fixture
+EXEC bash
+"#,
+    )
+    .unwrap();
+    let expression = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    let output = build_expression(&expression).unwrap();
+    let spec = cix_run::spec::Spec::load(&output).unwrap();
+    let service = &spec.services["fixture"];
+    let first_directory = service.env["PATH"]
+        .default
+        .as_deref()
+        .unwrap()
+        .split(':')
+        .next()
+        .unwrap();
+    assert_eq!(service.exec[0], format!("{first_directory}/bash"));
+}
+
+#[test]
+fn path_resolution_fails_with_line_and_searched_directories() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = parse(
+        r#"PKG coreutils
+PATH ${coreutils}/bin
+SERVICE fixture
+EXEC definitely-not-a-coreutils-command
+"#,
+    )
+    .unwrap();
+    let expression = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    let error = build_expression(&expression).unwrap_err().to_string();
+    assert!(error.contains("line 4"), "{error}");
+    assert!(error.contains("declared PATH directories"), "{error}");
+    assert!(error.contains("/bin"), "{error}");
+}
