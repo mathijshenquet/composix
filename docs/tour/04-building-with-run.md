@@ -34,11 +34,17 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
 COPY ${src}/src/ .
 RUN <<BUILD
+if test -e .cix-warm; then
+    printf 'workspace-state: warm\n'
+else
+    printf 'workspace-state: cold\n'
+fi
 mkdir -p result
 tr '[:lower:]' '[:upper:]' < app > result/upper
+touch .cix-warm
 BUILD
 
 SERVICE run-tour
@@ -60,13 +66,16 @@ $ cat Cixfile.lock
 }
 ```
 
-RUN executes outside Nix evaluation in a networkless sandbox. The offered package closure, incoming directory snapshot, fixed environment, and complete heredoc body form the memo key; the SERVICE copies only the selected results from `${build}`.
+IMPORT makes bare tools available through the read-only `/bin` union. The chain key contains the command, imports, predecessor, environment, and declared COPY bytes—but never workspace bytes. The SERVICE consumes only two narrow paths from `${build}`.
 
 ```sh
-$ cix build .
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
+workspace-state: cold
 /nix/store/…-cix-item-run-tour
-BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> . snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo miss 93ef5c56c71b -> /nix/store/…-cix-build-snapshot
+BUILDER build workspace <persistent>
+BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss 22cbe0007646 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -74,13 +83,51 @@ $ tail -n 1 /nix/store/…-cix-item-run-tour/result/upper
 ECHO HELLO-FROM-RUN-TOUR
 ```
 
-The lock records the content-addressed workdir realization. Repeating the unchanged build replays the directory COPY, hits the RUN memo, and returns the identical final item.
+The lock records just those consumed paths. Repeating the unchanged build materializes them from the store without running the builder.
 
 ```sh
-$ cix build .
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
 /nix/store/…-cix-item-run-tour
-BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> . snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo hit 93ef5c56c71b -> /nix/store/…-cix-build-snapshot
+BUILDER build memo hit 22cbe0007646 -> /nix/store/…-cix-build-view
+```
+
+Changing a declared input changes the chain key. The builder runs again in its persistent workspace, so its private marker is warm while the selected outputs still depend only on declared inputs.
+
+```sh
+$ sed -i 's/hello-from-run-tour/hello-from-run-tour-edited/' src/app
+```
+
+```sh
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
+workspace-state: warm
+/nix/store/…-cix-item-run-tour
+BUILDER build workspace <persistent>
+BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
+```
+
+`--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.
+
+```sh
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .
+workspace-state: cold
+/nix/store/…-cix-item-run-tour
+BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
+```
+
+A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.
+
+```sh
+$ rm -rf ../.workspaces-run
+```
+
+```sh
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
+/nix/store/…-cix-item-run-tour
+BUILDER build memo hit 0aa4872f09e0 -> /nix/store/…-cix-build-view
 ```
 
 

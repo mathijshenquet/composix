@@ -1,7 +1,7 @@
 # The Cixfile
 
-*Status: D47 blocks and binders plus the D50–D53 language polish are implemented: named
-builders, services, one-shot apps, local and remote source binders, pinned network fetches,
+*Status: D47 blocks and binders through D56–D58 are implemented: named persistent builders,
+narrow consumed-path records, package IMPORT unions, declared or TOFU-pinned network fetches,
 directive continuations, RUN heredocs, and full-line comments.*
 
 A Cixfile turns a directory into one or more composix artifacts. It is Dockerfile-shaped, so
@@ -47,14 +47,14 @@ Prelude declarations come first:
 | --- | --- |
 | `FROM <flakeref> AS <name>` | bind a locked package universe when the ref is nixpkgs, or a locked source tree for another remote flake |
 | `FROM . AS <name>` | optionally name the Cixfile directory; it is local input and is not lock-pinned |
-| `FETCH <name> <command…>` | run a networked command in an empty workdir and bind its pinned output snapshot |
+| `FETCH <name> [EXPECT <sri-hash>] <command…>` | run a networked command in an empty workdir and bind its pinned output |
 
 Blocks then declare work and outputs:
 
 | block | allowed directives | result |
 | --- | --- | --- |
-| `BUILDER <name>` | `COPY`, `FETCH`, `RUN`, `CACHE`, `PATH` | an immutable named workdir snapshot |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
+| `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN` | a persistent workspace whose consumed outputs are recorded individually |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
 | `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHEDIR` | a run-to-completion app artifact |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -63,7 +63,7 @@ where useful, the first declaration line.
 
 **A BUILDER exists only when there is RUN or FETCH work to do.** Pure assembly belongs
 directly in the `SERVICE` or `APP` that consumes the sources; routing local files through a
-COPY-only builder adds a name and a snapshot without adding a boundary.
+COPY-only builder adds a name without adding a boundary.
 
 ### Unified `COPY`
 
@@ -80,8 +80,10 @@ COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt etc/ssl/cert.pem
 A source is either a bare relative path in the implicit Cixfile-directory context or a path
 under a declared binder. Only remote sources need an explicit `FROM` binder. Package
 references use `${universe.attrpath}`; source, fetch, and builder references use
-`${binder}/path`. Copying a binder without `/path` copies its whole root. Destinations are
-clean paths relative to the builder or artifact root; `.` means the whole root.
+`${binder}/path`. Copying a binder without `/path` copies its whole root. A whole-builder read
+is legal but expensive: the entire left-behind tree becomes one consumed object and any
+changed byte invalidates that consumer. Prefer narrow paths for build artifacts. Destinations
+are clean paths relative to the builder or artifact root; `.` means the whole root.
 
 Prefer one directory COPY when its contents move as a unit:
 
@@ -115,8 +117,8 @@ COPY's source-first reading: where from, then where it lands.
 A backslash continues any directive onto the next physical line:
 
 ```dockerfile
-PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin \
-    ${pkgs.rustc}/bin ${pkgs.gcc}/bin
+IMPORT ${pkgs.bash} ${pkgs.cargo} \
+    ${pkgs.rustc} ${pkgs.gcc}
 ```
 
 Errors retain physical Cixfile line numbers. A line whose first non-whitespace character is
@@ -154,59 +156,71 @@ FROM github:owner/project/v1.2.3 AS upstream
 ```
 
 The lock records remote revisions and NAR hashes. `FROM .` and the implicit local context are
-not pinned: their bytes enter the normal content-addressed snapshot. `$VAR` remains runtime
+not pinned: the content of each declared COPY source enters its builder's chain key. `$VAR` remains runtime
 environment syntax and is valid in `EXEC` and `SETUP`; `${…}` is resolved while building.
 Copied file content is always verbatim.
 
-## Builders, `RUN`, `FETCH`, and caches
+## Builders, `IMPORT`, `RUN`, and `FETCH`
 
-Each `BUILDER` starts empty. Its directives form a linear chain of immutable snapshots, and
-later blocks may copy from the final snapshot by name:
+Each `BUILDER` has a persistent workspace. Its directives form a pure key chain, and later
+blocks consume named paths from the tree it leaves behind:
 
 ```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER compile
-PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin
-CACHE target
+IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.gcc} ${pkgs.cacert}
 COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
-# Manifests come first so source-only edits can reuse earlier dependency work.
-FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
+FETCH cargo fetch --locked
 COPY src/ src
 RUN <<BUILD
 cargo build --release --locked --offline
-mkdir -p output
-cp target/release/app output/app
 BUILD
 
 APP app
-COPY ${compile}/output/app bin/app
+COPY ${compile}/target/release/app bin/app
 EXEC bin/app
 ```
 
-Before `RUN`, composix hashes the command, fixed environment, incoming snapshot, and offered
-store closure. A matching live memo entry is reused. Bubblewrap exposes only that closure and
-the workdir; internet sockets are denied. The environment is cleared and rebuilt with the
-declared `PATH`, `HOME=/work`, `SOURCE_DATE_EPOCH=1`, `TZ=UTC`, `LC_ALL=C`, `TMPDIR=/tmp`,
-and umask 022.
+`IMPORT` takes whole package references, is repeatable, and unions each package's `bin`,
+`etc`, and `share` trees read-only at `/bin`, `/etc`, and `/share`. Earlier declarations win
+collisions. Bare builder commands resolve through `/bin`; IMPORTed package closures and
+explicit package references are the only store paths offered to the sandbox. Import
+`${pkgs.cacert}` when a FETCH needs public TLS roots. RUN remains networkless.
 
-`CACHE target` belongs to its builder. Its host-local identity includes the builder name, so
-two builders using `target` do not accidentally share state. Cache contents are writable
-during `RUN` but excluded from memo keys, snapshots, and artifacts. Copy wanted results to a
-non-cache path before the command ends. `cix build --no-cache` bypasses `RUN` memo hits and
-uses empty caches.
+Every step key hashes its directive and resolved arguments, the ordered imports and offered
+closure, the predecessor key, the fixed environment, COPY source hashes, and any FETCH pin.
+It never hashes workspace bytes. The environment is cleared and rebuilt with `PATH=/bin`,
+`SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt`, `HOME=/work`, `SOURCE_DATE_EPOCH=1`, `TZ=UTC`,
+`LC_ALL=C`, `TMPDIR=/tmp`, and umask 022. The certificate path becomes readable only when an
+IMPORT supplies it; composix does not import a CA package implicitly.
+
+Declared COPY inputs are staged fresh on every execution, including deletions. Files written
+by build commands persist in the workspace, so ordinary `target/`, `node_modules/`, and
+similar incremental state are warm by default. Nothing is excluded from keys by a cache
+declaration because workspace bytes never enter keys. `CACHE` was removed; delete old CACHE
+lines. The workspace lives under the user cache directory and is disposable: removing it can
+cost time but cannot change an artifact.
+
+The lock memo maps a final chain key to each path an artifact-bound COPY consumes, including
+that path's content hash and store object. A memo hit materializes only those paths. Adding a
+new consumed path forces the builder to run so it can be recorded. `cix build --cold` runs
+with an empty workspace and compares every consumed path with the warm result; a mismatch
+names the exact COPY and Cixfile line. `--no-cache` remains a deprecated alias for `--cold`.
 
 There are two intentionally different fetch forms:
 
 - Top-level `FETCH payload <command…>` runs in an empty workdir and creates a reusable binder.
-  Its memo identity is the resolved command; unrelated builder state does not invalidate it.
 - A `FETCH <command…>` inside a builder runs with that builder's incoming workdir and advances
-  its snapshot.
+  its chain.
 
 Both are the only network-enabled build steps. Their output hash is trusted on first use and
 written to `Cixfile.lock`; a later forced result must match unless that pin is explicitly
-updated.
+updated. Add `EXPECT <sri-hash>` before the command to declare the hash instead: this removes
+the first-use trust window, records the declaration, and reports declared versus actual on a
+mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the declared
+hash.
 
 ## Artifact kinds
 
@@ -215,16 +229,19 @@ Each `SERVICE` or `APP` produces its own store item and bare v4 manifest.
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
 idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATE`,
 `CACHEDIR`, `LOGS`, `CONFIG`, and `RUNDIR` map directly to systemd's managed
-`*Directory=` roles; builder `CACHE` is a different, build-only concept. `JIT` grants
-writable-and-executable memory, and `EGRESS` declares outward network access.
+`*Directory=` roles. `JIT` grants writable-and-executable memory, and `EGRESS` declares
+outward network access.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
 health checks, JIT grant, or log/config/run role directories.
 
 Relative copied destinations live at the artifact root and are projected at their native
-runtime path. Package binaries remain direct store references; `PATH` is for tools invoked by
-service scripts. `LINK` is best used for package-owned assets such as nginx's `mime.types`.
+runtime path. Package binaries remain direct store references. Services that need runtime
+command lookup declare it explicitly, for example
+`ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin`. Item-relative `EXEC bin/app`
+resolution is unchanged. `LINK` is best used for package-owned assets such as nginx's
+`mime.types`.
 
 There is no content-only block. The old `ITEM` spelling was dropped in D50 because its meaning
 was not legible without context. Assets used within one Cixfile are copied into the service or

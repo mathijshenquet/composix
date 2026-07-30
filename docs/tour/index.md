@@ -15,7 +15,7 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 3: Build, run, debug](03-build-run-debug.html) — Read a Cixfile, build its manifest, run by tag, and debug the same tag.
 
-- [Chapter 4: Building with RUN](04-building-with-run.html) — Inspect a working directory, execute a heredoc, and reuse its memo.
+- [Chapter 4: Building with RUN](04-building-with-run.html) — Build through a persistent workspace and replay only consumed paths.
 
 - [Chapter 5: proj1](05-proj1.html) — Build two services from one Rust workspace and run the API.
 
