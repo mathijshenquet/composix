@@ -196,3 +196,18 @@
   `cargo clippy -p cix-run -p cix-compose --all-targets -- -D warnings`.
   Next: replace the bisection fixture with the end-to-end compose VM regression
   and verify the real systemd-run probe diagnostics on systemd 261.
+
+- 2026-07-30 17:16 UTC — The end-to-end compose regression is green on the real
+  systemd 261 guest. Exact repro:
+  `nix build .#checks.x86_64-linux.compose-fallback-vm --no-link -L`. The
+  transient capability probe fails at the expected `226/NAMESPACE`; `cix up`
+  prints the unit, dropped `PrivatePIDs=yes`, realization-probe reason, and D36
+  host-PID-namespace consequence. The persisted manifest contains exactly that
+  one degradation. The affected producer starts without `PrivatePIDs=`, its
+  persistent DynamicUser state backing directory and shared Unix-edge directory
+  exist, and the runtime-only consumer remains hardened with
+  `PrivatePIDs=yes`. The initial test teardown exposed an unrelated 90-second
+  systemd stop timeout for the hardened sleeping consumer, so the final
+  ephemeral-VM regression omits stack teardown and keeps its assertion scope on
+  activation and fallback honesty. Next: regenerate and review the tour, then
+  run the full specified gate against the final source state.

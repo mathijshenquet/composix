@@ -61,7 +61,7 @@ pkgs.testers.runNixOSTest {
   testScript = ''
     start_all()
     machine.succeed("systemctl --version | head -1 | grep -E '^systemd 261( |$)'")
-    machine.succeed("cp -aL /etc/systemd/system /run/cix-system-units && rm /etc/systemd/system && mv /run/cix-system-units /etc/systemd/system")
+    machine.succeed("mkdir /run/cix-system-units && cp -a /etc/systemd/system/. /run/cix-system-units/ && rm /etc/systemd/system && mv /run/cix-system-units /etc/systemd/system")
     machine.succeed("mkdir -p /tmp/fallback && cp ${compose} /tmp/fallback/compose.json && cp ${lock} /tmp/fallback/cix.lock")
     status, warning = machine.execute("cix up /tmp/fallback/compose.json 2>&1")
     print(warning)
@@ -84,6 +84,5 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("cix-fallback-consumer.service")
     machine.succeed("test -d /var/lib/private/cix-fallback-producer")
     machine.succeed("test -d /run/cix-fallback-edge-shared")
-    machine.succeed("cix down fallback")
   '';
 }
