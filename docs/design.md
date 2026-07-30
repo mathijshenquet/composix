@@ -778,9 +778,14 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `FETCH` (two forms: top-level `FETCH <name> <cmd>` in an empty workdir — a pinned
   ingredient whose memo key never moves with source edits; in-builder `FETCH <cmd>` as
   chain step for lockfile-context fetches).
-  (c) **COPY is the one mover; TAKE dies**: sources are ALWAYS binder-rooted
-  (`${src}/…`, `${build}/…`, `${webvault}/…`, `${pkgs.x}/…`; bare relative source =
-  error suggesting `FROM . AS src`); destinations are ALWAYS subject-relative (inside
+  (c) **COPY is the one mover; TAKE dies**: sources are binder-rooted (`${src}/…`,
+  `${build}/…`, `${webvault}/…`, `${pkgs.x}/…`) — with ONE sugar (amendment, same
+  day, Mathijs): a bare relative source stays legal as the implicit Cixfile-directory
+  context, exactly docker's build context ("niet zo mooi, maar docker heeft het ook" —
+  the Cixfile is the adoption bridge, D16; the context is ambient in spelling only,
+  not in content: it is content-addressed per build). `FROM . AS src` is the optional
+  explicit spelling of the same thing; remote sources always need an explicit FROM
+  binder. Destinations are ALWAYS subject-relative (inside
   the block's own artifact/workdir — one destination per block, grammar-enforced;
   writing outside your own artifact is inexpressible). Multi-stage = multiple BUILDERs
   chained via `COPY ${prev}/ .` — no new mechanism.

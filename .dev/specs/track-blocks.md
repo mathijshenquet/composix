@@ -36,11 +36,16 @@ concurrently — expect to merge main before your final gate if it lands first).
    like any FROM input and expose their store path root for `${name}/…` COPY sources
    (attribute-path interpolation stays exclusive to package universes; a plain source
    input is a tree, `${src}/sub/path` only).
-6. **COPY unification, TAKE dies**: every COPY source must start with `${binder}/`
-   (or be `${binder}` for whole-tree). A bare relative source is a line-numbered error
-   suggesting `FROM . AS src` + `${src}/…`. Destinations stay subject-relative
-   (workdir in BUILDER, item root in artifact blocks) — absolute destinations remain
-   invalid. In-artifact COPY from `${builder}/…` replaces TAKE 1:1.
+6. **COPY unification, TAKE dies**: a COPY source is either `${binder}/…` (or bare
+   `${binder}` for whole-tree) or a bare relative path, which stays legal as the
+   implicit Cixfile-directory context — docker's build context, unchanged from today
+   (D47 amendment: adoption-bridge sugar). `FROM . AS <name>` is the optional explicit
+   spelling of that same context; when declared, `${name}/…` and bare relative sources
+   may coexist and mean the same root. Remote sources always need an explicit FROM
+   binder. Destinations stay subject-relative (workdir in BUILDER, item root in
+   artifact blocks) — absolute destinations remain invalid. In-artifact COPY from
+   `${builder}/…` replaces TAKE 1:1; in-artifact COPY from a bare relative source
+   copies from the Cixfile directory (assets straight into the item).
 7. **`${build}` magic dies** with a migration-grade error message (unknown name
    `build` → "no binder named `build`; name your builder: `BUILDER build`").
 
