@@ -924,10 +924,17 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   **In/out architecture (Mathijs's cut, multi-ecosystem survey)** — the common core
   across npm/Cargo/pyproject/nixpkgs-meta/Helm/Debian is name·version·description·
   homepage·license·maintainers·repository; registries render READMEs, not
-  description fields; pkg.go.dev proves derive-don't-declare works. So: **IN**
+  description fields; pkg.go.dev proves derive-don't-declare works.
+  **Identity rule (Mathijs's "gortig" correction): identity flows from your own
+  source, never from your dependencies** — a website served WITH nginx must not
+  wear nginx's homepage; auto-inheritance from referenced packages is dead, and
+  dependencies stay visible as closure/receipts: facts about what an artifact
+  *uses*, never claims about what it *is*. So: **IN**
   (priority on conflict): (1) explicit Cixfile META (display fields only),
-  (2) inherited from the source tree's own manifest (package.json/Cargo.toml/
-  pyproject), (3) inherited from referenced nixpkgs `meta`, (4) derived WITH
+  (2) explicit `META inherit ${pkg}` — the one-line identity claim for
+  repackagings (the dissolves-class), pulling nixpkgs `meta`,
+  (3) automatic from the artifact's OWN source-tree manifest (package.json/
+  Cargo.toml/pyproject — that IS this project's identity), (4) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
   **OUT** adapters from one internal schema, final cut (Mathijs's trims): inline =
