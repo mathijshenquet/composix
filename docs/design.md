@@ -929,12 +929,16 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   source, never from your dependencies** — a website served WITH nginx must not
   wear nginx's homepage; auto-inheritance from referenced packages is dead, and
   dependencies stay visible as closure/receipts: facts about what an artifact
-  *uses*, never claims about what it *is*. So: **IN**
-  (priority on conflict): (1) explicit Cixfile META (display fields only),
-  (2) explicit `META inherit ${pkg}` — the one-line identity claim for
-  repackagings (the dissolves-class), pulling nixpkgs `meta`,
-  (3) automatic from the artifact's OWN source-tree manifest (package.json/
-  Cargo.toml/pyproject — that IS this project's identity), (4) derived WITH
+  *uses*, never claims about what it *is*. **And "the source tree" may not be
+  ambient either (Mathijs): the identity/provenance root is DECLARED —
+  `META source <binder>`, at most one per artifact block.** It resolves two
+  ambiguities at once: it pulls whatever identity metadata the binder carries
+  (nixpkgs `meta` for a package ref — the dissolves-class one-liner; package.json/
+  Cargo.toml/pyproject for a source input) AND designates that binder's lock entry
+  as the receipted `source`/`revision`. No declaration = no inherited identity and
+  no claimed provenance (closure facts remain). This subsumes the earlier
+  `META inherit`. So: **IN** (priority on conflict): (1) explicit Cixfile META
+  fields, (2) `META source <binder>`, (3) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
   **OUT** adapters from one internal schema, final cut (Mathijs's trims): inline =
