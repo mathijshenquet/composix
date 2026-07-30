@@ -13,5 +13,9 @@ touches manifest loading), examples, docs/cixfile.md, tour where shown.
 3. D52 addendum: rename `STATE` → `STATEDIR` (migration-grade error; sweep
    examples/docs/tour). Ask-in-LOG whether LOGS/CONFIG should follow
    (LOGSDIR/CONFIGDIR) — flag it, don't decide it.
+3b. PROPOSED, NOT DECIDED (Mathijs, session close — settle with him before
+   implementing): fold JIT and EGRESS into a `GRANT <capability>…` family
+   (`GRANT jit`, `GRANT egress`, possibly multi-arg) — a uniform spelling for the
+   growing capability-grant class. Do not build until confirmed.
 4. Gate: fmt/clippy/workspace tests, tour regen+drift+determinism, vm-dogfood.
    Exact repros in crates/cix-cixfile/LOG.md.
