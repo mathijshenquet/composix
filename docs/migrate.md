@@ -29,7 +29,16 @@ SERVICE myapp                    # one artifact = one service
 - `BUILDER <name>` binds its final workdir as `${name}`. `RUN` is sandboxed and has
   NO network. `FETCH <cmd>` (inside a builder) or `FETCH <name> <cmd>` (top-level,
   empty workdir, binds `${name}`) is the only network access; its output hash is
-  pinned in `Cixfile.lock` automatically.
+  pinned in `Cixfile.lock` automatically. If a re-fetch legitimately changes the
+  output, accept it with `cix build --update-lock`.
+- Inside a FETCH command there is no ambient toolchain: reference every tool by its
+  full package path (`${pkgs.git}/bin/git`, `${pkgs.curl}/bin/curl`) and give TLS a
+  CA bundle: `SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt`.
+- When the Dockerfile builds from a repo context, FETCH the repo (git clone) and
+  record the resolved revision in your SOURCE notes. Language dependency caches
+  fetched over the network must live INSIDE the fetched tree so the offline RUN can
+  use them (e.g. `GOMODCACHE=$PWD/.gomodcache go mod download` in the FETCH, then
+  the same variable in RUN).
 - `SERVICE` blocks assemble the runnable artifact: `COPY`/`LINK`/`FILE`, `EXEC`,
   `ENV name default=…|required`, `PORT name = <value|env NAME>`, `EGRESS` if the
   service initiates outbound connections, and role dirs:
@@ -60,3 +69,8 @@ Ship a `check.sh` next to your Cixfile with two modes, same probe body:
 `./check.sh cix` (`cix build .` + `cix run <item>`, same probe, teardown).
 The probe proves the service does its one central thing (HTTP 200, redis PING,
 `--version`…), bounded by timeouts, exit 0/1. Both modes must pass.
+
+Practicalities for the cix mode: `cix run` uses the system service manager and needs
+root — run it via passwordless `sudo`; the command prints the transient unit name;
+tear down with `sudo systemctl stop <unit>` (and stop the `cix-run.slice` if you
+started several).
