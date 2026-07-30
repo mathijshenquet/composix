@@ -870,6 +870,16 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   store thing) and not STORE (already the nix store). Removal lands as a
   micro-round after track/polish.
 
+- ✅ D51 (2026-07-30) — **Cixfile ergonomics from the tour read-through** (Mathijs):
+  (a) COPY of a directory is the preferred form (`COPY ${src}/rust/ .`);
+  enumerate-COPY is for deliberate memo-granularity only (chef-style manifest-first)
+  and says so in a comment. Structural globs (`**/Cargo.toml`) are noted-not-built,
+  evidence-gated — the chef pattern already covers the known need. (b) Directive
+  lines accept `\` continuation, and RUN gains a heredoc form (`RUN <<EOF … EOF`;
+  body is part of the memo key) so workshop scripts stop being one-liners. Tour
+  regrouping into chapter pages + the spec→manifest vocabulary sweep ride the same
+  track (.dev/specs/track-tourbook.md).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
