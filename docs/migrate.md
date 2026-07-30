@@ -58,6 +58,9 @@ SERVICE myapp                    # one artifact = one service
 - **`VOLUME /data`** → `DIR state /var/lib/<name>` and point the app there (env/flag).
 - **`EXPOSE N`** → `PORT http = N` (or via env). **`USER`/`gosu`/`su-exec`/`tini`**
   → delete: systemd runs the service as an unprivileged dynamic user and is the init.
+- **A Dockerfile's `COPY` of sibling files** (entrypoint.sh, config files) refers to
+  its build context: fetch those files from the same repository directory as the
+  Dockerfile itself before converting — you need to read them.
 - **ENTRYPOINT shell scripts** → read them; port the essential env/flag setup into
   ENV/EXEC lines. Scripts that chown/mkdir/sed files at startup are usually
   replaceable by role dirs + a config file assembled at build time (`FILE`/`COPY`).
