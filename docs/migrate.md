@@ -66,6 +66,10 @@ SERVICE myapp                    # one artifact = one service
 - **A Dockerfile's `COPY` of sibling files** (entrypoint.sh, config files) refers to
   its build context: fetch those files from the same repository directory as the
   Dockerfile itself before converting — you need to read them.
+- **`LABEL` lines** → drop them. Provenance labels (source/version/revision) are
+  superseded by the lock and the closure (content-addressed provenance); display
+  labels (title/description) have no cix home yet — a manifest annotations story is
+  recorded but deliberately unbuilt.
 - **ENTRYPOINT shell scripts** → read them; port the essential env/flag setup into
   ENV/EXEC lines. Scripts that chown/mkdir/sed files at startup are usually
   replaceable by role dirs + a config file assembled at build time (`FILE`/`COPY`).

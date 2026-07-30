@@ -902,6 +902,17 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   probe is a loss-curriculum candidate for later rounds. Implementation: micro-round
   after track/tourbook (parser + docs + a commented example).
 
+- 🔶 D54 (2026-07-30) — **artifact annotations: designed, deliberately unbuilt**
+  (Mathijs spotting OCI LABELs in the corpus). The OCI label family splits:
+  provenance labels (source/version/revision) are SUPERSEDED here — the lock and the
+  closure are hash-covered provenance, hand-typed versions routinely lie; display
+  labels (title/description/url/docs) are a real unmet need whose consumer is the
+  serve/explore surface (D18) and `cix inspect --human`. Shape when evidence
+  arrives: an `annotations` map in the manifest (baked, hash-covered, D33 reasoning)
+  via a Cixfile directive (`META`, or `LABEL` for muscle memory), rendered by
+  inspect + serve pages. Gate: build it when the explore surface gets real users;
+  until then converters drop LABELs (migrate prompt says so).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
