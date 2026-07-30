@@ -274,3 +274,14 @@
   `.dev/specs/track-runv0.LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge the committed
   `track/runv0` branch.
+
+## 2026-07-30 (track/index2 close)
+
+- Completed D45 on `track/index2`: immutable deterministic per-name tag tables, locked CAS name
+  pointers, current-table roots, yank/history/migration, and `cix index history`. Existing `ls`
+  and `inspect` output shapes remain covered; the tour now truthfully shows table storage.
+- Commits: `a698439` and `5fa2bee`. No new design decision; D45 is implemented as written.
+- Verification: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test -p cix-index`, `cargo test --workspace`, regenerated/drift-checked deterministic
+  tour, and `git diff --check` all passed. Exact repro commands are in `crates/cix-index/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge `track/index2`.
