@@ -43,6 +43,12 @@ enum Command {
     Compose(cix_compose::cli::Command),
     #[command(flatten)]
     Index(cix_index::cli::Command),
+    /// Index maintenance commands.
+    #[command(name = "index")]
+    IndexCommand {
+        #[command(subcommand)]
+        command: cix_index::cli::Command,
+    },
     #[command(flatten)]
     Run(cix_run::cli::Command),
 }
@@ -53,6 +59,7 @@ fn main() -> anyhow::Result<()> {
         Command::Cixfile(cmd) => cmd.run(),
         Command::Compose(cmd) => cmd.run(),
         Command::Index(cmd) => cmd.run(),
+        Command::IndexCommand { command } => command.run(),
         Command::Run(cix_run::cli::Command::Ps) => cix_compose::ps(),
         Command::Run(cmd) => cmd.run(),
     }

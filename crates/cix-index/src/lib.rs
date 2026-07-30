@@ -7,6 +7,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     env, fs,
     io::Read,
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -47,6 +48,34 @@ pub struct TagMetadata {
     pub upstream: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TagRecord {
+    store_path: String,
+    nar_hash: String,
+    meta: TagMetadata,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TagTable {
+    cix_tag_table: u8,
+    name: String,
+    parent: Option<String>,
+    tags: BTreeMap<String, TagRecord>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TablePointer {
+    store_path: String,
+    nar_hash: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("name pointer changed concurrently; retry the publish")]
+pub struct PointerChanged;
+
 /// The artifact-facing data behind `cix inspect`.
 #[derive(Clone, Debug)]
 pub struct Artifact {
@@ -62,8 +91,7 @@ struct PathInfo {
     deriver: Option<String>,
 }
 
-/// The on-disk user index. Base64-url encoding is injective, filesystem-safe,
-/// and avoids `/` and `:` from refs becoming accidental directories or names.
+/// The on-disk user index. A mutable name pointer selects an immutable tag table.
 #[derive(Clone, Debug)]
 pub struct Store {
     root: PathBuf,
@@ -76,9 +104,15 @@ impl Store {
             None => PathBuf::from(env::var_os("HOME").context("HOME is unset; set CIX_STATE_DIR")?)
                 .join(".local/state/cix"),
         };
+        Self::open_at(root)
+    }
+
+    fn open_at(root: PathBuf) -> Result<Self> {
         let store = Self { root };
         fs::create_dir_all(store.roots_dir()).context("creating cix roots directory")?;
-        fs::create_dir_all(store.meta_dir()).context("creating cix metadata directory")?;
+        fs::create_dir_all(store.names_dir()).context("creating cix names directory")?;
+        fs::create_dir_all(store.tmp_dir()).context("creating cix temporary directory")?;
+        store.migrate_legacy()?;
         Ok(store)
     }
 
@@ -90,42 +124,329 @@ impl Store {
         self.root.join("roots")
     }
 
-    fn meta_dir(&self) -> PathBuf {
+    fn names_dir(&self) -> PathBuf {
+        self.root.join("names")
+    }
+
+    fn tmp_dir(&self) -> PathBuf {
+        self.root.join("tmp")
+    }
+
+    fn legacy_meta_dir(&self) -> PathBuf {
         self.root.join("tags")
+    }
+
+    fn legacy_dir(&self) -> PathBuf {
+        self.root.join("meta.legacy")
     }
 
     pub fn encode(reference: &Ref) -> String {
         URL_SAFE_NO_PAD.encode(reference.display())
     }
 
-    fn link_path(&self, reference: &Ref) -> PathBuf {
-        self.roots_dir().join(Self::encode(reference))
+    pub fn encode_name(name: &str) -> String {
+        URL_SAFE_NO_PAD.encode(name)
     }
 
-    fn metadata_path(&self, reference: &Ref) -> PathBuf {
-        self.meta_dir()
-            .join(format!("{}.json", Self::encode(reference)))
+    fn pointer_path(&self, name: &str) -> PathBuf {
+        self.names_dir().join(Self::encode_name(name))
     }
 
-    pub fn load(&self, reference: &Ref) -> Result<Option<TagMetadata>> {
-        let path = self.metadata_path(reference);
+    fn pointer_lock_path(&self) -> PathBuf {
+        self.names_dir().join(".lock")
+    }
+
+    fn name_roots_dir(&self, name: &str) -> PathBuf {
+        self.roots_dir().join("names").join(Self::encode_name(name))
+    }
+
+    fn read_pointer(&self, name: &str) -> Result<Option<TablePointer>> {
+        let path = self.pointer_path(name);
         match fs::read(&path) {
-            Ok(contents) => Ok(Some(
-                serde_json::from_slice(&contents)
-                    .with_context(|| format!("parsing tag sidecar {}", path.display()))?,
-            )),
+            Ok(contents) => serde_json::from_slice(&contents)
+                .with_context(|| format!("parsing name pointer {}", path.display()))
+                .map(Some),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => {
-                Err(error).with_context(|| format!("reading tag sidecar {}", path.display()))
+                Err(error).with_context(|| format!("reading name pointer {}", path.display()))
             }
         }
     }
 
+    fn write_pointer(&self, name: &str, pointer: &TablePointer) -> Result<()> {
+        let path = self.pointer_path(name);
+        let temporary = self.names_dir().join(format!(
+            ".{}.{}.tmp",
+            Self::encode_name(name),
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+        ));
+        fs::write(&temporary, serde_json::to_vec_pretty(pointer)?)
+            .with_context(|| format!("writing name pointer {}", temporary.display()))?;
+        fs::rename(&temporary, &path).context("atomically replacing name pointer")
+    }
+
+    fn with_pointer_lock<T>(&self, operation: impl FnOnce() -> Result<T>) -> Result<T> {
+        let lock = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(self.pointer_lock_path())
+            .context("opening name pointer lock")?;
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX) } != 0 {
+            return Err(std::io::Error::last_os_error()).context("locking name pointers");
+        }
+        let result = operation();
+        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_UN) } != 0 {
+            return Err(std::io::Error::last_os_error()).context("unlocking name pointers");
+        }
+        result
+    }
+
+    fn read_table(&self, pointer: &TablePointer) -> Result<TagTable> {
+        let path = Path::new(&pointer.store_path).join("table.json");
+        let table: TagTable = serde_json::from_slice(
+            &fs::read(&path).with_context(|| format!("reading tag table {}", path.display()))?,
+        )
+        .with_context(|| format!("parsing tag table {}", path.display()))?;
+        if table.cix_tag_table != 1 {
+            bail!("unsupported cix tag table version {}", table.cix_tag_table);
+        }
+        Ok(table)
+    }
+
+    fn current_table(&self, name: &str) -> Result<(Option<TablePointer>, TagTable)> {
+        let pointer = self.read_pointer(name)?;
+        let table = match &pointer {
+            Some(pointer) => self.read_table(pointer)?,
+            None => TagTable {
+                cix_tag_table: 1,
+                name: name.to_owned(),
+                parent: None,
+                tags: BTreeMap::new(),
+            },
+        };
+        if table.name != name {
+            bail!(
+                "name pointer for `{name}` points to table for `{}`",
+                table.name
+            );
+        }
+        Ok((pointer, table))
+    }
+
+    fn add_table(&self, table: &TagTable) -> Result<TablePointer> {
+        let directory = self.tmp_dir().join(format!(
+            "table-{}-{}",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+        ));
+        fs::create_dir(&directory).with_context(|| format!("creating {}", directory.display()))?;
+        let result = (|| {
+            let mut json = serde_json::to_vec_pretty(table)?;
+            json.push(b'\n');
+            fs::write(directory.join("table.json"), json)?;
+            let directory_text = directory.to_string_lossy().into_owned();
+            let store_path = nix(&["store", "add-path", &directory_text])?
+                .trim()
+                .to_owned();
+            let output = path_info(&store_path)?;
+            Ok(TablePointer {
+                store_path: output.store_path,
+                nar_hash: output.nar_hash,
+            })
+        })();
+        fs::remove_dir_all(&directory)
+            .with_context(|| format!("removing {}", directory.display()))?;
+        result
+    }
+
+    fn replace_root(&self, link: &Path, store_path: &str) -> Result<()> {
+        if fs::symlink_metadata(link).is_ok() {
+            fs::remove_file(link)
+                .with_context(|| format!("replacing GC root {}", link.display()))?;
+        }
+        let parent = link.parent().context("GC root has no parent")?;
+        fs::create_dir_all(parent).with_context(|| format!("creating {}", parent.display()))?;
+        let link_text = link.to_string_lossy().into_owned();
+        nix(&["build", store_path, "--out-link", &link_text])?;
+        Ok(())
+    }
+
+    fn referenced_paths(table: &TagTable) -> BTreeSet<String> {
+        let mut paths = BTreeSet::new();
+        for record in table.tags.values() {
+            paths.insert(record.store_path.clone());
+            paths.extend(
+                record
+                    .meta
+                    .entry
+                    .outputs
+                    .values()
+                    .map(|output| output.store_path.clone()),
+            );
+        }
+        paths
+    }
+
+    fn sync_roots(&self, table: &TagTable, pointer: &TablePointer) -> Result<()> {
+        let directory = self.name_roots_dir(&table.name);
+        self.replace_root(&directory.join("table"), &pointer.store_path)?;
+        let paths = directory.join("paths");
+        fs::create_dir_all(&paths)?;
+        let wanted = Self::referenced_paths(table)
+            .into_iter()
+            .map(|path| (Self::encode_name(&path), path))
+            .collect::<BTreeMap<_, _>>();
+        for (encoded, path) in &wanted {
+            self.replace_root(&paths.join(encoded), path)?;
+        }
+        for entry in fs::read_dir(&paths)? {
+            let entry = entry?;
+            if !wanted.contains_key(&entry.file_name().to_string_lossy().into_owned()) {
+                fs::remove_file(entry.path())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn cas_pointer(
+        &self,
+        name: &str,
+        expected: Option<&TablePointer>,
+        next: &TablePointer,
+        table: &TagTable,
+    ) -> Result<()> {
+        self.with_pointer_lock(|| {
+            if self.read_pointer(name)?.as_ref() != expected {
+                return Err(PointerChanged.into());
+            }
+            // D45: auth = may-move-this-name, enforced at the serve/publish boundary when it exists.
+            self.write_pointer(name, next)?;
+            self.sync_roots(table, next)
+        })
+    }
+
+    fn record_from_metadata(metadata: TagMetadata) -> Result<TagRecord> {
+        let output = metadata
+            .entry
+            .outputs
+            .values()
+            .next()
+            .context("tag metadata has no outputs")?;
+        Ok(TagRecord {
+            store_path: output.store_path.clone(),
+            nar_hash: output.nar_hash.clone(),
+            meta: metadata,
+        })
+    }
+
+    /// Publish one tag by atomically moving its name pointer.
+    pub fn publish(&self, name: &str, tag: &str, metadata: TagMetadata) -> Result<()> {
+        self.publish_many(name, vec![(tag.to_owned(), metadata)])
+    }
+
+    /// Publish several tags in one immutable table flip.
+    pub fn publish_many(&self, name: &str, tags: Vec<(String, TagMetadata)>) -> Result<()> {
+        if tags.is_empty() {
+            return Ok(());
+        }
+        for (tag, _) in &tags {
+            let reference = Ref::parse(&format!("{name}:{tag}"))?;
+            if reference.root_url.is_some() || reference.name != name || reference.tag != *tag {
+                bail!("tag table names must be bare `name:tag` refs");
+            }
+        }
+        for attempt in 0..2 {
+            let (expected, mut table) = self.current_table(name)?;
+            table.parent = expected.as_ref().map(|pointer| pointer.nar_hash.clone());
+            for (tag, metadata) in tags.iter().cloned() {
+                table
+                    .tags
+                    .insert(tag, Self::record_from_metadata(metadata)?);
+            }
+            let pointer = self.add_table(&table)?;
+            match self.cas_pointer(name, expected.as_ref(), &pointer, &table) {
+                Err(error) if error.downcast_ref::<PointerChanged>().is_some() && attempt == 0 => {}
+                result => return result,
+            }
+        }
+        unreachable!("two-attempt publish loop always returns")
+    }
+
+    /// Remove a tag from the current table while retaining the name and its history chain.
+    pub fn yank(&self, name: &str, tag: &str) -> Result<bool> {
+        for attempt in 0..2 {
+            let (expected, mut table) = self.current_table(name)?;
+            if !table.tags.contains_key(tag) {
+                return Ok(false);
+            }
+            table.parent = expected.as_ref().map(|pointer| pointer.nar_hash.clone());
+            table.tags.remove(tag);
+            let pointer = self.add_table(&table)?;
+            match self.cas_pointer(name, expected.as_ref(), &pointer, &table) {
+                Ok(()) => return Ok(true),
+                Err(error) if error.downcast_ref::<PointerChanged>().is_some() && attempt == 0 => {}
+                Err(error) => return Err(error),
+            }
+        }
+        unreachable!("two-attempt yank loop always returns")
+    }
+
+    /// Delete a name pointer and all of its roots. Historical table items remain GC-managed.
+    pub fn remove_name(&self, name: &str) -> Result<bool> {
+        self.with_pointer_lock(|| {
+            let pointer = self.pointer_path(name);
+            let existed = match fs::remove_file(&pointer) {
+                Ok(()) => true,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                Err(error) => {
+                    return Err(error).with_context(|| format!("removing {}", pointer.display()))
+                }
+            };
+            let roots = self.name_roots_dir(name);
+            if roots.exists() {
+                fs::remove_dir_all(roots)?;
+            }
+            Ok(existed)
+        })
+    }
+
+    pub fn load(&self, reference: &Ref) -> Result<Option<TagMetadata>> {
+        let (_, table) = self.current_table(&reference.name)?;
+        Ok(table
+            .tags
+            .get(&reference.tag)
+            .map(|record| record.meta.clone()))
+    }
+
     pub fn all(&self) -> Result<Vec<TagMetadata>> {
-        let mut tags: Vec<TagMetadata> = Vec::new();
-        for item in fs::read_dir(self.meta_dir()).context("listing tag sidecars")? {
-            let item = item?;
-            if item
+        let mut tags = Vec::new();
+        for entry in fs::read_dir(self.names_dir()).context("listing name pointers")? {
+            let entry = entry?;
+            if entry.file_name() == ".lock" || !entry.file_type()?.is_file() {
+                continue;
+            }
+            let encoded = entry.file_name().to_string_lossy().into_owned();
+            let name = String::from_utf8(URL_SAFE_NO_PAD.decode(encoded)?)
+                .context("decoding name pointer")?;
+            let (_, table) = self.current_table(&name)?;
+            for record in table.tags.into_values() {
+                tags.push(record.meta);
+            }
+        }
+        tags.sort_by(|left, right| left.reference.cmp(&right.reference));
+        Ok(tags)
+    }
+
+    fn migrate_legacy(&self) -> Result<()> {
+        let legacy = self.legacy_meta_dir();
+        if !legacy.is_dir() {
+            return Ok(());
+        }
+        let mut names: BTreeMap<String, BTreeMap<String, TagRecord>> = BTreeMap::new();
+        let mut old_roots = Vec::new();
+        for entry in fs::read_dir(&legacy).context("listing legacy tag sidecars")? {
+            let entry = entry?;
+            if entry
                 .path()
                 .extension()
                 .and_then(|extension| extension.to_str())
@@ -133,45 +454,37 @@ impl Store {
             {
                 continue;
             }
-            tags.push(serde_json::from_slice(&fs::read(item.path())?)?);
+            let metadata: TagMetadata = serde_json::from_slice(&fs::read(entry.path())?)
+                .with_context(|| format!("parsing legacy sidecar {}", entry.path().display()))?;
+            let reference = Ref::parse(&metadata.reference)?;
+            names
+                .entry(reference.name.clone())
+                .or_default()
+                .insert(reference.tag.clone(), Self::record_from_metadata(metadata)?);
+            old_roots.push(
+                self.roots_dir()
+                    .join(URL_SAFE_NO_PAD.encode(reference.display())),
+            );
         }
-        tags.sort_by(|left, right| left.reference.cmp(&right.reference));
-        Ok(tags)
-    }
-
-    pub fn save(&self, reference: &Ref, metadata: &TagMetadata) -> Result<()> {
-        let path = self.metadata_path(reference);
-        let temporary = path.with_extension("json.tmp");
-        fs::write(&temporary, serde_json::to_vec_pretty(metadata)?)
-            .with_context(|| format!("writing tag sidecar {}", temporary.display()))?;
-        fs::rename(temporary, path).context("atomically replacing tag sidecar")?;
-        Ok(())
-    }
-
-    pub fn remove(&self, reference: &Ref) -> Result<bool> {
-        let link = self.link_path(reference);
-        let metadata = self.metadata_path(reference);
-        let mut existed = false;
-        for path in [link, metadata] {
-            match fs::remove_file(&path) {
-                Ok(()) => existed = true,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => {
-                    return Err(error).with_context(|| format!("removing {}", path.display()))
-                }
+        for (name, tags) in names {
+            if self.read_pointer(&name)?.is_some() {
+                continue;
+            }
+            let table = TagTable {
+                cix_tag_table: 1,
+                name: name.clone(),
+                parent: None,
+                tags,
+            };
+            let pointer = self.add_table(&table)?;
+            self.cas_pointer(&name, None, &pointer, &table)?;
+        }
+        for root in old_roots {
+            if fs::symlink_metadata(&root).is_ok() {
+                fs::remove_file(root)?;
             }
         }
-        Ok(existed)
-    }
-
-    pub fn register_root(&self, reference: &Ref, store_path: &str) -> Result<()> {
-        let link = self.link_path(reference);
-        if link.exists() || fs::symlink_metadata(&link).is_ok() {
-            fs::remove_file(&link)
-                .with_context(|| format!("replacing GC root {}", link.display()))?;
-        }
-        let link_text = link.to_string_lossy().into_owned();
-        nix(&["build", store_path, "--out-link", &link_text])?;
+        fs::rename(&legacy, self.legacy_dir()).context("moving legacy sidecars to meta.legacy")?;
         Ok(())
     }
 }
@@ -243,25 +556,96 @@ pub fn tag(installable: &str, target: &str, upstream: Option<String>) -> Result<
     if metadata.upstream.is_none() {
         metadata.upstream = upstream;
     }
-    store.register_root(&reference, &output.store_path)?;
-    store.save(&reference, &metadata)
+    store.publish(&reference.name, &reference.tag, metadata)
 }
 
 pub fn untag(target: &str) -> Result<()> {
     let store = Store::open()?;
     let reference = Ref::parse(target)?;
-    if !store.remove(&reference)? {
+    if !store.yank(&reference.name, &reference.tag)? {
         bail!("tag `{}` does not exist", reference.display());
     }
     Ok(())
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HistoryEntry {
+    pub nar_hash: String,
+    pub tags: Vec<String>,
+}
+
+impl Store {
+    fn table_for_nar_hash(&self, nar_hash: &str) -> Result<Option<TablePointer>> {
+        let raw = nix(&["path-info", "--all", "--json", "--json-format", "1"])?;
+        let infos: BTreeMap<String, PathInfo> =
+            serde_json::from_str(&raw).context("parsing nix path-info --all JSON")?;
+        Ok(infos.into_iter().find_map(|(store_path, info)| {
+            (info.nar_hash == nar_hash && Path::new(&store_path).join("table.json").is_file())
+                .then_some(TablePointer {
+                    store_path,
+                    nar_hash: info.nar_hash,
+                })
+        }))
+    }
+
+    /// Walk the currently available immutable table chain for one name.
+    pub fn history(&self, name: &str) -> Result<Vec<HistoryEntry>> {
+        let mut pointer = match self.read_pointer(name)? {
+            Some(pointer) => pointer,
+            None => return Ok(Vec::new()),
+        };
+        let mut history = Vec::new();
+        loop {
+            let table = match self.read_table(&pointer) {
+                Ok(table) => table,
+                Err(error)
+                    if error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound) =>
+                {
+                    break
+                }
+                Err(error) => return Err(error),
+            };
+            if table.name != name {
+                bail!(
+                    "history pointer for `{name}` points to table for `{}`",
+                    table.name
+                );
+            }
+            history.push(HistoryEntry {
+                nar_hash: pointer.nar_hash.clone(),
+                tags: table.tags.keys().cloned().collect(),
+            });
+            let Some(parent) = table.parent else { break };
+            let Some(next) = self.table_for_nar_hash(&parent)? else {
+                break;
+            };
+            pointer = next;
+        }
+        Ok(history)
+    }
+}
+
+pub fn history(name: &str) -> Result<Vec<HistoryEntry>> {
+    Store::open()?.history(name)
 }
 
 pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
     let store = Store::open()?;
     let system = current_system()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let rows = store
-        .all()?
+    Ok(render_list(store.all()?, prefix, long, &system, now))
+}
+
+fn render_list(
+    tags: Vec<TagMetadata>,
+    prefix: Option<&str>,
+    long: bool,
+    system: &str,
+    now: u64,
+) -> String {
+    let rows = tags
         .into_iter()
         .filter(|tag| prefix.is_none_or(|prefix| tag.reference.starts_with(prefix)))
         .map(|tag| {
@@ -278,7 +662,7 @@ pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
             let path = tag
                 .entry
                 .outputs
-                .get(&system)
+                .get(system)
                 .map(|output| output.store_path.as_str())
                 .unwrap_or("-");
             let age = tag
@@ -298,11 +682,11 @@ pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
         })
         .collect::<Vec<_>>();
     if !long {
-        return Ok(rows
+        return rows
             .into_iter()
             .filter_map(|row| row.into_iter().next())
             .collect::<Vec<_>>()
-            .join("\n"));
+            .join("\n");
     }
     let headers = ["REF", "SYSTEMS", "PATH", "UPSTREAM", "AGE"];
     let widths = (0..headers.len())
@@ -324,7 +708,7 @@ pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
     };
     let mut lines = vec![render(&headers.map(str::to_owned))];
     lines.extend(rows.iter().map(|row| render(row)));
-    Ok(lines.join("\n"))
+    lines.join("\n")
 }
 
 /// Resolve an artifact without discarding the index entry that named it.
@@ -986,45 +1370,244 @@ pub fn pull(reference: Option<&str>, as_ref: Option<&str>) -> Result<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, Output, Store, TagMetadata};
+    use super::{path_info, render_list, Entry, Output, PointerChanged, Store, TagMetadata};
     use cix_common::Ref;
-    use std::{collections::BTreeMap, fs};
+    use std::path::Path;
+    use std::{
+        collections::BTreeMap,
+        fs,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        thread,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temporary_path(label: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "cix-index-d45-{label}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    fn test_store(label: &str) -> Store {
+        Store::open_at(temporary_path(label)).unwrap()
+    }
+
+    fn output(label: &str) -> Output {
+        let source = temporary_path(label);
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("payload"), label).unwrap();
+        let source_text = source.to_string_lossy().into_owned();
+        let store_path = cix_common::nix(&["store", "add-path", &source_text])
+            .unwrap()
+            .trim()
+            .to_owned();
+        fs::remove_dir_all(source).unwrap();
+        path_info(&store_path).unwrap()
+    }
+
+    fn metadata(name: &str, tag: &str, output: Output) -> TagMetadata {
+        TagMetadata {
+            reference: format!("{name}:{tag}"),
+            entry: Entry {
+                outputs: BTreeMap::from([("x86_64-linux".into(), output)]),
+                substituters: vec![],
+                trusted_keys: vec![],
+                created_at: "1".into(),
+            },
+            upstream: None,
+        }
+    }
+
+    fn remove_store(store: &Store) {
+        fs::remove_dir_all(store.root()).unwrap();
+    }
 
     #[test]
     fn encoding_is_safe_and_distinct() {
         let left = Ref::parse("cix.example.com/team/app:v1").unwrap();
         let right = Ref::parse("cix.example.com/team/app:v2").unwrap();
         assert_ne!(Store::encode(&left), Store::encode(&right));
-        assert!(Store::encode(&left)
+        assert_eq!(
+            Store::encode_name(&left.name),
+            Store::encode_name(&right.name)
+        );
+        assert!(Store::encode_name(&left.name)
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'));
     }
 
     #[test]
-    fn sidecar_round_trip() {
-        let root = std::env::temp_dir().join(format!("cix-index-test-{}", std::process::id()));
-        let store = Store { root: root.clone() };
-        fs::create_dir_all(store.meta_dir()).unwrap();
+    fn publish_resolve_round_trip_and_cli_golden() {
+        let store = test_store("round-trip");
         let reference = Ref::parse("localhost:8420/x:v1").unwrap();
-        let metadata = TagMetadata {
-            reference: reference.display(),
-            entry: Entry {
-                outputs: BTreeMap::from([(
-                    "x86_64-linux".into(),
+        let artifact = output("round-trip-artifact");
+        let published = metadata("x", "v1", artifact.clone());
+        store.publish("x", "v1", published.clone()).unwrap();
+        assert_eq!(store.load(&reference).unwrap(), Some(published));
+        assert_eq!(
+            render_list(
+                vec![metadata(
+                    "x",
+                    "v1",
                     Output {
                         store_path: "/nix/store/example".into(),
-                        nar_hash: "sha256-test".into(),
+                        nar_hash: "sha256-example".into(),
                         drv_path: None,
                     },
-                )]),
-                substituters: vec![],
-                trusted_keys: vec![],
-                created_at: "1".into(),
-            },
-            upstream: Some("localhost:8420".into()),
-        };
-        store.save(&reference, &metadata).unwrap();
-        assert_eq!(store.load(&reference).unwrap(), Some(metadata));
-        fs::remove_dir_all(root).unwrap();
+                )],
+                None,
+                true,
+                "x86_64-linux",
+                1,
+            ),
+            "REF   SYSTEMS       PATH                UPSTREAM  AGE\nx:v1  x86_64-linux  /nix/store/example  -         0s "
+        );
+        remove_store(&store);
+    }
+
+    #[test]
+    fn cas_conflict_is_distinct() {
+        let store = test_store("cas");
+        store
+            .publish("x", "v1", metadata("x", "v1", output("cas-v1")))
+            .unwrap();
+        let expected = store.read_pointer("x").unwrap();
+        store
+            .publish("x", "v2", metadata("x", "v2", output("cas-v2")))
+            .unwrap();
+        let (_, table) = store.current_table("x").unwrap();
+        let candidate = store.add_table(&table).unwrap();
+        let error = store
+            .cas_pointer("x", expected.as_ref(), &candidate, &table)
+            .unwrap_err();
+        assert!(error.downcast_ref::<PointerChanged>().is_some());
+        remove_store(&store);
+    }
+
+    #[test]
+    fn multi_tag_publish_is_atomic_for_readers() {
+        let store = test_store("many");
+        store
+            .publish("x", "old", metadata("x", "old", output("many-old")))
+            .unwrap();
+        let reader_store = store.clone();
+        let done = Arc::new(AtomicBool::new(false));
+        let reader_done = done.clone();
+        let reader = thread::spawn(move || {
+            while !reader_done.load(Ordering::Relaxed) {
+                let (_, table) = reader_store.current_table("x").unwrap();
+                let tags = table.tags.keys().cloned().collect::<Vec<_>>();
+                assert!(tags == ["old"] || tags == ["new-a", "new-b", "old"]);
+            }
+        });
+        store
+            .publish_many(
+                "x",
+                vec![
+                    ("new-a".into(), metadata("x", "new-a", output("many-a"))),
+                    ("new-b".into(), metadata("x", "new-b", output("many-b"))),
+                ],
+            )
+            .unwrap();
+        done.store(true, Ordering::Relaxed);
+        reader.join().unwrap();
+        assert_eq!(
+            store
+                .current_table("x")
+                .unwrap()
+                .1
+                .tags
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>(),
+            ["new-a", "new-b", "old"]
+        );
+        remove_store(&store);
+    }
+
+    #[test]
+    fn yank_is_advisory_and_roots_follow_the_current_table() {
+        let store = test_store("yank");
+        let first = output("yank-first");
+        let second = output("yank-second");
+        store
+            .publish_many(
+                "x",
+                vec![
+                    ("v1".into(), metadata("x", "v1", first.clone())),
+                    ("v2".into(), metadata("x", "v2", second.clone())),
+                ],
+            )
+            .unwrap();
+        let roots = store.name_roots_dir("x");
+        assert_eq!(fs::read_dir(roots.join("paths")).unwrap().count(), 2);
+        assert!(store.yank("x", "v1").unwrap());
+        assert!(store.load(&Ref::parse("x:v1").unwrap()).unwrap().is_none());
+        assert!(Path::new(&first.store_path).join("payload").is_file());
+        assert_eq!(fs::read_dir(roots.join("paths")).unwrap().count(), 1);
+        assert!(fs::read_link(roots.join("table")).unwrap().is_dir());
+        remove_store(&store);
+    }
+
+    #[test]
+    fn history_walks_available_parent_tables() {
+        let store = test_store("history");
+        store
+            .publish("x", "v1", metadata("x", "v1", output("history-v1")))
+            .unwrap();
+        store
+            .publish("x", "v2", metadata("x", "v2", output("history-v2")))
+            .unwrap();
+        let history = store.history("x").unwrap();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].tags, ["v1", "v2"]);
+        assert_eq!(history[1].tags, ["v1"]);
+        remove_store(&store);
+    }
+
+    #[test]
+    fn migrates_a_legacy_sidecar_fixture_once() {
+        let root = temporary_path("migration");
+        let legacy = root.join("tags");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::create_dir_all(root.join("roots")).unwrap();
+        let artifact = output("migration-artifact");
+        let reference = Ref::parse("x:v1").unwrap();
+        let legacy_metadata = metadata("x", "v1", artifact);
+        let encoded = Store::encode(&reference);
+        fs::write(
+            legacy.join(format!("{encoded}.json")),
+            serde_json::to_vec_pretty(&legacy_metadata).unwrap(),
+        )
+        .unwrap();
+        let legacy_root = root.join("roots").join(&encoded);
+        let legacy_root_text = legacy_root.to_string_lossy().into_owned();
+        cix_common::nix(&[
+            "build",
+            &legacy_metadata.entry.outputs["x86_64-linux"].store_path,
+            "--out-link",
+            &legacy_root_text,
+        ])
+        .unwrap();
+
+        let store = Store::open_at(root.clone()).unwrap();
+        assert_eq!(store.load(&reference).unwrap(), Some(legacy_metadata));
+        assert!(root
+            .join("meta.legacy")
+            .join(format!("{encoded}.json"))
+            .is_file());
+        assert!(!root.join("tags").exists());
+        assert!(!legacy_root.exists());
+        drop(store);
+        let reopened = Store::open_at(root.clone()).unwrap();
+        assert!(reopened.load(&reference).unwrap().is_some());
+        remove_store(&reopened);
     }
 }
