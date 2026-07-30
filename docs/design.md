@@ -960,8 +960,17 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   read and select — scalars are stringified, and a selection yielding a non-stringy
   value is a clear error, never silent coercion. The package-binder form
   (`META description ${pkgs.nginx}#meta.description`) stays on the existing eval —
-  that is attrset selection, not file parsing. Bulk field
-  import is dead: every field is author-pointed; cix maintains two file formats and
+  that is attrset selection, not file parsing.
+  **Selector grammar** (Mathijs: can `#` cleanly address everything? — not with
+  bare dots, so): nix-attrpath syntax including quoted segments (`#exports."."`,
+  `#"foo.bar".baz` — the same syntax flakerefs already use after `#`), PLUS
+  numeric segments to index arrays (`#project.authors.0.name`), PLUS whole-array
+  selection when the elements are strings (Cargo `authors` → a list field).
+  Deliberately out: wildcards, projections, mapping — jq territory; if your
+  metadata needs that, write literals. JSON Pointer noted as the fully-general
+  not-chosen prior art (hostile escaping); YAML non-string keys are matched as
+  strings, ambiguity errors. Bulk field
+  import is dead: every field is author-pointed; cix maintains three file formats and
   zero ecosystem tables (prior art for the eval: crane, pyproject-nix — we take the
   builtins, not the frameworks). `META source <binder>` keeps ONLY the
   provenance-designation role: a remote flakeref binder yields url+rev+narHash (the
