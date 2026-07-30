@@ -1,0 +1,9 @@
+diff --git a/src/core/namespace.c b/src/core/namespace.c
+index 0943e0818f..e801b6ea60 100644
+--- a/src/core/namespace.c
++++ b/src/core/namespace.c
+@@ -2157,3 +2157,3 @@ static int apply_one_mount(
+-                userns_fd = userns_acquire(uid_map, gid_map, /* setgroups_deny= */ true);
++                userns_fd = userns_acquire(uid_map, gid_map, /* setgroups_deny= */ false);
+                 if (userns_fd < 0)
+                        return log_error_errno(userns_fd, "Failed to allocate user namespace: %m");
