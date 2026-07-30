@@ -897,6 +897,10 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   source-first convention; the new order restores both muscle memories
   ("where from, where it lands", uniform with COPY). Hard flips, migration-grade
   errors, ride track/tourbook.
+  **Addendum (2026-07-30 session close, Mathijs): `STATE` → `STATEDIR`** —
+  completing the family consistency D52 started (mirrors `StateDirectory=` as
+  CACHEDIR/RUNDIR mirror theirs). Open sub-question for that round: do LOGS and
+  CONFIG follow (`LOGSDIR`/`CONFIGDIR`)? Rides track/argvenv.
 
 - ✅ D53 (2026-07-30) — **Cixfiles get `#` line comments** (Mathijs, reading the
   corpus whoami pair: none of the wild-corpus Cixfiles could explain themselves).

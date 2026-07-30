@@ -10,5 +10,8 @@ touches manifest loading), examples, docs/cixfile.md, tour where shown.
 2. EXEC/SETUP tokenizer: single+double quotes preserve spaces; unterminated quote =
    line-numbered error; a manifest test proves `EXEC nginx -g 'daemon off;'` yields
    argv element `daemon off;`. Other directives unchanged.
-3. Gate: fmt/clippy/workspace tests, tour regen+drift+determinism, vm-dogfood.
+3. D52 addendum: rename `STATE` → `STATEDIR` (migration-grade error; sweep
+   examples/docs/tour). Ask-in-LOG whether LOGS/CONFIG should follow
+   (LOGSDIR/CONFIGDIR) — flag it, don't decide it.
+4. Gate: fmt/clippy/workspace tests, tour regen+drift+determinism, vm-dogfood.
    Exact repros in crates/cix-cixfile/LOG.md.
