@@ -1,7 +1,15 @@
 # The wild corpus — real Dockerfiles, compose files, and k8s shapes, triaged
 
 Status: survey 2026-07-30 (three research sweeps; sources linked per row). Ledger-style
-sibling of docs/docker.md: docker.md maps *features*, this maps *real artifacts*. Ribbons:
+sibling of docs/docker.md: docker.md maps *features*, this maps *real artifacts*.
+
+> **Honesty caveat (Mathijs's review, same day): every ribbon below is a DESK grade —
+> assigned from reading, not from converting and running. "✅ dissolves" is optimism
+> until a Cixfile builds and passes a health check. The migrate-prompt track
+> (.dev/specs/track-migrate.md) is the empirical re-analysis: its receipts confirm or
+> refute these grades, and its loss numbers supersede this table's cheer.**
+
+Ribbons:
 
 - ✅ expressible today (with which mechanism)
 - 🔶 expressible with a known workaround / honest loss (stated)
