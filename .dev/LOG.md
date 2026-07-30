@@ -384,3 +384,12 @@
   the two-node test verifies the systemd version, patched PID 1, and failure transcript on both
   VMs. Open with Mathijs: decide whether a further upstream investigation is worthwhile. Open for
   agents: independently re-verify the committed `track/sdbisect` branch.
+
+## 2026-07-30 (track/blocks final-main update)
+
+- Merged main's concurrent corpus/systemd-bisect/D48 design work through `6e9a136`; no D47 code
+  conflicts and no paths under `nix/scenarios/**`.
+- Repeated the complete Rust, tour regeneration/drift/determinism, dogfood VM, and compose
+  fallback VM gate on that exact final snapshot; all passed. Exact command is in
+  `crates/cix-cixfile/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.
