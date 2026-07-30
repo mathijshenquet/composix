@@ -339,15 +339,15 @@ item. Ecosystem builds (cargo/pnpm/uv) stay out of v1 entirely.
 
 Item directives: `PKG <attr>` (nixpkgs attribute into scope; enables `${attr}` in directive
 arguments), `COPY <src> <dst>` (verbatim sibling file — docker semantics, never substituted),
-`FILE <dst> <<EOF` / `SCRIPT <dst> <<EOF` (inline, `${…}`-interpolated; SCRIPT adds shebang +
-exec bit), `LINK <dst> <target>`.
+`FILE <dst> <<EOF` (inline, `${…}`-interpolated), `LINK <dst> <target>`. D55 later removed
+`SCRIPT`; real scripts are copied and invoked through an explicit package shell.
 
 Service directives (compile to spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
 `ENV NAME [= default] [required] [secret]` (docker-compatible: `ENV FOO = bar` behaves like
 docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STATE` `CACHE`
 `LOGS` `CONFIG` `RUNDIR` (role dirs, D11-narrowed paths), `JIT`.
 
-Interpolation rule: `${…}` (build-time) lives in directive arguments and in `FILE`/`SCRIPT`
+Interpolation rule: `${…}` (build-time) lives in directive arguments and in `FILE`
 heredoc bodies (`$${…}` escapes to a literal); `COPY`'d files are always verbatim; `$VAR`
 (runtime env) only in EXEC/SETUP. Native projected paths (D22) remove the *need* for
 interpolating file contents — heredocs merely retain the option. There is no RUN, deliberately.

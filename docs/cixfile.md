@@ -54,8 +54,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `COPY`, `FETCH`, `RUN`, `CACHE`, `PATH` | an immutable named workdir snapshot |
-| `SERVICE <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHEDIR` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHEDIR` | a run-to-completion app artifact |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
 and a declaration cannot refer to a later declaration. Errors report both the bad line and,
@@ -97,9 +97,18 @@ There is no magic `${build}` namespace and `TAKE` is gone. A migrated file shoul
 builder, normally `BUILDER build`, and use `COPY ${build}/path destination`. The parser emits
 that migration directly instead of turning either spelling into a mysterious unknown name.
 
-`FILE <destination> <<EOF` adds an inline interpolated file, `SCRIPT` adds an executable
-script with a shell header, and `LINK <target> <linkpath>` adds a symlink. LINK follows both
-`ln -s TARGET LINKNAME` and COPY's source-first reading: where from, then where it lands.
+`FILE <destination> <<EOF` adds an inline interpolated file. Use it when content must contain
+a build-time store path; ordinary files and scripts should remain real source files copied
+with `COPY`. Invoke a copied script through an explicit package shell:
+
+```dockerfile
+COPY start bin/start
+EXEC ${pkgs.bash}/bin/sh /bin/start
+```
+
+`SCRIPT` was dropped by D55; the parser reports this migration instead of accepting an alias.
+`LINK <target> <linkpath>` adds a symlink. LINK follows both `ln -s TARGET LINKNAME` and
+COPY's source-first reading: where from, then where it lands.
 
 ### Lines, comments, and heredocs
 

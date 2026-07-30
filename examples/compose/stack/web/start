@@ -1,0 +1,5 @@
+set -eu
+test "$LISTEN_FDS" = 1
+test "$LISTEN_FDNAMES" = http
+export NGINX='3;'
+exec "$1" -c /etc/nginx/nginx.conf -e stderr
