@@ -930,16 +930,22 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   pyproject), (3) inherited from referenced nixpkgs `meta`, (4) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
-  **OUT** adapters from one internal schema: inline = identifiers and one-liners
-  (title, description [one line], homepage, SPDX license expression, maintainers);
-  by-reference = documents as paths INTO the item (readme, icon, changelog,
-  license-file) — manifest and files share one content-addressed item, so document
-  references are hash-covered receipts for free (kills npm's embedded-README
-  two-truths wart; Cargo's license vs license-file split adopted). Keywords are
-  DROPPED (vestigial — modern discovery is full-text over name/description/README
-  plus social signals; trove classifiers and npm keywords are ceremony). Adapters:
-  inspect --human · serve/explore HTML incl. README rendering · OCI annotation
-  export · index search fields.
+  **OUT** adapters from one internal schema, final cut (Mathijs's trims): inline =
+  title, description (one line), SPDX license expression, maintainers (a LIST,
+  freeform strings v1; nixpkgs' structured form is the enrichment path);
+  `urls` = one optional labeled map (pyproject pattern: homepage/docs/chat/…) —
+  courtesy links, almost always inherited, homepage carries no special meaning for
+  us beyond "upstream's front door"; by-reference = documents as paths INTO the
+  item (readme, icon, license-file) — manifest and files share one
+  content-addressed item, so document references are hash-covered receipts for
+  free (kills npm's embedded-README two-truths wart; Cargo's license vs
+  license-file split adopted). DROPPED: keywords (vestigial ceremony — modern
+  discovery is full-text + social signals) and changelog (upstream's changelog is
+  reachable via the receipted source, the Renovate pattern; and composix has a
+  NATIVE change history — the D45 tag-table hash chain + generation diffs — which a
+  hand-typed file would only impoverish). Adapters: inspect --human ·
+  serve/explore HTML incl. README rendering · OCI annotation export · index search
+  fields.
 
 ## Non-goals (for now)
 
