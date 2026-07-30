@@ -33,6 +33,7 @@
       };
       lib.withSpec = composixLib.withSpec;
       checks.${system} = {
+        compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         with-spec-redis = pkgs.runCommand "with-spec-redis-check" { } ''
           test -f ${withSpecRedis}/cix-manifest.json
