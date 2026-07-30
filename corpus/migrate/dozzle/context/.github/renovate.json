@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "schedule:weekly", "group:allNonMajor", ":automergeMinor"],
+  "rangeStrategy": "bump",
+  "minimumReleaseAge": "24 hours",
+  "ignoreDeps": [],
+  "packageRules": [
+    {
+      "matchPackageNames": ["@playwright/test", "mcr.microsoft.com/playwright"],
+      "groupName": "playwright"
+    }
+  ]
+}

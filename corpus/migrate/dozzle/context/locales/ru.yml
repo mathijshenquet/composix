@@ -1,0 +1,432 @@
+toolbar:
+  clear: Очистить
+  download: Скачать
+  download-filtered: Скачать Отфильтрованные Логи
+  search: Поиск
+  inverse-on: Исключить совпадения (инверсия)
+  inverse-off: Включить совпадения (обычно)
+  show: Показать только {std}
+  show-all: Показать все потоки
+  stop: Остановить
+  start: Запустить
+  restart: Перезапустить
+  update: Обновить
+  update-service: Обновить Сервис
+  update-pulling: Загрузка последнего образа...
+  update-recreating: Пересоздание контейнера...
+  update-done: Контейнер успешно обновлён
+  update-up-to-date: Уже обновлён
+  show-hostname: Показать имя хоста
+  show-container-name: Показать имя контейнера
+  shell: Оболочка
+  attach: Подключить
+  copy-permalink: Скопировать постоянную ссылку
+  copy-image: "Копировать тег образа"
+  copy-logs: Скопировать логи
+  copy-filtered-logs: Скопировать отфильтрованные логи
+  copying-logs: Копирование логов...
+action:
+  copy-log: Копировать лог
+  copy-link: Копировать постоянную ссылку
+  see-in-context: Посмотреть в контексте
+  show-details: Показать детали
+  create-alert: Создать оповещение
+label:
+  containers: Контейнеры
+  container: Нет контейнеров | 1 контейнер | {count} контейнеров
+  host-count: Нет Хостов | 1 Хост | {count} Хостов
+  service: Нет сервисов | 1 сервис | {count} сервисов
+  services: Сервисы
+  running-containers: Запущенные контейнеры
+  all-containers: Все контейнеры
+  all-namespaces: Все пространства имён
+  namespaces: Пространства имён
+  host: Хост
+  hosts: Хосты
+  password: Пароль
+  username: Имя пользователя
+  container-name: Имя контейнера
+  status: Статус
+  created: Создан
+  avg-cpu: средний процессор (%)
+  avg-mem: средняя память (%)
+  name: Имя
+  cpu: CPU
+  mem: MEM
+  pinned: Закреплено
+  per-page: Строк на странице
+  host-menu: Хосты и Контейнеры
+  swarm-menu: Сервисы и Стеки
+  k8s-menu: Kubernetes
+  group-menu: Пользовательские Группы
+  no-logs: У контейнера еще нет логов
+  search-status:
+    searching: Поиск в старых логах…
+    searching-to: Поиск в старых логах… до {time}
+    capped: "{count} совпадений · поиск до {time}"
+    exhausted: Все логи просмотрены · {count} совпадений
+    empty: Нет совпадений · все логи просмотрены
+  show-all-containers: Показать все контейнеры
+  collapse-all: Свернуть все
+  collapse-group: Свернуть группу
+  expand-all: Развернуть все
+tooltip:
+  search: Поиск контейнеров (⌘ + k, ⌃k)
+  pin-column: Закрепить столбец
+  merge-all: Объединить все в один поток
+  network-io: "Сеть: ↑ {tx}/s · ↓ {rx}/s"
+  disk-io: "Диск: ↑ {write}/s · ↓ {read}/s"
+  cpu-usage: "ЦП {cpu}% / {cores} ядер"
+  memory-usage: "Память {used} / {total}"
+  volumes: Тома
+  volume-unreachable: недоступно с этого хоста
+  volume-full: "{destination} заполнено на {pct}"
+error:
+  page-not-found: Эта страница не доступна.
+  host-group-not-found: 'Хосты в группе «{name}» не найдены'
+  invalid-auth: Имя пользователя или пароль неверны.
+  copy-not-supported: Копирование в буфер обмена не поддерживается вашим браузером
+  copy-not-supported-hint: Буфер обмена недоступен. Скопируйте ссылку ниже
+  logs-skipped: Показать {total} скрытых записей
+  container-not-found: Контейнер не найден.
+  action-failed: Действие не выполнено
+  update-failed: Обновление не выполнено
+  unable-to-complete-action: Не удалось выполнить действие
+  invalid-action: Недопустимое действие
+  unable-to-update: Не удалось обновить контейнер
+  something-went-wrong: Что-то пошло не так
+  unknown-error: Неизвестная ошибка
+  events-stream:
+    title: Неожиданная ошибка
+    message: >-
+      Dozzle UI не смог подключиться к API. Пожалуйста, проверьте настройки сети. Если вы используете обратный прокси, убедитесь, что он настроен правильно.
+  events-timeout:
+    title: Что-то не так
+    message: >-
+      Dozzle UI превысил время ожидания при подключении к API. Пожалуйста, проверьте сетевое подключение и повторите попытку.
+alert:
+  redirected:
+    title: Перенаправлен на новый контейнер
+    message: Dozzle автоматически перенаправил вас на новый контейнер {containerId}.
+  similar-container-found:
+    title: Найден похожий контейнер
+    message: >-
+      Dozzle нашел похожий контейнер {containerId}, который работает на том же хосте. Хотите переключиться на него?
+title:
+  page-not-found: Страница не найдена
+  login: Требуется авторизация
+  dashboard: 1 контейнер | {count} контейнеров
+  settings: Настройки
+  notifications: Уведомления
+button:
+  logout: Выйти
+  login: Войти
+  settings: Настройки
+  cancel: Отмена
+  redirect: Перенаправить
+  retry: Retry
+placeholder:
+  search-containers: Поиск контейнеров (⌘ + k, ⌃k)
+  search: Поиск
+settings:
+  help-support: >
+    Пожалуйста, поддержите Dozzle, сделав пожертвование или спонсорство на GitHub. Ваши вклады помогают нам улучшать Dozzle для всех. Спасибо! 🙏🏼
+  about-desc: Информация о вашей установке Dozzle и о том, как поддержать проект.
+  display-desc: Настройте внешний вид логов и остальной части приложения. Предпросмотр отражает ваши изменения в реальном времени.
+  options-desc: Настройки языка, навигации и группировки.
+  cloud-desc: Передавайте логи в Dozzle Cloud для аналитики с использованием ИИ и поиска по экземплярам.
+  support-title: Поддержать Dozzle
+  support-help: Пожертвования помогают сохранять Dozzle бесплатным и поддерживаемым. Спасибо 🙏
+  display: Вид
+  locale: Язык
+  small-scrollbars: Уменьшенная полоса прокрутки
+  show-timestamps: Показывать временные метки
+  soft-wrap: Плавный перенос текста
+  datetime-format: Формат даты и времени
+  font-size: Размер шрифта
+  color-scheme: Цветовая схема
+  options: Опции
+  show-stopped-containers: Показывать остановленные контейнеры
+  group-containers: Группировать контейнеры по пространству имён
+  about: Информация
+  search: Включить поиск с помощью Dozzle, используя
+  using-version: Вы используете <a href="https://dozzle.dev/" target="_blank" rel="noreferrer noopener">Dozzle</a> {version}.
+  update-available: >-
+    Доступна новая версия! Обновить до <a href="{href}" target="_blank" rel="noreferrer noopener">{nextVersion}</a>.
+  show-std: Показывать метки stdout и stderr
+  automatic-redirect: Автоматическое перенаправление на новые контейнеры с тем же именем.
+  compact: Компактный режим
+  size:
+    small: Маленький
+    medium: Средний
+    large: Большой
+  theme:
+    auto: Авто
+    dark: Тёмная
+    light: Светлая
+  redirect:
+    instant: Мгновенное
+    delayed: Отложенное
+    none: Нет
+  grouping:
+    always: Всегда
+    at-least-2: Минимум 2
+    never: Никогда
+  hour:
+    auto: Авто
+    12: "12"
+    24: "24"
+  log:
+    preview: Это предварительный просмотр логов
+    warning: Так выглядит лог предупреждения
+    complex: Это сложная запись лога в формате json
+    simple: Это очень длинное сообщение, которое по умолчанию переносится. Отключение мягкого переноса отключит это. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+    multi-line-error:
+      start-line: Это многострочное сообщение об ошибке
+      middle-line: со второй строкой
+      end-line: и наконец третьей строкой.
+releases:
+  features: одна новая функция | {count} функций
+  bugFixes: одно исправление ошибки | {count} исправлений
+  breaking: одно критическое изменение | {count} критических изменений
+  three_parts: "{first}, {second} и {third}"
+  two_parts: "{first} и {second}"
+  latest: Последняя
+  no_releases: У вас последняя версия
+log_actions:
+  copy_log: Копировать лог
+  jump_to_context: Перейти к контексту
+toasts:
+  copied:
+    title: Скопировано
+    message: Лог скопирован в буфер обмена
+analytics:
+  creating_table: Создание временной таблицы...
+  downloading: Получение логов контейнеров... ({size})
+  evaluating_query: Выполнение запроса...
+  total_records: Всего {count} записей.
+  showing_first: Показаны первые {count}.
+  title: SQL-аналитика
+  no_results: Нет строк, соответствующих запросу.
+  columns: Столбцы
+  examples: Примеры
+  example_all: Все логи
+  example_count: Количество строк
+  example_group: Количество по {column}
+  export: Экспорт
+  export_csv: Скачать CSV
+  export_json: Скачать JSON
+drawer:
+  maximize: Развернуть
+  restore: Восстановить
+notifications:
+  title: Уведомления
+  description: Настройте где и когда получать оповещения
+  destinations: Назначения
+  add-destination: Добавить назначение
+  alerts: Оповещения
+  add-alert: Добавить оповещение
+  prefill-name: Оповещения об ошибках
+  prefill-expression: level == "error"
+  add: Добавить
+  filter:
+    all: Все ({count})
+    enabled: Включены ({count})
+    paused: Приостановлены ({count})
+  no-alerts: Оповещения ещё не настроены. Создайте одно для начала.
+  default-alert-created: "We created a default alert for you. You'll get notified when any container exits with an error. Edit or pause it anytime."
+  default-alert-failed: "Couldn't auto-create your alert — here's the form instead."
+  alert:
+    paused: Приостановлено
+    containers: Контейнеры
+    log-filter: Фильтр логов
+    metric-filter: Метрика
+    event-filter: Event
+    cooldown: Период ожидания
+    sample-window: Окно выборки
+    destination: Назначение
+    dispatcher-deleted: Диспетчер удалён
+    containers-count: "{count} контейнеров"
+    triggered-count: "{count} сработало"
+    last-triggered: "Последнее: {time}"
+  destination:
+    http-webhook: HTTP Webhook
+    dozzle-cloud: Dozzle Cloud
+    edit: Редактировать
+    duplicate: Дублировать
+    delete: Удалить
+  alert-form:
+    create-title: Создать Оповещение
+    edit-title: Редактировать Оповещение
+    description: Подпишитесь на события логов, соответствующие вашим критериям
+    alert-name: Имя Оповещения
+    alert-name-placeholder: напр., Ошибки Тестового API
+    container-filter: Фильтр Контейнеров
+    containers-match: "{count} контейнеров соответствует: {names}"
+    no-containers-match: Нет контейнеров, соответствующих этому фильтру
+    log-filter: Фильтр Логов
+    logs-match: "{count} логов соответствует"
+    no-logs-match: Нет логов, соответствующих этому фильтру
+    destination: Назначение
+    select-destination: Выберите назначение
+    no-destinations: Назначения не настроены. Сначала добавьте одно.
+    preview: Предпросмотр
+    cancel: Отмена
+    save: Сохранить
+    create: Создать Оповещение
+    metric-filter: Выражение метрики
+    expression-valid: Выражение корректно
+    metric-fields-hint: "Доступные поля: {fields}"
+    sample-window-label: Окно выборки
+    sample-window-hint: "Оповещение срабатывает, когда условие выполняется в течение {duration}"
+    cooldown-label: Период ожидания
+    cooldown-hint: "{duration} между оповещениями на контейнер"
+    no-cooldown: No cooldown
+    alert-type: Тип оповещения
+    log-alert: Оповещение журнала
+    metric-alert: Оповещение метрики
+    event-alert: Event Alert
+    event-filter: Event Expression
+    event-fields-hint: "Available fields: {fields}"
+  destination-form:
+    create-title: Добавить Назначение
+    edit-title: Редактировать Назначение
+    description: Куда отправлять уведомления?
+    name: Имя
+    name-placeholder: напр., Продакшн Slack
+    type: Тип
+    webhook-title: HTTP Webhook
+    webhook-description: Slack, Discord, пользовательская конечная точка
+    cloud-title: Dozzle Cloud
+    cloud-description: Push-уведомления, email-оповещения и сводки на основе ИИ
+    webhook-url: URL Webhook
+    webhook-url-placeholder: https://hooks.foo.com/services/...
+    api-key: API Ключ
+    payload-format: Формат Payload
+    format-slack: Slack
+    format-discord: Discord
+    format-ntfy: ntfy
+    format-custom: Пользовательский
+    template: Шаблон
+    template-hint: Синтаксис шаблона Go
+    headers: Пользовательские Заголовки
+    headers-hint: Необязательные HTTP-заголовки (напр. Authorization)
+    header-name: Имя заголовка
+    header-value: Значение заголовка
+    add-header: Добавить Заголовок
+    test: Тест
+    test-success: Тест успешен
+    cancel: Отмена
+    close: Закрыть
+    save: Сохранить
+    add: Добавить Назначение
+    cloud-exists: Dozzle Cloud уже привязан
+    link-cloud: Связать Аккаунт
+    link-cloud-button: Связать Dozzle Cloud
+    cloud-settings-hint: Чтобы настроить управляемые каналы, перейдите в
+    cloud-settings-link: Настройки Dozzle Cloud
+    cloud-checking: Проверка статуса облака...
+    cloud-relink: Ваш API-ключ недействителен или истёк. Пожалуйста, удалите и привяжите аккаунт заново.
+    cloud-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+    cloud-plan: План
+    cloud-usage: События за этот период
+  empty-state:
+    title: Начните с уведомлений
+    description: Выберите, как вы хотите получать оповещения, когда ваши контейнеры требуют внимания.
+    cloud-subtitle: Сводки на основе ИИ, удалённое управление и многое другое
+    webhook-subtitle: Отправляйте оповещения на любую конечную точку
+  cloud-link-success:
+    title: Dozzle Cloud Связан
+    message: Ваш экземпляр успешно подключён. Вы можете отвязать его в настройках или проверить использование в любое время.
+cloud:
+  title: Dozzle Cloud
+  description: Управляйте контейнерами удалённо и используйте ИИ для расследования проблем в вашем кластере.
+  learn-more: Узнать больше
+  link-instance: Привязать экземпляр
+  relink-instance: Привязать повторно
+  connected: Подключён
+  plan: План
+  usage: События за этот период
+  dashboard: Панель управления
+  settings: Настройки
+  error: Ошибка подключения. Пожалуйста, привяжите экземпляр повторно.
+  error-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+  unlink: Отвязать
+  unlink-confirm: Вы уверены, что хотите отвязать от Dozzle Cloud? Это удалит все облачные назначения уведомлений.
+  stream-logs: Передавать логи контейнеров в Dozzle Cloud
+  stream-logs-help: Требуется для расследований с помощью ИИ и поиска по логам. Отключите, чтобы все содержимое логов оставалось на этом экземпляре.
+  welcome:
+    title: "Cloud — это интеллектуальная триаж-система для ваших контейнеров."
+    subtitle: "Стартовый набор сигналов сбоев уже выбран — расскажите, что вас привело, чтобы мы могли его настроить."
+    question: "Один быстрый вопрос перед началом — для чего вы хотите использовать Cloud?"
+    placeholder: "напр. Хочу знать, когда мой контейнер Plex падает ночью..."
+    or-pick: "Или выберите:"
+    chip-alerts: Получать уведомления о проблемах
+    chip-assistant: Спросить Ассистента о моих логах
+    chip-search-logs: Искать по всем моим логам
+    chip-remote-access: Доступ к логам удалённо
+    chip-digests: Получать ежедневные сводки логов
+    chip-other: Другое
+    get-started: Начать
+    skip: Пропустить
+    step2-title: "Выберите сигналы, которые Cloud должен сортировать."
+    create-alert: Создайте первое оповещение
+    step2-body: "Вместо того чтобы пересылать каждое событие, Cloud следит за тем, что выглядит сломанным, исследует это и беспокоит вас только тогда, когда это важно. Чтобы делать это хорошо, Cloud нужны сигналы. Мы заранее выбрали стартовый набор событий сбоев ниже — снимите галочку с того, что предпочитаете оставить локально."
+    footer: "Вы можете в любой момент изменить, чем делиться, на странице Уведомлений. Cloud никогда не получает логи, на которые вы его не подписали."
+    signals:
+      exited: "Контейнер завершился с ошибкой"
+      exited-desc: "Срабатывает, когда контейнер останавливается с ненулевым кодом выхода."
+      unhealthy: "Контейнер стал unhealthy"
+      unhealthy-desc: "Срабатывает, когда healthcheck контейнера переходит в unhealthy."
+      oom: "Контейнер убит ядром (OOM)"
+      oom-desc: "Срабатывает, когда Docker сообщает о завершении из-за нехватки памяти."
+      restart: "Контейнер перезапущен"
+      restart-desc: "Выключено по умолчанию — шумно само по себе; Cloud также использует это для обнаружения циклов."
+      disk: "Заканчивается место на одном из томов"
+      disk-desc: "Срабатывает, когда любой смонтированный том заполнен более чем на 85%."
+    create-alerts: "Включить выбранные сигналы"
+    later: "Сделаю это позже"
+cloud-search:
+  containers-section: "Контейнеры"
+  search-logs-for: "Поиск логов по \"{query}\""
+  across-containers: "проиндексированных по всем вашим контейнерам"
+  connect-to-enable: "Подключите Dozzle Cloud, чтобы искать в логах"
+  enable-streaming-to-search: "Включите стриминг логов в Cloud"
+  open-container: "открыть контейнер"
+  search-logs-shortcut: "поиск логов"
+  cloud-connected: "Cloud подключён"
+  results-page-title: "Поиск по логам"
+  no-results: "Совпадений в логах не найдено."
+  search-failed: "Поиск в Cloud не удался."
+  search-empty-prompt: "Введите запрос для поиска по логам."
+  searching: "Поиск…"
+  hits-count: "{n} результатов"
+  window-suffix: "за последние 14 дней"
+  hero-title-cloud: "Поиск по контейнерам и логам"
+  hero-title-plain: "Поиск по контейнерам"
+  hero-pill-indexed: "Индекс Cloud"
+  modal-placeholder-cloud: "Поиск по контейнерам и логам…"
+  modal-placeholder-plain: "Поиск по контейнерам…"
+  col-time: "Время"
+  col-level: "Уровень"
+  col-container: "Контейнер"
+  col-message: "Сообщение"
+  container-removed: "Контейнер был удалён"
+  cta-settings: "Настройки Cloud"
+  container-removed-pill: "удалён"
+command-palette:
+  section-commands: Команды
+  restart-container: Перезапустить {name}
+  stop-container: Остановить {name}
+  start-container: Запустить {name}
+  update-container: Обновить {name}
+  theme-auto: Использовать системную тему
+  theme-light: Переключить на светлую тему
+  theme-dark: Переключить на тёмную тему
+  toggle-compact: Переключить компактный режим
+  toggle-timestamps: Переключить метки времени
+  toggle-soft-wrap: Переключить мягкий перенос
+  toggle-stopped: Переключить остановленные контейнеры
+  toggle-std: Переключить метки stdout/stderr
+  toggle-scrollbars: Переключить уменьшенные полосы прокрутки
+  open-settings: Открыть настройки

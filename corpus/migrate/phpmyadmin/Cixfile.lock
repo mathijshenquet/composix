@@ -1,0 +1,39 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5",
+      "narHash": "sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY="
+    }
+  },
+  "fetches": {
+    "builder:build:0-23a8742ecb78": {
+      "narHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE="
+    },
+    "pma-src": {
+      "narHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE="
+    }
+  },
+  "memo": {
+    "679d696a8d00d1d9552289ca8c008ee197fe0a93ca994aba8cc400af0e5d4bb2": {
+      "outputNarHash": "sha256-CJwE9BGSdhyOBLOGiNVq7xKBG50EiQyR5icThGcfrhU=",
+      "storePath": "/nix/store/j9mbzi71c3qfvzban74ljsw45w4hy1pw-cix-build-snapshot",
+      "wallMs": 172
+    },
+    "7cfb81983266a1d0e493d2ac261432862472f511dc2f53e89f883ba8285f011b": {
+      "outputNarHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=",
+      "storePath": "/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot",
+      "wallMs": 164
+    },
+    "9c54145861da9bf9204777f9cfc985c95cd413139a3cab0f866231d8efba571a": {
+      "outputNarHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=",
+      "storePath": "/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot",
+      "wallMs": 172
+    },
+    "df52c5d6388867456a0c4b032e88e22da216a1ce5bc37df2d7231a6c6e0bed5b": {
+      "outputNarHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=",
+      "storePath": "/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot",
+      "wallMs": 175
+    }
+  }
+}

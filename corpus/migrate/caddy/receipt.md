@@ -1,26 +1,18 @@
-# caddy migration receipt
+# Receipt
 
-Date: 2026-07-30
-Layout refreshed: 2026-07-30 (no Cix rerun; the recorded check failure remains live)
+Verdict: **pass** (Cixfile class: dissolves / pkgs-only).
 
-Docker image digest (local image ID): `sha256:bc898ebca91b534678f81a7d6d352a788be403e3e7af027564731f9dd77fa9c4`
-
-Cix item store path: `/nix/store/vbs25dg9r93zngciqwnwapfgjfa5ivpm-cix-item-caddy`
-
-## `./check.sh docker`
-
-```text
-docker image sha256:bc898ebca91b534678f81a7d6d352a788be403e3e7af027564731f9dd77fa9c4
-PASS docker
+Docker transcript:
 ```
-
-Exit status: 0
-
-## `./check.sh cix`
-
-```text
-/nix/store/vbs25dg9r93zngciqwnwapfgjfa5ivpm-cix-item-caddy
-cix unit cix-run-caddy-18c72a1ab1cd3d840.service
+$ timeout 90 ./check.sh docker
+sha256:339d03613a5f18e115c3c9b4ef12cc65c6bd80afaa720ce5b9ade79aa04cbe67
+status=0
 ```
+Docker image digest: `sha256:339d03613a5f18e115c3c9b4ef12cc65c6bd80afaa720ce5b9ade79aa04cbe67`.
 
-Exit status: 1 (the bounded HTTP probe did not succeed).
+Cix transcript:
+```
+$ ./check.sh cix
+status=0
+```
+Cix store path: `/nix/store/qf2dj8f7k1rrx7i8jps55kr369jivxda-cix-item-caddy`.

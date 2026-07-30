@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "target": "ESNext",
+    "lib": ["DOM", "ESNext"],
+    "strict": true,
+    "esModuleInterop": true,
+    "incremental": false,
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "noUnusedLocals": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@/*": ["./assets/*"]
+    },
+    "jsx": "preserve",
+    "types": [
+      "vitest",
+      "vite/client",
+      "unplugin-vue-macros/macros-global",
+      "vite-plugin-vue-layouts/client",
+      "unplugin-icons/types/vue"
+    ]
+  },
+  "exclude": ["dist", "node_modules", "e2e"]
+}
