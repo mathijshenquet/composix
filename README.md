@@ -64,7 +64,7 @@ paths (`/etc/nginx/…`) — a sparse rootfs fragment, no layers, no templating.
 
 ## Examples
 
-`examples/` is the seed of a manifested-packages collection: individual services live in
+`examples/` is the seed of a packaged-service collection: individual services live in
 [`examples/pack/`](examples/pack/) (with Redis showing both Cixfile and `withSpec` authoring),
 composites in `examples/compose/`, and build stories in `examples/build/`. `examples/dstyle/`
 is the design-era archive. Each runnable pack has a `demo.sh`; a NixOS VM check

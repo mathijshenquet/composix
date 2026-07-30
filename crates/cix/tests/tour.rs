@@ -299,7 +299,22 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
     doc.sh_in(
         prompt,
         state_dir,
-        &format!("echo '{contents}' > {name} && cix tag \"$(nix store add {name})\" my-app:v1"),
+        &format!(
+            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":4,\"exec\":[\"message\"]}}' > {name}/cix-manifest.json"
+        ),
+        true,
+    );
+    doc.sh_in(prompt, state_dir, &format!("ls -1 {name}"), true);
+    doc.sh_in(
+        prompt,
+        state_dir,
+        &format!("cat {name}/message {name}/cix-manifest.json"),
+        true,
+    );
+    doc.sh_in(
+        prompt,
+        state_dir,
+        &format!("cix tag \"$(nix store add {name})\" my-app:v1"),
         true,
     );
     let table_root = state_dir
@@ -320,53 +335,6 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         "unexpected store path: {path}"
     );
     path
-}
-
-fn service_fixture(doc: &Doc) -> String {
-    let fixture = doc.base.join("service-fixture");
-    let executable = fixture.join("bin/service");
-    fs::create_dir_all(executable.parent().expect("service executable parent"))
-        .expect("creating service fixture directory");
-    fs::write(&executable, "#!/bin/sh\nexec /bin/sleep 300\n").expect("writing service executable");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut permissions = fs::metadata(&executable)
-            .expect("reading service executable permissions")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&executable, permissions).expect("making service executable");
-    }
-    fs::write(
-        fixture.join("cix-manifest.json"),
-        r#"{
-  "cixManifest": 2,
-  "services": {
-    "tour-service": {
-      "exec": ["bin/service"],
-      "dirs": {"state": ["/var/lib/tour-service"]}
-    }
-  }
-}
-"#,
-    )
-    .expect("writing service spec");
-
-    let output = Command::new("nix")
-        .args(["store", "add-path"])
-        .arg(&fixture)
-        .output()
-        .expect("adding service fixture to the Nix store");
-    assert!(
-        output.status.success(),
-        "nix store add-path failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    String::from_utf8(output.stdout)
-        .expect("Nix store path is UTF-8")
-        .trim()
-        .to_owned()
 }
 
 fn listener_fixture(doc: &Doc) -> String {
@@ -423,68 +391,13 @@ while True:
 }
 "#,
     )
-    .expect("writing listener spec");
+    .expect("writing listener manifest");
 
     let output = Command::new("nix")
         .args(["store", "add-path"])
         .arg(&fixture)
         .output()
         .expect("adding listener fixture to the Nix store");
-    assert!(
-        output.status.success(),
-        "nix store add-path failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    String::from_utf8(output.stdout)
-        .expect("Nix store path is UTF-8")
-        .trim()
-        .to_owned()
-}
-
-fn compose_fixture(doc: &Doc, version: &str) -> String {
-    let fixture = doc.base.join(format!("compose-fixture-{version}"));
-    let executable = fixture.join("bin/web");
-    fs::create_dir_all(
-        executable
-            .parent()
-            .expect("compose fixture executable parent"),
-    )
-    .expect("creating compose fixture directory");
-    fs::write(
-        &executable,
-        format!("#!/bin/sh\necho compose fixture {version}\n"),
-    )
-    .expect("writing compose fixture executable");
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut permissions = fs::metadata(&executable)
-            .expect("reading compose fixture executable permissions")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(&executable, permissions)
-            .expect("making compose fixture executable executable");
-    }
-    fs::write(
-        fixture.join("cix-manifest.json"),
-        r#"{
-  "cixManifest": 2,
-  "services": {
-    "web": {
-      "exec": ["bin/web"]
-    }
-  }
-}
-"#,
-    )
-    .expect("writing compose fixture spec");
-
-    let output = Command::new("nix")
-        .args(["store", "add-path"])
-        .arg(&fixture)
-        .output()
-        .expect("adding compose fixture to the Nix store");
     assert!(
         output.status.success(),
         "nix store add-path failed: {}",
@@ -600,26 +513,19 @@ fn root_filename() -> &'static str {
     "bXktYXBw"
 }
 
-fn scenario_tagging_a_build() -> String {
-    let mut doc = Doc::new("tagging");
-    doc.para("Nix produced a store path. Give that immutable build a memorable local name.");
+fn chapter_index() -> String {
+    let mut doc = Doc::new("index");
+    doc.para("The index gives mutable, memorable names to immutable Nix store paths. This chapter follows one tag through its complete local life.");
 
-    let store_path = fixture(&mut doc, "my-app-v1", "hello from my app v1");
+    doc.para("## Tag");
+    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
     let listing = doc.sh("cix ls -l", true);
     assert!(listing.contains("my-app:v1"));
-    assert!(listing.contains(&store_path));
+    assert!(listing.contains(&first));
 
-    doc.para("A name points at one immutable tag table. Cix roots that table and the store paths it currently references.");
+    doc.para("The name points at an immutable tag table. Cix roots that table, which in turn keeps the store paths in its current entries alive.");
     let roots = doc.sh("ls \"$CIX_STATE_DIR/roots/names\"", true);
     assert_eq!(roots.trim(), root_filename());
-    let link = doc.sh(
-        &format!(
-            "readlink \"$CIX_STATE_DIR/roots/names/{}/table\"",
-            root_filename()
-        ),
-        true,
-    );
-    assert!(link.trim().starts_with("/nix/store/"));
     let table = doc.sh(
         &format!(
             "cat \"$(readlink $CIX_STATE_DIR/roots/names/{}/table)/table.json\"",
@@ -628,56 +534,40 @@ fn scenario_tagging_a_build() -> String {
         true,
     );
     assert!(table.contains("\"cixTagTable\": 1"));
-    assert!(table.contains(&store_path));
+    assert!(table.contains(&first));
 
-    doc.finish()
-}
+    doc.para("## Inspect");
+    doc.para("Inspection resolves the tag, then combines its per-system index entry with the parsed runtime manifest and measured Nix closure as stable JSON.");
+    let inspected = doc.sh("cix inspect my-app:v1", true);
+    assert!(inspected.contains("\"kind\": \"artifact\""));
+    assert!(inspected.contains("\"outputs\": {"));
+    assert!(inspected.contains("\"closureSize\":"));
+    assert!(inspected.contains("\"manifest\":"));
 
-fn scenario_moving_a_tag() -> String {
-    let mut doc = Doc::new("moving");
-    doc.para(
-        "A tag can move to a newer build without changing the immutable store paths behind it.",
-    );
-
-    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
+    doc.para("## Move");
+    doc.para("Retagging atomically moves the name to a newer immutable build. The old path does not change; this name simply stops pinning it.");
     let second = fixture(&mut doc, "my-app-v2", "hello from my app v2");
-    let listing = doc.sh("cix ls -l", true);
-    assert!(listing.contains(&second));
-    assert!(!listing.contains(&first));
+    let moved = doc.sh("cix ls -l", true);
+    assert!(moved.contains(&second));
+    assert!(!moved.contains(&first));
 
-    doc.para("Tags are entries in a name's immutable table. Retagging atomically moves the name pointer; the old path is now unpinned by this name.");
-    let link = doc.sh(
-        &format!(
-            "readlink \"$CIX_STATE_DIR/roots/names/{}/table\"",
-            root_filename()
-        ),
-        true,
-    );
-    assert!(link.trim().starts_with("/nix/store/"));
-    assert_ne!(first, second);
-
-    doc.finish()
-}
-
-fn scenario_untagging() -> String {
-    let mut doc = Doc::new("untagging");
-    doc.para("Removing a tag writes a new empty table. The name remains so its history chain can be inspected while its old tables survive in the store.");
-
-    fixture(&mut doc, "my-app-v1", "hello from my app v1");
+    doc.para("## Untag");
+    doc.para("Removing the tag writes a new table with no `v1` entry. The history remains inspectable in immutable predecessor tables, but fresh resolution no longer offers the tag.");
     doc.sh("cix untag my-app:v1", true);
-    let listing = doc.sh("cix ls", true);
-    assert!(listing.trim().is_empty());
-
-    doc.para("Fresh resolves no longer offer the tag. Existing copies still load by store path, and the next `nix-collect-garbage` may reclaim unrooted historical bytes.");
+    let empty = doc.sh("cix ls", true);
+    assert!(empty.trim().is_empty());
+    doc.para("The next `nix-collect-garbage` may reclaim bytes that no other root still reaches.");
     doc.finish()
 }
 
-fn scenario_serving_your_store() -> String {
-    let mut doc = Doc::new("serving");
+fn chapter_distribution() -> String {
+    let mut doc = Doc::new("distribution");
     let publisher = doc.state_dir.clone();
-    doc.para("Publication is not a ceremony — serving exposes your bare tags at whatever URL reaches the box.");
+    let consumer = doc.base.join("consumer-state");
 
-    let store_path = fixture_in(
+    doc.para("A served index and a standard Nix binary cache are enough to move the same immutable artifact between machines. Separate state directories stand in for the publisher and consumer here.");
+    doc.para("## Serve");
+    let first = fixture_in(
         &mut doc,
         "publisher $",
         &publisher,
@@ -700,9 +590,9 @@ fn scenario_serving_your_store() -> String {
     );
     assert!(entry.contains("\"outputs\":"));
     assert!(entry.contains("\"substituters\":"));
-    assert!(entry.contains(&store_path));
+    assert!(entry.contains(&first));
 
-    doc.para("The same URL in a browser is an informative HTML page; here is only a short teaser, not the page dump.");
+    doc.para("The same URL serves an informative HTML representation to a browser; content negotiation keeps one public name instead of a separate API URL.");
     let html = doc.sh_in(
         "publisher $",
         &publisher,
@@ -710,71 +600,23 @@ fn scenario_serving_your_store() -> String {
         true,
     );
     assert!(html.contains("<!doctype html>"));
-    drop(server);
-    doc.finish()
-}
 
-fn scenario_pulling_on_another_machine() -> String {
-    let mut doc = Doc::new("pulling");
-    let publisher = doc.state_dir.clone();
-    let consumer = doc.base.join("consumer-state");
-    doc.para("A second machine is just a second state dir.");
-
-    let store_path = fixture_in(
-        &mut doc,
-        "publisher $",
-        &publisher,
-        "my-app-v1",
-        "hello from my app v1",
-    );
-    let listen = next_listen();
-    doc.background(
-        "publisher $",
-        &format!("cix serve --with-store --listen {listen}"),
-    );
-    let server = start_server(&doc, &publisher, &listen);
+    doc.para("## Pull");
+    doc.para("The qualified ref names both its origin and tag. `--as` adopts it under a bare local name while retaining the upstream needed for later refreshes.");
     let pulled = doc.sh_in(
         "consumer $",
         &consumer,
-        &format!("cix pull {listen}/my-app:v1 --as my-app"),
+        &format!("cix pull {listen}/my-app:v1 --as my-app:v1"),
         true,
     );
     assert!(pulled.contains("updated 1 tag(s)"));
-    let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
-    assert!(listing.contains("my-app:latest"));
-    assert!(listing.contains(&store_path));
-    assert!(listing.contains(&listen));
+    let local = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(local.contains("my-app:v1"));
+    assert!(local.contains(&first));
+    assert!(local.contains(&listen));
 
-    doc.para("The qualified ref is self-describing; `--as` adopts it under a bare local name. A mirror keeps its qualified remote identity, while adoption makes the name local.");
-    drop(server);
-    doc.finish()
-}
-
-fn scenario_tags_move_pull_follows() -> String {
-    let mut doc = Doc::new("pull-follows");
-    let publisher = doc.state_dir.clone();
-    let consumer = doc.base.join("consumer-state");
-    doc.para("A consumer can track a remote tag without making the publisher's name local.");
-
-    let first = fixture_in(
-        &mut doc,
-        "publisher $",
-        &publisher,
-        "my-app-v1",
-        "hello from my app v1",
-    );
-    let listen = next_listen();
-    doc.background(
-        "publisher $",
-        &format!("cix serve --with-store --listen {listen}"),
-    );
-    let server = start_server(&doc, &publisher, &listen);
-    doc.sh_in(
-        "consumer $",
-        &consumer,
-        &format!("cix pull {listen}/my-app:v1"),
-        true,
-    );
+    doc.para("## Follow a moving tag");
+    doc.para("The publisher can move `my-app:v1` to a new immutable path. A bare `cix pull` refreshes every local tag that remembers an upstream.");
     let second = fixture_in(
         &mut doc,
         "publisher $",
@@ -784,52 +626,16 @@ fn scenario_tags_move_pull_follows() -> String {
     );
     let refreshed = doc.sh_in("consumer $", &consumer, "cix pull", true);
     assert!(refreshed.contains("updated 1 tag(s)"));
-    let listing = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
-    assert!(listing.contains(&second));
-    assert!(!listing.contains(&first));
-
-    doc.para("Tags are mutable names over immutable paths, refreshed like git remotes. GC follows the pins: after the refresh, this consumer tag roots the new path, not the old one.");
+    let updated = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(updated.contains(&second));
+    assert!(!updated.contains(&first));
+    doc.para("GC follows those pins: after the refresh, the consumer roots the new path rather than the old one.");
     drop(server);
     doc.finish()
 }
 
-fn scenario_running_a_service() -> String {
-    let mut doc = Doc::new("running-service");
-    doc.para("A spec'd store item can become a transient systemd service without root.");
-
-    let store_path = service_fixture(&doc);
-    let started = doc.sh(&format!("cix run {store_path} --detach --user"), true);
-    let unit_name = started
-        .lines()
-        .find(|line| line.starts_with("cix-run-tour-service-") && line.ends_with(".service"))
-        .expect("cix run printed a transient unit name")
-        .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
-    };
-
-    doc.para("`--user` is the rootless development mode. The product target is the system manager, with `DynamicUser` and the full hardening profile; see the [design document](../design.html). The VM check exercises that system path.");
-    doc.para("The listing is filtered to units created by this scenario, so unrelated `cix-*` units already present on the host do not become part of the tour transcript.");
-    let own_units = [unit_name.clone()];
-    let running = doc.sh_units("cix ps", true, &own_units);
-    assert!(
-        running.contains(&unit_name),
-        "cix ps did not show {unit_name}"
-    );
-
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    let stopped = doc.sh_units("cix ps", true, &own_units);
-    assert!(
-        !stopped.contains(&unit_name),
-        "cix ps still showed stopped unit {unit_name}"
-    );
-
-    doc.para("The unit disappears once stopped; its managed state directory follows the user-manager lifecycle.");
-    doc.finish()
-}
-
-fn scenario_building_from_a_cixfile() -> String {
-    let mut doc = Doc::new("building-cixfile");
+fn chapter_build_run_debug() -> String {
+    let mut doc = Doc::new("build-run-debug");
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
@@ -839,7 +645,7 @@ FILE share/greeting <<GREETING
 hello from Cixfile
 GREETING
 SCRIPT bin/tour-app <<APP
-echo "hello from the Cixfile app"
+exec ${pkgs.coreutils}/bin/sleep 300
 APP
 EXEC bin/tour-app
 "#,
@@ -848,39 +654,70 @@ EXEC bin/tour-app
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing Cixfile lock fixture");
 
-    doc.para("A Cixfile may bind a package universe with `FROM <flakeref> AS pkgs`. The checked-in lock pins that remote universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.");
+    doc.para("A Cixfile turns source material plus pinned package inputs into a store item with a runtime manifest. We start by looking at every input this tiny build will use.");
+    doc.para("## Build");
+    doc.sh("ls -1 Cixfile Cixfile.lock", true);
+    let cixfile = doc.sh("cat Cixfile", true);
+    assert!(cixfile.contains("SERVICE tour-app"));
+    let lock = doc.sh("cat Cixfile.lock", true);
+    assert!(lock.contains("\"narHash\""));
+
+    doc.para("The package universe is pinned by revision and content hash. This SERVICE performs only assembly, so it needs no BUILDER: builders exist only when FETCH or RUN has work to do.");
     let built = doc.sh("cix build . -t tour-app:v1", true);
-    let store_path = built
+    let store_path = built_store_path(&built, "-cix-item-tour-app");
+
+    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v4 service definition, its executable, and any capabilities or writable directories it declares.");
+    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
+    assert!(manifest.contains("\"cixManifest\":4"));
+    assert!(!manifest.contains("\"services\""));
+    assert!(manifest.contains("\"bin/tour-app\""));
+
+    doc.para("## Run");
+    doc.para("The tag is enough to start a transient service. `--user` is the explicitly degraded rootless development path; production uses the system manager with DynamicUser and the full hardening profile.");
+    let started = doc.sh("cix run tour-app:v1 --detach --user", true);
+    let unit_name = started
         .lines()
-        .rev()
-        .find(|line| line.starts_with("/nix/store/"))
-        .expect("cix build printed a store path");
+        .find(|line| line.starts_with("cix-run-tour-app-") && line.ends_with(".service"))
+        .expect("cix run printed a transient unit name")
+        .to_owned();
+    let _unit = UserUnit {
+        name: unit_name.clone(),
+    };
+    let own_units = [unit_name.clone()];
+    let running = doc.sh_units("cix ps", true, &own_units);
+    assert!(running.contains(&unit_name));
 
-    doc.para("The generated v4 manifest is the build's runtime contract: this `SERVICE` produces one bare service definition.");
-    let spec = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
-    assert!(spec.contains("\"cixManifest\":4"));
-    assert!(!spec.contains("\"services\""));
-    assert!(spec.contains("\"bin/tour-app\""));
+    doc.para("## Debug");
+    doc.para("`cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.");
+    let debugged = doc.sh(
+        "cix debug tour-app:v1 --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'",
+        true,
+    );
+    assert!(debugged.contains("debug-command-ran"));
+    assert!(debugged.contains("cix debug --user is degraded"));
 
-    let listing = doc.sh("cix ls", true);
-    assert!(listing.contains("tour-app:v1"));
+    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
+    let stopped = doc.sh_units("cix ps", true, &own_units);
+    assert!(!stopped.contains(&unit_name));
     doc.finish()
 }
 
-fn scenario_building_with_run() -> String {
+fn chapter_building_with_run() -> String {
     let mut doc = Doc::new("building-with-run");
+    fs::create_dir(doc.base.join("src")).expect("creating RUN fixture source directory");
     fs::write(
-        doc.base.join("app"),
+        doc.base.join("src/app"),
         "#!/bin/sh\necho hello-from-run-tour\n",
     )
     .expect("writing RUN fixture input");
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(doc.base.join("app"))
+
+        let mut permissions = fs::metadata(doc.base.join("src/app"))
             .expect("reading RUN fixture mode")
             .permissions();
         permissions.set_mode(0o755);
-        fs::set_permissions(doc.base.join("app"), permissions)
+        fs::set_permissions(doc.base.join("src/app"), permissions)
             .expect("making RUN fixture executable");
     }
     fs::write(
@@ -890,8 +727,11 @@ FROM . AS src
 
 BUILDER build
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
-COPY ${src}/app app
-RUN mkdir -p result && tr '[:lower:]' '[:upper:]' < app > result/upper && chmod +x app
+COPY ${src}/src/ .
+RUN <<BUILD
+mkdir -p result
+tr '[:lower:]' '[:upper:]' < app > result/upper
+BUILD
 
 SERVICE run-tour
 COPY ${build}/app bin/app
@@ -903,36 +743,47 @@ EXEC bin/app
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing RUN Cixfile lock fixture");
 
-    doc.para("A named `BUILDER` executes `RUN` outside Nix evaluation in a networkless bubblewrap sandbox. Its only store inputs are the closure offered by declared package references; the incoming COPY snapshot and fixed environment complete the memo key. The `SERVICE` then copies only its two results from `${build}`.");
+    doc.para("A BUILDER is the workshop side of a Cixfile: it exists because this example has RUN work to perform. First inspect the complete local working directory and the files the build consumes.");
+    doc.sh("ls -R .", true);
+    let input = doc.sh("cat src/app", true);
+    assert!(input.contains("hello-from-run-tour"));
+    let cixfile = doc.sh("cat Cixfile", true);
+    assert!(cixfile.contains("RUN <<BUILD"));
+    doc.sh("cat Cixfile.lock", true);
+
+    doc.para("RUN executes outside Nix evaluation in a networkless sandbox. The offered package closure, incoming directory snapshot, fixed environment, and complete heredoc body form the memo key; the SERVICE copies only the selected results from `${build}`.");
     let first = doc.sh("cix build .", true);
-    let first_path = first
-        .lines()
-        .rev()
-        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cix-item-run-tour"))
-        .expect("first RUN build printed a final item")
-        .to_owned();
+    assert!(first.contains("RUN memo miss"));
+    let first_path = built_store_path(&first, "-cix-item-run-tour");
     let transformed = doc.sh(&format!("tail -n 1 {first_path}/result/upper"), true);
     assert_eq!(transformed.trim(), "ECHO HELLO-FROM-RUN-TOUR");
 
-    doc.para("The lock now records the content-addressed workdir realization. Repeating the same build replays the COPY snapshot and hits RUN's memo; the final item path stays identical.");
+    doc.para("The lock records the content-addressed workdir realization. Repeating the unchanged build replays the directory COPY, hits the RUN memo, and returns the identical final item.");
     let second = doc.sh("cix build .", true);
-    let second_path = second
-        .lines()
-        .rev()
-        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cix-item-run-tour"))
-        .expect("second RUN build printed a final item");
+    assert!(second.contains("RUN memo hit"));
+    let second_path = built_store_path(&second, "-cix-item-run-tour");
     assert_eq!(first_path, second_path);
     doc.finish()
 }
 
-fn scenario_running_with_a_listener() -> String {
-    let mut doc = Doc::new("running-listener");
-    doc.para("A spec-v3 listener gives the service an already-bound socket, so the process has no authority to create another network socket.");
+fn chapter_advanced() -> String {
+    let mut doc = Doc::new("advanced");
 
-    let store_path = listener_fixture(&doc);
+    doc.para("The basic chapters use ordinary port grants and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.");
+    doc.para("## Socket activation");
+    let listener_path = listener_fixture(&doc);
+    doc.para("The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a v3 manifest declaring the named `http` listener.");
+    doc.sh("ls -R listener-fixture", true);
+    let fixture = doc.sh(
+        "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
+        true,
+    );
+    assert!(fixture.contains("socket.fromfd(3"));
+    assert!(fixture.contains("\"listeners\""));
+
     let listen = next_listen();
     let started = doc.sh(
-        &format!("cix run {store_path} --user -p http={listen} --detach"),
+        &format!("cix run {listener_path} --user -p http={listen} --detach"),
         true,
     );
     let unit_name = started
@@ -943,20 +794,26 @@ fn scenario_running_with_a_listener() -> String {
     let _unit = UserUnit {
         name: unit_name.clone(),
     };
-
     wait_for_http(&listen, "LISTEN_FDS=1; no socket() authority");
     let response = doc.sh(&format!("curl -fsS http://{listen}"), true);
     assert_eq!(response.trim(), "LISTEN_FDS=1; no socket() authority");
-
     doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    doc.para("The user-manager path is suitable for rootless development; production uses the system manager. Stopping the transient service also removes its companion `.socket` unit.");
-    doc.finish()
-}
+    doc.para("Stopping the transient service also removes its companion `.socket` unit.");
 
-fn scenario_composing_services() -> String {
-    let mut doc = Doc::new("composing-services");
-    let first = compose_fixture(&doc, "v1");
-    doc.sh(&format!("cix tag {first} tour-compose:current"), true);
+    doc.para("## Compose");
+    let compose_app = doc.base.join("compose-app");
+    fs::create_dir(&compose_app).expect("creating compose Cixfile directory");
+    write_compose_cixfile(&compose_app, "v1");
+    fs::write(compose_app.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+        .expect("writing compose Cixfile lock");
+    doc.para("Compose now starts from a real Cixfile-built service rather than a harness-created store path. Its complete build input is visible before use.");
+    doc.sh("ls -1 compose-app", true);
+    let first_cixfile = doc.sh("cat compose-app/Cixfile", true);
+    assert!(first_cixfile.contains("compose fixture v1"));
+    doc.sh("cat compose-app/Cixfile.lock", true);
+    let first_build = doc.sh("cix build compose-app -t tour-compose:current", true);
+    let first = built_store_path(&first_build, "-cix-item-web");
+
     fs::write(
         doc.base.join("compose.json"),
         r#"{
@@ -971,9 +828,7 @@ fn scenario_composing_services() -> String {
 }
 "#,
     )
-    .expect("writing compose fixture");
-
-    doc.para("Compose v0 accepts strict machine-format JSON. This self-contained item is a Nix store path added by the harness, then named with a local tag.");
+    .expect("writing compose declaration");
     let compose = doc.sh("cat compose.json", true);
     assert!(compose.contains("\"update\": \"track\""));
     let checked = doc.sh("cix compose check compose.json", true);
@@ -983,61 +838,48 @@ fn scenario_composing_services() -> String {
     );
 
     write_resolved_compose_lock(&doc, &doc.base.join("compose.json"), "tour-compose:current");
-    doc.para("`check` resolves and validates without activation. Root `cix up` owns the persistent lock write, so this rootless harness records the checked tag's actual resolved values in `cix.lock` before inspecting that format.");
+    doc.para("`check` resolves and validates without activation. Root `cix up` owns the persistent lock write, so this rootless chapter records the checked tag's actual values before showing the lock and dry diff.");
     let lock = doc.sh("cat cix.lock", true);
     assert!(lock.contains(&first));
-    assert!(lock.contains("\"ref\": \"tour-compose:current\""));
-
     let initial_diff = doc.sh_after_warming("cix compose diff compose.json", true);
     assert!(initial_diff.contains(&first));
 
-    let second = compose_fixture(&doc, "v2");
-    doc.sh(&format!("cix tag {second} tour-compose:current"), true);
-    doc.para("Moving the tracked tag changes the dry-built generation without starting a service. With no root-managed active profile in this rootless scenario, `-` means there is no prior active item to compare.");
+    write_compose_cixfile(&compose_app, "v2");
+    doc.para("Changing the Cixfile makes a new immutable item; rebuilding with the same tracked tag moves only the name.");
+    let second_cixfile = doc.sh("cat compose-app/Cixfile", true);
+    assert!(second_cixfile.contains("compose fixture v2"));
+    let second_build = doc.sh("cix build compose-app -t tour-compose:current", true);
+    let second = built_store_path(&second_build, "-cix-item-web");
+    assert_ne!(first, second);
     let changed_diff = doc.sh_after_warming("cix compose diff compose.json", true);
     assert!(changed_diff.contains(&second));
     assert!(!changed_diff.contains(&first));
 
-    doc.para("`cix up`, `cix rollback`, and `cix down` manage the system manager and therefore require root; the [stack example](../../examples/compose/stack/) VM check covers activation, selective update, rollback, and cleanup.");
+    doc.para("`cix up`, `cix rollback`, and `cix down` use the system manager and therefore require root. The [stack example](../../examples/compose/stack/) VM check covers activation, selective update, rollback, and cleanup.");
     doc.finish()
 }
 
-fn scenario_debugging_a_service() -> String {
-    let mut doc = Doc::new("debugging-service");
-    doc.para("`cix debug` builds a fresh transient unit from the same service manifest and sandbox compiler as `cix run`, but replaces the service entrypoint with a shell or one-shot command.");
-
-    let store_path = service_fixture(&doc);
-    let output = doc.sh(
-        &format!(
-            "cix debug {store_path} --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'"
+fn write_compose_cixfile(directory: &Path, version: &str) {
+    fs::write(
+        directory.join("Cixfile"),
+        format!(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE web\nSCRIPT bin/web <<APP\necho compose fixture {version}\nAPP\nEXEC bin/web\n"
         ),
-        true,
-    );
-    assert!(output.contains("debug-command-ran"));
-    assert!(output.contains("cix debug --user is degraded"));
-
-    doc.para("The system-manager form runs as the service's DynamicUser with the complete projection and hardening profile. This rootless tour uses D13's loudly labeled development fallback; a one-shot command keeps the transcript deterministic, while omitting `-- command` opens an interactive shell.");
-    doc.finish()
+    )
+    .expect("writing compose Cixfile");
 }
 
-fn scenario_inspecting_an_artifact() -> String {
-    let mut doc = Doc::new("inspecting");
-    doc.para("`cix inspect` defaults to stable JSON. For a tag it combines the index entry with the validated, parsed manifest from the resolved store item.");
-
-    let store_path = service_fixture(&doc);
-    doc.sh(&format!("cix tag {store_path} inspect-demo:v1"), true);
-    let output = doc.sh("cix inspect inspect-demo:v1", true);
-    assert!(output.contains("\"kind\": \"artifact\""));
-    assert!(output.contains("\"outputs\": {"));
-    assert!(output.contains("\"manifest\": {"));
-    assert!(output.contains("\"closureSize\":"));
-
-    doc.para("The entry retains per-system output slots while the selected store path supplies the manifest and Nix closure measurement. `cix inspect --human inspect-demo:v1` is the compact operator view; a live unit is selected by its exact name or unique running service name.");
-    doc.finish()
+fn built_store_path(output: &str, suffix: &str) -> String {
+    output
+        .lines()
+        .rev()
+        .find(|line| line.starts_with("/nix/store/") && line.ends_with(suffix))
+        .unwrap_or_else(|| panic!("build did not print an item ending in {suffix:?}:\n{output}"))
+        .to_owned()
 }
 
-fn scenario_running_proj1() -> String {
-    let mut doc = Doc::new("running-proj1");
+fn chapter_proj1() -> String {
+    let mut doc = Doc::new("proj1");
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/build/proj1");
     for relative in PROJ1_FILES {
         let destination = doc.base.join(relative);
@@ -1046,12 +888,15 @@ fn scenario_running_proj1() -> String {
         fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
     }
 
-    doc.para("The Cixfile names one builder and two independent service artifacts. Its declared `CACHE target` persists Cargo state without putting that state in snapshots or items.");
+    doc.para("This small Rust workspace makes the cache and output boundaries concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.");
+    doc.sh("ls -R .", true);
     let cixfile = doc.sh("cat Cixfile", true);
     assert!(cixfile.contains("BUILDER build"));
     assert!(cixfile.contains("CACHE target"));
+    assert!(cixfile.contains("COPY ${src}/rust/ ."));
+    assert!(cixfile.contains("RUN <<BUILD"));
 
-    doc.para("The first build misses the RUN memo and sees an empty cache.");
+    doc.para("One directory COPY carries the workspace into the builder. The readable RUN heredoc compiles it, while `CACHE target` persists Cargo state outside snapshots and final items. The first build misses the RUN memo and sees an empty cache.");
     let first = doc.sh("cix build .", true);
     assert!(first.contains("RUN memo miss"), "{first}");
     let first_api = proj1_item_path(&first, "proj1-api");
@@ -1064,6 +909,8 @@ fn scenario_running_proj1() -> String {
     assert_eq!(state.trim(), "cache-state: cold");
 
     doc.para("Changing only worker source forces a RUN memo miss, but the declared cache is warm. The API item does not move.");
+    let worker_source = doc.sh("cat rust/worker/src/main.rs", true);
+    assert!(worker_source.contains("proj1-worker"));
     doc.sh(
         "sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs",
         true,
@@ -1163,7 +1010,7 @@ fn auto_generated_notice() -> String {
 
 fn render_index(scenarios: &[Scenario]) -> String {
     let mut index = format!(
-        "# cix — local index tour\n\n{}\nThis five-minute tour covers local tags, serving and pulling a store, building from a Cixfile, and running rootless services with or without socket activation.\n\n## Scenarios\n",
+        "# cix — tour\n\n{}\nThis executable tour follows composix from naming and distribution through building, running, debugging, and composing. Each chapter is one continuous story: inputs are shown before use, commands are real, and assertions keep the prose honest.\n\n## Chapters\n",
         auto_generated_notice()
     );
     for scenario in scenarios {
@@ -1209,88 +1056,40 @@ fn render_tour() -> Vec<GeneratedFile> {
     let _lock = TOUR_RENDER_LOCK.lock().expect("locking tour renderer");
     let scenarios = vec![
         Scenario {
-            filename: "01-tagging.md",
-            title: "Tagging a build",
-            description: "Give an immutable Nix store path a memorable local name.",
-            body: scenario_tagging_a_build(),
+            filename: "01-index.md",
+            title: "Chapter 1: The index",
+            description: "Tag, inspect, move, and remove one local name.",
+            body: chapter_index(),
         },
         Scenario {
-            filename: "02-moving.md",
-            title: "Moving a tag",
-            description: "Retag a name to point at a newer build.",
-            body: scenario_moving_a_tag(),
+            filename: "02-distribution.md",
+            title: "Chapter 2: Distribution",
+            description: "Serve an index and store, pull it elsewhere, and follow a moving tag.",
+            body: chapter_distribution(),
         },
         Scenario {
-            filename: "03-untagging.md",
-            title: "Untagging",
-            description: "Remove a local tag and its GC root.",
-            body: scenario_untagging(),
+            filename: "03-build-run-debug.md",
+            title: "Chapter 3: Build, run, debug",
+            description: "Read a Cixfile, build its manifest, run by tag, and debug the same tag.",
+            body: chapter_build_run_debug(),
         },
         Scenario {
-            filename: "04-serving.md",
-            title: "Serving your store",
-            description: "Expose bare local tags over HTTP.",
-            body: scenario_serving_your_store(),
+            filename: "04-building-with-run.md",
+            title: "Chapter 4: Building with RUN",
+            description: "Inspect a working directory, execute a heredoc, and reuse its memo.",
+            body: chapter_building_with_run(),
         },
         Scenario {
-            filename: "05-pulling.md",
-            title: "Pulling on another machine",
-            description: "Adopt a qualified remote tag under a local name.",
-            body: scenario_pulling_on_another_machine(),
+            filename: "05-proj1.md",
+            title: "Chapter 5: proj1",
+            description: "Build two services from one Rust workspace and run the API.",
+            body: chapter_proj1(),
         },
         Scenario {
-            filename: "06-pull-follows.md",
-            title: "Tags move; pull follows",
-            description: "Refresh a remote mirror after its publisher retags it.",
-            body: scenario_tags_move_pull_follows(),
-        },
-        Scenario {
-            filename: "07-running-service.md",
-            title: "Running a service",
-            description: "Start and inspect a spec'd service in rootless development mode.",
-            body: scenario_running_a_service(),
-        },
-        Scenario {
-            filename: "08-building-cixfile.md",
-            title: "Building from a Cixfile",
-            description: "Build, inspect, and tag a self-contained Cixfile item.",
-            body: scenario_building_from_a_cixfile(),
-        },
-        Scenario {
-            filename: "09-running-listener.md",
-            title: "Running with a listener",
-            description: "Serve through a systemd-activated socket in rootless development mode.",
-            body: scenario_running_with_a_listener(),
-        },
-        Scenario {
-            filename: "10-composing-services.md",
-            title: "Composing services",
-            description: "Validate and dry-diff a tracked compose service without root.",
-            body: scenario_composing_services(),
-        },
-        Scenario {
-            filename: "11-debugging-service.md",
-            title: "Debugging a service",
-            description: "Run a deterministic command in a fresh service sandbox.",
-            body: scenario_debugging_a_service(),
-        },
-        Scenario {
-            filename: "12-building-with-run.md",
-            title: "Building with RUN",
-            description: "Execute and memoize a networkless build step outside Nix evaluation.",
-            body: scenario_building_with_run(),
-        },
-        Scenario {
-            filename: "13-inspecting.md",
-            title: "Inspecting artifacts",
-            description: "Read a tag's index entry and parsed manifest as stable JSON.",
-            body: scenario_inspecting_an_artifact(),
-        },
-        Scenario {
-            filename: "14-running-proj1.md",
-            title: "Building and running proj1",
-            description: "Build two services from one builder and serve the API.",
-            body: scenario_running_proj1(),
+            filename: "06-advanced.md",
+            title: "Chapter 6: Advanced",
+            description: "Inspect socket activation, then compose a real Cixfile-built service.",
+            body: chapter_advanced(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

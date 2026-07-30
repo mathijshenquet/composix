@@ -96,6 +96,10 @@ impl Parser<'_> {
             let line_number = self.index + 1;
             let source = self.lines[self.index];
             self.index += 1;
+            let initial = source.trim();
+            if initial.is_empty() || initial.starts_with('#') {
+                continue;
+            }
             let mut logical = source.trim_end().to_owned();
             while logical.ends_with('\\') {
                 logical.pop();
@@ -109,6 +113,14 @@ impl Parser<'_> {
                     ));
                 };
                 self.index += 1;
+                let fragment = continuation
+                    .trim()
+                    .strip_suffix('\\')
+                    .unwrap_or(continuation.trim())
+                    .trim_end();
+                if fragment.contains("${") {
+                    self.build_template(fragment, continuation_line, continuation, false)?;
+                }
                 logical.push(' ');
                 logical.push_str(continuation.trim());
                 if continuation.trim_end().ends_with('\\') && self.index == self.lines.len() {
@@ -120,9 +132,6 @@ impl Parser<'_> {
                 }
             }
             let trimmed = logical.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') {
-                continue;
-            }
             let (directive, arguments) = trimmed
                 .split_once(char::is_whitespace)
                 .map_or((trimmed, ""), |(directive, arguments)| {
@@ -2115,12 +2124,19 @@ EXEC /bin/true \
         let dangling = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true \\\n").unwrap_err();
         assert_eq!(dangling.line, 3, "{dangling}");
         assert!(dangling.message.contains("continuation"), "{dangling}");
+
+        let continued = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin \\\n    ${missing.tool}/bin\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(continued.line, 4, "{continued}");
+        assert_eq!(continued.source.trim(), "${missing.tool}/bin");
     }
 
     #[test]
     fn cixfile_comments_are_full_line_only() {
         let parsed = parse(
-            "  # ignored before the first declaration\nFROM nixpkgs AS pkgs\nSERVICE app\n# ignored in a block\nEXEC /bin/echo #kept\n",
+            "  # ignored before the first declaration \\\nFROM nixpkgs AS pkgs\nSERVICE app\n# ignored in a block\nEXEC /bin/echo #kept\n",
         )
         .unwrap();
         let exec = &parsed.artifacts["app"].service.exec;

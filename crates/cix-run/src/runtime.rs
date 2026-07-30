@@ -7,6 +7,7 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
+use cix_common::Ref;
 use serde::Deserialize;
 
 use crate::config::ResolvedConfig;
@@ -870,6 +871,18 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
     let direct_path = PathBuf::from(installable);
     if direct_path.starts_with("/nix/store/") && direct_path.exists() {
         return Ok(direct_path);
+    }
+
+    if let Ok(reference) = Ref::parse(installable) {
+        match cix_index::resolve(installable) {
+            Ok(output) => return Ok(PathBuf::from(output.store_path)),
+            Err(error) if reference.root_url.is_some() => {
+                return Err(error).with_context(|| {
+                    format!("failed to resolve qualified cix ref {installable:?}")
+                });
+            }
+            Err(_) => {}
+        }
     }
 
     let output = nix_build(installable)?;

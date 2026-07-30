@@ -203,6 +203,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cix-common",
+ "cix-index",
  "clap",
  "libc",
  "serde",

@@ -63,7 +63,7 @@ pub struct Env {
     #[serde(rename = "type")]
     /// Deprecated compatibility field. It is accepted and ignored; environment values are strings.
     #[deprecated(
-        note = "the spec's env `type` field is ignored and will be removed in cixManifest 3"
+        note = "the manifest's env `type` field is ignored and will be removed in cixManifest 3"
     )]
     pub legacy_type: Option<String>,
     pub default: Option<String>,
@@ -83,7 +83,7 @@ pub struct Port {
 
 /// A named inherited listener.
 ///
-/// Spec v3 deliberately supports only TCP stream listeners. The listener name is passed to the
+/// Manifest v3 deliberately supports only TCP stream listeners. The listener name is passed to the
 /// service through systemd's `LISTEN_FDNAMES` protocol.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -171,7 +171,7 @@ impl Spec {
     pub fn load(output: &Path) -> Result<Self> {
         let path = output.join("cix-manifest.json");
         let json = fs::read(&path)
-            .with_context(|| format!("failed to read spec at {}", path.display()))?;
+            .with_context(|| format!("failed to read manifest at {}", path.display()))?;
         let mut spec = Self::from_slice(&json)?;
         if spec.cix_manifest == 4 {
             if let Some(name) = item_name_from_store_path(output) {
