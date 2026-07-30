@@ -1,5 +1,27 @@
 # composix work log
 
+## 2026-07-30 (track/repinfix complete)
+
+- Merged work: none in this worktree. Diagnosed and corrected the update-repin
+  scenario in `e0bee7d`: its API declaration now opts into D44 root-side tracking,
+  and its generation/store-path assertions run before the bounded HTTP retry.
+- Decisions: no design amendment and no product change. The failure was a scenario
+  fixture bug: the declaration omitted `update: track`, so the documented default
+  `pin` policy correctly replayed the adjacent v1 lock on the second `cix up`.
+  Temporary VM diagnostics confirmed identical generations, manifests, API units,
+  and v1 `ExecStart` inputs, with no restart; D47 was not involved.
+- Verification: `cargo fmt --all --check`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test --workspace`,
+  `cargo test -p cix --test tour -- --ignored generate_tour`,
+  `git diff --exit-code -- docs/tour`,
+  `nix build .#checks.x86_64-linux.scenario-update-repin --no-link -L`, and
+  `nix build .#checks.x86_64-linux.scenario-lifecycle --no-link -L` are green.
+  The corrected scenario proves v2 resolution plus selective API restart and v1
+  rollback; lifecycle independently guards restart-changed and DB preservation.
+- Open with Mathijs: none. Open for agents: independently verify and merge
+  `track/repinfix`.
+
 ## 2026-07-30 (track/items complete)
 
 - Merged work: none in this worktree. Completed D40/D41 on `track/items` in `e25fa5f` and

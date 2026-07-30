@@ -169,3 +169,16 @@
   store path move to v2, systemd stops/starts only the API, v2 responds, the DB
   timestamp stays fixed, and rollback restarts v1. Next: commit the scenario correction,
   then run the full requested Rust/tour and lifecycle gates.
+- 2026-07-30 20:07 UTC — Committed the correction as `e0bee7d`. The complete
+  requested gate is green: `cargo fmt --all --check`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`;
+  `cargo test -p cix --test tour -- --ignored generate_tour` followed by
+  `git diff --exit-code -- docs/tour`;
+  `nix build .#checks.x86_64-linux.scenario-update-repin --no-link -L`; and
+  `nix build .#checks.x86_64-linux.scenario-lifecycle --no-link -L`. The committed
+  update-repin check observed the API stop/start, v2 response, unchanged DB activation
+  timestamp, v1 rollback, and teardown. The lifecycle guard independently observed
+  selective API restart, unchanged DB activation, rollback, and complete unit removal.
+  Its existing DB process required systemd's bounded stop timeout and SIGKILL during
+  `down`, after which the scenario completed successfully.
