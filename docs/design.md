@@ -937,42 +937,26 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   Cargo.toml/pyproject for a source input) AND designates that binder's lock entry
   as the receipted `source`/`revision`. No declaration = no inherited identity and
   no claimed provenance (closure facts remain). This subsumes the earlier
-  `META inherit`. **Read mechanics**: bake-time, pure (the binder is a materialized
-  content-addressed path by then); a small per-ecosystem adapter table
-  (Cargo.toml `[package]` / package.json / pyproject `[project]`; for package refs,
-  the existing nix `meta` eval); the binder-ref may carry a subpath for
-  workspaces/monorepos (`META source ${src}/rust/api`), same as COPY sources;
-  ONLY inline fields import automatically — documents (readme/icon) always remain
-  explicit declarations because they add files to the item (the COPY doctrine:
-  writes are declared); manifest `version` = display, lock `revision` = receipt;
-  explicit META fields override imports; nothing recognized at the path =
-  line-numbered error listing what was tried. **Final mechanism (Mathijs's cut —
-  formats, not ecosystems)**: no per-ecosystem adapters at all; ONE generic
-  selector — `META <field> <source>#<keypath>` (the `#` spelling is flakeref
-  muscle memory: `nixpkgs#hello`; no clash with D53 comments, which are
-  full-line-only) — bake-time pure, parsed in ONE home: Rust-side serde
-  (json/toml/**yaml**) over the content-addressed path, result baked into the
-  manifest. YAML is in from day one (Mathijs, reversing the earlier gate by this
-  round's own principle: formats-not-ecosystems means all three manifest formats —
-  excluding YAML would be ecosystem bias through the back door, and pubspec/Flutter
-  is no fringe). The generated-nix-builtins variant is dropped: it would split the
-  implementation the moment YAML arrived. Norway-problem note for the docs: we only
-  read and select — scalars are stringified, and a selection yielding a non-stringy
-  value is a clear error, never silent coercion. The package-binder form
-  (`META description ${pkgs.nginx}#meta.description`) stays on the existing eval —
-  that is attrset selection, not file parsing.
-  **Selector grammar** (Mathijs: can `#` cleanly address everything? — not with
-  bare dots, so): nix-attrpath syntax including quoted segments (`#exports."."`,
-  `#"foo.bar".baz` — the same syntax flakerefs already use after `#`), PLUS
-  numeric segments to index arrays (`#project.authors.0.name`), PLUS whole-array
-  selection when the elements are strings (Cargo `authors` → a list field).
-  Deliberately out: wildcards, projections, mapping — jq territory; if your
-  metadata needs that, write literals. JSON Pointer noted as the fully-general
-  not-chosen prior art (hostile escaping); YAML non-string keys are matched as
-  strings, ambiguity errors. Bulk field
-  import is dead: every field is author-pointed; cix maintains three file formats and
-  zero ecosystem tables (prior art for the eval: crane, pyproject-nix — we take the
-  builtins, not the frameworks). `META source <binder>` keeps ONLY the
+  `META inherit`. **Final mechanism (converged through Mathijs's rounds — the last
+  one deleted the rest): cix parses NOBODY'S manifest. Extraction is workshop
+  work.** A design arc worth keeping honest: we first sketched per-ecosystem
+  adapters (rejected: ecosystem tables rot), then one generic `#`-selector with
+  Rust-side serde for toml/json/yaml (rejected by "kan je niet gewoon uitshellen?"):
+  the workshop already runs real tools. If a field's value needs extraction, the
+  BUILDER computes it with jq/yq/tomlq from `${pkgs}` — sandboxed, memoized,
+  snapshot-receipted — and writes a file; META references it. Every format on
+  earth is supported the day its tool is, and cix ships zero parsers, zero
+  selector grammar, zero Norway problem. What META itself accepts:
+  - `META <field> "literal"`;
+  - `META <field> <reference>` — for inline fields the trimmed FILE CONTENTS become
+    the value (`META description ${build}/output/description`); for document
+    fields (readme/icon/license-file) the file itself is taken into the item;
+  - `META <field> ${pkgs.x}#attr.path` — attrset selection via the eval that
+    already resolves package refs (nix-attrpath syntax incl. quoted segments);
+    NOT file parsing — the dissolves-class keeps its one-liner;
+  - `META source <binder>` — provenance designation only.
+  Honest cost: a pure-assembly artifact wanting a field from its own manifest
+  opens a mini-builder for the extraction, or writes the literal. `META source <binder>` keeps ONLY the
   provenance-designation role: a remote flakeref binder yields url+rev+narHash (the
   flakeref IS the url); a `.` binder yields **narHash-only** — a local working copy
   has no public URL, and claiming one from `.git/config` would be ambient host
