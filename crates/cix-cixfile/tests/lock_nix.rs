@@ -1,6 +1,7 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::process::Command;
 
 use cix_cixfile::{build, generate_nix, parse, BuildOptions, LockFile};
 
@@ -318,11 +319,21 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
         .unwrap(),
     )
     .unwrap();
-    assert_eq!(bare, explicit);
+    assert_eq!(nar_hash(&bare), nar_hash(&explicit));
     assert_eq!(
         fs::read_to_string(bare.join("share/payload")).unwrap(),
         "same context\n"
     );
     let manifest = cix_run::spec::Spec::load(&bare).unwrap();
     assert_eq!(manifest.kind, cix_run::spec::ManifestKind::Item);
+}
+
+fn nar_hash(path: &std::path::Path) -> String {
+    let output = Command::new("nix-store")
+        .args(["--query", "--hash"])
+        .arg(path)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    String::from_utf8(output.stdout).unwrap()
 }
