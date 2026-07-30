@@ -5,7 +5,10 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use cix_run::unit::{compile_unit, UnitCompileOptions, UnitMode, UnitNaming};
+use cix_run::{
+    capabilities::HostCapabilities,
+    unit::{compile_unit_for_host, UnitCompileOptions, UnitMode, UnitNaming},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::resolve::CheckResult;
@@ -16,6 +19,16 @@ pub struct Manifest {
     pub name: String,
     pub units: BTreeMap<String, ManifestUnit>,
     pub services: BTreeMap<String, ManifestService>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub degradations: Vec<ManifestDegradation>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ManifestDegradation {
+    pub unit: String,
+    pub property: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -50,12 +63,16 @@ pub struct BuiltGeneration {
     pub manifest: Manifest,
 }
 
-pub fn build_generation(checked: &CheckResult, compose_path: &Path) -> Result<BuiltGeneration> {
+pub fn build_generation(
+    checked: &CheckResult,
+    compose_path: &Path,
+    capabilities: &HostCapabilities,
+) -> Result<BuiltGeneration> {
     let temporary = tempfile::tempdir().context("creating compose generation workspace")?;
     let generation = temporary
         .path()
         .join(format!("cix-compose-{}-generation", checked.compose.name));
-    let manifest = render_generation(checked, compose_path, &generation)?;
+    let manifest = render_generation(checked, compose_path, &generation, capabilities)?;
     let generation_text = generation.to_string_lossy().into_owned();
     let output = cix_common::nix(&["store", "add-path", &generation_text])
         .context("adding compose generation to the Nix store")?;
@@ -70,6 +87,7 @@ pub fn render_generation(
     checked: &CheckResult,
     compose_path: &Path,
     generation: &Path,
+    capabilities: &HostCapabilities,
 ) -> Result<Manifest> {
     let units_dir = generation.join("units");
     let sysusers_dir = generation.join("sysusers.d");
@@ -79,7 +97,7 @@ pub fn render_generation(
         .with_context(|| format!("copying {}", compose_path.display()))?;
     write_json(&generation.join("cix.lock"), &checked.lock)?;
 
-    let rendered = render_units(checked)?;
+    let rendered = render_units(checked, capabilities)?;
     for (name, text) in &rendered.units {
         fs::write(units_dir.join(name), text)
             .with_context(|| format!("writing generated unit {name}"))?;
@@ -98,7 +116,7 @@ struct Rendered {
     manifest: Manifest,
 }
 
-fn render_units(checked: &CheckResult) -> Result<Rendered> {
+fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Result<Rendered> {
     let composite = &checked.compose.name;
     let slice = format!("cix-{composite}.slice");
     let target = format!("cix-{composite}.target");
@@ -109,6 +127,7 @@ fn render_units(checked: &CheckResult) -> Result<Rendered> {
     let mut sysusers = String::new();
     let mut target_wants = BTreeSet::new();
     let mut target_after = BTreeSet::new();
+    let mut degradations = Vec::new();
 
     for (edge_name, edge) in &checked.compose.edges {
         let edge_unit = format!("{prefix}-edge-{edge_name}.service");
@@ -203,7 +222,7 @@ fn render_units(checked: &CheckResult) -> Result<Rendered> {
                     .any(|grant| Path::new(&grant.destination) == path)
             });
         }
-        let compiled = compile_unit(
+        let compiled = compile_unit_for_host(
             &checked_service.store_path,
             service_name,
             &compiled_service,
@@ -218,8 +237,19 @@ fn render_units(checked: &CheckResult) -> Result<Rendered> {
                 },
                 extra_properties,
             },
+            capabilities,
         )
         .with_context(|| format!("compiling services.{service_name}"))?;
+        degradations.extend(
+            compiled
+                .degradations
+                .iter()
+                .map(|degradation| ManifestDegradation {
+                    unit: service_unit.clone(),
+                    property: degradation.property.clone(),
+                    reason: degradation.reason.clone(),
+                }),
+        );
         let requires = grants
             .iter()
             .map(|grant| grant.unit.clone())
@@ -292,6 +322,7 @@ fn render_units(checked: &CheckResult) -> Result<Rendered> {
             name: composite.clone(),
             units: manifest_units,
             services: manifest_services,
+            degradations,
         },
     })
 }
@@ -407,11 +438,13 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let service = spec.services["app"].clone();
+        let web_service = spec.services["app"].clone();
+        let mut worker_service = web_service.clone();
+        worker_service.dirs.state.push("/var/lib/app".into());
         let web_config =
-            ResolvedConfig::resolve(&service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
+            ResolvedConfig::resolve(&web_service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
         let worker_config =
-            ResolvedConfig::resolve(&service, &[], &["http=127.0.0.1:8081".into()]).unwrap();
+            ResolvedConfig::resolve(&worker_service, &[], &["http=127.0.0.1:8081".into()]).unwrap();
         let compose = Compose {
             compose_version: 1,
             name: "stack".into(),
@@ -475,7 +508,7 @@ mod tests {
                     CheckedService {
                         store_path: "/nix/store/00000000000000000000000000000000-web".into(),
                         item_service: "app".into(),
-                        spec: service.clone(),
+                        spec: web_service,
                         config: web_config,
                     },
                 ),
@@ -484,7 +517,7 @@ mod tests {
                     CheckedService {
                         store_path: "/nix/store/11111111111111111111111111111111-worker".into(),
                         item_service: "app".into(),
-                        spec: service,
+                        spec: worker_service,
                         config: worker_config,
                     },
                 ),
@@ -497,7 +530,13 @@ mod tests {
     fn small_composite_units_match_golden_files() {
         let (directory, checked, compose_path) = fixture();
         let generation = directory.path().join("generation");
-        render_generation(&checked, &compose_path, &generation).unwrap();
+        render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
         for name in [
             "cix-stack-web.service",
             "cix-stack-edge-shared.service",
@@ -519,8 +558,20 @@ mod tests {
         let (directory, checked, compose_path) = fixture();
         let left = directory.path().join("left");
         let right = directory.path().join("right");
-        render_generation(&checked, &compose_path, &left).unwrap();
-        render_generation(&checked, &compose_path, &right).unwrap();
+        render_generation(
+            &checked,
+            &compose_path,
+            &left,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        render_generation(
+            &checked,
+            &compose_path,
+            &right,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
         for relative in [
             "compose.json",
             "cix.lock",
@@ -545,8 +596,50 @@ mod tests {
     #[test]
     fn identical_inputs_have_the_same_generation_store_path() {
         let (_directory, checked, compose_path) = fixture();
-        let left = build_generation(&checked, &compose_path).unwrap();
-        let right = build_generation(&checked, &compose_path).unwrap();
+        let capabilities = HostCapabilities::all_supported();
+        let left = build_generation(&checked, &compose_path, &capabilities).unwrap();
+        let right = build_generation(&checked, &compose_path, &capabilities).unwrap();
         assert_eq!(left.store_path, right.store_path);
+    }
+
+    #[test]
+    fn unsupported_host_records_one_minimal_degradation() {
+        let (directory, checked, compose_path) = fixture();
+        let generation = directory.path().join("generation");
+        let capabilities = HostCapabilities::private_pids_with_persistent_directories_unsupported(
+            "synthetic realization failure",
+        );
+        let manifest =
+            render_generation(&checked, &compose_path, &generation, &capabilities).unwrap();
+
+        assert_eq!(
+            manifest.degradations,
+            vec![ManifestDegradation {
+                unit: "cix-stack-worker.service".into(),
+                property: "PrivatePIDs=yes".into(),
+                reason: "synthetic realization failure".into(),
+            }]
+        );
+        let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(!worker.contains("PrivatePIDs="));
+        assert!(web.contains("PrivatePIDs=yes"));
+    }
+
+    #[test]
+    fn capable_host_records_no_degradation() {
+        let (directory, checked, compose_path) = fixture();
+        let generation = directory.path().join("generation");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+
+        assert!(manifest.degradations.is_empty());
+        let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        assert!(worker.contains("PrivatePIDs=yes"));
     }
 }

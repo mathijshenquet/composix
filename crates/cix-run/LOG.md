@@ -178,3 +178,21 @@
   VM repro: `nix build .#checks.x86_64-linux.compose-fallback-vm --no-link -L`;
   it failed only because the test expected the newly measured runtime-directory
   unit to fail when it correctly succeeded.
+
+- 2026-07-30 17:00 UTC — Implemented the shared host-capability contract and
+  compose honesty path. `HostCapabilities::probe` first reads the explicit
+  `CIX_PRIVATE_PIDS_PROBE=auto|supported|unsupported` override, records the
+  systemd version, then realizes a uniquely named transient unit containing the
+  minimal failing `DynamicUser=yes + PrivatePIDs=yes + StateDirectory=` set.
+  A recognized 226/NAMESPACE failure marks only the persistent-managed-directory
+  combination unsupported; any unexpected probe error aborts instead of silently
+  weakening a unit. The compiler drops exactly `PrivatePIDs=yes` only from
+  affected system units, returns a structured degradation, and excludes
+  RuntimeDirectory-only units from fallback. Compose stores unit/property/reason
+  in `manifest.json` and `cix up` emits the corresponding D36 warning before
+  activation. Synthetic generator and compose tests cover capable, unsupported,
+  exactly-once, and runtime-only paths. Exact focused repros passed:
+  `cargo test -p cix-run -p cix-compose` and
+  `cargo clippy -p cix-run -p cix-compose --all-targets -- -D warnings`.
+  Next: replace the bisection fixture with the end-to-end compose VM regression
+  and verify the real systemd-run probe diagnostics on systemd 261.

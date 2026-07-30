@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use cix_run::capabilities::HostCapabilities;
 
 use crate::{
     build_generation,
@@ -31,7 +32,8 @@ pub fn check(compose_path: &Path) -> Result<()> {
 
 pub fn diff(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
-    let built = build_generation(&checked, compose_path)?;
+    let capabilities = HostCapabilities::probe()?;
+    let built = build_generation(&checked, compose_path, &capabilities)?;
     let old = current_generation(&checked.compose.name)?;
     let report = compare_generations(old.as_deref(), &built.store_path)?;
     if report.is_empty() {
@@ -49,7 +51,9 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let checked = load_and_check(compose_path, update)?;
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
-    let built = build_generation(&checked, compose_path)?;
+    let capabilities = HostCapabilities::probe()?;
+    let built = build_generation(&checked, compose_path, &capabilities)?;
+    warn_degradations(&built.manifest);
     let old = current_generation(&checked.compose.name)?;
     set_profile(&checked.compose.name, &built.store_path)?;
     activate_generation(&checked.compose.name, old.as_deref(), &built.store_path)?;
@@ -59,6 +63,15 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
         built.store_path.display()
     );
     Ok(())
+}
+
+fn warn_degradations(manifest: &Manifest) {
+    for degradation in &manifest.degradations {
+        eprintln!(
+            "warning: unit {}: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
+            degradation.unit, degradation.property, degradation.reason
+        );
+    }
 }
 
 pub fn rollback(name: &str) -> Result<()> {
@@ -475,6 +488,7 @@ mod tests {
                     nar_hash: service_path.into(),
                 },
             )]),
+            degradations: Vec::new(),
         };
         fs::write(
             path.join("manifest.json"),
