@@ -946,7 +946,12 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   explicit declarations because they add files to the item (the COPY doctrine:
   writes are declared); manifest `version` = display, lock `revision` = receipt;
   explicit META fields override imports; nothing recognized at the path =
-  line-numbered error listing what was tried. So: **IN** (priority on conflict): (1) explicit Cixfile META
+  line-numbered error listing what was tried. **Nix already has the machinery**
+  (Mathijs): `builtins.fromTOML`/`fromJSON` in pure eval over the content-addressed
+  input — so the adapters are a few lines of *generated nix* in the codegen (the
+  same eval that resolves attr paths), not Rust-side parsers; prior art: crane's
+  crateNameFromCargoToml, pyproject-nix, buildNpmPackage, dream2nix. What remains
+  per ecosystem is only the key-mapping attrset. So: **IN** (priority on conflict): (1) explicit Cixfile META
   fields, (2) `META source <binder>`, (3) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
