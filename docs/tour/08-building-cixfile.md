@@ -5,14 +5,14 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-Every Cixfile begins by binding its package universe: `FROM <flakeref> AS pkgs`. The checked-in lock pins that universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.
+A Cixfile may bind a package universe with `FROM <flakeref> AS pkgs`. The checked-in lock pins that remote universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.
 
 ```sh
 $ cix build . -t tour-app:v1
 /nix/store/…-cix-item-tour-app
 ```
 
-The generated v4 manifest is the build's runtime contract: one bare service definition belongs to this one item.
+The generated v4 manifest is the build's runtime contract: this `SERVICE` produces one bare service definition.
 
 ```sh
 $ cat /nix/store/…-cix-item-tour-app/cix-manifest.json

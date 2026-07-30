@@ -5,21 +5,21 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-One Cixfile can compile a workspace and pluck independent store items. `CACHE target` keeps Cargo's incremental state host-local, while each item contains only its declared binary and its bare v4 manifest.
+One named builder can compile a workspace and feed independent service artifacts. Builder-local `CACHE target` keeps Cargo's incremental state host-local, while each service contains only its copied binary and bare v4 manifest.
 
 ```sh
 $ cix build .
 proj1-api /nix/store/…-cix-item-proj1-api
 proj1-worker /nix/store/…-cix-item-proj1-worker
-step 1 COPY rust/Cargo.toml -> Cargo.toml snapshot /nix/store/…-cix-build-snapshot
-step 2 COPY rust/Cargo.lock -> Cargo.lock snapshot /nix/store/…-cix-build-snapshot
-step 3 COPY rust/common/Cargo.toml -> common/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
-step 4 COPY rust/common/src/lib.rs -> common/src/lib.rs snapshot /nix/store/…-cix-build-snapshot
-step 5 COPY rust/api/Cargo.toml -> api/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
-step 6 COPY rust/api/src/main.rs -> api/src/main.rs snapshot /nix/store/…-cix-build-snapshot
-step 7 COPY rust/worker/Cargo.toml -> worker/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
-step 8 COPY rust/worker/src/main.rs -> worker/src/main.rs snapshot /nix/store/…-cix-build-snapshot
-step 9 RUN memo hit b22c94290699 -> /nix/store/…-cix-build-snapshot
+BUILDER build step 1 COPY /nix/store/…-cix-source/rust/Cargo.toml -> Cargo.toml snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 2 COPY /nix/store/…-cix-source/rust/Cargo.lock -> Cargo.lock snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 3 COPY /nix/store/…-cix-source/rust/common/Cargo.toml -> common/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 4 COPY /nix/store/…-cix-source/rust/common/src/lib.rs -> common/src/lib.rs snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 5 COPY /nix/store/…-cix-source/rust/api/Cargo.toml -> api/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 6 COPY /nix/store/…-cix-source/rust/api/src/main.rs -> api/src/main.rs snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 7 COPY /nix/store/…-cix-source/rust/worker/Cargo.toml -> worker/Cargo.toml snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 8 COPY /nix/store/…-cix-source/rust/worker/src/main.rs -> worker/src/main.rs snapshot /nix/store/…-cix-build-snapshot
+BUILDER build step 9 RUN memo hit b22c94290699 -> /nix/store/…-cix-build-snapshot
 ```
 
 ```sh
