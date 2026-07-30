@@ -5,8 +5,8 @@ let
 in
 scenario.node ''
   # D43 FRONTIER (flip when pod-ness lands): identical internal ports without any bind conflict once both claim network: pod
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.db} scenario-db:v1")
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "side"} scenario-api:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.db}) scenario-db:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "side"}) scenario-api:v1")
   machine.succeed("cp ${scenario.composeFile "alpha" "127.0.0.1:18081" "scenario-api:v1" null} /tmp/scenario/alpha.json")
   machine.succeed("cp ${scenario.composeFile "beta" "127.0.0.1:18082" "scenario-api:v1" null} /tmp/scenario/beta.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/alpha.json")

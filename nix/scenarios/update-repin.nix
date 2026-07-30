@@ -5,8 +5,8 @@ let
 in
 scenario.node ''
   # D44 FRONTIER: --update <edge> selective repin on nested composites
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.db} scenario-db:v1")
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "v1"} scenario-api:track")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.db}) scenario-db:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "v1"}) scenario-api:track")
   machine.succeed("cp ${scenario.composeFile "repin" "127.0.0.1:18083" "scenario-api:track" null} /tmp/scenario/compose.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18083/ | grep -Fx v1:PONG")
@@ -14,7 +14,7 @@ scenario.node ''
   old_api = machine.succeed("jq -r .services.api.storePath " + old_generation + "/manifest.json").strip()
   db_before = machine.succeed("systemctl show cix-repin-db.service -p ActiveEnterTimestampMonotonic --value").strip()
   api_before = machine.succeed("systemctl show cix-repin-api.service -p ActiveEnterTimestampMonotonic --value").strip()
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "v2"} scenario-api:track")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "v2"}) scenario-api:track")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18083/ | grep -Fx v2:PONG")
   new_generation = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-repin").strip()

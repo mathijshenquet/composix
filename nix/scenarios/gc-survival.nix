@@ -4,13 +4,13 @@ let
   scenario = import ./lib.nix { inherit pkgs cix; };
 in
 scenario.node ''
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.db} scenario-db:v1")
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "live"} scenario-api:track")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.db}) scenario-db:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "live"}) scenario-api:track")
   machine.succeed("cp ${scenario.composeFile "gc" "127.0.0.1:18084" "scenario-api:track" null} /tmp/scenario/compose.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18084/ | grep -Fx live:PONG")
   active = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-gc").strip()
-  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "new"} scenario-api:track")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "new"}) scenario-api:track")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
   current_api = machine.succeed("jq -r .services.api.storePath $(readlink -f /nix/var/nix/profiles/cix-compose-gc)/manifest.json").strip()
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix index history scenario-api > /tmp/scenario/history-before")
