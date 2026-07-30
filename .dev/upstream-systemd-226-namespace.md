@@ -6,6 +6,38 @@ Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
 fallback for this class (D36; `crates/cix-run/src/capabilities.rs`), so filing is
 advocacy, not a blocker for us.
 
+## Investigation update — non-NixOS repro not yet established
+
+The requested upstream same-harness A/B could **not** be completed on this host, so
+the v257-pass/v261-fail result remains cross-harness and NixOS-only. This is not
+evidence that the issue is NixOS-specific (or that it is not); no non-NixOS guest
+ever booted.
+
+The exact attempt used a clean upstream systemd clone at v261 in
+`/home/mathijs/tmp/systemd-sdbisect`, current upstream mkosi in
+`/home/mathijs/tmp/mkosi-sdbisect`, and mkosi's Fedora/rawhide main image:
+
+```sh
+sudo -n /nix/var/nix/profiles/default/bin/nix shell \
+  nixpkgs#mkosi nixpkgs#qemu nixpkgs#dnf5 nixpkgs#rpm nixpkgs#createrepo_c -c \
+  sh -c 'PATH=/home/mathijs/tmp/sdbisect-bin:$PATH; exec \
+  /home/mathijs/tmp/mkosi-sdbisect/bin/mkosi -f --tools-tree= \
+  --repository-key-check=no --distribution fedora --release rawhide build'
+```
+
+The NixOS host denies mkosi's unprivileged namespace setup, so the build required
+root. The packaged mkosi lacks the Git metadata needed by this systemd revision's
+`MinimumVersion=commit:…` check; current upstream mkosi was used instead. The Fedora
+bootstrap also required nixpkgs `dnf5`, `rpm`, and `createrepo_c` (with a local
+`dnf`→`dnf5` wrapper). systemd v261's RPM compilation completed, but final initrd
+assembly failed before boot: its `systemd` and `systemd-udev` `%sysusers` scriptlets
+reported `usermod: cannot lock /etc/passwd; try again later`, and mkosi's `dnf5
+--installroot=/buildroot … install … systemd … udev` exited 1. The full append-only
+command/error trail is in `.dev/sdbisect.LOG.md` (intentionally untracked).
+
+Accordingly, the following body must not claim a regression until the same-harness
+A/B has been reproduced. The source analysis below is only a candidate audit.
+
 ## Proposed title
 
 systemd 261 regression: DynamicUser= + PrivatePIDs= + StateDirectory= fails at
