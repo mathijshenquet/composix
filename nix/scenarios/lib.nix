@@ -79,13 +79,16 @@ let
     EOF
   '';
 
-  compose = name: bind: apiRef: message:
-    let env = if message == null then "" else '', "env": { "MESSAGE": "${message}" }''; in ''
+  composeWithUpdate = name: bind: apiRef: message: update:
+    let
+      env = if message == null then "" else '', "env": { "MESSAGE": "${message}" }'';
+      updateField = if update == null then "" else '', "update": "${update}"'';
+    in ''
     {
       "composeVersion": 1,
       "name": "${name}",
       "services": {
-        "api": { "item": "${apiRef}", "bind": { "http": "${bind}" }${env} },
+        "api": { "item": "${apiRef}", "bind": { "http": "${bind}" }${env}${updateField} },
         "db": { "item": "scenario-db:v1" }
       },
       "edges": {
@@ -97,8 +100,14 @@ let
     }
   '';
 
+  compose = name: bind: apiRef: message:
+    composeWithUpdate name bind apiRef message null;
+
   composeFile = name: bind: apiRef: message:
     pkgs.writeText "scenario-${name}.json" (compose name bind apiRef message);
+
+  trackedComposeFile = name: bind: apiRef: message:
+    pkgs.writeText "scenario-${name}.json" (composeWithUpdate name bind apiRef message "track");
 
   node = script: pkgs.testers.runNixOSTest {
     name = "scenario";
@@ -119,5 +128,5 @@ let
   };
 in
 {
-  inherit api compose composeFile db node;
+  inherit api compose composeFile db node trackedComposeFile;
 }
