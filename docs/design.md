@@ -993,6 +993,18 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   serve/explore HTML incl. README rendering · OCI annotation export · index search
   fields.
 
+- ✅ D55 (2026-07-30) — **SCRIPT is dropped** (Mathijs: YAGNI — and the evidence
+  agrees: zero Cixfiles use it; its only consumer was its own tour showcase, the
+  D50-ITEM situation again). Its whole delta over FILE was shebang + exec bit,
+  which `EXEC ${pkgs.bash}/bin/sh <path>` dissolves (sh reads the file; no exec
+  bit needed); without interpolation the answer was always COPY of a real source
+  file. **FILE stays** despite zero current users — its reason is architectural
+  (store paths cannot be pre-written into source files) and the corpus middling
+  tier will need it; re-evaluate if it is still unused by then. Tour style rule:
+  chapters demonstrate COPY'd real files; FILE only where store-path-embedding is
+  the actual lesson; the RUN heredoc demo stays (it is D51's own ask).
+  Migration-grade parse error for SCRIPT; rides the next language micro-round.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
