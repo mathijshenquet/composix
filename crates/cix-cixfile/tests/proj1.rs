@@ -32,11 +32,8 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     .unwrap();
 
     let parsed = parse(&fs::read_to_string(temporary.path().join("Cixfile")).unwrap()).unwrap();
-    assert_eq!(parsed.caches, ["target"]);
-    assert_eq!(
-        parsed.items.keys().map(String::as_str).collect::<Vec<_>>(),
-        ["proj1-api", "proj1-worker"]
-    );
+    assert_eq!(parsed.builders["build"].caches, ["target"]);
+    assert_eq!(parsed.artifact_order, ["proj1-api", "proj1-worker"]);
 
     let first = run_build(temporary.path(), false);
     assert_items_are_minimal_and_v4(&first);

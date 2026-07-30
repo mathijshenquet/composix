@@ -23,7 +23,7 @@ Ribbons:
 |---|---|---|---|---|
 | 1 | [wordpress-mysql](https://raw.githubusercontent.com/docker/awesome-compose/master/wordpress-mysql/compose.yaml) | 2 svcs, named volume, ports, env | ✅ state dirs + ports | S |
 | 2 | [prometheus-grafana](https://raw.githubusercontent.com/docker/awesome-compose/master/prometheus-grafana/compose.yaml) | named vol + relative config binds | ✅ / config binds 🔶 (bake into item; operator host-binds ⏳ compose) | S |
-| 3 | [flask-redis](https://raw.githubusercontent.com/docker/awesome-compose/master/flask-redis/compose.yaml) | build: + live source bind (dev loop) | build ✅ (D39/D40); live-reload dev bind ❌ deploy-side (docker.md `watch` ❓) | M |
+| 3 | [flask-redis](https://raw.githubusercontent.com/docker/awesome-compose/master/flask-redis/compose.yaml) | build: + live source bind (dev loop) | build ✅ (D47); live-reload dev bind ❌ deploy-side (docker.md `watch` ❓) | M |
 | 4 | [react-express-mongodb](https://raw.githubusercontent.com/docker/awesome-compose/master/react-express-mongodb/compose.yaml) | 2 networks (frontend can't see db), anon-volume masking node_modules | segmentation ⏳ D26/D27; volume-masking ❌ idiom (restructure honestly) | M |
 | 5 | [Gitea](https://docs.gitea.com/installation/install-with-docker) | 1 svc, data dir, ports incl. SSH 222:22 | ✅ | S |
 | 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | ordering ✅; health wiring ⏳ D30-deferral; init free under systemd | S |
@@ -76,16 +76,16 @@ we deferred *with intent to build* (health wiring, operator binds).
 | 3 | [nginx official](https://github.com/nginx/docker-nginx/blob/master/mainline/debian/Dockerfile) | pinned vendor apt + GPG + stdout log symlinks | ✅ dissolves; log symlinks moot (journald native) | S |
 | 4 | [node official](https://github.com/nodejs/docker-node/blob/main/24/bookworm-slim/Dockerfile) | verified binary download + unpack | ✅ dissolves (nixpkgs nodejs) | S |
 | 5 | [python official](https://github.com/docker-library/python/blob/master/3.13/slim-bookworm/Dockerfile) | CPython from source + GPG | ✅ dissolves | S |
-| 6 | [Next.js app](https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile) | 3-stage, npm cache mounts, COPY --from standalone | ✅ **maps 1:1 onto D39/D40**: chain + CACHE + ITEM/TAKE plucks | M |
-| 7 | [gitea](https://github.com/go-gitea/gitea/blob/main/Dockerfile) | go+pnpm compile, cache mounts, .git bind for version stamp | ✅ D39/D40; version-stamp bind 🔶 (COPY it, or a build-arg story ❓) | M |
+| 6 | [Next.js app](https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile) | 3-stage, npm cache mounts, COPY --from standalone | ✅ **maps onto D47**: named builders + builder-local CACHE + binder COPY into an artifact | M |
+| 7 | [gitea](https://github.com/go-gitea/gitea/blob/main/Dockerfile) | go+pnpm compile, cache mounts, .git bind for version stamp | ✅ D47; version-stamp bind 🔶 (COPY it, or a build-arg story ❓) | M |
 | 8 | [vaultwarden](https://github.com/dani-garcia/vaultwarden/blob/main/docker/Dockerfile.debian) | rust + digest-pinned FROMs + xx cross-compile | build ✅; digest-pinned FROM = our locks *by default*; cross-compile 🔶 (nix cross exists, no cix surface; D14 per-system entries) | M |
 | 9 | [uv app (astral)](https://github.com/astral-sh/uv-docker-example/blob/main/Dockerfile) | pure uv fetch with cache+lockfile bind mounts | ✅ the D38 spike literally proved this ecosystem | S |
 | 10 | [jenkins](https://github.com/jenkinsci/docker/blob/master/debian/Dockerfile) | war download + GPG + tini + uid surgery | ✅ FETCH + item; tini/uid ceremony dissolves (systemd + DynamicUser) | S |
 | 11 | [playwright](https://github.com/microsoft/playwright/blob/main/utils/docker/Dockerfile.noble) | huge apt + browser binaries + `--mount=type=secret` npmrc + chmod 777 | 🔶 nixpkgs browsers replace the install path; **build secrets ❓ gap** (below) | L |
 | 12 | [pytorch](https://github.com/pytorch/pytorch/blob/main/Dockerfile) | 6-stage, CUDA gated by ARG, unverified NVIDIA key | 🔶 nixpkgs-cuda works but unfree/impure pain is real; FETCH would *force* the pin the Dockerfile skips | L |
-| 13 | [airflow](https://github.com/apache/airflow/blob/main/Dockerfile) | 50+ ARGs, interpreter compiles, uid-50000-gid-0 OpenShift trick | 🔶 by volume; most of it dissolves into nixpkgs + D39/D40, the ARG matrix ≈ D46 parametric | L |
+| 13 | [airflow](https://github.com/apache/airflow/blob/main/Dockerfile) | 50+ ARGs, interpreter compiles, uid-50000-gid-0 OpenShift trick | 🔶 by volume; most of it dissolves into nixpkgs + D47, the ARG matrix ≈ D46 parametric | L |
 | 14 | [php official](https://github.com/docker-library/php/blob/master/8.4/bookworm/cli/Dockerfile) | pages of ./configure + apt-mark dance | ✅ dissolves (nixpkgs php + extensions) | S |
-| 15 | [grafana](https://github.com/grafana/grafana/blob/main/Dockerfile) | 17 FROM lines, go+yarn compile, unverified glibc curl, chmod 777 | ✅ D39/D40 for the build; the variant matrix ≈ D46; 777s dissolve | M |
+| 15 | [grafana](https://github.com/grafana/grafana/blob/main/Dockerfile) | 17 FROM lines, go+yarn compile, unverified glibc curl, chmod 777 | ✅ D47 for the build; the variant matrix ≈ D46; 777s dissolve | M |
 | 16 | [wordpress official](https://github.com/docker-library/wordpress/blob/master/latest/php8.4/apache/Dockerfile) | ext compile + **entrypoint copies app into volume + chowns at runtime** | runtime fs surgery ❌ as-is (the ocimport mutating-entrypoint class); restructure: app = item, wp-content = state dir 🔶 | M |
 | 17 | [keycloak](https://github.com/keycloak/keycloak/blob/main/quarkus/container/Dockerfile) | unpack prebuilt dist (ADD, no checksum) + g+rwX | ✅ FETCH (pin forced — an *upgrade* over the original) + item | S |
 | 18 | [traefik scratch](https://github.com/traefik/traefik-library-image/blob/master/v3.5/scratch/Dockerfile) | pure assembly of static binary + certs + tzdata | ✅ dissolves — this Dockerfile is yearning to be a nix closure | S |
@@ -94,8 +94,8 @@ we deferred *with intent to build* (health wiring, operator binds).
 interpreter, pin the tarball, create the uid, wire gosu/tini, symlink logs) is exactly
 what nixpkgs + DynamicUser + systemd + journald already do; migrating these means
 porting runtime config, not the build. The *modern app-build class maps 1:1 onto
-D39/D40*: multi-stage → linear chain, `COPY --from` final stage → ITEM/TAKE plucks,
-`--mount=type=cache` (in every modern build, in zero official images) → CACHE,
+D47*: multi-stage → named builders, `COPY --from` → binder-rooted COPY,
+`--mount=type=cache` (in every modern build, in zero official images) → builder-local CACHE,
 checksummed curl → FETCH (and the three unverified downloads in the corpus — pytorch,
 grafana, keycloak — would be *forced* honest by FETCH's TOFU pin). Universal
 gosu/su-exec/tini/uid-999 boilerplate: ceremony our substrate deletes.
@@ -143,9 +143,8 @@ Ranked by frequency × how squarely it hits us:
   AmbientCapabilities story; small.
 - **Renovate-shaped cron batch**: forces the timer design (#4); tiny surface.
 - **Gitea-shaped build** (proj2 candidate): go+pnpm dual-ecosystem compile with cache
-  mounts and a version-stamp — the heaviest realistic D39/D40 exercise short of nasty.
+  mounts and a version-stamp — the heaviest realistic D47 exercise short of nasty.
 - **Bitnami-postgres vs our postgres pack**: not a new example — a docs page putting
   the chart's 400 lines next to our Cixfile, per k8s rows 4/15. Pure showcase.
 
-Each candidate waits on track/items (ITEM syntax) before being built; adopt one per
-track with its forcing function as the gate.
+Adopt one candidate per track with its forcing function as the gate.

@@ -18,7 +18,7 @@ built now. Everything may change.
 | --- | --- | --- |
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
 | **spec + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (spec v4; reads v1–v4) |
-| **Cixfile** | dockerfile-shaped authoring without writing nix; locked linear builds plucked into independent items | working (v1) |
+| **Cixfile** | dockerfile-shaped authoring without writing nix; named builders and explicit service/app/item artifacts | working (v1) |
 | **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
 
 ## A taste
@@ -26,14 +26,15 @@ built now. Everything may change.
 ```dockerfile
 # Cixfile — this is examples/pack/nginx, verbatim
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-COPY index.html /srv/www/index.html
+BUILDER build
+COPY ${src}/index.html srv/www/index.html
+COPY ${src}/nginx.conf etc/nginx/nginx.conf
 
-COPY nginx.conf /etc/nginx/nginx.conf
-
-ITEM nginx
-TAKE ${build}/srv/www/index.html /srv/www/index.html
-TAKE ${build}/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+SERVICE nginx
+COPY ${build}/srv/www/index.html srv/www/index.html
+COPY ${build}/etc/nginx/nginx.conf etc/nginx/nginx.conf
 LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080

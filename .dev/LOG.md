@@ -355,6 +355,23 @@
 - Open with Mathijs: decide whether to file the drafted upstream systemd regression issue. Open
   for agents: independently re-verify and merge `track/composefallback`.
 
+## 2026-07-30 (track/blocks close)
+
+- Completed D47 on `track/blocks`: Cixfile is now a backward-only graph of named FROM/FETCH/
+  BUILDER/SERVICE/APP/ITEM binders; RUN and build PATH/CACHE are builder-scoped; TAKE and the
+  ambient `${build}` name have migration-grade errors; unified COPY supports both explicit
+  binders and the amended implicit local directory context.
+- v4 manifests distinguish service/app/item without a version bump. Apps run as hardened
+  transient oneshots and return their exact exit status; asset-only items are refused by
+  `cix run`. Every example was migrated, and `examples/build/ingredient` proves an independently
+  pinned top-level FETCH binder.
+- Merged current `main` at `dc4e331`. Active docs, Docker/corpus ledgers, and executable tour
+  reflect D47; the `nix/scenarios/**` ownership fence was not touched.
+- Verification passed: workspace fmt, warning-denied clippy, all Rust tests, explicit tour
+  regeneration/drift/determinism, proj1 selective/warm/clean rebuild, root VM dogfood, and the
+  systemd-261 compose fallback VM. Exact commands are in `crates/cix-cixfile/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.
+
 ## 2026-07-30 (track/sdbisect close)
 
 - Completed the same-host NixOS A/B check on `track/sdbisect`. Stock systemd 261 and a systemd
@@ -367,3 +384,12 @@
   the two-node test verifies the systemd version, patched PID 1, and failure transcript on both
   VMs. Open with Mathijs: decide whether a further upstream investigation is worthwhile. Open for
   agents: independently re-verify the committed `track/sdbisect` branch.
+
+## 2026-07-30 (track/blocks final-main update)
+
+- Merged main's concurrent corpus/systemd-bisect/D48 design work through `6e9a136`; no D47 code
+  conflicts and no paths under `nix/scenarios/**`.
+- Repeated the complete Rust, tour regeneration/drift/determinism, dogfood VM, and compose
+  fallback VM gate on that exact final snapshot; all passed. Exact command is in
+  `crates/cix-cixfile/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.

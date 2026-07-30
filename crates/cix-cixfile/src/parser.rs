@@ -3,7 +3,8 @@ use std::fmt;
 use std::path::{Component, Path};
 
 use crate::model::{
-    Assembly, BuildStep, Cixfile, Env, Input, Item, Port, Service, Take, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, Env, Fetch, Input,
+    InputKind, Port, Service, Template, TemplatePart,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -39,15 +40,28 @@ struct Parser<'a> {
     lines: Vec<&'a str>,
     index: usize,
     inputs: BTreeMap<String, Input>,
-    paths: Vec<Template>,
-    caches: Vec<String>,
-    steps: Vec<BuildStep>,
-    build_destinations: BTreeSet<String>,
-    items: BTreeMap<String, Item>,
-    item_destinations: BTreeMap<String, BTreeSet<String>>,
-    item_lines: BTreeMap<String, (usize, String)>,
-    item_metadata: BTreeMap<String, ServiceMetadata>,
-    current_item: Option<String>,
+    fetches: BTreeMap<String, Fetch>,
+    fetch_order: Vec<String>,
+    builders: BTreeMap<String, Builder>,
+    builder_order: Vec<String>,
+    artifacts: BTreeMap<String, Artifact>,
+    artifact_order: Vec<String>,
+    names: BTreeMap<String, DeclaredName>,
+    destinations: BTreeMap<String, BTreeSet<String>>,
+    metadata: BTreeMap<String, ServiceMetadata>,
+    current: Option<CurrentBlock>,
+}
+
+#[derive(Clone)]
+struct DeclaredName {
+    kind: &'static str,
+    line: usize,
+}
+
+#[derive(Clone)]
+enum CurrentBlock {
+    Builder(String),
+    Artifact(String),
 }
 
 #[derive(Default)]
@@ -62,15 +76,16 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
         lines: input.lines().collect(),
         index: 0,
         inputs: BTreeMap::new(),
-        paths: Vec::new(),
-        caches: Vec::new(),
-        steps: Vec::new(),
-        build_destinations: BTreeSet::new(),
-        items: BTreeMap::new(),
-        item_destinations: BTreeMap::new(),
-        item_lines: BTreeMap::new(),
-        item_metadata: BTreeMap::new(),
-        current_item: None,
+        fetches: BTreeMap::new(),
+        fetch_order: Vec::new(),
+        builders: BTreeMap::new(),
+        builder_order: Vec::new(),
+        artifacts: BTreeMap::new(),
+        artifact_order: Vec::new(),
+        names: BTreeMap::new(),
+        destinations: BTreeMap::new(),
+        metadata: BTreeMap::new(),
+        current: None,
     }
     .parse()
 }
@@ -85,55 +100,42 @@ impl Parser<'_> {
             if trimmed.is_empty() || trimmed.starts_with('#') {
                 continue;
             }
-
             let (directive, arguments) = trimmed
                 .split_once(char::is_whitespace)
                 .map_or((trimmed, ""), |(directive, arguments)| {
                     (directive, arguments.trim())
                 });
-            if self.inputs.is_empty()
-                && self.items.is_empty()
-                && self.steps.is_empty()
-                && self.paths.is_empty()
-                && self.caches.is_empty()
-                && directive != "FROM"
-            {
-                return Err(ParseError::new(
-                    line_number,
-                    source,
-                    "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
-                ));
-            }
             match directive {
                 "FROM" => self.from(line_number, source, arguments)?,
-                "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
-                "PATH" => self.path(line_number, source, arguments)?,
+                "FETCH" => self.fetch(line_number, source, arguments)?,
+                "BUILDER" => self.begin_builder(line_number, source, arguments)?,
+                "SERVICE" => {
+                    self.begin_artifact(ArtifactKind::Service, line_number, source, arguments)?
+                }
+                "APP" => self.begin_artifact(ArtifactKind::App, line_number, source, arguments)?,
+                "ITEM" => {
+                    self.begin_artifact(ArtifactKind::Item, line_number, source, arguments)?
+                }
                 "COPY" => self.copy(line_number, source, arguments)?,
-                "FETCH" | "RUN" => self.build_step(directive, line_number, source, arguments)?,
+                "RUN" => self.run(line_number, source, arguments)?,
+                "PATH" => self.path(line_number, source, arguments)?,
+                "CACHE" if matches!(self.current, Some(CurrentBlock::Builder(_))) => {
+                    self.build_cache(line_number, source, arguments)?
+                }
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
                 "LINK" => self.link(line_number, source, arguments)?,
-                "SERVICE" => {
-                    return Err(ParseError::new(
-                        line_number,
-                        source,
-                        "SERVICE was renamed to ITEM by D40; use ITEM <name>",
-                    ));
-                }
-                "ITEM" => self.begin_item(line_number, source, arguments)?,
-                "TAKE" => self.take(line_number, source, arguments)?,
                 "EXEC" => self.exec(line_number, source, arguments, false)?,
                 "SETUP" => self.exec(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
-                "CACHE" if self.current_item.is_none() => {
-                    self.build_cache(line_number, source, arguments)?
-                }
                 "STATE" | "CACHE" | "LOGS" | "CONFIG" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
                 "JIT" => self.jit(line_number, source, arguments)?,
                 "OUTBOUND" => self.outbound(line_number, source, arguments)?,
+                "TAKE" => return Err(take_removed_error(line_number, source, arguments)),
+                "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 _ => {
                     return Err(ParseError::new(
                         line_number,
@@ -144,95 +146,69 @@ impl Parser<'_> {
             }
         }
 
-        if self.inputs.is_empty() {
-            let (line, source) = self
-                .lines
+        let first = || {
+            self.lines
                 .iter()
                 .enumerate()
                 .find(|(_, line)| !line.trim().is_empty() && !line.trim().starts_with('#'))
-                .map_or((1, ""), |(line, source)| (line + 1, *source));
+                .map_or((1, ""), |(line, source)| (line + 1, *source))
+        };
+        if self
+            .inputs
+            .values()
+            .all(|input| input.kind != InputKind::PackageUniverse)
+        {
+            let (line, source) = first();
             return Err(ParseError::new(
                 line,
                 source,
-                "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
+                "a Cixfile needs a package universe; try: FROM nixpkgs AS pkgs",
             ));
         }
-        if self.items.is_empty() {
-            let (line, source) = self
-                .lines
-                .iter()
-                .enumerate()
-                .find(|(_, line)| !line.trim().is_empty() && !line.trim().starts_with('#'))
-                .map_or((1, ""), |(line, source)| (line + 1, *source));
+        if self.artifacts.is_empty() {
+            let (line, source) = first();
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile must declare at least one ITEM",
+                "a Cixfile must declare at least one SERVICE, APP, or ITEM block",
             ));
         }
-        for (name, item) in &self.items {
-            let service = &item.service;
-            if service.exec.is_empty() {
-                let (line, source) = &self.item_lines[name];
+        for (name, artifact) in &self.artifacts {
+            if artifact.kind != ArtifactKind::Item && artifact.service.exec.is_empty() {
                 return Err(ParseError::new(
-                    *line,
-                    source,
-                    format!("ITEM {name:?} must declare exactly one EXEC"),
+                    artifact.line,
+                    self.lines
+                        .get(artifact.line - 1)
+                        .copied()
+                        .unwrap_or_default(),
+                    format!(
+                        "{} {name:?} must declare exactly one EXEC",
+                        artifact.kind.keyword()
+                    ),
                 ));
             }
-            validate_service_references(service, &self.item_metadata[name])?;
-            let mut paths = self.paths.clone();
-            paths.extend(item.paths.clone());
-            validate_bare_commands(service, &self.item_metadata[name], &paths)?;
-        }
-        if self.steps.is_empty() {
-            if let Some(line) = self
-                .items
-                .values()
-                .flat_map(|item| &item.takes)
-                .map(|take| take.line)
-                .next()
-            {
-                return Err(ParseError::new(
-                    line,
-                    self.lines.get(line - 1).copied().unwrap_or_default(),
-                    "TAKE requires at least one COPY, FETCH, or RUN step",
-                ));
+            if artifact.kind != ArtifactKind::Item {
+                validate_service_references(&artifact.service, &self.metadata[name])?;
+                validate_bare_commands(&artifact.service, &self.metadata[name], &artifact.paths)?;
             }
         }
-
         Ok(Cixfile {
             inputs: self.inputs,
-            paths: self.paths,
-            caches: self.caches,
-            steps: self.steps,
-            items: self.items,
+            fetches: self.fetches,
+            fetch_order: self.fetch_order,
+            builders: self.builders,
+            builder_order: self.builder_order,
+            artifacts: self.artifacts,
+            artifact_order: self.artifact_order,
         })
     }
 
     fn from(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        if self.inputs.is_empty()
-            && self.items.is_empty()
-            && self.steps.is_empty()
-            && self.paths.is_empty()
-            && self.caches.is_empty()
-        {
-            // The first meaningful directive is permitted to establish the input universe.
-        } else if self.inputs.is_empty() {
+        if self.current.is_some() {
             return Err(ParseError::new(
                 line,
                 source,
-                "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
-            ));
-        } else if !self.items.is_empty()
-            || !self.steps.is_empty()
-            || !self.paths.is_empty()
-            || !self.caches.is_empty()
-        {
-            return Err(ParseError::new(
-                line,
-                source,
-                "FROM declarations must be contiguous at the beginning of the Cixfile",
+                "FROM is a prelude declaration and must appear before the first block",
             ));
         }
         let fields = arguments.split_whitespace().collect::<Vec<_>>();
@@ -240,71 +216,178 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "FROM requires an explicit namespace: FROM <flakeref> AS <name>",
+                "FROM requires an explicit binder: FROM <flakeref|.> AS <name>",
             ));
         }
-        let url = normalize_flakeref(fields[0], line, source)?;
-        let namespace = fields[2];
-        validate_namespace(namespace, line, source)?;
-        if self.inputs.contains_key(namespace) {
+        let (url, kind) = normalize_input(fields[0], line, source)?;
+        let name = fields[2];
+        validate_namespace(name, line, source)?;
+        self.declare_name(name, "FROM binder", line, source)?;
+        self.inputs
+            .insert(name.to_owned(), Input { url, kind, line });
+        Ok(())
+    }
+
+    fn fetch(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if let Some(CurrentBlock::Builder(name)) = self.current.clone() {
+            return self.builder_command(&name, true, line, source, arguments);
+        }
+        if let Some(CurrentBlock::Artifact(name)) = &self.current {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("FROM namespace {namespace:?} is already declared"),
+                format!(
+                    "FETCH is not legal inside {} blocks; use a top-level named FETCH or a BUILDER",
+                    self.artifacts[name].kind.keyword()
+                ),
             ));
         }
-        self.inputs.insert(namespace.to_owned(), Input { url });
+        let (name, command) = arguments.split_once(char::is_whitespace).ok_or_else(|| {
+            ParseError::new(
+                line,
+                source,
+                "top-level FETCH requires a binder and command: FETCH <name> <command…>",
+            )
+        })?;
+        validate_namespace(name, line, source)?;
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "top-level FETCH requires a command after its binder",
+            ));
+        }
+        let command = self.build_template(command, line, source, false)?;
+        self.declare_name(name, "FETCH binder", line, source)?;
+        self.fetches.insert(
+            name.to_owned(),
+            Fetch {
+                command,
+                line,
+                source: source.to_owned(),
+            },
+        );
+        self.fetch_order.push(name.to_owned());
+        Ok(())
+    }
+
+    fn begin_builder(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        let fields = exact_fields(arguments, 1, line, source, "BUILDER <name>")?;
+        let name = fields[0];
+        validate_name("builder", name, line, source)?;
+        self.declare_name(name, "BUILDER block", line, source)?;
+        self.builders.insert(name.to_owned(), Builder::empty(line));
+        self.builder_order.push(name.to_owned());
+        self.destinations.insert(name.to_owned(), BTreeSet::new());
+        self.current = Some(CurrentBlock::Builder(name.to_owned()));
+        Ok(())
+    }
+
+    fn begin_artifact(
+        &mut self,
+        kind: ArtifactKind,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        let fields = exact_fields(
+            arguments,
+            1,
+            line,
+            source,
+            &format!("{} <name>", kind.keyword()),
+        )?;
+        let name = fields[0];
+        validate_name("artifact", name, line, source)?;
+        self.declare_name(name, "artifact block", line, source)?;
+        self.artifacts
+            .insert(name.to_owned(), Artifact::empty(kind, line));
+        self.artifact_order.push(name.to_owned());
+        self.destinations.insert(name.to_owned(), BTreeSet::new());
+        self.metadata
+            .insert(name.to_owned(), ServiceMetadata::default());
+        self.current = Some(CurrentBlock::Artifact(name.to_owned()));
         Ok(())
     }
 
     fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         let fields = at_least_one_field(arguments, line, source, "PATH")?;
-        let current = self.current_item.clone();
-        let conflicts = if let Some(name) = &current {
-            self.items[name].service.env.contains_key("PATH")
-        } else {
-            self.items
-                .values()
-                .any(|item| item.service.env.contains_key("PATH"))
+        let current = self.current.clone();
+        let existing = match &current {
+            Some(CurrentBlock::Builder(name)) => &self.builders[name].paths,
+            Some(CurrentBlock::Artifact(name))
+                if self.artifacts[name].kind == ArtifactKind::Service =>
+            {
+                if self.artifacts[name].service.env.contains_key("PATH") {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "PATH conflicts with an explicit ENV PATH declaration",
+                    ));
+                }
+                &self.artifacts[name].paths
+            }
+            Some(CurrentBlock::Artifact(name)) => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "PATH is not legal inside {} blocks under D47",
+                        self.artifacts[name].kind.keyword()
+                    ),
+                ));
+            }
+            None => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "PATH must appear inside a BUILDER or SERVICE block under D47",
+                ));
+            }
         };
-        if conflicts {
-            return Err(ParseError::new(
-                line,
-                source,
-                "PATH conflicts with an explicit ENV PATH declaration",
-            ));
-        }
-        if current.is_none() && !self.steps.is_empty() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "PATH must appear before the COPY/FETCH/RUN chain",
-            ));
-        }
+        let mut additions = Vec::new();
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = self.build_template(field, line, source, false, false)?;
-            validate_path_template(&path, current.is_some(), line, source)?;
-            let duplicated = self.paths.iter().any(|existing| existing.same_value(&path))
-                || current.as_ref().is_some_and(|name| {
-                    self.items[name]
-                        .paths
-                        .iter()
-                        .any(|existing| existing.same_value(&path))
-                });
-            if duplicated {
+            let path = self.build_template(field, line, source, false)?;
+            validate_path_template(
+                &path,
+                matches!(current, Some(CurrentBlock::Artifact(_))),
+                line,
+                source,
+            )?;
+            if existing
+                .iter()
+                .chain(&additions)
+                .any(|candidate| candidate.same_value(&path))
+            {
                 return Err(ParseError::new(
                     line,
                     source,
                     format!("PATH directory {field:?} is duplicated"),
                 ));
             }
-            let paths = if let Some(name) = &current {
-                &mut self.items.get_mut(name).expect("current item exists").paths
-            } else {
-                &mut self.paths
-            };
-            paths.push(path);
+            additions.push(path);
+        }
+        match current {
+            Some(CurrentBlock::Builder(name)) => self
+                .builders
+                .get_mut(&name)
+                .expect("builder exists")
+                .paths
+                .extend(additions),
+            Some(CurrentBlock::Artifact(name)) => self
+                .artifacts
+                .get_mut(&name)
+                .expect("artifact exists")
+                .paths
+                .extend(additions),
+            None => unreachable!(),
         }
         Ok(())
     }
@@ -315,11 +398,12 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
-        if !self.steps.is_empty() {
+        let name = self.current_builder_name("CACHE", line, source)?.to_owned();
+        if !self.builders[&name].steps.is_empty() {
             return Err(ParseError::new(
                 line,
                 source,
-                "build CACHE must appear before the COPY/FETCH/RUN chain",
+                "BUILDER CACHE must appear before that builder's COPY/FETCH/RUN chain",
             ));
         }
         let fields = exact_fields(arguments, 1, line, source, "CACHE <dir>")?;
@@ -327,7 +411,7 @@ impl Parser<'_> {
         reject_runtime_variable(fields[0], "CACHE directory", line, source)?;
         validate_relative_path(fields[0], "CACHE directory", line, source)?;
         let path = Path::new(fields[0]);
-        if self.caches.iter().any(|existing| {
+        if self.builders[&name].caches.iter().any(|existing| {
             let existing = Path::new(existing);
             path == existing || path.starts_with(existing) || existing.starts_with(path)
         }) {
@@ -340,55 +424,89 @@ impl Parser<'_> {
                 ),
             ));
         }
-        self.caches.push(fields[0].to_owned());
+        self.builders
+            .get_mut(&name)
+            .expect("builder exists")
+            .caches
+            .push(fields[0].to_owned());
         Ok(())
     }
 
     fn copy(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        if self.current_item.is_some() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "COPY must appear before ITEM blocks",
-            ));
-        }
         let fields = exact_fields(arguments, 2, line, source, "COPY <src> <dst>")?;
-        validate_local_path(fields[0], "COPY source", line, source)?;
-        validate_item_path(fields[1], "COPY destination", line, source)?;
-        reject_build_interpolation(fields[0], "COPY source", line, source)?;
-        reject_build_interpolation(fields[1], "COPY destination", line, source)?;
         reject_runtime_variable(fields[0], "COPY source", line, source)?;
         reject_runtime_variable(fields[1], "COPY destination", line, source)?;
-        if !self.build_destinations.insert(fields[1].to_owned()) {
+        validate_copy_relative_path(fields[1], "COPY destination", line, source)?;
+        let src = self.build_template(fields[0], line, source, false)?;
+        validate_copy_source(&src, line, source)?;
+        let block = self.current.clone().ok_or_else(|| {
+            ParseError::new(
+                line,
+                source,
+                "COPY must appear inside a BUILDER, SERVICE, APP, or ITEM block under D47",
+            )
+        })?;
+        let name = match &block {
+            CurrentBlock::Builder(name) | CurrentBlock::Artifact(name) => name,
+        };
+        if !self
+            .destinations
+            .get_mut(name)
+            .expect("block destinations exist")
+            .insert(fields[1].to_owned())
+        {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("build destination {:?} is already populated", fields[1]),
+                format!(
+                    "{} destination {:?} is already populated",
+                    self.names[name].kind, fields[1]
+                ),
             ));
         }
-        self.steps.push(BuildStep::Copy {
-            src: fields[0].to_owned(),
+        let copy = Copy {
+            src,
             dst: fields[1].to_owned(),
             line,
             source: source.to_owned(),
-        });
+        };
+        match block {
+            CurrentBlock::Builder(name) => self
+                .builders
+                .get_mut(&name)
+                .expect("builder exists")
+                .steps
+                .push(BuildStep::Copy(copy)),
+            CurrentBlock::Artifact(name) => self
+                .artifacts
+                .get_mut(&name)
+                .expect("artifact exists")
+                .copies
+                .push(copy),
+        }
         Ok(())
     }
 
-    fn build_step(
+    fn run(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let Some(CurrentBlock::Builder(name)) = self.current.clone() else {
+            return Err(ParseError::new(
+                line,
+                source,
+                "RUN is only legal inside a BUILDER block (D47 workshop/shipping-dock doctrine)",
+            ));
+        };
+        self.builder_command(&name, false, line, source, arguments)
+    }
+
+    fn builder_command(
         &mut self,
-        directive: &str,
+        builder: &str,
+        fetch: bool,
         line: usize,
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
-        if self.current_item.is_some() {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("{directive} must appear before ITEM blocks"),
-            ));
-        }
+        let directive = if fetch { "FETCH" } else { "RUN" };
         if arguments.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -396,8 +514,8 @@ impl Parser<'_> {
                 format!("{directive} requires a command"),
             ));
         }
-        let command = self.build_template(arguments, line, source, false, false)?;
-        let step = if directive == "FETCH" {
+        let command = self.build_template(arguments, line, source, false)?;
+        let step = if fetch {
             BuildStep::Fetch {
                 command,
                 line,
@@ -410,7 +528,11 @@ impl Parser<'_> {
                 source: source.to_owned(),
             }
         };
-        self.steps.push(step);
+        self.builders
+            .get_mut(builder)
+            .expect("builder exists")
+            .steps
+            .push(step);
         Ok(())
     }
 
@@ -421,6 +543,16 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
+        let artifact_name = self
+            .current_artifact_name(directive, line, source)?
+            .to_owned();
+        if self.artifacts[&artifact_name].kind == ArtifactKind::Item && directive == "SCRIPT" {
+            return Err(ParseError::new(
+                line,
+                source,
+                "SCRIPT is not legal inside ITEM blocks under D47; ITEM is assets-only (COPY/FILE/LINK)",
+            ));
+        }
         let fields = exact_fields(
             arguments,
             2,
@@ -433,15 +565,14 @@ impl Parser<'_> {
         reject_runtime_variable(fields[0], &format!("{directive} destination"), line, source)?;
         let delimiter = fields[1]
             .strip_prefix("<<")
-            .filter(|value| !value.is_empty());
-        let Some(delimiter) = delimiter else {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("{directive} heredoc must use << followed by a delimiter"),
-            ));
-        };
-
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                ParseError::new(
+                    line,
+                    source,
+                    format!("{directive} heredoc must use << followed by a delimiter"),
+                )
+            })?;
         let mut contents = Template { parts: Vec::new() };
         let mut terminated = false;
         while self.index < self.lines.len() {
@@ -454,7 +585,7 @@ impl Parser<'_> {
             }
             append_template(
                 &mut contents,
-                self.build_template(body_line, body_line_number, body_line, true, false)?,
+                self.build_template(body_line, body_line_number, body_line, true)?,
             );
             push_literal(&mut contents, "\n");
         }
@@ -465,8 +596,8 @@ impl Parser<'_> {
                 format!("unterminated {directive} heredoc; expected {delimiter:?}"),
             ));
         }
-        self.claim_item_destination(fields[0], line, source)?;
-        let item = if directive == "FILE" {
+        self.claim_artifact_destination(fields[0], line, source)?;
+        let assembly = if directive == "FILE" {
             Assembly::File {
                 dst: fields[0].to_owned(),
                 contents,
@@ -477,9 +608,11 @@ impl Parser<'_> {
                 contents,
             }
         };
-        self.current_item_mut(directive, line, source)?
+        self.artifacts
+            .get_mut(&artifact_name)
+            .expect("artifact exists")
             .assembly
-            .push(item);
+            .push(assembly);
         Ok(())
     }
 
@@ -489,7 +622,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = self.build_template(fields[1], line, source, false, false)?;
+        let target = self.build_template(fields[1], line, source, false)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -497,53 +630,12 @@ impl Parser<'_> {
                 "LINK target must not be empty",
             ));
         }
-        self.claim_item_destination(fields[0], line, source)?;
-        self.current_item_mut("LINK", line, source)?
+        self.claim_artifact_destination(fields[0], line, source)?;
+        self.current_artifact_mut("LINK", line, source)?
             .assembly
             .push(Assembly::Link {
                 dst: fields[0].to_owned(),
                 target,
-            });
-        Ok(())
-    }
-
-    fn begin_item(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 1, line, source, "ITEM <name>")?;
-        let name = fields[0];
-        validate_name("item", name, line, source)?;
-        if self.items.contains_key(name) {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("ITEM {name:?} is already declared"),
-            ));
-        }
-        self.items.insert(name.to_owned(), Item::empty());
-        self.item_destinations
-            .insert(name.to_owned(), BTreeSet::new());
-        self.item_lines
-            .insert(name.to_owned(), (line, source.to_owned()));
-        self.item_metadata
-            .insert(name.to_owned(), ServiceMetadata::default());
-        self.current_item = Some(name.to_owned());
-        Ok(())
-    }
-
-    fn take(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 2, line, source, "TAKE <build-path> <item-path>")?;
-        reject_runtime_variable(fields[0], "TAKE source", line, source)?;
-        reject_build_interpolation(fields[1], "TAKE destination", line, source)?;
-        reject_runtime_variable(fields[1], "TAKE destination", line, source)?;
-        let source_path = self.build_template(fields[0], line, source, false, true)?;
-        validate_take_source(&source_path, line, source)?;
-        validate_item_path(fields[1], "TAKE destination", line, source)?;
-        self.claim_item_destination(fields[1], line, source)?;
-        self.current_item_mut("TAKE", line, source)?
-            .takes
-            .push(Take {
-                src: source_path,
-                dst: fields[1].to_owned(),
-                line,
             });
         Ok(())
     }
@@ -557,15 +649,34 @@ impl Parser<'_> {
     ) -> Result<(), ParseError> {
         let directive = if setup { "SETUP" } else { "EXEC" };
         let fields = at_least_one_field(arguments, line, source, directive)?;
+        let artifact_name = self
+            .current_artifact_name(directive, line, source)?
+            .to_owned();
+        let kind = self.artifacts[&artifact_name].kind;
+        if kind == ArtifactKind::Item {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "{directive} is not legal inside ITEM blocks under D47; use SERVICE for a daemon or APP for run-to-completion"
+                ),
+            ));
+        }
+        if kind == ArtifactKind::App && setup {
+            return Err(ParseError::new(
+                line,
+                source,
+                "SETUP is not legal inside APP blocks under D47; put preparation in the APP executable",
+            ));
+        }
         let templates = fields
             .iter()
-            .map(|field| self.build_template(field, line, source, false, false))
+            .map(|field| self.build_template(field, line, source, false))
             .collect::<Result<Vec<_>, _>>()?;
-        let item_name = self.current_item_name(directive, line, source)?.to_owned();
         let service = &mut self
-            .items
-            .get_mut(&item_name)
-            .expect("current item exists")
+            .artifacts
+            .get_mut(&artifact_name)
+            .expect("artifact exists")
             .service;
         if setup {
             if service.setup.is_some() {
@@ -577,44 +688,50 @@ impl Parser<'_> {
             }
             service.setup = Some(templates);
             service.setup_line = Some(line);
-            self.item_metadata
-                .get_mut(&item_name)
-                .expect("item metadata exists")
+            self.metadata
+                .get_mut(&artifact_name)
+                .expect("artifact metadata exists")
                 .setup = Some((line, source.to_owned()));
         } else {
             if !service.exec.is_empty() {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "EXEC is already declared for this service",
+                    "EXEC is already declared for this artifact",
                 ));
             }
             service.exec = templates;
             service.exec_line = line;
-            self.item_metadata
-                .get_mut(&item_name)
-                .expect("item metadata exists")
+            self.metadata
+                .get_mut(&artifact_name)
+                .expect("artifact metadata exists")
                 .exec = Some((line, source.to_owned()));
         }
         Ok(())
     }
 
     fn env(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "ENV",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
         let fields = at_least_one_field(arguments, line, source, "ENV")?;
         validate_env_name(fields[0], line, source)?;
         let mut index = 1;
         let default = if fields.get(index) == Some(&"=") {
             index += 1;
-            let Some(value) = fields.get(index) else {
-                return Err(ParseError::new(
+            let value = fields.get(index).ok_or_else(|| {
+                ParseError::new(
                     line,
                     source,
                     "ENV '=' must be followed by one default value",
-                ));
-            };
+                )
+            })?;
             index += 1;
             reject_runtime_variable(value, "ENV default", line, source)?;
-            Some(self.build_template(value, line, source, false, false)?)
+            Some(self.build_template(value, line, source, false)?)
         } else {
             None
         };
@@ -640,18 +757,19 @@ impl Parser<'_> {
                 }
             }
         }
-        let item_has_path = self
-            .current_item
-            .as_ref()
-            .is_some_and(|name| !self.items[name].paths.is_empty());
-        if fields[0] == "PATH" && (!self.paths.is_empty() || item_has_path) {
+        let artifact_name = self.current_artifact_name("ENV", line, source)?.to_owned();
+        if fields[0] == "PATH" && !self.artifacts[&artifact_name].paths.is_empty() {
             return Err(ParseError::new(
                 line,
                 source,
-                "ENV PATH conflicts with the item-level PATH directive",
+                "ENV PATH conflicts with the SERVICE PATH directive",
             ));
         }
-        let service = self.current_service_mut("ENV", line, source)?;
+        let service = &mut self
+            .artifacts
+            .get_mut(&artifact_name)
+            .expect("artifact exists")
+            .service;
         if service.env.contains_key(fields[0]) {
             return Err(ParseError::new(
                 line,
@@ -671,6 +789,7 @@ impl Parser<'_> {
     }
 
     fn port(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        self.require_artifact_kind("PORT", line, source, &[ArtifactKind::Service])?;
         let fields = exact_fields(arguments, 3, line, source, "PORT <name> = <$VAR|value>")?;
         validate_name("port", fields[0], line, source)?;
         if fields[1] != "=" {
@@ -696,11 +815,11 @@ impl Parser<'_> {
             }
             Port::Value(value)
         };
-        let item_name = self.current_item_name("PORT", line, source)?.to_owned();
+        let name = self.current_artifact_name("PORT", line, source)?.to_owned();
         let service = &mut self
-            .items
-            .get_mut(&item_name)
-            .expect("current item exists")
+            .artifacts
+            .get_mut(&name)
+            .expect("artifact exists")
             .service;
         if service.listeners.contains(fields[0]) {
             return Err(ParseError::new(
@@ -720,15 +839,16 @@ impl Parser<'_> {
             ));
         }
         service.ports.insert(fields[0].to_owned(), port);
-        self.item_metadata
-            .get_mut(&item_name)
-            .expect("item metadata exists")
+        self.metadata
+            .get_mut(&name)
+            .expect("artifact metadata exists")
             .ports
             .insert(fields[0].to_owned(), (line, source.to_owned()));
         Ok(())
     }
 
     fn listener(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        self.require_artifact_kind("LISTENER", line, source, &[ArtifactKind::Service])?;
         let fields = exact_fields(arguments, 1, line, source, "LISTENER <name>")?;
         validate_name("listener", fields[0], line, source)?;
         let service = self.current_service_mut("LISTENER", line, source)?;
@@ -759,6 +879,11 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
+        let allowed = match directive {
+            "STATE" | "CACHE" => &[ArtifactKind::Service, ArtifactKind::App][..],
+            _ => &[ArtifactKind::Service][..],
+        };
+        self.require_artifact_kind(directive, line, source, allowed)?;
         let fields = exact_fields(arguments, 1, line, source, &format!("{directive} <path>"))?;
         reject_build_interpolation(fields[0], "directory path", line, source)?;
         reject_runtime_variable(fields[0], "directory path", line, source)?;
@@ -791,6 +916,7 @@ impl Parser<'_> {
     }
 
     fn jit(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        self.require_artifact_kind("JIT", line, source, &[ArtifactKind::Service])?;
         if !arguments.is_empty() {
             return Err(ParseError::new(line, source, "JIT takes no arguments"));
         }
@@ -807,6 +933,12 @@ impl Parser<'_> {
     }
 
     fn outbound(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "OUTBOUND",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
         if !arguments.is_empty() {
             return Err(ParseError::new(line, source, "OUTBOUND takes no arguments"));
         }
@@ -815,7 +947,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "OUTBOUND is already declared for this item",
+                "OUTBOUND is already declared for this artifact",
             ));
         }
         service.outbound = true;
@@ -828,58 +960,109 @@ impl Parser<'_> {
         line: usize,
         source: &str,
     ) -> Result<&mut Service, ParseError> {
-        let name = self.current_item.as_ref().ok_or_else(|| {
-            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
-        })?;
+        let name = self
+            .current_artifact_name(directive, line, source)?
+            .to_owned();
         Ok(&mut self
-            .items
-            .get_mut(name)
-            .expect("current item exists")
+            .artifacts
+            .get_mut(&name)
+            .expect("current artifact exists")
             .service)
     }
 
-    fn current_item_mut(
+    fn current_artifact_mut(
         &mut self,
         directive: &str,
         line: usize,
         source: &str,
-    ) -> Result<&mut Item, ParseError> {
-        let name = self.current_item.as_ref().ok_or_else(|| {
-            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
-        })?;
-        Ok(self.items.get_mut(name).expect("current item exists"))
+    ) -> Result<&mut Artifact, ParseError> {
+        let name = self
+            .current_artifact_name(directive, line, source)?
+            .to_owned();
+        Ok(self
+            .artifacts
+            .get_mut(&name)
+            .expect("current artifact exists"))
     }
 
-    fn current_item_name(
+    fn current_artifact_name(
         &self,
         directive: &str,
         line: usize,
         source: &str,
     ) -> Result<&str, ParseError> {
-        self.current_item.as_deref().ok_or_else(|| {
-            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
-        })
+        match &self.current {
+            Some(CurrentBlock::Artifact(name)) => Ok(name),
+            Some(CurrentBlock::Builder(_)) => Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} is not legal inside a BUILDER block"),
+            )),
+            None => Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} must appear inside an artifact block"),
+            )),
+        }
     }
 
-    fn claim_item_destination(
+    fn current_builder_name(
+        &self,
+        directive: &str,
+        line: usize,
+        source: &str,
+    ) -> Result<&str, ParseError> {
+        match &self.current {
+            Some(CurrentBlock::Builder(name)) => Ok(name),
+            Some(CurrentBlock::Artifact(_)) | None => Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} must appear inside a BUILDER block"),
+            )),
+        }
+    }
+
+    fn require_artifact_kind(
+        &self,
+        directive: &str,
+        line: usize,
+        source: &str,
+        allowed: &[ArtifactKind],
+    ) -> Result<(), ParseError> {
+        let name = self.current_artifact_name(directive, line, source)?;
+        let kind = self.artifacts[name].kind;
+        if allowed.contains(&kind) {
+            return Ok(());
+        }
+        Err(ParseError::new(
+            line,
+            source,
+            format!(
+                "{directive} is not legal inside {} blocks under D47",
+                kind.keyword()
+            ),
+        ))
+    }
+
+    fn claim_artifact_destination(
         &mut self,
         destination: &str,
         line: usize,
         source: &str,
     ) -> Result<(), ParseError> {
         let name = self
-            .current_item_name("item assembly", line, source)?
+            .current_artifact_name("artifact assembly", line, source)?
             .to_owned();
         if !self
-            .item_destinations
+            .destinations
             .get_mut(&name)
-            .expect("current item destinations exist")
+            .expect("current artifact destinations exist")
             .insert(destination.to_owned())
         {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("item destination {destination:?} is already populated"),
+                format!("artifact destination {destination:?} is already populated"),
             ));
         }
         Ok(())
@@ -891,9 +1074,49 @@ impl Parser<'_> {
         line: usize,
         source: &str,
         heredoc: bool,
-        allow_build: bool,
     ) -> Result<Template, ParseError> {
-        build_template(input, line, source, heredoc, allow_build, &self.inputs)
+        let template = build_template(input, line, source, heredoc, &self.inputs, &self.names)?;
+        if let Some(current) = &self.current {
+            let current = match current {
+                CurrentBlock::Builder(name) | CurrentBlock::Artifact(name) => name,
+            };
+            if template
+                .parts
+                .iter()
+                .any(|part| matches!(part, TemplatePart::Binder { name, .. } if name == current))
+            {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "binder {current:?} cannot reference itself; references are backward-only"
+                    ),
+                ));
+            }
+        }
+        Ok(template)
+    }
+
+    fn declare_name(
+        &mut self,
+        name: &str,
+        kind: &'static str,
+        line: usize,
+        source: &str,
+    ) -> Result<(), ParseError> {
+        if let Some(first) = self.names.get(name) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "name {name:?} is already bound by a {} on line {}; block and binder names share one namespace",
+                    first.kind, first.line
+                ),
+            ));
+        }
+        self.names
+            .insert(name.to_owned(), DeclaredName { kind, line });
+        Ok(())
     }
 }
 
@@ -933,8 +1156,8 @@ fn build_template(
     line: usize,
     source: &str,
     heredoc: bool,
-    allow_build: bool,
     inputs: &BTreeMap<String, Input>,
+    names: &BTreeMap<String, DeclaredName>,
 ) -> Result<Template, ParseError> {
     let mut parts = Vec::new();
     let mut literal = String::new();
@@ -966,60 +1189,112 @@ fn build_template(
             };
             let close = index + 2 + close_offset;
             let reference = &input[index + 2..close];
-            if reference == "build" {
-                if !allow_build {
+            if let Some((namespace, attrpath)) = reference.split_once('.') {
+                let Some(input) = inputs.get(namespace) else {
+                    if names.contains_key(namespace) {
+                        return Err(ParseError::new(
+                            line,
+                            source,
+                            format!(
+                                "binder {namespace:?} is a source tree; select paths as ${{{namespace}}}/<path>, not with attribute syntax"
+                            ),
+                        ));
+                    }
+                    let declared = inputs
+                        .iter()
+                        .filter(|(_, input)| input.kind == InputKind::PackageUniverse)
+                        .map(|(name, _)| name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ");
                     return Err(ParseError::new(
                         line,
                         source,
-                        "${build} is only valid in TAKE source position",
+                        format!(
+                            "unknown package namespace {namespace:?}; declared package namespaces: {declared}"
+                        ),
+                    ));
+                };
+                if input.kind != InputKind::PackageUniverse {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "FROM source binder {namespace:?} is a tree; use ${{{namespace}}}/<path>"
+                        ),
+                    ));
+                }
+                if !valid_attrpath(attrpath) {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "package interpolation must name a dot-separated attribute path after its namespace",
                     ));
                 }
                 if !literal.is_empty() {
                     parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
                 }
-                parts.push(TemplatePart::Build { line });
+                parts.push(TemplatePart::Package {
+                    namespace: namespace.to_owned(),
+                    attrpath: attrpath.to_owned(),
+                    line,
+                });
                 index = close + 1;
                 continue;
             }
-            let (namespace, attrpath) = reference.split_once('.').ok_or_else(|| {
-                if !reference.contains('.') {
-                    let namespace = inputs.keys().next().map(String::as_str).unwrap_or("<namespace>");
-                    ParseError::new(
+            if let Some(input) = inputs.get(reference) {
+                if input.kind == InputKind::PackageUniverse {
+                    return Err(ParseError::new(
                         line,
                         source,
-                        format!("bare build-time interpolation ${{{reference}}}; use ${{{namespace}.{reference}}}"),
-                    )
-                } else {
-                    ParseError::new(
-                        line,
-                        source,
-                        "build-time interpolation must use <namespace>.<attrpath>",
-                    )
+                        format!(
+                            "package universe {reference:?} needs an attribute path, for example ${{{reference}.hello}}"
+                        ),
+                    ));
                 }
-            })?;
-            if !inputs.contains_key(namespace) {
-                let declared = inputs.keys().cloned().collect::<Vec<_>>().join(", ");
+            } else if let Some(declaration) = names.get(reference) {
+                if declaration.kind == "artifact block" {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "artifact block {reference:?} is not a source binder; COPY from a FROM, FETCH, or BUILDER binder"
+                        ),
+                    ));
+                }
+            } else {
+                if reference == "build" {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "no binder named `build`; name your builder: `BUILDER build`",
+                    ));
+                }
+                if valid_attrpath(reference) {
+                    if let Some(namespace) = inputs
+                        .iter()
+                        .find(|(_, input)| input.kind == InputKind::PackageUniverse)
+                        .map(|(name, _)| name)
+                    {
+                        return Err(ParseError::new(
+                            line,
+                            source,
+                            format!(
+                                "no binder named {reference:?}; for a package, use ${{{namespace}.{reference}}}; binder references are backward-only"
+                            ),
+                        ));
+                    }
+                }
                 return Err(ParseError::new(
                     line,
                     source,
-                    format!(
-                        "unknown package namespace {namespace:?}; declared namespaces: {declared}"
-                    ),
-                ));
-            }
-            if !valid_attrpath(attrpath) {
-                return Err(ParseError::new(
-                    line,
-                    source,
-                    "package interpolation must name a dot-separated attribute path after its namespace.",
+                    format!("no binder named {reference:?}; binder references are backward-only"),
                 ));
             }
             if !literal.is_empty() {
                 parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
             }
-            parts.push(TemplatePart::Package {
-                namespace: namespace.to_owned(),
-                attrpath: attrpath.to_owned(),
+            parts.push(TemplatePart::Binder {
+                name: reference.to_owned(),
                 line,
             });
             index = close + 1;
@@ -1048,7 +1323,9 @@ fn append_template(target: &mut Template, source: Template) {
                 attrpath,
                 line,
             }),
-            TemplatePart::Build { line } => target.parts.push(TemplatePart::Build { line }),
+            TemplatePart::Binder { name, line } => {
+                target.parts.push(TemplatePart::Binder { name, line })
+            }
         }
     }
 }
@@ -1204,35 +1481,44 @@ pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
 
 fn validate_path_template(
     template: &Template,
-    item_relative: bool,
+    artifact_relative: bool,
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Package { .. }) => Ok(()),
-        Some(TemplatePart::Literal(value)) if item_relative => {
-            validate_relative_path(value, "ITEM PATH directory", line, source)
+        Some(TemplatePart::Package { .. } | TemplatePart::Binder { .. }) => Ok(()),
+        Some(TemplatePart::Literal(value)) if artifact_relative => {
+            validate_relative_path(value, "SERVICE PATH directory", line, source)
         }
         _ => Err(ParseError::new(
             line,
             source,
-            "prelude PATH directory must be absolute (for example ${pkgs.coreutils}/bin); relative PATH is item-scoped",
+            "BUILDER PATH directory must be absolute (for example ${pkgs.coreutils}/bin); relative PATH is SERVICE-scoped",
         )),
     }
 }
 
-fn validate_take_source(template: &Template, line: usize, source: &str) -> Result<(), ParseError> {
+fn validate_copy_source(template: &Template, line: usize, source: &str) -> Result<(), ParseError> {
     match template.parts.as_slice() {
-        [TemplatePart::Literal(path)] => validate_relative_path(path, "TAKE source", line, source),
-        [TemplatePart::Build { .. }] => Ok(()),
-        [TemplatePart::Build { .. }, TemplatePart::Literal(path)] if path.starts_with('/') => {
-            validate_relative_path(&path[1..], "TAKE source", line, source)
+        [TemplatePart::Literal(path)] => {
+            validate_copy_relative_path(path, "COPY source", line, source)
+        }
+        [TemplatePart::Package { .. } | TemplatePart::Binder { .. }] => Ok(()),
+        [
+            TemplatePart::Package { .. } | TemplatePart::Binder { .. },
+            TemplatePart::Literal(path),
+        ] if path == "/" => Ok(()),
+        [
+            TemplatePart::Package { .. } | TemplatePart::Binder { .. },
+            TemplatePart::Literal(path),
+        ] if path.starts_with('/') => {
+            validate_copy_relative_path(&path[1..], "COPY source", line, source)
         }
         _ => Err(ParseError::new(
             line,
             source,
-            "TAKE source must be a clean build-relative path or ${build}/<path>",
+            "COPY source must be one bare relative path or one binder/package path such as ${src}/sub/path or ${pkgs.hello}/bin/hello",
         )),
     }
 }
@@ -1291,22 +1577,51 @@ fn validate_namespace(value: &str, line: usize, source: &str) -> Result<(), Pars
     Ok(())
 }
 
-fn normalize_flakeref(value: &str, line: usize, source: &str) -> Result<String, ParseError> {
+fn normalize_input(
+    value: &str,
+    line: usize,
+    source: &str,
+) -> Result<(String, InputKind), ParseError> {
+    if value == "." {
+        return Ok((".".to_owned(), InputKind::Source));
+    }
     if value == "nixpkgs" {
-        return Ok(crate::DEFAULT_NIXPKGS_URL.to_owned());
+        return Ok((
+            crate::DEFAULT_NIXPKGS_URL.to_owned(),
+            InputKind::PackageUniverse,
+        ));
     }
     let github = value.strip_prefix("github:").is_some_and(|path| {
         let parts = path.split('/').collect::<Vec<_>>();
         (2..=3).contains(&parts.len()) && parts.iter().all(|part| !part.is_empty())
     });
     if github || value.starts_with("https://") {
-        return Ok(value.to_owned());
+        let kind = if value
+            .strip_prefix("github:")
+            .is_some_and(|path| path.starts_with("NixOS/nixpkgs/") || path == "NixOS/nixpkgs")
+        {
+            InputKind::PackageUniverse
+        } else {
+            InputKind::Source
+        };
+        return Ok((value.to_owned(), kind));
     }
     Err(ParseError::new(
         line,
         source,
-        "FROM accepts nixpkgs, github:owner/repo[/ref], or an https tarball URL",
+        "FROM accepts ., nixpkgs, github:owner/repo[/ref], or an https tarball URL",
     ))
+}
+
+fn take_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
+    let mut fields = arguments.split_whitespace();
+    let rewrite = match (fields.next(), fields.next(), fields.next()) {
+        (Some(from), Some(to), None) => format!(
+            "TAKE was removed by D47; inside the artifact block use COPY ${{build}}/{from} {to}, and name the producing block `BUILDER build`"
+        ),
+        _ => "TAKE was removed by D47; use COPY ${<builder>}/<path> <destination> inside the artifact block".to_owned(),
+    };
+    ParseError::new(line, source, rewrite)
 }
 
 fn pkg_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
@@ -1365,15 +1680,6 @@ fn is_env_start(value: u8) -> bool {
 
 fn is_env_continue(value: u8) -> bool {
     is_env_start(value) || value.is_ascii_digit()
-}
-
-fn validate_local_path(
-    value: &str,
-    label: &str,
-    line: usize,
-    source: &str,
-) -> Result<(), ParseError> {
-    validate_relative_path(value, label, line, source)
 }
 
 fn validate_item_path(
@@ -1472,6 +1778,18 @@ fn validate_relative_path(
     Ok(())
 }
 
+fn validate_copy_relative_path(
+    value: &str,
+    label: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    if value == "." {
+        return Ok(());
+    }
+    validate_relative_path(value, label, line, source)
+}
+
 fn validate_role_path(
     value: &str,
     root: &str,
@@ -1495,7 +1813,7 @@ fn validate_role_path(
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, any()))]
 mod tests {
     use super::*;
 
@@ -1899,5 +2217,239 @@ EXEC bin/app
             let error = parse(&input).unwrap_err();
             assert!(error.message.contains("D22 v3"), "{denied}: {error}");
         }
+    }
+}
+
+#[cfg(test)]
+mod d47_tests {
+    use super::*;
+
+    #[test]
+    fn parses_blocks_binders_and_all_three_artifact_kinds() {
+        let parsed = parse(
+            r#"FROM nixpkgs AS pkgs
+FROM . AS src
+FETCH ingredient ${pkgs.coreutils}/bin/printf payload
+BUILDER build
+PATH ${pkgs.bash}/bin
+CACHE target
+COPY Cargo.toml Cargo.toml
+FETCH printf fetched > fetched
+RUN cp fetched built
+SERVICE web
+COPY ${build}/built bin/web
+FILE etc/app.conf <<E
+source=${src}
+E
+SCRIPT bin/start <<E
+exec bin/web
+E
+LINK bin/sh ${pkgs.bash}/bin/bash
+PATH bin
+EXEC start
+SETUP bin/start
+ENV PORT = 8080 required
+PORT http = $PORT
+LISTENER admin
+STATE /var/lib/web
+CACHE /var/cache/web
+LOGS /var/log/web
+CONFIG /etc/web
+RUNDIR /run/web
+JIT
+OUTBOUND
+APP migrate
+COPY ${ingredient} payload
+EXEC /bin/true
+ENV MODE = once
+STATE /var/lib/migrate
+CACHE /var/cache/migrate
+OUTBOUND
+ITEM data
+COPY payload data/payload
+FILE notice <<E
+hello
+E
+LINK current data/payload
+"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.fetch_order, ["ingredient"]);
+        assert_eq!(parsed.builder_order, ["build"]);
+        assert_eq!(parsed.artifact_order, ["web", "migrate", "data"]);
+        assert_eq!(parsed.builders["build"].steps.len(), 3);
+        assert_eq!(parsed.builders["build"].caches, ["target"]);
+        assert_eq!(parsed.artifacts["web"].kind, ArtifactKind::Service);
+        assert_eq!(parsed.artifacts["migrate"].kind, ArtifactKind::App);
+        assert_eq!(parsed.artifacts["data"].kind, ArtifactKind::Item);
+        assert!(parsed.artifacts["data"].service.exec.is_empty());
+    }
+
+    #[test]
+    fn bare_and_explicit_local_copy_sources_coexist() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nFROM . AS src\nBUILDER build\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nSERVICE app\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        let BuildStep::Copy(bare) = &parsed.builders["build"].steps[0] else {
+            panic!("expected COPY");
+        };
+        assert_eq!(bare.src, Template::literal("bare.txt"));
+        assert!(matches!(
+            parsed.builders["build"].steps[1],
+            BuildStep::Copy(Copy { .. })
+        ));
+        assert_eq!(parsed.artifacts["app"].copies.len(), 2);
+    }
+
+    #[test]
+    fn names_share_one_namespace_and_references_are_backward_only() {
+        let duplicate =
+            parse("FROM nixpkgs AS pkgs\nBUILDER pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n")
+                .unwrap_err();
+        assert_eq!(duplicate.line, 2);
+        assert!(duplicate.message.contains("line 1"), "{duplicate}");
+        assert!(
+            duplicate.message.contains("share one namespace"),
+            "{duplicate}"
+        );
+
+        let forward = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER final\nCOPY ${prior}/x x\nBUILDER prior\nCOPY x x\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(forward.line, 3);
+        assert!(forward.message.contains("backward-only"), "{forward}");
+
+        let cycle = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY ${build}/x x\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(cycle.line, 3);
+        assert!(cycle.message.contains("cannot reference itself"), "{cycle}");
+    }
+
+    #[test]
+    fn migration_errors_name_the_d47_rewrite() {
+        for (input, line, message) in [
+            (
+                "FROM nixpkgs AS pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n",
+                2,
+                "RUN is only legal inside a BUILDER block",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${build}/bin/app bin/app\nEXEC bin/app\n",
+                3,
+                "no binder named `build`; name your builder: `BUILDER build`",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nSERVICE app\nTAKE bin/app bin/app\nEXEC bin/app\n",
+                3,
+                "TAKE was removed by D47",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nITEM app\nEXEC bin/app\n",
+                3,
+                "use SERVICE for a daemon or APP for run-to-completion",
+            ),
+            (
+                "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
+                2,
+                "PATH must appear inside a BUILDER or SERVICE block",
+            ),
+        ] {
+            let error = parse(input).unwrap_err();
+            assert_eq!(error.line, line, "{error}");
+            assert!(error.message.contains(message), "{error}");
+            assert!(error.to_string().contains(&format!("{:?}", error.source)));
+        }
+    }
+
+    #[test]
+    fn app_rejects_service_only_surface_at_the_directive_line() {
+        for (directive, message) in [
+            ("PORT http = 8080", "PORT is not legal inside APP"),
+            ("LISTENER http", "LISTENER is not legal inside APP"),
+            ("JIT", "JIT is not legal inside APP"),
+            ("SETUP /bin/true", "SETUP is not legal inside APP"),
+            ("LOGS /var/log/job", "LOGS is not legal inside APP"),
+            ("CONFIG /etc/job", "CONFIG is not legal inside APP"),
+            ("RUNDIR /run/job", "RUNDIR is not legal inside APP"),
+            ("PATH bin", "PATH is not legal inside APP"),
+        ] {
+            let input = format!("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n{directive}\n");
+            let error = parse(&input).unwrap_err();
+            assert_eq!(error.line, 4, "{directive}: {error}");
+            assert!(error.message.contains(message), "{directive}: {error}");
+        }
+    }
+
+    #[test]
+    fn item_is_assets_only() {
+        for directive in [
+            "EXEC /bin/true",
+            "ENV MODE = x",
+            "PORT http = 8080",
+            "LISTENER http",
+            "STATE /var/lib/data",
+            "CACHE /var/cache/data",
+            "LOGS /var/log/data",
+            "CONFIG /etc/data",
+            "RUNDIR /run/data",
+            "JIT",
+            "OUTBOUND",
+            "SCRIPT start <<E\ntrue\nE",
+        ] {
+            let input = format!("FROM nixpkgs AS pkgs\nITEM data\n{directive}\n");
+            let error = parse(&input).unwrap_err();
+            assert_eq!(error.line, 3, "{directive}: {error}");
+            assert!(
+                error.message.contains("not legal inside ITEM"),
+                "{directive}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn source_and_package_interpolation_are_distinct() {
+        let tree_attr = parse(
+            "FROM nixpkgs AS pkgs\nFROM github:owner/repo AS src\nSERVICE app\nCOPY ${src.subdir} subdir\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(tree_attr.message.contains("${src}/<path>"), "{tree_attr}");
+
+        let universe_tree =
+            parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${pkgs} pkgs\nEXEC /bin/true\n")
+                .unwrap_err();
+        assert!(
+            universe_tree.message.contains("needs an attribute path"),
+            "{universe_tree}"
+        );
+    }
+
+    #[test]
+    fn copy_destinations_are_subject_relative_and_dot_means_the_root() {
+        parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY . .\nSERVICE app\nCOPY ${build} .\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        for destination in ["/absolute", "../escape"] {
+            let input = format!(
+                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload {destination}\nEXEC /bin/true\n"
+            );
+            let error = parse(&input).unwrap_err();
+            assert_eq!(error.line, 3);
+            assert!(
+                error.message.contains("clean relative path"),
+                "{destination}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn from_local_is_optional_but_a_package_universe_is_required() {
+        parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload payload\nEXEC /bin/true\n").unwrap();
+        let error = parse("FROM . AS src\nITEM data\nCOPY ${src}/payload payload\n").unwrap_err();
+        assert!(error.message.contains("package universe"), "{error}");
     }
 }

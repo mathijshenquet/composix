@@ -1,9 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-COPY nginx.conf /etc/nginx/nginx.conf
+BUILDER build
+COPY ${src}/nginx.conf etc/nginx/nginx.conf
 
-ITEM nginx
-TAKE ${build}/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+SERVICE nginx
+COPY ${build}/etc/nginx/nginx.conf etc/nginx/nginx.conf
 LINK bin/nginx ${pkgs.nginx}/bin/nginx
 LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 SCRIPT bin/start <<SH

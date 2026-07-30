@@ -1,9 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-COPY greeting.txt /srv/backend/greeting.txt
+BUILDER build
+COPY ${src}/greeting.txt srv/backend/greeting.txt
 
-ITEM backend
-TAKE ${build}/srv/backend/greeting.txt /srv/backend/greeting.txt
+SERVICE backend
+COPY ${build}/srv/backend/greeting.txt srv/backend/greeting.txt
 LINK bin/redis-cli ${pkgs.redis}/bin/redis-cli
 LINK bin/python3 ${pkgs.python3}/bin/python3
 FILE bin/backend.py <<PY

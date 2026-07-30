@@ -13,7 +13,7 @@ pub use build::{build, BuildOptions, BuiltItem};
 pub use codegen::{generate_nix, generate_spec_json};
 pub use lock::{ensure_lock, FetchPin, InputLock, LockFile, MemoEntry, DEFAULT_NIXPKGS_URL};
 pub use model::{
-    Assembly, BuildStep, Cixfile, Dirs, Env, Input, Item, Port, Service, Take, Template,
-    TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, Dirs, Env, Fetch, Input,
+    InputKind, Port, Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};

@@ -830,7 +830,7 @@ fn scenario_building_from_a_cixfile() -> String {
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-ITEM tour-app
+SERVICE tour-app
 FILE share/greeting <<GREETING
 hello from Cixfile
 GREETING
@@ -844,7 +844,7 @@ EXEC bin/tour-app
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing Cixfile lock fixture");
 
-    doc.para("Every Cixfile begins by binding its package universe: `FROM <flakeref> AS pkgs`. The checked-in lock pins that universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.");
+    doc.para("A Cixfile may bind a package universe with `FROM <flakeref> AS pkgs`. The checked-in lock pins that remote universe (rev + content hash), which makes generation deterministic; a fresh store may fetch the pinned source once.");
     let built = doc.sh("cix build . -t tour-app:v1", true);
     let store_path = built
         .lines()
@@ -852,7 +852,7 @@ EXEC bin/tour-app
         .find(|line| line.starts_with("/nix/store/"))
         .expect("cix build printed a store path");
 
-    doc.para("The generated v4 manifest is the build's runtime contract: one bare service definition belongs to this one item.");
+    doc.para("The generated v4 manifest is the build's runtime contract: this `SERVICE` produces one bare service definition.");
     let spec = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
     assert!(spec.contains("\"cixManifest\":4"));
     assert!(!spec.contains("\"services\""));
@@ -882,12 +882,16 @@ fn scenario_building_with_run() -> String {
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
-COPY app app
+COPY ${src}/app app
 RUN mkdir -p result && tr '[:lower:]' '[:upper:]' < app > result/upper && chmod +x app
-ITEM run-tour
-TAKE app bin/app
-TAKE result/upper result/upper
+
+SERVICE run-tour
+COPY ${build}/app bin/app
+COPY ${build}/result/upper result/upper
 EXEC bin/app
 "#,
     )
@@ -895,7 +899,7 @@ EXEC bin/app
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing RUN Cixfile lock fixture");
 
-    doc.para("`RUN` executes outside Nix evaluation in a networkless bubblewrap sandbox. Its only store inputs are the closure offered by the declared package references; the incoming COPY snapshot and fixed environment complete the memo key.");
+    doc.para("A named `BUILDER` executes `RUN` outside Nix evaluation in a networkless bubblewrap sandbox. Its only store inputs are the closure offered by declared package references; the incoming COPY snapshot and fixed environment complete the memo key. The `SERVICE` then copies only its two results from `${build}`.");
     let first = doc.sh("cix build .", true);
     let first_path = first
         .lines()
@@ -1038,7 +1042,7 @@ fn scenario_running_proj1() -> String {
         fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
     }
 
-    doc.para("One Cixfile can compile a workspace and pluck independent store items. `CACHE target` keeps Cargo's incremental state host-local, while each item contains only its declared binary and its bare v4 manifest.");
+    doc.para("One named builder can compile a workspace and feed independent service artifacts. Builder-local `CACHE target` keeps Cargo's incremental state host-local, while each service contains only its copied binary and bare v4 manifest.");
     let built = doc.sh_after_warming("cix build .", true);
     let api_path = built
         .lines()
@@ -1212,7 +1216,7 @@ fn render_tour() -> Vec<GeneratedFile> {
         Scenario {
             filename: "14-running-proj1.md",
             title: "Building and running proj1",
-            description: "Build two plucked items and serve the API through its v4 manifest.",
+            description: "Build two services from one builder and serve the API.",
             body: scenario_running_proj1(),
         },
     ];

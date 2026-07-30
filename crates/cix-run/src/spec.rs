@@ -9,7 +9,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone)]
 pub struct Spec {
     pub cix_manifest: u32,
+    pub kind: ManifestKind,
     pub services: BTreeMap<String, Service>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ManifestKind {
+    #[default]
+    Service,
+    App,
+    Item,
 }
 
 #[derive(Deserialize)]
@@ -23,6 +33,7 @@ struct LegacySpec {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Service {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exec: Vec<String>,
     /// Read-only sparse-rootfs paths projected from the store item in system mode.
     pub mounts: Option<Vec<PathBuf>>,
@@ -131,10 +142,17 @@ impl Spec {
                 .cloned()
                 .context("cix-manifest.json must be a JSON object")?;
             body.remove("cixManifest");
+            let kind = body
+                .remove("kind")
+                .map(serde_json::from_value)
+                .transpose()
+                .context("cix-manifest.json v4 field \"kind\" must be service, app, or item")?
+                .unwrap_or_default();
             let service: Service = serde_json::from_value(serde_json::Value::Object(body))
                 .context("failed to parse cix-manifest.json v4 def-node")?;
             Self {
                 cix_manifest: 4,
+                kind,
                 services: BTreeMap::from([("item".to_owned(), service)]),
             }
         } else {
@@ -142,6 +160,7 @@ impl Spec {
                 serde_json::from_value(value).context("failed to parse cix-manifest.json")?;
             Self {
                 cix_manifest: legacy.cix_manifest,
+                kind: ManifestKind::Service,
                 services: legacy.services,
             }
         };
@@ -205,7 +224,7 @@ impl Spec {
         for (name, service) in &self.services {
             validate_name("service", name)?;
             service
-                .validate(self.cix_manifest)
+                .validate(self.cix_manifest, self.kind)
                 .with_context(|| format!("invalid service {name:?}"))?;
         }
         Ok(())
@@ -221,9 +240,17 @@ fn item_name_from_store_path(output: &Path) -> Option<String> {
 }
 
 impl Service {
-    fn validate(&self, version: u32) -> Result<()> {
+    fn validate(&self, version: u32, kind: ManifestKind) -> Result<()> {
         self.validate_version_fields(version)?;
-        validate_exec("exec", &self.exec, &self.env)?;
+        match kind {
+            ManifestKind::Service | ManifestKind::App => {
+                validate_exec("exec", &self.exec, &self.env)?
+            }
+            ManifestKind::Item if !self.exec.is_empty() => {
+                bail!("kind item must not declare exec")
+            }
+            ManifestKind::Item => {}
+        }
         if let Some(setup) = &self.setup {
             validate_exec("setup", setup, &self.env)?;
         }
@@ -296,7 +323,61 @@ impl Service {
             }
         }
         validate_mounts(self.mounts.as_deref().unwrap_or_default(), &seen)?;
+        self.validate_kind(kind)?;
         Ok(())
+    }
+
+    fn validate_kind(&self, kind: ManifestKind) -> Result<()> {
+        match kind {
+            ManifestKind::Service => Ok(()),
+            ManifestKind::App => {
+                if self.setup.is_some() {
+                    bail!("kind app must not declare setup (D47)");
+                }
+                if !self.ports.is_empty() {
+                    bail!("kind app must not declare ports (D47)");
+                }
+                if !self.listeners.is_empty() {
+                    bail!("kind app must not declare listeners (D47)");
+                }
+                if self.health.is_some() {
+                    bail!("kind app must not declare health (D47)");
+                }
+                if self.jit.is_some() {
+                    bail!("kind app must not declare jit (D47)");
+                }
+                if !self.dirs.logs.is_empty()
+                    || !self.dirs.config.is_empty()
+                    || self
+                        .dirs
+                        .run
+                        .as_ref()
+                        .is_some_and(|paths| !paths.is_empty())
+                {
+                    bail!("kind app permits only state and cache directories (D47)");
+                }
+                Ok(())
+            }
+            ManifestKind::Item => {
+                if self.setup.is_some()
+                    || !self.env.is_empty()
+                    || !self.ports.is_empty()
+                    || !self.listeners.is_empty()
+                    || self
+                        .dirs
+                        .roles()
+                        .iter()
+                        .any(|(_, _, paths)| !paths.is_empty())
+                    || self.health.is_some()
+                    || self.network.is_some()
+                    || self.jit.is_some()
+                    || self.outbound
+                {
+                    bail!("kind item is assets-only and may declare only mounts (D47)");
+                }
+                Ok(())
+            }
+        }
     }
 
     pub fn has_network(&self) -> bool {
@@ -351,8 +432,12 @@ impl Serialize for Spec {
             let body = value
                 .as_object()
                 .ok_or_else(|| serde::ser::Error::custom("v4 def-node is not an object"))?;
-            let mut map = serializer.serialize_map(Some(body.len() + 1))?;
+            let kind_fields = usize::from(self.kind != ManifestKind::Service);
+            let mut map = serializer.serialize_map(Some(body.len() + 1 + kind_fields))?;
             map.serialize_entry("cixManifest", &4)?;
+            if self.kind != ManifestKind::Service {
+                map.serialize_entry("kind", &self.kind)?;
+            }
             for (name, value) in body {
                 map.serialize_entry(name, value)?;
             }
@@ -919,6 +1004,69 @@ mod tests {
             .collect::<Vec<_>>()
             .join(": ");
             assert!(error.contains("mount path"), "{mount}: {error}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod d47_kind_tests {
+    use super::*;
+
+    #[test]
+    fn v4_kind_defaults_to_service_and_round_trips_app() {
+        let service =
+            Spec::from_slice(br#"{"cixManifest":4,"exec":["/nix/store/x/bin/service"]}"#).unwrap();
+        assert_eq!(service.kind, ManifestKind::Service);
+        assert!(!serde_json::to_string(&service)
+            .unwrap()
+            .contains("\"kind\""));
+
+        let app = Spec::from_slice(
+            br#"{"cixManifest":4,"kind":"app","exec":["/nix/store/x/bin/job"],"dirs":{"state":["/var/lib/job"],"cache":["/var/cache/job"]},"outbound":true}"#,
+        )
+        .unwrap();
+        assert_eq!(app.kind, ManifestKind::App);
+        let encoded = serde_json::to_string(&app).unwrap();
+        assert!(encoded.contains("\"kind\":\"app\""), "{encoded}");
+    }
+
+    #[test]
+    fn item_has_no_exec_and_unknown_kinds_are_rejected() {
+        let item =
+            Spec::from_slice(br#"{"cixManifest":4,"kind":"item","mounts":["/srv/data"]}"#).unwrap();
+        assert_eq!(item.kind, ManifestKind::Item);
+        assert!(item.select_service(None).unwrap().1.exec.is_empty());
+        let encoded = serde_json::to_string(&item).unwrap();
+        assert!(!encoded.contains("\"exec\""), "{encoded}");
+
+        let error = Spec::from_slice(br#"{"cixManifest":4,"kind":"timer","exec":["/bin/true"]}"#)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("service, app, or item"), "{error}");
+    }
+
+    #[test]
+    fn kind_specific_fields_are_validated_for_external_manifests() {
+        for (json, message) in [
+            (
+                r#"{"cixManifest":4,"kind":"app","exec":["/bin/true"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}"#,
+                "app must not declare ports",
+            ),
+            (
+                r#"{"cixManifest":4,"kind":"app","exec":["/bin/true"],"setup":["/bin/true"]}"#,
+                "app must not declare setup",
+            ),
+            (
+                r#"{"cixManifest":4,"kind":"item","exec":["/bin/true"]}"#,
+                "item must not declare exec",
+            ),
+            (
+                r#"{"cixManifest":4,"kind":"item","outbound":true}"#,
+                "item is assets-only",
+            ),
+        ] {
+            let error = format!("{:#}", Spec::from_slice(json.as_bytes()).unwrap_err());
+            assert!(error.contains(message), "{error}");
         }
     }
 }

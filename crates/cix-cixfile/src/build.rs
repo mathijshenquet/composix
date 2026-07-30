@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 
 use crate::build_chain;
-use crate::codegen::generate_nix_with_snapshot;
+use crate::codegen::generate_nix_with_snapshots;
 use crate::lock::save_lock;
 use crate::{ensure_lock, parse};
 
@@ -32,39 +32,59 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
     if let Some(tag) = &options.tag {
-        for name in cixfile.items.keys() {
-            tag_reference(cixfile.items.len(), name, tag)?;
+        for name in &cixfile.artifact_order {
+            tag_reference(cixfile.artifacts.len(), name, tag)?;
         }
     }
+    let requested_update = options.update_lock.as_deref();
+    let input_update = match requested_update {
+        Some("") | None => requested_update,
+        Some(name)
+            if cixfile
+                .inputs
+                .get(name)
+                .is_some_and(|input| !input.is_local()) =>
+        {
+            Some(name)
+        }
+        Some(name) if cixfile.fetches.contains_key(name) || cixfile.builders.contains_key(name) => {
+            None
+        }
+        Some(name)
+            if cixfile
+                .inputs
+                .get(name)
+                .is_some_and(|input| input.is_local()) =>
+        {
+            anyhow::bail!("FROM . AS {name} is the local build context and is not lock-pinned")
+        }
+        Some(name) => anyhow::bail!(
+            "--update-lock names no lock-bearing FROM, FETCH, or BUILDER binder {name:?}"
+        ),
+    };
     let lock_path = directory.join("Cixfile.lock");
-    let mut lock = ensure_lock(&lock_path, &cixfile.inputs, options.update_lock.as_deref())?;
+    let mut lock = ensure_lock(&lock_path, &cixfile.inputs, input_update)?;
     let system = cix_common::current_system()?;
-    let build_snapshot = build_chain::execute(
+    let snapshots = build_chain::execute(
         &cixfile,
         &directory,
         &mut lock,
         &system,
-        options.update_lock.as_deref() == Some(""),
+        requested_update,
         options.no_cache,
     );
     save_lock(&lock_path, &lock)?;
-    let build_snapshot = build_snapshot?;
+    let snapshots = snapshots?;
     let mut outputs = Vec::new();
-    for name in cixfile.items.keys() {
-        let expression = generate_nix_with_snapshot(
-            &cixfile,
-            name,
-            &directory,
-            &lock,
-            &system,
-            build_snapshot.as_deref(),
-        )?;
+    for name in &cixfile.artifact_order {
+        let expression =
+            generate_nix_with_snapshots(&cixfile, name, &directory, &lock, &system, &snapshots)?;
         let realized = build_expression(&expression)?;
         let store_path = add_item_to_store(&realized, name)?;
         if let Some(tag) = &options.tag {
-            let reference = tag_reference(cixfile.items.len(), name, tag)?;
+            let reference = tag_reference(cixfile.artifacts.len(), name, tag)?;
             cix_index::tag(&store_path, &reference, None)
-                .with_context(|| format!("tagging built ITEM {name:?} as {reference:?}"))?;
+                .with_context(|| format!("tagging built artifact {name:?} as {reference:?}"))?;
         }
         outputs.push(BuiltItem {
             name: name.clone(),
@@ -74,16 +94,16 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
     Ok(outputs)
 }
 
-fn tag_reference(item_count: usize, item_name: &str, tag: &str) -> Result<String> {
-    if item_count > 1 && tag.contains(':') {
+fn tag_reference(artifact_count: usize, artifact_name: &str, tag: &str) -> Result<String> {
+    if artifact_count > 1 && tag.contains(':') {
         anyhow::bail!(
-            "-t name:tag is ambiguous for a multi-ITEM Cixfile; pass only the tag so each ITEM is tagged as <item-name>:<tag>"
+            "-t name:tag is ambiguous for a multi-artifact Cixfile; pass only the tag so each artifact is tagged as <block-name>:<tag>"
         );
     }
-    Ok(if item_count == 1 && tag.contains(':') {
+    Ok(if artifact_count == 1 && tag.contains(':') {
         tag.to_owned()
     } else {
-        format!("{item_name}:{tag}")
+        format!("{artifact_name}:{tag}")
     })
 }
 
@@ -130,7 +150,7 @@ mod tests {
     fn multi_item_tags_are_item_names_and_reject_full_refs() {
         assert_eq!(tag_reference(2, "api", "v7").unwrap(), "api:v7".to_owned());
         let error = tag_reference(2, "api", "other:v7").unwrap_err().to_string();
-        assert!(error.contains("multi-ITEM"), "{error}");
+        assert!(error.contains("multi-artifact"), "{error}");
         assert_eq!(
             tag_reference(1, "api", "other:v7").unwrap(),
             "other:v7".to_owned()
