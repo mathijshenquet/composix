@@ -1,4 +1,4 @@
-# track/keys — D56 EXPECT + D57 narrow read-keying (increment 1) + D58 CA trust
+# track/keys — D56 EXPECT + D57 narrow read-keying (increment 1) + D58 IMPORT
 
 Read AGENTS.md first. Authoritative: docs/design.md **D56, D57, D58** (the five D57
 invariants are law; mechanics are yours where the spec is silent). Context: D39/D40/
@@ -59,17 +59,27 @@ Implement to the invariants; concretely:
    the `rm -rf workspace is always safe` property demonstrated. Prose quality per
    the tourbook bar.
 
-## D58 — CA trust in FETCH
+## D58 — IMPORT replaces PATH (READ design.md D58 — REWRITTEN since this track
+first launched; keep any D56 work an earlier partial run already committed)
 
-- FETCH sandbox env gains `SSL_CERT_FILE`, `GIT_SSL_CAINFO`, `CURL_CA_BUNDLE`
-  pointing at the locked nixpkgs `cacert` bundle; cacert joins FETCH steps' offered
-  closure automatically. Explicit env on the FETCH line overrides. RUN gets none of
-  this (networkless). Update examples (whoami-style FETCHes go bare: PATH already
-  applies inside builders — sweep full `${pkgs.…}/bin/` prefixes from in-builder
-  FETCH/RUN lines in examples), docs/cixfile.md, and docs/migrate.md (two lessons:
-  bare tools inside builders; no more SSL ceremony — but do NOT touch corpus/).
-- Tests: a FETCH using bare git over https succeeds without any SSL env in the
-  Cixfile; override still wins.
+- New builder directive `IMPORT <pkg-ref>...` (repeatable): union-mounts the
+  referenced packages' `bin`, `etc`, `share` subtrees read-only into the build
+  sandbox ROOT (`/bin`, `/etc`, `/share`), declaration order = overlay priority
+  (earlier declaration wins on collision, matching old PATH-order semantics).
+  IMPORTed packages define the offered closure (as PATH refs did). Bare commands
+  in RUN/FETCH resolve via the unioned /bin. `IMPORT ${pkgs.cacert}` therefore
+  fixes TLS with zero engine specialness -- add a real-network test proving bare
+  git-over-https works with cacert imported, and fails with a clear error without.
+- **PATH is REMOVED as a directive, everywhere.** Migration errors: in builders
+  "PATH was replaced by IMPORT (D58)"; in service blocks "declare ENV PATH = ...
+  explicitly". Service blocks: runtime path needs become plain
+  `ENV PATH = ${pkgs.x}/bin:...` declarations; D31 item-relative `EXEC bin/x`
+  resolution is untouched. Sweep all examples (postgres is the interesting one:
+  its SERVICE PATH becomes an ENV PATH), docs/cixfile.md, and the tour chapters.
+  docs/migrate.md gains the lessons (IMPORT, bare tools, no SSL ceremony) but do
+  NOT touch corpus/ (a concurrent round owns it).
+- The D57 chain-key definition reads IMPORT refs wherever it said PATH refs
+  (offered closure set = IMPORTed closures).
 
 ## Gate
 

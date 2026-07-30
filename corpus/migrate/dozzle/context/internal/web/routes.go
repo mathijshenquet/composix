@@ -1,0 +1,269 @@
+package web
+
+import (
+	"context"
+	"io/fs"
+	"time"
+
+	"net/http"
+	"strings"
+
+	"github.com/amir20/dozzle/internal/auth"
+	"github.com/amir20/dozzle/internal/cloud"
+	"github.com/amir20/dozzle/internal/container"
+	dozzle_mcp "github.com/amir20/dozzle/internal/mcp"
+	"github.com/amir20/dozzle/internal/notification"
+	"github.com/amir20/dozzle/internal/notification/dispatcher"
+	container_support "github.com/amir20/dozzle/internal/support/container"
+	"github.com/amir20/dozzle/types"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rs/zerolog/log"
+)
+
+type ReleaseCheckMode string
+
+const (
+	Automatic ReleaseCheckMode = "automatic"
+	Manual    ReleaseCheckMode = "manual"
+)
+
+type AuthProvider string
+
+const (
+	NONE          AuthProvider = "none"
+	SIMPLE        AuthProvider = "simple"
+	FORWARD_PROXY AuthProvider = "forward-proxy"
+)
+
+// Config is a struct for configuring the web service
+type Config struct {
+	Base             string
+	Addr             string
+	Version          string
+	Hostname         string
+	NoAnalytics      bool
+	Dev              bool
+	Mode             string
+	Authorization    Authorization
+	EnableActions    bool
+	EnableShell      bool
+	EnableMCP        bool
+	DisableAvatars   bool
+	ReleaseCheckMode ReleaseCheckMode
+	Labels           container.ContainerLabels
+	Cloud            CloudHooks
+}
+
+// CloudHooks bundles cloud-side callbacks the web layer invokes. Grouping
+// them keeps Config and createServer signatures stable as more cloud RPCs
+// land. Nil-valued fields mean "feature unavailable" — handlers should
+// degrade gracefully (e.g. SearchLogs nil → 503).
+type CloudHooks struct {
+	// OnSetup signals that cloud configuration has been (re)written and
+	// the client should reconnect / re-authenticate.
+	OnSetup func()
+	// OnUpdate is fired when cloud-affecting settings change (e.g.
+	// streamLogs toggle) so the existing connection can pick them up.
+	OnUpdate func()
+	// SearchLogs proxies a substring/word-filter query to Doligence Cloud
+	// over the authenticated gRPC connection. Nil when cloud is not wired.
+	SearchLogs func(ctx context.Context, query string, limit int32, hostID, containerID string, before int64) (*cloud.SearchLogResult, error)
+}
+
+type Authorization struct {
+	Provider   AuthProvider
+	Authorizer Authorizer
+	TTL        time.Duration
+	LogoutUrl  string
+}
+
+type Authorizer interface {
+	AuthMiddleware(http.Handler) http.Handler
+	CreateToken(string, string) (string, error)
+}
+
+type HostService interface {
+	FindContainer(host string, id string, labels container.ContainerLabels) (*container_support.ContainerService, error)
+	ListContainersForHost(host string, labels container.ContainerLabels) ([]container.Container, error)
+	ListAllContainers(labels container.ContainerLabels) ([]container.Container, []error)
+	ListAllContainersFiltered(userFilter container.ContainerLabels, filter container_support.ContainerFilter) ([]container.Container, []error)
+	SubscribeEventsAndStats(ctx context.Context, events chan<- container.ContainerEvent, stats chan<- container.ContainerStat)
+	SubscribeContainersStarted(ctx context.Context, containers chan<- container.Container, filter container_support.ContainerFilter)
+	Hosts() []container.Host
+	LocalHost() (container.Host, error)
+	SubscribeAvailableHosts(ctx context.Context, hosts chan<- container.Host)
+	LocalClients() []container.Client
+	LocalClientServices() []container_support.ClientService
+	// Notification methods
+	AddSubscription(sub *notification.Subscription) error
+	RemoveSubscription(id int)
+	ReplaceSubscription(sub *notification.Subscription) error
+	UpdateSubscription(id int, updates map[string]any) error
+	Subscriptions() []*notification.Subscription
+	AddDispatcher(d dispatcher.Dispatcher) int
+	UpdateDispatcher(id int, d dispatcher.Dispatcher)
+	RemoveDispatcher(id int)
+	Dispatchers() []notification.DispatcherConfig
+	FetchAgentNotificationStats() map[int]types.SubscriptionStats
+	CloudConfig() *notification.CloudConfig
+	SetCloudConfig(cc *notification.CloudConfig)
+	SetCloudStreamLogs(enabled bool)
+	RemoveCloudConfig()
+	ResetCloudDispatcherBreaker()
+}
+
+type handler struct {
+	content     fs.FS
+	config      *Config
+	hostService HostService
+}
+
+func CreateServer(hostService HostService, content fs.FS, config Config) *http.Server {
+	handler := &handler{
+		content:     content,
+		config:      &config,
+		hostService: hostService,
+	}
+
+	return &http.Server{Addr: config.Addr, Handler: createRouter(handler)}
+}
+
+var fileServer http.Handler
+
+func createRouter(h *handler) *chi.Mux {
+	fileServer = http.FileServer(http.FS(h.content))
+	base := h.config.Base
+	r := chi.NewRouter()
+
+	if !h.config.Dev {
+		r.Use(cspHeaders)
+	}
+
+	if h.config.Authorization.Provider != NONE && h.config.Authorization.Authorizer == nil {
+		log.Fatal().Msg("Authorization provider is set but no authorizer is provided")
+	}
+
+	r.Route(base, func(r chi.Router) {
+		if h.config.Authorization.Provider != NONE {
+			r.Use(h.config.Authorization.Authorizer.AuthMiddleware)
+		}
+
+		r.Route("/api", func(r chi.Router) {
+			// Authenticated routes
+			r.Group(func(r chi.Router) {
+				if h.config.Authorization.Provider != NONE {
+					r.Use(auth.RequireAuthentication)
+				}
+
+				// Log streams
+				r.Get("/hosts/{host}/containers/{id}/logs/stream", h.streamContainerLogs)
+				r.Get("/hosts/{host}/logs/stream", h.streamHostLogs)
+				r.Get("/hosts/{host}/containers/{id}/logs", h.fetchLogsBetweenDates)
+				r.Get("/hosts/{host}/logs/mergedStream/{ids}", h.streamLogsMerged)
+				r.Get("/containers/{hostIds}/download", h.downloadLogs) // formatted as host:container,host:container
+				r.Get("/labels/{labels}/logs/stream", h.streamLogsWithLabels)
+				r.Get("/groups/{group}/logs/stream", h.streamGroupedLogs)
+				r.Get("/host-groups/{group}/logs/stream", h.streamHostGroupLogs)
+				r.Get("/events/stream", h.streamEvents)
+
+				// Action
+				if h.config.EnableActions {
+					r.Post("/hosts/{host}/containers/{id}/actions/update", h.containerUpdate)
+					r.Post("/hosts/{host}/containers/{id}/actions/{action}", h.containerActions)
+				}
+				if h.config.EnableShell {
+					r.Get("/hosts/{host}/containers/{id}/attach", h.attach)
+					r.Get("/hosts/{host}/containers/{id}/exec", h.exec)
+				}
+
+				if !h.config.DisableAvatars {
+					r.Get("/profile/avatar", h.avatar)
+				}
+				r.Patch("/profile", h.updateProfile)
+				r.Get("/version", h.version)
+				if log.Debug().Enabled() {
+					r.Get("/debug/store", h.debugStore)
+				}
+
+				// Notifications API
+				r.Route("/notifications", func(r chi.Router) {
+					r.Get("/rules", h.listNotificationRules)
+					r.Post("/rules", h.createNotificationRule)
+					r.Get("/rules/{id}", h.getNotificationRule)
+					r.Put("/rules/{id}", h.replaceNotificationRule)
+					r.Patch("/rules/{id}", h.updateNotificationRule)
+					r.Delete("/rules/{id}", h.deleteNotificationRule)
+
+					r.Get("/dispatchers", h.listDispatchers)
+					r.Post("/dispatchers", h.createDispatcher)
+					r.Get("/dispatchers/{id}", h.getDispatcher)
+					r.Put("/dispatchers/{id}", h.updateDispatcher)
+					r.Delete("/dispatchers/{id}", h.deleteDispatcher)
+
+					r.Post("/preview", h.previewExpression)
+					r.Post("/test-webhook", h.testWebhook)
+				})
+
+				// Releases API
+				r.Get("/releases", h.getReleases)
+
+				// Cloud API
+				r.Get("/cloud/status", h.cloudStatus)
+				r.Get("/cloud/search/logs", h.cloudSearchLogs)
+				r.Get("/cloud/config", h.cloudConfig)
+				r.Patch("/cloud/config", h.updateCloudConfig)
+				r.Delete("/cloud/config", h.deleteCloudConfig)
+				r.Post("/cloud/feedback", h.cloudFeedback)
+				// Cloud callback handles the OAuth-style code exchange. It must stay
+				// authenticated so an unauthenticated attacker cannot force-link the
+				// instance to their own cloud account via SetCloudConfig.
+				r.Get("/cloud/callback", h.cloudCallback)
+
+				// MCP (Model Context Protocol) endpoint
+				if h.config.EnableMCP {
+					mcpServer := dozzle_mcp.NewServer(h.hostService, h.config.Labels, h.config.Version)
+					r.Mount("/mcp", mcpServer.Handler())
+				}
+			})
+
+			// Public API routes
+			if h.config.Authorization.Provider == SIMPLE {
+				r.Post("/token", h.createToken)
+				r.Delete("/token", h.deleteToken)
+			}
+		})
+
+		r.Get("/healthcheck", h.healthcheck)
+		r.Get("/manifest.webmanifest", h.manifest)
+		r.Get("/sw.js", h.serviceWorker)
+
+		defaultHandler := http.StripPrefix(strings.Replace(base+"/", "//", "/", 1), http.HandlerFunc(h.index))
+		r.With(Brotli).Get("/*", func(w http.ResponseWriter, req *http.Request) {
+			defaultHandler.ServeHTTP(w, req)
+		})
+	})
+
+	if base != "/" {
+		r.Get(base, func(w http.ResponseWriter, req *http.Request) {
+			http.Redirect(w, req, base+"/", http.StatusMovedPermanently)
+		})
+	}
+
+	if log.Debug().Enabled() {
+		r.Mount("/debug", middleware.Profiler())
+	}
+
+	return r
+}
+
+func hostKey(r *http.Request) string {
+	host := chi.URLParam(r, "host")
+
+	if host == "" {
+		log.Fatal().Str("url", r.URL.String()).Msg("Host parameter not found in the URL path")
+	}
+
+	return host
+}

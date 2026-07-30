@@ -1,0 +1,7 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nginx
+  LOGS /var/log/nginx
+  RUNDIR /run/nginx
+  EXEC ${pkgs.nginx}/bin/nginx -g daemon\ off\;
+  PORT http = 80

@@ -1,0 +1,432 @@
+toolbar:
+  clear: Pulisci
+  download: Scarica
+  download-filtered: Scarica Log Filtrati
+  search: Cerca
+  inverse-on: Escludi corrispondenze (inverso)
+  inverse-off: Includi corrispondenze (normale)
+  show: Mostra solo {std}
+  show-all: Mostra tutto
+  stop: Stop
+  start: Start
+  restart: Restart
+  update: Aggiorna
+  update-service: Aggiorna Servizio
+  update-pulling: Download dell'ultima immagine...
+  update-recreating: Ricreazione del container...
+  update-done: Container aggiornato con successo
+  update-up-to-date: Già aggiornato
+  show-hostname: Mostra nome host
+  show-container-name: Mostra nome container
+  shell: Shell
+  attach: Collega
+  copy-permalink: Copia link permanente
+  copy-image: "Copia tag immagine"
+  copy-logs: Copia log
+  copy-filtered-logs: Copia log filtrati
+  copying-logs: Copia dei log...
+action:
+  copy-log: Copia log
+  copy-link: Copia permalink
+  see-in-context: Vedi nel contesto
+  show-details: Mostra dettagli
+  create-alert: Crea avviso
+label:
+  containers: Container
+  container: Nessun container | 1 container | {count} container
+  host-count: Nessun Host | 1 Host | {count} Host
+  service: Nessun servizio | 1 servizio | {count} servizi
+  services: Servizi
+  running-containers: Container in esecuzione
+  all-containers: Tutti i Container
+  all-namespaces: Tutti i Namespace
+  namespaces: Namespace
+  host: Host
+  hosts: Hosts
+  password: Password
+  username: Username
+  container-name: Nome Container
+  status: Stato
+  created: Creato
+  avg-cpu: CPU (%)
+  avg-mem: MEM (%)
+  name: Nome
+  cpu: CPU
+  mem: MEM
+  pinned: Fissato
+  per-page: Righe per pagina
+  host-menu: Host e Container
+  swarm-menu: Servizi e Stack
+  k8s-menu: Kubernetes
+  group-menu: Gruppi Personalizzati
+  no-logs: Il container non ha ancora log
+  search-status:
+    searching: Ricerca nei log meno recenti…
+    searching-to: Ricerca nei log meno recenti… fino a {time}
+    capped: "{count} risultati · cercato fino a {time}"
+    exhausted: Cercato in tutti i log · {count} risultati
+    empty: Nessun risultato · cercato in tutti i log
+  show-all-containers: Mostra tutti i container
+  collapse-all: Comprimi tutto
+  collapse-group: Comprimi gruppo
+  expand-all: Espandi tutto
+tooltip:
+  search: Ricerca container (⌘ + k, ⌃k)
+  pin-column: Blocca come colonna
+  merge-all: Unisci tutto in un flusso
+  network-io: "Rete: ↑ {tx}/s · ↓ {rx}/s"
+  disk-io: "Disco: ↑ {write}/s · ↓ {read}/s"
+  cpu-usage: "CPU {cpu}% / {cores} core"
+  memory-usage: "Memoria {used} / {total}"
+  volumes: Volumi
+  volume-unreachable: non raggiungibile da questo host
+  volume-full: "{destination} è pieno al {pct}"
+error:
+  page-not-found: Questa pagina non esiste
+  host-group-not-found: 'Nessun host trovato nel gruppo "{name}"'
+  invalid-auth: Username o password non valide
+  copy-not-supported: La copia negli appunti non è supportata dal tuo browser
+  copy-not-supported-hint: Appunti non disponibili. Copia il link qui sotto
+  logs-skipped: Mostra {total} voci nascoste
+  container-not-found: Container non trovato
+  action-failed: Azione Fallita
+  update-failed: Aggiornamento Fallito
+  unable-to-complete-action: Impossibile completare l'azione
+  invalid-action: Azione non valida
+  unable-to-update: Impossibile aggiornare il container
+  something-went-wrong: Qualcosa è andato storto
+  unknown-error: Errore sconosciuto
+  events-stream:
+    title: Errore inaspettato
+    message: >-
+      Dozzle UI non è stato in grado di connettersi alle API. Controlla la tua configurazione di rete. Se stai utilizzando un reverse proxy, assicurati di averlo configurato correttamente.
+  events-timeout:
+    title: Qualcosa non è corretto
+    message: >-
+      Dozzle UI timed out durante la connessione alle API. Controlla la configurazione di rete e riprova.
+alert:
+  redirected:
+    title: Reindirizzamento ad un nuovo container
+    message: Dozzle si è reindirizzato automaticamente ad un nuovo container {containerId}.
+  similar-container-found:
+    title: Trovato un Container simile
+    message: >-
+      Dozzle ha trovato un Container simile {containerId} in esecuzione sullo stesso Host e passerà automaticamente ad esso se non premi 'Cancel'.
+title:
+  page-not-found: Pagina non trovata
+  login: Autenticazione richiesta
+  dashboard: 1 container | {count} container
+  settings: Impostazioni
+  notifications: Notifiche
+button:
+  logout: Logout
+  login: Login
+  settings: Impostazioni
+  cancel: Annulla
+  redirect: Reindirizza
+  retry: Retry
+placeholder:
+  search-containers: Ricerca container (⌘ + k, ⌃k)
+  search: Cerca
+settings:
+  help-support: >
+    Per favore sostieni Dozzle donando o sponsorizzandoci su GitHub. I tuoi contributi ci aiutano a migliorare Dozzle per tutti. Grazie! 🙏🏼
+  about-desc: Informazioni sulla tua installazione di Dozzle e su come sostenere il progetto.
+  display-desc: Personalizza l'aspetto dei log e del resto dell'app. L'anteprima riflette le modifiche in tempo reale.
+  options-desc: Preferenze di lingua, navigazione e raggruppamento.
+  cloud-desc: Trasmetti i log a Dozzle Cloud per analisi basate su IA e ricerca tra le istanze.
+  support-title: Sostieni Dozzle
+  support-help: Le donazioni aiutano a mantenere Dozzle gratuito e curato. Grazie 🙏
+  display: Visualizza
+  locale: Sovrascrivi Lingua
+  small-scrollbars: Usa una scrollbars più piccola
+  show-timestamps: Visualizza timestamp
+  soft-wrap: Soft Wrap
+  datetime-format: Sovrascrivi data e formato dell'ora
+  font-size: Grandezza del Font da usare nei log
+  color-scheme: Tema colori
+  options: Opzioni
+  show-stopped-containers: Visualizza i container arrestati
+  group-containers: Raggruppa i container per namespace
+  about: Circa
+  search: Abilita la ricerca attraverso Dozzle
+  using-version: Stai utilizzando <a href="https://dozzle.dev/" target="_blank" rel="noreferrer noopener">Dozzle</a> {version}.
+  update-available: >-
+    Nuova versione disponibile! Aggiorna a <a href="{href}" target="_blank" rel="noreferrer noopener">{nextVersion}</a>.
+  show-std: Visualizza stdout e stderr
+  automatic-redirect: Reindirizza automaticamente al nuovo container con lo stesso nome
+  compact: Abilita la modalità compatta per i log
+  size:
+    small: Piccolo
+    medium: Medio
+    large: Grande
+  theme:
+    auto: Auto
+    dark: Scuro
+    light: Chiaro
+  redirect:
+    instant: Immediato
+    delayed: Ritardato
+    none: Nessuno
+  grouping:
+    always: Sempre
+    at-least-2: Almeno 2
+    never: Mai
+  hour:
+    auto: Auto
+    12: "12"
+    24: "24"
+  log:
+    preview: Questa è un'anteprima dei log
+    warning: Un log di avviso appare così
+    complex: Questa è un log complesso in formato json
+    simple: Questo è un messaggio molto molto lungo che dovrebbe andare a capo automaticamente. Disabilitando il soft wrap si può disabilitare questa funzione. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+    multi-line-error:
+      start-line: Questo è un messaggio di errore su più righe
+      middle-line: una seconda riga
+      end-line: e infine una terza riga.
+releases:
+  features: nuova funzione | {count} funzioni
+  bugFixes: nuovo bug fix | {count} fix
+  breaking: nuovo breaking change | {count} breaking change
+  three_parts: "{first}, {second} e {third}"
+  two_parts: "{first} e {second}"
+  latest: Ultimo
+  no_releases: Stai utilizzando l'ultima versione
+log_actions:
+  copy_log: Copia log
+  jump_to_context: Vai a
+toasts:
+  copied:
+    title: Copiato
+    message: Log copiato nella clipboard
+analytics:
+  creating_table: Creazione tabella temporanea...
+  downloading: Recupero dei log dei container... ({size})
+  evaluating_query: Valutazione della query...
+  total_records: Totale {count} record.
+  showing_first: Mostrati i primi {count}.
+  title: Analisi SQL
+  no_results: Nessuna riga corrisponde alla query.
+  columns: Colonne
+  examples: Esempi
+  example_all: Tutti i log
+  example_count: Numero di righe
+  example_group: Conteggio per {column}
+  export: Esporta
+  export_csv: Scarica CSV
+  export_json: Scarica JSON
+drawer:
+  maximize: Massimizza
+  restore: Ripristina
+notifications:
+  title: Notifiche
+  description: Configura dove e quando ricevere avvisi
+  destinations: Destinazioni
+  add-destination: Aggiungi destinazione
+  alerts: Avvisi
+  add-alert: Aggiungi avviso
+  prefill-name: Avvisi di errore
+  prefill-expression: level == "error"
+  add: Aggiungi
+  filter:
+    all: Tutti ({count})
+    enabled: Abilitati ({count})
+    paused: In pausa ({count})
+  no-alerts: Nessun avviso configurato. Creane uno per iniziare.
+  default-alert-created: "We created a default alert for you. You'll get notified when any container exits with an error. Edit or pause it anytime."
+  default-alert-failed: "Couldn't auto-create your alert — here's the form instead."
+  alert:
+    paused: In pausa
+    containers: Container
+    log-filter: Filtro log
+    metric-filter: Metrica
+    event-filter: Event
+    cooldown: Tempo di attesa
+    sample-window: Finestra di campionamento
+    destination: Destinazione
+    dispatcher-deleted: Dispatcher eliminato
+    containers-count: "{count} container"
+    triggered-count: "{count} attivati"
+    last-triggered: "Ultimo: {time}"
+  destination:
+    http-webhook: HTTP Webhook
+    dozzle-cloud: Dozzle Cloud
+    edit: Modifica
+    duplicate: Duplica
+    delete: Elimina
+  alert-form:
+    create-title: Crea Avviso
+    edit-title: Modifica Avviso
+    description: Iscriviti agli eventi di log che corrispondono ai tuoi criteri
+    alert-name: Nome Avviso
+    alert-name-placeholder: es., Errori API Test
+    container-filter: Filtro Container
+    containers-match: "{count} container corrispondono: {names}"
+    no-containers-match: Nessun container corrisponde a questo filtro
+    log-filter: Filtro Log
+    logs-match: "{count} log corrispondono"
+    no-logs-match: Nessun log corrisponde a questo filtro
+    destination: Destinazione
+    select-destination: Seleziona una destinazione
+    no-destinations: Nessuna destinazione configurata. Aggiungine una prima.
+    preview: Anteprima
+    cancel: Annulla
+    save: Salva
+    create: Crea Avviso
+    metric-filter: Espressione Metrica
+    expression-valid: L'espressione è valida
+    metric-fields-hint: "Campi disponibili: {fields}"
+    sample-window-label: Finestra di campionamento
+    sample-window-hint: "L'avviso si attiva quando la condizione è soddisfatta per {duration}"
+    cooldown-label: Tempo di attesa
+    cooldown-hint: "{duration} tra gli avvisi per container"
+    no-cooldown: No cooldown
+    alert-type: Tipo di avviso
+    log-alert: Avviso log
+    metric-alert: Avviso metrica
+    event-alert: Event Alert
+    event-filter: Event Expression
+    event-fields-hint: "Available fields: {fields}"
+  destination-form:
+    create-title: Aggiungi Destinazione
+    edit-title: Modifica Destinazione
+    description: Dove devono essere inviate le notifiche?
+    name: Nome
+    name-placeholder: es., Slack Produzione
+    type: Tipo
+    webhook-title: HTTP Webhook
+    webhook-description: Slack, Discord, endpoint personalizzato
+    cloud-title: Dozzle Cloud
+    cloud-description: Notifiche push, avvisi email e riepiloghi basati su AI
+    webhook-url: URL Webhook
+    webhook-url-placeholder: https://hooks.foo.com/services/...
+    api-key: Chiave API
+    payload-format: Formato Payload
+    format-slack: Slack
+    format-discord: Discord
+    format-ntfy: ntfy
+    format-custom: Personalizzato
+    template: Template
+    template-hint: Sintassi template Go
+    headers: Header Personalizzati
+    headers-hint: Header HTTP opzionali (es. Authorization)
+    header-name: Nome header
+    header-value: Valore header
+    add-header: Aggiungi Header
+    test: Test
+    test-success: Test riuscito
+    cancel: Annulla
+    close: Chiudi
+    save: Salva
+    add: Aggiungi Destinazione
+    cloud-exists: Dozzle Cloud è già collegato
+    link-cloud: Collega Account
+    link-cloud-button: Collega Dozzle Cloud
+    cloud-settings-hint: Per configurare i tuoi canali gestiti, vai a
+    cloud-settings-link: Impostazioni Dozzle Cloud
+    cloud-checking: Verifica dello stato cloud...
+    cloud-relink: La tua chiave API non è valida o è scaduta. Elimina e collega nuovamente il tuo account.
+    cloud-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+    cloud-plan: Piano
+    cloud-usage: Eventi in questo periodo
+  empty-state:
+    title: Inizia con le notifiche
+    description: Scegli come vuoi ricevere avvisi quando i tuoi container richiedono attenzione.
+    cloud-subtitle: Riepiloghi AI, controllo remoto e altro
+    webhook-subtitle: Invia avvisi a qualsiasi endpoint
+  cloud-link-success:
+    title: Dozzle Cloud Collegato
+    message: La tua istanza è stata connessa con successo. Puoi scollegarla nelle impostazioni o controllare il tuo utilizzo in qualsiasi momento.
+cloud:
+  title: Dozzle Cloud
+  description: Controlla i tuoi container da remoto e usa l'AI per investigare problemi nel tuo cluster.
+  learn-more: Scopri di più
+  link-instance: Collega istanza
+  relink-instance: Ricollega istanza
+  connected: Connesso
+  plan: Piano
+  usage: Eventi in questo periodo
+  dashboard: Dashboard
+  settings: Impostazioni
+  error: Errore di connessione. Ricollega la tua istanza.
+  error-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+  unlink: Scollega
+  unlink-confirm: Sei sicuro di voler scollegare da Dozzle Cloud? Questo rimuoverà tutte le destinazioni di notifica cloud.
+  stream-logs: Invia i log dei container a Dozzle Cloud
+  stream-logs-help: Necessario per le indagini basate sull'IA e la ricerca nei log. Disattiva per mantenere tutto il contenuto dei log su questa istanza.
+  welcome:
+    title: "Cloud è un triage intelligente per i tuoi container."
+    subtitle: "Un set iniziale di segnali di errore è preselezionato — dicci cosa ti ha portato qui così possiamo affinarlo."
+    question: "Una domanda veloce prima di iniziare — per cosa vorresti usare Cloud principalmente?"
+    placeholder: "es. Voglio sapere quando il mio container Plex si blocca di notte..."
+    or-pick: "Oppure scegli:"
+    chip-alerts: Ricevere notifiche sui problemi
+    chip-assistant: Chiedi all'Assistente dei miei log
+    chip-search-logs: Cercare in tutti i miei log
+    chip-remote-access: Accedere ai log da remoto
+    chip-digests: Ricevere riepiloghi giornalieri dei log
+    chip-other: Altro
+    get-started: Inizia
+    skip: Salta per ora
+    step2-title: "Scegli i segnali che Cloud deve smistare."
+    create-alert: Crea il tuo primo avviso
+    step2-body: "Invece di inoltrare ogni evento, Cloud osserva le cose che sembrano rotte, le investiga e ti interrompe solo quando conta. Per farlo bene, Cloud ha bisogno di segnali. Abbiamo preselezionato qui sotto un set iniziale di eventi di errore — deseleziona tutto ciò che preferisci tenere in locale."
+    footer: "Puoi cambiare ciò che viene condiviso in qualsiasi momento dalla pagina Notifiche. Cloud non riceve mai log a cui non lo hai abbonato."
+    signals:
+      exited: "Container terminato con errore"
+      exited-desc: "Si attiva quando un container si ferma con un codice di uscita diverso da zero."
+      unhealthy: "Container diventato unhealthy"
+      unhealthy-desc: "Si attiva quando l'healthcheck di un container passa a unhealthy."
+      oom: "Container ucciso dal kernel (OOM)"
+      oom-desc: "Si attiva quando Docker segnala un kill per esaurimento memoria."
+      restart: "Container riavviato"
+      restart-desc: "Disattivo di default — rumoroso da solo; Cloud lo usa anche per rilevare loop."
+      disk: "Spazio su disco in esaurimento su un volume"
+      disk-desc: "Si attiva quando un volume montato supera l'85% di utilizzo."
+    create-alerts: "Attiva i segnali selezionati"
+    later: "Lo farò dopo"
+cloud-search:
+  containers-section: "Container"
+  search-logs-for: "Cerca log per \"{query}\""
+  across-containers: "indicizzati su tutti i tuoi container"
+  connect-to-enable: "Connetti Dozzle Cloud per cercare nei log"
+  enable-streaming-to-search: "Abilita lo streaming dei log su Cloud"
+  open-container: "apri container"
+  search-logs-shortcut: "cerca log"
+  cloud-connected: "Cloud connesso"
+  results-page-title: "Ricerca log"
+  no-results: "Nessuna riga di log corrispondente."
+  search-failed: "Ricerca Cloud fallita."
+  search-empty-prompt: "Digita una query per cercare nei log."
+  searching: "Ricerca…"
+  hits-count: "{n} risultati"
+  window-suffix: "negli ultimi 14 giorni"
+  hero-title-cloud: "Cerca container e log"
+  hero-title-plain: "Cerca container"
+  hero-pill-indexed: "Indice Cloud"
+  modal-placeholder-cloud: "Cerca container e log…"
+  modal-placeholder-plain: "Cerca container…"
+  col-time: "Ora"
+  col-level: "Livello"
+  col-container: "Container"
+  col-message: "Messaggio"
+  container-removed: "Il container è stato eliminato"
+  cta-settings: "Impostazioni Cloud"
+  container-removed-pill: "eliminato"
+command-palette:
+  section-commands: Comandi
+  restart-container: Riavvia {name}
+  stop-container: Ferma {name}
+  start-container: Avvia {name}
+  update-container: Aggiorna {name}
+  theme-auto: Usa tema di sistema
+  theme-light: Passa al tema chiaro
+  theme-dark: Passa al tema scuro
+  toggle-compact: Attiva/disattiva modalità compatta
+  toggle-timestamps: Attiva/disattiva timestamp
+  toggle-soft-wrap: Attiva/disattiva a capo automatico
+  toggle-stopped: Attiva/disattiva container fermati
+  toggle-std: Attiva/disattiva etichette stdout/stderr
+  toggle-scrollbars: Attiva/disattiva barre di scorrimento più piccole
+  open-settings: Apri impostazioni

@@ -1,0 +1,278 @@
+@import "tailwindcss";
+@import "splitpanes/dist/splitpanes.css" layer(base);
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/600.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@plugin "daisyui";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-green: oklch(0.62 0.119722 158.82);
+  --color-red: oklch(64% 0.218 28.85);
+  --color-purple: oklch(51.49% 0.215 321.03);
+  --color-blue: oklch(65% 0.171 249.5);
+  --color-orange: oklch(85% 0.186 48.13);
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+@custom-variant max-h-500 {
+  @media (max-height: 500px) {
+    @slot;
+  }
+}
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: false;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: oklch(25% 0 0);
+  --color-base-200: oklch(18% 0 0);
+  --color-base-300: oklch(11% 0 0);
+  --color-base-content: oklch(89.23% 0 0);
+  --color-primary: oklch(70.96% 0.143 176.65);
+  --color-primary-content: oklch(98% 0.01 240);
+  --color-secondary: oklch(81.38% 0.1448 90.1243);
+  --color-secondary-content: oklch(98% 0.01 200);
+
+  --color-neutral: oklch(50% 0.05 240);
+  --color-neutral-content: oklch(98% 0.01 240);
+
+  --color-info: var(--color-blue);
+  --color-info-content: oklch(98% 0.01 220);
+
+  --color-success: var(--color-green);
+  --color-success-content: oklch(98% 0.01 140);
+
+  --color-warning: var(--color-orange);
+  --color-success-content: oklch(98% 0.01 140);
+
+  --color-error: var(--color-red);
+  --color-error-content: oklch(98% 0.01 30);
+
+  /* ANSI log palette tuned for legibility on the dark background */
+  --ansi-black: oklch(45% 0 0);
+  --ansi-red: oklch(65% 0.2 25);
+  --ansi-green: oklch(72% 0.16 150);
+  --ansi-yellow: oklch(80% 0.13 85);
+  --ansi-blue: oklch(70% 0.14 250);
+  --ansi-magenta: oklch(68% 0.19 330);
+  --ansi-cyan: oklch(75% 0.11 200);
+  --ansi-white: oklch(89% 0 0);
+  --ansi-bright-black: oklch(60% 0 0);
+  --ansi-bright-red: oklch(72% 0.2 25);
+  --ansi-bright-green: oklch(82% 0.17 150);
+  --ansi-bright-yellow: oklch(88% 0.14 95);
+  --ansi-bright-blue: oklch(78% 0.13 250);
+  --ansi-bright-magenta: oklch(75% 0.19 330);
+  --ansi-bright-cyan: oklch(85% 0.11 200);
+  --ansi-bright-white: oklch(100% 0 0);
+
+  --radius-selector: 1rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+
+  --border: 1px;
+
+  --depth: 0;
+  --noise: 1;
+}
+
+@plugin "daisyui/theme" {
+  name: "light";
+  default: false;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(97% 0 0);
+  --color-base-300: oklch(90% 0 0);
+  --color-base-content: oklch(33% 0 0);
+  --color-primary: oklch(79.96% 0.143 176.65);
+  --color-primary-content: oklch(98% 0.01 240);
+  --color-secondary: oklch(82.67% 0.15380739746702807 77.82);
+  --color-secondary-content: oklch(98% 0.01 200);
+
+  --color-neutral: oklch(50% 0.05 240);
+  --color-neutral-content: oklch(98% 0.01 240);
+
+  --color-info: var(--color-blue);
+  --color-info-content: oklch(98% 0.01 220);
+
+  --color-success: var(--color-green);
+  --color-success-content: oklch(98% 0.01 140);
+
+  --color-warning: var(--color-orange);
+  --color-success-content: oklch(98% 0.01 140);
+
+  --color-error: var(--color-red);
+  --color-error-content: oklch(98% 0.01 30);
+
+  /* ANSI log palette tuned for legibility on the light background */
+  --ansi-black: oklch(25% 0 0);
+  --ansi-red: oklch(52% 0.2 25);
+  --ansi-green: oklch(52% 0.15 150);
+  --ansi-yellow: oklch(60% 0.13 75);
+  --ansi-blue: oklch(50% 0.17 255);
+  --ansi-magenta: oklch(50% 0.2 330);
+  --ansi-cyan: oklch(55% 0.1 210);
+  --ansi-white: oklch(70% 0 0);
+  --ansi-bright-black: oklch(45% 0 0);
+  --ansi-bright-red: oklch(58% 0.21 25);
+  --ansi-bright-green: oklch(58% 0.16 150);
+  --ansi-bright-yellow: oklch(62% 0.13 85);
+  --ansi-bright-blue: oklch(55% 0.16 255);
+  --ansi-bright-magenta: oklch(56% 0.2 330);
+  --ansi-bright-cyan: oklch(60% 0.1 210);
+  --ansi-bright-white: oklch(85% 0 0);
+
+  --radius-selector: 1rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+
+  --border: 1px;
+
+  --depth: 0;
+  --noise: 1;
+}
+
+@utility input {
+  @apply outline-hidden!;
+  &.input-ghost {
+    @apply focus:border-transparent;
+  }
+}
+
+@utility btn {
+  &:not(.btn-primary):not(.btn-secondary) {
+    @apply hover:bg-base-100;
+  }
+}
+
+/* daisyUI darkens the ghost button's border on hover, which reads as a
+ * near-black ring on the dark theme. Use a theme-aware base-content tint so the
+ * hover ring stays visible and legible in both themes (light on dark, dark on
+ * light) instead of a fixed near-black. */
+.btn-ghost:hover {
+  border-color: color-mix(in oklab, var(--color-base-content) 40%, transparent) !important;
+}
+
+@utility menu-active {
+  &,
+  &:active {
+    --menu-active-bg: var(--color-primary);
+  }
+}
+
+@utility animate-bounce-fast {
+  animation: bounce 0.5s 2 both;
+}
+
+@utility link-primary {
+  @apply underline-offset-4 hover:underline;
+}
+
+@layer base {
+  @media screen and (max-device-width: 480px) {
+    body {
+      -webkit-text-size-adjust: 100%;
+    }
+  }
+}
+
+/* Reserve the document scrollbar gutter so the layout width stays constant when
+ * a page-level scrollbar appears (e.g. once a container's logs load). Without
+ * this, the width jump makes the percentage-based splitpanes recompute and the
+ * sidebar visibly flicks. */
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Height of the mobile top nav (logo row + border). The container status bar
+ * sticks right below it and the log content is padded by the same amount, so
+ * they stay locked together. The safe-area inset is already handled by body. */
+:root {
+  --mobile-nav-height: 57px;
+}
+
+[class*="shadow-"] {
+  @apply shadow-base-content/8;
+}
+
+.splitpanes--vertical .splitpanes__pane {
+  transition: none !important;
+}
+
+/* CodeMirror autocomplete tooltip styles */
+.cm-tooltip {
+  @apply bg-base-200! border-base-content/40! min-w-96 rounded-sm border shadow-md;
+}
+
+.cm-tooltip-autocomplete ul {
+  @apply font-sans;
+}
+
+.cm-tooltip-autocomplete ul li {
+  @apply my-1 px-2;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] {
+  @apply bg-primary/20 text-base-content!;
+}
+
+.cm-completionLabel {
+  @apply text-base-content!;
+}
+
+.cm-completionDetail {
+  @apply text-base-content/60! ml-2 italic;
+}
+
+.cm-completionMatchedText {
+  @apply text-primary! font-bold no-underline;
+}
+
+.cm-completionIcon {
+  @apply mr-2 opacity-70;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-scroller {
+  font-family: var(--font-mono);
+}
+
+.status-pill {
+  @apply inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-xs font-medium tracking-wider uppercase;
+}
+.status-pill-neutral {
+  @apply bg-base-100 border-base-content/15 text-base-content/70;
+}
+.status-pill-success {
+  @apply text-success border-success/30 bg-success/10;
+}
+.status-pill-primary {
+  @apply text-primary border-primary/30 bg-primary/10;
+}
+.status-pill-warning {
+  @apply text-warning border-warning/30 bg-warning/10;
+}
+.status-pill-error {
+  @apply text-error border-error/30 bg-error/10;
+}

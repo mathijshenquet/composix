@@ -1,0 +1,444 @@
+toolbar:
+  clear: Bersihkan
+  download: Unduh
+  download-filtered: Unduh Log yang Difilter
+  search: Cari
+  inverse-on: Kecualikan yang cocok (inversi)
+  inverse-off: Sertakan yang cocok (normal)
+  show: Tampilkan {std}
+  show-all: Tampilkan semua
+  stop: Hentikan
+  start: Mulai
+  restart: Mulai ulang
+  update: Perbarui
+  update-service: Perbarui Layanan
+  update-pulling: Mengunduh image terbaru...
+  update-recreating: Membuat ulang kontainer...
+  update-done: Kontainer berhasil diperbarui
+  update-up-to-date: Sudah versi terbaru
+  show-hostname: Tampilkan nama host
+  show-container-name: Tampilkan nama kontainer
+  shell: Shell
+  attach: Lampirkan
+  copy-permalink: Salin tautan permanen
+  copy-image: "Salin tag image"
+  copy-logs: Salin log
+  copy-filtered-logs: Salin log terfilter
+  copying-logs: Menyalin log...
+action:
+  copy-log: Salin log
+  copy-link: Salin permalink
+  see-in-context: Lihat dalam konteks
+  show-details: Tampilkan detail
+  create-alert: Buat peringatan
+
+label:
+  containers: Kontainer
+  container: Tidak ada kontainer | 1 kontainer | {count} kontainer
+  host-count: Tidak ada Host | 1 Host | {count} Host
+  service: Tidak ada layanan | 1 layanan | {count} layanan
+  services: Layanan
+  running-containers: Kontainer Berjalan
+  all-containers: Semua Kontainer
+  all-namespaces: Semua Namespace
+  namespaces: Namespace
+  host: Host
+  hosts: Host
+  password: Kata sandi
+  username: Nama pengguna
+  container-name: Nama Kontainer
+  status: Status
+  created: Dibuat
+  avg-cpu: Rata-rata CPU (%)
+  avg-mem: Rata-rata MEM (%)
+  name: Nama
+  cpu: CPU
+  mem: MEM
+  pinned: Disematkan
+  per-page: Baris per halaman
+  host-menu: Host dan Kontainer
+  swarm-menu: Layanan dan Stack
+  k8s-menu: Kubernetes
+  group-menu: Grup Kustom
+  no-logs: Kontainer belum memiliki log
+  search-status:
+    searching: Mencari log lama…
+    searching-to: Mencari log lama… kembali ke {time}
+    capped: "{count} hasil · dicari kembali ke {time}"
+    exhausted: Semua log dicari · {count} hasil
+    empty: Tidak ada hasil · semua log dicari
+  show-all-containers: Tampilkan semua kontainer
+  collapse-all: Tutup semua
+  collapse-group: Tutup grup
+  expand-all: Buka semua
+
+tooltip:
+  search: Cari kontainer (⌘ + k, ⌃k)
+  pin-column: Sematkan sebagai kolom
+  merge-all: Gabungkan semua ke dalam satu aliran
+  network-io: "Jaringan: ↑ {tx}/s · ↓ {rx}/s"
+  disk-io: "Disk: ↑ {write}/s · ↓ {read}/s"
+  cpu-usage: "CPU {cpu}% / {cores} core"
+  memory-usage: "Memori {used} / {total}"
+  volumes: Volume
+  volume-unreachable: tidak dapat dijangkau dari host ini
+  volume-full: "{destination} terisi {pct}"
+
+error:
+  page-not-found: Halaman ini tidak ada
+  host-group-not-found: 'Tidak ada host yang ditemukan di grup "{name}"'
+  invalid-auth: Nama pengguna atau kata sandi tidak valid
+  copy-not-supported: Salin ke clipboard tidak didukung di browser Anda
+  copy-not-supported-hint: Clipboard tidak tersedia. Salin tautan di bawah ini
+  logs-skipped: Tampilkan {total} entri tersembunyi
+  container-not-found: Kontainer tidak ditemukan
+  action-failed: Tindakan Gagal
+  update-failed: Pembaruan Gagal
+  unable-to-complete-action: Tidak dapat menyelesaikan tindakan
+  invalid-action: Tindakan tidak valid
+  unable-to-update: Tidak dapat memperbarui kontainer
+  something-went-wrong: Terjadi kesalahan
+  unknown-error: Kesalahan tidak diketahui
+  events-stream:
+    title: Kesalahan Tak Terduga
+    message: >-
+      UI Dozzle tidak dapat terhubung ke API. Periksa pengaturan jaringan Anda. Jika Anda menggunakan reverse proxy, pastikan konfigurasinya sudah benar.
+  events-timeout:
+    title: Ada yang tidak beres
+    message: >-
+      UI Dozzle gagal terhubung ke API karena waktu habis. Periksa koneksi jaringan dan coba lagi.
+
+alert:
+  redirected:
+    title: Dialihkan ke kontainer baru
+    message: Dozzle secara otomatis mengalihkan Anda ke kontainer baru {containerId}.
+  similar-container-found:
+    title: Kontainer serupa ditemukan
+    message: >-
+      Dozzle menemukan kontainer serupa {containerId} yang berjalan di host yang sama dan akan otomatis beralih kecuali Anda mengklik 'Batal'.
+
+title:
+  page-not-found: Halaman tidak ditemukan
+  login: Autentikasi Diperlukan
+  dashboard: 1 kontainer | {count} kontainer
+  settings: Pengaturan
+  notifications: Notifikasi
+
+button:
+  logout: Keluar
+  login: Masuk
+  settings: Pengaturan
+  cancel: Batal
+  redirect: Alihkan
+  retry: Retry
+
+placeholder:
+  search-containers: Cari kontainer (⌘ + k, ⌃k)
+  search: Cari
+
+settings:
+  help-support: >
+    Silakan dukung Dozzle dengan berdonasi atau mensponsori kami di GitHub. Kontribusi Anda membantu kami meningkatkan Dozzle untuk semua orang. Terima kasih! 🙏🏼
+  about-desc: Informasi tentang instalasi Dozzle Anda dan cara mendukung proyek ini.
+  display-desc: Sesuaikan tampilan log dan sisa aplikasi. Pratinjau mencerminkan perubahan Anda secara langsung.
+  options-desc: Preferensi bahasa, navigasi, dan pengelompokan.
+  cloud-desc: Streaming log ke Dozzle Cloud untuk investigasi bertenaga AI dan pencarian lintas instans.
+  support-title: Dukung Dozzle
+  support-help: Donasi membantu menjaga Dozzle tetap gratis dan terawat. Terima kasih 🙏
+  display: Tampilan
+  locale: Ganti bahasa
+  small-scrollbars: Gunakan scrollbar kecil
+  show-timestamps: Tampilkan cap waktu
+  soft-wrap: Bungkus baris secara lunak
+  datetime-format: Ganti format tanggal dan waktu
+  font-size: Ukuran font untuk log
+  color-scheme: Skema warna
+  options: Opsi
+  show-stopped-containers: Tampilkan kontainer yang dihentikan
+  group-containers: Kelompokkan kontainer berdasarkan namespace
+  about: Tentang
+  search: Aktifkan pencarian dengan Dozzle menggunakan
+  using-version: Anda menggunakan <a href="https://dozzle.dev/" target="_blank" rel="noreferrer noopener">Dozzle</a> {version}.
+  update-available: >-
+    Versi baru tersedia! Perbarui ke <a href="{href}" target="_blank" rel="noreferrer noopener">{nextVersion}</a>.
+  show-std: Tampilkan label stdout dan stderr
+  automatic-redirect: Alihkan otomatis ke kontainer baru dengan nama yang sama
+  compact: Aktifkan mode ringkas untuk log
+  size:
+    small: Kecil
+    medium: Sedang
+    large: Besar
+  theme:
+    auto: Auto
+    dark: Gelap
+    light: Terang
+  redirect:
+    instant: Instan
+    delayed: Tertunda
+    none: Tidak ada
+  grouping:
+    always: Selalu
+    at-least-2: Setidaknya 2
+    never: Tidak pernah
+  hour:
+    auto: Auto
+    12: "12"
+    24: "24"
+  log:
+    preview: Ini adalah pratinjau log
+    warning: Log peringatan seperti ini
+    complex: Ini adalah entri log kompleks dalam format json
+    simple: Ini adalah pesan yang sangat panjang yang akan terbungkus secara default. Menonaktifkan pembungkusan lunak akan menonaktifkannya. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+    multi-line-error:
+      start-line: Ini adalah pesan kesalahan multi-baris
+      middle-line: dengan baris kedua
+      end-line: dan akhirnya baris ketiga.
+
+releases:
+  features: satu fitur baru | {count} fitur
+  bugFixes: satu perbaikan bug | {count} perbaikan
+  breaking: satu perubahan besar | {count} perubahan besar
+  three_parts: "{first}, {second}, dan {third}"
+  two_parts: "{first} dengan {second}"
+  latest: Terbaru
+  no_releases: Anda sudah menggunakan versi terbaru
+
+log_actions:
+  copy_log: Salin log
+  jump_to_context: Lompat ke konteks
+
+toasts:
+  copied:
+    title: Disalin
+    message: Log disalin ke clipboard
+
+analytics:
+  creating_table: Membuat tabel sementara...
+  downloading: Mengambil log kontainer... ({size})
+  evaluating_query: Mengevaluasi kueri...
+  total_records: Total {count} entri.
+  showing_first: Menampilkan {count} pertama.
+  title: Analitik SQL
+  no_results: Tidak ada baris yang cocok dengan kueri.
+  columns: Kolom
+  examples: Contoh
+  example_all: Semua log
+  example_count: Jumlah baris
+  example_group: Hitung berdasarkan {column}
+  export: Ekspor
+  export_csv: Unduh CSV
+  export_json: Unduh JSON
+drawer:
+  maximize: Maksimalkan
+  restore: Pulihkan
+notifications:
+  title: Notifikasi
+  description: Konfigurasikan di mana dan kapan menerima peringatan
+  destinations: Tujuan
+  add-destination: Tambah tujuan
+  alerts: Peringatan
+  add-alert: Tambah peringatan
+  prefill-name: Peringatan kesalahan
+  prefill-expression: level == "error"
+  add: Tambah
+  filter:
+    all: Semua ({count})
+    enabled: Diaktifkan ({count})
+    paused: Dijeda ({count})
+  no-alerts: Belum ada peringatan yang dikonfigurasi. Buat satu untuk memulai.
+  default-alert-created: "We created a default alert for you. You'll get notified when any container exits with an error. Edit or pause it anytime."
+  default-alert-failed: "Couldn't auto-create your alert — here's the form instead."
+  alert:
+    paused: Dijeda
+    containers: Kontainer
+    log-filter: Filter log
+    metric-filter: Metrik
+    event-filter: Event
+    cooldown: Jeda
+    sample-window: Jendela sampel
+    destination: Tujuan
+    dispatcher-deleted: Dispatcher dihapus
+    containers-count: "{count} kontainer"
+    triggered-count: "{count} terpicu"
+    last-triggered: "Terakhir: {time}"
+  destination:
+    http-webhook: HTTP Webhook
+    dozzle-cloud: Dozzle Cloud
+    edit: Edit
+    duplicate: Duplikat
+    delete: Hapus
+  alert-form:
+    create-title: Buat Peringatan
+    edit-title: Edit Peringatan
+    description: Berlangganan ke event log yang sesuai dengan kriteria Anda
+    alert-name: Nama Peringatan
+    alert-name-placeholder: mis., Kesalahan API Test
+    container-filter: Filter Kontainer
+    containers-match: "{count} kontainer cocok: {names}"
+    no-containers-match: Tidak ada kontainer yang cocok dengan filter ini
+    log-filter: Filter Log
+    logs-match: "{count} log cocok"
+    no-logs-match: Tidak ada log yang cocok dengan filter ini
+    destination: Tujuan
+    select-destination: Pilih tujuan
+    no-destinations: Tidak ada tujuan yang dikonfigurasi. Tambahkan satu terlebih dahulu.
+    preview: Pratinjau
+    cancel: Batal
+    save: Simpan
+    create: Buat Peringatan
+    metric-filter: Ekspresi Metrik
+    expression-valid: Ekspresi valid
+    metric-fields-hint: "Field tersedia: {fields}"
+    sample-window-label: Jendela Sampel
+    sample-window-hint: "Peringatan dipicu ketika kondisi terpenuhi selama {duration}"
+    cooldown-label: Jeda
+    cooldown-hint: "{duration} antara peringatan per kontainer"
+    no-cooldown: No cooldown
+    alert-type: Jenis Peringatan
+    log-alert: Peringatan Log
+    metric-alert: Peringatan Metrik
+    event-alert: Event Alert
+    event-filter: Event Expression
+    event-fields-hint: "Available fields: {fields}"
+  destination-form:
+    create-title: Tambah Tujuan
+    edit-title: Edit Tujuan
+    description: Ke mana notifikasi harus dikirim?
+    name: Nama
+    name-placeholder: mis., Slack Produksi
+    type: Tipe
+    webhook-title: HTTP Webhook
+    webhook-description: Slack, Discord, endpoint kustom
+    cloud-title: Dozzle Cloud
+    cloud-description: Notifikasi push, peringatan email, dan ringkasan bertenaga AI
+    webhook-url: URL Webhook
+    webhook-url-placeholder: https://hooks.foo.com/services/...
+    api-key: Kunci API
+    payload-format: Format Payload
+    format-slack: Slack
+    format-discord: Discord
+    format-ntfy: ntfy
+    format-custom: Kustom
+    template: Template
+    template-hint: Sintaks template Go
+    headers: Header Kustom
+    headers-hint: Header HTTP opsional (mis. Authorization)
+    header-name: Nama header
+    header-value: Nilai header
+    add-header: Tambah Header
+    test: Test
+    test-success: Test berhasil
+    cancel: Batal
+    close: Tutup
+    save: Simpan
+    add: Tambah Tujuan
+    cloud-exists: Dozzle Cloud sudah tertaut
+    link-cloud: Tautkan Akun
+    link-cloud-button: Tautkan Dozzle Cloud
+    cloud-settings-hint: Untuk mengonfigurasi saluran terkelola Anda, buka
+    cloud-settings-link: Pengaturan Dozzle Cloud
+    cloud-checking: Memeriksa status cloud...
+    cloud-relink: Kunci API Anda tidak valid atau kedaluwarsa. Silakan hapus dan hubungkan akun Anda lagi.
+    cloud-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+    cloud-plan: Paket
+    cloud-usage: Event periode ini
+  empty-state:
+    title: Mulai dengan notifikasi
+    description: Pilih cara Anda ingin menerima peringatan saat kontainer Anda membutuhkan perhatian.
+    cloud-subtitle: Ringkasan AI, kendali jarak jauh & lainnya
+    webhook-subtitle: Kirim peringatan ke endpoint mana pun
+  cloud-link-success:
+    title: Dozzle Cloud Tertaut
+    message: Instans Anda telah berhasil terhubung. Anda dapat melepaskan tautan di pengaturan atau memeriksa penggunaan Anda kapan saja.
+cloud:
+  title: Dozzle Cloud
+  description: Kendalikan kontainer Anda dari jarak jauh dan gunakan AI untuk menyelidiki masalah di seluruh kluster Anda.
+  learn-more: Pelajari lebih lanjut
+  link-instance: Tautkan instans
+  relink-instance: Tautkan ulang instans
+  connected: Terhubung
+  plan: Paket
+  usage: Event periode ini
+  dashboard: Dasbor
+  settings: Pengaturan
+  error: Kesalahan koneksi. Silakan tautkan ulang instans Anda.
+  error-unavailable: Dozzle Cloud is temporarily unavailable. Please try again later.
+  unlink: Lepaskan tautan
+  unlink-confirm: Apakah Anda yakin ingin melepaskan tautan dari Dozzle Cloud? Ini akan menghapus semua tujuan notifikasi cloud.
+  stream-logs: Streaming log kontainer ke Dozzle Cloud
+  stream-logs-help: Diperlukan untuk investigasi bertenaga AI dan pencarian log. Nonaktifkan untuk menyimpan seluruh konten log di instance ini.
+  welcome:
+    title: "Cloud adalah triage cerdas untuk kontainer Anda."
+    subtitle: "Sekumpulan sinyal kegagalan awal sudah dipilih — beri tahu kami apa yang membawa Anda kemari agar bisa kami sesuaikan."
+    question: "Satu pertanyaan cepat sebelum mulai — apa yang paling Anda harapkan dari Cloud?"
+    placeholder: "mis. Saya ingin tahu ketika kontainer Plex saya crash di malam hari..."
+    or-pick: "Atau pilih satu:"
+    chip-alerts: Dapatkan notifikasi masalah
+    chip-assistant: Tanya Asisten tentang log saya
+    chip-search-logs: Cari di seluruh log saya
+    chip-remote-access: Akses log dari jarak jauh
+    chip-digests: Dapatkan ringkasan log harian
+    chip-other: Lainnya
+    get-started: Mulai
+    skip: Lewati untuk sekarang
+    step2-title: "Pilih sinyal yang harus ditangani Cloud."
+    create-alert: Buat peringatan pertama Anda
+    step2-body: "Alih-alih meneruskan setiap kejadian, Cloud mengawasi hal-hal yang tampak rusak, menyelidikinya, dan hanya mengganggu Anda saat penting. Untuk melakukannya dengan baik, Cloud butuh sinyal. Kami sudah memilih sekumpulan kejadian kegagalan awal di bawah — hapus centang apa pun yang ingin Anda simpan secara lokal saja."
+    footer: "Anda dapat mengubah apa yang dibagikan kapan saja dari halaman Notifikasi. Cloud tidak pernah menerima log yang belum Anda langgankan."
+    signals:
+      exited: "Kontainer keluar dengan error"
+      exited-desc: "Dipicu ketika kontainer berhenti dengan kode keluar non-nol."
+      unhealthy: "Kontainer menjadi unhealthy"
+      unhealthy-desc: "Dipicu ketika healthcheck kontainer berubah menjadi unhealthy."
+      oom: "Kontainer dimatikan kernel (OOM)"
+      oom-desc: "Dipicu ketika Docker melaporkan kill karena kehabisan memori."
+      restart: "Kontainer dimulai ulang"
+      restart-desc: "Mati secara default — berisik sendirian; Cloud juga memakainya untuk deteksi loop."
+      disk: "Ruang disk hampir habis di salah satu volume"
+      disk-desc: "Dipicu ketika ada volume yang terpasang lebih dari 85% terisi."
+    create-alerts: "Aktifkan sinyal terpilih"
+    later: "Nanti saja"
+cloud-search:
+  containers-section: "Kontainer"
+  search-logs-for: "Cari log untuk \"{query}\""
+  across-containers: "diindeks di semua kontainer Anda"
+  connect-to-enable: "Hubungkan Dozzle Cloud untuk mencari log"
+  enable-streaming-to-search: "Aktifkan streaming log ke Cloud"
+  open-container: "buka kontainer"
+  search-logs-shortcut: "cari log"
+  cloud-connected: "Cloud terhubung"
+  results-page-title: "Pencarian log"
+  no-results: "Tidak ada baris log yang cocok."
+  search-failed: "Pencarian Cloud gagal."
+  search-empty-prompt: "Ketik kueri untuk mencari di log."
+  searching: "Mencari…"
+  hits-count: "{n} hasil"
+  window-suffix: "dalam 14 hari terakhir"
+  hero-title-cloud: "Cari kontainer dan log"
+  hero-title-plain: "Cari kontainer"
+  hero-pill-indexed: "Indeks Cloud"
+  modal-placeholder-cloud: "Cari kontainer dan log…"
+  modal-placeholder-plain: "Cari kontainer…"
+  col-time: "Waktu"
+  col-level: "Level"
+  col-container: "Kontainer"
+  col-message: "Pesan"
+  container-removed: "Kontainer telah dihapus"
+  cta-settings: "Pengaturan Cloud"
+  container-removed-pill: "dihapus"
+command-palette:
+  section-commands: Perintah
+  restart-container: Mulai ulang {name}
+  stop-container: Hentikan {name}
+  start-container: Jalankan {name}
+  update-container: Perbarui {name}
+  theme-auto: Gunakan tema sistem
+  theme-light: Beralih ke tema terang
+  theme-dark: Beralih ke tema gelap
+  toggle-compact: Alihkan mode ringkas
+  toggle-timestamps: Alihkan stempel waktu
+  toggle-soft-wrap: Alihkan bungkus lembut
+  toggle-stopped: Alihkan kontainer yang dihentikan
+  toggle-std: Alihkan label stdout/stderr
+  toggle-scrollbars: Alihkan bilah gulir lebih kecil
+  open-settings: Buka pengaturan

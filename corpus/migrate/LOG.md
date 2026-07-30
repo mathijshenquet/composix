@@ -57,3 +57,19 @@ memcached=/nix/store/kg6afp6d8dvkwjl8r3qip4yyy3y5lpww-cix-item-memcached.
 exact repro: `cargo build -p cix`; `cd corpus/migrate/whoami && ../../../target/debug/cix build --update-lock build . && ./check.sh cix`; `cd corpus/migrate/traefik && ./check.sh cix`; `cd corpus/migrate/nats && ./check.sh cix`; `cd corpus/migrate/adminer && ./check.sh cix`; `cd corpus/migrate/memcached && ./check.sh cix`.
 
 candidate audit: added the no-escape column using `nix search nixpkgs '^(whoami|traefik|nats|caddy|echo-server|adminer|memcached|ntfy|filebrowser|homer|it-tools|mailpit|nginx|redis|valkey|haproxy|httpd|mosquitto|mysql|mariadb|mongo|postgresql|tomcat|phpmyadmin|registry|vault|minio|syncthing|miniflux|gotify|uptime-kuma|healthchecks|changedetection|freshrss|kanboard|verdaccio|homepage|ghost|vaultwarden|rabbitmq|wordpress|nextcloud|gitea|pihole|dozzle|watchtower)$' --json`; alternate-name search for nats-server/distribution/gotify-server/homepage-dashboard/rabbitmq-server/etc.; and `nix eval --raw nixpkgs#<attr>.pname` checks. Ghost and LinuxServer/nginx remain explicitly ambiguous.
+
+## 2026-07-30 — round N=8
+
+Verdicts and resulting Cixfile class: caddy pass (dissolves); phpmyadmin check-fail (build); verdaccio build-fail (build); dozzle capability-gap (build); watchtower capability-gap (build); nginx run-fail (dissolves); redis check-fail (dissolves); tomcat run-fail (dissolves).
+
+Prompt gaps, verbatim:
+
+- "ENV PORT default=8080"
+- "FETCH <name> <cmd> (top-level, empty workdir, binds `${name}`)"
+- "EGRESS if the service initiates outbound connections"
+- "FILE"
+- "A Dockerfile's `COPY` of sibling files ... fetch those files from the same repository directory as the Dockerfile itself"
+
+Black-box observations: the documented ENV form is rejected; `ENV NAME = value` parses. RUN/FETCH requires bash in a declared PATH, so the prompt's top-level FETCH form has no documented way to satisfy the tool. EGRESS accepts no argument. FROM rejects `context` although the prescribed corpus layout places build context there. EXEC does not preserve quoted/escaped multiword argv values, blocking nginx's `-g 'daemon off;'`. Node-generated launchers requiring `/bin/sh` fail in builder sandboxes.
+
+Cix capability gaps: no declared host Unix-socket bind/mount or Docker API capability, so Dozzle and Watchtower cannot faithfully receive `/var/run/docker.sock`; Watchtower's upstream Dockerfile also expects a CI-provided binary absent from the resolved repository context. Docker checks not explicitly marked pass were not promoted without a completed dual-mode transcript.

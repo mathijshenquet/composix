@@ -1,0 +1,330 @@
+package container
+
+import (
+	"fmt"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/amir20/dozzle/internal/agent/pb"
+	"github.com/amir20/dozzle/internal/utils"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+// Container represents an internal representation of docker containers
+type Container struct {
+	ID            string                           `json:"id"`
+	Name          string                           `json:"name"`
+	Image         string                           `json:"image"`
+	Command       string                           `json:"command"`
+	Created       time.Time                        `json:"created"`
+	StartedAt     time.Time                        `json:"startedAt"`
+	FinishedAt    time.Time                        `json:"finishedAt"`
+	State         string                           `json:"state"`
+	Health        string                           `json:"health,omitempty"`
+	Host          string                           `json:"host,omitempty"`
+	Tty           bool                             `json:"-"`
+	Labels        map[string]string                `json:"labels,omitempty"`
+	Stats         *utils.RingBuffer[ContainerStat] `json:"stats,omitempty"`
+	MemoryLimit   uint64                           `json:"memoryLimit"`
+	CPULimit      float64                          `json:"cpuLimit"`
+	Group         string                           `json:"group,omitempty"`
+	Env           []string                         `json:"-"`
+	Ports         []string                         `json:"-"`
+	Mounts        []Mount                          `json:"mounts,omitempty"`
+	MountStats    map[string]MountStat             `json:"mountStats,omitempty"`
+	RestartPolicy string                           `json:"-"`
+	NetworkMode   string                           `json:"-"`
+	FullyLoaded   bool                             `json:"-"`
+}
+
+// Mount represents a container mount point
+type Mount struct {
+	Type        string `json:"type"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	RW          bool   `json:"rw"`
+}
+
+// String returns a display form for legacy consumers.
+func (m Mount) String() string {
+	return fmt.Sprintf("%s:%s (%s)", m.Source, m.Destination, m.Type)
+}
+
+// MountStat carries free-space information for a single mount point.
+type MountStat struct {
+	Destination string    `json:"destination"`
+	Total       uint64    `json:"total"`
+	Free        uint64    `json:"free"`
+	Used        uint64    `json:"used"`
+	Available   bool      `json:"available"`
+	LastChecked time.Time `json:"lastChecked"`
+}
+
+func (container Container) ToProto() pb.Container {
+	var pbStats []*pb.ContainerStat
+	for _, stat := range container.Stats.Data() {
+		pbStats = append(pbStats, &pb.ContainerStat{
+			Id:             stat.ID,
+			CpuPercent:     stat.CPUPercent,
+			MemoryPercent:  stat.MemoryPercent,
+			MemoryUsage:    stat.MemoryUsage,
+			NetworkRxTotal: stat.NetworkRxTotal,
+			NetworkTxTotal: stat.NetworkTxTotal,
+			DiskReadTotal:  stat.DiskReadTotal,
+			DiskWriteTotal: stat.DiskWriteTotal,
+		})
+	}
+
+	pbMounts := make([]*pb.Mount, 0, len(container.Mounts))
+	for _, m := range container.Mounts {
+		pbMounts = append(pbMounts, &pb.Mount{
+			Type:        m.Type,
+			Source:      m.Source,
+			Destination: m.Destination,
+			Rw:          m.RW,
+		})
+	}
+
+	pbMountStats := make([]*pb.MountStat, 0, len(container.MountStats))
+	for _, ms := range container.MountStats {
+		pbMountStats = append(pbMountStats, &pb.MountStat{
+			Destination: ms.Destination,
+			Total:       ms.Total,
+			Free:        ms.Free,
+			Used:        ms.Used,
+			Available:   ms.Available,
+			LastChecked: timestamppb.New(ms.LastChecked),
+		})
+	}
+
+	return pb.Container{
+		Id:            container.ID,
+		Name:          container.Name,
+		Image:         container.Image,
+		Created:       timestamppb.New(container.Created),
+		State:         container.State,
+		Health:        container.Health,
+		Host:          container.Host,
+		Tty:           container.Tty,
+		Labels:        container.Labels,
+		Group:         container.Group,
+		Started:       timestamppb.New(container.StartedAt),
+		Finished:      timestamppb.New(container.FinishedAt),
+		Stats:         pbStats,
+		Command:       container.Command,
+		MemoryLimit:   container.MemoryLimit,
+		CpuLimit:      container.CPULimit,
+		FullyLoaded:   container.FullyLoaded,
+		Env:           container.Env,
+		Ports:         container.Ports,
+		Mounts:        pbMounts,
+		MountStats:    pbMountStats,
+		RestartPolicy: container.RestartPolicy,
+		NetworkMode:   container.NetworkMode,
+	}
+}
+
+func FromProto(c *pb.Container) Container {
+	var stats []ContainerStat
+	for _, stat := range c.Stats {
+		stats = append(stats, ContainerStat{
+			ID:             stat.Id,
+			CPUPercent:     stat.CpuPercent,
+			MemoryPercent:  stat.MemoryPercent,
+			MemoryUsage:    stat.MemoryUsage,
+			NetworkRxTotal: stat.NetworkRxTotal,
+			NetworkTxTotal: stat.NetworkTxTotal,
+			DiskReadTotal:  stat.DiskReadTotal,
+			DiskWriteTotal: stat.DiskWriteTotal,
+		})
+	}
+
+	labels := c.Labels
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+
+	env := c.Env
+	if env == nil {
+		env = []string{}
+	}
+
+	mounts := make([]Mount, 0, len(c.Mounts))
+	for _, m := range c.Mounts {
+		mounts = append(mounts, Mount{
+			Type:        m.Type,
+			Source:      m.Source,
+			Destination: m.Destination,
+			RW:          m.Rw,
+		})
+	}
+
+	var mountStats map[string]MountStat
+	if len(c.MountStats) > 0 {
+		mountStats = make(map[string]MountStat, len(c.MountStats))
+		for _, ms := range c.MountStats {
+			mountStats[ms.Destination] = MountStat{
+				Destination: ms.Destination,
+				Total:       ms.Total,
+				Free:        ms.Free,
+				Used:        ms.Used,
+				Available:   ms.Available,
+				LastChecked: ms.LastChecked.AsTime(),
+			}
+		}
+	}
+
+	return Container{
+		ID:            c.Id,
+		Name:          c.Name,
+		Image:         c.Image,
+		Labels:        labels,
+		Group:         c.Group,
+		Created:       c.Created.AsTime(),
+		State:         c.State,
+		Health:        c.Health,
+		Host:          c.Host,
+		Tty:           c.Tty,
+		Command:       c.Command,
+		StartedAt:     c.Started.AsTime(),
+		FinishedAt:    c.Finished.AsTime(),
+		Stats:         utils.RingBufferFrom(300, stats),
+		MemoryLimit:   c.MemoryLimit,
+		CPULimit:      c.CpuLimit,
+		FullyLoaded:   c.FullyLoaded,
+		Env:           env,
+		Ports:         c.Ports,
+		Mounts:        mounts,
+		MountStats:    mountStats,
+		RestartPolicy: c.RestartPolicy,
+		NetworkMode:   c.NetworkMode,
+	}
+}
+
+// ContainerStat represent stats instant for a container
+type ContainerStat struct {
+	ID             string  `json:"id"`
+	CPUPercent     float64 `json:"cpu"`
+	MemoryPercent  float64 `json:"memory"`
+	MemoryUsage    float64 `json:"memoryUsage"`
+	NetworkRxTotal uint64  `json:"networkRxTotal"`
+	NetworkTxTotal uint64  `json:"networkTxTotal"`
+	DiskReadTotal  uint64  `json:"diskReadTotal"`
+	DiskWriteTotal uint64  `json:"diskWriteTotal"`
+}
+
+// ContainerEvent represents events that are triggered
+type ContainerEvent struct {
+	Name            string            `json:"name"`
+	Host            string            `json:"host"`
+	ActorID         string            `json:"actorId"`
+	ActorAttributes map[string]string `json:"actorAttributes,omitempty"`
+	Time            time.Time         `json:"time"`
+	Container       *Container        `json:"-"`
+}
+
+type ContainerLabels map[string][]string
+
+func ParseContainerFilter(commaValues string) (ContainerLabels, error) {
+	filter := make(ContainerLabels)
+	if commaValues == "" {
+		return filter, nil
+	}
+
+	for val := range strings.SplitSeq(commaValues, ",") {
+		before, after, ok := strings.Cut(val, "=")
+		if !ok {
+			return nil, fmt.Errorf("invalid filter: %s", filter)
+		}
+		key := before
+		val := after
+		filter[key] = append(filter[key], val)
+	}
+
+	return filter, nil
+}
+
+func (f ContainerLabels) Exists() bool {
+	return len(f) > 0
+}
+
+type LogPosition string
+
+const (
+	Beginning LogPosition = "start"
+	Middle    LogPosition = "middle"
+	End       LogPosition = "end"
+)
+
+type LogType string
+
+const (
+	LogTypeSingle  LogType = "single"  // Single simple text log (no grouping)
+	LogTypeGroup   LogType = "group"   // Grouped simple logs (array of fragments)
+	LogTypeComplex LogType = "complex" // JSON or logfmt parsed log
+)
+
+// LogFragment represents a single line within a grouped simple log
+type LogFragment struct {
+	Message string `json:"m"`
+}
+
+type ContainerAction string
+
+const (
+	Start   ContainerAction = "start"
+	Stop    ContainerAction = "stop"
+	Restart ContainerAction = "restart"
+	Remove  ContainerAction = "remove"
+)
+
+func ParseContainerAction(input string) (ContainerAction, error) {
+	action := ContainerAction(input)
+	switch action {
+	case Start, Stop, Restart, Remove:
+		return action, nil
+	default:
+		return "", fmt.Errorf("unknown action: %s", input)
+	}
+}
+
+type UpdateProgress struct {
+	Status  string `json:"status"`  // "pulling", "recreating", "done", "error", "up-to-date"
+	Layer   string `json:"layer"`   // Docker layer ID (pull events only)
+	Current int64  `json:"current"` // Bytes downloaded
+	Total   int64  `json:"total"`   // Total bytes for layer
+	Error   string `json:"error"`   // Only when Status="error"
+}
+
+type LogEvent struct {
+	Type        LogType `json:"t,omitempty"`
+	Message     any     `json:"m,omitempty"`
+	RawMessage  string  `json:"rm,omitempty"`
+	Timestamp   int64   `json:"ts"`
+	Id          uint32  `json:"id,omitempty"`
+	Level       string  `json:"l,omitempty"`
+	Stream      string  `json:"s,omitempty"`
+	ContainerID string  `json:"c,omitempty"`
+}
+
+func (l *LogEvent) HasLevel() bool {
+	return l.Level != "unknown"
+}
+
+func (l *LogEvent) IsSimple() bool {
+	return l.Type == LogTypeSingle || l.Type == LogTypeGroup
+}
+
+// maxGroupTimeDelta is the maximum time difference (in milliseconds) between
+// consecutive log lines that can be grouped together. Docker can introduce
+// up to ~30ms of jitter between related log lines (e.g., a stack trace).
+const maxGroupTimeDelta = 50
+
+func (l *LogEvent) IsCloseToTime(other *LogEvent) bool {
+	return math.Abs(float64(l.Timestamp-other.Timestamp)) < maxGroupTimeDelta
+}
+
+func (l *LogEvent) MessageId() int64 {
+	return l.Timestamp
+}

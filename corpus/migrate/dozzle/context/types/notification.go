@@ -1,0 +1,116 @@
+package types
+
+import "time"
+
+// NotificationType indicates whether a notification was triggered by a log event or a metric threshold
+type NotificationType string
+
+const (
+	LogNotification    NotificationType = "log"
+	MetricNotification NotificationType = "metric"
+	EventNotification  NotificationType = "event"
+)
+
+// Notification represents a notification event that can be filtered and sent
+type Notification struct {
+	ID           string                `json:"id"`
+	Type         NotificationType      `json:"type"`
+	Detail       string                `json:"detail"`
+	Container    NotificationContainer `json:"container"`
+	Log          *NotificationLog      `json:"log,omitempty"`
+	Stat         *NotificationStat     `json:"stat,omitempty"`
+	Event        *NotificationEvent    `json:"event,omitempty"`
+	Subscription SubscriptionConfig    `json:"subscription"`
+	Timestamp    time.Time             `json:"timestamp"`
+}
+
+// NotificationContainer represents a simplified container structure for notifications
+type NotificationContainer struct {
+	ID       string            `json:"id" expr:"id"`
+	Name     string            `json:"name" expr:"name"`
+	Image    string            `json:"image" expr:"image"`
+	State    string            `json:"state" expr:"state"`
+	Health   string            `json:"health" expr:"health"`
+	HostID   string            `json:"hostId" expr:"hostId"`
+	HostName string            `json:"hostName" expr:"hostName"`
+	Labels   map[string]string `json:"labels" expr:"labels"`
+}
+
+// NotificationLog represents a log entry with message that can be string or object
+type NotificationLog struct {
+	ID        uint32 `json:"id" expr:"id"`
+	Message   any    `json:"message" expr:"message"` // string for simple/grouped logs, map for complex logs
+	Timestamp int64  `json:"timestamp" expr:"timestamp"`
+	Level     string `json:"level" expr:"level"`
+	Stream    string `json:"stream" expr:"stream"`
+	Type      string `json:"type" expr:"type"`
+}
+
+// NotificationStat represents container resource metrics for metric-based alerts
+type NotificationStat struct {
+	CPUPercent    float64             `json:"cpu" expr:"cpu"`
+	MemoryPercent float64             `json:"memory" expr:"memory"`
+	MemoryUsage   float64             `json:"memoryUsage" expr:"memoryUsage"`
+	Mounts        []NotificationMount `json:"mounts,omitempty" expr:"mounts"`
+}
+
+// NotificationMount represents a single container mount's free-space stats,
+// exposed to metric expressions via the `mounts` field (e.g. `any(mounts, .usedPercent >= 85)`).
+// Only mounts where free-space reporting succeeded (Available == true on the source MountStat)
+// are included — mounts that can't be measured (Windows volumes, permission errors) are skipped
+// so they never trigger or suppress an alert spuriously.
+type NotificationMount struct {
+	Destination    string  `json:"destination" expr:"destination"`
+	TotalBytes     uint64  `json:"totalBytes" expr:"totalBytes"`
+	FreeBytes      uint64  `json:"freeBytes" expr:"freeBytes"`
+	UsedBytes      uint64  `json:"usedBytes" expr:"usedBytes"`
+	UsedPercent    float64 `json:"usedPercent" expr:"usedPercent"`
+	AvailableBytes uint64  `json:"availableBytes" expr:"availableBytes"` // alias of FreeBytes for expression ergonomics
+}
+
+// NotificationEvent represents a Docker container lifecycle event for event-based alerts
+type NotificationEvent struct {
+	Name       string            `json:"name" expr:"name"`
+	ActorID    string            `json:"actorId" expr:"actorId"`
+	Attributes map[string]string `json:"attributes" expr:"attributes"`
+	Timestamp  time.Time         `json:"timestamp" expr:"timestamp"`
+}
+
+// SubscriptionConfig represents a notification subscription configuration
+type SubscriptionConfig struct {
+	ID                  int    `json:"id"`
+	Name                string `json:"name"`
+	Enabled             bool   `json:"-"`
+	DispatcherID        int    `json:"-"`
+	LogExpression       string `json:"logExpression,omitempty"`
+	ContainerExpression string `json:"containerExpression"`
+	MetricExpression    string `json:"metricExpression,omitempty"`
+	EventExpression     string `json:"eventExpression,omitempty"`
+	Cooldown            int    `json:"cooldown,omitempty"`
+	SampleWindow        int    `json:"sampleWindow,omitempty"`
+}
+
+// SubscriptionStats represents runtime stats for a notification subscription
+type SubscriptionStats struct {
+	SubscriptionID        int        `json:"subscriptionId"`
+	TriggerCount          int64      `json:"triggerCount"`
+	LastTriggeredAt       *time.Time `json:"lastTriggeredAt,omitempty"`
+	TriggeredContainerIDs []string   `json:"triggeredContainerIds"`
+}
+
+// CloudConfig holds the cloud API key and metadata for broadcasting to agents.
+type CloudConfig struct {
+	APIKey    string
+	Prefix    string
+	ExpiresAt *time.Time
+}
+
+// DispatcherConfig represents a dispatcher configuration
+type DispatcherConfig struct {
+	ID       int
+	Name     string
+	Type     string
+	URL      string
+	Template string
+	Headers  map[string]string
+}

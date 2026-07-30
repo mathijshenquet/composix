@@ -1,0 +1,73 @@
+<template>
+  <div class="flex items-center justify-end gap-4">
+    <slot name="more-items"></slot>
+    <Announcements />
+
+    <router-link
+      :to="{ name: '/notifications' }"
+      :aria-label="$t('title.notifications')"
+      data-testid="notifications"
+      class="btn btn-circle btn-sm"
+    >
+      <mdi:bell class="size-6" />
+    </router-link>
+
+    <CloudPopover />
+
+    <router-link
+      :to="{ name: '/settings' }"
+      :aria-label="$t('title.settings')"
+      data-testid="settings"
+      class="btn btn-circle btn-sm"
+    >
+      <mdi:cog class="size-6" />
+    </router-link>
+
+    <dropdown class="dropdown-end" data-testid="user-menu" v-if="config.user">
+      <template #trigger>
+        <template v-if="config.disableAvatars || !config.user.email">
+          <material-symbols:person class="size-6" />
+        </template>
+        <template v-else>
+          <img
+            class="ring-base-content/60 size-6 max-w-none rounded-full p-px ring-1"
+            :src="withBase('/api/profile/avatar')"
+          />
+        </template>
+      </template>
+      <template #content>
+        <div class="p-2">
+          <div class="font-bold">
+            {{ config.user.name }}
+          </div>
+          <div v-if="config.user.email" class="text-sm font-light">
+            {{ config.user.email }}
+          </div>
+        </div>
+        <ul v-if="config.authProvider === 'simple' || config.logoutUrl" class="menu mt-4 p-0">
+          <li>
+            <button @click.prevent="logout()" class="text-primary p-2">
+              <material-symbols:logout />
+              {{ $t("button.logout") }}
+            </button>
+          </li>
+        </ul>
+      </template>
+    </dropdown>
+  </div>
+</template>
+<script lang="ts" setup>
+const { logoutUrl } = config;
+
+async function logout() {
+  if (logoutUrl) {
+    location.href = logoutUrl;
+  } else {
+    await fetch(withBase("/api/token"), {
+      method: "DELETE",
+    });
+
+    location.reload();
+  }
+}
+</script>
