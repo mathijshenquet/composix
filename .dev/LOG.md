@@ -1,5 +1,30 @@
 # composix work log
 
+## 2026-07-30 (track/keys complete)
+
+- Merged work: none in this worktree. Completed D56–D58 in `bfde201`,
+  `4f0cadd`, `e84e31a`, `89594e9`, and `ebf25e2`: declared FETCH EXPECT
+  hashes; pure builder chain keys; path-indexed consumed-output records;
+  disposable persistent workspaces with warm prefix reuse; hard CACHE removal;
+  exact warm/cold path attribution; and ordered package IMPORT unions replacing
+  builder PATH. Migrated active examples, locks, reference/migration prose, and
+  executable tour chapters 4–5.
+- Decisions: implemented existing D56, all five D57 invariants, and rewritten D58
+  without amendment. The fixed sandbox environment names the conventional
+  `/etc/ssl/certs/ca-bundle.crt`, but no CA package is implicit: only an explicit
+  `IMPORT ${pkgs.cacert}` makes it available. A changed suffix containing FETCH
+  replays from step zero in a clean workspace; an unchanged pinned FETCH prefix
+  may be reused only from its matching persistent workspace.
+- Verification: the exact fmt, warning-denied workspace clippy/test, explicit
+  proj1 warm/selective/cold/wipe acceptance, tour regeneration/zero-drift/
+  determinism-twice, dogfood VM, systemd-261 compose fallback VM, and scenario
+  lifecycle commands are recorded in `crates/cix-cixfile/LOG.md`; every stage
+  passed on the final committed implementation. `corpus/**` and
+  `nix/scenarios/**` are absent from the track diff, and test-created user units
+  were reset and stopped.
+- Open with Mathijs: none. Open for agents: independently verify and merge
+  `track/keys`.
+
 ## 2026-07-30 (track/refresh corpus maintenance)
 
 - Committed `3ab519d`: refreshed the living migration corpus for D50–D53. Whoami
