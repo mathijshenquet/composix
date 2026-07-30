@@ -49,6 +49,13 @@ ITEM; adjust artifact_kinds tests.
   deliberate manifest-first COPYs like projB-chef, with a comment saying why).
 - Glob COPY (`**/Cargo.toml`) is NOT built (D51 records it noted-not-built,
   evidence-gated).
+- **No-op BUILDER sweep (Mathijs's README review)**: all five pack examples (and the
+  README's opening Cixfile) grew a BUILDER during the D47 migration that only COPYs
+  from `${src}` and is then re-COPY'd into the SERVICE — pure assembly needs NO
+  builder; COPY sources belong directly in the SERVICE block. Remove the no-op
+  BUILDERs everywhere (README + examples/pack/*), rebuild each example as proof, and
+  state the doctrine in the directive docs: *a BUILDER exists only when there is
+  RUN/FETCH work to do*. The README opening example must be the shortest honest form.
 
 ## Gate
 
