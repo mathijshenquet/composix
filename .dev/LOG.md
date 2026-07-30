@@ -1,5 +1,40 @@
 # composix work log
 
+## 2026-07-30 (the compose tree round — D40 go + D41–D46)
+
+- Big design session with Mathijs, dialog-driven; full story in **docs/compose-tree.md**
+  (the working paper), decisions recorded as D40–D46 in design.md. The arc: ocimport
+  post-mortem (verdict stands: don't merge; parser reusable for future cix migrate) →
+  dependency map (spec+run is nix-thin by design) → escalation-ladder path (packs →
+  compose → side-by-side → long-running scenario tier) → netns read: egress renamed
+  `outbound` (capability polarity kept — zero-machinery-by-default), `network: host`
+  escape replaced by pod-ness-as-optional-property → composite tree (his fleet infra as
+  the worked case; slice tree = resource axis, netns = flat at pod-claiming nodes,
+  nearest-pod-ancestor) → host = one profile with tracked refs (granular *change* via
+  tags/locks, atomic *rollback* via generations, semantic undo = tag push) → manifest/
+  compose merge question dissolved by his devil's advocate: **item = one service**, bare
+  def-node manifest v4, one tree grammar over two artifact kinds → ref/lock semantics
+  unified (refs always name:tag, operative lock at deployer, repin deliberate, no
+  ranges, override = evidence-gated cargo-[patch] future) → **index re-founded**
+  (per-name content-addressed tag tables, CAS name pointer, history chain, advisory
+  yank, name-level auth, signing = table hash) → computable composes (publish-time $tag
+  expansion; monorepo bulk publish).
+- D40 go given via "spec het maar precies en laat het bouwen" (covers the ITEM/TAKE/
+  CACHE design he tasted directly); veto window open as always — everything is on
+  track branches.
+- Launched two codex agents: **track/index2** (terra, .worktrees/index2, D45 index
+  re-founding, spec .dev/specs/track-index2.md) and **track/items** (sol,
+  .worktrees/items, D40+D41 ITEM/TAKE/CACHE + manifest v4 + proj1 gate, spec
+  .dev/specs/track-items.md). Items-track is fenced off crates/cix-index (index2 owns
+  it). Launch lesson: codex must run outside the Bash sandbox (read-only fs kills its
+  app-server init).
+- Next wave (after these merge): the tree grammar itself in compose (D42/D43: nesting,
+  pod-ness, publish/bind, path-based naming), then parametric publish tooling (D46),
+  then the netns realization (compose-netns.md mechanics at pod-claiming nodes).
+- Open with Mathijs: none new — D40–D46 recorded per his go; micro-fix policy nuance
+  from 07-29 still unvetoed. Open for agents: the two running tracks; independent
+  re-verification before merge as always.
+
 ## 2026-07-29 (track/tourfix correction round 1)
 
 - Merged work: none in this worktree; corrected the old-systemd `Unknown assignment: PrivatePIDs=yes` tour leak on `track/tourfix`.
