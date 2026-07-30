@@ -91,7 +91,6 @@ let
       networking.useDHCP = false;
       networking.interfaces.eth0.useDHCP = false;
       networking.firewall.enable = false;
-      boot.kernel.sysctl."kernel.unprivileged_userns_clone" = 1;
       system.stateVersion = "24.11";
     };
     testScript = ''

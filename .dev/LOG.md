@@ -354,3 +354,9 @@
   Exact repro commands and the upstream systemd issue draft are in `crates/cix-run/LOG.md`.
 - Open with Mathijs: decide whether to file the drafted upstream systemd regression issue. Open
   for agents: independently re-verify and merge `track/composefallback`.
+## 2026-07-30 (track/scenarios close)
+
+- Merged `main`/`track-composefallback` into `track/scenarios` and completed the scenario tier. Lifecycle now captures the capability-dependent compose warning and verifies its `manifest.json` degradation record using a runtime-derived systemd version; the obsolete VM user-namespace sysctl experiment was removed.
+- No new design decision: this consumes D36's loud degraded fallback. D43 and D44 remain the explicit scenario FRONTIER markers (pod networking / nested-composite `--update <edge>` respectively).
+- Verification green: all five `scenario-*` VM checks, ignored index hammer, workspace fmt/clippy/tests, and explicit tour regeneration with zero `docs/tour` diff. Exact commands and current-truth assertions are in `nix/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently re-verify the committed `track/scenarios` branch before merge.
