@@ -912,6 +912,15 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   via a Cixfile directive (`META`, or `LABEL` for muscle memory), rendered by
   inspect + serve pages. Gate: build it when the explore surface gets real users;
   until then converters drop LABELs (migrate prompt says so).
+  **Field design from the prior-work sweep** (OCI annotations; ghcr's load-bearing
+  `source`; Renovate reading `source` for changelogs; Docker Hub ignoring
+  annotations; artifacthub needing its own richer namespace; Helm Chart.yaml as the
+  compose-artifact analogue; nixpkgs `meta` already riding along on `${pkgs.*}`;
+  provenance having moved to signed attestations — labels' provenance role is dead):
+  hand-written = `title`, `description`, `homepage`, `documentation`, `licenses`
+  (SPDX), `maintainers`, `icon`; derived-never-typed = `source` + `version`/
+  `revision` from the lock (hash-true); `created` deliberately absent (determinism).
+  Serve/export maps 1:1 onto `org.opencontainers.image.*` for tool interop.
 
 ## Non-goals (for now)
 
