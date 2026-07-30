@@ -946,13 +946,22 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   explicit declarations because they add files to the item (the COPY doctrine:
   writes are declared); manifest `version` = display, lock `revision` = receipt;
   explicit META fields override imports; nothing recognized at the path =
-  line-numbered error listing what was tried. **Nix already has the machinery**
-  (Mathijs): `builtins.fromTOML`/`fromJSON` in pure eval over the content-addressed
-  input — so the adapters are a few lines of *generated nix* in the codegen (the
-  same eval that resolves attr paths), not Rust-side parsers; prior art: crane's
-  crateNameFromCargoToml, pyproject-nix, buildNpmPackage, dream2nix. What remains
-  per ecosystem is only the key-mapping attrset. So: **IN** (priority on conflict): (1) explicit Cixfile META
-  fields, (2) `META source <binder>`, (3) derived WITH
+  line-numbered error listing what was tried. **Final mechanism (Mathijs's cut —
+  formats, not ecosystems)**: no per-ecosystem adapters at all; ONE generic
+  selector — `META <field> <source> > <keypath>` — bake-time pure via
+  `builtins.fromTOML`/`fromJSON` by extension (no YAML: builtins has none, so it is
+  honestly unsupported), and the same selector walks a package binder's eval'd
+  `meta` attrset (`META description ${pkgs.nginx} > meta.description`). Bulk field
+  import is dead: every field is author-pointed; cix maintains two file formats and
+  zero ecosystem tables (prior art for the eval: crane, pyproject-nix — we take the
+  builtins, not the frameworks). `META source <binder>` keeps ONLY the
+  provenance-designation role: a remote flakeref binder yields url+rev+narHash (the
+  flakeref IS the url); a `.` binder yields **narHash-only** — a local working copy
+  has no public URL, and claiming one from `.git/config` would be ambient host
+  state (the D12 class) that lies on dirty trees. Steering side-effect: publishable
+  provenance means building from a remote FROM — the reproducible-release flow.
+  So: **IN** (priority on conflict): (1) explicit Cixfile META
+  fields (literal or selector), (2) `META source <binder>` provenance, (3) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
   **OUT** adapters from one internal schema, final cut (Mathijs's trims): inline =
