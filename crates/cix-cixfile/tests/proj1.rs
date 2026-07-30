@@ -97,9 +97,7 @@ fn assert_items_are_minimal_and_v4(items: &[BuiltItem]) {
         assert_eq!(manifest["cixManifest"], 4);
         assert!(manifest.get("services").is_none());
         assert_eq!(
-            manifest
-                .get("outbound")
-                .and_then(serde_json::Value::as_bool),
+            manifest.get("egress").and_then(serde_json::Value::as_bool),
             (item.name == "proj1-worker").then_some(true)
         );
     }

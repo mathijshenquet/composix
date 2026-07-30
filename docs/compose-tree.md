@@ -17,7 +17,7 @@ diffable, owned mutable cells, and everything else immutable and content-address
 - A **pack item** is a store item: filesystem + `cix-manifest.json`, where the manifest
   is a single bare **def-node** — *one item = exactly one service* (D41). No services
   map. The def-node carries what the software needs: `exec`, `setup`, typed `env`
-  declarations, `ports`, `listeners`, `dirs`, `health`, `jit`, `outbound`.
+  declarations, `ports`, `listeners`, `dirs`, `health`, `jit`, `egress`.
 - A **compose artifact** is a store item: `cix.json` (+ advisory lock snapshot), a
   **group-node**: children (ref-nodes), `edges`, `publish`, `network`, nested groups.
 - Every level of the system — a leaf's manifest, a published composite, the host root —
@@ -84,13 +84,13 @@ the `service:` selector field in compose dies with it.
   or later named networks (D26).
 - **Absence of pod-ness anywhere = today's honest host networking** (rawdogging is the
   absence of a property, not an escape flag). Trusted-world users write nothing.
-- Per-service **`outbound: true`** (spec-level, D20 app semantics) declares outward
-  initiation; renamed from "egress". Only enforceable under a pod ancestor; a loud no-op
+- Per-service **`egress: true`** (spec-level, D20 app semantics) declares outward
+  initiation. Only enforceable under a pod ancestor; a loud no-op
   otherwise. Absence = loopback-only view even when the pod has a veth — and a composite
-  with no outbound needs gets **zero machinery** (no veth, no routes).
+  with no egress needs gets **zero machinery** (no veth, no routes).
 - **A pod member is type-identical to a service member** from the parent's view: every
   child is a name with surfaces (ports/listeners for a service, publishes for a pod), an
-  outbound need (declared, or bubbled up from inside the pod), and a resource footprint —
+  egress need (declared, or bubbled up from inside the pod), and a resource footprint —
   the wiring algebra and the repin interface-check work on that type uniformly. The
   honest asymmetry sits one level down: a service member shares its scope's loopback
   (siblings reach it on *any* port — deliberately ambient inside the trust boundary),

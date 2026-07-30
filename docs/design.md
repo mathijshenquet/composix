@@ -707,8 +707,8 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   that's non-granular rebuild; the store dedupes shared closures at path level so
   splitting is free). `cix-manifest.json` v4 drops the `services` map: the file IS one
   service body (`exec`/`setup`/typed `env`/`ports`/`listeners`/`dirs`/`health`/`jit`/
-  `outbound`). Multi-service manifests (D8-era) retire; compose's `service:` selector
-  field dies. Runner accepts 1–4 per D15.
+  `egress`, final spelling per D48(b)). Multi-service manifests (D8-era) retire;
+  compose's `service:` selector field dies. Runner accepts 1–4 per D15.
 - ✅ D42 (2026-07-30) — **the compose tree: one grammar, two artifact kinds.** A *pack
   item* (filesystem + def-node manifest) is the leaf; a *compose artifact* (`cix.json`:
   children refs + `edges` + `publish` + `network`, optionally nested) is the node; both
@@ -726,7 +726,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   boundary at a time (child publish → parent scope, where it's `bind`-ed or re-published),
   `edges` (D25 fd tier) cross netns for free. Absence of pod-ness anywhere = today's
   host networking (rawdog = absence of a property; the `network: host` escape flag
-  dies). Per-service **`outbound: true`** (renamed from "egress" — D20-side app
+  dies). Per-service **`egress: true`** (final spelling per D48(b); D20-side app
   semantics) declares outward initiation; absence = loopback-only view, zero network
   machinery for pure composites. Amends D23's fixed boundary; compose-netns.md remains
   the realization paper.
@@ -769,7 +769,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   memoized, advisory, may be messy; the block name binds its final workdir snapshot —
   `${build}` magic dies because you wrote `BUILDER build`), `SERVICE <name>` (def-node
   artifact, v4 manifest), `APP <name>` (executable, run-to-completion: exec/env/
-  outbound/dirs; NO ports/listeners/health — parser-enforced; manifest kind "app"),
+  egress/dirs; NO ports/listeners/health — parser-enforced; manifest kind "app"),
   `ITEM <name>` (pure assets, no exec). D40's ITEM-as-service keyword is superseded.
   (b) **RUN is caged**: legal only inside BUILDER. **Network always pins**: `FROM`
   (universes AND sources — `FROM . AS src` binds the local source tree, killing the

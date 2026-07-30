@@ -55,7 +55,7 @@ pub struct Service {
     pub network: Option<Network>,
     pub jit: Option<bool>,
     #[serde(default)]
-    pub outbound: bool,
+    pub egress: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -136,6 +136,7 @@ impl Spec {
             .and_then(serde_json::Value::as_u64)
             .context("cix-manifest.json field \"cixManifest\" must be an integer")?;
         let version = u32::try_from(version).context("cixManifest version is too large")?;
+        reject_outbound_field(&value, version)?;
         let spec = if version == 4 {
             let mut body = value
                 .as_object()
@@ -229,6 +230,29 @@ impl Spec {
         }
         Ok(())
     }
+}
+
+fn reject_outbound_field(value: &serde_json::Value, version: u32) -> Result<()> {
+    let has_outbound = if version == 4 {
+        value.get("outbound").is_some()
+    } else {
+        value
+            .get("services")
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|services| {
+                services.values().any(|service| {
+                    service
+                        .as_object()
+                        .is_some_and(|service| service.contains_key("outbound"))
+                })
+            })
+    };
+    if has_outbound {
+        bail!(
+            "manifest field \"outbound\" was renamed to \"egress\" by D48(b); update cix-manifest.json"
+        );
+    }
+    Ok(())
 }
 
 fn item_name_from_store_path(output: &Path) -> Option<String> {
@@ -371,7 +395,7 @@ impl Service {
                     || self.health.is_some()
                     || self.network.is_some()
                     || self.jit.is_some()
-                    || self.outbound
+                    || self.egress
                 {
                     bail!("kind item is assets-only and may declare only mounts (D47)");
                 }
@@ -407,11 +431,11 @@ impl Service {
         if version < 3 && !self.listeners.is_empty() {
             bail!("field \"listeners\" requires cixManifest 3");
         }
-        if version < 4 && self.outbound {
-            bail!("field \"outbound\" requires cixManifest 4");
+        if version < 4 && self.egress {
+            bail!("field \"egress\" requires cixManifest 4");
         }
         if version == 4 && self.network.is_some() {
-            bail!("field \"network\" is retired in cixManifest 4; use \"outbound\" per D41");
+            bail!("field \"network\" is retired in cixManifest 4; use \"egress\" per D48(b)");
         }
         Ok(())
     }
@@ -764,13 +788,13 @@ mod tests {
                 "cixManifest": 4,
                 "exec": ["bin/worker"],
                 "env": {"MODE": {"default": "once"}},
-                "outbound": true
+                "egress": true
             }"#,
         )
         .unwrap();
         assert_eq!(spec.cix_manifest, 4);
         assert_eq!(spec.services.len(), 1);
-        assert!(spec.services["item"].outbound);
+        assert!(spec.services["item"].egress);
         let (_, service) = spec.select_service(None).unwrap();
         assert_eq!(service.exec, ["bin/worker"]);
         let serialized = serde_json::to_value(&spec).unwrap();
@@ -779,12 +803,24 @@ mod tests {
         assert!(serialized.get("services").is_none());
 
         let defaulted = parse(r#"{"cixManifest":4,"exec":["bin/app"]}"#).unwrap();
-        assert!(!defaulted.services["item"].outbound);
+        assert!(!defaulted.services["item"].egress);
         let error = defaulted
             .select_service(Some("app"))
             .unwrap_err()
             .to_string();
         assert!(error.contains("D41"), "{error}");
+    }
+
+    #[test]
+    fn outbound_manifest_field_has_a_d48_migration_error_and_is_not_an_alias() {
+        for json in [
+            r#"{"cixManifest":4,"exec":["bin/app"],"outbound":true}"#,
+            r#"{"cixManifest":3,"services":{"app":{"exec":["bin/app"],"outbound":true}}}"#,
+        ] {
+            let error = Spec::from_slice(json.as_bytes()).unwrap_err().to_string();
+            assert!(error.contains("renamed to \"egress\""), "{error}");
+            assert!(error.contains("D48(b)"), "{error}");
+        }
     }
 
     #[test]
@@ -1022,7 +1058,7 @@ mod d47_kind_tests {
             .contains("\"kind\""));
 
         let app = Spec::from_slice(
-            br#"{"cixManifest":4,"kind":"app","exec":["/nix/store/x/bin/job"],"dirs":{"state":["/var/lib/job"],"cache":["/var/cache/job"]},"outbound":true}"#,
+            br#"{"cixManifest":4,"kind":"app","exec":["/nix/store/x/bin/job"],"dirs":{"state":["/var/lib/job"],"cache":["/var/cache/job"]},"egress":true}"#,
         )
         .unwrap();
         assert_eq!(app.kind, ManifestKind::App);
@@ -1061,7 +1097,7 @@ mod d47_kind_tests {
                 "item must not declare exec",
             ),
             (
-                r#"{"cixManifest":4,"kind":"item","outbound":true}"#,
+                r#"{"cixManifest":4,"kind":"item","egress":true}"#,
                 "item is assets-only",
             ),
         ] {

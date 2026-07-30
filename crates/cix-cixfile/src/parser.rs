@@ -133,7 +133,14 @@ impl Parser<'_> {
                     self.directory(directive, line_number, source, arguments)?
                 }
                 "JIT" => self.jit(line_number, source, arguments)?,
-                "OUTBOUND" => self.outbound(line_number, source, arguments)?,
+                "EGRESS" => self.egress(line_number, source, arguments)?,
+                "OUTBOUND" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "OUTBOUND was renamed to EGRESS by D48(b); replace this directive with EGRESS",
+                    ));
+                }
                 "TAKE" => return Err(take_removed_error(line_number, source, arguments)),
                 "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 _ => {
@@ -932,25 +939,25 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn outbound(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+    fn egress(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         self.require_artifact_kind(
-            "OUTBOUND",
+            "EGRESS",
             line,
             source,
             &[ArtifactKind::Service, ArtifactKind::App],
         )?;
         if !arguments.is_empty() {
-            return Err(ParseError::new(line, source, "OUTBOUND takes no arguments"));
+            return Err(ParseError::new(line, source, "EGRESS takes no arguments"));
         }
-        let service = self.current_service_mut("OUTBOUND", line, source)?;
-        if service.outbound {
+        let service = self.current_service_mut("EGRESS", line, source)?;
+        if service.egress {
             return Err(ParseError::new(
                 line,
                 source,
-                "OUTBOUND is already declared for this artifact",
+                "EGRESS is already declared for this artifact",
             ));
         }
-        service.outbound = true;
+        service.egress = true;
         Ok(())
     }
 
@@ -2257,14 +2264,14 @@ LOGS /var/log/web
 CONFIG /etc/web
 RUNDIR /run/web
 JIT
-OUTBOUND
+EGRESS
 APP migrate
 COPY ${ingredient} payload
 EXEC /bin/true
 ENV MODE = once
 STATE /var/lib/migrate
 CACHE /var/cache/migrate
-OUTBOUND
+EGRESS
 ITEM data
 COPY payload data/payload
 FILE notice <<E
@@ -2366,6 +2373,15 @@ LINK current data/payload
     }
 
     #[test]
+    fn outbound_has_a_d48_migration_error_and_is_not_an_alias() {
+        let error =
+            parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
+        assert_eq!(error.line, 4);
+        assert!(error.message.contains("renamed to EGRESS"), "{error}");
+        assert!(error.message.contains("D48(b)"), "{error}");
+    }
+
+    #[test]
     fn app_rejects_service_only_surface_at_the_directive_line() {
         for (directive, message) in [
             ("PORT http = 8080", "PORT is not legal inside APP"),
@@ -2397,7 +2413,7 @@ LINK current data/payload
             "CONFIG /etc/data",
             "RUNDIR /run/data",
             "JIT",
-            "OUTBOUND",
+            "EGRESS",
             "SCRIPT start <<E\ntrue\nE",
         ] {
             let input = format!("FROM nixpkgs AS pkgs\nITEM data\n{directive}\n");

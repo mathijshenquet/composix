@@ -23,4 +23,4 @@ PORT http = 18084
 SERVICE proj1-worker
 COPY ${build}/output/proj1-worker bin/proj1-worker
 EXEC bin/proj1-worker
-OUTBOUND
+EGRESS

@@ -29,7 +29,7 @@ Ribbons:
 | 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | ordering ✅; health wiring ⏳ D30-deferral; init free under systemd | S |
 | 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | binds ⏳ compose operator-binds; shm ✅ easier; GPU 🔶 devices | M |
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | watch-dir ⏳ operator-binds; variants ≈ D46 parametric | M |
-| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | outbound polarity ✅ designed (D43, ⏳ built); **shared-rw edge = real gap** (below); binds ✅ | M |
+| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | egress polarity ✅ designed (D43/D48b, ⏳ built); **shared-rw edge = real gap** (below); binds ✅ | M |
 | 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | anchors ✅ moot (JSON canonical, D28); shared-rw same gap as #9 | M |
 | 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | ✅ (`LimitNOFILE` easier; SETUP/ExecStartPre) | S |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M |
@@ -135,7 +135,7 @@ Ranked by frequency × how squarely it hits us:
 
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
-- **Mastodon-shaped stack** (top pick): health DAG + internal-net/outbound + the
+- **Mastodon-shaped stack** (top pick): health DAG + internal-net/egress + the
   shared-rw gap in one 5-service, manageable package. Forces gaps #1 and #3.
 - **Immich-shaped**: operator binds + image healthchecks + optional GPU — forces #2
   honestly, GPU as loud 🔶.
