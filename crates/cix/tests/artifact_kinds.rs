@@ -5,7 +5,7 @@ use std::process::{Command, Output};
 use anyhow::{bail, Context, Result};
 
 #[test]
-fn app_propagates_exit_status_and_item_is_not_runnable() -> Result<()> {
+fn app_propagates_exit_status() -> Result<()> {
     if !command_succeeds("systemctl", &["--user", "show-environment"])
         || !command_succeeds("nix", &["--version"])
     {
@@ -32,24 +32,6 @@ fn app_propagates_exit_status_and_item_is_not_runnable() -> Result<()> {
     assert!(
         String::from_utf8_lossy(&result.stdout).contains("d47-app-output"),
         "app output was not streamed: {result:?}"
-    );
-
-    let item = temporary.path().join("item-fixture");
-    fs::create_dir(&item)?;
-    write_manifest(
-        &item,
-        serde_json::json!({
-            "cixManifest": 4,
-            "kind": "item"
-        }),
-    )?;
-    let item_store_path = add_to_store(&item)?;
-    let result = cix(&["run", path_str(&item_store_path)?])?;
-    assert!(!result.status.success(), "{result:?}");
-    let stderr = String::from_utf8_lossy(&result.stderr);
-    assert!(
-        stderr.contains("manifest kind item is assets-only and has no executable (D47)"),
-        "{stderr}"
     );
 
     Ok(())

@@ -59,12 +59,6 @@ pub(crate) struct ForegroundResult {
 
 pub fn run(options: RunOptions) -> Result<()> {
     let target = resolve_service(&options.installable)?;
-    if target.kind == ManifestKind::Item {
-        bail!(
-            "cix run refuses artifact {:?}: manifest kind item is assets-only and has no executable (D47)",
-            target.name
-        );
-    }
     if !options.user && current_uid()? != 0 {
         bail!(
             "cix run targets the system manager and must run as root; use sudo, or pass --user for explicitly degraded dev mode"
@@ -81,7 +75,6 @@ pub fn run(options: RunOptions) -> Result<()> {
             run_resolved(target.output, &target.name, &target.service, &options)
         }
         ManifestKind::App => run_app(target, &options),
-        ManifestKind::Item => unreachable!("item was refused above"),
     }
 }
 
