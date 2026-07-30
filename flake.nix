@@ -7,6 +7,16 @@
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      sdbisectPkgs = import nixpkgs {
+        inherit system;
+        overlays = [
+          (final: prev: {
+            systemd = prev.systemd.overrideAttrs (old: {
+              patches = (old.patches or [ ]) ++ [ ./nix/patches/systemd-6431c34b8a84-revert.patch ];
+            });
+          })
+        ];
+      };
       cix = pkgs.rustPlatform.buildRustPackage {
         pname = "cix";
         version = "0.1.0";
@@ -34,6 +44,10 @@
       lib.withSpec = composixLib.withSpec;
       checks.${system} = {
         compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
+        sdbisect-revert-vm = import ./nix/sdbisect-revert-vm.nix {
+          inherit pkgs;
+          revertedSystemd = sdbisectPkgs.systemd;
+        };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         with-spec-redis = pkgs.runCommand "with-spec-redis-check" { } ''
           test -f ${withSpecRedis}/cix-manifest.json

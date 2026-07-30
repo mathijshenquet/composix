@@ -6,6 +6,25 @@ Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
 fallback for this class (D36; `crates/cix-run/src/capabilities.rs`), so filing is
 advocacy, not a blocker for us.
 
+## Investigation update — same-host NixOS A/B rejects the candidate
+
+On 2026-07-30, the self-contained two-VM NixOS check was run against systemd 261.
+Both VMs use the same minimal root system unit (`Type=oneshot`, `/bin/true`,
+`DynamicUser=yes`, `PrivatePIDs=yes`, and `StateDirectory=sdbisect`) and the same
+kernel/harness. The stock VM failed with `Failed to allocate user namespace` and
+`status=226/NAMESPACE`. The other VM booted the patched systemd store path, where the
+`StateDirectory=` ID-mapped-mount caller was changed from
+`setgroups_deny=true` to `setgroups_deny=false`, reversing the behavior introduced at
+that call site by [`6431c34b8a84`](https://github.com/systemd/systemd/commit/6431c34b8a8487fb50c9cb850bd7d3bf81ad9e2a).
+It failed with the same two messages. Thus `6431c34b8a84` is **not confirmed as
+causal** by this A/B experiment. The exact command, patched PID 1 store path, and
+both VM transcripts are recorded in `.dev/sdbisect.LOG.md`.
+
+The full reverse of 6431c34 does not apply to the Nixpkgs 261 source because it
+contains subsequent API/caller changes. The check therefore applies the narrow,
+production-relevant functional reversal described above; it leaves subsequent callers
+that deliberately choose either setting intact.
+
 ## Investigation update — non-NixOS repro not yet established
 
 The requested upstream same-harness A/B could **not** be completed on this host, so
@@ -33,15 +52,15 @@ bootstrap also required nixpkgs `dnf5`, `rpm`, and `createrepo_c` (with a local
 assembly failed before boot: its `systemd` and `systemd-udev` `%sysusers` scriptlets
 reported `usermod: cannot lock /etc/passwd; try again later`, and mkosi's `dnf5
 --installroot=/buildroot … install … systemd … udev` exited 1. The full append-only
-command/error trail is in `.dev/sdbisect.LOG.md` (intentionally untracked).
+command/error trail is in the tracked append-only `.dev/sdbisect.LOG.md`.
 
-Accordingly, the following body must not claim a regression until the same-harness
-A/B has been reproduced. The source analysis below is only a candidate audit.
+Accordingly, the following body must not claim a regression. The non-NixOS repro is
+still absent, and the NixOS same-host A/B did not confirm the source candidate. The
+source analysis below is only a candidate audit.
 
 ## Targeted source audit (v257..v261; not a bisect)
 
-No causal commit is proven: the required behavior test never ran, so `git bisect`
-would only bisect host/mkosi failures. The strongest code-path candidate is
+No causal commit is proven. The strongest code-path candidate remains
 [`6431c34b8a84`](https://github.com/systemd/systemd/commit/6431c34b8a8487fb50c9cb850bd7d3bf81ad9e2a),
 `namespace-util: make "setgroups" users property writable via userns_acquire()`.
 It is between v257 and v261. Before it, `userns_acquire()` created the temporary
@@ -107,7 +126,7 @@ Failed to allocate user namespace: Operation not permitted
 status=226/NAMESPACE
 ```
 
-What we have observed (not yet same-harness A/B evidence):
+What we have observed:
 
 - Removing **any one** of `DynamicUser=yes`, `PrivatePIDs=yes`, or `StateDirectory=`
   makes the unit start.
@@ -121,7 +140,9 @@ What we have observed (not yet same-harness A/B evidence):
 - `user.max_user_namespaces` is not the cause (raising it changes nothing).
 - A source audit, not a bisect, identifies 6431c34b8a84 as the strongest candidate:
   it adds a `setgroups=deny` write to the temporary user namespace used by the
-  ID-mapped managed-directory mount. We have not yet captured which low-level operation
+  ID-mapped managed-directory mount. But a same-host NixOS A/B that disables that
+  behavior at the `StateDirectory=` caller still fails at 226/NAMESPACE, so this
+  candidate is not confirmed. We have not yet captured which low-level operation
   returns `EPERM` in the failing VM.
 
 Could this be an unintended interaction between the `setgroups=deny` step in the
