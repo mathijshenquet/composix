@@ -1050,17 +1050,29 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   advise narrow. RUN-edge read-tracing (the D38/D39 v0.5 tracer) remains the
   later increment for pruning offered closures — this decision needs none of it.
 
-- ✅ D58 (2026-07-30) — **FETCH sandboxes carry CA trust by default** (Mathijs's
-  "SSL_CERT_FILE song & dance" review). FETCH is by definition THE network step;
-  trust roots are part of that capability — sandbox equipment in the same family
-  as D39's injected repro-env defaults, not app semantics. The engine sets
-  `SSL_CERT_FILE`/`GIT_SSL_CAINFO`/`CURL_CA_BUNDLE` to the locked nixpkgs `cacert`
-  bundle and adds cacert to FETCH steps' offered closure automatically
-  (deterministic via the lock; an explicit env in the FETCH line still overrides).
-  RUN remains networkless and gets nothing. Companion prompt/style note: inside a
-  BUILDER the declared PATH already applies to FETCH and RUN alike — tools are
-  called bare; full `${pkgs.…}/bin/` prefixes are only for the top-level FETCH
-  form, which has no PATH scope.
+- ✅ D58 (2026-07-30, arrived via the "SSL_CERT_FILE song & dance" → "isn't that
+  just LINK?" → "make it generic" ladder with Mathijs) — **`IMPORT` replaces PATH:
+  builder provisioning as package union.** `IMPORT <pkg-ref>…` (builder-scoped,
+  repeatable) union-mounts the referenced packages' conventional subtrees into the
+  build sandbox root — **declaration order = overlay priority**, generalizing
+  exactly what PATH order already meant for bin resolution. IMPORT takes over BOTH
+  of PATH's roles (bare-command resolution via /bin; offered-closure definition)
+  plus the conventional-path gap PATH could never cover (`/etc/ssl/certs` from
+  `${pkgs.cacert}` — the whole CA dance dies; `share/zoneinfo`; a working `/bin/sh`
+  for tool-generated launchers). Union subset starts at **bin, etc, share**
+  (nix prior art: buildEnv unions with priorities; NixOS curates via pathsToLink
+  and deliberately generates rather than unions /etc — a concern that is light
+  inside a build sandbox); extend evidence-gated. `lib` deliberately absent
+  (nixpkgs binaries are rpath'd). **PATH dies in builders** (YAGNI-return clause:
+  explicit `ENV PATH=…` covers genuine path needs; bring a keyword back only if
+  that chafes). Service-block runtime PATH becomes a plain ENV declaration;
+  D31's item-relative resolution for `EXEC bin/x` is untouched. **No cacert
+  default anywhere**: `IMPORT ${pkgs.cacert}` is one explicit word; the
+  convenience story is future sugar — a cix-published curated base tag (a
+  universe artifact with common IMPORTs pre-declared), cix-owned per D32's sugar
+  rule, never engine magic. LINK stays as the pincet next to IMPORT's brush for
+  non-FHS-shaped outputs. FETCH outputs remain hash-pinned, so trust config stays
+  availability plumbing, never an integrity input; RUN remains networkless.
 
 ## Non-goals (for now)
 
