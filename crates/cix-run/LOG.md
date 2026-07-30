@@ -109,3 +109,72 @@
 - The v2 mappings share one golden fixture rather than separate files per field; focused validation and capability tests cover the independent error/override paths.
 
 - 2026-07-28 21:26 UTC — Specv2 implementation complete. Exact done gate passed: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace` (20 cix-run unit/golden tests plus the live user integration, with all other workspace suites green). The required low-port DynamicUser probe and nginx/PostgreSQL sudo demos passed. Final cleanup stopped the cix slices created by verification and both systemd managers list no `cix-*` units. Three implementation commits precede this final log commit; final step is to re-check clean status and commit history.
+
+## track/composefallback
+
+- 2026-07-30 16:40 UTC — Started `.dev/specs/track-composefallback.md` on the clean
+  `track/composefallback` branch. Read AGENTS.md, `.dev/LOG.md`, authoritative D13/D36,
+  the cix-run and compose logs, and Terra's 2026-07-30 `track/scenarios:nix/LOG.md`
+  diagnosis. Confirmed the required gap: one compose system unit combining
+  `DynamicUser=yes`, `PrivatePIDs=yes`, managed state, and a writable Unix-edge
+  `BindPaths=` fails before exec on the NixOS-test systemd 261 guest with
+  `226/NAMESPACE`, while cix-run's current D36 fallback only reacts after transient-unit
+  activation and compose has no capability-aware generation path. The devenv is
+  direnv-allowed in this worktree. Next: isolate the minimal property set in a dedicated
+  VM probe, inspect upstream systemd 258–261 changes, and map the shared compiler plus
+  compose generation/manifest/activation surfaces before implementing the probe.
+
+- 2026-07-30 16:50 UTC — Minimal systemd 261 VM bisection is complete. Exact repro:
+  `nix build .#checks.x86_64-linux.compose-fallback-vm --no-link -L`. A direct
+  oneshot with only `DynamicUser=yes`, `PrivatePIDs=yes`, and `StateDirectory=`
+  fails before exec at `226/NAMESPACE`, logging `Failed to allocate user
+  namespace` and naming `/var/lib/private/<name>`; removing any one of those
+  three properties succeeds. `BindPaths=` is not part of the minimal failure:
+  `DynamicUser=yes + PrivatePIDs=yes + BindPaths=` succeeds without the managed
+  directory, while Terra's full compose-shaped combination fails. A follow-up
+  probe also covers `RuntimeDirectory=` because it is the disposable managed
+  directory suitable for the production realization test.
+
+- 2026-07-30 16:50 UTC — Upstream audit: searched systemd NEWS, issue results, and
+  git history from v257 through v261. `PrivatePIDs=` was introduced in
+  [406f1775](https://github.com/systemd/systemd/commit/406f1775017a5631bc91a1f53ac5e50f4fbfac0c);
+  v258 substantially reordered user/PID/mount namespace setup for
+  `DelegateNamespaces=` in
+  [8234cd99](https://github.com/systemd/systemd/commit/8234cd9989d3834bf5c06e2b597ec097b985e1e8)
+  and
+  [38748596](https://github.com/systemd/systemd/commit/38748596f0783f2b773bd95d4af4d83f5b5ff872).
+  Later fixes include pre-unshare UID/GID capture
+  [8b5e3be8](https://github.com/systemd/systemd/commit/8b5e3be88eeb1bdba50c87cb24d9e6b31e825f38)
+  and restoring the system/user-manager distinction
+  [666cd35b](https://github.com/systemd/systemd/commit/666cd35be493e2d796c5424eed9a3deeddc9b0fe).
+  NEWS contains no 258–261 incompatibility note for the demonstrated combination,
+  and searches found no matching upstream issue. Both v257 and v261 create a
+  temporary user namespace while applying the ID-mapped managed-directory mount;
+  the regression's exact causal commit is therefore not proven by this audit.
+  Draft upstream issue for Mathijs to file if desired: “systemd 261 regression:
+  DynamicUser + PrivatePIDs + StateDirectory fails at 226/NAMESPACE”. Body:
+  “On a NixOS test VM with systemd 261 and Linux 6.18.40, a root system service
+  containing only Type=oneshot, ExecStart=/bin/true, DynamicUser=yes,
+  PrivatePIDs=yes, and StateDirectory=probe fails before exec with `Failed to
+  allocate user namespace: Operation not permitted`, followed by
+  `/var/lib/private/probe` and status 226/NAMESPACE. Removing any of
+  DynamicUser, PrivatePIDs, or StateDirectory makes it start. The equivalent
+  workload worked on systemd 257. RuntimeDirectory reproduces too. Is this an
+  unintended interaction between PID-namespace setup and the user namespace used
+  for ID-mapped managed directories? A self-contained NixOS test is available.”
+
+- 2026-07-30 16:52 UTC — Correction from the explicit role follow-up:
+  `RuntimeDirectory=` does **not** reproduce; the direct systemd 261 unit with
+  `DynamicUser=yes + PrivatePIDs=yes + RuntimeDirectory=` starts successfully.
+  The failing capability class is persistent managed directories, whose
+  DynamicUser backing paths use ID-mapped mounts (`StateDirectory=` is the
+  minimal proven representative), not every `*Directory=`. The production probe
+  must therefore use `StateDirectory=` despite its persistent empty probe
+  directory; the fallback predicate must cover only State/Cache/Logs/Configuration
+  properties and must leave RuntimeDirectory-only services fully hardened. In the
+  upstream issue draft above, replace “RuntimeDirectory reproduces too” with
+  “RuntimeDirectory does not reproduce, further localizing this to persistent
+  ID-mapped managed directories.” The failed follow-up command was the same exact
+  VM repro: `nix build .#checks.x86_64-linux.compose-fallback-vm --no-link -L`;
+  it failed only because the test expected the newly measured runtime-directory
+  unit to fail when it correctly succeeded.
