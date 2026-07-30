@@ -892,6 +892,16 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   ("where from, where it lands", uniform with COPY). Hard flips, migration-grade
   errors, ride track/tourbook.
 
+- ✅ D53 (2026-07-30) — **Cixfiles get `#` line comments** (Mathijs, reading the
+  corpus whoami pair: none of the wild-corpus Cixfiles could explain themselves).
+  Full-line comments only (a line whose first non-whitespace char is `#`);
+  end-of-line comments are deliberately NOT parsed — RUN/FETCH bodies are shell,
+  where `#` already belongs to the shell (and works naturally inside D51 heredocs).
+  Corpus note recorded with it: dual receipts prove *functional* faithfulness, not
+  version parity (Dockerfile-pinned version vs nixpkgs-rev version); a version-parity
+  probe is a loss-curriculum candidate for later rounds. Implementation: micro-round
+  after track/tourbook (parser + docs + a commented example).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
