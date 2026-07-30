@@ -40,14 +40,16 @@
       packages.${system} = {
         cix = cix;
         withSpecRedis = withSpecRedis;
-      };
-      lib.withSpec = composixLib.withSpec;
-      checks.${system} = {
-        compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
+        # On-demand diagnostic harness (compiles a patched systemd) — deliberately a
+        # package, not a check, so `nix flake check` never builds it in CI.
         sdbisect-revert-vm = import ./nix/sdbisect-revert-vm.nix {
           inherit pkgs;
           revertedSystemd = sdbisectPkgs.systemd;
         };
+      };
+      lib.withSpec = composixLib.withSpec;
+      checks.${system} = {
+        compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         with-spec-redis = pkgs.runCommand "with-spec-redis-check" { } ''
           test -f ${withSpecRedis}/cix-manifest.json
