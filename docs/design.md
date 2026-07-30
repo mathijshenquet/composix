@@ -803,6 +803,43 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   their own fine-grained incrementality (CACHE), correctness comes from
   sandbox-by-construction, not declared deps.
 
+- ✅ D48 (2026-07-30) — **feedback-round resolutions, bundled** (Mathijs's review of
+  D40/D43 and the six corpus-demand specs):
+  (a) **CACHE redefined, kept** (D40 amendment): memo keys on inputs, so hits never
+  need cache and warm state cannot cause wrong reuse — the danger is only a dirty
+  workspace on a MISS (ghost files from deleted sources make the snapshot key a lie,
+  and sampled rebuilds catch that only probabilistically). CACHE is therefore not a
+  cache feature but **the declared exception to snapshot semantics** (outside key,
+  snapshot, and items); everything undeclared keeps meaningful keys. Implicit
+  whole-workdir warmth is rejected.
+  (b) **`egress` returns** (D43 amendment): prior work is unanimous at the
+  workload-policy layer — k8s NetworkPolicy (`policyTypes: [Ingress, Egress]`),
+  Cilium/Calico, and systemd itself (`IPEgressFilterPath=`); "outbound" is the
+  cloud-console word. Fundamental: ingress/egress is the symmetric pair and our
+  publish/bind side IS ingress. Rename lands as a micro-round after track/blocks
+  (manifest field + D47 directive become `egress`/`EGRESS`).
+  (c) **Health = an edge to a consumer, not a property** (k8s lesson: probes are
+  named by consumer — liveness→restart, readiness→traffic, startup→boot-gate; deep/
+  business health is application-layer, explicitly out of scope). Our consumers:
+  `cix up` convergence, restart policy (default report-only, per-service opt-in),
+  dependent ordering (readiness ≈ ordering; no traffic layer). Manifest declares the
+  probe; compose declares consumers.
+  (d) **Durable data ownership = declared identities; one registry decision covers
+  hostbinds AND shared edges**: host-bound state requires a declared static user
+  (`--user` mode dissolves the problem — everything is the invoking user); shared
+  persistent edges require a stable group. Both come from a small cix-managed
+  identity registry (name→uid/gid, profile-like cell). Operator-precreated identities
+  remain expressible; cix-allocated is the default position.
+  (e) **House principle recorded** (from the timers call): *use systemd as
+  transparently as possible; build only at a real impedance mismatch.* Timers =
+  raw `OnCalendar` accordingly.
+  (f) **Hooks shrink to nearly nothing** under (e): migrate-on-upgrade = an ordinary
+  oneshot APP unit with `After=`/`Requires=` ordering — content-addressing makes it
+  re-run exactly when its app version changes (restart-changed sees a changed
+  ExecStart store path), for free. `ExecStartPre` covers the chain-style cases
+  natively. The only genuine mismatch, abort-before-switch (old generation keeps
+  serving on hook failure), is deferred until the native shape proves insufficient.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

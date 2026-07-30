@@ -16,22 +16,14 @@ services. Two flavors:
   composite's state, owned by a per-edge group; members get the group as
   SupplementaryGroups; dir is setgid + `g+rw`, umask coordinated.
 
-## ⚖ Hard choices (Mathijs)
+## Resolved (D48d — Mathijs's round)
 
-- **Stable group identity = the first cix-owned host registry beyond profiles.**
-  DynamicUser uids are ephemeral by design, so joint ownership must hang on a GROUP
-  that outlives service restarts. Menu:
-  (a) cix allocates+records real groups per persistent shared edge (a small
-  name→gid registry in cix state; deterministic, survives reboots; but it is new
-  mutable host state cix must own),
-  (b) `DynamicUser` + ACL rewriting on activation (no registry, but ACL churn on
-  every up and files keep dead uids),
-  (c) require the operator to pre-create the group and name it in compose
-  (zero cix state; friction).
-  Recommendation: (a) — it is the same kind of cell as the profile: small, named,
-  diffable; document it in the host-state inventory.
-- **Quota/limits on the shared dir**: none in v0 (honest note), or is that
-  acceptable? Recommendation: none, note it.
+- **Same problem class as track-hostbinds** (Mathijs: "dit lijkt heel erg op 2"):
+  durable data ownership = declared identities. The stable group here and the static
+  user there come from ONE cix-managed identity registry (name→uid/gid, profile-like
+  cell; cix-allocated default, operator-precreated expressible). Implement the
+  registry once — in whichever track runs first — and consume it in the other.
+- Quota/limits on the shared dir: none in v0, honestly noted.
 
 ## Scope & gate
 
