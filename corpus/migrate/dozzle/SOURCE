@@ -1,0 +1,5 @@
+Dockerfile: https://raw.githubusercontent.com/amir20/dozzle/c159db5f0b5cccb80e7432d51823eb2702b617bc/Dockerfile
+Repository: https://github.com/amir20/dozzle.git
+Resolved revision: c159db5f0b5cccb80e7432d51823eb2702b617bc
+Dockerfile sha256: 4d7d02d4dd93031024ed5c87770e577b0c88a5961d678a80e7bf7a35520920b3
+Build context: repository archive in context/ (Dockerfile copies source trees and manifests).

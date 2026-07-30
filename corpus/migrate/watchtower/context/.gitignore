@@ -1,0 +1,13 @@
+watchtower
+watchtower.exe
+vendor
+.glide
+dist
+.idea
+.DS_Store
+/site
+coverage.out
+*.coverprofile
+
+docs/assets/wasm_exec.js
+docs/assets/*.wasm

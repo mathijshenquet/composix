@@ -1,0 +1,5 @@
+Dockerfile: https://raw.githubusercontent.com/docker-library/tomcat/f3407586eb54489354943d0d1be0a595a11825d7/10.1/jre21/temurin-noble/Dockerfile
+Repository: https://github.com/docker-library/tomcat.git
+Resolved revision: f3407586eb54489354943d0d1be0a595a11825d7
+Dockerfile sha256: 666e62388d2ae578000098a88cd8afe5cd6b19b62e3aebd20d65e72872eb8ade
+Build context: repository archive in context/; this Dockerfile has no local COPY inputs.

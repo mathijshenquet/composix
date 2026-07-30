@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE tomcat
+  STATE /var/lib/tomcat
+  LOGS /var/log/tomcat
+  RUNDIR /run/tomcat
+  EXEC ${pkgs.tomcat}/bin/catalina.sh run
+  PORT http = 8080

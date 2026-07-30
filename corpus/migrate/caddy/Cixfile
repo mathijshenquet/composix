@@ -1,5 +1,8 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE caddy
-  EXEC ${pkgs.caddy}/bin/caddy file-server --root . --listen :80
-  PORT http = 80
+  STATE /var/lib/caddy
+  ENV XDG_CONFIG_HOME = /var/lib/caddy/config
+  ENV XDG_DATA_HOME = /var/lib/caddy/data
+  EXEC ${pkgs.caddy}/bin/caddy respond --listen :8080 Caddy
+  PORT http = 8080

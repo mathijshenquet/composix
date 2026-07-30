@@ -1,0 +1,34 @@
+## npm
+npm-debug.log
+yarn-error.log
+node_modules
+verdaccio-*.tgz
+docker-compose.yaml
+Dockerfile
+crowdin.yaml
+scripts/
+src/
+/.*
+.vscode/
+.circleci/
+debug/
+docker-examples/
+reports/
+
+## docs
+docs/
+wiki/
+
+## flow
+types/
+
+# jest
+coverage/
+test-storage*
+test/
+__mocks__/
+
+# misc
+contrib/
+storage_default_storage/
+docker-bin/

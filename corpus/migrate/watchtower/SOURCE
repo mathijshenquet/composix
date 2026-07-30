@@ -1,0 +1,5 @@
+Dockerfile: https://raw.githubusercontent.com/containrrr/watchtower/ca0e86e824ec05389ab972ea97d04d4bf0476e90/dockerfiles/Dockerfile
+Repository: https://github.com/containrrr/watchtower.git
+Resolved revision: ca0e86e824ec05389ab972ea97d04d4bf0476e90
+Dockerfile sha256: 0254ba1b743374018529b51177f12455f5f0b4b28981d5532a5feaf291fec8ee
+Build context: repository archive in context/. The Dockerfile's required prebuilt ./watchtower is absent from that source context.
