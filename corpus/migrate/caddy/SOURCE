@@ -1,0 +1,6 @@
+Dockerfile: https://raw.githubusercontent.com/caddyserver/caddy-docker/master/2.11/alpine/Dockerfile
+Retrieved: 2026-07-30
+
+The candidate URL names the moving `master` branch and does not provide a source
+revision. The Dockerfile pins its released Caddy version as v2.11.4 and embeds
+the release archive checksums.

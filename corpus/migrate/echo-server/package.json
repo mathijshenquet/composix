@@ -1,0 +1,51 @@
+{
+  "name": "echo-server",
+  "version": "1.0.0",
+  "description": "Kubernetes Echo Server",
+  "main": "./src/app.js",
+  "scripts": {
+    "start": "node ./src/webserver",
+    "build": "webpack --config webpack.config.js",
+    "test": "mocha",
+    "test-with-coverage": "nyc --reporter lcovonly --check-coverage mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ealenn/Echo-Server.git"
+  },
+  "keywords": [
+    "kubernetes",
+    "echo",
+    "server",
+    "tests",
+    "pods",
+    "service",
+    "kube",
+    "k8s",
+    "http",
+    "client"
+  ],
+  "author": "Rudy Marchandise",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/Ealenn/Echo-Server/issues"
+  },
+  "homepage": "https://github.com/Ealenn/Echo-Server#readme",
+  "dependencies": {
+    "body-parser": "^1.x",
+    "bunyan": "^1.x",
+    "bunyan-seq": "^1.0.0",
+    "cookie-parser": "^1.x",
+    "express": "^4.x",
+    "multer": "1.4.5-lts.1",
+    "nconf": "^0.12.x"
+  },
+  "devDependencies": {
+    "mocha": "^10.x",
+    "nyc": "^15.x",
+    "supertest": "^6.x",
+    "terser-webpack-plugin": "^5.x",
+    "webpack": "^5.x",
+    "webpack-cli": "^5.x"
+  }
+}

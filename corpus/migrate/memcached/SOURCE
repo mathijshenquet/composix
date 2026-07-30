@@ -1,0 +1,6 @@
+Dockerfile and build context: https://github.com/docker-library/memcached.git, directory `1/alpine`
+Resolved revision: 53ac0ecb0bf88b471a0110f8996ce791baf1a667
+Dockerfile URL: https://raw.githubusercontent.com/docker-library/memcached/master/1/alpine/Dockerfile
+Retrieved: 2026-07-30
+
+The Dockerfile pins memcached 1.6.45 and SHA-1 45038980ea7045a548b9b5b5125ef7116312a768.

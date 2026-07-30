@@ -1,0 +1,14 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH src ${pkgs.bash}/bin/bash -c '${pkgs.git}/bin/git -c http.sslCAInfo=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt clone https://github.com/Ealenn/Echo-Server.git . && ${pkgs.git}/bin/git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac && NPM_CONFIG_CACHE=$PWD/.npm ${pkgs.nodejs}/bin/npm ci --ignore-scripts --no-audit --no-fund'
+
+BUILDER build
+  PATH ${pkgs.nodejs}/bin
+  COPY ${src}/ .
+  RUN NPM_CONFIG_CACHE=$PWD/.npm npm ci --offline --ignore-scripts --no-audit --no-fund && npm run build
+
+SERVICE echo-server
+  COPY ${build}/src/global.json global.json
+  COPY ${build}/dist/webserver.js webserver.js
+  EXEC ${pkgs.nodejs}/bin/node webserver.js
+  PORT http = 80

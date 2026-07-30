@@ -1,0 +1,6 @@
+Dockerfile and build context: https://github.com/TimWolla/docker-adminer.git, directory `5`
+Resolved revision: 7088bf0e2003398930eed5ea00032b61aa3b55cb
+Dockerfile URL: https://raw.githubusercontent.com/TimWolla/docker-adminer/master/5/Dockerfile
+Retrieved: 2026-07-30
+
+The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9.

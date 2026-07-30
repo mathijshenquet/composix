@@ -19,3 +19,19 @@ nats: docker build=pass; docker run=pass; docker check=pass; cix build=pass; cix
 Prompt gaps (verbatim): traefik Dockerfile: `COPY entrypoint.sh /`; nats Dockerfile: `COPY nats-server.conf /etc/nats/nats-server.conf` and `COPY docker-entrypoint.sh /usr/local/bin`. The task permits only the target Dockerfiles, while docs/migrate.md says: “ENTRYPOINT shell scripts → read them; port the essential env/flag setup into ENV/EXEC lines.” The referenced scripts/configuration are therefore unavailable. Best guesses: Traefik runs with `--ping=true` and probes its candidate-listed `:8080/ping`; NATS runs with `-m 8222` and probes its candidate-listed `:8222/healthz`.
 
 Cix capability gaps: none observed. Docker environmental note: direct Git-context builds failed because Docker required `/usr/bin/git`; final checks fetch the source archive into a temporary context before building the original Dockerfile.
+2026-07-30 — migrate round N=4, targets caddy, echo-server, adminer, memcached
+verdicts: caddy=check-fail (Docker pass; Cix build/run returned a store item/unit but the bounded HTTP probe failed); echo-server=build-fail (Docker pass; Cix `FETCH` reached the pinned checkout but `cix build .` timed out while npm materialization was still in progress); adminer=pass; memcached=pass.
+
+prompt-gaps verbatim:
+- "When the Dockerfile builds from a repo context, FETCH the repo (git clone) and record the resolved revision in your SOURCE notes." The supplied candidate URLs are moving `master` URLs and do not give a revision or a repository-context URL; resolved revisions had to be inferred by cloning the URL's repository.
+- "ENTRYPOINT shell scripts → read them; port the essential env/flag setup into ENV/EXEC lines." Adminer's entrypoint dynamically creates design links and enabled-plugin files from arbitrary `ADMINER_DESIGN` and `ADMINER_PLUGINS` values; the prompt gives no declarative mapping for that runtime filesystem mutation. The central login-page probe intentionally covers the base service only.
+- "DIR state /var/lib/<name> for persistent data (docker VOLUME maps here), plus cache/logs/run variants." The built cix parser rejects the documented `DIR` directive (`unknown directive \"DIR\"`), so Caddy's Dockerfile-mandated writable XDG config/data directories could not be declared.
+- "If a re-fetch legitimately changes the output, accept it with `cix build --update-lock`." The built CLI rejected that documented command without a binder name and required `cix build --update-lock src .`.
+
+cix-capability-gaps:
+- The documented `DIR` service directive is not accepted by this cix binary.
+- The documented no-argument `cix build --update-lock` interface is not accepted by this cix binary; it requires the lock-bearing binder name.
+- Caddy's packaged service did not answer the declared listener after `cix run`; this is a check failure, not an attributed root cause because the conversion protocol permits only the cix binary as a black box.
+- Echo Server's npm-cache `FETCH` did not complete within its bounded check timeout; no Cix item was produced.
+
+artifacts: corpus/migrate/{caddy,echo-server,adminer,memcached}/{Dockerfile,SOURCE,context files,Cixfile,Cixfile.lock,check.sh,receipt.md}. Passing Cix items: adminer=/nix/store/6wqrprc1lqkb7g116812x0d4wvkfx17p-cix-item-adminer; memcached=/nix/store/kg6afp6d8dvkwjl8r3qip4yyy3y5lpww-cix-item-memcached.
