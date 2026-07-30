@@ -1,4 +1,4 @@
-{ pkgs, revertedSystemd, systemd257 }:
+{ pkgs, revertedSystemd, systemd257, kernel617Packages }:
 
 pkgs.testers.runNixOSTest {
   name = "sdbisect-revert";
@@ -54,6 +54,42 @@ pkgs.testers.runNixOSTest {
       networking.interfaces.eth0.useDHCP = false;
       system.stateVersion = "24.11";
     };
+
+    kernel617 = { pkgs, ... }: {
+      boot.kernelPackages = kernel617Packages;
+      hardware.deviceTree.enable = false;
+      system.boot.loader.kernelFile = "bzImage";
+      systemd.settings.Manager.LogLevel = "debug";
+      systemd.services.sdbisect.serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.coreutils}/bin/true";
+        DynamicUser = true;
+        PrivatePIDs = true;
+        StateDirectory = "sdbisect";
+        RemainAfterExit = true;
+      };
+
+      networking.useDHCP = false;
+      networking.interfaces.eth0.useDHCP = false;
+      system.stateVersion = "24.11";
+    };
+
+    kernel618 = { pkgs, ... }: {
+      boot.kernelPackages = pkgs.linuxPackages_6_18;
+      systemd.settings.Manager.LogLevel = "debug";
+      systemd.services.sdbisect.serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.coreutils}/bin/true";
+        DynamicUser = true;
+        PrivatePIDs = true;
+        StateDirectory = "sdbisect";
+        RemainAfterExit = true;
+      };
+
+      networking.useDHCP = false;
+      networking.interfaces.eth0.useDHCP = false;
+      system.stateVersion = "24.11";
+    };
   };
 
   testScript = ''
@@ -83,5 +119,30 @@ pkgs.testers.runNixOSTest {
     v257.succeed("readlink -f /proc/1/exe | grep -F '${systemd257}'")
     v257.fail("systemctl start sdbisect.service")
     print(v257.succeed("journalctl -u sdbisect.service -b --no-pager -o short-monotonic"))
+
+    def exercise_kernel_axis(machine, expected_kernel):
+        actual_kernel = machine.succeed("uname -r").strip()
+        assert actual_kernel.startswith(expected_kernel + "."), actual_kernel
+        machine.succeed("systemctl --version | head -1 | grep -E '^systemd 261( |$)'")
+        status, output = machine.execute("systemctl start sdbisect.service 2>&1")
+        print(expected_kernel + " systemctl start exit=" + str(status) + " output=" + output)
+        if status == 0:
+            machine.succeed("systemctl is-active --quiet sdbisect.service")
+            print(expected_kernel + " uid-map triple passed")
+            return "passed"
+
+        assert status == 1, expected_kernel + " unexpected systemctl exit: " + str(status)
+        machine.wait_until_succeeds("journalctl -u sdbisect.service -b --no-pager | grep -F 'Failed to write UID map: Operation not permitted'")
+        journal = machine.succeed("journalctl -u sdbisect.service -b --no-pager -o short-monotonic")
+        print(expected_kernel + " uid-map triple failed:\\n" + journal)
+        assert "Failed to write UID map: Operation not permitted" in journal
+        assert "status=226/NAMESPACE" in journal
+        return "uid-map-eperm"
+
+    kernel617_result = exercise_kernel_axis(kernel617, "6.17")
+    kernel618_result = exercise_kernel_axis(kernel618, "6.18")
+    assert kernel617_result == "uid-map-eperm", "6.17 control no longer reproduces"
+    assert kernel618_result == "uid-map-eperm", "6.18 control no longer reproduces"
+    print("kernel axis result: 6.17=" + kernel617_result + ", 6.18=" + kernel618_result)
   '';
 }

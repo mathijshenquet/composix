@@ -1,4 +1,4 @@
-# Upstream issue draft — UID-map EPERM with DynamicUser + PrivatePIDs + StateDirectory (NOT YET FILED)
+# Investigation note — UID-map EPERM with DynamicUser + PrivatePIDs + StateDirectory (NOT YET FILED)
 
 Status: do not file from the current evidence; retain as an environment-level investigation note.
 Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
@@ -25,6 +25,46 @@ namespace root. Thus this is **not** a `setgroups=deny`, GID-map, or
 The manager debug journal independently says `Failed to write UID map: Operation
 not permitted`, then the generic `Failed to allocate user namespace` wrapper and
 `status=226/NAMESPACE`.
+
+## Decisive kernel-axis update — Linux 6.17 also fails in the VM
+
+On 2026-07-30, the NixOS test expression was extended with two otherwise-identical
+stock-systemd-261 cells. One pins Linux **6.17.13** through
+`boot.kernelPackages`; the other pins the current Linux **6.18.40** package. Both
+assert their running kernel and `systemd 261`, then start exactly the minimal
+`DynamicUser=yes + PrivatePIDs=yes + StateDirectory=sdbisect` unit.
+
+Both cells fail with exit status 1, `Failed to write UID map: Operation not
+permitted`, and `status=226/NAMESPACE`. The test prints the explicit conclusion:
+
+```
+kernel axis result: 6.17=uid-map-eperm, 6.18=uid-map-eperm
+```
+
+The exact command was:
+
+```sh
+nix build .#sdbisect-revert-vm --no-link -L
+```
+
+The current primary nixpkgs pin has EOL-disabled its 6.17 alias, so the harness
+locks `ef6c19e8baf55f671169995f0fa532511062a99a` (2025-12-19), where
+`linuxPackages_6_17.kernel.version` evaluates to 6.17.13. The current NixOS VM
+sets its newer boot-module-only options explicitly for that older package; the kernel
+and modules themselves come from that pin.
+
+This falsifies the proposed **kernel-only 6.17→6.18 behavior-change** explanation
+for the VM reproduction. It does not support a kernel git/lore candidate search or
+a kernel-targeted upstream issue. The earlier host success differs from the VM in
+more than its kernel: it used the host's real systemd 257 and NixOS/user-space
+configuration rather than this current-NixOS QEMU guest; the VM uses QEMU/KVM
+virtual hardware and test-runner boot parameters (including
+`lsm=landlock,yama,bpf`), its own cgroup/mount topology and dynamic UID allocation,
+and newer-NixOS-generated root-unit configuration. The separate v257 VM
+compatibility experiment additionally needs current systemd only in the initrd and
+compatibility unit placeholders, so it is not a byte-for-byte reconstruction of the
+host either. Those differences, or an interaction involving them, remain the live
+axis; no one component has been isolated as causal.
 
 ## Investigation update — same-host NixOS A/B rejects the candidate
 
@@ -188,10 +228,10 @@ What we have observed:
   `StateDirectory=` caller still fails. Together with the same-harness 257 failure,
   it is not a supported causal explanation.
 
-The remaining question is environmental: what kernel or host-policy condition causes
-this multi-entry temporary UID-map write to return `EPERM` in the PID-namespace
-child? If useful, we can provide the NixOS VM expression and complete debug/strace
-trace.
+The remaining question is environmental: which host/VM configuration or interaction
+causes this multi-entry temporary UID-map write to return `EPERM` in the
+PID-namespace child? If useful, we can provide the NixOS VM expression and complete
+debug/strace trace.
 
 A self-contained NixOS VM test reproducing this is available (we can share the nix
 expression; it is derived from `nix/compose-fallback-vm.nix` in our repo).
