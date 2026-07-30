@@ -3,8 +3,8 @@
 let
   python = pkgs.python3;
   db = pkgs.runCommand "scenario-db" { } ''
-    mkdir -p "$out/bin"
-    cat > "$out/bin/db.py" <<'PY'
+    mkdir -p "$out/opt/scenario"
+    cat > "$out/opt/scenario/db.py" <<'PY'
     import os
     import socket
 
@@ -24,15 +24,15 @@ let
             connection.recv(1024)
             connection.sendall(b"PONG")
     PY
-    chmod 0755 "$out/bin/db.py"
+    chmod 0755 "$out/opt/scenario/db.py"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":3,"services":{"db":{"exec":["${python}/bin/python3","bin/db.py"],"mounts":["/bin"],"dirs":{"run":["/run/db"]}}}}
+    {"cixManifest":3,"services":{"db":{"exec":["${python}/bin/python3","opt/scenario/db.py"],"mounts":["/opt/scenario"],"dirs":{"run":["/run/db"]}}}}
     EOF
   '';
 
   api = message: pkgs.runCommand "scenario-api-${message}" { } ''
-    mkdir -p "$out/bin"
-    cat > "$out/bin/api.py" <<'PY'
+    mkdir -p "$out/opt/scenario"
+    cat > "$out/opt/scenario/api.py" <<'PY'
     import os
     import socket
 
@@ -56,9 +56,9 @@ let
             response = "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{}".format(len(body), body)
             connection.sendall(response.encode("ascii"))
     PY
-    chmod 0755 "$out/bin/api.py"
+    chmod 0755 "$out/opt/scenario/api.py"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":3,"services":{"api":{"exec":["${python}/bin/python3","bin/api.py"],"mounts":["/bin"],"env":{"MESSAGE":{"default":"${message}"}},"listeners":{"http":{"type":"stream"}},"dirs":{"state":["/var/lib/api"],"run":["/run/api"]}}}}
+    {"cixManifest":3,"services":{"api":{"exec":["${python}/bin/python3","opt/scenario/api.py"],"mounts":["/opt/scenario"],"env":{"MESSAGE":{"default":"${message}"}},"listeners":{"http":{"type":"stream"}},"dirs":{"state":["/var/lib/api"],"run":["/run/api"]}}}}
     EOF
   '';
 
