@@ -937,7 +937,16 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   Cargo.toml/pyproject for a source input) AND designates that binder's lock entry
   as the receipted `source`/`revision`. No declaration = no inherited identity and
   no claimed provenance (closure facts remain). This subsumes the earlier
-  `META inherit`. So: **IN** (priority on conflict): (1) explicit Cixfile META
+  `META inherit`. **Read mechanics**: bake-time, pure (the binder is a materialized
+  content-addressed path by then); a small per-ecosystem adapter table
+  (Cargo.toml `[package]` / package.json / pyproject `[project]`; for package refs,
+  the existing nix `meta` eval); the binder-ref may carry a subpath for
+  workspaces/monorepos (`META source ${src}/rust/api`), same as COPY sources;
+  ONLY inline fields import automatically — documents (readme/icon) always remain
+  explicit declarations because they add files to the item (the COPY doctrine:
+  writes are declared); manifest `version` = display, lock `revision` = receipt;
+  explicit META fields override imports; nothing recognized at the path =
+  line-numbered error listing what was tried. So: **IN** (priority on conflict): (1) explicit Cixfile META
   fields, (2) `META source <binder>`, (3) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
