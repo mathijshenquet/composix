@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::os::unix::fs::{symlink, PermissionsExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -42,6 +42,7 @@ pub(crate) fn execute(
     lock: &mut LockFile,
     system: &str,
     update_fetch_pins: bool,
+    no_cache: bool,
 ) -> Result<Option<String>> {
     if cixfile.steps.is_empty() {
         return Ok(None);
@@ -98,6 +99,11 @@ pub(crate) fn execute(
     environment.insert("SOURCE_DATE_EPOCH".into(), "1".into());
     environment.insert("TMPDIR".into(), "/tmp".into());
     environment.insert("TZ".into(), "UTC".into());
+    let caches = if no_cache {
+        Vec::new()
+    } else {
+        persistent_caches(directory, &cixfile.caches)?
+    };
 
     let empty = tempfile::Builder::new()
         .prefix("cix-build-empty-")
@@ -141,7 +147,7 @@ pub(crate) fn execute(
                 let fetch_id = is_fetch.then(|| fetch_id(index, command));
                 let force = is_fetch && update_fetch_pins;
 
-                if !force {
+                if !force && !(no_cache && !is_fetch) {
                     if let Some(entry) = lock.memo.get(&key) {
                         if ensure_store_path(&entry.store_path)? {
                             let actual_hash = nar_hash(Path::new(&entry.store_path))?;
@@ -177,6 +183,8 @@ pub(crate) fn execute(
                 }
 
                 let work = seeded_workdir(&current_snapshot)?;
+                let run_caches = if is_fetch { &[][..] } else { &caches[..] };
+                prepare_cache_mounts(work.path(), run_caches)?;
                 let started = Instant::now();
                 run_sandbox(
                     work.path(),
@@ -185,8 +193,10 @@ pub(crate) fn execute(
                     &environment,
                     &offered_closure,
                     if is_fetch { None } else { run_network },
+                    run_caches,
                 )
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
+                remove_cache_mounts(work.path(), run_caches)?;
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                 let (output_path, output_hash) = snapshot(work.path())?;
 
@@ -303,6 +313,7 @@ fn run_sandbox(
     environment: &BTreeMap<String, String>,
     offered_closure: &BTreeSet<String>,
     run_network: Option<RunNetwork>,
+    caches: &[(String, PathBuf)],
 ) -> Result<()> {
     let mut process = Command::new("bwrap");
     process.args([
@@ -343,6 +354,12 @@ fn run_sandbox(
         "/work",
         "--clearenv",
     ]);
+    for (relative, host_path) in caches {
+        process
+            .arg("--bind")
+            .arg(host_path)
+            .arg(Path::new("/work").join(relative));
+    }
     if run_network.is_none() {
         for path in ["/etc/hosts", "/etc/nsswitch.conf", "/etc/resolv.conf"] {
             if Path::new(path).is_file() {
@@ -364,6 +381,64 @@ fn run_sandbox(
         bail!("{}", sandbox_failure(status, run_network));
     }
     Ok(())
+}
+
+fn persistent_caches(directory: &Path, declared: &[String]) -> Result<Vec<(String, PathBuf)>> {
+    if declared.is_empty() {
+        return Ok(Vec::new());
+    }
+    let base = if let Some(path) = std::env::var_os("CIX_BUILD_CACHE_DIR") {
+        PathBuf::from(path)
+    } else if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
+        PathBuf::from(path).join("cix/build")
+    } else {
+        PathBuf::from(
+            std::env::var_os("HOME")
+                .context("HOME is unset; set CIX_BUILD_CACHE_DIR for Cixfile CACHE storage")?,
+        )
+        .join(".cache/cix/build")
+    };
+    let identity = hex_hash(directory.to_string_lossy().as_bytes());
+    declared
+        .iter()
+        .map(|relative| {
+            let path = base.join(&identity).join(relative);
+            fs::create_dir_all(&path)
+                .with_context(|| format!("creating persistent build cache {}", path.display()))?;
+            Ok((relative.clone(), path))
+        })
+        .collect()
+}
+
+fn prepare_cache_mounts(workdir: &Path, caches: &[(String, PathBuf)]) -> Result<()> {
+    for (relative, _) in caches {
+        let mountpoint = workdir.join(relative);
+        remove_path_if_present(&mountpoint)?;
+        fs::create_dir_all(&mountpoint)
+            .with_context(|| format!("creating CACHE mountpoint {}", mountpoint.display()))?;
+    }
+    Ok(())
+}
+
+fn remove_cache_mounts(workdir: &Path, caches: &[(String, PathBuf)]) -> Result<()> {
+    for (relative, _) in caches.iter().rev() {
+        remove_path_if_present(&workdir.join(relative))?;
+    }
+    Ok(())
+}
+
+fn remove_path_if_present(path: &Path) -> Result<()> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
+    };
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    }
+    .with_context(|| format!("removing CACHE shadow {}", path.display()))
 }
 
 fn probe_run_network(shell: &str) -> Result<RunNetwork> {
@@ -695,6 +770,7 @@ mod tests {
             &BTreeMap::new(),
             &offered_closure,
             Some(RunNetwork::SocketFilter),
+            &[],
         )
         .unwrap();
         assert_eq!(

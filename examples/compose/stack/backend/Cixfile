@@ -1,9 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-LINK bin/redis-cli ${pkgs.redis}/bin/redis-cli
-LINK bin/python3 ${pkgs.python3}/bin/python3
 COPY greeting.txt /srv/backend/greeting.txt
 
+ITEM backend
+TAKE ${build}/srv/backend/greeting.txt /srv/backend/greeting.txt
+LINK bin/redis-cli ${pkgs.redis}/bin/redis-cli
+LINK bin/python3 ${pkgs.python3}/bin/python3
 FILE bin/backend.py <<PY
 import os
 from pathlib import Path
@@ -70,7 +72,6 @@ item_dir="$("${pkgs.python3}/bin/python3" -c 'import pathlib,sys; print(pathlib.
 exec "$item_dir/bin/python3" "$item_dir/bin/backend.py"
 SH
 
-SERVICE backend
 EXEC bin/start
 ENV SUFFIX
 RUNDIR /run/backend

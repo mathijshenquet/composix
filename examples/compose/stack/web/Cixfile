@@ -1,9 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-LINK bin/nginx ${pkgs.nginx}/bin/nginx
-LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 COPY nginx.conf /etc/nginx/nginx.conf
 
+ITEM nginx
+TAKE ${build}/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+LINK bin/nginx ${pkgs.nginx}/bin/nginx
+LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 SCRIPT bin/start <<SH
 set -eu
 test "$LISTEN_FDS" = 1
@@ -12,7 +14,6 @@ export NGINX='3;'
 exec "$("${pkgs.coreutils}/bin/dirname" "$0")/nginx" -c /etc/nginx/nginx.conf -e stderr
 SH
 
-SERVICE nginx
 EXEC bin/start
 LISTENER http
 CACHE /var/cache/nginx

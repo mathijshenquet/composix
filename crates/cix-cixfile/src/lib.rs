@@ -9,10 +9,11 @@ mod model;
 mod parser;
 mod seccomp;
 
-pub use build::{build, BuildOptions};
+pub use build::{build, BuildOptions, BuiltItem};
 pub use codegen::{generate_nix, generate_spec_json};
 pub use lock::{ensure_lock, FetchPin, InputLock, LockFile, MemoEntry, DEFAULT_NIXPKGS_URL};
 pub use model::{
-    BuildStep, Cixfile, Dirs, Env, Input, Item, Port, Service, Template, TemplatePart,
+    Assembly, BuildStep, Cixfile, Dirs, Env, Input, Item, Port, Service, Take, Template,
+    TemplatePart,
 };
 pub use parser::{parse, ParseError};

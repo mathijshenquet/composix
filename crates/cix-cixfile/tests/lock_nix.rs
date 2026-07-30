@@ -33,9 +33,14 @@ fn with_spec_redis_builds_mounts_and_parses() {
 
     assert!(output.join("etc/redis/redis.conf").is_file());
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_manifest, 2);
+    assert_eq!(spec.cix_manifest, 4);
     assert_eq!(
-        spec.services["redis"].mounts.as_deref().unwrap(),
+        spec.select_service(None)
+            .unwrap()
+            .1
+            .mounts
+            .as_deref()
+            .unwrap(),
         [PathBuf::from("/etc/redis")]
     );
 }
@@ -55,7 +60,7 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 #[test]
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
-    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC bin/fixture\n").unwrap();
+    let cixfile = parse("FROM nixpkgs AS pkgs\nITEM fixture\nEXEC bin/fixture\n").unwrap();
     let mut lock = committed_lock();
     lock.inputs.get_mut("pkgs").unwrap().nar_hash =
         "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
@@ -71,7 +76,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM nixpkgs AS pkgs\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nSERVICE fixture\nEXEC bin/missing\n",
+        "FROM nixpkgs AS pkgs\nITEM fixture\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nEXEC bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -82,21 +87,16 @@ fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     )
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
-    assert!(error.contains("Cixfile line 2"), "{error}");
+    assert!(error.contains("Cixfile line 3"), "{error}");
     assert!(error.contains("thisAttributeDoesNotExist"), "{error}");
 }
 
 #[test]
 fn real_nix_build_assembles_files_scripts_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
-    fs::write(
-        directory.path().join("asset"),
-        "literal=${hello}\nruntime=$VALUE\n",
-    )
-    .unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
-COPY asset share/copied
+ITEM fixture
 FILE share/content <<EOF
 package=${pkgs.hello}
 escaped=$${literal}
@@ -106,7 +106,6 @@ SCRIPT bin/start <<EOF
 exec /app/bin/hello
 EOF
 LINK bin/hello ${pkgs.hello}/bin/hello
-SERVICE fixture
 EXEC bin/start
 "#,
     )
@@ -123,11 +122,6 @@ EXEC bin/start
     let contents = fs::read_to_string(output.join("share/content")).unwrap();
     assert!(contents.starts_with("package=/nix/store/"), "{contents}");
     assert!(contents.contains("\nescaped=${literal}\nruntime=$VALUE\n"));
-    assert_eq!(
-        fs::read_to_string(output.join("share/copied")).unwrap(),
-        "literal=${hello}\nruntime=$VALUE\n"
-    );
-
     let script = fs::read_to_string(output.join("bin/start")).unwrap();
     assert!(script.starts_with("#!/nix/store/"), "{script}");
     assert_ne!(
@@ -144,8 +138,8 @@ EXEC bin/start
         .ends_with("/bin/hello"));
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_manifest, 2);
-    assert_eq!(spec.services["fixture"].exec, ["bin/start"]);
+    assert_eq!(spec.cix_manifest, 4);
+    assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/start"]);
 }
 
 #[test]
@@ -154,7 +148,7 @@ fn path_resolution_writes_the_real_executable_and_runtime_default() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 PATH ${pkgs.coreutils}/bin
-SERVICE fixture
+ITEM fixture
 SETUP true
 EXEC true
 "#,
@@ -169,7 +163,7 @@ EXEC true
     .unwrap();
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    let service = &spec.services["fixture"];
+    let service = spec.select_service(None).unwrap().1;
     assert!(
         service.exec[0].starts_with("/nix/store/"),
         "{:?}",
@@ -189,7 +183,7 @@ fn path_resolution_prefers_the_first_matching_directory() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
-SERVICE fixture
+ITEM fixture
 EXEC bash
 "#,
     )
@@ -203,7 +197,7 @@ EXEC bash
     .unwrap();
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    let service = &spec.services["fixture"];
+    let service = spec.select_service(None).unwrap().1;
     let first_directory = service.env["PATH"]
         .default
         .as_deref()
@@ -220,7 +214,7 @@ fn path_resolution_fails_with_line_and_searched_directories() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 PATH ${pkgs.coreutils}/bin
-SERVICE fixture
+ITEM fixture
 EXEC definitely-not-a-coreutils-command
 "#,
     )
@@ -248,8 +242,9 @@ fn run_executes_outside_nix_and_build_interpolation_reaches_the_snapshot() {
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
 COPY input input
 RUN cp input output
-SERVICE fixture
-EXEC ${build}/output
+ITEM fixture
+TAKE ${build}/output bin/output
+EXEC bin/output
 "#,
     )
     .unwrap();
@@ -266,15 +261,16 @@ EXEC ${build}/output
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
+        no_cache: false,
     })
     .unwrap();
+    let output = &output[0].store_path;
     assert_eq!(
-        fs::read_to_string(PathBuf::from(&output).join("output")).unwrap(),
+        fs::read_to_string(PathBuf::from(&output).join("bin/output")).unwrap(),
         "sandboxed\n"
     );
     let spec = cix_run::spec::Spec::load(&PathBuf::from(&output)).unwrap();
-    assert!(spec.services["fixture"].exec[0].starts_with("/nix/store/"));
-    assert!(spec.services["fixture"].exec[0].ends_with("-cix-build-snapshot/output"));
+    assert_eq!(spec.select_service(None).unwrap().1.exec[0], "bin/output");
 
     let lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
@@ -284,7 +280,8 @@ EXEC ${build}/output
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
+        no_cache: false,
     })
     .unwrap();
-    assert_eq!(repeated, output);
+    assert_eq!(repeated[0].store_path, *output);
 }

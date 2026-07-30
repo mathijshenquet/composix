@@ -4,7 +4,8 @@ PATH ${pkgs.redis}/bin
 
 COPY redis.conf /etc/redis/redis.conf
 
-SERVICE redis
+ITEM redis
+TAKE ${build}/etc/redis/redis.conf /etc/redis/redis.conf
 EXEC redis-server /etc/redis/redis.conf
 PORT redis = 6379
 RUNDIR /run/redis

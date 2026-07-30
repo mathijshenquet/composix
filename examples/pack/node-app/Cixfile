@@ -4,7 +4,8 @@ PATH ${pkgs.nodejs}/bin
 
 COPY server.js /app/server.js
 
-SERVICE node-app
+ITEM node-app
+TAKE ${build}/app/server.js /app/server.js
 EXEC node /app/server.js
 PORT http = 8081
 JIT
