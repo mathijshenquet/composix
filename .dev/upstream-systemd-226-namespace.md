@@ -1,10 +1,30 @@
-# Upstream issue draft — possible systemd 261 regression (NOT YET FILED)
+# Upstream issue draft — UID-map EPERM with DynamicUser + PrivatePIDs + StateDirectory (NOT YET FILED)
 
-Status: draft, awaiting Mathijs's go to file at https://github.com/systemd/systemd/issues.
+Status: do not file from the current evidence; retain as an environment-level investigation note.
 Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
 `crates/cix-run/LOG.md`, entries 16:50–16:52 UTC). Composix ships a loud degraded
 fallback for this class (D36; `crates/cix-run/src/capabilities.rs`), so filing is
 advocacy, not a blocker for us.
+
+## Investigation update — exact failing operation captured
+
+On the stock-systemd-261 NixOS VM, manager debug logging and a PID 1 trace now
+identify the exact failing operation. systemd first creates the temporary user
+namespace used for the persistent ID-mapped directory. In the PID-namespace child,
+it then successfully opens `/proc/2/uid_map` and receives `EPERM` from the write:
+
+```
+openat(AT_FDCWD, "/proc/2/uid_map", O_WRONLY|O_NOCTTY|O_CLOEXEC) = 5
+write(5, "65534 61222 1\n0 0 1\n", 20) = -1 EPERM (Operation not permitted)
+```
+
+`/proc/2` is the `sd-mkuserns` process as seen inside the preceding PID namespace;
+the two map entries map overflow UID 65534 to the DynamicUser UID and host root to
+namespace root. Thus this is **not** a `setgroups=deny`, GID-map, or
+`mount_setattr()` failure: each happens later or on a separate capability probe.
+The manager debug journal independently says `Failed to write UID map: Operation
+not permitted`, then the generic `Failed to allocate user namespace` wrapper and
+`status=226/NAMESPACE`.
 
 ## Investigation update — same-host NixOS A/B rejects the candidate
 
@@ -25,7 +45,28 @@ contains subsequent API/caller changes. The check therefore applies the narrow,
 production-relevant functional reversal described above; it leaves subsequent callers
 that deliberately choose either setting intact.
 
-## Investigation update — non-NixOS repro not yet established
+## Investigation update — same-harness 257 cell also fails
+
+On 2026-07-30, a third VM was added to the same NixOS test expression. It uses the
+same kernel (Linux 6.18.40), VM runner, NixOS configuration, and minimal unit as the
+stock 261 cell, but its root-system PID 1 is the systemd 257.6 package from Nixpkgs
+revision `0002d4fba62a97fe1260dc41f00deaac9a53f63d` (the test checks both
+`systemd 257` and `/proc/1/exe`). Its initrd remains current systemd solely because
+current NixOS's initrd module requires unit files introduced after 257; the root
+manager and its executable code are 257.6. A small package wrapper supplies inert
+unit-file placeholders required by the newer NixOS module, without modifying the
+257 manager binary.
+
+The 257 cell **also fails** the exact triple at 226/NAMESPACE. Its debug journal
+reaches the same persistent ID-mapped-mount path and reports `Failed to write UID
+map: Operation not permitted`. This settles the regression wording: the available
+evidence does **not** support a systemd 257→261 regression, or a version-only
+systemd cause, on this kernel/harness. The earlier 257 success was on a different
+NixOS host and kernel, so the differing environment remains the more likely
+explanation. No upstream systemd regression issue should be filed from the current
+evidence.
+
+## Investigation update — non-NixOS repro not established
 
 The requested upstream same-harness A/B could **not** be completed on this host, so
 the v257-pass/v261-fail result remains cross-harness and NixOS-only. This is not
@@ -55,8 +96,9 @@ reported `usermod: cannot lock /etc/passwd; try again later`, and mkosi's `dnf5
 command/error trail is in the tracked append-only `.dev/sdbisect.LOG.md`.
 
 Accordingly, the following body must not claim a regression. The non-NixOS repro is
-still absent, and the NixOS same-host A/B did not confirm the source candidate. The
-source analysis below is only a candidate audit.
+still absent, the same-harness 257 cell fails too, and the NixOS same-host A/B did
+not confirm the source candidate. The source analysis below is only a candidate
+audit.
 
 ## Targeted source audit (v257..v261; not a bisect)
 
@@ -94,15 +136,14 @@ only detaches/reparents the PID-namespace child. These remain contextual candida
 not a causal finding.
 
 Neither the v258–v261 NEWS entries nor 6431c34's message announce an incompatible
-DynamicUser/PrivatePIDs/managed-directory behavior. If the same-harness result is
-eventually confirmed, the available intent evidence points to a bug in (or an
-uncovered interaction introduced by) 6431c34 rather than an intended behavior change.
-For now, that assessment is conditional.
+DynamicUser/PrivatePIDs/managed-directory behavior. But the same-harness 257 result
+now removes the observed version boundary, so this intent evidence does not support
+assigning causality to 6431c34.
 
-## Proposed title
+## Proposed title (only if a future environment-level upstream issue is warranted)
 
-Possible systemd regression: DynamicUser= + PrivatePIDs= + StateDirectory= fails at
-226/NAMESPACE ("Failed to allocate user namespace")
+DynamicUser= + PrivatePIDs= + StateDirectory= fails at 226/NAMESPACE because the
+temporary user namespace UID-map write returns EPERM
 
 ## Proposed body
 
@@ -130,24 +171,27 @@ What we have observed:
 
 - Removing **any one** of `DynamicUser=yes`, `PrivatePIDs=yes`, or `StateDirectory=`
   makes the unit start.
-- The equivalent workload worked on systemd 257 on a NixOS host, whereas the failure
-  was observed in a NixOS test VM. We have not yet reproduced either result in the
-  same non-NixOS harness, so please do not read this as a proven upstream regression.
+- On the same Linux 6.18.40 NixOS VM harness, systemd 257.6 and 261 both fail. The
+  257 manager's root PID 1 and version were checked directly. The earlier 257 pass
+  was on a different NixOS host/kernel, so this is not evidence of an upstream
+  systemd version regression.
 - `RuntimeDirectory=` does **not** reproduce (`DynamicUser=yes + PrivatePIDs=yes +
   RuntimeDirectory=` starts fine), further localizing this to **persistent ID-mapped
   managed directories** (`StateDirectory=` is the minimal proven representative; the
   Cache/Logs/Configuration variants share the backing mechanism).
 - `user.max_user_namespaces` is not the cause (raising it changes nothing).
-- A source audit, not a bisect, identifies 6431c34b8a84 as the strongest candidate:
-  it adds a `setgroups=deny` write to the temporary user namespace used by the
-  ID-mapped managed-directory mount. But a same-host NixOS A/B that disables that
-  behavior at the `StateDirectory=` caller still fails at 226/NAMESPACE, so this
-  candidate is not confirmed. We have not yet captured which low-level operation
-  returns `EPERM` in the failing VM.
+- PID 1 strace captures the failure as `write("65534 61222 1\\n0 0 1\\n")` to
+  `/proc/2/uid_map` returning `EPERM`, after the open succeeds. This is before the
+  `setgroups=deny` or GID-map writes, and not a `mount_setattr()` failure.
+- A source audit, not a bisect, identifies 6431c34b8a84 as a historical candidate,
+  but a same-host NixOS A/B that disables its `setgroups=deny` behavior at the
+  `StateDirectory=` caller still fails. Together with the same-harness 257 failure,
+  it is not a supported causal explanation.
 
-Could this be an unintended interaction between the `setgroups=deny` step in the
-temporary ID-mapped-mount user namespace and PID-namespace/proc setup? If useful, we
-can provide the NixOS VM expression and a debug/strace trace from a rerun.
+The remaining question is environmental: what kernel or host-policy condition causes
+this multi-entry temporary UID-map write to return `EPERM` in the PID-namespace
+child? If useful, we can provide the NixOS VM expression and complete debug/strace
+trace.
 
 A self-contained NixOS VM test reproducing this is available (we can share the nix
 expression; it is derived from `nix/compose-fallback-vm.nix` in our repo).

@@ -406,3 +406,17 @@
   fallback VM gate on that exact final snapshot; all passed. Exact command is in
   `crates/cix-cixfile/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.
+
+## 2026-07-30 (track/sdbisect follow-up)
+
+- Merged current `main` before the follow-up and captured the stock-systemd-261 failure at the
+  syscall level: the temporary namespace `uid_map` write returns `EPERM`.
+- Added a same-kernel/VM-harness systemd 257.6 cell from pinned Nixpkgs. It also fails at that
+  UID-map write and at `226/NAMESPACE`; the available evidence therefore does not establish a
+  systemd 257→261 regression or support filing the upstream regression draft.
+- Decision: no design decision. The issue draft now records the named failing operation and the
+  same-harness falsification. Exact commands and logs are in `.dev/sdbisect.LOG.md`.
+- Verification: `nix build .#sdbisect-revert-vm --no-link -L` passed with stock/reverted-261 and
+  pinned-257 manager identities asserted, plus the exact UID-map `EPERM` trace assertion. Open
+  with Mathijs: whether to investigate the remaining kernel/host-policy condition. Open for
+  agents: none.
