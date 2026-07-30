@@ -41,4 +41,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
-      - run: nix build .#checks.x86_64-linux.vm-dogfood -L
+      - run: nix flake check -L
