@@ -3,12 +3,16 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixpkgs-systemd257.url = "github:NixOS/nixpkgs/0002d4fba62a97fe1260dc41f00deaac9a53f63d";
+  # Keep a real 6.17 package available after nixpkgs' EOL aliases turn it into an error.
+  inputs.nixpkgs-linux617.url = "github:NixOS/nixpkgs/ef6c19e8baf55f671169995f0fa532511062a99a";
 
-  outputs = { self, nixpkgs, nixpkgs-systemd257 }:
+  outputs = { self, nixpkgs, nixpkgs-systemd257, nixpkgs-linux617 }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
       systemd257Pkgs = import nixpkgs-systemd257 { inherit system; };
+      linux617Pkgs = import nixpkgs-linux617 { inherit system; };
+      kernel617Packages = linux617Pkgs.linuxPackages_6_17;
       systemd257Compat = systemd257Pkgs.runCommand "systemd-257.6-nixos-module-compat" { } ''
         cp -a ${systemd257Pkgs.systemd}/. "$out"
         chmod -R u+w "$out"
@@ -81,6 +85,7 @@
           inherit pkgs;
           revertedSystemd = sdbisectPkgs.systemd;
           inherit systemd257;
+          inherit kernel617Packages;
         };
       };
       lib.withSpec = composixLib.withSpec;
