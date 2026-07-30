@@ -151,3 +151,34 @@
   or port 8080 listener. It also removed only the many unloaded `cix-run-listenfds-*` files left in
   the user runtime directory by earlier probes, then daemon-reloaded it; those files were not
   compose artifacts and are not recoverable or needed.
+
+- 2026-07-30 19:55 UTC — Diagnosed `scenario-update-repin` on `track/repinfix`.
+  Exact failing repro: `nix build .#checks.x86_64-linux.scenario-update-repin
+  --no-link -L`; after the second `cix up`, the VM entered the 900-second v2 curl
+  retry with no API restart. Temporary VM diagnostics proved both profile resolutions
+  named the same generation, both manifests retained the v1 API store path, both API
+  units were byte-identical and carried the v1 bind source/environment, the unit link
+  still targeted that generation, and the journal contained only the initial v1 start.
+  This is correct product behavior: compose declarations default to `update: pin`, the
+  adjacent lock therefore replays v1, and naming a mutable index tag `:track` does not
+  opt into tracking. D44 requires an explicit root-side `update: track`; D47 did not
+  change compose resolution or restart comparison. Fixed the scenario fixture to emit
+  that policy only for update-repin and moved the generation/store-path assertions
+  before the HTTP retry so a future lock-resolution regression fails immediately.
+  Focused verification is green with the same exact command: the generation and API
+  store path move to v2, systemd stops/starts only the API, v2 responds, the DB
+  timestamp stays fixed, and rollback restarts v1. Next: commit the scenario correction,
+  then run the full requested Rust/tour and lifecycle gates.
+- 2026-07-30 20:07 UTC — Committed the correction as `e0bee7d`. The complete
+  requested gate is green: `cargo fmt --all --check`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`;
+  `cargo test -p cix --test tour -- --ignored generate_tour` followed by
+  `git diff --exit-code -- docs/tour`;
+  `nix build .#checks.x86_64-linux.scenario-update-repin --no-link -L`; and
+  `nix build .#checks.x86_64-linux.scenario-lifecycle --no-link -L`. The committed
+  update-repin check observed the API stop/start, v2 response, unchanged DB activation
+  timestamp, v1 rollback, and teardown. The lifecycle guard independently observed
+  selective API restart, unchanged DB activation, rollback, and complete unit removal.
+  Its existing DB process required systemd's bounded stop timeout and SIGKILL during
+  `down`, after which the scenario completed successfully.
