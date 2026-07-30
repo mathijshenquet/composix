@@ -860,6 +860,16 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   and consistent with `cix-*` units. Mathijs's drop-the-prefix suggestion is noted
   for reconsideration if the names ever chafe.
 
+- ✅ D50 (2026-07-30) — **the ITEM block is dropped** (Mathijs: "zo nikszeggend dat
+  je zijn betekenis compleet uit context moet halen"; and the evidence agrees — it
+  shipped in D47 and zero examples use it). The language is three block kinds:
+  BUILDER / SERVICE / APP. Assets consumed within a Cixfile are COPY'd into the
+  artifact that uses them. If a standalone content-only artifact ever earns its way
+  back (published dataset, webroot, config tree), it re-enters evidence-gated under
+  the name **ASSETS** — not ARTEFACT (already our generic word for any published
+  store thing) and not STORE (already the nix store). Removal lands as a
+  micro-round after track/polish.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
