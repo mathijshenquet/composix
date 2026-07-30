@@ -92,6 +92,14 @@ fn execute_top_fetch(
     snapshots: &BTreeMap<String, String>,
     force: bool,
 ) -> Result<String> {
+    if let Some(expected) = &fetch.expected {
+        lock.fetches.insert(
+            name.to_owned(),
+            FetchPin {
+                nar_hash: expected.clone(),
+            },
+        );
+    }
     let context = resolve_fetch_context(cixfile, name, directory, lock, system, snapshots)?;
     if context.commands.len() != 1 {
         bail!(
@@ -110,14 +118,17 @@ fn execute_top_fetch(
             if ensure_store_path(&entry.store_path)?
                 && nar_hash(Path::new(&entry.store_path))? == entry.output_nar_hash
             {
-                verify_fetch_pin(lock.fetches.get(name), &entry.output_nar_hash).with_context(
-                    || {
-                        format!(
-                            "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
-                            fetch.line, fetch.source
-                        )
-                    },
-                )?;
+                verify_fetch_hash(
+                    fetch.expected.as_deref(),
+                    lock.fetches.get(name),
+                    &entry.output_nar_hash,
+                )
+                .with_context(|| {
+                    format!(
+                        "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
+                        fetch.line, fetch.source
+                    )
+                })?;
                 eprintln!(
                     "FETCH {name} memo hit {} -> {}",
                     short_key(&key),
@@ -149,7 +160,14 @@ fn execute_top_fetch(
     })?;
     let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     let (output_path, output_hash) = snapshot(work.path())?;
-    if force {
+    if let Some(expected) = fetch.expected.as_deref() {
+        verify_fetch_hash(Some(expected), None, &output_hash).with_context(|| {
+            format!(
+                "line {}: top-level FETCH {name:?} output did not match EXPECT\n  | {:?}",
+                fetch.line, fetch.source
+            )
+        })?;
+    } else if force {
         lock.fetches.insert(
             name.to_owned(),
             FetchPin {
@@ -283,6 +301,10 @@ fn execute_builder(
                 let command = &context.commands[command_index];
                 command_index += 1;
                 let is_fetch = matches!(step, BuildStep::Fetch { .. });
+                let expected = match step {
+                    BuildStep::Fetch { expected, .. } => expected.as_deref(),
+                    _ => None,
+                };
                 let kind = if is_fetch { "FETCH" } else { "RUN" };
                 let keyed_command = format!("{kind}\0{command}");
                 let key = memo_key(
@@ -293,7 +315,15 @@ fn execute_builder(
                 )?;
                 let fetch_id = is_fetch
                     .then(|| format!("builder:{builder_name}:{}", fetch_id(index, command)));
-                let force = is_fetch && update_fetch_pins;
+                if let (Some(id), Some(expected)) = (&fetch_id, expected) {
+                    lock.fetches.insert(
+                        id.clone(),
+                        FetchPin {
+                            nar_hash: expected.to_owned(),
+                        },
+                    );
+                }
+                let force = is_fetch && expected.is_none() && update_fetch_pins;
 
                 if !force && !(no_cache && !is_fetch) {
                     if let Some(entry) = lock.memo.get(&key) {
@@ -301,7 +331,8 @@ fn execute_builder(
                             let actual_hash = nar_hash(Path::new(&entry.store_path))?;
                             if actual_hash == entry.output_nar_hash {
                                 if let Some(id) = &fetch_id {
-                                    verify_fetch_pin(
+                                    verify_fetch_hash(
+                                        expected,
                                         lock.fetches.get(id),
                                         &entry.output_nar_hash,
                                     )
@@ -349,7 +380,11 @@ fn execute_builder(
                 let (output_path, output_hash) = snapshot(work.path())?;
 
                 if let Some(id) = fetch_id {
-                    if update_fetch_pins {
+                    if let Some(expected) = expected {
+                        verify_fetch_hash(Some(expected), None, &output_hash).with_context(|| {
+                            format!("line {line}: FETCH output did not match EXPECT\n  | {source:?}")
+                        })?;
+                    } else if update_fetch_pins {
                         lock.fetches.insert(
                             id,
                             FetchPin {
@@ -871,6 +906,16 @@ fn verify_fetch_pin(pin: Option<&FetchPin>, actual: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn verify_fetch_hash(expected: Option<&str>, pin: Option<&FetchPin>, actual: &str) -> Result<()> {
+    if let Some(expected) = expected {
+        if expected != actual {
+            bail!("FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}");
+        }
+        return Ok(());
+    }
+    verify_fetch_pin(pin, actual)
 }
 
 fn hex_hash(bytes: &[u8]) -> String {

@@ -297,15 +297,15 @@ impl Parser<'_> {
                 ),
             ));
         }
-        let (name, command) = arguments.split_once(char::is_whitespace).ok_or_else(|| {
+        let (name, remainder) = arguments.split_once(char::is_whitespace).ok_or_else(|| {
             ParseError::new(
                 line,
                 source,
-                "top-level FETCH requires a binder and command: FETCH <name> <command…>",
+                "top-level FETCH requires a binder and command: FETCH <name> [EXPECT <sri-hash>] <command…>",
             )
         })?;
         validate_namespace(name, line, source)?;
-        let command = command.trim();
+        let (expected, command) = parse_fetch_expect(remainder.trim(), line, source)?;
         if command.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -318,6 +318,7 @@ impl Parser<'_> {
         self.fetches.insert(
             name.to_owned(),
             Fetch {
+                expected,
                 command,
                 line,
                 source: source.to_owned(),
@@ -558,7 +559,7 @@ impl Parser<'_> {
             }
             self.build_template(arguments, line, source, false)?
         };
-        self.push_builder_command(&name, false, line, source, command);
+        self.push_builder_command(&name, None, false, line, source, command);
         Ok(())
     }
 
@@ -578,14 +579,20 @@ impl Parser<'_> {
                 format!("{directive} requires a command"),
             ));
         }
-        let command = self.build_template(arguments, line, source, false)?;
-        self.push_builder_command(builder, fetch, line, source, command);
+        let (expected, command) = if fetch {
+            parse_fetch_expect(arguments, line, source)?
+        } else {
+            (None, arguments)
+        };
+        let command = self.build_template(command, line, source, false)?;
+        self.push_builder_command(builder, expected, fetch, line, source, command);
         Ok(())
     }
 
     fn push_builder_command(
         &mut self,
         builder: &str,
+        expected: Option<String>,
         fetch: bool,
         line: usize,
         source: &str,
@@ -593,6 +600,7 @@ impl Parser<'_> {
     ) {
         let step = if fetch {
             BuildStep::Fetch {
+                expected,
                 command,
                 line,
                 source: source.to_owned(),
@@ -1617,6 +1625,47 @@ fn validate_copy_source(template: &Template, line: usize, source: &str) -> Resul
     }
 }
 
+fn parse_fetch_expect<'a>(
+    arguments: &'a str,
+    line: usize,
+    source: &str,
+) -> Result<(Option<String>, &'a str), ParseError> {
+    let Some(remainder) = arguments.strip_prefix("EXPECT") else {
+        return Ok((None, arguments));
+    };
+    if remainder
+        .chars()
+        .next()
+        .is_some_and(|character| !character.is_whitespace())
+    {
+        return Ok((None, arguments));
+    }
+    let remainder = remainder.trim_start();
+    let (hash, command) = remainder.split_once(char::is_whitespace).ok_or_else(|| {
+        ParseError::new(
+            line,
+            source,
+            "FETCH EXPECT requires a hash and command: EXPECT <sri-hash> <command…>",
+        )
+    })?;
+    if !hash.starts_with("sha256-") || hash.len() == "sha256-".len() {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("FETCH EXPECT hash must be an SRI sha256 hash, got {hash:?}"),
+        ));
+    }
+    let command = command.trim();
+    if command.is_empty() {
+        return Err(ParseError::new(
+            line,
+            source,
+            "FETCH EXPECT requires a command after the hash",
+        ));
+    }
+    Ok((Some(hash.to_owned()), command))
+}
+
 fn runtime_variables(
     input: &str,
     line: usize,
@@ -1959,6 +2008,29 @@ STATE /var/lib/migrate
         assert_eq!(parsed.builders["build"].caches, ["target"]);
         assert_eq!(parsed.artifacts["web"].kind, ArtifactKind::Service);
         assert_eq!(parsed.artifacts["migrate"].kind, ArtifactKind::App);
+    }
+
+    #[test]
+    fn fetch_expect_parses_in_both_forms_and_validates_the_hash() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-top ${pkgs.coreutils}/bin/printf top\nBUILDER build\nPATH ${pkgs.bash}/bin\nFETCH EXPECT sha256-step printf step\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.fetches["ingredient"].expected.as_deref(),
+            Some("sha256-top")
+        );
+        let BuildStep::Fetch { expected, .. } = &parsed.builders["build"].steps[0] else {
+            panic!("expected in-builder FETCH");
+        };
+        assert_eq!(expected.as_deref(), Some("sha256-step"));
+
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT not-sri printf payload\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(error.line, 2);
+        assert!(error.message.contains("SRI sha256"), "{error}");
     }
 
     #[test]

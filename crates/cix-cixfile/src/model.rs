@@ -32,6 +32,7 @@ impl Input {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Fetch {
+    pub expected: Option<String>,
     pub command: Template,
     pub line: usize,
     pub source: String,
@@ -60,6 +61,7 @@ impl Builder {
 pub enum BuildStep {
     Copy(Copy),
     Fetch {
+        expected: Option<String>,
         command: Template,
         line: usize,
         source: String,

@@ -286,6 +286,95 @@ EXEC bin/output
 }
 
 #[test]
+fn fetch_expect_matches_in_both_forms_and_records_the_declared_hash() {
+    let directory = tempfile::tempdir().unwrap();
+    let expected_tree = tempfile::tempdir().unwrap();
+    fs::write(expected_tree.path().join("payload"), "fixed\n").unwrap();
+    let expected = cix_common::nix(&[
+        "hash",
+        "path",
+        "--mode",
+        "nar",
+        expected_tree.path().to_str().unwrap(),
+    ])
+    .unwrap()
+    .trim()
+    .to_owned();
+    fs::write(
+        directory.path().join("Cixfile"),
+        format!(
+            r#"FROM nixpkgs AS pkgs
+FETCH ingredient EXPECT {expected} ${{pkgs.coreutils}}/bin/printf 'fixed\n' > payload
+BUILDER build
+PATH ${{pkgs.bash}}/bin ${{pkgs.coreutils}}/bin
+FETCH EXPECT {expected} printf 'fixed\n' > payload
+SERVICE top
+COPY ${{ingredient}}/payload payload
+EXEC /bin/true
+SERVICE nested
+COPY ${{build}}/payload payload
+EXEC /bin/true
+"#,
+        ),
+    )
+    .unwrap();
+    let mut lock = committed_lock();
+    lock.fetches.insert(
+        "ingredient".into(),
+        cix_cixfile::FetchPin {
+            nar_hash: "sha256-stale".into(),
+        },
+    );
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
+    )
+    .unwrap();
+
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        no_cache: false,
+    })
+    .unwrap();
+    assert_eq!(output.len(), 2);
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(lock.fetches.len(), 2);
+    assert!(lock.fetches.values().all(|pin| pin.nar_hash == expected));
+}
+
+#[test]
+fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload payload\nEXEC /bin/true\n",
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let error = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        no_cache: false,
+    })
+    .unwrap_err();
+    let rendered = format!("{error:#}");
+    assert!(rendered.contains("declared sha256-AAAA"), "{rendered}");
+    assert!(rendered.contains("fetched sha256-"), "{rendered}");
+    assert!(!rendered.contains("--update-lock to accept"), "{rendered}");
+}
+
+#[test]
 fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
