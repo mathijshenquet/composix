@@ -27,6 +27,8 @@ pub enum Command {
         #[arg(long)]
         r#as: Option<String>,
     },
+    /// Show the available immutable table history for one name.
+    History { name: String },
 }
 
 impl Command {
@@ -50,6 +52,12 @@ impl Command {
             Self::Pull { r#ref, r#as } => {
                 let updated = crate::pull(r#ref.as_deref(), r#as.as_deref())?;
                 println!("updated {updated} tag(s)");
+                Ok(())
+            }
+            Self::History { name } => {
+                for entry in crate::history(&name)? {
+                    println!("{} {}", entry.nar_hash, entry.tags.join(","));
+                }
                 Ok(())
             }
         }

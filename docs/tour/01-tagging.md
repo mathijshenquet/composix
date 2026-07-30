@@ -17,29 +17,40 @@ REF        SYSTEMS       PATH                                                   
 my-app:v1  x86_64-linux  /nix/store/…-my-app-v1  -         0s
 ```
 
-The tag database is an `ls`-able symlink farm. Each symlink is a Nix GC root, so the pin *is* the name.
+A name points at one immutable tag table. Cix roots that table and the store paths it currently references.
 
 ```sh
-$ ls "$CIX_STATE_DIR/roots"
-bXktYXBwOnYx
+$ ls "$CIX_STATE_DIR/roots/names"
+bXktYXBw
 ```
 
 ```sh
-$ readlink "$CIX_STATE_DIR/roots/bXktYXBwOnYx"
-/nix/store/…-my-app-v1
+$ readlink "$CIX_STATE_DIR/roots/names/bXktYXBw/table"
+/nix/store/…-table
 ```
 
 ```sh
-$ cat "$CIX_STATE_DIR/tags/bXktYXBwOnYx.json"
+$ cat "$(readlink $CIX_STATE_DIR/roots/names/bXktYXBw/table)/table.json"
 {
-  "reference": "my-app:v1",
-  "outputs": {
-    "x86_64-linux": {
+  "cixTagTable": 1,
+  "name": "my-app",
+  "parent": null,
+  "tags": {
+    "v1": {
       "storePath": "/nix/store/…-my-app-v1",
-      "narHash": "sha256-UjgGe265G0pyovh3lkIj92mKGv7d64Q9nd9w14qBQ4I="
+      "narHash": "sha256-UjgGe265G0pyovh3lkIj92mKGv7d64Q9nd9w14qBQ4I=",
+      "meta": {
+        "reference": "my-app:v1",
+        "outputs": {
+          "x86_64-linux": {
+            "storePath": "/nix/store/…-my-app-v1",
+            "narHash": "sha256-UjgGe265G0pyovh3lkIj92mKGv7d64Q9nd9w14qBQ4I="
+          }
+        },
+        "createdAt": "1700000000"
+      }
     }
-  },
-  "createdAt": "1700000000"
+  }
 }
 ```
 
