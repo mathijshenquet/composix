@@ -39,6 +39,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     assert_items_are_minimal_and_v4(&first);
     let first_lock = load_lock(temporary.path());
     assert_eq!(first_lock.memo.len(), 1);
+    assert_eq!(cache_states(&first_lock), ["cold"]);
 
     let unchanged = run_build(temporary.path(), false);
     assert_eq!(unchanged, first);
@@ -54,10 +55,13 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     let edited = run_build(temporary.path(), false);
     assert_eq!(path(&edited, "proj1-api"), path(&first, "proj1-api"));
     assert_ne!(path(&edited, "proj1-worker"), path(&first, "proj1-worker"));
-    assert_eq!(load_lock(temporary.path()).memo.len(), 2);
+    let edited_lock = load_lock(temporary.path());
+    assert_eq!(edited_lock.memo.len(), 2);
+    assert_eq!(cache_states(&edited_lock), ["cold", "warm"]);
 
     let clean = run_build(temporary.path(), true);
     assert_eq!(clean, edited);
+    assert_eq!(cache_states(&load_lock(temporary.path())), ["cold", "cold"]);
 }
 
 fn run_build(directory: &Path, no_cache: bool) -> Vec<BuiltItem> {
@@ -127,6 +131,21 @@ fn list_relative(root: &Path) -> Vec<String> {
 
 fn load_lock(directory: &Path) -> LockFile {
     serde_json::from_slice(&fs::read(directory.join("Cixfile.lock")).unwrap()).unwrap()
+}
+
+fn cache_states(lock: &LockFile) -> Vec<String> {
+    let mut states = lock
+        .memo
+        .values()
+        .map(|entry| {
+            fs::read_to_string(Path::new(&entry.store_path).join("output/cache-state"))
+                .unwrap()
+                .trim()
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+    states.sort();
+    states
 }
 
 fn copy_project(source: &Path, destination: &Path) {
