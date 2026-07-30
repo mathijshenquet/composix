@@ -96,7 +96,7 @@ let
     testScript = ''
       start_all()
       machine.succeed("mkdir -p /var/lib/cix-index /tmp/scenario")
-      machine.succeed("mount -t tmpfs tmpfs /etc/systemd/system && systemctl daemon-reload")
+      machine.succeed("mkdir /run/cix-units; cp -a /etc/systemd/system/. /run/cix-units/; mount --bind /run/cix-units /etc/systemd/system; systemctl daemon-reload")
       ${script}
     '';
   };
