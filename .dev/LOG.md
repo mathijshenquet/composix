@@ -1,5 +1,25 @@
 # composix work log
 
+## 2026-07-30 (track/tourbook complete)
+
+- Merged work: none in this worktree. Completed the track in `63073b8` and
+  `7a6be82`: D50 ITEM removal; D51 directory-preferred COPY, physical
+  continuations, and RUN heredocs; D52 CACHEDIR and target-first LINK; D53
+  full-line comments; the manifest vocabulary and no-op BUILDER sweeps; and a
+  regenerated six-chapter executable tour whose examples expose their inputs
+  before operating on them.
+- Decisions: implemented existing D50–D53 without amendment. A BUILDER now appears
+  in examples only for RUN or FETCH work. The tour's tag-driven run/debug story
+  also closed a runtime seam by resolving cix-index refs before retaining the
+  existing Nix-installable fallback.
+- Verification: the exact combined fmt, warning-denied workspace clippy/test,
+  tour regeneration/drift/determinism-twice, dogfood VM, systemd-261 compose
+  fallback VM, and scenario lifecycle command is recorded in
+  `crates/cix-cixfile/LOG.md`; every stage passed. Residue and unit cleanup scans
+  are clean.
+- Open with Mathijs: none. Open for agents: independently verify and merge
+  `track/tourbook`.
+
 ## 2026-07-30 (track/repinfix complete)
 
 - Merged work: none in this worktree. Diagnosed and corrected the update-repin
