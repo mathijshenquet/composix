@@ -1,4 +1,4 @@
-# Upstream issue draft — systemd 261 regression (NOT YET FILED)
+# Upstream issue draft — possible systemd 261 regression (NOT YET FILED)
 
 Status: draft, awaiting Mathijs's go to file at https://github.com/systemd/systemd/issues.
 Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
