@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use cix_run::capabilities::HostCapabilities;
 
 use crate::{
     build_generation,
@@ -31,8 +32,10 @@ pub fn check(compose_path: &Path) -> Result<()> {
 
 pub fn diff(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
-    let built = build_generation(&checked, compose_path)?;
     let old = current_generation(&checked.compose.name)?;
+    let old_manifest = old.as_deref().map(load_manifest).transpose()?;
+    let capabilities = capabilities_for_diff(old_manifest.as_ref());
+    let built = build_generation(&checked, compose_path, &capabilities)?;
     let report = compare_generations(old.as_deref(), &built.store_path)?;
     if report.is_empty() {
         println!("no changes");
@@ -49,7 +52,9 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let checked = load_and_check(compose_path, update)?;
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
-    let built = build_generation(&checked, compose_path)?;
+    let capabilities = HostCapabilities::probe()?;
+    let built = build_generation(&checked, compose_path, &capabilities)?;
+    warn_degradations(&built.manifest);
     let old = current_generation(&checked.compose.name)?;
     set_profile(&checked.compose.name, &built.store_path)?;
     activate_generation(&checked.compose.name, old.as_deref(), &built.store_path)?;
@@ -59,6 +64,31 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
         built.store_path.display()
     );
     Ok(())
+}
+
+fn warn_degradations(manifest: &Manifest) {
+    for degradation in &manifest.degradations {
+        eprintln!(
+            "warning: unit {}: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
+            degradation.unit, degradation.property, degradation.reason
+        );
+    }
+}
+
+fn capabilities_for_diff(manifest: Option<&Manifest>) -> HostCapabilities {
+    manifest
+        .and_then(|manifest| {
+            manifest
+                .degradations
+                .iter()
+                .find(|degradation| degradation.property == "PrivatePIDs=yes")
+        })
+        .map(|degradation| {
+            HostCapabilities::private_pids_with_persistent_directories_unsupported(
+                &degradation.reason,
+            )
+        })
+        .unwrap_or_else(HostCapabilities::all_supported)
 }
 
 pub fn rollback(name: &str) -> Result<()> {
@@ -434,7 +464,7 @@ fn cleanup_edge_destinations(generation: &Path) -> Result<()> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::generation::{ManifestService, ManifestUnit};
+    use crate::generation::{ManifestDegradation, ManifestService, ManifestUnit};
 
     use super::*;
 
@@ -475,6 +505,7 @@ mod tests {
                     nar_hash: service_path.into(),
                 },
             )]),
+            degradations: Vec::new(),
         };
         fs::write(
             path.join("manifest.json"),
@@ -508,6 +539,29 @@ mod tests {
                 "unit changed: cix-stack-web.service",
                 "service web: /nix/store/old-web -> /nix/store/new-web",
             ]
+        );
+    }
+
+    #[test]
+    fn diff_reuses_the_active_generation_capability_decision() {
+        let directory = tempfile::tempdir().unwrap();
+        let generation = generation(directory.path(), "/nix/store/old-web", "old service", None);
+        let mut manifest = load_manifest(&generation).unwrap();
+        manifest.degradations.push(ManifestDegradation {
+            unit: "cix-stack-web.service".into(),
+            property: "PrivatePIDs=yes".into(),
+            reason: "synthetic realization failure".into(),
+        });
+
+        assert_eq!(
+            capabilities_for_diff(Some(&manifest))
+                .private_pids_with_persistent_directories
+                .unsupported_reason(),
+            Some("synthetic realization failure")
+        );
+        assert_eq!(
+            capabilities_for_diff(None),
+            HostCapabilities::all_supported()
         );
     }
 }

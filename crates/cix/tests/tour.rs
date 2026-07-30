@@ -24,6 +24,18 @@ const TOUR_CIXFILE_LOCK: &str = r#"{
   }
 }
 "#;
+const PROJ1_FILES: &[&str] = &[
+    "Cixfile",
+    "Cixfile.lock",
+    "rust/Cargo.toml",
+    "rust/Cargo.lock",
+    "rust/common/Cargo.toml",
+    "rust/common/src/lib.rs",
+    "rust/api/Cargo.toml",
+    "rust/api/src/main.rs",
+    "rust/worker/Cargo.toml",
+    "rust/worker/src/main.rs",
+];
 static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
 static TOUR_RENDER_LOCK: Mutex<()> = Mutex::new(());
 
@@ -232,12 +244,11 @@ fn normalize(raw: &str, base: &Path) -> String {
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
     let build_wall_time = Regex::new(r"\(\d+ ms\)").expect("valid build wall-time regex");
-    let unit_name = Regex::new(r"cix-run-(tour-service|listenfds)-[0-9a-f]+\.service")
-        .expect("valid unit name regex");
-    let stale_failed_unit = Regex::new(
-        r"(?m)^user\s+cix-run-(?:tour-service|listenfds)-NONCE\.service\s+failed/failed.*\n?",
-    )
-    .expect("valid stale unit regex");
+    let unit_name =
+        Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.service").expect("valid unit name regex");
+    let stale_failed_unit =
+        Regex::new(r"(?m)^user\s+cix-run-[a-z][a-z0-9-]*-NONCE\.service\s+failed/failed.*\n?")
+            .expect("valid stale unit regex");
     // The user manager determines both the rejected controls and the error text — and on
     // permissive kernels (unrestricted userns) the manager accepts everything and the pair
     // never appears at all. Presence is host-specific, so the pair is removed entirely.
@@ -819,13 +830,13 @@ fn scenario_building_from_a_cixfile() -> String {
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+ITEM tour-app
 FILE share/greeting <<GREETING
 hello from Cixfile
 GREETING
 SCRIPT bin/tour-app <<APP
 echo "hello from the Cixfile app"
 APP
-SERVICE tour-app
 EXEC bin/tour-app
 "#,
     )
@@ -841,9 +852,10 @@ EXEC bin/tour-app
         .find(|line| line.starts_with("/nix/store/"))
         .expect("cix build printed a store path");
 
-    doc.para("The generated spec is the build's runtime contract: it records the service name and executable independently of the Cixfile source.");
+    doc.para("The generated v4 manifest is the build's runtime contract: one bare service definition belongs to this one item.");
     let spec = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
-    assert!(spec.contains("\"tour-app\""));
+    assert!(spec.contains("\"cixManifest\":4"));
+    assert!(!spec.contains("\"services\""));
     assert!(spec.contains("\"bin/tour-app\""));
 
     let listing = doc.sh("cix ls", true);
@@ -873,8 +885,10 @@ fn scenario_building_with_run() -> String {
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
 COPY app app
 RUN mkdir -p result && tr '[:lower:]' '[:upper:]' < app > result/upper && chmod +x app
-SERVICE run-tour
-EXEC ${build}/app
+ITEM run-tour
+TAKE app bin/app
+TAKE result/upper result/upper
+EXEC bin/app
 "#,
     )
     .expect("writing RUN Cixfile fixture");
@@ -886,7 +900,7 @@ EXEC ${build}/app
     let first_path = first
         .lines()
         .rev()
-        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cixfile-item"))
+        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cix-item-run-tour"))
         .expect("first RUN build printed a final item")
         .to_owned();
     let transformed = doc.sh(&format!("tail -n 1 {first_path}/result/upper"), true);
@@ -897,7 +911,7 @@ EXEC ${build}/app
     let second_path = second
         .lines()
         .rev()
-        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cixfile-item"))
+        .find(|line| line.starts_with("/nix/store/") && line.ends_with("-cix-item-run-tour"))
         .expect("second RUN build printed a final item");
     assert_eq!(first_path, second_path);
     doc.finish()
@@ -1011,6 +1025,41 @@ fn scenario_inspecting_an_artifact() -> String {
     assert!(output.contains("\"closureSize\":"));
 
     doc.para("The entry retains per-system output slots while the selected store path supplies the manifest and Nix closure measurement. `cix inspect --human inspect-demo:v1` is the compact operator view; a live unit is selected by its exact name or unique running service name.");
+    doc.finish()
+}
+
+fn scenario_running_proj1() -> String {
+    let mut doc = Doc::new("running-proj1");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/build/proj1");
+    for relative in PROJ1_FILES {
+        let destination = doc.base.join(relative);
+        fs::create_dir_all(destination.parent().expect("project file has a parent"))
+            .expect("creating proj1 directory");
+        fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
+    }
+
+    doc.para("One Cixfile can compile a workspace and pluck independent store items. `CACHE target` keeps Cargo's incremental state host-local, while each item contains only its declared binary and its bare v4 manifest.");
+    let built = doc.sh_after_warming("cix build .", true);
+    let api_path = built
+        .lines()
+        .find_map(|line| line.strip_prefix("proj1-api "))
+        .expect("proj1 build printed the api item")
+        .to_owned();
+    assert!(built.lines().any(|line| line.starts_with("proj1-worker ")));
+
+    let started = doc.sh(&format!("cix run {api_path} --user --detach"), true);
+    let unit_name = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-proj1-api-") && line.ends_with(".service"))
+        .expect("cix run printed the proj1 api unit")
+        .to_owned();
+    let _unit = UserUnit {
+        name: unit_name.clone(),
+    };
+    wait_for_http("127.0.0.1:18084", "hello from proj1-api");
+    let response = doc.sh("curl -fsS http://127.0.0.1:18084", true);
+    assert_eq!(response.trim(), "hello from proj1-api");
+    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
     doc.finish()
 }
 
@@ -1159,6 +1208,12 @@ fn render_tour() -> Vec<GeneratedFile> {
             title: "Inspecting artifacts",
             description: "Read a tag's index entry and parsed manifest as stable JSON.",
             body: scenario_inspecting_an_artifact(),
+        },
+        Scenario {
+            filename: "14-running-proj1.md",
+            title: "Building and running proj1",
+            description: "Build two plucked items and serve the API through its v4 manifest.",
+            body: scenario_running_proj1(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

@@ -8,6 +8,7 @@ COPY src/main.rs src/main.rs
 FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
 RUN cargo build --release --locked --offline
 
-SERVICE projb
-EXEC ${build}/target/release/projb
+ITEM projb
+TAKE ${build}/target/release/projb bin/projb
+EXEC bin/projb
 PORT http = 18082

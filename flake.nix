@@ -33,6 +33,7 @@
       };
       lib.withSpec = composixLib.withSpec;
       checks.${system} = {
+        compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         scenario-lifecycle = import ./nix/scenarios/lifecycle.nix { inherit pkgs cix; };
         scenario-side-by-side = import ./nix/scenarios/side-by-side.nix { inherit pkgs cix; };

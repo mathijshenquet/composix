@@ -1,7 +1,7 @@
 # The Cixfile
 
-*Status: v1 implemented, including D39 RUN/FETCH. The directive set is small on purpose and
-will grow consciously.*
+*Status: v1 implemented through D40/D41: RUN/FETCH, persistent build caches, multi-item
+plucks, and one bare v4 manifest per item.*
 
 A Cixfile turns a directory into a runnable composix item — Dockerfile-shaped, so your hands
 already know it, without writing nix. It can assemble software that already exists in the
@@ -24,11 +24,12 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 COPY index.html /srv/www/index.html
 
-LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
-
 COPY nginx.conf /etc/nginx/nginx.conf
 
-SERVICE nginx
+ITEM nginx
+TAKE ${build}/srv/www/index.html /srv/www/index.html
+TAKE ${build}/etc/nginx/nginx.conf /etc/nginx/nginx.conf
+LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHE /var/cache/nginx
@@ -58,9 +59,9 @@ http {
 }
 ```
 
-`COPY` is the natural choice for checked-in, verbatim assets; use `FILE` when an inline file
-needs build-time `${…}` interpolation. `LINK` brings in the `mime.types` asset; the one-off
-nginx executable stays a direct `${pkgs.nginx}/bin/nginx` reference.
+`COPY` puts checked-in bytes into the build workdir. `TAKE` is the explicit boundary that
+plucks only the two runtime files into this item. `LINK` brings in the package-owned
+`mime.types` asset; the one-off nginx executable stays a direct store reference.
 
 The Cixfile is longer — because it states things the Dockerfile leaves implicit in the base
 image (the config, the writable paths, what the process actually is). Nothing here is
@@ -71,20 +72,23 @@ boilerplate; every line is contract.
 | directive | what it does | closest docker |
 | --- | --- | --- |
 | `FROM <flakeref> AS <name>` | bind a pinned package universe; this is **not** filesystem/layer inheritance | `FROM` (truthful meaning differs) |
-| `PATH <dir>…` | ordered package tool directories; resolves bare `EXEC`/`SETUP` commands at build time and supplies the runtime `PATH` default | `PATH` |
+| `PATH <dir>…` | ordered tool directories; prelude paths are absolute/package-based, while an ITEM may add paths relative to its own filesystem | `PATH` |
+| `CACHE <dir>` before the first `ITEM` | persist a writable build directory across RUNs, outside memo keys, snapshots, and store items | `RUN --mount=type=cache` |
 | `COPY <src> <dst>` | copy a regular sibling file into the current workdir snapshot, **verbatim, never substituted** | `COPY` (identical intent) |
 | `FETCH <command…>` | run the only network-enabled build step; TOFU-pin its output NAR hash in `Cixfile.lock` | `RUN --network=default` (fixed-output here) |
 | `RUN <command…>` | run a memoized command in a networkless, offer-only sandbox | `RUN` |
-| `FILE <dst> <<EOF` | inline file, `${…}`-interpolated at build time; use `COPY` for verbatim sibling content | `COPY <<EOF` (buildkit heredoc) |
+| `ITEM <name>` | begin one store item and its one service definition | one image/config pair |
+| `TAKE <build-path> <item-path>` | pluck a file or directory from the final workdir into this item | `COPY --from` (without named stages) |
+| `FILE <dst> <<EOF` | add an inline, `${…}`-interpolated file to the current item | `COPY <<EOF` (buildkit heredoc) |
 | `SCRIPT <dst> <<EOF` | inline executable script (shebang added) | — |
 | `LINK <dst> <target>` | symlink into another package | — (see "the LINK shift") |
-| `SERVICE <name>` | begin a service block (an item can hold several) | — (docker splits this over image + compose) |
 | `EXEC <argv…>` | the process (`$VAR` = runtime env) | `ENTRYPOINT`/`CMD` |
 | `SETUP <argv…>` | pre-start hook, every start, must be idempotent | — (the docker-entrypoint.sh convention, promoted to contract) |
 | `ENV NAME [= default] [required] [secret]` | declare the config surface | `ENV` (compatible for `ENV FOO = bar`, but declares, not just sets) |
 | `PORT name = $VAR` / `PORT name = 8080` | declare a listening port (env-bound or fixed) — this *grants* network | `EXPOSE` (which grants nothing) |
-| `STATE` `CACHE` `LOGS` `CONFIG` `RUNDIR` | writable dirs by role, at the path the app expects | `VOLUME` (roleless) |
+| `STATE` `CACHE` `LOGS` `CONFIG` `RUNDIR` inside an `ITEM` | runtime-writable dirs by role, at the path the app expects | `VOLUME` (roleless) |
 | `JIT` | the service maps writable+executable memory | — (docker allows W+X silently) |
+| `OUTBOUND` | declare that this service initiates outward network connections; enforcement comes with pod netns | — |
 
 ### Scripts and tools
 
@@ -127,16 +131,18 @@ PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin
 
 COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
+CACHE target
 COPY src/main.rs src/main.rs
-FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
-RUN cargo build --release --locked --offline
+RUN cargo build --release --locked --offline && mkdir -p output && cp target/release/app output/app
 
-SERVICE app
-EXEC ${build}/target/release/app
+ITEM app
+TAKE output/app bin/app
+EXEC bin/app
 ```
 
-`${build}` is the store path of the final workdir snapshot. It is valid in `PATH`, `LINK`, and
-service context such as `EXEC`; there are no named stages or `AS` bindings in v0.
+`TAKE` accepts either a clean workdir-relative source or `${build}/…`; `${build}` is valid
+only in that source position. Relative `EXEC`, `LINK`, and item `PATH` values resolve against
+the item filesystem, so build-only cargo files never leak into the runtime item.
 
 Before a command, `cix build` hashes the command, effective fixed/declared environment, incoming
 workdir NAR, and the complete offered store closure. A live matching entry in the lock's `memo`
@@ -159,6 +165,12 @@ added to the Nix store as a NAR snapshot. FETCH's first output hash is trusted-o
 pinned; a later forced/refetched result must match or the build fails. Plain `--update-lock`
 deliberately refreshes the pin.
 
+A prelude `CACHE target` is mounted writable at `/work/target` for every RUN. Its contents
+persist under a host-local cache identity, but are excluded from the memo key, workdir
+snapshot, Nix store, and final items. The build must copy wanted results to a non-cache path
+before the RUN ends, then TAKE them. `cix build --no-cache` bypasses RUN memo hits and ignores
+all CACHE directories, providing the clean-rebuild soundness hook.
+
 This sandbox requires bubblewrap and unprivileged user namespaces. If the host forbids them, v0
 refuses the step with a loud error; it never silently drops isolation. There is no tracer in v0:
 the complete offered closure is the sound input set. Observed-read pruning remains a possible
@@ -172,8 +184,8 @@ cost you more later. The differences, biggest first:
 **`RUN` is narrower and `FETCH` is explicit.** Docker lets every RUN step see the network and
 ambient image filesystem unless configured otherwise. Cixfile RUN sees only declared store
 closures and the current workdir, with no network. FETCH is a separate, visibly impure-looking
-keyword whose output is hash-pinned. v0 has one chain, no named/multi-stage graph, no cache/secret
-mount flags, and no read tracer.
+keyword whose output is hash-pinned. v0 has one chain, persistent declared cache directories,
+no named/multi-stage graph or secret mounts, and no read tracer.
 
 **`FROM` is not layer inheritance.** Docker composes by stacking filesystems; a Cixfile's
 `FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs` binds the package universe visible as `pkgs`.
@@ -196,9 +208,10 @@ But `ENV DB_URL required secret` is something a Dockerfile cannot say: the runti
 start without it, and (compose era) delivers it as a credential rather than a plain env var.
 The spec is a contract, not metadata.
 
-**`SERVICE` is first-class, and there can be several.** Docker needs an image *and* a compose
-file to express "this artifact runs as these services, configured so". The Cixfile says it in
-one place, and `cix run item#service` picks one.
+**`ITEM` is first-class, and there can be several.** Every ITEM becomes its own content-addressed
+store item with one bare v4 manifest. `cix build . -t v1` tags them as `<item-name>:v1`;
+`-t name:tag` is accepted only when the Cixfile has one ITEM. Shared package closures still
+deduplicate at the Nix-store level.
 
 **Declaring is granting.** `PORT` is not documentation like `EXPOSE` — it is what opens the
 network (and below 1024, what grants the capability). Everything undeclared is denied:

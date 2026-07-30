@@ -1,5 +1,3 @@
-mod output;
-
 fn main() {
-    println!("{}", output::line());
+    println!("{}", common::greeting("proj1-worker"));
 }

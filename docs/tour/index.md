@@ -34,3 +34,5 @@ This five-minute tour covers local tags, serving and pulling a store, building f
 - [Building with RUN](12-building-with-run.html) — Execute and memoize a networkless build step outside Nix evaluation.
 
 - [Inspecting artifacts](13-inspecting.html) — Read a tag's index entry and parsed manifest as stable JSON.
+
+- [Building and running proj1](14-running-proj1.html) — Build two plucked items and serve the API through its v4 manifest.

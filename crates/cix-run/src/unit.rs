@@ -3,6 +3,7 @@ use std::path::{Component, Path};
 
 use anyhow::{bail, Context, Result};
 
+use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
 use crate::spec::{Dirs, Protocol, Service};
 
@@ -88,6 +89,14 @@ pub struct CompiledUnit {
     pub environment: Vec<(String, String)>,
     /// Resolved `ExecStart` argv.
     pub argv: Vec<String>,
+    /// Host-specific hardening properties omitted from this unit.
+    pub degradations: Vec<UnitDegradation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitDegradation {
+    pub property: String,
+    pub reason: String,
 }
 
 impl CompiledUnit {
@@ -136,7 +145,35 @@ pub fn compile_unit(
     mode: UnitMode,
     options: &UnitCompileOptions,
 ) -> Result<CompiledUnit> {
-    build_unit_with_options(output, service_name, service, config, mode, options)
+    compile_unit_for_host(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        options,
+        &HostCapabilities::all_supported(),
+    )
+}
+
+pub fn compile_unit_for_host(
+    output: &Path,
+    service_name: &str,
+    service: &Service,
+    config: &ResolvedConfig,
+    mode: UnitMode,
+    options: &UnitCompileOptions,
+    capabilities: &HostCapabilities,
+) -> Result<CompiledUnit> {
+    build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        options,
+        capabilities,
+    )
 }
 
 pub(crate) fn build_unit(
@@ -153,6 +190,7 @@ pub(crate) fn build_unit(
         config,
         mode,
         &UnitCompileOptions::cix_run(service_name),
+        &HostCapabilities::all_supported(),
     )
 }
 
@@ -163,12 +201,14 @@ pub(crate) fn build_unit_with_options(
     config: &ResolvedConfig,
     mode: UnitMode,
     options: &UnitCompileOptions,
+    capabilities: &HostCapabilities,
 ) -> Result<UnitDefinition> {
     if !output.is_absolute() {
         bail!("store output path {} is not absolute", output.display());
     }
 
-    let argv = resolved_argv(output, "exec", &service.exec, &config.env)?;
+    let item_env = config.item_environment(output)?;
+    let argv = resolved_argv(output, "exec", &service.exec, &item_env)?;
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), options.naming.slice.clone()));
@@ -238,12 +278,11 @@ pub(crate) fn build_unit_with_options(
     }
     add_socket_bind_restrictions(&mut properties, service, config);
     if let Some(setup) = &service.setup {
-        let setup = resolved_argv(output, "setup", setup, &config.env)?;
+        let setup = resolved_argv(output, "setup", setup, &item_env)?;
         properties.push(("ExecStartPre".into(), exec_command(&setup)));
     }
 
-    let mut environment = config
-        .env
+    let mut environment = item_env
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
@@ -258,6 +297,7 @@ pub(crate) fn build_unit_with_options(
     }
 
     properties.extend(options.extra_properties.iter().cloned());
+    let degradations = apply_host_capabilities(&mut properties, mode, capabilities);
     let text = render(service_name, &argv, &environment, &properties);
     Ok(CompiledUnit {
         name: options.naming.unit.clone(),
@@ -266,7 +306,47 @@ pub(crate) fn build_unit_with_options(
         properties,
         environment,
         argv,
+        degradations,
     })
+}
+
+fn apply_host_capabilities(
+    properties: &mut Vec<(String, String)>,
+    mode: UnitMode,
+    capabilities: &HostCapabilities,
+) -> Vec<UnitDegradation> {
+    const PERSISTENT_DIRECTORIES: [&str; 4] = [
+        "StateDirectory",
+        "CacheDirectory",
+        "LogsDirectory",
+        "ConfigurationDirectory",
+    ];
+
+    if mode != UnitMode::System
+        || !properties
+            .iter()
+            .any(|(name, value)| name == "DynamicUser" && value == "yes")
+        || !properties
+            .iter()
+            .any(|(name, value)| name == "PrivatePIDs" && value == "yes")
+        || !properties
+            .iter()
+            .any(|(name, _)| PERSISTENT_DIRECTORIES.contains(&name.as_str()))
+    {
+        return Vec::new();
+    }
+
+    let Some(reason) = capabilities
+        .private_pids_with_persistent_directories
+        .unsupported_reason()
+    else {
+        return Vec::new();
+    };
+    properties.retain(|(name, _)| name != "PrivatePIDs");
+    vec![UnitDegradation {
+        property: "PrivatePIDs=yes".into(),
+        reason: reason.into(),
+    }]
 }
 
 fn add_socket_bind_restrictions(
@@ -613,6 +693,77 @@ mod tests {
         );
         assert!(actual.contains("PrivateNetwork=yes"));
         assert!(actual.contains("PrivatePIDs=yes"));
+    }
+
+    #[test]
+    fn unsupported_host_drops_private_pids_for_persistent_directories_once() {
+        let (spec, config) = fixture();
+        let capabilities = HostCapabilities::private_pids_with_persistent_directories_unsupported(
+            "synthetic realization failure",
+        );
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            &spec.services["web"],
+            &config,
+            UnitMode::System,
+            &UnitCompileOptions::cix_run("web"),
+            &capabilities,
+        )
+        .unwrap();
+
+        assert!(!compiled.text.contains("PrivatePIDs="));
+        assert_eq!(
+            compiled.degradations,
+            vec![UnitDegradation {
+                property: "PrivatePIDs=yes".into(),
+                reason: "synthetic realization failure".into(),
+            }]
+        );
+    }
+
+    #[test]
+    fn capable_host_preserves_private_pids_for_persistent_directories() {
+        let (spec, config) = fixture();
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            &spec.services["web"],
+            &config,
+            UnitMode::System,
+            &UnitCompileOptions::cix_run("web"),
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+
+        assert!(compiled.text.contains("PrivatePIDs=yes"));
+        assert!(compiled.degradations.is_empty());
+    }
+
+    #[test]
+    fn runtime_directories_do_not_trigger_persistent_directory_fallback() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":2,"services":{"worker":{"exec":["bin/worker"],"dirs":{"run":["/run/worker"]}}}}"#,
+        )
+        .unwrap();
+        let service = &spec.services["worker"];
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let capabilities = HostCapabilities::private_pids_with_persistent_directories_unsupported(
+            "synthetic realization failure",
+        );
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+            &UnitCompileOptions::cix_run("worker"),
+            &capabilities,
+        )
+        .unwrap();
+
+        assert!(compiled.text.contains("PrivatePIDs=yes"));
+        assert!(compiled.degradations.is_empty());
     }
 
     #[test]

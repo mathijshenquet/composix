@@ -58,9 +58,9 @@ pub(crate) fn check_with(
         let store_path = PathBuf::from(&locked.store_path);
         let spec = cix_run::spec::Spec::load(&store_path)
             .with_context(|| format!("services.{name}.item: invalid item {}", declaration.item))?;
-        let (item_service, service) = spec
-            .select_service(declaration.service.as_deref())
-            .with_context(|| format!("services.{name}.service"))?;
+        let (item_service, service) = spec.select_service(None).with_context(|| {
+            format!("services.{name}.item: D41 requires the resolved item to contain one service")
+        })?;
         let env = declaration
             .env
             .iter()

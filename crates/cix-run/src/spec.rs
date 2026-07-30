@@ -3,14 +3,21 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone)]
 pub struct Spec {
-    #[serde(rename = "cixManifest")]
     pub cix_manifest: u32,
     pub services: BTreeMap<String, Service>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacySpec {
+    #[serde(rename = "cixManifest")]
+    cix_manifest: u32,
+    services: BTreeMap<String, Service>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -36,6 +43,8 @@ pub struct Service {
     pub health: Option<Health>,
     pub network: Option<Network>,
     pub jit: Option<bool>,
+    #[serde(default)]
+    pub outbound: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -109,8 +118,33 @@ pub enum Network {
 
 impl Spec {
     pub fn from_slice(json: &[u8]) -> Result<Self> {
-        let spec: Self =
+        let value: serde_json::Value =
             serde_json::from_slice(json).context("failed to parse cix-manifest.json")?;
+        let version = value
+            .get("cixManifest")
+            .and_then(serde_json::Value::as_u64)
+            .context("cix-manifest.json field \"cixManifest\" must be an integer")?;
+        let version = u32::try_from(version).context("cixManifest version is too large")?;
+        let spec = if version == 4 {
+            let mut body = value
+                .as_object()
+                .cloned()
+                .context("cix-manifest.json must be a JSON object")?;
+            body.remove("cixManifest");
+            let service: Service = serde_json::from_value(serde_json::Value::Object(body))
+                .context("failed to parse cix-manifest.json v4 def-node")?;
+            Self {
+                cix_manifest: 4,
+                services: BTreeMap::from([("item".to_owned(), service)]),
+            }
+        } else {
+            let legacy: LegacySpec =
+                serde_json::from_value(value).context("failed to parse cix-manifest.json")?;
+            Self {
+                cix_manifest: legacy.cix_manifest,
+                services: legacy.services,
+            }
+        };
         spec.validate()?;
         Ok(spec)
     }
@@ -119,10 +153,24 @@ impl Spec {
         let path = output.join("cix-manifest.json");
         let json = fs::read(&path)
             .with_context(|| format!("failed to read spec at {}", path.display()))?;
-        Self::from_slice(&json)
+        let mut spec = Self::from_slice(&json)?;
+        if spec.cix_manifest == 4 {
+            if let Some(name) = item_name_from_store_path(output) {
+                let service = spec.services.remove("item").expect("parsed v4 def-node");
+                spec.services.insert(name, service);
+            }
+        }
+        Ok(spec)
     }
 
     pub fn select_service<'a>(&'a self, requested: Option<&str>) -> Result<(&'a str, &'a Service)> {
+        if self.cix_manifest == 4 {
+            if requested.is_some() {
+                bail!("cixManifest 4 is one bare def-node and has no #service selector (D41)");
+            }
+            let (name, service) = self.services.first_key_value().expect("validated v4 item");
+            return Ok((name, service));
+        }
         if let Some(name) = requested {
             let service = self.services.get(name).with_context(|| {
                 let available = self.services.keys().cloned().collect::<Vec<_>>().join(", ");
@@ -134,8 +182,9 @@ impl Spec {
         if self.services.len() != 1 {
             let available = self.services.keys().cloned().collect::<Vec<_>>().join(", ");
             bail!(
-                "the spec declares {} services; select one with #service (available: {available})",
-                self.services.len()
+                "deprecated multi-service cixManifest {} item declares {} services (available: {available}); D41 requires one item per service",
+                self.cix_manifest,
+                self.services.len(),
             );
         }
         let (name, service) = self.services.first_key_value().unwrap();
@@ -143,9 +192,9 @@ impl Spec {
     }
 
     fn validate(&self) -> Result<()> {
-        if !matches!(self.cix_manifest, 1..=3) {
+        if !matches!(self.cix_manifest, 1..=4) {
             bail!(
-                "unsupported cixManifest version {}; this cix supports versions 1, 2, and 3",
+                "unsupported cixManifest version {}; this cix supports versions 1, 2, 3, and 4",
                 self.cix_manifest
             );
         }
@@ -161,6 +210,14 @@ impl Spec {
         }
         Ok(())
     }
+}
+
+fn item_name_from_store_path(output: &Path) -> Option<String> {
+    let name = output.file_name()?.to_str()?;
+    let (_, name) = name.split_once('-')?;
+    let name = name.strip_prefix("cix-item-").unwrap_or(name);
+    validate_name("item", name).ok()?;
+    Some(name.to_owned())
 }
 
 impl Service {
@@ -269,7 +326,43 @@ impl Service {
         if version < 3 && !self.listeners.is_empty() {
             bail!("field \"listeners\" requires cixManifest 3");
         }
+        if version < 4 && self.outbound {
+            bail!("field \"outbound\" requires cixManifest 4");
+        }
+        if version == 4 && self.network.is_some() {
+            bail!("field \"network\" is retired in cixManifest 4; use \"outbound\" per D41");
+        }
         Ok(())
+    }
+}
+
+impl Serialize for Spec {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if self.cix_manifest == 4 {
+            let service = self
+                .services
+                .first_key_value()
+                .map(|(_, service)| service)
+                .ok_or_else(|| serde::ser::Error::custom("v4 manifest has no def-node"))?;
+            let value = serde_json::to_value(service).map_err(serde::ser::Error::custom)?;
+            let body = value
+                .as_object()
+                .ok_or_else(|| serde::ser::Error::custom("v4 def-node is not an object"))?;
+            let mut map = serializer.serialize_map(Some(body.len() + 1))?;
+            map.serialize_entry("cixManifest", &4)?;
+            for (name, value) in body {
+                map.serialize_entry(name, value)?;
+            }
+            map.end()
+        } else {
+            let mut map = serializer.serialize_map(Some(2))?;
+            map.serialize_entry("cixManifest", &self.cix_manifest)?;
+            map.serialize_entry("services", &self.services)?;
+            map.end()
+        }
     }
 }
 
@@ -576,6 +669,54 @@ mod tests {
         assert_eq!(
             spec.services["app"].listeners["http"].listener_type,
             "stream"
+        );
+    }
+
+    #[test]
+    fn parses_and_serializes_a_bare_v4_def_node() {
+        let spec = parse(
+            r#"{
+                "cixManifest": 4,
+                "exec": ["bin/worker"],
+                "env": {"MODE": {"default": "once"}},
+                "outbound": true
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(spec.cix_manifest, 4);
+        assert_eq!(spec.services.len(), 1);
+        assert!(spec.services["item"].outbound);
+        let (_, service) = spec.select_service(None).unwrap();
+        assert_eq!(service.exec, ["bin/worker"]);
+        let serialized = serde_json::to_value(&spec).unwrap();
+        assert_eq!(serialized["cixManifest"], 4);
+        assert_eq!(serialized["exec"][0], "bin/worker");
+        assert!(serialized.get("services").is_none());
+
+        let defaulted = parse(r#"{"cixManifest":4,"exec":["bin/app"]}"#).unwrap();
+        assert!(!defaulted.services["item"].outbound);
+        let error = defaulted
+            .select_service(Some("app"))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("D41"), "{error}");
+    }
+
+    #[test]
+    fn legacy_multi_service_items_emit_the_d41_deprecation() {
+        let spec = parse(
+            r#"{"cixManifest":3,"services":{
+                "api":{"exec":["bin/api"]},
+                "worker":{"exec":["bin/worker"]}
+            }}"#,
+        )
+        .unwrap();
+        let error = spec.select_service(None).unwrap_err().to_string();
+        assert!(error.contains("deprecated"), "{error}");
+        assert!(error.contains("D41"), "{error}");
+        assert_eq!(
+            spec.select_service(Some("api")).unwrap().1.exec,
+            ["bin/api"]
         );
     }
 

@@ -12,6 +12,9 @@ pub enum Command {
         tag: Option<String>,
         #[arg(long, num_args = 0..=1, default_missing_value = "")]
         update_lock: Option<String>,
+        /// Re-run build steps without persistent CACHE directories.
+        #[arg(long)]
+        no_cache: bool,
     },
 }
 
@@ -22,13 +25,21 @@ impl Command {
                 dir,
                 tag,
                 update_lock,
+                no_cache,
             } => {
-                let store_path = crate::build(&BuildOptions {
+                let items = crate::build(&BuildOptions {
                     directory: dir,
                     update_lock,
                     tag,
+                    no_cache,
                 })?;
-                println!("{store_path}");
+                if items.len() == 1 {
+                    println!("{}", items[0].store_path);
+                } else {
+                    for item in items {
+                        println!("{} {}", item.name, item.store_path);
+                    }
+                }
                 Ok(())
             }
         }

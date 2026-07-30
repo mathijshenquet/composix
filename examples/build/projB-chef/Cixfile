@@ -10,6 +10,7 @@ COPY Cargo.lock Cargo.lock
 COPY src/main.rs src/main.rs
 RUN cargo build --release --locked --offline
 
-SERVICE projb-chef
-EXEC ${build}/target/release/projb-chef
+ITEM projb-chef
+TAKE ${build}/target/release/projb-chef bin/projb-chef
+EXEC bin/projb-chef
 PORT http = 18083

@@ -1,50 +1,46 @@
 {
-  "cixManifest": 2,
-  "services": {
-    "app": {
-      "dirs": {
-        "cache": [
-          "/var/cache/app"
-        ],
-        "config": [
-          "/etc/app"
-        ],
-        "logs": [
-          "/var/log/app"
-        ],
-        "run": [
-          "/run/app"
-        ],
-        "state": [
-          "/var/lib/app"
-        ]
-      },
-      "env": {
-        "PATH": {
-          "default": "/tools/first:/tools/second"
-        },
-        "PORT": {
-          "default": "9000",
-          "required": true
-        },
-        "TOKEN": {
-          "secret": true
-        }
-      },
-      "exec": [
-        "/tools/first/app",
-        "$PORT"
-      ],
-      "jit": true,
-      "ports": {
-        "http": {
-          "env": "PORT",
-          "protocol": "tcp"
-        }
-      },
-      "setup": [
-        "/tools/first/setup"
-      ]
+  "cixManifest": 4,
+  "dirs": {
+    "cache": [
+      "/var/cache/app"
+    ],
+    "config": [
+      "/etc/app"
+    ],
+    "logs": [
+      "/var/log/app"
+    ],
+    "run": [
+      "/run/app"
+    ],
+    "state": [
+      "/var/lib/app"
+    ]
+  },
+  "env": {
+    "PATH": {
+      "default": "/tools/first:/tools/second"
+    },
+    "PORT": {
+      "default": "9000",
+      "required": true
+    },
+    "TOKEN": {
+      "secret": true
     }
-  }
+  },
+  "exec": [
+    "/tools/first/app",
+    "$PORT"
+  ],
+  "jit": true,
+  "ports": {
+    "http": {
+      "env": "PORT",
+      "protocol": "tcp"
+    }
+  },
+  "setup": [
+    "/tools/first/setup"
+  ]
 }

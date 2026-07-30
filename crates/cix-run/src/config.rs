@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
+use std::path::{Component, Path};
 
 use anyhow::{bail, Context, Result};
 
@@ -24,6 +25,35 @@ impl ResolvedConfig {
 
     pub(crate) fn resolve_debug(service: &Service, env_overrides: &[String]) -> Result<Self> {
         Self::resolve_inner(service, env_overrides, &[], false)
+    }
+
+    pub(crate) fn item_environment(&self, output: &Path) -> Result<BTreeMap<String, String>> {
+        let mut env = self.env.clone();
+        let Some(path) = env.get("PATH") else {
+            return Ok(env);
+        };
+        let paths = std::env::split_paths(path)
+            .map(|directory| {
+                if directory.is_absolute() {
+                    return Ok(directory);
+                }
+                if directory
+                    .components()
+                    .any(|component| !matches!(component, Component::Normal(_)))
+                {
+                    bail!("relative service PATH entry must be a normalized item path");
+                }
+                Ok(output.join(directory))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        env.insert(
+            "PATH".into(),
+            std::env::join_paths(paths)
+                .context("service PATH contains an invalid path")?
+                .into_string()
+                .map_err(|_| anyhow::anyhow!("service PATH is not valid UTF-8"))?,
+        );
+        Ok(env)
     }
 
     fn resolve_inner(
@@ -279,5 +309,21 @@ mod tests {
         assert!(bad
             .to_string()
             .contains("neither a declared port nor listener"));
+    }
+
+    #[test]
+    fn resolves_relative_path_entries_against_the_item() {
+        let config = ResolvedConfig {
+            env: BTreeMap::from([("PATH".into(), "bin:/nix/store/tools/bin".into())]),
+            ports: BTreeMap::new(),
+            listeners: BTreeMap::new(),
+        };
+        let env = config
+            .item_environment(Path::new("/nix/store/hash-cix-item-api"))
+            .unwrap();
+        assert_eq!(
+            env["PATH"],
+            "/nix/store/hash-cix-item-api/bin:/nix/store/tools/bin"
+        );
     }
 }

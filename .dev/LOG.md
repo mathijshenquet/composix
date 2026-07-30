@@ -1,5 +1,23 @@
 # composix work log
 
+## 2026-07-30 (track/items complete)
+
+- Merged work: none in this worktree. Completed D40/D41 on `track/items` in `e25fa5f` and
+  `58a0f51`: hard ITEM rename, per-item TAKE plucks and v4 bare manifests, persistent
+  build CACHE plus `--no-cache`, multi-item tagging, v1–v4 runner compatibility, D41
+  legacy diagnostics/compose selector removal, all example migrations, and the real
+  two-item proj1 build/run tour.
+- Decisions: implemented existing D40/D41 without amendment. Item-scoped relative PATH is
+  resolved against the item store root end to end; multi-item tagging uses the current
+  `cix-index` API and this branch does not modify `crates/cix-index`.
+- Verification: the full fmt, warning-denied workspace clippy/test, and
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link` gate passed. This includes proj1's exact item
+  listings, v4 manifests, worker-only invalidation, warm memo reuse, byte-identical clean
+  `--no-cache` rebuild, and the tour's API run/curl. Exact focused generation/repro commands
+  and the one transient user-systemd retry are recorded in `crates/cix-cixfile/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently verify and merge `track/items`;
+  coordinate with concurrent `track/index2` rather than resolving its branch here.
+
 ## 2026-07-30 (the compose tree round — D40 go + D41–D46)
 
 - Big design session with Mathijs, dialog-driven; full story in **docs/compose-tree.md**
@@ -320,3 +338,19 @@
   `cargo test -p cix-index`, `cargo test --workspace`, regenerated/drift-checked deterministic
   tour, and `git diff --check` all passed. Exact repro commands are in `crates/cix-index/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge `track/index2`.
+
+## 2026-07-30 (track/composefallback close)
+
+- Merged work: none in this worktree; completed the systemd 261 compose fallback on
+  `track/composefallback`. The shared generator now drops only `PrivatePIDs=yes` when a
+  versioned realization probe proves the DynamicUser persistent-directory combination
+  unsupported. `cix up` names the affected unit/property/reason, and the generation manifest
+  records the same degradation. Rootless compose diff reuses the active generation's decision.
+- Decisions: no new design decision. The implementation applies D36's minimal hardening fallback
+  and D13's loud-degradation doctrine. The minimal proven failure is
+  `DynamicUser=yes + PrivatePIDs=yes + StateDirectory=`; `RuntimeDirectory=` does not reproduce.
+- Verification: regenerated and reviewed the unchanged tour; workspace fmt, warning-denied
+  clippy, full tests, `vm-dogfood`, and the new `compose-fallback-vm` systemd 261 check all pass.
+  Exact repro commands and the upstream systemd issue draft are in `crates/cix-run/LOG.md`.
+- Open with Mathijs: decide whether to file the drafted upstream systemd regression issue. Open
+  for agents: independently re-verify and merge `track/composefallback`.

@@ -7,7 +7,9 @@ mod ps;
 mod resolve;
 mod runtime;
 
-pub use generation::{build_generation, render_generation, BuiltGeneration, Manifest};
+pub use generation::{
+    build_generation, render_generation, BuiltGeneration, Manifest, ManifestDegradation,
+};
 pub use model::{Compose, Lock};
 pub use resolve::{load_and_check, CheckResult, UpdateRequest};
 pub use runtime::{check, diff, down, rollback, up};

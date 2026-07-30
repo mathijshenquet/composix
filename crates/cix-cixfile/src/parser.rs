@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::{Component, Path};
 
-use crate::model::{BuildStep, Cixfile, Env, Input, Item, Port, Service, Template, TemplatePart};
+use crate::model::{
+    Assembly, BuildStep, Cixfile, Env, Input, Item, Port, Service, Take, Template, TemplatePart,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseError {
@@ -38,13 +40,14 @@ struct Parser<'a> {
     index: usize,
     inputs: BTreeMap<String, Input>,
     paths: Vec<Template>,
+    caches: Vec<String>,
     steps: Vec<BuildStep>,
-    items: Vec<Item>,
-    destinations: BTreeSet<String>,
-    services: BTreeMap<String, Service>,
-    service_lines: BTreeMap<String, (usize, String)>,
-    service_metadata: BTreeMap<String, ServiceMetadata>,
-    current_service: Option<String>,
+    build_destinations: BTreeSet<String>,
+    items: BTreeMap<String, Item>,
+    item_destinations: BTreeMap<String, BTreeSet<String>>,
+    item_lines: BTreeMap<String, (usize, String)>,
+    item_metadata: BTreeMap<String, ServiceMetadata>,
+    current_item: Option<String>,
 }
 
 #[derive(Default)]
@@ -60,13 +63,14 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
         index: 0,
         inputs: BTreeMap::new(),
         paths: Vec::new(),
+        caches: Vec::new(),
         steps: Vec::new(),
-        items: Vec::new(),
-        destinations: BTreeSet::new(),
-        services: BTreeMap::new(),
-        service_lines: BTreeMap::new(),
-        service_metadata: BTreeMap::new(),
-        current_service: None,
+        build_destinations: BTreeSet::new(),
+        items: BTreeMap::new(),
+        item_destinations: BTreeMap::new(),
+        item_lines: BTreeMap::new(),
+        item_metadata: BTreeMap::new(),
+        current_item: None,
     }
     .parse()
 }
@@ -90,8 +94,8 @@ impl Parser<'_> {
             if self.inputs.is_empty()
                 && self.items.is_empty()
                 && self.steps.is_empty()
-                && self.services.is_empty()
                 && self.paths.is_empty()
+                && self.caches.is_empty()
                 && directive != "FROM"
             {
                 return Err(ParseError::new(
@@ -108,16 +112,28 @@ impl Parser<'_> {
                 "FETCH" | "RUN" => self.build_step(directive, line_number, source, arguments)?,
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
                 "LINK" => self.link(line_number, source, arguments)?,
-                "SERVICE" => self.begin_service(line_number, source, arguments)?,
+                "SERVICE" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "SERVICE was renamed to ITEM by D40; use ITEM <name>",
+                    ));
+                }
+                "ITEM" => self.begin_item(line_number, source, arguments)?,
+                "TAKE" => self.take(line_number, source, arguments)?,
                 "EXEC" => self.exec(line_number, source, arguments, false)?,
                 "SETUP" => self.exec(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
+                "CACHE" if self.current_item.is_none() => {
+                    self.build_cache(line_number, source, arguments)?
+                }
                 "STATE" | "CACHE" | "LOGS" | "CONFIG" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
                 "JIT" => self.jit(line_number, source, arguments)?,
+                "OUTBOUND" => self.outbound(line_number, source, arguments)?,
                 _ => {
                     return Err(ParseError::new(
                         line_number,
@@ -141,7 +157,7 @@ impl Parser<'_> {
                 "every Cixfile begins with FROM; try: FROM nixpkgs AS pkgs",
             ));
         }
-        if self.services.is_empty() {
+        if self.items.is_empty() {
             let (line, source) = self
                 .lines
                 .iter()
@@ -151,29 +167,36 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile must declare at least one SERVICE",
+                "a Cixfile must declare at least one ITEM",
             ));
         }
-        for (name, service) in &self.services {
+        for (name, item) in &self.items {
+            let service = &item.service;
             if service.exec.is_empty() {
-                let (line, source) = &self.service_lines[name];
+                let (line, source) = &self.item_lines[name];
                 return Err(ParseError::new(
                     *line,
                     source,
-                    format!("SERVICE {name:?} must declare exactly one EXEC"),
+                    format!("ITEM {name:?} must declare exactly one EXEC"),
                 ));
             }
-            validate_service_references(service, &self.service_metadata[name])?;
-            validate_bare_commands(service, &self.service_metadata[name], &self.paths)?;
+            validate_service_references(service, &self.item_metadata[name])?;
+            let mut paths = self.paths.clone();
+            paths.extend(item.paths.clone());
+            validate_bare_commands(service, &self.item_metadata[name], &paths)?;
         }
         if self.steps.is_empty() {
-            if let Some(line) =
-                first_build_reference(&self.paths, &self.items, self.services.values())
+            if let Some(line) = self
+                .items
+                .values()
+                .flat_map(|item| &item.takes)
+                .map(|take| take.line)
+                .next()
             {
                 return Err(ParseError::new(
                     line,
                     self.lines.get(line - 1).copied().unwrap_or_default(),
-                    "${build} requires at least one COPY, FETCH, or RUN step",
+                    "TAKE requires at least one COPY, FETCH, or RUN step",
                 ));
             }
         }
@@ -181,9 +204,9 @@ impl Parser<'_> {
         Ok(Cixfile {
             inputs: self.inputs,
             paths: self.paths,
+            caches: self.caches,
             steps: self.steps,
             items: self.items,
-            services: self.services,
         })
     }
 
@@ -191,8 +214,8 @@ impl Parser<'_> {
         if self.inputs.is_empty()
             && self.items.is_empty()
             && self.steps.is_empty()
-            && self.services.is_empty()
             && self.paths.is_empty()
+            && self.caches.is_empty()
         {
             // The first meaningful directive is permitted to establish the input universe.
         } else if self.inputs.is_empty() {
@@ -203,8 +226,8 @@ impl Parser<'_> {
             ));
         } else if !self.items.is_empty()
             || !self.steps.is_empty()
-            || !self.services.is_empty()
             || !self.paths.is_empty()
+            || !self.caches.is_empty()
         {
             return Err(ParseError::new(
                 line,
@@ -236,25 +259,22 @@ impl Parser<'_> {
 
     fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         let fields = at_least_one_field(arguments, line, source, "PATH")?;
-        if self
-            .services
-            .values()
-            .any(|service| service.env.contains_key("PATH"))
-        {
+        let current = self.current_item.clone();
+        let conflicts = if let Some(name) = &current {
+            self.items[name].service.env.contains_key("PATH")
+        } else {
+            self.items
+                .values()
+                .any(|item| item.service.env.contains_key("PATH"))
+        };
+        if conflicts {
             return Err(ParseError::new(
                 line,
                 source,
                 "PATH conflicts with an explicit ENV PATH declaration",
             ));
         }
-        if self.current_service.is_some() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "PATH must appear before SERVICE blocks",
-            ));
-        }
-        if !self.steps.is_empty() {
+        if current.is_none() && !self.steps.is_empty() {
             return Err(ParseError::new(
                 line,
                 source,
@@ -263,26 +283,73 @@ impl Parser<'_> {
         }
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = self.build_template(field, line, source, false, true)?;
-            validate_path_template(&path, line, source)?;
-            if self.paths.iter().any(|existing| existing.same_value(&path)) {
+            let path = self.build_template(field, line, source, false, false)?;
+            validate_path_template(&path, current.is_some(), line, source)?;
+            let duplicated = self.paths.iter().any(|existing| existing.same_value(&path))
+                || current.as_ref().is_some_and(|name| {
+                    self.items[name]
+                        .paths
+                        .iter()
+                        .any(|existing| existing.same_value(&path))
+                });
+            if duplicated {
                 return Err(ParseError::new(
                     line,
                     source,
                     format!("PATH directory {field:?} is duplicated"),
                 ));
             }
-            self.paths.push(path);
+            let paths = if let Some(name) = &current {
+                &mut self.items.get_mut(name).expect("current item exists").paths
+            } else {
+                &mut self.paths
+            };
+            paths.push(path);
         }
         Ok(())
     }
 
-    fn copy(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        if self.current_service.is_some() {
+    fn build_cache(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        if !self.steps.is_empty() {
             return Err(ParseError::new(
                 line,
                 source,
-                "COPY must appear before SERVICE blocks",
+                "build CACHE must appear before the COPY/FETCH/RUN chain",
+            ));
+        }
+        let fields = exact_fields(arguments, 1, line, source, "CACHE <dir>")?;
+        reject_build_interpolation(fields[0], "CACHE directory", line, source)?;
+        reject_runtime_variable(fields[0], "CACHE directory", line, source)?;
+        validate_relative_path(fields[0], "CACHE directory", line, source)?;
+        let path = Path::new(fields[0]);
+        if self.caches.iter().any(|existing| {
+            let existing = Path::new(existing);
+            path == existing || path.starts_with(existing) || existing.starts_with(path)
+        }) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "CACHE directory {:?} is duplicated or overlaps another cache",
+                    fields[0]
+                ),
+            ));
+        }
+        self.caches.push(fields[0].to_owned());
+        Ok(())
+    }
+
+    fn copy(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if self.current_item.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "COPY must appear before ITEM blocks",
             ));
         }
         let fields = exact_fields(arguments, 2, line, source, "COPY <src> <dst>")?;
@@ -292,11 +359,13 @@ impl Parser<'_> {
         reject_build_interpolation(fields[1], "COPY destination", line, source)?;
         reject_runtime_variable(fields[0], "COPY source", line, source)?;
         reject_runtime_variable(fields[1], "COPY destination", line, source)?;
-        self.claim_destination(fields[1], line, source)?;
-        self.items.push(Item::Copy {
-            src: fields[0].to_owned(),
-            dst: fields[1].to_owned(),
-        });
+        if !self.build_destinations.insert(fields[1].to_owned()) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("build destination {:?} is already populated", fields[1]),
+            ));
+        }
         self.steps.push(BuildStep::Copy {
             src: fields[0].to_owned(),
             dst: fields[1].to_owned(),
@@ -313,11 +382,11 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
-        if self.current_service.is_some() {
+        if self.current_item.is_some() {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("{directive} must appear before SERVICE blocks"),
+                format!("{directive} must appear before ITEM blocks"),
             ));
         }
         if arguments.is_empty() {
@@ -396,19 +465,21 @@ impl Parser<'_> {
                 format!("unterminated {directive} heredoc; expected {delimiter:?}"),
             ));
         }
-        self.claim_destination(fields[0], line, source)?;
+        self.claim_item_destination(fields[0], line, source)?;
         let item = if directive == "FILE" {
-            Item::File {
+            Assembly::File {
                 dst: fields[0].to_owned(),
                 contents,
             }
         } else {
-            Item::Script {
+            Assembly::Script {
                 dst: fields[0].to_owned(),
                 contents,
             }
         };
-        self.items.push(item);
+        self.current_item_mut(directive, line, source)?
+            .assembly
+            .push(item);
         Ok(())
     }
 
@@ -418,7 +489,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[0], "LINK destination", line, source)?;
         reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = self.build_template(fields[1], line, source, false, true)?;
+        let target = self.build_template(fields[1], line, source, false, false)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -426,36 +497,54 @@ impl Parser<'_> {
                 "LINK target must not be empty",
             ));
         }
-        self.claim_destination(fields[0], line, source)?;
-        self.items.push(Item::Link {
-            dst: fields[0].to_owned(),
-            target,
-        });
+        self.claim_item_destination(fields[0], line, source)?;
+        self.current_item_mut("LINK", line, source)?
+            .assembly
+            .push(Assembly::Link {
+                dst: fields[0].to_owned(),
+                target,
+            });
         Ok(())
     }
 
-    fn begin_service(
-        &mut self,
-        line: usize,
-        source: &str,
-        arguments: &str,
-    ) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 1, line, source, "SERVICE <name>")?;
+    fn begin_item(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let fields = exact_fields(arguments, 1, line, source, "ITEM <name>")?;
         let name = fields[0];
-        validate_name("service", name, line, source)?;
-        if self.services.contains_key(name) {
+        validate_name("item", name, line, source)?;
+        if self.items.contains_key(name) {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("SERVICE {name:?} is already declared"),
+                format!("ITEM {name:?} is already declared"),
             ));
         }
-        self.services.insert(name.to_owned(), Service::empty());
-        self.service_lines
+        self.items.insert(name.to_owned(), Item::empty());
+        self.item_destinations
+            .insert(name.to_owned(), BTreeSet::new());
+        self.item_lines
             .insert(name.to_owned(), (line, source.to_owned()));
-        self.service_metadata
+        self.item_metadata
             .insert(name.to_owned(), ServiceMetadata::default());
-        self.current_service = Some(name.to_owned());
+        self.current_item = Some(name.to_owned());
+        Ok(())
+    }
+
+    fn take(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let fields = exact_fields(arguments, 2, line, source, "TAKE <build-path> <item-path>")?;
+        reject_runtime_variable(fields[0], "TAKE source", line, source)?;
+        reject_build_interpolation(fields[1], "TAKE destination", line, source)?;
+        reject_runtime_variable(fields[1], "TAKE destination", line, source)?;
+        let source_path = self.build_template(fields[0], line, source, false, true)?;
+        validate_take_source(&source_path, line, source)?;
+        validate_item_path(fields[1], "TAKE destination", line, source)?;
+        self.claim_item_destination(fields[1], line, source)?;
+        self.current_item_mut("TAKE", line, source)?
+            .takes
+            .push(Take {
+                src: source_path,
+                dst: fields[1].to_owned(),
+                line,
+            });
         Ok(())
     }
 
@@ -470,15 +559,14 @@ impl Parser<'_> {
         let fields = at_least_one_field(arguments, line, source, directive)?;
         let templates = fields
             .iter()
-            .map(|field| self.build_template(field, line, source, false, true))
+            .map(|field| self.build_template(field, line, source, false, false))
             .collect::<Result<Vec<_>, _>>()?;
-        let service_name = self
-            .current_service_name(directive, line, source)?
-            .to_owned();
-        let service = self
-            .services
-            .get_mut(&service_name)
-            .expect("current service exists");
+        let item_name = self.current_item_name(directive, line, source)?.to_owned();
+        let service = &mut self
+            .items
+            .get_mut(&item_name)
+            .expect("current item exists")
+            .service;
         if setup {
             if service.setup.is_some() {
                 return Err(ParseError::new(
@@ -489,9 +577,9 @@ impl Parser<'_> {
             }
             service.setup = Some(templates);
             service.setup_line = Some(line);
-            self.service_metadata
-                .get_mut(&service_name)
-                .expect("service metadata exists")
+            self.item_metadata
+                .get_mut(&item_name)
+                .expect("item metadata exists")
                 .setup = Some((line, source.to_owned()));
         } else {
             if !service.exec.is_empty() {
@@ -503,9 +591,9 @@ impl Parser<'_> {
             }
             service.exec = templates;
             service.exec_line = line;
-            self.service_metadata
-                .get_mut(&service_name)
-                .expect("service metadata exists")
+            self.item_metadata
+                .get_mut(&item_name)
+                .expect("item metadata exists")
                 .exec = Some((line, source.to_owned()));
         }
         Ok(())
@@ -526,7 +614,7 @@ impl Parser<'_> {
             };
             index += 1;
             reject_runtime_variable(value, "ENV default", line, source)?;
-            Some(self.build_template(value, line, source, false, true)?)
+            Some(self.build_template(value, line, source, false, false)?)
         } else {
             None
         };
@@ -552,7 +640,11 @@ impl Parser<'_> {
                 }
             }
         }
-        if fields[0] == "PATH" && !self.paths.is_empty() {
+        let item_has_path = self
+            .current_item
+            .as_ref()
+            .is_some_and(|name| !self.items[name].paths.is_empty());
+        if fields[0] == "PATH" && (!self.paths.is_empty() || item_has_path) {
             return Err(ParseError::new(
                 line,
                 source,
@@ -604,11 +696,12 @@ impl Parser<'_> {
             }
             Port::Value(value)
         };
-        let service_name = self.current_service_name("PORT", line, source)?.to_owned();
-        let service = self
-            .services
-            .get_mut(&service_name)
-            .expect("current service exists");
+        let item_name = self.current_item_name("PORT", line, source)?.to_owned();
+        let service = &mut self
+            .items
+            .get_mut(&item_name)
+            .expect("current item exists")
+            .service;
         if service.listeners.contains(fields[0]) {
             return Err(ParseError::new(
                 line,
@@ -627,9 +720,9 @@ impl Parser<'_> {
             ));
         }
         service.ports.insert(fields[0].to_owned(), port);
-        self.service_metadata
-            .get_mut(&service_name)
-            .expect("service metadata exists")
+        self.item_metadata
+            .get_mut(&item_name)
+            .expect("item metadata exists")
             .ports
             .insert(fields[0].to_owned(), (line, source.to_owned()));
         Ok(())
@@ -713,44 +806,76 @@ impl Parser<'_> {
         Ok(())
     }
 
+    fn outbound(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if !arguments.is_empty() {
+            return Err(ParseError::new(line, source, "OUTBOUND takes no arguments"));
+        }
+        let service = self.current_service_mut("OUTBOUND", line, source)?;
+        if service.outbound {
+            return Err(ParseError::new(
+                line,
+                source,
+                "OUTBOUND is already declared for this item",
+            ));
+        }
+        service.outbound = true;
+        Ok(())
+    }
+
     fn current_service_mut(
         &mut self,
         directive: &str,
         line: usize,
         source: &str,
     ) -> Result<&mut Service, ParseError> {
-        let name = self.current_service.as_ref().ok_or_else(|| {
-            ParseError::new(
-                line,
-                source,
-                format!("{directive} must appear after SERVICE"),
-            )
+        let name = self.current_item.as_ref().ok_or_else(|| {
+            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
         })?;
-        Ok(self.services.get_mut(name).expect("current service exists"))
+        Ok(&mut self
+            .items
+            .get_mut(name)
+            .expect("current item exists")
+            .service)
     }
 
-    fn current_service_name(
+    fn current_item_mut(
+        &mut self,
+        directive: &str,
+        line: usize,
+        source: &str,
+    ) -> Result<&mut Item, ParseError> {
+        let name = self.current_item.as_ref().ok_or_else(|| {
+            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
+        })?;
+        Ok(self.items.get_mut(name).expect("current item exists"))
+    }
+
+    fn current_item_name(
         &self,
         directive: &str,
         line: usize,
         source: &str,
     ) -> Result<&str, ParseError> {
-        self.current_service.as_deref().ok_or_else(|| {
-            ParseError::new(
-                line,
-                source,
-                format!("{directive} must appear after SERVICE"),
-            )
+        self.current_item.as_deref().ok_or_else(|| {
+            ParseError::new(line, source, format!("{directive} must appear after ITEM"))
         })
     }
 
-    fn claim_destination(
+    fn claim_item_destination(
         &mut self,
         destination: &str,
         line: usize,
         source: &str,
     ) -> Result<(), ParseError> {
-        if !self.destinations.insert(destination.to_owned()) {
+        let name = self
+            .current_item_name("item assembly", line, source)?
+            .to_owned();
+        if !self
+            .item_destinations
+            .get_mut(&name)
+            .expect("current item destinations exist")
+            .insert(destination.to_owned())
+        {
             return Err(ParseError::new(
                 line,
                 source,
@@ -846,7 +971,7 @@ fn build_template(
                     return Err(ParseError::new(
                         line,
                         source,
-                        "${build} is only valid in PATH, LINK, and SERVICE context",
+                        "${build} is only valid in TAKE source position",
                     ));
                 }
                 if !literal.is_empty() {
@@ -1079,63 +1204,37 @@ pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
 
 fn validate_path_template(
     template: &Template,
+    item_relative: bool,
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Package { .. }) | Some(TemplatePart::Build { .. }) => Ok(()),
+        Some(TemplatePart::Package { .. }) => Ok(()),
+        Some(TemplatePart::Literal(value)) if item_relative => {
+            validate_relative_path(value, "ITEM PATH directory", line, source)
+        }
         _ => Err(ParseError::new(
             line,
             source,
-            "PATH directory must be an absolute path (for example ${pkgs.coreutils}/bin)",
+            "prelude PATH directory must be absolute (for example ${pkgs.coreutils}/bin); relative PATH is item-scoped",
         )),
     }
 }
 
-fn first_build_reference<'a>(
-    paths: &[Template],
-    items: &[Item],
-    services: impl Iterator<Item = &'a Service>,
-) -> Option<usize> {
-    fn line(template: &Template) -> Option<usize> {
-        template.parts.iter().find_map(|part| match part {
-            TemplatePart::Build { line } => Some(*line),
-            _ => None,
-        })
+fn validate_take_source(template: &Template, line: usize, source: &str) -> Result<(), ParseError> {
+    match template.parts.as_slice() {
+        [TemplatePart::Literal(path)] => validate_relative_path(path, "TAKE source", line, source),
+        [TemplatePart::Build { .. }] => Ok(()),
+        [TemplatePart::Build { .. }, TemplatePart::Literal(path)] if path.starts_with('/') => {
+            validate_relative_path(&path[1..], "TAKE source", line, source)
+        }
+        _ => Err(ParseError::new(
+            line,
+            source,
+            "TAKE source must be a clean build-relative path or ${build}/<path>",
+        )),
     }
-
-    paths
-        .iter()
-        .find_map(line)
-        .or_else(|| {
-            items.iter().find_map(|item| match item {
-                Item::File { contents, .. } | Item::Script { contents, .. } => line(contents),
-                Item::Link { target, .. } => line(target),
-                Item::Copy { .. } => None,
-            })
-        })
-        .or_else(|| {
-            services.into_iter().find_map(|service| {
-                service
-                    .exec
-                    .iter()
-                    .find_map(line)
-                    .or_else(|| {
-                        service
-                            .setup
-                            .as_ref()
-                            .and_then(|values| values.iter().find_map(line))
-                    })
-                    .or_else(|| {
-                        service
-                            .env
-                            .values()
-                            .filter_map(|env| env.default.as_ref())
-                            .find_map(line)
-                    })
-            })
-        })
 }
 
 fn runtime_variables(
@@ -1403,7 +1502,10 @@ mod tests {
     const COMPLETE: &str = r#"
 # assembly
 FROM nixpkgs AS pkgs
+CACHE target
 COPY index.html www/index.html
+ITEM web
+TAKE www/index.html www/index.html
 FILE etc/app.conf <<CONF
 package=${pkgs.nginx}
 escaped=$${literal}
@@ -1414,7 +1516,6 @@ exec /app/bin/nginx "$PORT"
 SCRIPT
 LINK bin/nginx ${pkgs.nginx}/bin/nginx
 
-SERVICE web
 EXEC bin/start $PORT
 SETUP bin/start $PORT
 ENV PORT = 8080 required secret
@@ -1431,8 +1532,10 @@ JIT
     #[test]
     fn parses_every_v1_directive() {
         let parsed = parse(COMPLETE).unwrap();
-        assert_eq!(parsed.items.len(), 4);
-        let service = &parsed.services["web"];
+        assert_eq!(parsed.caches, ["target"]);
+        assert_eq!(parsed.items["web"].assembly.len(), 3);
+        assert_eq!(parsed.items["web"].takes.len(), 1);
+        let service = &parsed.items["web"].service;
         assert_eq!(service.exec.len(), 2);
         assert!(service.setup.is_some());
         assert_eq!(
@@ -1447,13 +1550,13 @@ JIT
         assert!(service.listeners.contains("admin"));
         assert!(service.jit);
 
-        let Item::File { contents, .. } = &parsed.items[1] else {
+        let Assembly::File { contents, .. } = &parsed.items["web"].assembly[0] else {
             panic!("expected FILE");
         };
         assert!(contents.parts.contains(&TemplatePart::Package {
             namespace: "pkgs".into(),
             attrpath: "nginx".into(),
-            line: 6,
+            line: 9,
         }));
         assert!(contents.literal_value().is_none());
         assert!(contents.parts.iter().any(
@@ -1462,12 +1565,12 @@ JIT
     }
 
     #[test]
-    fn parses_fixed_port_and_multiple_services() {
+    fn parses_fixed_port_and_multiple_items() {
         let parsed =
-            parse("FROM nixpkgs AS pkgs\nSERVICE one\nEXEC bin/one\nPORT http = 8080\nSERVICE two\nEXEC bin/two\n")
+            parse("FROM nixpkgs AS pkgs\nITEM one\nEXEC bin/one\nPORT http = 8080\nITEM two\nEXEC bin/two\n")
                 .unwrap();
-        assert_eq!(parsed.services["one"].ports["http"], Port::Value(8080));
-        assert_eq!(parsed.services.len(), 2);
+        assert_eq!(parsed.items["one"].service.ports["http"], Port::Value(8080));
+        assert_eq!(parsed.items.len(), 2);
     }
 
     #[test]
@@ -1480,8 +1583,9 @@ FETCH cargo fetch --locked
 RUN printf '%s\n' "hello world" > result
 COPY src.rs src/main.rs
 RUN cargo build --release
-SERVICE app
-EXEC ${build}/target/release/app
+ITEM app
+TAKE target/release/app bin/app
+EXEC bin/app
 "#,
         )
         .unwrap();
@@ -1496,8 +1600,8 @@ EXEC ${build}/target/release/app
             Some("printf '%s\\n' \"hello world\" > result")
         );
         assert!(matches!(
-            parsed.services["app"].exec[0].parts[0],
-            TemplatePart::Build { line: 9 }
+            parsed.items["app"].takes[0].src.parts[0],
+            TemplatePart::Literal(_)
         ));
     }
 
@@ -1505,24 +1609,24 @@ EXEC ${build}/target/release/app
     fn run_fetch_and_build_interpolation_have_line_numbered_position_errors() {
         for (input, line, message) in [
             (
-                "FROM nixpkgs AS pkgs\nRUN\nSERVICE app\nEXEC /bin/app\n",
+                "FROM nixpkgs AS pkgs\nRUN\nITEM app\nEXEC /bin/app\n",
                 2,
                 "requires a command",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/app\nRUN true\n",
+                "FROM nixpkgs AS pkgs\nITEM app\nEXEC /bin/app\nRUN true\n",
                 4,
-                "before SERVICE",
+                "before ITEM",
             ),
             (
-                "FROM nixpkgs AS pkgs\nRUN echo ${build}\nSERVICE app\nEXEC /bin/app\n",
+                "FROM nixpkgs AS pkgs\nRUN echo ${build}\nITEM app\nEXEC /bin/app\n",
                 2,
-                "only valid in PATH, LINK, and SERVICE",
+                "only valid in TAKE source position",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC ${build}/bin/app\n",
+                "FROM nixpkgs AS pkgs\nITEM app\nEXEC ${build}/bin/app\n",
                 3,
-                "requires at least one",
+                "only valid in TAKE source position",
             ),
         ] {
             let error = parse(input).unwrap_err();
@@ -1534,20 +1638,20 @@ EXEC ${build}/target/release/app
 
     #[test]
     fn from_requires_an_explicit_unique_namespace_before_interpolation() {
-        let missing = parse("SERVICE app\nEXEC /bin/app\n").unwrap_err();
+        let missing = parse("ITEM app\nEXEC /bin/app\n").unwrap_err();
         assert!(
             missing.message.contains("every Cixfile begins with FROM"),
             "{missing}"
         );
 
-        let missing_as = parse("FROM nixpkgs\nSERVICE app\nEXEC /bin/app\n").unwrap_err();
+        let missing_as = parse("FROM nixpkgs\nITEM app\nEXEC /bin/app\n").unwrap_err();
         assert!(
             missing_as.message.contains("FROM <flakeref> AS <name>"),
             "{missing_as}"
         );
 
         let duplicate = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS pkgs\nSERVICE app\nEXEC /bin/app\n",
+            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS pkgs\nITEM app\nEXEC /bin/app\n",
         )
         .unwrap_err();
         assert!(
@@ -1556,7 +1660,7 @@ EXEC ${build}/target/release/app
         );
 
         let unknown = parse(
-            "FROM nixpkgs AS pkgs\nLINK bin/app ${stable.hello}/bin/hello\nSERVICE app\nEXEC bin/app\n",
+            "FROM nixpkgs AS pkgs\nITEM app\nLINK bin/app ${stable.hello}/bin/hello\nEXEC bin/app\n",
         )
         .unwrap_err();
         assert!(
@@ -1571,7 +1675,7 @@ EXEC ${build}/target/release/app
         );
 
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS stable\nLINK bin/hello ${stable.hello}/bin/hello\nSERVICE app\nEXEC bin/hello\n",
+            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS stable\nITEM app\nLINK bin/hello ${stable.hello}/bin/hello\nEXEC bin/hello\n",
         )
         .unwrap();
         assert_eq!(parsed.inputs.len(), 2);
@@ -1584,7 +1688,7 @@ EXEC ${build}/target/release/app
     #[test]
     fn path_preserves_declaration_order_and_rejects_duplicates() {
         let parsed =
-            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nSERVICE app\nEXEC /bin/app\n")
+            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nITEM app\nEXEC /bin/app\n")
                 .unwrap();
         assert_eq!(
             parsed.paths,
@@ -1613,23 +1717,40 @@ EXEC ${build}/target/release/app
         );
 
         let error =
-            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nSERVICE app\nEXEC /bin/app\n")
+            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nITEM app\nEXEC /bin/app\n")
                 .unwrap_err();
         assert_eq!(error.line, 3);
         assert!(error.message.contains("duplicated"));
     }
 
     #[test]
+    fn item_paths_are_scoped_and_extend_the_build_path() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH bin ${pkgs.coreutils}/bin\nEXEC true\nITEM worker\nPATH ${pkgs.hello}/bin\nEXEC bash\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.paths.len(), 1);
+        assert_eq!(parsed.items["api"].paths.len(), 2);
+        assert_eq!(parsed.items["worker"].paths.len(), 1);
+
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH ${pkgs.bash}/bin\nEXEC bash\n",
+        )
+        .unwrap_err();
+        assert!(error.message.contains("duplicated"), "{error}");
+    }
+
+    #[test]
     fn path_rejects_explicit_env_path_and_bare_commands_without_path() {
         for input in [
-            "FROM nixpkgs AS pkgs\nPATH /tools\nSERVICE app\nENV PATH = /other\nEXEC /bin/app\n",
-            "FROM nixpkgs AS pkgs\nSERVICE app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
+            "FROM nixpkgs AS pkgs\nPATH /tools\nITEM app\nENV PATH = /other\nEXEC /bin/app\n",
+            "FROM nixpkgs AS pkgs\nITEM app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
         ] {
             let error = parse(input).unwrap_err();
             assert!(error.message.contains("PATH conflicts"), "{error}");
         }
 
-        let error = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC tool\n").unwrap_err();
+        let error = parse("FROM nixpkgs AS pkgs\nITEM app\nEXEC tool\n").unwrap_err();
         assert_eq!(error.line, 3);
         assert!(error.message.contains("requires PATH"));
     }
@@ -1639,43 +1760,39 @@ EXEC ${build}/target/release/app
         for (input, line, message) in [
             ("NOPE value\n", 1, "unknown directive"),
             ("PKG nginx\n", 1, "PKG was removed by D32"),
-            ("COPY only\nSERVICE x\nEXEC x\n", 1, "expected COPY"),
+            ("COPY only\nITEM x\nEXEC x\n", 1, "expected COPY"),
             ("FILE x <<EOF\nbody\n", 1, "unterminated FILE heredoc"),
             (
-                "LINK x ${missing}\nSERVICE x\nEXEC x\n",
+                "LINK x ${missing}\nITEM x\nEXEC x\n",
                 1,
                 "use ${pkgs.missing}",
             ),
             (
-                "SERVICE x\nENV BAD-NAME\nEXEC x\n",
+                "ITEM x\nENV BAD-NAME\nEXEC x\n",
                 2,
                 "environment variable name",
             ),
-            ("SERVICE x\nEXEC\n", 2, "EXEC requires"),
+            ("ITEM x\nEXEC\n", 2, "EXEC requires"),
             (
-                "SERVICE x\nEXEC bin/x $NOPE\n",
+                "ITEM x\nEXEC bin/x $NOPE\n",
                 2,
                 "undeclared environment variable",
             ),
+            ("ITEM x\nEXEC x\nPORT http = 0\n", 3, "between 1 and 65535"),
+            ("ITEM x\nEXEC x\nSTATE /tmp/x\n", 3, "under /var/lib"),
+            ("ITEM x\nEXEC x\nJIT yes\n", 3, "takes no arguments"),
             (
-                "SERVICE x\nEXEC x\nPORT http = 0\n",
-                3,
-                "between 1 and 65535",
-            ),
-            ("SERVICE x\nEXEC x\nSTATE /tmp/x\n", 3, "under /var/lib"),
-            ("SERVICE x\nEXEC x\nJIT yes\n", 3, "takes no arguments"),
-            (
-                "SERVICE x\nEXEC x\nLISTENER http\nLISTENER http\n",
+                "ITEM x\nEXEC x\nLISTENER http\nLISTENER http\n",
                 4,
                 "already declared",
             ),
             (
-                "COPY $SRC x\nSERVICE x\nEXEC x\n",
+                "COPY $SRC x\nITEM x\nEXEC x\n",
                 1,
                 "only allowed in EXEC and SETUP",
             ),
-            ("SERVICE x\nEXEC x\nEXEC y\n", 3, "already declared"),
-            ("SERVICE x\nEXEC x\nSERVICE x\n", 3, "already declared"),
+            ("ITEM x\nEXEC x\nEXEC y\n", 3, "already declared"),
+            ("ITEM x\nEXEC x\nITEM x\n", 3, "already declared"),
         ] {
             let input = format!("FROM nixpkgs AS pkgs\n{input}");
             let error = parse(&input).unwrap_err();
@@ -1692,10 +1809,10 @@ EXEC ${build}/target/release/app
     #[test]
     fn interpolation_uses_the_pkgs_namespace_and_accepts_nested_attributes() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nLINK bin/black ${pkgs.python3Packages.black}/bin/black\nSERVICE x\nEXEC bin/black\n",
+            "FROM nixpkgs AS pkgs\nITEM x\nLINK bin/black ${pkgs.python3Packages.black}/bin/black\nEXEC bin/black\n",
         )
         .unwrap();
-        let Item::Link { target, .. } = &parsed.items[0] else {
+        let Assembly::Link { target, .. } = &parsed.items["x"].assembly[0] else {
             panic!("expected LINK");
         };
         assert_eq!(
@@ -1704,14 +1821,14 @@ EXEC ${build}/target/release/app
                 TemplatePart::Package {
                     namespace: "pkgs".into(),
                     attrpath: "python3Packages.black".into(),
-                    line: 2,
+                    line: 3,
                 },
                 TemplatePart::Literal("/bin/black".into()),
             ]
         );
 
         let error = parse(
-            "FROM nixpkgs AS pkgs\nLINK bin/nginx ${nginx}/bin/nginx\nSERVICE x\nEXEC bin/nginx\n",
+            "FROM nixpkgs AS pkgs\nLINK bin/nginx ${nginx}/bin/nginx\nITEM x\nEXEC bin/nginx\n",
         )
         .unwrap_err();
         assert!(error.message.contains("use ${pkgs.nginx}"), "{error}");
@@ -1720,7 +1837,7 @@ EXEC ${build}/target/release/app
     #[test]
     fn copy_is_never_interpolated() {
         let error =
-            parse("FROM nixpkgs AS pkgs\nCOPY ${pkgs.nginx} x\nSERVICE x\nEXEC x\n").unwrap_err();
+            parse("FROM nixpkgs AS pkgs\nCOPY ${pkgs.nginx} x\nITEM x\nEXEC x\n").unwrap_err();
         assert!(error
             .message
             .contains("does not support build-time interpolation"));
@@ -1728,8 +1845,8 @@ EXEC ${build}/target/release/app
 
     #[test]
     fn pkg_directive_explains_the_d32_rewrite() {
-        let error = parse("FROM nixpkgs AS pkgs\nPKG python3Packages.black\nSERVICE x\nEXEC x\n")
-            .unwrap_err();
+        let error =
+            parse("FROM nixpkgs AS pkgs\nPKG python3Packages.black\nITEM x\nEXEC x\n").unwrap_err();
         assert_eq!(error.line, 2);
         assert!(
             error
@@ -1742,9 +1859,9 @@ EXEC ${build}/target/release/app
     #[test]
     fn rejects_unsafe_item_paths_and_duplicate_destinations() {
         for input in [
-            "FROM nixpkgs AS pkgs\nCOPY ../x x\nSERVICE x\nEXEC x\n",
-            "FROM nixpkgs AS pkgs\nFILE / <<E\nx\nE\nSERVICE x\nEXEC x\n",
-            "FROM nixpkgs AS pkgs\nCOPY a x\nLINK x /target\nSERVICE x\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nCOPY ../x x\nITEM x\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nITEM x\nFILE / <<E\nx\nE\nEXEC x\n",
+            "FROM nixpkgs AS pkgs\nITEM x\nLINK x /target\nFILE x <<E\nx\nE\nEXEC x\n",
         ] {
             assert!(parse(input).is_err(), "{input}");
         }
@@ -1753,10 +1870,10 @@ EXEC ${build}/target/release/app
     #[test]
     fn accepts_projected_destinations_and_rejects_d22_denied_paths() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nSERVICE x\nEXEC bin/x\n",
+            "FROM nixpkgs AS pkgs\nITEM x\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nEXEC bin/x\n",
         )
         .unwrap();
-        assert_eq!(parsed.items.len(), 3);
+        assert_eq!(parsed.items["x"].assembly.len(), 3);
 
         for denied in [
             "/nix",
@@ -1778,7 +1895,7 @@ EXEC ${build}/target/release/app
             "/lib64",
         ] {
             let input =
-                format!("FROM nixpkgs AS pkgs\nFILE {denied} <<E\nx\nE\nSERVICE x\nEXEC bin/x\n");
+                format!("FROM nixpkgs AS pkgs\nITEM x\nFILE {denied} <<E\nx\nE\nEXEC bin/x\n");
             let error = parse(&input).unwrap_err();
             assert!(error.message.contains("D22 v3"), "{denied}: {error}");
         }
