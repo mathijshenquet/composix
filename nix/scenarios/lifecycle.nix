@@ -8,6 +8,7 @@ scenario.node ''
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "v1"}) scenario-api:track")
   machine.succeed("cp ${scenario.composeFile "lifecycle" "127.0.0.1:18080" "scenario-api:track" "v1"} /tmp/scenario/compose.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
+  machine.succeed("systemctl is-active cix-lifecycle-api.service cix-lifecycle-db.service cix-lifecycle-api-http.socket")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18080/ | grep -Fx v1:PONG")
   machine.succeed("test -f /var/lib/api/sentinel")
   generation_one = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-lifecycle").strip()
