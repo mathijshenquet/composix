@@ -948,10 +948,14 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   explicit META fields override imports; nothing recognized at the path =
   line-numbered error listing what was tried. **Final mechanism (Mathijs's cut —
   formats, not ecosystems)**: no per-ecosystem adapters at all; ONE generic
-  selector — `META <field> <source> > <keypath>` — bake-time pure via
-  `builtins.fromTOML`/`fromJSON` by extension (no YAML: builtins has none, so it is
-  honestly unsupported), and the same selector walks a package binder's eval'd
-  `meta` attrset (`META description ${pkgs.nginx} > meta.description`). Bulk field
+  selector — `META <field> <source>#<keypath>` (the `#` spelling is flakeref
+  muscle memory: `nixpkgs#hello`; no clash with D53 comments, which are
+  full-line-only) — bake-time pure via `builtins.fromTOML`/`fromJSON` by extension,
+  and the same selector walks a package binder's eval'd `meta` attrset
+  (`META description ${pkgs.nginx}#meta.description`). YAML (in practice only
+  Dart's pubspec as an identity manifest) is evidence-gated on demand, not
+  feasibility — if a user arrives, the parse can live Rust-side (serde_yaml) just
+  as purely. Bulk field
   import is dead: every field is author-pointed; cix maintains two file formats and
   zero ecosystem tables (prior art for the eval: crane, pyproject-nix — we take the
   builtins, not the frameworks). `META source <binder>` keeps ONLY the
