@@ -2,11 +2,46 @@
   description = "composix";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs-systemd257.url = "github:NixOS/nixpkgs/0002d4fba62a97fe1260dc41f00deaac9a53f63d";
 
-  outputs = { self, nixpkgs }:
+  outputs = { self, nixpkgs, nixpkgs-systemd257 }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
+      systemd257Pkgs = import nixpkgs-systemd257 { inherit system; };
+      systemd257Compat = systemd257Pkgs.runCommand "systemd-257.6-nixos-module-compat" { } ''
+        cp -a ${systemd257Pkgs.systemd}/. "$out"
+        chmod -R u+w "$out"
+        old_systemd_path=${systemd257Pkgs.systemd}
+        grep -rlIF "$old_systemd_path" "$out" | xargs -r sed -i "s|$old_systemd_path|$out|g"
+        mkdir -p "$out/example/systemd/system"
+        chmod u+w "$out/example/systemd/system"
+        for source_unit in ${pkgs.systemd}/example/systemd/system/*; do
+          unit_name=$(basename "$source_unit")
+          test -e "$out/example/systemd/system/$unit_name" || printf '%s\n' '[Unit]' 'Description=Compatibility placeholder for newer NixOS module' > "$out/example/systemd/system/$unit_name"
+        done
+      '';
+      systemd257 = systemd257Compat // {
+        inherit (systemd257Pkgs.systemd) kbd util-linux;
+        interfaceVersion = 2;
+        out = systemd257Compat;
+        withBootloader = false;
+        withCryptsetup = false;
+        withEfi = false;
+        withFido2 = false;
+        withImportd = false;
+        withLogind = true;
+        withMachined = false;
+        withNspawn = false;
+        withPortabled = false;
+        withRepart = false;
+        withSysupdate = false;
+        withTpm2Units = false;
+        withTimedated = false;
+        withLocaled = false;
+        withHostnamed = false;
+        withUtmp = true;
+      };
       sdbisectPkgs = import nixpkgs {
         inherit system;
         overlays = [
@@ -45,6 +80,7 @@
         sdbisect-revert-vm = import ./nix/sdbisect-revert-vm.nix {
           inherit pkgs;
           revertedSystemd = sdbisectPkgs.systemd;
+          inherit systemd257;
         };
       };
       lib.withSpec = composixLib.withSpec;
