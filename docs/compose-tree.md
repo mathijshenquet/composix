@@ -81,6 +81,15 @@ the `service:` selector field in compose dies with it.
   initiation; renamed from "egress". Only enforceable under a pod ancestor; a loud no-op
   otherwise. Absence = loopback-only view even when the pod has a veth — and a composite
   with no outbound needs gets **zero machinery** (no veth, no routes).
+- **A pod member is type-identical to a service member** from the parent's view: every
+  child is a name with surfaces (ports/listeners for a service, publishes for a pod), an
+  outbound need (declared, or bubbled up from inside the pod), and a resource footprint —
+  the wiring algebra and the repin interface-check work on that type uniformly. The
+  honest asymmetry sits one level down: a service member shares its scope's loopback
+  (siblings reach it on *any* port — deliberately ambient inside the trust boundary),
+  a pod member is opaque (published surfaces only). Consequence: **wrapping a service in
+  a pod is a local, non-breaking tightening** — keep the surface names and no parent
+  wiring changes; promote-to-pod (and its inverse) is a per-node knob, not a redesign.
 - The k8s mapping, honestly: composite-with-pod-ness ≈ pod (shared netns, sidecars);
   slice tree ≈ node cgroup hierarchy (`cix.slice` ≈ `kubepods.slice`); D26 networks ≈
   CNI; D27 talks-to ≈ NetworkPolicy; reconciler ≈ kubelet. Deliberate deviation: our
