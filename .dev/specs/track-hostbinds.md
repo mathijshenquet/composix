@@ -15,21 +15,19 @@ Compiled as a bind from the host path onto the managed location, so the app sees
 same declared path. Paths must be absolute, outside /nix, existing (up-time check,
 loud error).
 
-## ⚖ Hard choices (Mathijs)
+## Resolved (D48d — Mathijs's round)
 
-- **Ownership vs DynamicUser — the real fight.** A host-backed state dir defeats the
-  DynamicUser idmap (the ocimport finding; and the systemd-261 saga shows id-mapped
-  managed dirs are fragile ground). Menu:
-  (a) host-bound dirs force a declared static user for that service (docker-honest:
-  compose gains `user:`; hardening loss stated loudly),
-  (b) keep DynamicUser + recursive chown on activation (mutating operator data —
-  ugly, surprising),
-  (c) rely on systemd idmapped binds where the host supports them, loud degraded
-  fallback to (a) elsewhere (most machinery, version-sensitive).
-  Recommendation: (a) as the honest v0, (c) as evidence-gated future.
-- **Watch-dirs shared with host users** (Paperless consume): same dir written by a
-  human and read by the service — group-based access (operator puts both in a group)
-  or ACLs? Recommendation: document the group pattern, build nothing.
+- **A user that owns the data is the clean solution**: host-bound dirs require a
+  declared static user for that service (hardening delta stated loudly). In `--user`
+  mode the problem dissolves — everything runs as the invoking user and binds are
+  their own files; note this explicitly in docs.
+- **Identity provenance is the SHARED decision with track-sharededge**: static
+  users (here) and stable groups (shared edges) come from one small cix-managed
+  identity registry (name→uid/gid, profile-like cell); operator-precreated
+  identities remain expressible. Implement the registry once, in whichever of the
+  two tracks runs first; the other consumes it.
+- Watch-dirs shared with host humans (Paperless consume): document the group
+  pattern via the same registry; build nothing extra.
 
 ## Scope & gate
 

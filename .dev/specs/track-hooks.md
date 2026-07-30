@@ -5,30 +5,25 @@ Corpus evidence: helm hook-Jobs (post-install/post-upgrade), Airflow's
 wait-for-migrations initContainer — every framework with a schema has this need;
 docker compose has NO answer (command-chain hacks like Plausible's).
 
-## Design position
+## Resolved (D48f — Mathijs's round: "systemd heeft al hooks toch?")
 
-Compose composite-level `"hooks": { "pre-switch": ["<app-child-name>", …] }` — the
-named APPs run **between generation build and unit switch** during `cix up`:
-new-generation code, run-to-completion, in the composite's context (edges to the OLD
-still-running db — exactly the rails/django/airflow migration pattern). All hooks
-pass → switch + restart-changed proceeds; any hook fails → **the switch does not
-happen**, old generation keeps running untouched, `cix up` reports the hook's output.
+The track SHRINKS: v0 builds no hook machinery at all.
 
-## ⚖ Hard choices (Mathijs)
-
-- **Failure leaves half-run migrations.** The abort keeps UNITS consistent (old
-  generation still runs) but the DATABASE may hold a half-applied migration — that is
-  the app's transactional responsibility, not cix's. Options: (a) state exactly that,
-  loudly, in docs (helm/k8s do the same silently), (b) add a `post-rollback` hook so
-  apps can attempt compensation. Recommendation: (a) for v0; (b) only ever
-  evidence-gated.
-- **Hook phases**: v0 = `pre-switch` only? `post-switch` (smoke test after restart,
-  failure → auto-rollback!) is tempting but auto-rollback on hook failure is a big
-  semantic step (it makes hooks load-bearing for availability). Recommendation:
-  pre-switch only in v0; post-switch+auto-rollback is its own design round with the
-  scenario tier as evidence.
-- **Timeout**: hooks must be bounded (a hung migration blocks up forever). Default
-  10min, per-hook override? Recommendation: yes, with the timeout in the up output.
+- **The systemd-native shape covers the demand**: a migration is an ordinary oneshot
+  APP unit in the composite (`RemainAfterExit=yes`), with the app `After=` +
+  `Requires=` it. Content-addressing supplies run-on-upgrade for free: the oneshot's
+  `ExecStart` contains its item store path, so restart-changed re-runs it exactly
+  when its app version changed. Chain-style cases (Plausible's `createdb && migrate
+  && run`) are `ExecStartPre`, also native.
+- v0 work is therefore only: make the oneshot-barrier pattern EXPRESSIBLE in compose
+  (an APP child that services can declare ordering on) + document the pattern +
+  bounded timeout on oneshot startup (default 10min, per-app override) so a hung
+  migration cannot wedge `cix up`.
+- Failure semantics v0 = systemd semantics (dependent app does not start; `cix up`
+  reports it). Half-run migrations are the app's transactional responsibility —
+  stated loudly in docs (helm/k8s have the same gap, silently).
+- **Deferred until the native shape proves insufficient**: abort-before-switch (old
+  generation keeps serving on hook failure), post-switch smoke + auto-rollback.
 
 ## Scope & gate
 

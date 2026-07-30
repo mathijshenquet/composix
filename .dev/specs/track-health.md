@@ -20,18 +20,17 @@ Two mechanisms, both compiled from the existing manifest `health` field:
    running the probe on the manifest interval; consecutive-failure threshold N →
    action.
 
-## ⚖ Hard choices (Mathijs)
+## Resolved (D48c — Mathijs's round)
 
-- **Unhealthy action**: docker restarts; k8s separates liveness (restart) from
-  readiness (traffic gating). We have no traffic layer, so the honest menu is
-  (a) report-only (status surfaces it, `cix ps`-era), (b) restart after N failures
-  (docker-shaped), (c) per-service policy field defaulting to report-only.
-  Recommendation: (c) with default report-only — restarts that mask crash-loops are
-  docker's least honest habit.
-- **Does readiness gate the listener fd handoff?** A socket-activated service gets
-  connections before first health pass. Holding the socket until healthy = truthful
-  readiness but adds machinery; not holding = documented gap. Recommendation: v0
-  documents the gap (activation IS the readiness signal for fd-tier services).
+- **Health is an edge to a consumer, not a property.** k8s names probes by consumer
+  (liveness→restart, readiness→traffic, startup→boot-gate) and keeps deep/business
+  health at the application layer — we adopt both stances. Our consumers: `cix up`
+  convergence, restart policy, dependent ordering (no traffic layer, so readiness ≈
+  ordering). Manifest declares the probe; compose declares which consumers use it.
+- **Unhealthy action**: per-service policy field, DEFAULT report-only (restarts that
+  mask crash-loops are docker's least honest habit); restart-after-N is opt-in.
+- **Readiness does not gate the listener fd handoff in v0**: for fd-tier services,
+  activation IS the readiness signal; the gap is documented, not machinerized.
 
 ## Scope & gate
 
