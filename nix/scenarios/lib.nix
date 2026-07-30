@@ -87,6 +87,7 @@ let
     name = "scenario";
     nodes.machine = { ... }: {
       environment.systemPackages = [ cix pkgs.curl pkgs.jq pkgs.procps pkgs.systemd ];
+      environment.variables.NIX_CONFIG = "experimental-features = nix-command flakes";
       networking.useDHCP = false;
       networking.interfaces.eth0.useDHCP = false;
       networking.firewall.enable = false;
