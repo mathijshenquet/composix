@@ -1,5 +1,71 @@
 # composix work log
 
+## 2026-07-30/31 (session close: the language-forge day — D47 through D59)
+
+State for the next session: **main is green and pushed**; one agent still running
+(sol on **track/keys** — the big engine round: D56 EXPECT, D57 narrow read-keying
+increment 1, D58 IMPORT-replaces-PATH; on completion: independent gate re-run, then
+merge). Everything else below is landed and verified.
+
+**Merged this session** (each independently re-verified before merge): track/index2
+(D45 tag tables), track/items (D40/D41 + proj1), track/composefallback (systemd-261
+loud degradation + capability probe), track/scenarios (+flake-hardening +repinfix
+rounds; VM scenario tier + index hammer + D43/D44 FRONTIER contract; CI now runs the
+full `nix flake check` tier), track/blocks (D47 blocks&binders), track/polish
+(EGRESS rename + tour-14 cache story), track/noscript (D55), track/tourbook
+(six-chapter tour + D50–D53), track/sdbisect (×3 rounds), track/refresh (corpus
+living-receipts), migrate rounds r1–r4 (corpus/migrate: 6 passing dual-receipt
+pairs, honest fails documented, no-escape audit: only 5/48 candidates lack a
+nixpkgs escape).
+
+**Decisions D47–D59** recorded in design.md, nearly all distilled from Mathijs's
+read-throughs: D47 blocks/binders (+bare-COPY context sugar amendment), D48 bundle
+(CACHE-as-snapshot-exception→later superseded, egress returns, liveness/readiness
+vocab, identity registry, systemd-transparency principle, hooks dissolve), D49
+netns resolutions, D50 ITEM dropped, D51 COPY-dir/continuations/RUN-heredoc
+(+deliberate no-FETCH-heredoc addendum), D52 CACHEDIR+LINK-flip, D53 comments,
+D54 metadata (full arc: annotations→in/out→META source→workshop extraction — cix
+parses nobody's manifest), D55 SCRIPT dropped, D56 EXPECT, D57 narrow keying
+(cache/snapshot wall dissolves; CACHE removed; rm-rf-workspace-always-safe), D58
+IMPORT replaces PATH (union-mount bin/etc/share, order=priority, no cacert
+default), D59 builder ENV + EXEC argv quoting.
+
+**systemd/kernel 226-saga: parked with dignity.** EPERM captured
+(uid_map write), NOT a systemd 257→261 regression (same-harness 257 fails too),
+NOT kernel 6.17→6.18 (both fail in VM); remaining axis = NixOS-VM environment vs
+Ubuntu host. Next probe documented in .dev/upstream-systemd-226-namespace.md
+(manual unshare repro + kernel-config diff); issue correctly unfiled; product
+already safe via behavior-probe fallback.
+
+**Queued, in order** (specs exist): (1) track/argvenv (D59, after keys — same
+crate); (2) prompt-refresh: docs/migrate.md full rewrite post-keys (teach IMPORT/
+EXPECT/builder-ENV; fix rotted ENV form, EGRESS, FILE mentions; add the
+"everything bare inside builders" consistency lesson — r4 proved prompt-rot is a
+real failure class: the prompt needs the living-receipts treatment on every
+language change); (3) corpus polish round: rewrite all pairs in post-keys language
+(adminer EXPECT, echo-server r5 retry as multi-FETCH, phpmyadmin bare tools),
+fresh receipts; (4) migrate r5 (echo-server retry + next batch per class-split:
+build-class loss is the real grade — r4: 1 pass/6 real attempts, three product
+findings, two of which D58/D59 already fix); (5) wave two feature tracks
+(track-health, hostbinds+sharededge identity pair, timers+hooks, fetchsecrets —
+all D48-resolved); (6) D42/D43 tree-grammar wave starting from the scenario
+FRONTIER flips; (7) D46 parametric publish; (8) netns realization (D49).
+
+**Open with Mathijs**: the universe-tags design (`FROM nix:unstable AS pkgs` as a
+cix tag — leaning interpretation 3: universe artifact = pinned flakeref for eval +
+prebuilt substitutable prelude item; two knots open: FROM ref-grammar
+disambiguation flakeref-vs-index-ref, and prelude priority must lose to user
+IMPORTs). Also: whether to file the kernel-config probe follow-up.
+
+**Process lessons (hard-won, memory updated)**: (1) NEVER merge on an agent's
+green claim for checks not independently re-run — the update-repin fixture was
+never green; the combined gate caught it (terra false-green recorded in tally);
+(2) codex launches: bare AND `< /dev/null` — 0.146.0 blocks on open stdin; two
+hangs from &&-chaining despite the recorded rule; (3) answer ≠ decision: when
+Mathijs asks a question, chat first, register only on his verdict (corrected
+twice); (4) the r4 merge executed during an interrupt — verify execution state
+before claiming a hold.
+
 ## 2026-07-30 (track/refresh corpus maintenance)
 
 - Committed `3ab519d`: refreshed the living migration corpus for D50–D53. Whoami

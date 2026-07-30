@@ -1074,6 +1074,20 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   non-FHS-shaped outputs. FETCH outputs remain hash-pinned, so trust config stays
   availability plumbing, never an integrity input; RUN remains networkless.
 
+- ✅ D59 (2026-07-30) — **post-r4 language round: builder ENV + EXEC argv quoting**
+  (both straight from corpus round N=8 evidence; Mathijs: "doe maar").
+  (a) **`ENV NAME = value` becomes legal in BUILDER blocks**: applies to all
+  subsequent steps in that builder (docker's from-this-line-on muscle memory),
+  plain values only (no typed default/required — that is runtime-contract
+  vocabulary), participates in the chain key as declared text, and is injected as
+  an export-prelude THROUGH the step shell so `$PWD`-style values expand at each
+  step (the verdaccio pair's sixfold `COREPACK_HOME=` prefix noise was the
+  evidence). (b) **EXEC/SETUP argv tokenization becomes quote-aware** (single and
+  double quotes preserve spaces; unterminated quote = line-numbered error) — the
+  r4 product finding that `nginx -g 'daemon off;'` was inexpressible. The early
+  "no quoting grammar" boring-choice is hereby superseded for the two directives
+  where argv fidelity is the contract.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
