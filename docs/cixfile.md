@@ -57,8 +57,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `COPY`, `FETCH`, `RUN`, `CACHE`, `PATH` | an immutable named workdir snapshot |
-| `SERVICE <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHE`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `OUTBOUND` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `EXEC`, `ENV`, `OUTBOUND`, `STATE`, `CACHE` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHE`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHE` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | an asset-only artifact with no executable |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -165,7 +165,7 @@ Every block produces its own store item and bare v4 manifest.
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
 idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. Role directives
 declare systemd-managed writable paths. `JIT` grants writable-and-executable memory, and
-`OUTBOUND` declares outward network access.
+`EGRESS` declares outward network access.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,

@@ -243,7 +243,10 @@ fn normalize(raw: &str, base: &Path) -> String {
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
-    let build_wall_time = Regex::new(r"\(\d+ ms\)").expect("valid build wall-time regex");
+    let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
+    let cargo_progress =
+        Regex::new(r"(?m)^\s*(?:Compiling [^\n]+|Finished `release` profile[^\n]*)\n?")
+            .expect("valid cargo progress regex");
     let unit_name =
         Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.service").expect("valid unit name regex");
     let stale_failed_unit =
@@ -265,7 +268,8 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "0s");
-    let normalized = build_wall_time.replace_all(&normalized, "(… ms)");
+    let normalized = build_wall_time.replace_all(&normalized, "");
+    let normalized = cargo_progress.replace_all(&normalized, "");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
@@ -1042,16 +1046,66 @@ fn scenario_running_proj1() -> String {
         fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
     }
 
-    doc.para("One named builder can compile a workspace and feed independent service artifacts. Builder-local `CACHE target` keeps Cargo's incremental state host-local, while each service contains only its copied binary and bare v4 manifest.");
-    let built = doc.sh_after_warming("cix build .", true);
-    let api_path = built
-        .lines()
-        .find_map(|line| line.strip_prefix("proj1-api "))
-        .expect("proj1 build printed the api item")
-        .to_owned();
-    assert!(built.lines().any(|line| line.starts_with("proj1-worker ")));
+    doc.para("The Cixfile names one builder and two independent service artifacts. Its declared `CACHE target` persists Cargo state without putting that state in snapshots or items.");
+    let cixfile = doc.sh("cat Cixfile", true);
+    assert!(cixfile.contains("BUILDER build"));
+    assert!(cixfile.contains("CACHE target"));
 
-    let started = doc.sh(&format!("cix run {api_path} --user --detach"), true);
+    doc.para("The first build misses the RUN memo and sees an empty cache.");
+    let first = doc.sh("cix build .", true);
+    assert!(first.contains("RUN memo miss"), "{first}");
+    let first_api = proj1_item_path(&first, "proj1-api");
+    let first_worker = proj1_item_path(&first, "proj1-worker");
+    let first_snapshot = proj1_build_snapshot(&first);
+    let state = doc.sh(
+        &format!("printf 'cache-state: ' && cat {first_snapshot}/output/cache-state"),
+        true,
+    );
+    assert_eq!(state.trim(), "cache-state: cold");
+
+    doc.para("Changing only worker source forces a RUN memo miss, but the declared cache is warm. The API item does not move.");
+    doc.sh(
+        "sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs",
+        true,
+    );
+    let edited = doc.sh("cix build .", true);
+    assert!(edited.contains("RUN memo miss"), "{edited}");
+    let edited_api = proj1_item_path(&edited, "proj1-api");
+    let edited_worker = proj1_item_path(&edited, "proj1-worker");
+    assert_eq!(edited_api, first_api);
+    assert_ne!(edited_worker, first_worker);
+    let edited_snapshot = proj1_build_snapshot(&edited);
+    let state = doc.sh(
+        &format!("printf 'cache-state: ' && cat {edited_snapshot}/output/cache-state"),
+        true,
+    );
+    assert_eq!(state.trim(), "cache-state: warm");
+    let unchanged = doc.sh(
+        &format!("test {first_api} = {edited_api} && echo 'api item unchanged: yes'"),
+        true,
+    );
+    assert_eq!(unchanged.trim(), "api item unchanged: yes");
+
+    doc.para("A clean `--no-cache` rebuild starts cold again and produces byte-identical items.");
+    let clean = doc.sh("cix build --no-cache .", true);
+    assert!(clean.contains("RUN memo miss"), "{clean}");
+    let clean_api = proj1_item_path(&clean, "proj1-api");
+    let clean_worker = proj1_item_path(&clean, "proj1-worker");
+    let clean_snapshot = proj1_build_snapshot(&clean);
+    let state = doc.sh(
+        &format!("printf 'cache-state: ' && cat {clean_snapshot}/output/cache-state"),
+        true,
+    );
+    assert_eq!(state.trim(), "cache-state: cold");
+    let identical = doc.sh(
+        &format!(
+            "test {clean_api} = {edited_api} && test {clean_worker} = {edited_worker} && echo 'item paths byte-identical: yes'"
+        ),
+        true,
+    );
+    assert_eq!(identical.trim(), "item paths byte-identical: yes");
+
+    let started = doc.sh(&format!("cix run {clean_api} --user --detach"), true);
     let unit_name = started
         .lines()
         .find(|line| line.starts_with("cix-run-proj1-api-") && line.ends_with(".service"))
@@ -1065,6 +1119,25 @@ fn scenario_running_proj1() -> String {
     assert_eq!(response.trim(), "hello from proj1-api");
     doc.sh(&format!("systemctl --user stop {unit_name}"), true);
     doc.finish()
+}
+
+fn proj1_item_path(output: &str, name: &str) -> String {
+    output
+        .lines()
+        .find_map(|line| line.strip_prefix(&format!("{name} ")))
+        .unwrap_or_else(|| panic!("proj1 build did not print the {name} item:\n{output}"))
+        .to_owned()
+}
+
+fn proj1_build_snapshot(output: &str) -> String {
+    output
+        .lines()
+        .rev()
+        .find_map(|line| {
+            let (event, path) = line.rsplit_once(" -> ")?;
+            event.contains(" RUN memo ").then(|| path.to_owned())
+        })
+        .unwrap_or_else(|| panic!("proj1 build did not print its RUN snapshot:\n{output}"))
 }
 
 #[derive(Debug, PartialEq, Eq)]

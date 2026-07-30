@@ -7,8 +7,8 @@ scoped property, `network: host` escape dropped) and D48b (the word is `egress`)
 mechanics below are the realization plan, applied at pod-claiming nodes. design.md
 wins on any remaining conflict.
 
-> **Amended by the 2026-07-30 tree round (D42–D44, docs/compose-tree.md):** "egress" is
-> renamed **`outbound`** (per-service spec field; opt-in capability polarity kept — the
+> **Amended by the 2026-07-30 tree round (D42–D44, docs/compose-tree.md):** egress is
+> a per-service **`egress`** field (opt-in capability polarity kept — the
 > zero-machinery-by-default property depends on it); the composite-level `network: host`
 > escape dies in favor of *pod-ness as an optional scoped property* (`network: "pod"`,
 > nearest-pod-ancestor; absence anywhere = host networking); the "one netns per

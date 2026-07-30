@@ -48,7 +48,7 @@ $ cix inspect inspect-demo:v1
         "health": null,
         "network": null,
         "jit": null,
-        "outbound": false
+        "egress": false
       }
     }
   },

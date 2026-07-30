@@ -145,7 +145,7 @@ pub struct Service {
     pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
     pub jit: bool,
-    pub outbound: bool,
+    pub egress: bool,
 }
 
 impl Service {
@@ -160,7 +160,7 @@ impl Service {
             listeners: BTreeSet::new(),
             dirs: Dirs::default(),
             jit: false,
-            outbound: false,
+            egress: false,
         }
     }
 }

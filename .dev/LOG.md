@@ -406,3 +406,21 @@
   fallback VM gate on that exact final snapshot; all passed. Exact command is in
   `crates/cix-cixfile/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.
+
+## 2026-07-30 (track/polish close)
+
+- Merged work: none in this worktree. Completed the D48(b) hard rename in `55fdde9`:
+  Cixfile `EGRESS`, manifest `egress`, migration-grade refusal of both old surfaces,
+  and all examples, active docs, and generated tour migrated.
+- Completed `.dev/specs/track-tour-proj1.md` in `603766d`: page 14 cats the D47 Cixfile
+  and visibly proves cold miss → worker-edit warm miss with unchanged API → clean cold
+  miss with byte-identical items, without timing output, before running the API.
+- Decisions: implemented D48(b) without amendment. The cache marker stays in the
+  builder snapshot rather than an item, so marker state can change while the clean
+  rebuild still proves byte-identical shipped artifacts.
+- Verification: fmt, warning-denied workspace clippy, all workspace tests, explicit tour
+  regeneration/zero drift, drift test, determinism twice, vm-dogfood, and
+  compose-fallback-vm all passed. Exact commands are in `crates/cix-cixfile/LOG.md`;
+  test-created user/system units were cleaned up.
+- Open with Mathijs: none. Open for agents: independently re-verify and merge
+  `track/polish`.

@@ -621,8 +621,8 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     if service.jit {
         output.push_str(" jit = true;");
     }
-    if service.outbound {
-        output.push_str(" outbound = true;");
+    if service.egress {
+        output.push_str(" egress = true;");
     }
     output.push_str(" }");
     Ok(output)
@@ -937,8 +937,8 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     if service.jit {
         value.insert("jit".into(), Value::Bool(true));
     }
-    if service.outbound {
-        value.insert("outbound".into(), Value::Bool(true));
+    if service.egress {
+        value.insert("egress".into(), Value::Bool(true));
     }
     Ok(Value::Object(value))
 }

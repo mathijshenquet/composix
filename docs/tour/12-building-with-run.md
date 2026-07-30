@@ -11,7 +11,7 @@ A named `BUILDER` executes `RUN` outside Nix evaluation in a networkless bubblew
 $ cix build .
 /nix/store/…-cix-item-run-tour
 BUILDER build step 1 COPY /nix/store/…-cix-source/app -> app snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo miss 0b957b5a13a6 (… ms) -> /nix/store/…-cix-build-snapshot
+BUILDER build step 2 RUN memo miss 0b957b5a13a6 -> /nix/store/…-cix-build-snapshot
 ```
 
 ```sh
