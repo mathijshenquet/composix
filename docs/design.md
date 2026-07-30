@@ -921,6 +921,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   (SPDX), `maintainers`, `icon`; derived-never-typed = `source` + `version`/
   `revision` from the lock (hash-true); `created` deliberately absent (determinism).
   Serve/export maps 1:1 onto `org.opencontainers.image.*` for tool interop.
+  **In/out architecture (Mathijs's cut, multi-ecosystem survey)** — the common core
+  across npm/Cargo/pyproject/nixpkgs-meta/Helm/Debian is name·version·description·
+  homepage·license·maintainers·repository; registries render READMEs, not
+  description fields; pkg.go.dev proves derive-don't-declare works. So: **IN**
+  (priority on conflict): (1) explicit Cixfile META (display fields only),
+  (2) inherited from the source tree's own manifest (package.json/Cargo.toml/
+  pyproject), (3) inherited from referenced nixpkgs `meta`, (4) derived WITH
+  receipts from the lock — `source`/`revision`/`version` are lock-backed
+  (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
+  **OUT** adapters from one internal schema (title, description, homepage,
+  documentation, changelog, license SPDX, maintainers, icon, keywords, readme):
+  inspect --human · serve/explore HTML incl. README rendering · OCI annotation
+  export · index search fields.
 
 ## Non-goals (for now)
 
