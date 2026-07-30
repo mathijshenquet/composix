@@ -338,3 +338,19 @@
   `cargo test -p cix-index`, `cargo test --workspace`, regenerated/drift-checked deterministic
   tour, and `git diff --check` all passed. Exact repro commands are in `crates/cix-index/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge `track/index2`.
+
+## 2026-07-30 (track/composefallback close)
+
+- Merged work: none in this worktree; completed the systemd 261 compose fallback on
+  `track/composefallback`. The shared generator now drops only `PrivatePIDs=yes` when a
+  versioned realization probe proves the DynamicUser persistent-directory combination
+  unsupported. `cix up` names the affected unit/property/reason, and the generation manifest
+  records the same degradation. Rootless compose diff reuses the active generation's decision.
+- Decisions: no new design decision. The implementation applies D36's minimal hardening fallback
+  and D13's loud-degradation doctrine. The minimal proven failure is
+  `DynamicUser=yes + PrivatePIDs=yes + StateDirectory=`; `RuntimeDirectory=` does not reproduce.
+- Verification: regenerated and reviewed the unchanged tour; workspace fmt, warning-denied
+  clippy, full tests, `vm-dogfood`, and the new `compose-fallback-vm` systemd 261 check all pass.
+  Exact repro commands and the upstream systemd issue draft are in `crates/cix-run/LOG.md`.
+- Open with Mathijs: decide whether to file the drafted upstream systemd regression issue. Open
+  for agents: independently re-verify and merge `track/composefallback`.

@@ -222,3 +222,16 @@
   degraded activation; with no active generation it renders the fully hardened
   form. A focused pure test covers both cases. Next: rerun tour regeneration and
   the complete gate.
+
+- 2026-07-30 17:24 UTC — Final gate is green on committed source. Exact repro
+  commands: `cargo test -p cix --test tour -- --ignored generate_tour` passed
+  and left `docs/tour/` unchanged after review; `cargo fmt --all --check`;
+  `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`;
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link`; and
+  `nix build .#checks.x86_64-linux.compose-fallback-vm --no-link` all passed.
+  The workspace suite includes 48 cix-run tests, 14 cix-compose tests, all
+  integration tests, and the tour drift/determinism checks. The final dedicated
+  VM rerun confirms the writable unit-directory setup preserves existing unit
+  symlinks and completes without the unrelated teardown delay. No generated
+  documentation or uncommitted source drift remains.
