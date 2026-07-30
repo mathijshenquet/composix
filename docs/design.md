@@ -840,6 +840,26 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   natively. The only genuine mismatch, abort-before-switch (old generation keeps
   serving on hook failure), is deferred until the native shape proves insufficient.
 
+- ✅ D49 (2026-07-30) — **netns-round resolutions** (Mathijs's read of
+  docs/compose-netns.md; closes that paper's open decisions):
+  (a) **Egress is a leaf/manifest property with a compose-level per-child override**
+  (`egress: true|false`), because capability need is app knowledge but *usage* is
+  instance knowledge (the same app does or does not egress depending on how you
+  deploy it — Mathijs's non-static observation). Tightening (declared, denied) is
+  silent; loosening (undeclared, granted) is LOUD in `cix compose check` — granting
+  what the artifact did not ask for is always said out loud. Same
+  manifest-default/compose-override pattern as env.
+  (b) **Publish fallback = proxyd-in-netns only for v1**; DNAT is not shipped
+  (firewall-interaction baggage, no demonstrated need).
+  (c) **Egress addressing: fixed cix-owned private range with per-composite subnets
+  persisted in composite state** (IPAM survives rollback; rollback restores units,
+  not leases). Address-keyed enforcement (D26/D27) requires stable addresses;
+  link-local remains rejected per D26 multi-host constraints.
+  (d) **Naming stays `cix-<comp>-netns.service` + `/run/netns/cix-<comp>`** — the
+  prefix is collision hygiene on shared /run/netns ground (libvirt, hand-made netns)
+  and consistent with `cix-*` units. Mathijs's drop-the-prefix suggestion is noted
+  for reconsideration if the names ever chafe.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

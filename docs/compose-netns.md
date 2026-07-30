@@ -1,8 +1,11 @@
 # Compose v1 networking — netns realization proposal
 
-Status: **proposal for the D23–D27 design round** (nothing here is decided; decisions in
-design.md win on conflict). Prepared 2026-07-29 as the working paper for compose v1's
-netns debt — the ledger's "the design debt the compose era must pay first."
+Status: **decided** — Mathijs's read 2026-07-30 closed the open decisions as **D49**
+(egress = leaf property + loud compose override; proxyd-only publish; fixed cix-owned
+subnet with persisted per-composite IPAM; naming kept). Together with D43 (pod-ness as
+scoped property, `network: host` escape dropped) and D48b (the word is `egress`), the
+mechanics below are the realization plan, applied at pod-claiming nodes. design.md
+wins on any remaining conflict.
 
 > **Amended by the 2026-07-30 tree round (D42–D44, docs/compose-tree.md):** "egress" is
 > renamed **`outbound`** (per-service spec field; opt-in capability polarity kept — the
