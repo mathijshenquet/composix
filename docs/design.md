@@ -880,6 +880,18 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   regrouping into chapter pages + the spec→manifest vocabulary sweep ride the same
   track (.dev/specs/track-tourbook.md).
 
+- ✅ D52 (2026-07-30) — **two directive-consistency fixes** (Mathijs's README read):
+  (a) service-block `CACHE` (the D11 role dir) renames to **`CACHEDIR`** — kills the
+  collision with D40's builder `CACHE`, and makes the role-dir directive family
+  mirror systemd's own field family one-to-one (`CACHEDIR`→`CacheDirectory=`,
+  `RUNDIR`→`RuntimeDirectory=`, …; the D48e transparency principle applied to
+  naming). Bare `CACHE` stays exclusively workshop vocabulary.
+  (b) **`LINK` argument order flips** to `LINK <target> <linkpath>` — the old order
+  (linkname first) contradicted BOTH `ln -s TARGET LINKNAME` and COPY's
+  source-first convention; the new order restores both muscle memories
+  ("where from, where it lands", uniform with COPY). Hard flips, migration-grade
+  errors, ride track/tourbook.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

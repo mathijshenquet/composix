@@ -57,6 +57,16 @@ ITEM; adjust artifact_kinds tests.
   state the doctrine in the directive docs: *a BUILDER exists only when there is
   RUN/FETCH work to do*. The README opening example must be the shortest honest form.
 
+## 4. D52: directive consistency (added while you may already be reading — check
+design.md D52)
+
+- Service-block `CACHE` → **`CACHEDIR`** (role dir, compiles to `CacheDirectory=`;
+  kills the collision with builder CACHE; family now mirrors systemd's
+  `*Directory=` names). Migration-grade error on old spelling in service blocks.
+- **`LINK` flips to `LINK <target> <linkpath>`** (ln -s and COPY source-first
+  conventions restored). Migration-grade error mentioning the old order. Sweep all
+  examples/docs/tour accordingly.
+
 ## Gate
 
 `cargo fmt --all --check` · clippy `-D warnings` · `cargo test --workspace` · tour
