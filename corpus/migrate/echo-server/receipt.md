@@ -1,6 +1,7 @@
 # echo-server migration receipt
 
 Date: 2026-07-30
+Layout refreshed: 2026-07-30 (no Cix rerun; the recorded timeout remains live)
 
 Docker image digest (local image ID): `sha256:617137dd0795830b72301249dfbebacb2255fc8614e7eb6952f5ce6c61c53a8d`
 

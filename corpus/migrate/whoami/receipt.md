@@ -1,10 +1,11 @@
 # whoami migration receipt
 
 Date: 2026-07-30
+Refreshed: 2026-07-30 (D50–D53 syntax; builder-local multi-FETCH pins)
 
 Docker image digest: `sha256:bf3c544f03d387bd30e9b8bc2e08bc6b6f4aae80d884822fe43e472844ab5d44`
 
-Cix item store path: `/nix/store/z7ad7rdyi4wcpbcx37rnynf4k00zvsfi-cix-item-whoami`
+Cix item store path: `/nix/store/y696s2gxr34bvcqzndm8gz2hkkhf9fci-cix-item-whoami`
 
 ## `./check.sh docker`
 
@@ -26,13 +27,13 @@ PASS docker
 ## `./check.sh cix`
 
 ```text
-FETCH src memo hit 0ca21c0c8d15 -> /nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot
-BUILDER build step 1 COPY /nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot/ -> . snapshot /nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot
-BUILDER build step 2 RUN memo hit 809f558ddf42 -> /nix/store/rcsvk7f1va6x0vplrs9rp78ppyppfy11-cix-build-snapshot
-/nix/store/z7ad7rdyi4wcpbcx37rnynf4k00zvsfi-cix-item-whoami
-cix unit cix-run-whoami-18c7280e51856f840.service
+BUILDER build step 1 FETCH memo hit adf7dc34e8d3 -> /nix/store/53gfms5rg2mi1azv3d7i9jyh0plmgsp0-cix-build-snapshot
+BUILDER build step 2 FETCH memo hit 73b409fc87bb -> /nix/store/r4hwf34z2ahq6piljcmrxr0sav5qs53m-cix-build-snapshot
+BUILDER build step 3 RUN memo hit 7f7350b70bbc -> /nix/store/7l36h0badcgz22acl0n8c3s2mb2ppxx4-cix-build-snapshot
+/nix/store/y696s2gxr34bvcqzndm8gz2hkkhf9fci-cix-item-whoami
+cix unit cix-run-whoami-18c7312f6dddcbdb0.service
 Hostname: ageq-devbeast
-RemoteAddr: 127.0.0.1:55058
+RemoteAddr: 127.0.0.1:51264
 GET / HTTP/1.1
 Host: 127.0.0.1
 User-Agent: curl/8.14.1

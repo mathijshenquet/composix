@@ -1,5 +1,21 @@
 # composix work log
 
+## 2026-07-30 (track/refresh corpus maintenance)
+
+- Committed `3ab519d`: refreshed the living migration corpus for D50–D53. Whoami
+  now has independently pinned builder-local clone/module FETCH steps (new item
+  `/nix/store/y696s2gxr34bvcqzndm8gz2hkkhf9fci-cix-item-whoami`); Adminer,
+  Memcached, and the complete Echo Server upstream tree obey the `context/` layout;
+  all five requested Cix checks pass. Caddy/Echo remain explicitly layout-only with
+  their prior failure/timeout honest in their receipts.
+- Added a per-candidate no-escape nixpkgs audit to `corpus/migrate/CANDIDATES.md`,
+  including alternate attrs and Ghost/LinuxServer ambiguity notes. The corpus LOG
+  holds the full reproduced commands and refreshed store paths.
+- Verification: `cargo test --workspace` passed untouched. Exact corpus commands:
+  `cd corpus/migrate/whoami && ../../../target/debug/cix build --update-lock build . && ./check.sh cix`,
+  then `./check.sh cix` in traefik, nats, adminer, and memcached; root-layout and
+  `git diff --check` audits passed. No open items.
+
 ## 2026-07-30 (track/tourbook complete)
 
 - Merged work: none in this worktree. Completed the track in `63073b8` and
