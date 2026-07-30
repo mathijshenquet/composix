@@ -371,3 +371,16 @@
   regeneration/drift/determinism, proj1 selective/warm/clean rebuild, root VM dogfood, and the
   systemd-261 compose fallback VM. Exact commands are in `crates/cix-cixfile/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify and merge `track/blocks`.
+
+## 2026-07-30 (track/sdbisect close)
+
+- Completed the same-host NixOS A/B check on `track/sdbisect`. Stock systemd 261 and a systemd
+  261 build with the `StateDirectory=` caller behavior from upstream `6431c34b8a84` reversed both
+  fail the minimal DynamicUser + PrivatePIDs + StateDirectory unit with `226/NAMESPACE`.
+- Decision: no new design decision. The candidate commit is not confirmed as causal; the upstream
+  issue draft now records the negative A/B result. Exact command and VM evidence are in
+  `.dev/sdbisect.LOG.md`.
+- Verification: `nix build .#checks.x86_64-linux.sdbisect-revert-vm --no-link -L` passed (exit 0);
+  the two-node test verifies the systemd version, patched PID 1, and failure transcript on both
+  VMs. Open with Mathijs: decide whether a further upstream investigation is worthwhile. Open for
+  agents: independently re-verify the committed `track/sdbisect` branch.

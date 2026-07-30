@@ -1,4 +1,4 @@
-# Upstream issue draft — systemd 261 regression (NOT YET FILED)
+# Upstream issue draft — possible systemd 261 regression (NOT YET FILED)
 
 Status: draft, awaiting Mathijs's go to file at https://github.com/systemd/systemd/issues.
 Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
@@ -6,9 +6,102 @@ Origin: track/composefallback bisection, 2026-07-30 (full evidence trail in
 fallback for this class (D36; `crates/cix-run/src/capabilities.rs`), so filing is
 advocacy, not a blocker for us.
 
+## Investigation update — same-host NixOS A/B rejects the candidate
+
+On 2026-07-30, the self-contained two-VM NixOS check was run against systemd 261.
+Both VMs use the same minimal root system unit (`Type=oneshot`, `/bin/true`,
+`DynamicUser=yes`, `PrivatePIDs=yes`, and `StateDirectory=sdbisect`) and the same
+kernel/harness. The stock VM failed with `Failed to allocate user namespace` and
+`status=226/NAMESPACE`. The other VM booted the patched systemd store path, where the
+`StateDirectory=` ID-mapped-mount caller was changed from
+`setgroups_deny=true` to `setgroups_deny=false`, reversing the behavior introduced at
+that call site by [`6431c34b8a84`](https://github.com/systemd/systemd/commit/6431c34b8a8487fb50c9cb850bd7d3bf81ad9e2a).
+It failed with the same two messages. Thus `6431c34b8a84` is **not confirmed as
+causal** by this A/B experiment. The exact command, patched PID 1 store path, and
+both VM transcripts are recorded in `.dev/sdbisect.LOG.md`.
+
+The full reverse of 6431c34 does not apply to the Nixpkgs 261 source because it
+contains subsequent API/caller changes. The check therefore applies the narrow,
+production-relevant functional reversal described above; it leaves subsequent callers
+that deliberately choose either setting intact.
+
+## Investigation update — non-NixOS repro not yet established
+
+The requested upstream same-harness A/B could **not** be completed on this host, so
+the v257-pass/v261-fail result remains cross-harness and NixOS-only. This is not
+evidence that the issue is NixOS-specific (or that it is not); no non-NixOS guest
+ever booted.
+
+The exact attempt used a clean upstream systemd clone at v261 in
+`/home/mathijs/tmp/systemd-sdbisect`, current upstream mkosi in
+`/home/mathijs/tmp/mkosi-sdbisect`, and mkosi's Fedora/rawhide main image:
+
+```sh
+sudo -n /nix/var/nix/profiles/default/bin/nix shell \
+  nixpkgs#mkosi nixpkgs#qemu nixpkgs#dnf5 nixpkgs#rpm nixpkgs#createrepo_c -c \
+  sh -c 'PATH=/home/mathijs/tmp/sdbisect-bin:$PATH; exec \
+  /home/mathijs/tmp/mkosi-sdbisect/bin/mkosi -f --tools-tree= \
+  --repository-key-check=no --distribution fedora --release rawhide build'
+```
+
+The NixOS host denies mkosi's unprivileged namespace setup, so the build required
+root. The packaged mkosi lacks the Git metadata needed by this systemd revision's
+`MinimumVersion=commit:…` check; current upstream mkosi was used instead. The Fedora
+bootstrap also required nixpkgs `dnf5`, `rpm`, and `createrepo_c` (with a local
+`dnf`→`dnf5` wrapper). systemd v261's RPM compilation completed, but final initrd
+assembly failed before boot: its `systemd` and `systemd-udev` `%sysusers` scriptlets
+reported `usermod: cannot lock /etc/passwd; try again later`, and mkosi's `dnf5
+--installroot=/buildroot … install … systemd … udev` exited 1. The full append-only
+command/error trail is in the tracked append-only `.dev/sdbisect.LOG.md`.
+
+Accordingly, the following body must not claim a regression. The non-NixOS repro is
+still absent, and the NixOS same-host A/B did not confirm the source candidate. The
+source analysis below is only a candidate audit.
+
+## Targeted source audit (v257..v261; not a bisect)
+
+No causal commit is proven. The strongest code-path candidate remains
+[`6431c34b8a84`](https://github.com/systemd/systemd/commit/6431c34b8a8487fb50c9cb850bd7d3bf81ad9e2a),
+`namespace-util: make "setgroups" users property writable via userns_acquire()`.
+It is between v257 and v261. Before it, `userns_acquire()` created the temporary
+user namespace for an ID-mapped mount, wrote its UID map and GID map, and returned
+its namespace FD. The commit inserts a `/proc/<child>/setgroups = deny` write between
+those operations and changes the persistent managed-directory call site in
+`src/core/namespace.c` to request it:
+
+```c
+userns_fd = userns_acquire(uid_map, gid_map, /* setgroups_deny= */ true);
+```
+
+That is the exact helper whose returned error is wrapped as `Failed to allocate user
+namespace` while applying the ID-mapped `StateDirectory=` mount. It also fits the
+observed boundary: persistent DynamicUser directories use this path, while the
+RuntimeDirectory-only case does not. The commit message says it enables the operation
+for unprivileged namespaces and that enabling it for all existing users, including
+ID-mapped mount users, “doesn't hurt”. It supplies no test for the DynamicUser +
+PrivatePIDs + persistent-directory triple.
+
+The PID namespace audit found the large
+[`8234cd9989d`](https://github.com/systemd/systemd/commit/8234cd9989d3834bf5c06e2b597ec097b985e1e8)
+`DelegateNamespaces=` refactor and its
+[`38748596f0`](https://github.com/systemd/systemd/commit/38748596f0783f2b773bd95d4af4d83f5b5ff872)
+user-manager follow-up. They deliberately split namespace setup before and after a
+unit user namespace. For the observed root system unit with default
+`DelegateNamespaces=`, however, the PID namespace remains non-delegated and is still
+set up before the mount namespace, as in v257. The smaller
+[`698ac172aa`](https://github.com/systemd/systemd/commit/698ac172aadd15afced079bb9553e1ea24e63d06)
+only detaches/reparents the PID-namespace child. These remain contextual candidates,
+not a causal finding.
+
+Neither the v258–v261 NEWS entries nor 6431c34's message announce an incompatible
+DynamicUser/PrivatePIDs/managed-directory behavior. If the same-harness result is
+eventually confirmed, the available intent evidence points to a bug in (or an
+uncovered interaction introduced by) 6431c34 rather than an intended behavior change.
+For now, that assessment is conditional.
+
 ## Proposed title
 
-systemd 261 regression: DynamicUser= + PrivatePIDs= + StateDirectory= fails at
+Possible systemd regression: DynamicUser= + PrivatePIDs= + StateDirectory= fails at
 226/NAMESPACE ("Failed to allocate user namespace")
 
 ## Proposed body
@@ -33,22 +126,28 @@ Failed to allocate user namespace: Operation not permitted
 status=226/NAMESPACE
 ```
 
-Observations:
+What we have observed:
 
 - Removing **any one** of `DynamicUser=yes`, `PrivatePIDs=yes`, or `StateDirectory=`
   makes the unit start.
-- The equivalent workload worked on systemd 257.
+- The equivalent workload worked on systemd 257 on a NixOS host, whereas the failure
+  was observed in a NixOS test VM. We have not yet reproduced either result in the
+  same non-NixOS harness, so please do not read this as a proven upstream regression.
 - `RuntimeDirectory=` does **not** reproduce (`DynamicUser=yes + PrivatePIDs=yes +
   RuntimeDirectory=` starts fine), further localizing this to **persistent ID-mapped
   managed directories** (`StateDirectory=` is the minimal proven representative; the
   Cache/Logs/Configuration variants share the backing mechanism).
-- `user.max_user_namespaces` is not the cause (raising it changes nothing); both v257
-  and v261 create a temporary user namespace while applying the ID-mapped
-  managed-directory mount, so the causal commit was not pinpointed by our audit of
-  258–261 changes.
+- `user.max_user_namespaces` is not the cause (raising it changes nothing).
+- A source audit, not a bisect, identifies 6431c34b8a84 as the strongest candidate:
+  it adds a `setgroups=deny` write to the temporary user namespace used by the
+  ID-mapped managed-directory mount. But a same-host NixOS A/B that disables that
+  behavior at the `StateDirectory=` caller still fails at 226/NAMESPACE, so this
+  candidate is not confirmed. We have not yet captured which low-level operation
+  returns `EPERM` in the failing VM.
 
-Question: is this an unintended interaction between PID-namespace setup (`sd-pidns`)
-and the user namespace used for ID-mapped managed directories?
+Could this be an unintended interaction between the `setgroups=deny` step in the
+temporary ID-mapped-mount user namespace and PID-namespace/proc setup? If useful, we
+can provide the NixOS VM expression and a debug/strace trace from a rerun.
 
 A self-contained NixOS VM test reproducing this is available (we can share the nix
 expression; it is derived from `nix/compose-fallback-vm.nix` in our repo).
