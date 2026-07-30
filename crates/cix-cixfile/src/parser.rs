@@ -165,7 +165,14 @@ impl Parser<'_> {
                         "CACHE in SERVICE or APP blocks was renamed to CACHEDIR by D52; CACHE is now builder-only",
                     ));
                 }
-                "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
+                "FILE" => self.heredoc(directive, line_number, source, arguments)?,
+                "SCRIPT" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "SCRIPT was dropped (D55); COPY a real script and EXEC ${pkgs.bash}/bin/sh <path>, or use FILE if the content needs store-path interpolation",
+                    ));
+                }
                 "LINK" => self.link(line_number, source, arguments)?,
                 "EXEC" => self.exec(line_number, source, arguments, false)?,
                 "SETUP" => self.exec(line_number, source, arguments, true)?,
@@ -636,16 +643,9 @@ impl Parser<'_> {
             })?;
         let contents = self.read_heredoc_body(directive, delimiter, line, source)?;
         self.claim_artifact_destination(fields[0], line, source)?;
-        let assembly = if directive == "FILE" {
-            Assembly::File {
-                dst: fields[0].to_owned(),
-                contents,
-            }
-        } else {
-            Assembly::Script {
-                dst: fields[0].to_owned(),
-                contents,
-            }
+        let assembly = Assembly::File {
+            dst: fields[0].to_owned(),
+            contents,
         };
         self.artifacts
             .get_mut(&artifact_name)
@@ -1928,13 +1928,10 @@ COPY ${build}/built bin/web
 FILE etc/app.conf <<E
 source=${src}
 E
-SCRIPT bin/start <<E
-exec bin/web
-E
 	LINK ${pkgs.bash}/bin/bash bin/sh
 PATH bin
-EXEC start
-SETUP bin/start
+EXEC web
+SETUP bin/web
 ENV PORT = 8080 required
 PORT http = $PORT
 LISTENER admin
@@ -2051,6 +2048,21 @@ STATE /var/lib/migrate
         assert_eq!(error.line, 4);
         assert!(error.message.contains("renamed to EGRESS"), "{error}");
         assert!(error.message.contains("D48(b)"), "{error}");
+    }
+
+    #[test]
+    fn script_has_the_d55_migration_error_and_is_not_an_alias() {
+        let source = "SCRIPT bin/start <<EOF";
+        let error = parse(&format!(
+            "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\n{source}\ntrue\nEOF\n"
+        ))
+        .unwrap_err();
+        assert_eq!(error.line, 4);
+        assert_eq!(error.source, source);
+        assert_eq!(
+            error.message,
+            "SCRIPT was dropped (D55); COPY a real script and EXEC ${pkgs.bash}/bin/sh <path>, or use FILE if the content needs store-path interpolation"
+        );
     }
 
     #[test]

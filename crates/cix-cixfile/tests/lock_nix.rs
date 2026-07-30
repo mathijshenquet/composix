@@ -1,5 +1,4 @@
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -93,7 +92,7 @@ fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
 }
 
 #[test]
-fn real_nix_build_assembles_files_scripts_links_and_spec() {
+fn real_nix_build_assembles_files_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
@@ -103,12 +102,9 @@ package=${pkgs.hello}
 escaped=$${literal}
 runtime=$VALUE
 EOF
-SCRIPT bin/start <<EOF
-exec /app/bin/hello
-EOF
 LINK ${pkgs.hello}/bin/hello bin/hello
 PATH bin
-EXEC start
+EXEC hello
 "#,
     )
     .unwrap();
@@ -124,16 +120,6 @@ EXEC start
     let contents = fs::read_to_string(output.join("share/content")).unwrap();
     assert!(contents.starts_with("package=/nix/store/"), "{contents}");
     assert!(contents.contains("\nescaped=${literal}\nruntime=$VALUE\n"));
-    let script = fs::read_to_string(output.join("bin/start")).unwrap();
-    assert!(script.starts_with("#!/nix/store/"), "{script}");
-    assert_ne!(
-        fs::metadata(output.join("bin/start"))
-            .unwrap()
-            .permissions()
-            .mode()
-            & 0o111,
-        0
-    );
     assert!(fs::read_link(output.join("bin/hello"))
         .unwrap()
         .to_string_lossy()
@@ -141,7 +127,7 @@ EXEC start
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     assert_eq!(spec.cix_manifest, 4);
-    assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/start"]);
+    assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/hello"]);
     assert_eq!(
         spec.select_service(None).unwrap().1.env["PATH"]
             .default
