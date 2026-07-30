@@ -7,15 +7,18 @@
     }
   },
   "fetches": {
-    "payload": {
+    "builder:payload:0-731381cda3c9": {
       "narHash": "sha256-XhP7EsnseO1i7z6hXTRfJ17kuLWNtxv0r2fWrgOpz58="
     }
   },
   "memo": {
-    "9921114837b683c48914b32e6495436e434b07fc2dfd9a4ce8dedad74b1fbadf": {
-      "outputNarHash": "sha256-XhP7EsnseO1i7z6hXTRfJ17kuLWNtxv0r2fWrgOpz58=",
-      "storePath": "/nix/store/vnqy73nr2876861bjxv3krbkws2kxf67-cix-build-snapshot",
-      "wallMs": 218
+    "da2898d1c9a6f2fcdeac6cb542a1f9beffb143aec296c800933878ead74e50d5": {
+      "paths": {
+        "README.md": {
+          "narHash": "sha256-3H04JVW8rEq21NIeM4f1dxg8W/1+odQG4DfmN0wIP9M=",
+          "storePath": "/nix/store/sxp083r516p411ad3252jfi5cqcxxwzb-cix-build-consumed"
+        }
+      }
     }
   }
 }

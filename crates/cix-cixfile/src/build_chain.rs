@@ -54,6 +54,12 @@ struct Attribution {
     line: usize,
 }
 
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct WorkspaceState {
+    step_keys: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunNetwork {
     Namespace,
@@ -289,7 +295,7 @@ fn execute_builder(
     };
     let environment = build_environment(context.environment.clone());
     install_declared_expectations(builder_name, builder, &context.commands, lock);
-    let existing_key = builder_chain_key(
+    let existing_keys = builder_chain_keys(
         builder_name,
         builder,
         &context,
@@ -297,6 +303,11 @@ fn execute_builder(
         &environment,
         lock,
     )?;
+    let existing_key = existing_keys.as_ref().map(|keys| {
+        keys.last()
+            .cloned()
+            .unwrap_or_else(|| hex_hash(format!("BUILDER\0{builder_name}").as_bytes()))
+    });
     if !cold && !update_fetch_pins {
         if let Some(key) = &existing_key {
             if memo_has_paths(lock.memo.get(key), &needed)? {
@@ -310,9 +321,32 @@ fn execute_builder(
         }
     }
 
-    let persistent;
+    let persistent = (!cold)
+        .then(|| workspace_paths(directory, builder_name))
+        .transpose()?;
+    let prior_keys = persistent
+        .as_ref()
+        .and_then(|paths| load_workspace_state(&paths.2))
+        .map(|state| state.step_keys)
+        .unwrap_or_default();
+    let first_changed = existing_keys.as_ref().map_or(0, |keys| {
+        keys.iter()
+            .zip(&prior_keys)
+            .take_while(|(current, prior)| current == prior)
+            .count()
+    });
+    let warm_rerun_from = existing_keys
+        .as_ref()
+        .filter(|keys| keys.as_slice() != prior_keys.as_slice())
+        .map_or(0, |_| first_changed);
+    let clean_execution = cold
+        || update_fetch_pins
+        || builder.steps[warm_rerun_from..]
+            .iter()
+            .any(|step| matches!(step, BuildStep::Fetch { .. }));
+    let rerun_from = if clean_execution { 0 } else { warm_rerun_from };
     let temporary;
-    let (workdir, staging) = if cold {
+    let (workdir, staging) = if clean_execution {
         temporary = tempfile::Builder::new()
             .prefix("cix-build-cold-")
             .tempdir()
@@ -323,12 +357,12 @@ fn execute_builder(
         fs::create_dir_all(&work)?;
         (work, staging)
     } else {
-        persistent = workspace_paths(directory, builder_name)?;
+        let persistent = persistent.as_ref().expect("warm execution has a workspace");
         eprintln!(
             "BUILDER {builder_name} workspace {}",
             persistent.0.display()
         );
-        persistent
+        (persistent.0.clone(), persistent.1.clone())
     };
 
     let mut command_index = 0;
@@ -357,6 +391,13 @@ fn execute_builder(
             BuildStep::Fetch { line, source, .. } | BuildStep::Run { line, source, .. } => {
                 let command = &context.commands[command_index];
                 command_index += 1;
+                if index < rerun_from {
+                    eprintln!(
+                        "BUILDER {builder_name} step {} reused from persistent workspace",
+                        index + 1
+                    );
+                    continue;
+                }
                 let is_fetch = matches!(step, BuildStep::Fetch { .. });
                 let kind = if is_fetch { "FETCH" } else { "RUN" };
                 let started = Instant::now();
@@ -402,7 +443,7 @@ fn execute_builder(
             }
         }
     }
-    let key = builder_chain_key(
+    let step_keys = builder_chain_keys(
         builder_name,
         builder,
         &context,
@@ -411,11 +452,27 @@ fn execute_builder(
         lock,
     )?
     .context("builder chain still has an unpinned FETCH after execution")?;
+    let key = step_keys
+        .last()
+        .cloned()
+        .unwrap_or_else(|| hex_hash(format!("BUILDER\0{builder_name}").as_bytes()));
     let paths = store_consumed_paths(&workdir, &needed)?;
     if cold {
         compare_cold_paths(lock.memo.get(&key), &paths, &needed)?;
     }
     lock.memo.insert(key.clone(), memo_entry(paths.clone()));
+    if let Some(persistent) = &persistent {
+        if clean_execution {
+            replace_workspace_tree(&workdir, &persistent.0)?;
+            replace_workspace_tree(&staging, &persistent.1)?;
+        }
+        save_workspace_state(
+            &persistent.2,
+            &WorkspaceState {
+                step_keys: step_keys.clone(),
+            },
+        )?;
+    }
     let view = materialize_view(&paths)?;
     eprintln!(
         "BUILDER {builder_name} memo miss {} -> {view}",
@@ -550,15 +607,16 @@ fn install_declared_expectations(
     }
 }
 
-fn builder_chain_key(
+fn builder_chain_keys(
     builder_name: &str,
     builder: &Builder,
     context: &BuildContext,
     offered_closure: &BTreeSet<String>,
     environment: &BTreeMap<String, String>,
     lock: &LockFile,
-) -> Result<Option<String>> {
+) -> Result<Option<Vec<String>>> {
     let mut predecessor = hex_hash(format!("BUILDER\0{builder_name}").as_bytes());
+    let mut keys = Vec::with_capacity(builder.steps.len());
     let mut command_index = 0;
     let mut copy_index = 0;
     for (index, step) in builder.steps.iter().enumerate() {
@@ -604,8 +662,9 @@ fn builder_chain_key(
             environment,
             fetch_pin,
         )?;
+        keys.push(predecessor.clone());
     }
-    Ok(Some(predecessor))
+    Ok(Some(keys))
 }
 
 fn top_fetch_chain_key(
@@ -766,7 +825,7 @@ fn add_store_object(path: &Path, name: &str) -> Result<String> {
         .context("nix store add did not return a store path")
 }
 
-fn workspace_paths(directory: &Path, builder: &str) -> Result<(PathBuf, PathBuf)> {
+fn workspace_paths(directory: &Path, builder: &str) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let base = if let Some(path) = std::env::var_os("CIX_BUILD_WORKSPACE_DIR") {
         PathBuf::from(path)
     } else if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
@@ -782,11 +841,30 @@ fn workspace_paths(directory: &Path, builder: &str) -> Result<(PathBuf, PathBuf)
     let root = base.join(identity);
     let work = root.join("work");
     let staged = root.join("staged");
+    let state = root.join("state.json");
     fs::create_dir_all(&work)
         .with_context(|| format!("creating persistent builder workspace {}", work.display()))?;
     fs::create_dir_all(&staged)
         .with_context(|| format!("creating builder staging records {}", staged.display()))?;
-    Ok((work, staged))
+    Ok((work, staged, state))
+}
+
+fn load_workspace_state(path: &Path) -> Option<WorkspaceState> {
+    serde_json::from_slice(&fs::read(path).ok()?).ok()
+}
+
+fn save_workspace_state(path: &Path, state: &WorkspaceState) -> Result<()> {
+    let temporary = path.with_extension("json.next");
+    fs::write(&temporary, serde_json::to_vec(state)?)
+        .with_context(|| format!("writing builder workspace state {}", temporary.display()))?;
+    fs::rename(&temporary, path)
+        .with_context(|| format!("replacing builder workspace state {}", path.display()))
+}
+
+fn replace_workspace_tree(source: &Path, destination: &Path) -> Result<()> {
+    remove_path_if_present(destination)?;
+    fs::create_dir_all(destination)?;
+    copy_tree(source, destination)
 }
 
 fn workspace_identity(directory: &Path, builder: &str) -> String {
@@ -794,11 +872,17 @@ fn workspace_identity(directory: &Path, builder: &str) -> String {
 }
 
 fn stage_input(source: &Path, dst: &str, workspace: &Path, baseline: &Path) -> Result<()> {
+    let first_application = !baseline.exists();
     let next = baseline.with_extension("next");
     remove_path_if_present(&next)?;
     fs::create_dir_all(&next)?;
     copy_input(source, dst, &next)?;
-    sync_directories(baseline.exists().then_some(baseline), &next, workspace)?;
+    sync_directories(
+        baseline.exists().then_some(baseline),
+        &next,
+        workspace,
+        first_application,
+    )?;
     make_writable(workspace)?;
     remove_path_if_present(baseline)?;
     fs::rename(&next, baseline).with_context(|| {
@@ -812,7 +896,12 @@ fn stage_input(source: &Path, dst: &str, workspace: &Path, baseline: &Path) -> R
     Ok(())
 }
 
-fn sync_directories(old: Option<&Path>, new: &Path, workspace: &Path) -> Result<()> {
+fn sync_directories(
+    old: Option<&Path>,
+    new: &Path,
+    workspace: &Path,
+    first_application: bool,
+) -> Result<()> {
     let mut names = BTreeSet::new();
     if let Some(old) = old {
         for entry in fs::read_dir(old)? {
@@ -827,24 +916,37 @@ fn sync_directories(old: Option<&Path>, new: &Path, workspace: &Path) -> Result<
             old.map(|root| root.join(&name)).as_deref(),
             Some(&new.join(&name)),
             &workspace.join(&name),
+            first_application,
         )?;
     }
     Ok(())
 }
 
-fn sync_node(old: Option<&Path>, new: Option<&Path>, workspace: &Path) -> Result<()> {
+fn sync_node(
+    old: Option<&Path>,
+    new: Option<&Path>,
+    workspace: &Path,
+    first_application: bool,
+) -> Result<()> {
     let old = old.filter(|path| fs::symlink_metadata(path).is_ok());
     let new = new.filter(|path| fs::symlink_metadata(path).is_ok());
     let work_exists = fs::symlink_metadata(workspace).is_ok();
     match (old, new, work_exists) {
         (None, Some(new), false) => copy_node(new, workspace),
+        (None, Some(new), true) if first_application && new.is_dir() && workspace.is_dir() => {
+            sync_directories(None, new, workspace, true)
+        }
+        (None, Some(new), true) if first_application => {
+            remove_path_if_present(workspace)?;
+            copy_node(new, workspace)
+        }
         (None, Some(_), true) | (None, None, _) | (Some(_), _, false) => Ok(()),
         (Some(old), Some(new), true) if old.is_dir() && new.is_dir() && workspace.is_dir() => {
-            sync_directories(Some(old), new, workspace)
+            sync_directories(Some(old), new, workspace, first_application)
         }
         (Some(old), None, true) if old.is_dir() && workspace.is_dir() => {
             let empty = tempfile::tempdir()?;
-            sync_directories(Some(old), empty.path(), workspace)?;
+            sync_directories(Some(old), empty.path(), workspace, first_application)?;
             if fs::read_dir(workspace)?.next().is_none() {
                 fs::remove_dir(workspace)?;
             }
@@ -1619,6 +1721,31 @@ mod tests {
         assert_eq!(
             error,
             "COPY ${build}/target/release/app (line 17) differs between warm and cold"
+        );
+    }
+
+    #[test]
+    fn first_staging_overrides_prior_step_output_then_preserves_upper_writes() {
+        let root = tempfile::tempdir().unwrap();
+        let workspace = root.path().join("work");
+        let baseline = root.path().join("staged/step");
+        let source = root.path().join("source");
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(workspace.join("value"), "earlier command").unwrap();
+        fs::write(&source, "declared v1").unwrap();
+
+        stage_input(&source, "value", &workspace, &baseline).unwrap();
+        assert_eq!(
+            fs::read_to_string(workspace.join("value")).unwrap(),
+            "declared v1"
+        );
+
+        fs::write(workspace.join("value"), "later command").unwrap();
+        fs::write(&source, "declared v2").unwrap();
+        stage_input(&source, "value", &workspace, &baseline).unwrap();
+        assert_eq!(
+            fs::read_to_string(workspace.join("value")).unwrap(),
+            "later command"
         );
     }
 

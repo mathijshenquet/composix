@@ -5,12 +5,12 @@ BUILDER build
 IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
     ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert}
 
-# Fetch from manifests first so source-only edits reuse the dependency snapshot.
 COPY ${src}/Cargo.toml Cargo.toml
 COPY ${src}/Cargo.lock Cargo.lock
+COPY ${src}/fetch.rs fetch.rs
 FETCH cargo fetch --locked
 COPY ${src}/src/ src
-RUN cargo build --release --locked --offline
+RUN cargo build --release --locked --offline --bin projb
 
 SERVICE projb
 COPY ${build}/target/release/projb bin/projb

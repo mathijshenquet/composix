@@ -7,3 +7,7 @@ edition = "2021"
 tiny_http = "0.12"
 
 [workspace]
+
+[[bin]]
+name = "fetch"
+path = "fetch.rs"

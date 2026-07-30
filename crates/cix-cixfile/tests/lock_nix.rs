@@ -494,6 +494,138 @@ COPY ${{build}}/one one
 }
 
 #[test]
+fn warm_source_edit_after_fetch_reuses_the_pinned_prefix() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("manifest"), "manifest\n").unwrap();
+    fs::write(directory.path().join("source"), "v1\n").unwrap();
+    let expected_tree = tempfile::tempdir().unwrap();
+    fs::write(expected_tree.path().join("manifest"), "manifest\n").unwrap();
+    fs::write(expected_tree.path().join("payload"), "fixed\n").unwrap();
+    let expected = cix_common::nix(&[
+        "hash",
+        "path",
+        "--mode",
+        "nar",
+        expected_tree.path().to_str().unwrap(),
+    ])
+    .unwrap()
+    .trim()
+    .to_owned();
+    fs::write(
+        directory.path().join("Cixfile"),
+        format!(
+            r#"FROM nixpkgs AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{src}}/manifest manifest
+FETCH EXPECT {expected} printf 'fixed\n' > payload
+COPY ${{src}}/source source
+RUN cp source output
+SERVICE result
+COPY ${{build}}/output output
+EXEC /bin/true
+"#
+        ),
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    let first = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&first[0].store_path).join("output")).unwrap(),
+        "v1\n"
+    );
+
+    fs::write(directory.path().join("source"), "v2\n").unwrap();
+    let second = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&second[0].store_path).join("output")).unwrap(),
+        "v2\n"
+    );
+}
+
+#[test]
+fn changed_step_before_fetch_replays_command_prefix_in_clean_workspace() {
+    let directory = tempfile::tempdir().unwrap();
+    let expected_tree = tempfile::tempdir().unwrap();
+    fs::write(expected_tree.path().join("required"), "present\n").unwrap();
+    let expected = cix_common::nix(&[
+        "hash",
+        "path",
+        "--mode",
+        "nar",
+        expected_tree.path().to_str().unwrap(),
+    ])
+    .unwrap()
+    .trim()
+    .to_owned();
+    let cixfile = |middle: &str| {
+        format!(
+            r#"FROM nixpkgs AS pkgs
+BUILDER build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+RUN printf 'present\n' > required
+RUN {middle}
+FETCH EXPECT {expected} test -f required
+SERVICE result
+COPY ${{build}}/required required
+EXEC /bin/true
+"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("true")).unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+
+    fs::write(directory.path().join("Cixfile"), cixfile("test 1 = 1")).unwrap();
+    let rebuilt = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&rebuilt[0].store_path).join("required")).unwrap(),
+        "present\n"
+    );
+}
+
+#[test]
 fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
