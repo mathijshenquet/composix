@@ -7,7 +7,9 @@ sibling of docs/docker.md: docker.md maps *features*, this maps *real artifacts*
 > assigned from reading, not from converting and running. "✅ dissolves" is optimism
 > until a Cixfile builds and passes a health check. The migrate-prompt track
 > (.dev/specs/track-migrate.md) is the empirical re-analysis: its receipts confirm or
-> refute these grades, and its loss numbers supersede this table's cheer.**
+> refute these grades, and its loss numbers supersede this table's cheer. Those dual
+> receipts prove functional faithfulness, not version parity: a Dockerfile-pinned release
+> and the package selected by a pinned nixpkgs revision may differ.**
 
 Ribbons:
 

@@ -17,8 +17,8 @@ built now. Everything may change.
 | part | what | status |
 | --- | --- | --- |
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
-| **spec + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (spec v4; reads v1–v4) |
-| **Cixfile** | dockerfile-shaped authoring without writing nix; named builders and explicit service/app/item artifacts | working (v1) |
+| **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (manifest v4; reads v1–v4) |
+| **Cixfile** | dockerfile-shaped authoring without writing nix; builders for build work and explicit service/app artifacts | working (v1) |
 | **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
 
 ## A taste
@@ -28,17 +28,13 @@ built now. Everything may change.
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
+SERVICE nginx
 COPY ${src}/index.html srv/www/index.html
 COPY ${src}/nginx.conf etc/nginx/nginx.conf
-
-SERVICE nginx
-COPY ${build}/srv/www/index.html srv/www/index.html
-COPY ${build}/etc/nginx/nginx.conf etc/nginx/nginx.conf
-LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
+LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
-CACHE /var/cache/nginx
+CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
 ```
 
@@ -68,7 +64,7 @@ paths (`/etc/nginx/…`) — a sparse rootfs fragment, no layers, no templating.
 
 ## Examples
 
-`examples/` is the seed of a spec'd-packages collection: individual services live in
+`examples/` is the seed of a packaged-service collection: individual services live in
 [`examples/pack/`](examples/pack/) (with Redis showing both Cixfile and `withSpec` authoring),
 composites in `examples/compose/`, and build stories in `examples/build/`. `examples/dstyle/`
 is the design-era archive. Each runnable pack has a `demo.sh`; a NixOS VM check

@@ -1,6 +1,7 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
+# Keep the upstream release URL honest by checking the checksum from the source Dockerfile.
 FETCH adminer_src ${pkgs.bash}/bin/bash -c 'SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.curl}/bin/curl -fsSL https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php -o adminer.php && echo "d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9  adminer.php" | ${pkgs.coreutils}/bin/sha256sum -c -'
 
 SERVICE adminer

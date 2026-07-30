@@ -96,10 +96,42 @@ impl Parser<'_> {
             let line_number = self.index + 1;
             let source = self.lines[self.index];
             self.index += 1;
-            let trimmed = source.trim();
-            if trimmed.is_empty() || trimmed.starts_with('#') {
+            let initial = source.trim();
+            if initial.is_empty() || initial.starts_with('#') {
                 continue;
             }
+            let mut logical = source.trim_end().to_owned();
+            while logical.ends_with('\\') {
+                logical.pop();
+                logical.truncate(logical.trim_end().len());
+                let continuation_line = self.index + 1;
+                let Some(continuation) = self.lines.get(self.index).copied() else {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "directive line continuation has no following physical line",
+                    ));
+                };
+                self.index += 1;
+                let fragment = continuation
+                    .trim()
+                    .strip_suffix('\\')
+                    .unwrap_or(continuation.trim())
+                    .trim_end();
+                if fragment.contains("${") {
+                    self.build_template(fragment, continuation_line, continuation, false)?;
+                }
+                logical.push(' ');
+                logical.push_str(continuation.trim());
+                if continuation.trim_end().ends_with('\\') && self.index == self.lines.len() {
+                    return Err(ParseError::new(
+                        continuation_line,
+                        continuation,
+                        "directive line continuation has no following physical line",
+                    ));
+                }
+            }
+            let trimmed = logical.trim();
             let (directive, arguments) = trimmed
                 .split_once(char::is_whitespace)
                 .map_or((trimmed, ""), |(directive, arguments)| {
@@ -114,13 +146,24 @@ impl Parser<'_> {
                 }
                 "APP" => self.begin_artifact(ArtifactKind::App, line_number, source, arguments)?,
                 "ITEM" => {
-                    self.begin_artifact(ArtifactKind::Item, line_number, source, arguments)?
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "ITEM was dropped (D50); use SERVICE or APP; a future content-only block would be ASSETS",
+                    ));
                 }
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "RUN" => self.run(line_number, source, arguments)?,
                 "PATH" => self.path(line_number, source, arguments)?,
                 "CACHE" if matches!(self.current, Some(CurrentBlock::Builder(_))) => {
                     self.build_cache(line_number, source, arguments)?
+                }
+                "CACHE" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "CACHE in SERVICE or APP blocks was renamed to CACHEDIR by D52; CACHE is now builder-only",
+                    ));
                 }
                 "FILE" | "SCRIPT" => self.heredoc(directive, line_number, source, arguments)?,
                 "LINK" => self.link(line_number, source, arguments)?,
@@ -129,7 +172,7 @@ impl Parser<'_> {
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
-                "STATE" | "CACHE" | "LOGS" | "CONFIG" | "RUNDIR" => {
+                "STATE" | "CACHEDIR" | "LOGS" | "CONFIG" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
                 "JIT" => self.jit(line_number, source, arguments)?,
@@ -177,11 +220,11 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile must declare at least one SERVICE, APP, or ITEM block",
+                "a Cixfile must declare at least one SERVICE or APP block",
             ));
         }
         for (name, artifact) in &self.artifacts {
-            if artifact.kind != ArtifactKind::Item && artifact.service.exec.is_empty() {
+            if artifact.service.exec.is_empty() {
                 return Err(ParseError::new(
                     artifact.line,
                     self.lines
@@ -194,10 +237,8 @@ impl Parser<'_> {
                     ),
                 ));
             }
-            if artifact.kind != ArtifactKind::Item {
-                validate_service_references(&artifact.service, &self.metadata[name])?;
-                validate_bare_commands(&artifact.service, &self.metadata[name], &artifact.paths)?;
-            }
+            validate_service_references(&artifact.service, &self.metadata[name])?;
+            validate_bare_commands(&artifact.service, &self.metadata[name], &artifact.paths)?;
         }
         Ok(Cixfile {
             inputs: self.inputs,
@@ -450,7 +491,7 @@ impl Parser<'_> {
             ParseError::new(
                 line,
                 source,
-                "COPY must appear inside a BUILDER, SERVICE, APP, or ITEM block under D47",
+                "COPY must appear inside a BUILDER, SERVICE, or APP block under D47",
             )
         })?;
         let name = match &block {
@@ -502,7 +543,16 @@ impl Parser<'_> {
                 "RUN is only legal inside a BUILDER block (D47 workshop/shipping-dock doctrine)",
             ));
         };
-        self.builder_command(&name, false, line, source, arguments)
+        let command = if let Some(delimiter) = heredoc_delimiter(arguments, "RUN", line, source)? {
+            self.read_heredoc_body("RUN", delimiter, line, source)?
+        } else {
+            if arguments.is_empty() {
+                return Err(ParseError::new(line, source, "RUN requires a command"));
+            }
+            self.build_template(arguments, line, source, false)?
+        };
+        self.push_builder_command(&name, false, line, source, command);
+        Ok(())
     }
 
     fn builder_command(
@@ -522,6 +572,18 @@ impl Parser<'_> {
             ));
         }
         let command = self.build_template(arguments, line, source, false)?;
+        self.push_builder_command(builder, fetch, line, source, command);
+        Ok(())
+    }
+
+    fn push_builder_command(
+        &mut self,
+        builder: &str,
+        fetch: bool,
+        line: usize,
+        source: &str,
+        command: Template,
+    ) {
         let step = if fetch {
             BuildStep::Fetch {
                 command,
@@ -540,7 +602,6 @@ impl Parser<'_> {
             .expect("builder exists")
             .steps
             .push(step);
-        Ok(())
     }
 
     fn heredoc(
@@ -553,13 +614,6 @@ impl Parser<'_> {
         let artifact_name = self
             .current_artifact_name(directive, line, source)?
             .to_owned();
-        if self.artifacts[&artifact_name].kind == ArtifactKind::Item && directive == "SCRIPT" {
-            return Err(ParseError::new(
-                line,
-                source,
-                "SCRIPT is not legal inside ITEM blocks under D47; ITEM is assets-only (COPY/FILE/LINK)",
-            ));
-        }
         let fields = exact_fields(
             arguments,
             2,
@@ -580,29 +634,7 @@ impl Parser<'_> {
                     format!("{directive} heredoc must use << followed by a delimiter"),
                 )
             })?;
-        let mut contents = Template { parts: Vec::new() };
-        let mut terminated = false;
-        while self.index < self.lines.len() {
-            let body_line_number = self.index + 1;
-            let body_line = self.lines[self.index];
-            self.index += 1;
-            if body_line == delimiter {
-                terminated = true;
-                break;
-            }
-            append_template(
-                &mut contents,
-                self.build_template(body_line, body_line_number, body_line, true)?,
-            );
-            push_literal(&mut contents, "\n");
-        }
-        if !terminated {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("unterminated {directive} heredoc; expected {delimiter:?}"),
-            ));
-        }
+        let contents = self.read_heredoc_body(directive, delimiter, line, source)?;
         self.claim_artifact_destination(fields[0], line, source)?;
         let assembly = if directive == "FILE" {
             Assembly::File {
@@ -623,13 +655,54 @@ impl Parser<'_> {
         Ok(())
     }
 
+    fn read_heredoc_body(
+        &mut self,
+        directive: &str,
+        delimiter: &str,
+        line: usize,
+        source: &str,
+    ) -> Result<Template, ParseError> {
+        let mut contents = Template { parts: Vec::new() };
+        while self.index < self.lines.len() {
+            let body_line_number = self.index + 1;
+            let body_line = self.lines[self.index];
+            self.index += 1;
+            if body_line == delimiter {
+                return Ok(contents);
+            }
+            append_template(
+                &mut contents,
+                self.build_template(body_line, body_line_number, body_line, true)?,
+            );
+            push_literal(&mut contents, "\n");
+        }
+        Err(ParseError::new(
+            line,
+            source,
+            format!("unterminated {directive} heredoc; expected {delimiter:?}"),
+        ))
+    }
+
     fn link(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 2, line, source, "LINK <dst> <target>")?;
-        validate_item_path(fields[0], "LINK destination", line, source)?;
-        reject_build_interpolation(fields[0], "LINK destination", line, source)?;
-        reject_runtime_variable(fields[0], "LINK destination", line, source)?;
-        reject_runtime_variable(fields[1], "LINK target", line, source)?;
-        let target = self.build_template(fields[1], line, source, false)?;
+        let fields = exact_fields(arguments, 2, line, source, "LINK <target> <linkpath>")?;
+        let unmistakably_old_order = (fields[1].contains("${")
+            || fields[1].starts_with("/nix/store/"))
+            && validate_item_path(fields[0], "LINK path", line, source).is_ok();
+        if unmistakably_old_order
+            || validate_item_path(fields[1], "LINK path", line, source).is_err()
+                && validate_item_path(fields[0], "LINK path", line, source).is_ok()
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                "LINK argument order changed in D52; replace old `LINK <linkpath> <target>` with `LINK <target> <linkpath>`",
+            ));
+        }
+        validate_item_path(fields[1], "LINK path", line, source)?;
+        reject_build_interpolation(fields[1], "LINK path", line, source)?;
+        reject_runtime_variable(fields[1], "LINK path", line, source)?;
+        reject_runtime_variable(fields[0], "LINK target", line, source)?;
+        let target = self.build_template(fields[0], line, source, false)?;
         if target.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -637,11 +710,11 @@ impl Parser<'_> {
                 "LINK target must not be empty",
             ));
         }
-        self.claim_artifact_destination(fields[0], line, source)?;
+        self.claim_artifact_destination(fields[1], line, source)?;
         self.current_artifact_mut("LINK", line, source)?
             .assembly
             .push(Assembly::Link {
-                dst: fields[0].to_owned(),
+                dst: fields[1].to_owned(),
                 target,
             });
         Ok(())
@@ -660,15 +733,6 @@ impl Parser<'_> {
             .current_artifact_name(directive, line, source)?
             .to_owned();
         let kind = self.artifacts[&artifact_name].kind;
-        if kind == ArtifactKind::Item {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!(
-                    "{directive} is not legal inside ITEM blocks under D47; use SERVICE for a daemon or APP for run-to-completion"
-                ),
-            ));
-        }
         if kind == ArtifactKind::App && setup {
             return Err(ParseError::new(
                 line,
@@ -887,7 +951,7 @@ impl Parser<'_> {
         arguments: &str,
     ) -> Result<(), ParseError> {
         let allowed = match directive {
-            "STATE" | "CACHE" => &[ArtifactKind::Service, ArtifactKind::App][..],
+            "STATE" | "CACHEDIR" => &[ArtifactKind::Service, ArtifactKind::App][..],
             _ => &[ArtifactKind::Service][..],
         };
         self.require_artifact_kind(directive, line, source, allowed)?;
@@ -896,7 +960,7 @@ impl Parser<'_> {
         reject_runtime_variable(fields[0], "directory path", line, source)?;
         let (root, role) = match directive {
             "STATE" => ("/var/lib", "state"),
-            "CACHE" => ("/var/cache", "cache"),
+            "CACHEDIR" => ("/var/cache", "cache"),
             "LOGS" => ("/var/log", "logs"),
             "CONFIG" => ("/etc", "config"),
             "RUNDIR" => ("/run", "run"),
@@ -906,7 +970,7 @@ impl Parser<'_> {
         let service = self.current_service_mut(directive, line, source)?;
         let paths = match directive {
             "STATE" => &mut service.dirs.state,
-            "CACHE" => &mut service.dirs.cache,
+            "CACHEDIR" => &mut service.dirs.cache,
             "LOGS" => &mut service.dirs.logs,
             "CONFIG" => &mut service.dirs.config,
             "RUNDIR" => &mut service.dirs.run,
@@ -1125,6 +1189,29 @@ impl Parser<'_> {
             .insert(name.to_owned(), DeclaredName { kind, line });
         Ok(())
     }
+}
+
+fn heredoc_delimiter<'a>(
+    arguments: &'a str,
+    directive: &str,
+    line: usize,
+    source: &str,
+) -> Result<Option<&'a str>, ParseError> {
+    if !arguments.starts_with("<<") {
+        return Ok(None);
+    }
+    let fields = exact_fields(arguments, 1, line, source, &format!("{directive} <<EOF"))?;
+    let delimiter = fields[0]
+        .strip_prefix("<<")
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            ParseError::new(
+                line,
+                source,
+                format!("{directive} heredoc must use << followed by a delimiter"),
+            )
+        })?;
+    Ok(Some(delimiter))
 }
 
 fn exact_fields<'a>(
@@ -1820,419 +1907,12 @@ fn validate_role_path(
     Ok(())
 }
 
-#[cfg(all(test, any()))]
-mod tests {
-    use super::*;
-
-    const COMPLETE: &str = r#"
-# assembly
-FROM nixpkgs AS pkgs
-CACHE target
-COPY index.html www/index.html
-ITEM web
-TAKE www/index.html www/index.html
-FILE etc/app.conf <<CONF
-package=${pkgs.nginx}
-escaped=$${literal}
-runtime=$PORT
-CONF
-SCRIPT bin/start <<SCRIPT
-exec /app/bin/nginx "$PORT"
-SCRIPT
-LINK bin/nginx ${pkgs.nginx}/bin/nginx
-
-EXEC bin/start $PORT
-SETUP bin/start $PORT
-ENV PORT = 8080 required secret
-PORT http = $PORT
-LISTENER admin
-STATE /var/lib/web
-CACHE /var/cache/web
-LOGS /var/log/web
-CONFIG /etc/web
-RUNDIR /run/web
-JIT
-"#;
-
-    #[test]
-    fn parses_every_v1_directive() {
-        let parsed = parse(COMPLETE).unwrap();
-        assert_eq!(parsed.caches, ["target"]);
-        assert_eq!(parsed.items["web"].assembly.len(), 3);
-        assert_eq!(parsed.items["web"].takes.len(), 1);
-        let service = &parsed.items["web"].service;
-        assert_eq!(service.exec.len(), 2);
-        assert!(service.setup.is_some());
-        assert_eq!(
-            service.env["PORT"],
-            Env {
-                default: Some(Template::literal("8080")),
-                required: true,
-                secret: true,
-            }
-        );
-        assert_eq!(service.ports["http"], Port::Env("PORT".into()));
-        assert!(service.listeners.contains("admin"));
-        assert!(service.jit);
-
-        let Assembly::File { contents, .. } = &parsed.items["web"].assembly[0] else {
-            panic!("expected FILE");
-        };
-        assert!(contents.parts.contains(&TemplatePart::Package {
-            namespace: "pkgs".into(),
-            attrpath: "nginx".into(),
-            line: 9,
-        }));
-        assert!(contents.literal_value().is_none());
-        assert!(contents.parts.iter().any(
-            |part| matches!(part, TemplatePart::Literal(value) if value.contains("${literal}") && value.contains("$PORT"))
-        ));
-    }
-
-    #[test]
-    fn parses_fixed_port_and_multiple_items() {
-        let parsed =
-            parse("FROM nixpkgs AS pkgs\nITEM one\nEXEC bin/one\nPORT http = 8080\nITEM two\nEXEC bin/two\n")
-                .unwrap();
-        assert_eq!(parsed.items["one"].service.ports["http"], Port::Value(8080));
-        assert_eq!(parsed.items.len(), 2);
-    }
-
-    #[test]
-    fn parses_a_linear_copy_fetch_run_chain_without_losing_shell_syntax() {
-        let parsed = parse(
-            r#"FROM nixpkgs AS pkgs
-PATH ${pkgs.bash}/bin
-COPY Cargo.toml Cargo.toml
-FETCH cargo fetch --locked
-RUN printf '%s\n' "hello world" > result
-COPY src.rs src/main.rs
-RUN cargo build --release
-ITEM app
-TAKE target/release/app bin/app
-EXEC bin/app
-"#,
-        )
-        .unwrap();
-        assert_eq!(parsed.steps.len(), 5);
-        assert!(matches!(parsed.steps[0], BuildStep::Copy { .. }));
-        let BuildStep::Run { command, line, .. } = &parsed.steps[2] else {
-            panic!("expected RUN");
-        };
-        assert_eq!(*line, 5);
-        assert_eq!(
-            command.literal_value().as_deref(),
-            Some("printf '%s\\n' \"hello world\" > result")
-        );
-        assert!(matches!(
-            parsed.items["app"].takes[0].src.parts[0],
-            TemplatePart::Literal(_)
-        ));
-    }
-
-    #[test]
-    fn run_fetch_and_build_interpolation_have_line_numbered_position_errors() {
-        for (input, line, message) in [
-            (
-                "FROM nixpkgs AS pkgs\nRUN\nITEM app\nEXEC /bin/app\n",
-                2,
-                "requires a command",
-            ),
-            (
-                "FROM nixpkgs AS pkgs\nITEM app\nEXEC /bin/app\nRUN true\n",
-                4,
-                "before ITEM",
-            ),
-            (
-                "FROM nixpkgs AS pkgs\nRUN echo ${build}\nITEM app\nEXEC /bin/app\n",
-                2,
-                "only valid in TAKE source position",
-            ),
-            (
-                "FROM nixpkgs AS pkgs\nITEM app\nEXEC ${build}/bin/app\n",
-                3,
-                "only valid in TAKE source position",
-            ),
-        ] {
-            let error = parse(input).unwrap_err();
-            assert_eq!(error.line, line, "{error}");
-            assert!(error.message.contains(message), "{error}");
-            assert!(error.to_string().contains(&format!("{:?}", error.source)));
-        }
-    }
-
-    #[test]
-    fn from_requires_an_explicit_unique_namespace_before_interpolation() {
-        let missing = parse("ITEM app\nEXEC /bin/app\n").unwrap_err();
-        assert!(
-            missing.message.contains("every Cixfile begins with FROM"),
-            "{missing}"
-        );
-
-        let missing_as = parse("FROM nixpkgs\nITEM app\nEXEC /bin/app\n").unwrap_err();
-        assert!(
-            missing_as.message.contains("FROM <flakeref> AS <name>"),
-            "{missing_as}"
-        );
-
-        let duplicate = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS pkgs\nITEM app\nEXEC /bin/app\n",
-        )
-        .unwrap_err();
-        assert!(
-            duplicate.message.contains("already declared"),
-            "{duplicate}"
-        );
-
-        let unknown = parse(
-            "FROM nixpkgs AS pkgs\nITEM app\nLINK bin/app ${stable.hello}/bin/hello\nEXEC bin/app\n",
-        )
-        .unwrap_err();
-        assert!(
-            unknown
-                .message
-                .contains("unknown package namespace \"stable\""),
-            "{unknown}"
-        );
-        assert!(
-            unknown.message.contains("declared namespaces: pkgs"),
-            "{unknown}"
-        );
-
-        let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS stable\nITEM app\nLINK bin/hello ${stable.hello}/bin/hello\nEXEC bin/hello\n",
-        )
-        .unwrap();
-        assert_eq!(parsed.inputs.len(), 2);
-        assert_eq!(
-            parsed.inputs["stable"].url,
-            "github:NixOS/nixpkgs/nixos-25.05"
-        );
-    }
-
-    #[test]
-    fn path_preserves_declaration_order_and_rejects_duplicates() {
-        let parsed =
-            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.first}/bin\nPATH ${pkgs.second}/bin\nITEM app\nEXEC /bin/app\n")
-                .unwrap();
-        assert_eq!(
-            parsed.paths,
-            vec![
-                Template {
-                    parts: vec![
-                        TemplatePart::Package {
-                            namespace: "pkgs".into(),
-                            attrpath: "first".into(),
-                            line: 2,
-                        },
-                        TemplatePart::Literal("/bin".into()),
-                    ],
-                },
-                Template {
-                    parts: vec![
-                        TemplatePart::Package {
-                            namespace: "pkgs".into(),
-                            attrpath: "second".into(),
-                            line: 3,
-                        },
-                        TemplatePart::Literal("/bin".into()),
-                    ],
-                },
-            ]
-        );
-
-        let error =
-            parse("FROM nixpkgs AS pkgs\nPATH ${pkgs.tool}/bin\nPATH ${pkgs.tool}/bin\nITEM app\nEXEC /bin/app\n")
-                .unwrap_err();
-        assert_eq!(error.line, 3);
-        assert!(error.message.contains("duplicated"));
-    }
-
-    #[test]
-    fn item_paths_are_scoped_and_extend_the_build_path() {
-        let parsed = parse(
-            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH bin ${pkgs.coreutils}/bin\nEXEC true\nITEM worker\nPATH ${pkgs.hello}/bin\nEXEC bash\n",
-        )
-        .unwrap();
-        assert_eq!(parsed.paths.len(), 1);
-        assert_eq!(parsed.items["api"].paths.len(), 2);
-        assert_eq!(parsed.items["worker"].paths.len(), 1);
-
-        let error = parse(
-            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH ${pkgs.bash}/bin\nEXEC bash\n",
-        )
-        .unwrap_err();
-        assert!(error.message.contains("duplicated"), "{error}");
-    }
-
-    #[test]
-    fn path_rejects_explicit_env_path_and_bare_commands_without_path() {
-        for input in [
-            "FROM nixpkgs AS pkgs\nPATH /tools\nITEM app\nENV PATH = /other\nEXEC /bin/app\n",
-            "FROM nixpkgs AS pkgs\nITEM app\nENV PATH = /other\nPATH /tools\nEXEC /bin/app\n",
-        ] {
-            let error = parse(input).unwrap_err();
-            assert!(error.message.contains("PATH conflicts"), "{error}");
-        }
-
-        let error = parse("FROM nixpkgs AS pkgs\nITEM app\nEXEC tool\n").unwrap_err();
-        assert_eq!(error.line, 3);
-        assert!(error.message.contains("requires PATH"));
-    }
-
-    #[test]
-    fn all_errors_include_line_and_quoted_source() {
-        for (input, line, message) in [
-            ("NOPE value\n", 1, "unknown directive"),
-            ("PKG nginx\n", 1, "PKG was removed by D32"),
-            ("COPY only\nITEM x\nEXEC x\n", 1, "expected COPY"),
-            ("FILE x <<EOF\nbody\n", 1, "unterminated FILE heredoc"),
-            (
-                "LINK x ${missing}\nITEM x\nEXEC x\n",
-                1,
-                "use ${pkgs.missing}",
-            ),
-            (
-                "ITEM x\nENV BAD-NAME\nEXEC x\n",
-                2,
-                "environment variable name",
-            ),
-            ("ITEM x\nEXEC\n", 2, "EXEC requires"),
-            (
-                "ITEM x\nEXEC bin/x $NOPE\n",
-                2,
-                "undeclared environment variable",
-            ),
-            ("ITEM x\nEXEC x\nPORT http = 0\n", 3, "between 1 and 65535"),
-            ("ITEM x\nEXEC x\nSTATE /tmp/x\n", 3, "under /var/lib"),
-            ("ITEM x\nEXEC x\nJIT yes\n", 3, "takes no arguments"),
-            (
-                "ITEM x\nEXEC x\nLISTENER http\nLISTENER http\n",
-                4,
-                "already declared",
-            ),
-            (
-                "COPY $SRC x\nITEM x\nEXEC x\n",
-                1,
-                "only allowed in EXEC and SETUP",
-            ),
-            ("ITEM x\nEXEC x\nEXEC y\n", 3, "already declared"),
-            ("ITEM x\nEXEC x\nITEM x\n", 3, "already declared"),
-        ] {
-            let input = format!("FROM nixpkgs AS pkgs\n{input}");
-            let error = parse(&input).unwrap_err();
-            let rendered = error.to_string();
-            assert_eq!(error.line, line + 1, "{input:?}: {rendered}");
-            assert!(rendered.contains(message), "{input:?}: {rendered}");
-            assert!(
-                rendered.contains(&format!("{:?}", error.source)),
-                "{input:?}: {rendered}"
-            );
-        }
-    }
-
-    #[test]
-    fn interpolation_uses_the_pkgs_namespace_and_accepts_nested_attributes() {
-        let parsed = parse(
-            "FROM nixpkgs AS pkgs\nITEM x\nLINK bin/black ${pkgs.python3Packages.black}/bin/black\nEXEC bin/black\n",
-        )
-        .unwrap();
-        let Assembly::Link { target, .. } = &parsed.items["x"].assembly[0] else {
-            panic!("expected LINK");
-        };
-        assert_eq!(
-            target.parts,
-            [
-                TemplatePart::Package {
-                    namespace: "pkgs".into(),
-                    attrpath: "python3Packages.black".into(),
-                    line: 3,
-                },
-                TemplatePart::Literal("/bin/black".into()),
-            ]
-        );
-
-        let error = parse(
-            "FROM nixpkgs AS pkgs\nLINK bin/nginx ${nginx}/bin/nginx\nITEM x\nEXEC bin/nginx\n",
-        )
-        .unwrap_err();
-        assert!(error.message.contains("use ${pkgs.nginx}"), "{error}");
-    }
-
-    #[test]
-    fn copy_is_never_interpolated() {
-        let error =
-            parse("FROM nixpkgs AS pkgs\nCOPY ${pkgs.nginx} x\nITEM x\nEXEC x\n").unwrap_err();
-        assert!(error
-            .message
-            .contains("does not support build-time interpolation"));
-    }
-
-    #[test]
-    fn pkg_directive_explains_the_d32_rewrite() {
-        let error =
-            parse("FROM nixpkgs AS pkgs\nPKG python3Packages.black\nITEM x\nEXEC x\n").unwrap_err();
-        assert_eq!(error.line, 2);
-        assert!(
-            error
-                .message
-                .contains("replace ${python3Packages.black} with ${pkgs.python3Packages.black}"),
-            "{error}"
-        );
-    }
-
-    #[test]
-    fn rejects_unsafe_item_paths_and_duplicate_destinations() {
-        for input in [
-            "FROM nixpkgs AS pkgs\nCOPY ../x x\nITEM x\nEXEC x\n",
-            "FROM nixpkgs AS pkgs\nITEM x\nFILE / <<E\nx\nE\nEXEC x\n",
-            "FROM nixpkgs AS pkgs\nITEM x\nLINK x /target\nFILE x <<E\nx\nE\nEXEC x\n",
-        ] {
-            assert!(parse(input).is_err(), "{input}");
-        }
-    }
-
-    #[test]
-    fn accepts_projected_destinations_and_rejects_d22_denied_paths() {
-        let parsed = parse(
-            "FROM nixpkgs AS pkgs\nITEM x\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /srv/www /target\nFILE /cix-probe.conf <<E\nprobe\nE\nEXEC bin/x\n",
-        )
-        .unwrap();
-        assert_eq!(parsed.items["x"].assembly.len(), 3);
-
-        for denied in [
-            "/nix",
-            "/proc",
-            "/sys",
-            "/dev",
-            "/run",
-            "/var/lib",
-            "/var/cache",
-            "/var/log",
-            "/etc/passwd",
-            "/etc/group",
-            "/etc/nsswitch.conf",
-            "/",
-            "/etc",
-            "/usr",
-            "/bin",
-            "/lib",
-            "/lib64",
-        ] {
-            let input =
-                format!("FROM nixpkgs AS pkgs\nITEM x\nFILE {denied} <<E\nx\nE\nEXEC bin/x\n");
-            let error = parse(&input).unwrap_err();
-            assert!(error.message.contains("D22 v3"), "{denied}: {error}");
-        }
-    }
-}
-
 #[cfg(test)]
 mod d47_tests {
     use super::*;
 
     #[test]
-    fn parses_blocks_binders_and_all_three_artifact_kinds() {
+    fn parses_blocks_binders_and_both_artifact_kinds() {
         let parsed = parse(
             r#"FROM nixpkgs AS pkgs
 FROM . AS src
@@ -2251,7 +1931,7 @@ E
 SCRIPT bin/start <<E
 exec bin/web
 E
-LINK bin/sh ${pkgs.bash}/bin/bash
+	LINK ${pkgs.bash}/bin/bash bin/sh
 PATH bin
 EXEC start
 SETUP bin/start
@@ -2259,7 +1939,7 @@ ENV PORT = 8080 required
 PORT http = $PORT
 LISTENER admin
 STATE /var/lib/web
-CACHE /var/cache/web
+	CACHEDIR /var/cache/web
 LOGS /var/log/web
 CONFIG /etc/web
 RUNDIR /run/web
@@ -2270,26 +1950,18 @@ COPY ${ingredient} payload
 EXEC /bin/true
 ENV MODE = once
 STATE /var/lib/migrate
-CACHE /var/cache/migrate
-EGRESS
-ITEM data
-COPY payload data/payload
-FILE notice <<E
-hello
-E
-LINK current data/payload
-"#,
+	CACHEDIR /var/cache/migrate
+	EGRESS
+	"#,
         )
         .unwrap();
         assert_eq!(parsed.fetch_order, ["ingredient"]);
         assert_eq!(parsed.builder_order, ["build"]);
-        assert_eq!(parsed.artifact_order, ["web", "migrate", "data"]);
+        assert_eq!(parsed.artifact_order, ["web", "migrate"]);
         assert_eq!(parsed.builders["build"].steps.len(), 3);
         assert_eq!(parsed.builders["build"].caches, ["target"]);
         assert_eq!(parsed.artifacts["web"].kind, ArtifactKind::Service);
         assert_eq!(parsed.artifacts["migrate"].kind, ArtifactKind::App);
-        assert_eq!(parsed.artifacts["data"].kind, ArtifactKind::Item);
-        assert!(parsed.artifacts["data"].service.exec.is_empty());
     }
 
     #[test]
@@ -2355,9 +2027,9 @@ LINK current data/payload
                 "TAKE was removed by D47",
             ),
             (
-                "FROM nixpkgs AS pkgs\nITEM app\nEXEC bin/app\n",
-                3,
-                "use SERVICE for a daemon or APP for run-to-completion",
+                "FROM nixpkgs AS pkgs\nITEM app\n",
+                2,
+                "ITEM was dropped (D50); use SERVICE or APP",
             ),
             (
                 "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
@@ -2382,6 +2054,132 @@ LINK current data/payload
     }
 
     #[test]
+    fn comments_continuations_and_run_heredocs_preserve_shell_text() {
+        let parsed = parse(
+            r#"# The package universe is intentionally split across physical lines.
+FROM github:NixOS/nixpkgs/nixos-unstable \
+    AS pkgs
+
+BUILDER build
+PATH ${pkgs.bash}/bin \
+    ${pkgs.coreutils}/bin
+# This comment is ignored by the Cixfile parser.
+RUN printf '%s\n' \
+    '# inline shell comment text is data' > continued
+RUN <<SCRIPT
+# This comment belongs to the builder shell.
+printf '%s\n' ${pkgs.hello} > result
+SCRIPT
+
+SERVICE app
+EXEC /bin/true \
+    # this is an argument, not a Cixfile comment
+"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.builders["build"].paths.len(), 2);
+        let BuildStep::Run {
+            command,
+            line,
+            source,
+        } = &parsed.builders["build"].steps[0]
+        else {
+            panic!("expected continued RUN");
+        };
+        assert_eq!(*line, 9);
+        assert!(source.starts_with("RUN printf"));
+        assert_eq!(
+            command.literal_value().as_deref(),
+            Some("printf '%s\\n' '# inline shell comment text is data' > continued")
+        );
+        let BuildStep::Run { command, line, .. } = &parsed.builders["build"].steps[1] else {
+            panic!("expected heredoc RUN");
+        };
+        assert_eq!(*line, 11);
+        assert!(matches!(
+            command.parts.as_slice(),
+            [
+                TemplatePart::Literal(first),
+                TemplatePart::Package { line: 13, .. },
+                TemplatePart::Literal(last),
+            ] if first.starts_with("# This comment belongs") && last.ends_with(" > result\n")
+        ));
+        let exec = &parsed.artifacts["app"].service.exec;
+        assert_eq!(exec[1].literal_value().as_deref(), Some("#"));
+        assert_eq!(
+            exec.last().and_then(Template::literal_value).as_deref(),
+            Some("comment")
+        );
+    }
+
+    #[test]
+    fn run_heredoc_errors_use_physical_body_lines() {
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nRUN <<SCRIPT\ntrue\nprintf ${missing}\nSCRIPT\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(error.line, 5, "{error}");
+        assert_eq!(error.source, "printf ${missing}");
+
+        let dangling = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true \\\n").unwrap_err();
+        assert_eq!(dangling.line, 3, "{dangling}");
+        assert!(dangling.message.contains("continuation"), "{dangling}");
+
+        let continued = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin \\\n    ${missing.tool}/bin\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(continued.line, 4, "{continued}");
+        assert_eq!(continued.source.trim(), "${missing.tool}/bin");
+    }
+
+    #[test]
+    fn cixfile_comments_are_full_line_only() {
+        let parsed = parse(
+            "  # ignored before the first declaration \\\nFROM nixpkgs AS pkgs\nSERVICE app\n# ignored in a block\nEXEC /bin/echo #kept\n",
+        )
+        .unwrap();
+        let exec = &parsed.artifacts["app"].service.exec;
+        assert_eq!(exec.len(), 2);
+        assert_eq!(exec[1].literal_value().as_deref(), Some("#kept"));
+    }
+
+    #[test]
+    fn cachedir_and_link_use_the_d52_spellings() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello bin/hello\nEXEC bin/hello\nCACHEDIR /var/cache/app\n",
+        )
+        .unwrap();
+        assert!(parsed.artifacts["app"]
+            .service
+            .dirs
+            .cache
+            .contains("/var/cache/app"));
+        let Assembly::Link { dst, target } = &parsed.artifacts["app"].assembly[0] else {
+            panic!("expected LINK");
+        };
+        assert_eq!(dst, "bin/hello");
+        assert!(matches!(
+            target.parts.first(),
+            Some(TemplatePart::Package { attrpath, .. }) if attrpath == "hello"
+        ));
+
+        let cache =
+            parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nCACHE /var/cache/app\n")
+                .unwrap_err();
+        assert_eq!(cache.line, 4);
+        assert!(cache.message.contains("renamed to CACHEDIR by D52"));
+
+        let link = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC bin/hello\n",
+        )
+        .unwrap_err();
+        assert_eq!(link.line, 3);
+        assert!(link.message.contains("argument order changed in D52"));
+        assert!(link.message.contains("LINK <target> <linkpath>"));
+    }
+
+    #[test]
     fn app_rejects_service_only_surface_at_the_directive_line() {
         for (directive, message) in [
             ("PORT http = 8080", "PORT is not legal inside APP"),
@@ -2401,29 +2199,12 @@ LINK current data/payload
     }
 
     #[test]
-    fn item_is_assets_only() {
-        for directive in [
-            "EXEC /bin/true",
-            "ENV MODE = x",
-            "PORT http = 8080",
-            "LISTENER http",
-            "STATE /var/lib/data",
-            "CACHE /var/cache/data",
-            "LOGS /var/log/data",
-            "CONFIG /etc/data",
-            "RUNDIR /run/data",
-            "JIT",
-            "EGRESS",
-            "SCRIPT start <<E\ntrue\nE",
-        ] {
-            let input = format!("FROM nixpkgs AS pkgs\nITEM data\n{directive}\n");
-            let error = parse(&input).unwrap_err();
-            assert_eq!(error.line, 3, "{directive}: {error}");
-            assert!(
-                error.message.contains("not legal inside ITEM"),
-                "{directive}: {error}"
-            );
-        }
+    fn item_has_a_d50_migration_error_and_is_not_an_alias() {
+        let error = parse("FROM nixpkgs AS pkgs\nITEM data\nCOPY payload payload\n").unwrap_err();
+        assert_eq!(error.line, 2);
+        assert!(error.message.contains("ITEM was dropped (D50)"), "{error}");
+        assert!(error.message.contains("SERVICE or APP"), "{error}");
+        assert!(error.message.contains("ASSETS"), "{error}");
     }
 
     #[test]
@@ -2465,7 +2246,9 @@ LINK current data/payload
     #[test]
     fn from_local_is_optional_but_a_package_universe_is_required() {
         parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload payload\nEXEC /bin/true\n").unwrap();
-        let error = parse("FROM . AS src\nITEM data\nCOPY ${src}/payload payload\n").unwrap_err();
+        let error =
+            parse("FROM . AS src\nSERVICE data\nCOPY ${src}/payload payload\nEXEC /bin/true\n")
+                .unwrap_err();
         assert!(error.message.contains("package universe"), "{error}");
     }
 }

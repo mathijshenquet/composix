@@ -1,8 +1,8 @@
 # The Cixfile BUILD half: two designs against buildshape
 
-> **Superseded by D39–D41 and then D47.** `BUILD rust`, `STAGE`, `OUTPUT`, and the
+> **Superseded by D39–D41, D47, and D50.** `BUILD rust`, `STAGE`, `OUTPUT`, and the
 > engine-specific multi-output/service model below were not implemented. Cixfile now uses
-> named `BUILDER` blocks and explicit `SERVICE`/`APP`/`ITEM` artifacts connected by binders,
+> named `BUILDER` blocks and explicit `SERVICE`/`APP` artifacts connected by binders,
 > documented in [The Cixfile](cixfile.md). This page remains as decision-record context.
 
 *Status: exploratory design, not implemented. The existing Cixfile v1 remains an assembly

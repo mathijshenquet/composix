@@ -2,12 +2,15 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
+PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin \
+    ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
 
+# Fetch from manifests first so source-only edits reuse the dependency snapshot.
 COPY ${src}/Cargo.toml Cargo.toml
 COPY ${src}/Cargo.lock Cargo.lock
-COPY ${src}/src/main.rs src/main.rs
-FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
+FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt \
+    cargo fetch --locked
+COPY ${src}/src/ src
 RUN cargo build --release --locked --offline
 
 SERVICE projb

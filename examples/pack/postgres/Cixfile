@@ -1,17 +1,12 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
+SERVICE postgres
+PATH ${pkgs.postgresql}/bin ${pkgs.coreutils}/bin
 COPY ${src}/runtime-env.sh opt/postgres/runtime-env.sh
 COPY ${src}/setup opt/postgres/setup
 COPY ${src}/start opt/postgres/start
-
-SERVICE postgres
-PATH ${pkgs.postgresql}/bin ${pkgs.coreutils}/bin
-COPY ${build}/opt/postgres/runtime-env.sh opt/postgres/runtime-env.sh
-COPY ${build}/opt/postgres/setup opt/postgres/setup
-COPY ${build}/opt/postgres/start opt/postgres/start
-LINK /opt/postgres/libnss_wrapper.so ${pkgs.nss_wrapper}/lib/libnss_wrapper.so
+LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
 SETUP ${pkgs.bash}/bin/sh /opt/postgres/setup
 EXEC ${pkgs.bash}/bin/sh /opt/postgres/start $PORT
 ENV PORT = 5432

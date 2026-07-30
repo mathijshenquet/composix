@@ -2,6 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 FETCH src ${pkgs.bash}/bin/bash -c '${pkgs.git}/bin/git -c http.sslCAInfo=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt clone https://github.com/Ealenn/Echo-Server.git . && ${pkgs.git}/bin/git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac && NPM_CONFIG_CACHE=$PWD/.npm ${pkgs.nodejs}/bin/npm ci --ignore-scripts --no-audit --no-fund'
 
+# FETCH fills the dependency cache with network access; RUN rebuilds from it offline.
 BUILDER build
   PATH ${pkgs.nodejs}/bin
   COPY ${src}/ .

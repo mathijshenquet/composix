@@ -77,7 +77,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nEXEC bin/missing\n",
+        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing bin/missing\nEXEC bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -106,7 +106,7 @@ EOF
 SCRIPT bin/start <<EOF
 exec /app/bin/hello
 EOF
-LINK bin/hello ${pkgs.hello}/bin/hello
+LINK ${pkgs.hello}/bin/hello bin/hello
 PATH bin
 EXEC start
 "#,
@@ -251,7 +251,10 @@ FROM . AS src
 BUILDER build
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
 COPY ${src}/input input
-RUN cp input output
+RUN <<BUILD
+# A RUN heredoc is sent to the same builder shell as a one-line RUN.
+cp input output
+BUILD
 SERVICE fixture
 COPY ${build}/output bin/output
 EXEC bin/output
@@ -300,9 +303,12 @@ EXEC bin/output
 fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
-    let bare = parse("FROM nixpkgs AS pkgs\nITEM fixture\nCOPY payload share/payload\n").unwrap();
+    let bare = parse(
+        "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload share/payload\nEXEC /bin/true\n",
+    )
+    .unwrap();
     let explicit = parse(
-        "FROM nixpkgs AS pkgs\nFROM . AS src\nITEM fixture\nCOPY ${src}/payload share/payload\n",
+        "FROM nixpkgs AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload share/payload\nEXEC /bin/true\n",
     )
     .unwrap();
     let bare = build_expression(
@@ -325,7 +331,7 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
         "same context\n"
     );
     let manifest = cix_run::spec::Spec::load(&bare).unwrap();
-    assert_eq!(manifest.kind, cix_run::spec::ManifestKind::Item);
+    assert_eq!(manifest.kind, cix_run::spec::ManifestKind::Service);
 }
 
 fn nar_hash(path: &std::path::Path) -> String {

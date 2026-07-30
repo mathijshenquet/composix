@@ -7,8 +7,8 @@ use serde_json::{Map, Value};
 
 use crate::parser::bare_command;
 use crate::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, InputKind, InputLock,
-    LockFile, Port, Service, Template, TemplatePart,
+    Artifact, Assembly, BuildStep, Builder, Cixfile, Copy, InputKind, InputLock, LockFile, Port,
+    Service, Template, TemplatePart,
 };
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
@@ -148,39 +148,37 @@ pub(crate) fn generate_nix_with_snapshots(
             )?,
         }
     }
-    if artifact.kind != ArtifactKind::Item {
-        let service = &artifact.service;
-        for (index, (arguments, line)) in [
-            (&service.exec[..], service.exec_line),
-            (
-                service.setup.as_deref().unwrap_or_default(),
-                service.setup_line.unwrap_or_default(),
-            ),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let Some(command) = bare_command(arguments) else {
-                continue;
-            };
-            writeln!(
-                expression,
-                "  resolved{index}=${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}}",
-                nix_attr(primary),
-                nix_string(&command),
-            )?;
-            writeln!(
-                expression,
-                "  case \"$resolved{index}\" in /*) executable{index}=\"$resolved{index}\" ;; *) executable{index}=\"$out/$resolved{index}\" ;; esac"
-            )?;
-            writeln!(
-                expression,
-                "  test -x \"$executable{index}\" || {{ echo {} >&2; exit 1; }}",
-                nix_string(&format!(
-                    "line {line}: resolved PATH command {command:?} is not executable"
-                )),
-            )?;
-        }
+    let service = &artifact.service;
+    for (index, (arguments, line)) in [
+        (&service.exec[..], service.exec_line),
+        (
+            service.setup.as_deref().unwrap_or_default(),
+            service.setup_line.unwrap_or_default(),
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let Some(command) = bare_command(arguments) else {
+            continue;
+        };
+        writeln!(
+            expression,
+            "  resolved{index}=${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}}",
+            nix_attr(primary),
+            nix_string(&command),
+        )?;
+        writeln!(
+            expression,
+            "  case \"$resolved{index}\" in /*) executable{index}=\"$resolved{index}\" ;; *) executable{index}=\"$out/$resolved{index}\" ;; esac"
+        )?;
+        writeln!(
+            expression,
+            "  test -x \"$executable{index}\" || {{ echo {} >&2; exit 1; }}",
+            nix_string(&format!(
+                "line {line}: resolved PATH command {command:?} is not executable"
+            )),
+        )?;
     }
     writeln!(
         expression,
@@ -551,13 +549,11 @@ fn nix_spec(artifact: &Artifact) -> Result<String> {
 fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String> {
     let service = &artifact.service;
     let mut output = String::from("{");
-    if artifact.kind != ArtifactKind::Item {
-        write!(
-            output,
-            " exec = {};",
-            nix_command(&service.exec, service.exec_line)
-        )?;
-    }
+    write!(
+        output,
+        " exec = {};",
+        nix_command(&service.exec, service.exec_line)
+    )?;
     if !mounts.is_empty() {
         write!(
             output,
@@ -845,12 +841,10 @@ fn literal_spec(artifact: &Artifact) -> Result<Value> {
 fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Value> {
     let service = &artifact.service;
     let mut value = Map::new();
-    if artifact.kind != ArtifactKind::Item {
-        value.insert(
-            "exec".into(),
-            literal_command(&service.exec, &artifact.paths)?,
-        );
-    }
+    value.insert(
+        "exec".into(),
+        literal_command(&service.exec, &artifact.paths)?,
+    );
     if !mounts.is_empty() {
         value.insert(
             "mounts".into(),
@@ -1064,22 +1058,22 @@ mod tests {
     }
 
     #[test]
-    fn service_manifest_omits_kind_and_item_omits_exec() {
+    fn service_manifest_omits_kind_and_app_emits_it() {
         let service = parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n").unwrap();
         let spec = generate_spec_json(&service).unwrap();
         assert!(!spec.contains("\"kind\""), "{spec}");
 
-        let item = parse("FROM nixpkgs AS pkgs\nITEM data\nFILE payload <<E\nx\nE\n").unwrap();
-        let spec = generate_spec_json(&item).unwrap();
-        assert!(spec.contains("\"kind\": \"item\""), "{spec}");
-        assert!(!spec.contains("\"exec\""), "{spec}");
+        let app = parse("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n").unwrap();
+        let manifest = generate_spec_json(&app).unwrap();
+        assert!(manifest.contains("\"kind\": \"app\""), "{manifest}");
+        assert!(manifest.contains("\"exec\""), "{manifest}");
     }
 
     #[test]
     fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nITEM data\nCOPY ${src}/payload payload\n",
+            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload payload\nEXEC /bin/true\n",
         )
         .unwrap();
         let mut lock = fixture_lock();

@@ -1,6 +1,6 @@
 #[derive(clap::Subcommand)]
 pub enum Command {
-    /// Run a spec'ed service as a transient systemd unit.
+    /// Run a manifested service as a transient systemd unit.
     Run {
         /// Store path or flake installable, optionally with `#service`.
         ///

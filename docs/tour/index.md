@@ -1,38 +1,22 @@
-# cix — local index tour
+# cix — tour
 
 > **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.
 > All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-This five-minute tour covers local tags, serving and pulling a store, building from a Cixfile, and running rootless services with or without socket activation.
+This executable tour follows composix from naming and distribution through building, running, debugging, and composing. Each chapter is one continuous story: inputs are shown before use, commands are real, and assertions keep the prose honest.
 
-## Scenarios
+## Chapters
 
-- [Tagging a build](01-tagging.html) — Give an immutable Nix store path a memorable local name.
+- [Chapter 1: The index](01-index.html) — Tag, inspect, move, and remove one local name.
 
-- [Moving a tag](02-moving.html) — Retag a name to point at a newer build.
+- [Chapter 2: Distribution](02-distribution.html) — Serve an index and store, pull it elsewhere, and follow a moving tag.
 
-- [Untagging](03-untagging.html) — Remove a local tag and its GC root.
+- [Chapter 3: Build, run, debug](03-build-run-debug.html) — Read a Cixfile, build its manifest, run by tag, and debug the same tag.
 
-- [Serving your store](04-serving.html) — Expose bare local tags over HTTP.
+- [Chapter 4: Building with RUN](04-building-with-run.html) — Inspect a working directory, execute a heredoc, and reuse its memo.
 
-- [Pulling on another machine](05-pulling.html) — Adopt a qualified remote tag under a local name.
+- [Chapter 5: proj1](05-proj1.html) — Build two services from one Rust workspace and run the API.
 
-- [Tags move; pull follows](06-pull-follows.html) — Refresh a remote mirror after its publisher retags it.
-
-- [Running a service](07-running-service.html) — Start and inspect a spec'd service in rootless development mode.
-
-- [Building from a Cixfile](08-building-cixfile.html) — Build, inspect, and tag a self-contained Cixfile item.
-
-- [Running with a listener](09-running-listener.html) — Serve through a systemd-activated socket in rootless development mode.
-
-- [Composing services](10-composing-services.html) — Validate and dry-diff a tracked compose service without root.
-
-- [Debugging a service](11-debugging-service.html) — Run a deterministic command in a fresh service sandbox.
-
-- [Building with RUN](12-building-with-run.html) — Execute and memoize a networkless build step outside Nix evaluation.
-
-- [Inspecting artifacts](13-inspecting.html) — Read a tag's index entry and parsed manifest as stable JSON.
-
-- [Building and running proj1](14-running-proj1.html) — Build two services from one builder and serve the API.
+- [Chapter 6: Advanced](06-advanced.html) — Inspect socket activation, then compose a real Cixfile-built service.

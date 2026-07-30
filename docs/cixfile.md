@@ -1,12 +1,13 @@
 # The Cixfile
 
-*Status: D47 blocks and binders are implemented: named builders, services, one-shot apps,
-asset-only items, local and remote source binders, and pinned network fetches.*
+*Status: D47 blocks and binders plus the D50–D53 language polish are implemented: named
+builders, services, one-shot apps, local and remote source binders, pinned network fetches,
+directive continuations, RUN heredocs, and full-line comments.*
 
 A Cixfile turns a directory into one or more composix artifacts. It is Dockerfile-shaped, so
-the common operations are recognizable, but its boundaries are explicit: builders create
-snapshots; `SERVICE`, `APP`, and `ITEM` blocks assemble independent runtime artifacts. The
-`.nix` escape hatch remains first-class for custom derivations.
+the common operations are recognizable, but its boundaries are explicit: builders do
+networked or executable build work; `SERVICE` and `APP` blocks assemble independent runtime
+artifacts. The `.nix` escape hatch remains first-class for custom derivations.
 
 ## A Cixfile, next to the Dockerfile you'd write instead
 
@@ -23,17 +24,13 @@ EXPOSE 8080
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
+SERVICE nginx
 COPY ${src}/index.html srv/www/index.html
 COPY ${src}/nginx.conf etc/nginx/nginx.conf
-
-SERVICE nginx
-COPY ${build}/srv/www/index.html srv/www/index.html
-COPY ${build}/etc/nginx/nginx.conf etc/nginx/nginx.conf
-LINK /etc/nginx/mime.types ${pkgs.nginx}/conf/mime.types
+LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
-CACHE /var/cache/nginx
+CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
 ```
 
@@ -57,13 +54,16 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `COPY`, `FETCH`, `RUN`, `CACHE`, `PATH` | an immutable named workdir snapshot |
-| `SERVICE <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHE`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHE` | a run-to-completion app artifact |
-| `ITEM <name>` | `COPY`, `FILE`, `LINK` | an asset-only artifact with no executable |
+| `SERVICE <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `PATH`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `SCRIPT`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHEDIR` | a run-to-completion app artifact |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
 and a declaration cannot refer to a later declaration. Errors report both the bad line and,
 where useful, the first declaration line.
+
+**A BUILDER exists only when there is RUN or FETCH work to do.** Pure assembly belongs
+directly in the `SERVICE` or `APP` that consumes the sources; routing local files through a
+COPY-only builder adds a name and a snapshot without adding a boundary.
 
 ### Unified `COPY`
 
@@ -83,13 +83,50 @@ references use `${universe.attrpath}`; source, fetch, and builder references use
 `${binder}/path`. Copying a binder without `/path` copies its whole root. Destinations are
 clean paths relative to the builder or artifact root; `.` means the whole root.
 
+Prefer one directory COPY when its contents move as a unit:
+
+```dockerfile
+COPY ${src}/rust/ .
+```
+
+Enumerate files only when the separation deliberately creates a memo boundary, such as
+copying dependency manifests before source. Structural globs such as `**/Cargo.toml` are not
+implemented; the known manifest-first cases are already expressible without a glob language.
+
 There is no magic `${build}` namespace and `TAKE` is gone. A migrated file should name its
 builder, normally `BUILDER build`, and use `COPY ${build}/path destination`. The parser emits
 that migration directly instead of turning either spelling into a mysterious unknown name.
 
 `FILE <destination> <<EOF` adds an inline interpolated file, `SCRIPT` adds an executable
-script with a shell header, and `LINK <destination> <target>` adds a symlink. `SCRIPT` is
-available only where execution is meaningful; asset-only `ITEM` deliberately excludes it.
+script with a shell header, and `LINK <target> <linkpath>` adds a symlink. LINK follows both
+`ln -s TARGET LINKNAME` and COPY's source-first reading: where from, then where it lands.
+
+### Lines, comments, and heredocs
+
+A backslash continues any directive onto the next physical line:
+
+```dockerfile
+PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin \
+    ${pkgs.rustc}/bin ${pkgs.gcc}/bin
+```
+
+Errors retain physical Cixfile line numbers. A line whose first non-whitespace character is
+`#` is a comment; end-of-line comments are deliberately not special because RUN and FETCH
+arguments are shell text.
+
+RUN accepts either a one-line command or a builder-shell heredoc:
+
+```dockerfile
+RUN <<BUILD
+mkdir -p output
+cargo build --release --locked --offline
+cp target/release/app output/app
+BUILD
+```
+
+The complete body is the command and therefore part of the same memo key as a one-line RUN.
+Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
+use `$${…}` when the shell itself must receive a braced expansion.
 
 ### Package universes and source binders
 
@@ -122,13 +159,17 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER compile
 PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin
+CACHE target
 COPY Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
-CACHE target
-COPY src src
-RUN cargo build --release --locked --offline \
-    && mkdir -p output \
-    && cp target/release/app output/app
+# Manifests come first so source-only edits can reuse earlier dependency work.
+FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt cargo fetch --locked
+COPY src/ src
+RUN <<BUILD
+cargo build --release --locked --offline
+mkdir -p output
+cp target/release/app output/app
+BUILD
 
 APP app
 COPY ${compile}/output/app bin/app
@@ -160,24 +201,26 @@ updated.
 
 ## Artifact kinds
 
-Every block produces its own store item and bare v4 manifest.
+Each `SERVICE` or `APP` produces its own store item and bare v4 manifest.
 
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
-idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. Role directives
-declare systemd-managed writable paths. `JIT` grants writable-and-executable memory, and
-`EGRESS` declares outward network access.
+idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATE`,
+`CACHEDIR`, `LOGS`, `CONFIG`, and `RUNDIR` map directly to systemd's managed
+`*Directory=` roles; builder `CACHE` is a different, build-only concept. `JIT` grants
+writable-and-executable memory, and `EGRESS` declares outward network access.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
 health checks, JIT grant, or log/config/run role directories.
 
-`ITEM` contains files and links only. Its manifest says `kind: "item"` and has no `exec`.
-`cix run` refuses it with an asset-only diagnostic. This makes static bundles usable as
-inputs without pretending they are processes.
-
 Relative copied destinations live at the artifact root and are projected at their native
 runtime path. Package binaries remain direct store references; `PATH` is for tools invoked by
 service scripts. `LINK` is best used for package-owned assets such as nginx's `mime.types`.
+
+There is no content-only block. The old `ITEM` spelling was dropped in D50 because its meaning
+was not legible without context. Assets used within one Cixfile are copied into the service or
+app that consumes them. If standalone content artifacts earn a real use case, the
+evidence-gated name is `ASSETS`.
 
 When a Cixfile has several artifacts, `cix build . -t v1` tags them as
 `<artifact-name>:v1`. `-t name:tag` is accepted only for a single-artifact build.
@@ -191,8 +234,8 @@ When a Cixfile has several artifacts, `cix build . -t v1` tags them as
 - Artifacts are sparse roots plus exact Nix store references. There is no `ADD`, URL/tar
   auto-extraction, `.dockerignore`, arbitrary `USER`, or secret mount syntax.
 - `ENV` declares an operator-facing contract. `PORT` is an enforced grant, not documentation.
-- `SERVICE`, `APP`, and `ITEM` distinguish daemons, one-shot commands, and inert assets in the
-  manifest, so invalid combinations fail while parsing rather than at runtime.
+- `SERVICE` and `APP` distinguish daemons from one-shot commands in the manifest, so invalid
+  combinations fail while parsing rather than at runtime.
 
 That narrower language is deliberate: the generated manifest is both the runtime description
 and the capability policy.

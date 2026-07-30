@@ -2,18 +2,23 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
+PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin \
+    ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
 CACHE target
 
-COPY ${src}/rust/Cargo.toml Cargo.toml
-COPY ${src}/rust/Cargo.lock Cargo.lock
-COPY ${src}/rust/common/Cargo.toml common/Cargo.toml
-COPY ${src}/rust/common/src/lib.rs common/src/lib.rs
-COPY ${src}/rust/api/Cargo.toml api/Cargo.toml
-COPY ${src}/rust/api/src/main.rs api/src/main.rs
-COPY ${src}/rust/worker/Cargo.toml worker/Cargo.toml
-COPY ${src}/rust/worker/src/main.rs worker/src/main.rs
-RUN mkdir -p output && if test -e target/.cix-warm; then printf 'warm\n' > output/cache-state; else printf 'cold\n' > output/cache-state; fi && cargo build --release --locked --offline --workspace && touch target/.cix-warm && cp target/release/proj1-api output/proj1-api && cp target/release/proj1-worker output/proj1-worker
+COPY ${src}/rust/ .
+RUN <<BUILD
+mkdir -p output
+if test -e target/.cix-warm; then
+    printf 'warm\n' > output/cache-state
+else
+    printf 'cold\n' > output/cache-state
+fi
+cargo build --release --locked --offline --workspace
+touch target/.cix-warm
+cp target/release/proj1-api output/proj1-api
+cp target/release/proj1-worker output/proj1-worker
+BUILD
 
 SERVICE proj1-api
 COPY ${build}/output/proj1-api bin/proj1-api

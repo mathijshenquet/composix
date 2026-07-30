@@ -90,7 +90,6 @@ pub enum Assembly {
 pub enum ArtifactKind {
     Service,
     App,
-    Item,
 }
 
 impl ArtifactKind {
@@ -98,7 +97,6 @@ impl ArtifactKind {
         match self {
             Self::Service => None,
             Self::App => Some("app"),
-            Self::Item => Some("item"),
         }
     }
 
@@ -106,7 +104,6 @@ impl ArtifactKind {
         match self {
             Self::Service => "SERVICE",
             Self::App => "APP",
-            Self::Item => "ITEM",
         }
     }
 }
