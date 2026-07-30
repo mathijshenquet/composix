@@ -4,7 +4,6 @@ members = [
   "common",
   "api",
   "worker",
-  "dashboard",
 ]
 
 [workspace.package]

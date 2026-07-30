@@ -9,13 +9,13 @@
 
 ```sh
 $ cix build .
-/nix/store/…-cixfile-item
+/nix/store/…-cix-item-run-tour
 step 1 COPY app -> app snapshot /nix/store/…-cix-build-snapshot
 step 2 RUN memo miss c307c177f29e (… ms) -> /nix/store/…-cix-build-snapshot
 ```
 
 ```sh
-$ tail -n 1 /nix/store/…-cixfile-item/result/upper
+$ tail -n 1 /nix/store/…-cix-item-run-tour/result/upper
 ECHO HELLO-FROM-RUN-TOUR
 ```
 
@@ -23,7 +23,7 @@ The lock now records the content-addressed workdir realization. Repeating the sa
 
 ```sh
 $ cix build .
-/nix/store/…-cixfile-item
+/nix/store/…-cix-item-run-tour
 step 1 COPY app -> app snapshot /nix/store/…-cix-build-snapshot
 step 2 RUN memo hit c307c177f29e -> /nix/store/…-cix-build-snapshot
 ```

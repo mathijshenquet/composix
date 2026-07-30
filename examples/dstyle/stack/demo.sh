@@ -43,8 +43,9 @@ fi
 sudo groupadd --system "$edge_group"
 group_created=true
 
-store_path=$(nix-build "$example_dir" --no-out-link)
-backend_unit=$(sudo "$cix_bin" run "$store_path#backend" --detach)
+backend_path=$(nix-build "$example_dir" -A backend --no-out-link)
+nginx_path=$(nix-build "$example_dir" -A nginx --no-out-link)
+backend_unit=$(sudo "$cix_bin" run "$backend_path" --detach)
 echo "started $backend_unit"
 wait_for_path "$backend_socket"
 
@@ -99,7 +100,7 @@ sudo systemd-run \
   --property=RestrictAddressFamilies=AF_UNIX \
   --property=PrivateNetwork=yes \
   -- \
-  "$store_path/bin/nginx" -c "$store_path/nginx.conf" -e stderr
+  "$nginx_path/bin/nginx" -c "$nginx_path/nginx.conf" -e stderr
 
 wait_for_path "$nginx_socket"
 sudo systemctl show "$nginx_unit" \

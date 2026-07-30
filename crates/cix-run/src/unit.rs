@@ -168,7 +168,8 @@ pub(crate) fn build_unit_with_options(
         bail!("store output path {} is not absolute", output.display());
     }
 
-    let argv = resolved_argv(output, "exec", &service.exec, &config.env)?;
+    let item_env = config.item_environment(output)?;
+    let argv = resolved_argv(output, "exec", &service.exec, &item_env)?;
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), options.naming.slice.clone()));
@@ -238,12 +239,11 @@ pub(crate) fn build_unit_with_options(
     }
     add_socket_bind_restrictions(&mut properties, service, config);
     if let Some(setup) = &service.setup {
-        let setup = resolved_argv(output, "setup", setup, &config.env)?;
+        let setup = resolved_argv(output, "setup", setup, &item_env)?;
         properties.push(("ExecStartPre".into(), exec_command(&setup)));
     }
 
-    let mut environment = config
-        .env
+    let mut environment = item_env
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();

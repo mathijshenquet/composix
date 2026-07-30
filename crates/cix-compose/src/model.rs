@@ -21,7 +21,6 @@ pub struct Compose {
 #[serde(deny_unknown_fields)]
 pub struct ComposeService {
     pub item: String,
-    pub service: Option<String>,
     #[serde(default)]
     pub update: UpdatePolicy,
     #[serde(default)]
@@ -105,9 +104,6 @@ impl Compose {
             if service.item.is_empty() {
                 bail!("services.{name}.item: item must not be empty");
             }
-            if let Some(selected) = &service.service {
-                validate_name(&format!("services.{name}.service"), selected)?;
-            }
         }
         for (name, edge) in &self.edges {
             validate_name(&format!("edges.{name}"), name)?;
@@ -187,6 +183,20 @@ mod tests {
         .unwrap();
         let error = Compose::load(&path).unwrap_err().to_string();
         assert!(error.contains("services.web.surprise"), "{error}");
+        assert!(error.contains("unknown field"), "{error}");
+    }
+
+    #[test]
+    fn service_selector_is_rejected_by_d41() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"web":{"item":"x:v1","service":"app"}}}"#,
+        )
+        .unwrap();
+        let error = Compose::load(&path).unwrap_err().to_string();
+        assert!(error.contains("services.web.service"), "{error}");
         assert!(error.contains("unknown field"), "{error}");
     }
 

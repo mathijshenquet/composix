@@ -420,7 +420,6 @@ mod tests {
                     "web".into(),
                     ComposeService {
                         item: "web:v1".into(),
-                        service: Some("app".into()),
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),
@@ -430,7 +429,6 @@ mod tests {
                     "worker".into(),
                     ComposeService {
                         item: "worker:v1".into(),
-                        service: Some("app".into()),
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),

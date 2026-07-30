@@ -1,5 +1,23 @@
 # composix work log
 
+## 2026-07-30 (track/items complete)
+
+- Merged work: none in this worktree. Completed D40/D41 on `track/items` in `e25fa5f` and
+  `58a0f51`: hard ITEM rename, per-item TAKE plucks and v4 bare manifests, persistent
+  build CACHE plus `--no-cache`, multi-item tagging, v1–v4 runner compatibility, D41
+  legacy diagnostics/compose selector removal, all example migrations, and the real
+  two-item proj1 build/run tour.
+- Decisions: implemented existing D40/D41 without amendment. Item-scoped relative PATH is
+  resolved against the item store root end to end; multi-item tagging uses the current
+  `cix-index` API and this branch does not modify `crates/cix-index`.
+- Verification: the full fmt, warning-denied workspace clippy/test, and
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link` gate passed. This includes proj1's exact item
+  listings, v4 manifests, worker-only invalidation, warm memo reuse, byte-identical clean
+  `--no-cache` rebuild, and the tour's API run/curl. Exact focused generation/repro commands
+  and the one transient user-systemd retry are recorded in `crates/cix-cixfile/LOG.md`.
+- Open with Mathijs: none. Open for agents: independently verify and merge `track/items`;
+  coordinate with concurrent `track/index2` rather than resolving its branch here.
+
 ## 2026-07-30 (the compose tree round — D40 go + D41–D46)
 
 - Big design session with Mathijs, dialog-driven; full story in **docs/compose-tree.md**

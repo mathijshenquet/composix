@@ -9,14 +9,14 @@ Every Cixfile begins by binding its package universe: `FROM <flakeref> AS pkgs`.
 
 ```sh
 $ cix build . -t tour-app:v1
-/nix/store/…-cixfile-item
+/nix/store/…-cix-item-tour-app
 ```
 
-The generated spec is the build's runtime contract: it records the service name and executable independently of the Cixfile source.
+The generated v4 manifest is the build's runtime contract: one bare service definition belongs to this one item.
 
 ```sh
-$ cat /nix/store/…-cixfile-item/cix-manifest.json
-{"cixManifest":2,"services":{"tour-app":{"exec":["bin/tour-app"]}}}
+$ cat /nix/store/…-cix-item-tour-app/cix-manifest.json
+{"cixManifest":4,"exec":["bin/tour-app"]}
 ```
 
 ```sh

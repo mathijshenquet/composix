@@ -29,7 +29,6 @@
       "required": ["item"],
       "properties": {
         "item": {"type": "string", "minLength": 1},
-        "service": {"$ref": "#/$defs/name"},
         "update": {"enum": ["pin", "track"], "default": "pin"},
         "env": {
           "type": "object",

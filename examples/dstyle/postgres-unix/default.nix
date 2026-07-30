@@ -51,18 +51,13 @@ pkgs.runCommand "dstyle-postgres-unix" { } ''
 
   cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixManifest": 2,
-    "services": {
-      "postgres": {
-        "setup": ["bin/setup"],
-        "exec": ["bin/start"],
-        "dirs": {
-          "state": ["/var/lib/postgresql"],
-          "run": ["/run/postgresql"]
-        }
-      }
+    "cixManifest": 4,
+    "setup": ["bin/setup"],
+    "exec": ["bin/start"],
+    "dirs": {
+      "state": ["/var/lib/postgresql"],
+      "run": ["/run/postgresql"]
     }
   }
   EOF
 ''
-

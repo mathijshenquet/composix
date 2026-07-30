@@ -4,9 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct Cixfile {
     pub inputs: BTreeMap<String, Input>,
     pub paths: Vec<Template>,
+    pub caches: Vec<String>,
     pub steps: Vec<BuildStep>,
-    pub items: Vec<Item>,
-    pub services: BTreeMap<String, Service>,
+    pub items: BTreeMap<String, Item>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,11 +35,36 @@ pub enum BuildStep {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Item {
-    Copy { src: String, dst: String },
+pub enum Assembly {
     File { dst: String, contents: Template },
     Script { dst: String, contents: Template },
     Link { dst: String, target: Template },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Take {
+    pub src: Template,
+    pub dst: String,
+    pub line: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Item {
+    pub assembly: Vec<Assembly>,
+    pub takes: Vec<Take>,
+    pub paths: Vec<Template>,
+    pub service: Service,
+}
+
+impl Item {
+    pub(crate) fn empty() -> Self {
+        Self {
+            assembly: Vec::new(),
+            takes: Vec::new(),
+            paths: Vec::new(),
+            service: Service::empty(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -53,6 +78,7 @@ pub struct Service {
     pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
     pub jit: bool,
+    pub outbound: bool,
 }
 
 impl Service {
@@ -67,6 +93,7 @@ impl Service {
             listeners: BTreeSet::new(),
             dirs: Dirs::default(),
             jit: false,
+            outbound: false,
         }
     }
 }
