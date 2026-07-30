@@ -52,6 +52,7 @@ pub struct Take {
 pub struct Item {
     pub assembly: Vec<Assembly>,
     pub takes: Vec<Take>,
+    pub paths: Vec<Template>,
     pub service: Service,
 }
 
@@ -60,6 +61,7 @@ impl Item {
         Self {
             assembly: Vec::new(),
             takes: Vec::new(),
+            paths: Vec::new(),
             service: Service::empty(),
         }
     }

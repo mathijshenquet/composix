@@ -47,7 +47,8 @@ $ cix inspect inspect-demo:v1
         },
         "health": null,
         "network": null,
-        "jit": null
+        "jit": null,
+        "outbound": false
       }
     }
   },
@@ -63,4 +64,4 @@ The entry retains per-system output slots while the selected store path supplies
 
 ---
 
-[← Previous](12-building-with-run.html) · [Tour index](index.html)
+[← Previous](12-building-with-run.html) · [Tour index](index.html) · [Next →](14-running-proj1.html)

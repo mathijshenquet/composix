@@ -30,7 +30,8 @@ pub fn debug(options: DebugOptions) -> Result<()> {
     }
 
     let target = resolve_service(&options.installable)?;
-    let config = ResolvedConfig::resolve_debug(&target.service, &options.env)?;
+    let mut config = ResolvedConfig::resolve_debug(&target.service, &options.env)?;
+    config.env = config.item_environment(&target.output)?;
     if !target.service.listeners.is_empty() {
         eprintln!("note: declared listeners are not bound in cix debug; debug commands inherit no listener file descriptors");
     }

@@ -106,7 +106,8 @@ SCRIPT bin/start <<EOF
 exec /app/bin/hello
 EOF
 LINK bin/hello ${pkgs.hello}/bin/hello
-EXEC bin/start
+PATH bin
+EXEC start
 "#,
     )
     .unwrap();
@@ -140,6 +141,12 @@ EXEC bin/start
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     assert_eq!(spec.cix_manifest, 4);
     assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/start"]);
+    assert_eq!(
+        spec.select_service(None).unwrap().1.env["PATH"]
+            .default
+            .as_deref(),
+        Some("bin")
+    );
 }
 
 #[test]

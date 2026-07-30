@@ -181,7 +181,9 @@ impl Parser<'_> {
                 ));
             }
             validate_service_references(service, &self.item_metadata[name])?;
-            validate_bare_commands(service, &self.item_metadata[name], &self.paths)?;
+            let mut paths = self.paths.clone();
+            paths.extend(item.paths.clone());
+            validate_bare_commands(service, &self.item_metadata[name], &paths)?;
         }
         if self.steps.is_empty() {
             if let Some(line) = self
@@ -257,25 +259,22 @@ impl Parser<'_> {
 
     fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         let fields = at_least_one_field(arguments, line, source, "PATH")?;
-        if self
-            .items
-            .values()
-            .any(|item| item.service.env.contains_key("PATH"))
-        {
+        let current = self.current_item.clone();
+        let conflicts = if let Some(name) = &current {
+            self.items[name].service.env.contains_key("PATH")
+        } else {
+            self.items
+                .values()
+                .any(|item| item.service.env.contains_key("PATH"))
+        };
+        if conflicts {
             return Err(ParseError::new(
                 line,
                 source,
                 "PATH conflicts with an explicit ENV PATH declaration",
             ));
         }
-        if self.current_item.is_some() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "PATH must appear before ITEM blocks",
-            ));
-        }
-        if !self.steps.is_empty() {
+        if current.is_none() && !self.steps.is_empty() {
             return Err(ParseError::new(
                 line,
                 source,
@@ -285,15 +284,27 @@ impl Parser<'_> {
         for field in fields {
             reject_runtime_variable(field, "PATH directory", line, source)?;
             let path = self.build_template(field, line, source, false, false)?;
-            validate_path_template(&path, line, source)?;
-            if self.paths.iter().any(|existing| existing.same_value(&path)) {
+            validate_path_template(&path, current.is_some(), line, source)?;
+            let duplicated = self.paths.iter().any(|existing| existing.same_value(&path))
+                || current.as_ref().is_some_and(|name| {
+                    self.items[name]
+                        .paths
+                        .iter()
+                        .any(|existing| existing.same_value(&path))
+                });
+            if duplicated {
                 return Err(ParseError::new(
                     line,
                     source,
                     format!("PATH directory {field:?} is duplicated"),
                 ));
             }
-            self.paths.push(path);
+            let paths = if let Some(name) = &current {
+                &mut self.items.get_mut(name).expect("current item exists").paths
+            } else {
+                &mut self.paths
+            };
+            paths.push(path);
         }
         Ok(())
     }
@@ -629,7 +640,11 @@ impl Parser<'_> {
                 }
             }
         }
-        if fields[0] == "PATH" && !self.paths.is_empty() {
+        let item_has_path = self
+            .current_item
+            .as_ref()
+            .is_some_and(|name| !self.items[name].paths.is_empty());
+        if fields[0] == "PATH" && (!self.paths.is_empty() || item_has_path) {
             return Err(ParseError::new(
                 line,
                 source,
@@ -1189,16 +1204,20 @@ pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
 
 fn validate_path_template(
     template: &Template,
+    item_relative: bool,
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
     match template.parts.first() {
         Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
         Some(TemplatePart::Package { .. }) => Ok(()),
+        Some(TemplatePart::Literal(value)) if item_relative => {
+            validate_relative_path(value, "ITEM PATH directory", line, source)
+        }
         _ => Err(ParseError::new(
             line,
             source,
-            "PATH directory must be an absolute path (for example ${pkgs.coreutils}/bin)",
+            "prelude PATH directory must be absolute (for example ${pkgs.coreutils}/bin); relative PATH is item-scoped",
         )),
     }
 }
@@ -1702,6 +1721,23 @@ EXEC bin/app
                 .unwrap_err();
         assert_eq!(error.line, 3);
         assert!(error.message.contains("duplicated"));
+    }
+
+    #[test]
+    fn item_paths_are_scoped_and_extend_the_build_path() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH bin ${pkgs.coreutils}/bin\nEXEC true\nITEM worker\nPATH ${pkgs.hello}/bin\nEXEC bash\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.paths.len(), 1);
+        assert_eq!(parsed.items["api"].paths.len(), 2);
+        assert_eq!(parsed.items["worker"].paths.len(), 1);
+
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nITEM api\nPATH ${pkgs.bash}/bin\nEXEC bash\n",
+        )
+        .unwrap_err();
+        assert!(error.message.contains("duplicated"), "{error}");
     }
 
     #[test]

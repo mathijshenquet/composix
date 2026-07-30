@@ -12,7 +12,8 @@ use crate::{
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let (_, item) = only_item(cixfile)?;
-    let value = literal_spec(item, &cixfile.paths)?;
+    let paths = item_paths(cixfile, item);
+    let value = literal_spec(item, &paths)?;
     let mut json = serde_json::to_string_pretty(&value)?;
     json.push('\n');
     Ok(json)
@@ -41,6 +42,7 @@ pub(crate) fn generate_nix_with_snapshot(
         .items
         .get(item_name)
         .with_context(|| format!("unknown Cixfile ITEM {item_name:?}"))?;
+    let paths = item_paths(cixfile, item);
     if build_snapshot.is_none() && !item.takes.is_empty() {
         bail!("TAKE requires cix build to execute the COPY/FETCH/RUN chain");
     }
@@ -79,9 +81,9 @@ pub(crate) fn generate_nix_with_snapshot(
     writeln!(
         expression,
         "  pathDirs = {};",
-        nix_templates(&cixfile.paths, build_snapshot)
+        nix_templates(&paths, build_snapshot)
     )?;
-    if !cixfile.paths.is_empty() {
+    if !paths.is_empty() {
         writeln!(expression, "  resolveExecutable = line: command:")?;
         writeln!(expression, "    let")?;
         writeln!(
@@ -90,7 +92,7 @@ pub(crate) fn generate_nix_with_snapshot(
         )?;
         writeln!(
             expression,
-            "      found = builtins.filter builtins.pathExists candidates;"
+            "      found = builtins.filter (candidate: builtins.substring 0 1 candidate != \"/\" || builtins.pathExists candidate) candidates;"
         )?;
         writeln!(expression, "    in if found == [] then")?;
         writeln!(
@@ -102,7 +104,7 @@ pub(crate) fn generate_nix_with_snapshot(
     writeln!(
         expression,
         "  spec = {};",
-        nix_spec(item, &cixfile.paths, build_snapshot)
+        nix_spec(item, &paths, build_snapshot)
     )?;
 
     for (index, assembly) in item.assembly.iter().enumerate() {
@@ -154,28 +156,6 @@ pub(crate) fn generate_nix_with_snapshot(
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
-    {
-        let service = &item.service;
-        for (arguments, line) in [
-            (&service.exec[..], service.exec_line),
-            (
-                service.setup.as_deref().unwrap_or_default(),
-                service.setup_line.unwrap_or_default(),
-            ),
-        ] {
-            let Some(command) = bare_command(arguments) else {
-                continue;
-            };
-            writeln!(
-                expression,
-                "  test -x ${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}} || {{ echo {} >&2; exit 1; }}",
-                nix_attr(primary_namespace(cixfile)?),
-                nix_string(&command),
-                nix_string(&format!("line {line}: resolved PATH command {command:?} is not executable")),
-            )?;
-        }
-    }
-
     for directory in item_directories(item) {
         writeln!(
             expression,
@@ -217,6 +197,40 @@ pub(crate) fn generate_nix_with_snapshot(
             "  cp -a \"${{take{index}}}\" \"$out/{}\"",
             shell_double_quoted(&take.dst)
         )?;
+    }
+    {
+        let service = &item.service;
+        for (index, (arguments, line)) in [
+            (&service.exec[..], service.exec_line),
+            (
+                service.setup.as_deref().unwrap_or_default(),
+                service.setup_line.unwrap_or_default(),
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let Some(command) = bare_command(arguments) else {
+                continue;
+            };
+            writeln!(
+                expression,
+                "  resolved{index}=${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}}",
+                nix_attr(primary_namespace(cixfile)?),
+                nix_string(&command),
+            )?;
+            writeln!(
+                expression,
+                "  case \"$resolved{index}\" in /*) executable{index}=\"$resolved{index}\" ;; *) executable{index}=\"$out/$resolved{index}\" ;; esac"
+            )?;
+            writeln!(
+                expression,
+                "  test -x \"$executable{index}\" || {{ echo {} >&2; exit 1; }}",
+                nix_string(&format!(
+                    "line {line}: resolved PATH command {command:?} is not executable"
+                )),
+            )?;
+        }
     }
     writeln!(
         expression,
@@ -365,6 +379,9 @@ fn package_references(cixfile: &Cixfile) -> BTreeSet<(String, String)> {
         }
     }
     for item in cixfile.items.values() {
+        for path in &item.paths {
+            add(path, &mut refs);
+        }
         for assembly in &item.assembly {
             match assembly {
                 Assembly::File { contents, .. } | Assembly::Script { contents, .. } => {
@@ -491,6 +508,10 @@ fn only_item(cixfile: &Cixfile) -> Result<(&str, &Item)> {
     }
     let (name, item) = cixfile.items.first_key_value().expect("one item");
     Ok((name, item))
+}
+
+fn item_paths(cixfile: &Cixfile, item: &Item) -> Vec<Template> {
+    cixfile.paths.iter().chain(&item.paths).cloned().collect()
 }
 
 fn nix_spec(item: &Item, paths: &[Template], build_snapshot: Option<&str>) -> String {
