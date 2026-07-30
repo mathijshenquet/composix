@@ -879,6 +879,12 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   body is part of the memo key) so workshop scripts stop being one-liners. Tour
   regrouping into chapter pages + the spec→manifest vocabulary sweep ride the same
   track (.dev/specs/track-tourbook.md).
+  **Addendum (2026-07-30, Mathijs unrolling a chained FETCH): the heredoc is
+  deliberately asymmetric — RUN yes, FETCH no.** A long single fetch is served by
+  `\` continuations; multiple commands in one FETCH are the anti-pattern (one
+  coarse pin instead of per-step pins), so the missing heredoc is a nudge to
+  split. Unrolling also tends to reveal hidden structure: `git checkout <sha>`
+  after a clone is OFFLINE work — a RUN, not a FETCH.
 
 - ✅ D52 (2026-07-30) — **two directive-consistency fixes** (Mathijs's README read):
   (a) service-block `CACHE` (the D11 role dir) renames to **`CACHEDIR`** — kills the
