@@ -1,0 +1,27 @@
+# https://pmarsceill.github.io/just-the-docs/
+remote_theme: pmarsceill/just-the-docs
+title: "Echo-Server"
+logo: "/assets/images/ping-pong.png"
+
+search_enabled: true
+heading_anchors: true
+
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub."
+gh_edit_repository: "https://github.com/Ealenn/Echo-Server"
+gh_edit_branch: "master"
+gh_edit_source: docs
+gh_edit_view_mode: "edit"
+
+footer_content: "Copyright &copy; 2019-2021 Rudy Marchandise."
+aux_links:
+  "GitHub":
+    - "//github.com/Ealenn/Echo-Server"
+  "DockerHub":
+    - "//hub.docker.com/repository/docker/ealen/echo-server"
+  "Artifact Hub":
+    - "//artifacthub.io/packages/helm/ealenn/echo-server"
+
+plugins:
+  - jekyll-github-metadata
+  - jekyll-toc

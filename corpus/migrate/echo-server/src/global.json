@@ -1,0 +1,59 @@
+{
+    "port": 80,
+    "logs": {
+        "app": "echo-server",
+        "level": "debug",
+        "format": "default",
+        "ignore": {
+            "ping": false
+        },
+        "seq": {
+            "enabled": false,
+            "server": "",
+            "key": "",
+            "level": "info"
+        }
+    },
+    "enable": {
+        "host": true,
+        "http": true,
+        "request": true,
+        "cookies": true,
+        "environment": true,
+        "file": true,
+        "header": true
+    },
+    "controls": {
+        "times": {
+            "min": 0,
+            "max": 60000
+        }
+    },
+    "commands": {
+        "httpBody": {
+            "query": "echo_body",
+            "header": "x-echo-body"
+        },
+        "httpEnvBody": {
+            "query": "echo_env_body",
+            "header": "x-echo-env-body"
+        },
+        "httpCode": {
+            "query": "echo_code",
+            "header": "x-echo-code",
+            "headerResponse": true
+        },
+        "httpHeaders": {
+            "query": "echo_header",
+            "header": "x-echo-header"
+        },
+        "time": {
+            "query": "echo_time",
+            "header": "x-echo-time"
+        },
+        "file": {
+            "query": "echo_file",
+            "header": "x-echo-file"
+        }
+    }
+}

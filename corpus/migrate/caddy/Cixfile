@@ -1,0 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE caddy
+  EXEC ${pkgs.caddy}/bin/caddy file-server --root . --listen :80
+  PORT http = 80
