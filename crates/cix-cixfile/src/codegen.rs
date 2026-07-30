@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Component, Path};
 
@@ -7,13 +7,13 @@ use serde_json::{Map, Value};
 
 use crate::parser::bare_command;
 use crate::{
-    Assembly, BuildStep, Cixfile, InputLock, Item, LockFile, Port, Service, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, InputKind, InputLock,
+    LockFile, Port, Service, Template, TemplatePart,
 };
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
-    let (_, item) = only_item(cixfile)?;
-    let paths = item_paths(cixfile, item);
-    let value = literal_spec(item, &paths)?;
+    let (_, artifact) = only_artifact(cixfile)?;
+    let value = literal_spec(artifact)?;
     let mut json = serde_json::to_string_pretty(&value)?;
     json.push('\n');
     Ok(json)
@@ -25,65 +25,36 @@ pub fn generate_nix(
     lock: &LockFile,
     system: &str,
 ) -> Result<String> {
-    let (name, _) = only_item(cixfile)?;
-    generate_nix_with_snapshot(cixfile, name, source_dir, lock, system, None)
+    let (name, _) = only_artifact(cixfile)?;
+    generate_nix_with_snapshots(cixfile, name, source_dir, lock, system, &BTreeMap::new())
 }
 
-pub(crate) fn generate_nix_with_snapshot(
+pub(crate) fn generate_nix_with_snapshots(
     cixfile: &Cixfile,
-    item_name: &str,
+    artifact_name: &str,
     source_dir: &Path,
     lock: &LockFile,
     system: &str,
-    build_snapshot: Option<&str>,
+    snapshots: &BTreeMap<String, String>,
 ) -> Result<String> {
     lock.validate_for(&cixfile.inputs)?;
-    let item = cixfile
-        .items
-        .get(item_name)
-        .with_context(|| format!("unknown Cixfile ITEM {item_name:?}"))?;
-    let paths = item_paths(cixfile, item);
-    if build_snapshot.is_none() && !item.takes.is_empty() {
-        bail!("TAKE requires cix build to execute the COPY/FETCH/RUN chain");
-    }
-    if let Some(snapshot) = build_snapshot {
-        if !snapshot.starts_with("/nix/store/") {
-            bail!("build snapshot is not a Nix store path: {snapshot}");
-        }
-    }
-    source_dir
+    validate_snapshots(snapshots)?;
+    let artifact = cixfile
+        .artifacts
+        .get(artifact_name)
+        .with_context(|| format!("unknown Cixfile artifact {artifact_name:?}"))?;
+    let source_dir = source_dir
         .canonicalize()
         .with_context(|| format!("resolving Cixfile directory {}", source_dir.display()))?;
+    let primary = primary_namespace(cixfile)?;
 
-    let mut expression = String::new();
-    writeln!(expression, "let")?;
-    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
-        let input = &lock.inputs[name];
-        writeln!(expression, "  input{index}Source = {};", fetch_tree(input)?)?;
-    }
-    writeln!(expression, "  universes = {{")?;
-    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
-        writeln!(
-            expression,
-            "    {} = import input{index}Source {{ system = {}; }};",
-            nix_attr(name),
-            nix_string(system)
-        )?;
-    }
-    writeln!(expression, "  }};")?;
-    if let Some(snapshot) = build_snapshot {
-        writeln!(
-            expression,
-            "  buildSnapshot = builtins.storePath {};",
-            nix_string(snapshot)
-        )?;
-    }
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     writeln!(
         expression,
         "  pathDirs = {};",
-        nix_templates(&paths, build_snapshot)
+        nix_templates(&artifact.paths)
     )?;
-    if !paths.is_empty() {
+    if !artifact.paths.is_empty() {
         writeln!(expression, "  resolveExecutable = line: command:")?;
         writeln!(expression, "    let")?;
         writeln!(
@@ -101,69 +72,63 @@ pub(crate) fn generate_nix_with_snapshot(
         )?;
         writeln!(expression, "    else builtins.head found;")?;
     }
-    writeln!(
-        expression,
-        "  spec = {};",
-        nix_spec(item, &paths, build_snapshot)
-    )?;
-
-    for (index, assembly) in item.assembly.iter().enumerate() {
+    writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
+    for (index, copy) in artifact.copies.iter().enumerate() {
+        writeln!(
+            expression,
+            "  copy{index} = {};",
+            nix_copy_source(&copy.src)
+        )?;
+    }
+    for (index, assembly) in artifact.assembly.iter().enumerate() {
         match assembly {
             Assembly::File { contents, .. } => {
                 writeln!(
                     expression,
                     "  file{index} = universes.{}.writeText \"cixfile-file-{index}\" {};",
-                    nix_attr(primary_namespace(cixfile)?),
-                    nix_template(contents, build_snapshot)
+                    nix_attr(primary),
+                    nix_template(contents)
                 )?;
             }
             Assembly::Script { contents, .. } => {
                 writeln!(
                     expression,
                     "  script{index} = universes.{}.writeText \"cixfile-script-{index}\" (\"#!${{universes.{}.runtimeShell}}\\n\" + {});",
-                    nix_attr(primary_namespace(cixfile)?),
-                    nix_attr(primary_namespace(cixfile)?),
-                    nix_template(contents, build_snapshot)
+                    nix_attr(primary),
+                    nix_attr(primary),
+                    nix_template(contents)
                 )?;
             }
             Assembly::Link { target, .. } => {
-                writeln!(
-                    expression,
-                    "  link{index} = {};",
-                    nix_template(target, build_snapshot)
-                )?;
+                writeln!(expression, "  link{index} = {};", nix_template(target))?;
             }
         }
-    }
-    for (index, take) in item.takes.iter().enumerate() {
-        writeln!(
-            expression,
-            "  take{index} = {};",
-            nix_take_source(&take.src, build_snapshot)
-        )?;
     }
     writeln!(
         expression,
         "  manifestFile = universes.{}.writeText \"cix-manifest.json\" (builtins.toJSON spec + \"\\n\");",
-        nix_attr(primary_namespace(cixfile)?)
+        nix_attr(primary)
     )?;
     writeln!(expression, "in")?;
     writeln!(
         expression,
         "universes.{}.runCommand {} {{ preferLocalBuild = true; allowSubstitutes = false; }} ''",
-        nix_attr(primary_namespace(cixfile)?),
-        nix_string(&format!("cix-item-{item_name}"))
+        nix_attr(primary),
+        nix_string(&format!("cix-item-{artifact_name}"))
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
-    for directory in item_directories(item) {
+    for directory in artifact_directories(artifact) {
         writeln!(
             expression,
             "  mkdir -p \"$out/{}\"",
             shell_double_quoted(&directory)
         )?;
     }
-    for (index, assembly) in item.assembly.iter().enumerate() {
+    for (index, copy) in artifact.copies.iter().enumerate() {
+        emit_copy(&mut expression, index, copy)?;
+    }
+    for (index, assembly) in artifact.assembly.iter().enumerate() {
         match assembly {
             Assembly::File { dst, .. } => writeln!(
                 expression,
@@ -178,28 +143,13 @@ pub(crate) fn generate_nix_with_snapshot(
             Assembly::Link { dst, .. } => writeln!(
                 expression,
                 "  ln -s ${{universes.{}.lib.escapeShellArg link{index}}} \"$out/{}\"",
-                nix_attr(primary_namespace(cixfile)?),
+                nix_attr(primary),
                 shell_double_quoted(dst)
             )?,
         }
     }
-    for (index, take) in item.takes.iter().enumerate() {
-        writeln!(
-            expression,
-            "  if [ ! -e \"${{take{index}}}\" ] && [ ! -L \"${{take{index}}}\" ]; then echo {} >&2; exit 1; fi",
-            nix_string(&format!(
-                "line {}: TAKE source does not exist",
-                take.line
-            ))
-        )?;
-        writeln!(
-            expression,
-            "  cp -a \"${{take{index}}}\" \"$out/{}\"",
-            shell_double_quoted(&take.dst)
-        )?;
-    }
-    {
-        let service = &item.service;
+    if artifact.kind != ArtifactKind::Item {
+        let service = &artifact.service;
         for (index, (arguments, line)) in [
             (&service.exec[..], service.exec_line),
             (
@@ -216,7 +166,7 @@ pub(crate) fn generate_nix_with_snapshot(
             writeln!(
                 expression,
                 "  resolved{index}=${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}}",
-                nix_attr(primary_namespace(cixfile)?),
+                nix_attr(primary),
                 nix_string(&command),
             )?;
             writeln!(
@@ -240,84 +190,83 @@ pub(crate) fn generate_nix_with_snapshot(
     Ok(expression)
 }
 
-pub(crate) fn generate_build_context_nix(
+pub(crate) fn generate_builder_context_nix(
     cixfile: &Cixfile,
+    builder_name: &str,
+    source_dir: &Path,
     lock: &LockFile,
     system: &str,
+    snapshots: &BTreeMap<String, String>,
 ) -> Result<String> {
-    lock.validate_for(&cixfile.inputs)?;
-    let mut expression = nix_prelude(cixfile, lock, system)?;
-    let package_refs = package_references(cixfile);
+    let builder = cixfile
+        .builders
+        .get(builder_name)
+        .with_context(|| format!("unknown BUILDER {builder_name:?}"))?;
+    let source_dir = source_dir.canonicalize()?;
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
+    let templates = builder_command_templates(builder);
+    let package_refs = package_references(templates.iter().copied());
     writeln!(expression, "in {{")?;
     writeln!(
         expression,
         "  offers = [ {} ];",
-        package_refs
+        offer_expressions(&package_refs, templates.iter().copied())
+    )?;
+    writeln!(expression, "  paths = {};", nix_templates(&builder.paths))?;
+    writeln!(
+        expression,
+        "  commands = {};",
+        nix_templates(
+            &builder
+                .steps
+                .iter()
+                .filter_map(|step| match step {
+                    BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+                        Some(command.clone())
+                    }
+                    BuildStep::Copy(_) => None,
+                })
+                .collect::<Vec<_>>()
+        )
+    )?;
+    writeln!(
+        expression,
+        "  copies = [ {} ];",
+        builder
+            .steps
             .iter()
-            .map(|(namespace, attrpath)| {
-                format!(
-                    "(builtins.toString {})",
-                    package_expression(namespace, attrpath)
-                )
+            .filter_map(|step| match step {
+                BuildStep::Copy(copy) => Some(nix_copy_source(&copy.src)),
+                _ => None,
             })
             .collect::<Vec<_>>()
             .join(" ")
     )?;
-    let build_paths = cixfile
-        .paths
-        .iter()
-        .filter(|path| {
-            !path
-                .parts
-                .iter()
-                .any(|part| matches!(part, TemplatePart::Build { .. }))
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    writeln!(
-        expression,
-        "  paths = {};",
-        nix_templates(&build_paths, None)
-    )?;
-    let commands = cixfile
-        .steps
-        .iter()
-        .filter_map(|step| match step {
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
-            BuildStep::Copy { .. } => None,
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    writeln!(
-        expression,
-        "  commands = {};",
-        nix_templates(&commands, None)
-    )?;
-    writeln!(expression, "  environment = {{")?;
-    for (name, template) in build_environment(cixfile)? {
-        writeln!(
-            expression,
-            "    {} = {};",
-            nix_attr(&name),
-            nix_template(&template, None)
-        )?;
-    }
-    writeln!(expression, "  }};")?;
+    writeln!(expression, "  environment = {{}};")?;
     writeln!(expression, "}}")?;
     Ok(expression)
 }
 
-pub(crate) fn generate_offer_build_nix(
+pub(crate) fn generate_builder_offer_nix(
     cixfile: &Cixfile,
+    builder_name: &str,
+    source_dir: &Path,
     lock: &LockFile,
     system: &str,
+    snapshots: &BTreeMap<String, String>,
 ) -> Result<String> {
-    lock.validate_for(&cixfile.inputs)?;
-    let mut expression = nix_prelude(cixfile, lock, system)?;
+    let builder = cixfile
+        .builders
+        .get(builder_name)
+        .with_context(|| format!("unknown BUILDER {builder_name:?}"))?;
+    let source_dir = source_dir.canonicalize()?;
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
+    let templates = builder_templates(builder);
+    let package_refs = package_references(templates.iter().copied());
     writeln!(
         expression,
         "in [ {} ]",
-        package_references(cixfile)
+        package_refs
             .iter()
             .map(|(namespace, attrpath)| package_expression(namespace, attrpath))
             .collect::<Vec<_>>()
@@ -326,216 +275,289 @@ pub(crate) fn generate_offer_build_nix(
     Ok(expression)
 }
 
-fn nix_prelude(cixfile: &Cixfile, lock: &LockFile, system: &str) -> Result<String> {
+pub(crate) fn generate_fetch_context_nix(
+    cixfile: &Cixfile,
+    fetch_name: &str,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+    snapshots: &BTreeMap<String, String>,
+) -> Result<String> {
+    let fetch = cixfile
+        .fetches
+        .get(fetch_name)
+        .with_context(|| format!("unknown top-level FETCH {fetch_name:?}"))?;
+    let source_dir = source_dir.canonicalize()?;
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
+    let primary = primary_namespace(cixfile)?;
+    writeln!(expression, "in {{")?;
+    let refs = package_references([&fetch.command]);
+    writeln!(
+        expression,
+        "  offers = [ (builtins.toString universes.{}.bash) {} ];",
+        nix_attr(primary),
+        refs.iter()
+            .map(|(namespace, attrpath)| format!(
+                "(builtins.toString {})",
+                package_expression(namespace, attrpath)
+            ))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+    writeln!(
+        expression,
+        "  paths = [ \"${{universes.{}.bash}}/bin\" ];",
+        nix_attr(primary)
+    )?;
+    writeln!(
+        expression,
+        "  commands = [ {} ];",
+        nix_template(&fetch.command)
+    )?;
+    writeln!(expression, "  copies = [];")?;
+    writeln!(expression, "  environment = {{}};")?;
+    writeln!(expression, "}}")?;
+    Ok(expression)
+}
+
+pub(crate) fn generate_fetch_offer_nix(
+    cixfile: &Cixfile,
+    fetch_name: &str,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+    snapshots: &BTreeMap<String, String>,
+) -> Result<String> {
+    let fetch = cixfile
+        .fetches
+        .get(fetch_name)
+        .with_context(|| format!("unknown top-level FETCH {fetch_name:?}"))?;
+    let source_dir = source_dir.canonicalize()?;
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
+    let primary = primary_namespace(cixfile)?;
+    let refs = package_references([&fetch.command]);
+    writeln!(
+        expression,
+        "in [ universes.{}.bash {} ]",
+        nix_attr(primary),
+        refs.iter()
+            .map(|(namespace, attrpath)| package_expression(namespace, attrpath))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+    Ok(expression)
+}
+
+fn nix_prelude(
+    cixfile: &Cixfile,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+    snapshots: &BTreeMap<String, String>,
+) -> Result<String> {
+    lock.validate_for(&cixfile.inputs)?;
+    validate_snapshots(snapshots)?;
     let mut expression = String::new();
     writeln!(expression, "let")?;
-    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
-        let input = &lock.inputs[name];
-        writeln!(expression, "  input{index}Source = {};", fetch_tree(input)?)?;
-    }
-    writeln!(expression, "  universes = {{")?;
-    for (index, (name, _)) in cixfile.inputs.iter().enumerate() {
+    writeln!(
+        expression,
+        "  sourceRoot = builtins.path {{ path = {}; name = \"cix-source\"; }};",
+        nix_string(
+            source_dir
+                .to_str()
+                .context("Cixfile directory is not valid UTF-8")?
+        )
+    )?;
+    for (index, (name, input)) in cixfile
+        .inputs
+        .iter()
+        .filter(|(_, input)| !input.is_local())
+        .enumerate()
+    {
+        let locked = &lock.inputs[name];
         writeln!(
             expression,
-            "    {} = import input{index}Source {{ system = {}; }};",
+            "  input{index}Source = {};",
+            fetch_tree(locked)?
+        )?;
+        let _ = input;
+    }
+    writeln!(expression, "  universes = {{")?;
+    for (index, (name, input)) in cixfile
+        .inputs
+        .iter()
+        .filter(|(_, input)| !input.is_local())
+        .enumerate()
+    {
+        if input.kind == InputKind::PackageUniverse {
+            writeln!(
+                expression,
+                "    {} = import input{index}Source {{ system = {}; }};",
+                nix_attr(name),
+                nix_string(system)
+            )?;
+        }
+    }
+    writeln!(expression, "  }};")?;
+    writeln!(expression, "  binders = {{")?;
+    let mut remote_index = 0;
+    for (name, input) in &cixfile.inputs {
+        if input.kind == InputKind::Source {
+            if input.is_local() {
+                writeln!(expression, "    {} = sourceRoot;", nix_attr(name))?;
+            } else {
+                writeln!(
+                    expression,
+                    "    {} = input{remote_index}Source;",
+                    nix_attr(name)
+                )?;
+            }
+        }
+        if !input.is_local() {
+            remote_index += 1;
+        }
+    }
+    for (name, snapshot) in snapshots {
+        writeln!(
+            expression,
+            "    {} = builtins.storePath {};",
             nix_attr(name),
-            nix_string(system)
+            nix_string(snapshot)
         )?;
     }
     writeln!(expression, "  }};")?;
     Ok(expression)
 }
 
-fn package_expression(namespace: &str, attrpath: &str) -> String {
-    let mut expression = format!("universes.{}", nix_attr(namespace));
-    for component in attrpath.split('.') {
-        expression.push('.');
-        expression.push_str(&nix_attr(component));
-    }
-    expression
+fn builder_templates(builder: &Builder) -> Vec<&Template> {
+    builder
+        .paths
+        .iter()
+        .chain(builder.steps.iter().flat_map(|step| match step {
+            BuildStep::Copy(copy) => vec![&copy.src],
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => vec![command],
+        }))
+        .collect()
 }
 
-fn package_references(cixfile: &Cixfile) -> BTreeSet<(String, String)> {
-    fn add(template: &Template, refs: &mut BTreeSet<(String, String)>) {
-        for part in &template.parts {
-            if let TemplatePart::Package {
+fn builder_command_templates(builder: &Builder) -> Vec<&Template> {
+    builder
+        .paths
+        .iter()
+        .chain(builder.steps.iter().filter_map(|step| match step {
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
+            BuildStep::Copy(_) => None,
+        }))
+        .collect()
+}
+
+fn offer_expressions<'a>(
+    package_refs: &BTreeSet<(String, String)>,
+    templates: impl Iterator<Item = &'a Template>,
+) -> String {
+    let mut offers = package_refs
+        .iter()
+        .map(|(namespace, attrpath)| {
+            format!(
+                "(builtins.toString {})",
+                package_expression(namespace, attrpath)
+            )
+        })
+        .collect::<Vec<_>>();
+    let binders = templates
+        .flat_map(|template| &template.parts)
+        .filter_map(|part| match part {
+            TemplatePart::Binder { name, .. } => Some(name),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    offers.extend(
+        binders
+            .into_iter()
+            .map(|name| format!("(builtins.toString binders.{})", nix_attr(name))),
+    );
+    offers.join(" ")
+}
+
+fn package_references<'a>(
+    templates: impl IntoIterator<Item = &'a Template>,
+) -> BTreeSet<(String, String)> {
+    templates
+        .into_iter()
+        .flat_map(|template| &template.parts)
+        .filter_map(|part| match part {
+            TemplatePart::Package {
                 namespace,
                 attrpath,
                 ..
-            } = part
-            {
-                refs.insert((namespace.clone(), attrpath.clone()));
-            }
-        }
-    }
-
-    let mut refs = BTreeSet::new();
-    for path in &cixfile.paths {
-        add(path, &mut refs);
-    }
-    for step in &cixfile.steps {
-        if let BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } = step {
-            add(command, &mut refs);
-        }
-    }
-    for item in cixfile.items.values() {
-        for path in &item.paths {
-            add(path, &mut refs);
-        }
-        for assembly in &item.assembly {
-            match assembly {
-                Assembly::File { contents, .. } | Assembly::Script { contents, .. } => {
-                    add(contents, &mut refs);
-                }
-                Assembly::Link { target, .. } => add(target, &mut refs),
-            }
-        }
-        let service = &item.service;
-        for argument in &service.exec {
-            add(argument, &mut refs);
-        }
-        if let Some(arguments) = &service.setup {
-            for argument in arguments {
-                add(argument, &mut refs);
-            }
-        }
-        for default in service
-            .env
-            .values()
-            .filter_map(|environment| environment.default.as_ref())
-        {
-            add(default, &mut refs);
-        }
-    }
-    refs
-}
-
-fn build_environment(cixfile: &Cixfile) -> Result<std::collections::BTreeMap<String, Template>> {
-    let mut environment: std::collections::BTreeMap<String, Template> =
-        std::collections::BTreeMap::new();
-    for item in cixfile.items.values() {
-        let service = &item.service;
-        for (name, declaration) in &service.env {
-            let Some(default) = &declaration.default else {
-                continue;
-            };
-            if default
-                .parts
-                .iter()
-                .any(|part| matches!(part, TemplatePart::Build { .. }))
-            {
-                continue;
-            }
-            if let Some(existing) = environment.get(name) {
-                if !existing.same_value(default) {
-                    bail!("build environment {name:?} has conflicting defaults across ITEM blocks");
-                }
-            } else {
-                environment.insert(name.clone(), default.clone());
-            }
-        }
-    }
-    Ok(environment)
-}
-
-fn item_directories(item: &Item) -> BTreeSet<String> {
-    item.assembly
-        .iter()
-        .map(|assembly| match assembly {
-            Assembly::File { dst, .. }
-            | Assembly::Script { dst, .. }
-            | Assembly::Link { dst, .. } => dst,
-        })
-        .chain(item.takes.iter().map(|take| &take.dst))
-        .filter_map(|destination| {
-            Path::new(destination)
-                .parent()
-                .filter(|parent| !parent.as_os_str().is_empty())
-                .map(|parent| parent.to_string_lossy().into_owned())
+            } => Some((namespace.clone(), attrpath.clone())),
+            _ => None,
         })
         .collect()
 }
 
-fn github_repository(url: &str) -> Result<(&str, &str)> {
-    let path = url
-        .strip_prefix("github:")
-        .with_context(|| format!("unsupported nixpkgs URL {url:?}; expected github:owner/repo"))?;
-    let mut components = path.split('/');
-    let owner = components.next().filter(|value| !value.is_empty());
-    let repo = components.next().filter(|value| !value.is_empty());
-    match (owner, repo) {
-        (Some(owner), Some(repo)) => Ok((owner, repo)),
-        _ => bail!("invalid github nixpkgs URL {url:?}"),
+fn validate_snapshots(snapshots: &BTreeMap<String, String>) -> Result<()> {
+    for (name, snapshot) in snapshots {
+        if !snapshot.starts_with("/nix/store/") {
+            bail!("snapshot for binder {name:?} is not a Nix store path: {snapshot}");
+        }
+    }
+    Ok(())
+}
+
+fn emit_copy(expression: &mut String, index: usize, copy: &Copy) -> Result<()> {
+    writeln!(
+        expression,
+        "  if [ ! -e \"${{copy{index}}}\" ] && [ ! -L \"${{copy{index}}}\" ]; then echo {} >&2; exit 1; fi",
+        nix_string(&format!("line {}: COPY source does not exist", copy.line))
+    )?;
+    if copy.dst == "." {
+        writeln!(
+            expression,
+            "  if [ -d \"${{copy{index}}}\" ]; then cp -a \"${{copy{index}}}/.\" \"$out/\"; else cp -a \"${{copy{index}}}\" \"$out/\"; fi"
+        )?;
+    } else {
+        writeln!(
+            expression,
+            "  cp -a \"${{copy{index}}}\" \"$out/{}\"",
+            shell_double_quoted(&copy.dst)
+        )?;
+    }
+    Ok(())
+}
+
+fn nix_copy_source(template: &Template) -> String {
+    match template.parts.as_slice() {
+        [TemplatePart::Literal(path)] if path == "." => "\"${sourceRoot}\"".to_owned(),
+        [TemplatePart::Literal(path)] => {
+            format!("\"${{sourceRoot}}/{}\"", escape_nix_string(path))
+        }
+        _ => nix_template(template),
     }
 }
 
-fn fetch_tree(input: &InputLock) -> Result<String> {
-    if input.url.starts_with("github:") {
-        let (owner, repo) = github_repository(&input.url)?;
-        return Ok(format!(
-            "builtins.fetchTree {{ type = \"github\"; owner = {}; repo = {}; rev = {}; narHash = {}; }}",
-            nix_string(owner),
-            nix_string(repo),
-            nix_string(&input.rev),
-            nix_string(&input.nar_hash),
-        ));
-    }
-    if input.url.starts_with("https://") {
-        return Ok(format!(
-            "builtins.fetchTree {{ type = \"tarball\"; url = {}; narHash = {}; }}",
-            nix_string(&input.url),
-            nix_string(&input.nar_hash),
-        ));
-    }
-    bail!("unsupported FROM URL {:?}", input.url)
-}
-
-fn primary_namespace(cixfile: &Cixfile) -> Result<&str> {
-    cixfile
-        .inputs
-        .keys()
-        .next()
-        .map(String::as_str)
-        .context("Cixfile has no FROM input")
-}
-
-fn only_item(cixfile: &Cixfile) -> Result<(&str, &Item)> {
-    if cixfile.items.len() != 1 {
-        bail!(
-            "this operation requires exactly one ITEM, found {}",
-            cixfile.items.len()
-        );
-    }
-    let (name, item) = cixfile.items.first_key_value().expect("one item");
-    Ok((name, item))
-}
-
-fn item_paths(cixfile: &Cixfile, item: &Item) -> Vec<Template> {
-    cixfile.paths.iter().chain(&item.paths).cloned().collect()
-}
-
-fn nix_spec(item: &Item, paths: &[Template], build_snapshot: Option<&str>) -> String {
-    let mounts = projected_mounts(item);
+fn nix_spec(artifact: &Artifact) -> Result<String> {
+    let mounts = projected_mounts(artifact);
     let mut output = String::from("{ cixManifest = 4;");
-    let service = nix_service(&item.service, &mounts, paths, build_snapshot);
+    if let Some(kind) = artifact.kind.manifest_name() {
+        write!(output, " kind = {};", nix_string(kind))?;
+    }
+    let service = nix_service(artifact, &mounts)?;
     output.push_str(service.trim_start_matches('{').trim_end_matches('}'));
     output.push_str(" }");
-    output
+    Ok(output)
 }
 
-fn nix_service(
-    service: &Service,
-    mounts: &BTreeSet<String>,
-    paths: &[Template],
-    build_snapshot: Option<&str>,
-) -> String {
+fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String> {
+    let service = &artifact.service;
     let mut output = String::from("{");
-    write!(
-        output,
-        " exec = {};",
-        nix_command(&service.exec, service.exec_line, build_snapshot)
-    )
-    .unwrap();
+    if artifact.kind != ArtifactKind::Item {
+        write!(
+            output,
+            " exec = {};",
+            nix_command(&service.exec, service.exec_line)
+        )?;
+    }
     if !mounts.is_empty() {
         write!(
             output,
@@ -545,35 +567,24 @@ fn nix_service(
                 .map(|mount| nix_string(mount))
                 .collect::<Vec<_>>()
                 .join(" ")
-        )
-        .unwrap();
+        )?;
     }
     if let Some(setup) = &service.setup {
         write!(
             output,
             " setup = {};",
-            nix_command(
-                setup,
-                service.setup_line.expect("SETUP has a line"),
-                build_snapshot,
-            )
-        )
-        .unwrap();
+            nix_command(setup, service.setup_line.expect("SETUP has a line"))
+        )?;
     }
-    if !service.env.is_empty() || !paths.is_empty() {
+    if !service.env.is_empty() || !artifact.paths.is_empty() {
         output.push_str(" env = {");
-        if !paths.is_empty() {
+        if !artifact.paths.is_empty() {
             output.push_str(" \"PATH\" = { default = builtins.concatStringsSep \":\" pathDirs; };");
         }
         for (name, env) in &service.env {
-            write!(output, " {} = {{", nix_attr(name)).unwrap();
+            write!(output, " {} = {{", nix_attr(name))?;
             if let Some(default) = &env.default {
-                write!(
-                    output,
-                    " default = {};",
-                    nix_template(default, build_snapshot)
-                )
-                .unwrap();
+                write!(output, " default = {};", nix_template(default))?;
             }
             if env.required {
                 output.push_str(" required = true;");
@@ -588,14 +599,10 @@ fn nix_service(
     if !service.ports.is_empty() {
         output.push_str(" ports = {");
         for (name, port) in &service.ports {
-            write!(output, " {} = {{", nix_attr(name)).unwrap();
+            write!(output, " {} = {{", nix_attr(name))?;
             match port {
-                Port::Env(variable) => {
-                    write!(output, " env = {};", nix_string(variable)).unwrap();
-                }
-                Port::Value(value) => {
-                    write!(output, " value = {value};").unwrap();
-                }
+                Port::Env(variable) => write!(output, " env = {};", nix_string(variable))?,
+                Port::Value(value) => write!(output, " value = {value};")?,
             }
             output.push_str(" protocol = \"tcp\"; };");
         }
@@ -604,13 +611,12 @@ fn nix_service(
     if !service.listeners.is_empty() {
         output.push_str(" listeners = {");
         for name in &service.listeners {
-            write!(output, " {} = {{ type = \"stream\"; }};", nix_attr(name)).unwrap();
+            write!(output, " {} = {{ type = \"stream\"; }};", nix_attr(name))?;
         }
         output.push_str(" };");
     }
-    let dirs = nix_dirs(service);
-    if let Some(dirs) = dirs {
-        write!(output, " dirs = {dirs};").unwrap();
+    if let Some(dirs) = nix_dirs(service) {
+        write!(output, " dirs = {dirs};")?;
     }
     if service.jit {
         output.push_str(" jit = true;");
@@ -619,7 +625,7 @@ fn nix_service(
         output.push_str(" outbound = true;");
     }
     output.push_str(" }");
-    output
+    Ok(output)
 }
 
 fn nix_dirs(service: &Service) -> Option<String> {
@@ -652,30 +658,30 @@ fn nix_dirs(service: &Service) -> Option<String> {
     Some(output)
 }
 
-fn nix_templates(templates: &[Template], build_snapshot: Option<&str>) -> String {
+fn nix_templates(templates: &[Template]) -> String {
     format!(
         "[ {} ]",
         templates
             .iter()
-            .map(|template| nix_template(template, build_snapshot))
+            .map(nix_template)
             .collect::<Vec<_>>()
             .join(" ")
     )
 }
 
-fn nix_command(arguments: &[Template], line: usize, build_snapshot: Option<&str>) -> String {
+fn nix_command(arguments: &[Template], line: usize) -> String {
     let Some(command) = bare_command(arguments) else {
-        return nix_templates(arguments, build_snapshot);
+        return nix_templates(arguments);
     };
     let mut output = format!("[ (resolveExecutable {line} {})", nix_string(&command));
     for argument in &arguments[1..] {
-        write!(output, " {}", nix_template(argument, build_snapshot)).unwrap();
+        write!(output, " {}", nix_template(argument)).unwrap();
     }
     output.push_str(" ]");
     output
 }
 
-fn nix_template(template: &Template, build_snapshot: Option<&str>) -> String {
+fn nix_template(template: &Template) -> String {
     let mut output = String::from("\"");
     for part in &template.parts {
         match part {
@@ -685,23 +691,18 @@ fn nix_template(template: &Template, build_snapshot: Option<&str>) -> String {
                 attrpath,
                 line,
             } => {
-                output.push_str("${");
-                output.push_str("builtins.addErrorContext ");
+                output.push_str("${builtins.addErrorContext ");
                 output.push_str(&nix_string(&format!(
                     "Cixfile line {line}: resolving {namespace}.{attrpath}"
                 )));
                 output.push(' ');
-                output.push_str("universes.");
-                output.push_str(&nix_attr(namespace));
-                for component in attrpath.split('.') {
-                    output.push('.');
-                    output.push_str(&nix_attr(component));
-                }
+                output.push_str(&package_expression(namespace, attrpath));
                 output.push('}');
             }
-            TemplatePart::Build { .. } => {
-                build_snapshot.expect("${build} was validated before codegen");
-                output.push_str("${buildSnapshot}");
+            TemplatePart::Binder { name, .. } => {
+                output.push_str("${binders.");
+                output.push_str(&nix_attr(name));
+                output.push('}');
             }
         }
     }
@@ -709,65 +710,147 @@ fn nix_template(template: &Template, build_snapshot: Option<&str>) -> String {
     output
 }
 
-fn nix_take_source(template: &Template, build_snapshot: Option<&str>) -> String {
-    match template.parts.as_slice() {
-        [TemplatePart::Literal(path)] => {
-            build_snapshot.expect("TAKE was validated before codegen");
-            format!("\"${{buildSnapshot}}/{}\"", escape_nix_string(path))
-        }
-        _ => nix_template(template, build_snapshot),
+fn package_expression(namespace: &str, attrpath: &str) -> String {
+    let mut expression = format!("universes.{}", nix_attr(namespace));
+    for component in attrpath.split('.') {
+        expression.push('.');
+        expression.push_str(&nix_attr(component));
+    }
+    expression
+}
+
+fn github_repository(url: &str) -> Result<(&str, &str)> {
+    let path = url
+        .strip_prefix("github:")
+        .with_context(|| format!("unsupported FROM URL {url:?}; expected github:owner/repo"))?;
+    let mut components = path.split('/');
+    let owner = components.next().filter(|value| !value.is_empty());
+    let repo = components.next().filter(|value| !value.is_empty());
+    match (owner, repo) {
+        (Some(owner), Some(repo)) => Ok((owner, repo)),
+        _ => bail!("invalid github FROM URL {url:?}"),
     }
 }
 
-fn nix_string(value: &str) -> String {
-    format!("\"{}\"", escape_nix_string(value))
-}
-
-fn nix_attr(value: &str) -> String {
-    nix_string(value)
-}
-
-fn escape_nix_string(value: &str) -> String {
-    let mut output = String::new();
-    let mut characters = value.chars().peekable();
-    while let Some(character) = characters.next() {
-        match character {
-            '\\' => output.push_str("\\\\"),
-            '"' => output.push_str("\\\""),
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            '$' if characters.peek() == Some(&'{') => output.push_str("\\$"),
-            character => output.push(character),
-        }
+fn fetch_tree(input: &InputLock) -> Result<String> {
+    if input.url.starts_with("github:") {
+        let (owner, repo) = github_repository(&input.url)?;
+        return Ok(format!(
+            "builtins.fetchTree {{ type = \"github\"; owner = {}; repo = {}; rev = {}; narHash = {}; }}",
+            nix_string(owner),
+            nix_string(repo),
+            nix_string(&input.rev),
+            nix_string(&input.nar_hash),
+        ));
     }
-    output
+    if input.url.starts_with("https://") {
+        return Ok(format!(
+            "builtins.fetchTree {{ type = \"tarball\"; url = {}; narHash = {}; }}",
+            nix_string(&input.url),
+            nix_string(&input.nar_hash),
+        ));
+    }
+    bail!("unsupported FROM URL {:?}", input.url)
 }
 
-fn shell_double_quoted(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('"', "\\\"")
-        .replace('$', "\\$")
-        .replace('`', "\\`")
+fn primary_namespace(cixfile: &Cixfile) -> Result<&str> {
+    cixfile
+        .inputs
+        .iter()
+        .find(|(_, input)| input.kind == InputKind::PackageUniverse)
+        .map(|(name, _)| name.as_str())
+        .context("Cixfile has no package-universe FROM input")
 }
 
-fn literal_spec(item: &Item, paths: &[Template]) -> Result<Value> {
-    let mounts = projected_mounts(item);
-    let Value::Object(mut value) = literal_service(&item.service, &mounts, paths)? else {
-        unreachable!("service literal is an object");
+fn only_artifact(cixfile: &Cixfile) -> Result<(&str, &Artifact)> {
+    if cixfile.artifacts.len() != 1 {
+        bail!(
+            "this operation requires exactly one artifact block, found {}",
+            cixfile.artifacts.len()
+        );
+    }
+    let (name, artifact) = cixfile.artifacts.first_key_value().expect("one artifact");
+    Ok((name, artifact))
+}
+
+fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
+    artifact
+        .copies
+        .iter()
+        .map(|copy| &copy.dst)
+        .chain(artifact.assembly.iter().map(|assembly| match assembly {
+            Assembly::File { dst, .. }
+            | Assembly::Script { dst, .. }
+            | Assembly::Link { dst, .. } => dst,
+        }))
+        .filter_map(|destination| {
+            Path::new(destination)
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .map(|parent| parent.to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
+fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
+    let copy_destinations = artifact
+        .copies
+        .iter()
+        .filter(|copy| copy.dst != ".")
+        .map(|copy| format!("/{}", copy.dst));
+    let assembly_destinations = artifact
+        .assembly
+        .iter()
+        .map(|assembly| match assembly {
+            Assembly::File { dst, .. }
+            | Assembly::Script { dst, .. }
+            | Assembly::Link { dst, .. } => dst,
+        })
+        .cloned();
+    copy_destinations
+        .chain(assembly_destinations)
+        .filter_map(|destination| {
+            let path = Path::new(&destination);
+            if !path.is_absolute() {
+                return None;
+            }
+            let components = path
+                .components()
+                .filter_map(|component| match component {
+                    Component::Normal(component) => component.to_str(),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            match components.as_slice() {
+                [first] => Some(format!("/{first}")),
+                [first, second, ..] => Some(format!("/{first}/{second}")),
+                [] => None,
+            }
+        })
+        .collect()
+}
+
+fn literal_spec(artifact: &Artifact) -> Result<Value> {
+    let mounts = projected_mounts(artifact);
+    let Value::Object(mut value) = literal_service(artifact, &mounts)? else {
+        unreachable!("artifact literal is an object");
     };
     value.insert("cixManifest".to_owned(), Value::from(4));
+    if let Some(kind) = artifact.kind.manifest_name() {
+        value.insert("kind".to_owned(), Value::String(kind.to_owned()));
+    }
     Ok(Value::Object(value))
 }
 
-fn literal_service(
-    service: &Service,
-    mounts: &BTreeSet<String>,
-    paths: &[Template],
-) -> Result<Value> {
+fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Value> {
+    let service = &artifact.service;
     let mut value = Map::new();
-    value.insert("exec".into(), literal_command(&service.exec, paths)?);
+    if artifact.kind != ArtifactKind::Item {
+        value.insert(
+            "exec".into(),
+            literal_command(&service.exec, &artifact.paths)?,
+        );
+    }
     if !mounts.is_empty() {
         value.insert(
             "mounts".into(),
@@ -775,17 +858,18 @@ fn literal_service(
         );
     }
     if let Some(setup) = &service.setup {
-        value.insert("setup".into(), literal_command(setup, paths)?);
+        value.insert("setup".into(), literal_command(setup, &artifact.paths)?);
     }
-    if !service.env.is_empty() || !paths.is_empty() {
+    if !service.env.is_empty() || !artifact.paths.is_empty() {
         let mut envs = Map::new();
-        if !paths.is_empty() {
+        if !artifact.paths.is_empty() {
             envs.insert(
                 "PATH".into(),
                 Value::Object(Map::from_iter([(
                     "default".into(),
                     Value::String(
-                        paths
+                        artifact
+                            .paths
                             .iter()
                             .map(literal_template)
                             .collect::<Result<Vec<_>>>()?
@@ -859,36 +943,6 @@ fn literal_service(
     Ok(Value::Object(value))
 }
 
-fn projected_mounts(item: &Item) -> BTreeSet<String> {
-    item.assembly
-        .iter()
-        .map(|assembly| match assembly {
-            Assembly::File { dst, .. }
-            | Assembly::Script { dst, .. }
-            | Assembly::Link { dst, .. } => dst,
-        })
-        .chain(item.takes.iter().map(|take| &take.dst))
-        .filter_map(|destination| {
-            let path = Path::new(destination);
-            if !path.is_absolute() {
-                return None;
-            }
-            let components = path
-                .components()
-                .filter_map(|component| match component {
-                    Component::Normal(component) => component.to_str(),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            match components.as_slice() {
-                [first] => Some(format!("/{first}")),
-                [first, second, ..] => Some(format!("/{first}/{second}")),
-                [] => None,
-            }
-        })
-        .collect()
-}
-
 fn literal_dirs(service: &Service) -> Map<String, Value> {
     let mut dirs = Map::new();
     for (role, paths) in [
@@ -929,8 +983,41 @@ fn literal_command(arguments: &[Template], paths: &[Template]) -> Result<Value> 
 
 fn literal_template(template: &Template) -> Result<String> {
     template.literal_value().with_context(|| {
-        "cannot render package interpolation as JSON without evaluating the generated Nix"
+        "cannot render package or binder interpolation as JSON without evaluating generated Nix"
     })
+}
+
+fn nix_string(value: &str) -> String {
+    format!("\"{}\"", escape_nix_string(value))
+}
+
+fn nix_attr(value: &str) -> String {
+    nix_string(value)
+}
+
+fn escape_nix_string(value: &str) -> String {
+    let mut output = String::new();
+    let mut characters = value.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' => output.push_str("\\\\"),
+            '"' => output.push_str("\\\""),
+            '\n' => output.push_str("\\n"),
+            '\r' => output.push_str("\\r"),
+            '\t' => output.push_str("\\t"),
+            '$' if characters.peek() == Some(&'{') => output.push_str("\\$"),
+            character => output.push(character),
+        }
+    }
+    output
+}
+
+fn shell_double_quoted(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('$', "\\$")
+        .replace('`', "\\`")
 }
 
 #[cfg(test)]
@@ -940,16 +1027,16 @@ mod tests {
 
     fn fixture_lock() -> LockFile {
         LockFile {
-            inputs: std::collections::BTreeMap::from([(
+            inputs: BTreeMap::from([(
                 "pkgs".into(),
-                crate::InputLock {
+                InputLock {
                     url: "github:NixOS/nixpkgs/nixos-unstable".into(),
                     rev: "0123456789abcdef".into(),
                     nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
                 },
             )]),
-            fetches: std::collections::BTreeMap::new(),
-            memo: std::collections::BTreeMap::new(),
+            fetches: BTreeMap::new(),
+            memo: BTreeMap::new(),
         }
     }
 
@@ -961,84 +1048,54 @@ mod tests {
     }
 
     #[test]
-    fn groups_projected_destinations_without_broadening_mounts() {
+    fn emits_kind_and_unified_copy_sources() {
+        let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nITEM app\nFILE /etc/nginx/nginx.conf <<E\nevents {}\nE\nLINK /etc/nginx/mime.types /mime.types\nFILE /srv/www/index.html <<E\nhello\nE\nFILE /cix-probe.conf <<E\nprobe\nE\nEXEC bin/app\n",
+            "FROM nixpkgs AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload bin/payload\nEXEC /bin/true\n",
         )
         .unwrap();
-        let spec = generate_spec_json(&cixfile).unwrap();
-        assert!(spec.contains("\"mounts\": [\n    \"/cix-probe.conf\",\n    \"/etc/nginx\",\n    \"/srv/www\"\n  ]"), "{spec}");
-
-        let nix = generate_nix(
-            &cixfile,
-            tempfile::tempdir().unwrap().path(),
-            &fixture_lock(),
-            "x86_64-linux",
-        )
-        .unwrap();
-        assert!(nix.contains("mounts = [ \"/cix-probe.conf\" \"/etc/nginx\" \"/srv/www\" ];"));
-    }
-
-    #[test]
-    fn listener_emits_the_v4_bare_contract() {
-        let cixfile =
-            parse("FROM nixpkgs AS pkgs\nITEM web\nEXEC bin/web\nLISTENER http\nLISTENER admin\n")
-                .unwrap();
-        let spec = generate_spec_json(&cixfile).unwrap();
-        assert!(spec.contains("\"cixManifest\": 4"), "{spec}");
-        assert!(!spec.contains("\"services\""), "{spec}");
+        let nix =
+            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
+        assert!(nix.contains("kind = \"app\";"), "{nix}");
         assert!(
-            spec.contains(
-                "\"listeners\": {\n    \"admin\": {\n      \"type\": \"stream\"\n    },\n    \"http\": {\n      \"type\": \"stream\"\n    }\n  }"
-            ),
-            "{spec}"
-        );
-        let nix = generate_nix(
-            &cixfile,
-            tempfile::tempdir().unwrap().path(),
-            &fixture_lock(),
-            "x86_64-linux",
-        )
-        .unwrap();
-        assert!(nix.contains("cixManifest = 4;"), "{nix}");
-        assert!(
-            nix.contains(
-                "listeners = { \"admin\" = { type = \"stream\"; }; \"http\" = { type = \"stream\"; }; };"
-            ),
+            nix.contains("copy0 = \"${binders.\"src\"}/payload\";"),
             "{nix}"
         );
     }
 
     #[test]
-    fn nix_generation_is_deterministic_and_uses_fixed_fetch() {
-        let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nITEM app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC bin/hello\n",
-        )
-        .unwrap();
-        let first =
-            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
-        let second =
-            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
-        assert_eq!(first, second);
-        assert!(first.contains("builtins.fetchTree"));
-        assert!(first.contains("narHash = \"sha256-"));
-        assert!(first.contains("universes.\"pkgs\".\"hello\""));
-        assert!(first.contains("Cixfile line 3: resolving pkgs.hello"));
+    fn service_manifest_omits_kind_and_item_omits_exec() {
+        let service = parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n").unwrap();
+        let spec = generate_spec_json(&service).unwrap();
+        assert!(!spec.contains("\"kind\""), "{spec}");
+
+        let item = parse("FROM nixpkgs AS pkgs\nITEM data\nFILE payload <<E\nx\nE\n").unwrap();
+        let spec = generate_spec_json(&item).unwrap();
+        assert!(spec.contains("\"kind\": \"item\""), "{spec}");
+        assert!(!spec.contains("\"exec\""), "{spec}");
     }
 
     #[test]
-    fn rejects_non_github_lock_urls() {
+    fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
         let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse("FROM nixpkgs AS pkgs\nITEM app\nEXEC /bin/x\n").unwrap();
-        let lock = LockFile {
-            inputs: std::collections::BTreeMap::new(),
-            fetches: std::collections::BTreeMap::new(),
-            memo: std::collections::BTreeMap::new(),
-        };
-        let error = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux")
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("missing FROM input"), "{error}");
+        let cixfile = parse(
+            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nITEM data\nCOPY ${src}/payload payload\n",
+        )
+        .unwrap();
+        let mut lock = fixture_lock();
+        lock.inputs.insert(
+            "src".into(),
+            InputLock {
+                url: "github:owner/repository/deadbeef".into(),
+                rev: "deadbeef".into(),
+                nar_hash: "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=".into(),
+            },
+        );
+        let nix = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux").unwrap();
+        assert!(nix.contains("\"src\" = input1Source;"), "{nix}");
+        assert!(
+            nix.contains("copy0 = \"${binders.\"src\"}/payload\";"),
+            "{nix}"
+        );
     }
 }

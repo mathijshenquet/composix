@@ -1,0 +1,7 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH payload SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.curl}/bin/curl --fail --location https://raw.githubusercontent.com/NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e/README.md --output README.md
+
+SERVICE ingredient
+COPY ${payload}/README.md share/nixpkgs-README.md
+EXEC ${pkgs.coreutils}/bin/sleep infinity

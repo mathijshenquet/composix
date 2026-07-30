@@ -1,24 +1,26 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
+BUILDER build
 PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
 CACHE target
 
-COPY rust/Cargo.toml Cargo.toml
-COPY rust/Cargo.lock Cargo.lock
-COPY rust/common/Cargo.toml common/Cargo.toml
-COPY rust/common/src/lib.rs common/src/lib.rs
-COPY rust/api/Cargo.toml api/Cargo.toml
-COPY rust/api/src/main.rs api/src/main.rs
-COPY rust/worker/Cargo.toml worker/Cargo.toml
-COPY rust/worker/src/main.rs worker/src/main.rs
+COPY ${src}/rust/Cargo.toml Cargo.toml
+COPY ${src}/rust/Cargo.lock Cargo.lock
+COPY ${src}/rust/common/Cargo.toml common/Cargo.toml
+COPY ${src}/rust/common/src/lib.rs common/src/lib.rs
+COPY ${src}/rust/api/Cargo.toml api/Cargo.toml
+COPY ${src}/rust/api/src/main.rs api/src/main.rs
+COPY ${src}/rust/worker/Cargo.toml worker/Cargo.toml
+COPY ${src}/rust/worker/src/main.rs worker/src/main.rs
 RUN cargo build --release --locked --offline --workspace && mkdir -p output && cp target/release/proj1-api output/proj1-api && cp target/release/proj1-worker output/proj1-worker
 
-ITEM proj1-api
-TAKE output/proj1-api bin/proj1-api
+SERVICE proj1-api
+COPY ${build}/output/proj1-api bin/proj1-api
 EXEC bin/proj1-api
 PORT http = 18084
 
-ITEM proj1-worker
-TAKE output/proj1-worker bin/proj1-worker
+SERVICE proj1-worker
+COPY ${build}/output/proj1-worker bin/proj1-worker
 EXEC bin/proj1-worker
 OUTBOUND

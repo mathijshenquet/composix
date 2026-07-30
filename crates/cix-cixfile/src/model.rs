@@ -3,25 +3,62 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cixfile {
     pub inputs: BTreeMap<String, Input>,
-    pub paths: Vec<Template>,
-    pub caches: Vec<String>,
-    pub steps: Vec<BuildStep>,
-    pub items: BTreeMap<String, Item>,
+    pub fetches: BTreeMap<String, Fetch>,
+    pub fetch_order: Vec<String>,
+    pub builders: BTreeMap<String, Builder>,
+    pub builder_order: Vec<String>,
+    pub artifacts: BTreeMap<String, Artifact>,
+    pub artifact_order: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Input {
     pub url: String,
+    pub kind: InputKind,
+    pub line: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InputKind {
+    PackageUniverse,
+    Source,
+}
+
+impl Input {
+    pub fn is_local(&self) -> bool {
+        self.url == "."
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Fetch {
+    pub command: Template,
+    pub line: usize,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Builder {
+    pub paths: Vec<Template>,
+    pub caches: Vec<String>,
+    pub steps: Vec<BuildStep>,
+    pub line: usize,
+}
+
+impl Builder {
+    pub(crate) fn empty(line: usize) -> Self {
+        Self {
+            paths: Vec::new(),
+            caches: Vec::new(),
+            steps: Vec::new(),
+            line,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BuildStep {
-    Copy {
-        src: String,
-        dst: String,
-        line: usize,
-        source: String,
-    },
+    Copy(Copy),
     Fetch {
         command: Template,
         line: usize,
@@ -35,34 +72,64 @@ pub enum BuildStep {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Copy {
+    pub src: Template,
+    pub dst: String,
+    pub line: usize,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Assembly {
     File { dst: String, contents: Template },
     Script { dst: String, contents: Template },
     Link { dst: String, target: Template },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ArtifactKind {
+    Service,
+    App,
+    Item,
+}
+
+impl ArtifactKind {
+    pub fn manifest_name(self) -> Option<&'static str> {
+        match self {
+            Self::Service => None,
+            Self::App => Some("app"),
+            Self::Item => Some("item"),
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            Self::Service => "SERVICE",
+            Self::App => "APP",
+            Self::Item => "ITEM",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Take {
-    pub src: Template,
-    pub dst: String,
+pub struct Artifact {
+    pub kind: ArtifactKind,
+    pub copies: Vec<Copy>,
+    pub assembly: Vec<Assembly>,
+    pub paths: Vec<Template>,
+    pub service: Service,
     pub line: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Item {
-    pub assembly: Vec<Assembly>,
-    pub takes: Vec<Take>,
-    pub paths: Vec<Template>,
-    pub service: Service,
-}
-
-impl Item {
-    pub(crate) fn empty() -> Self {
+impl Artifact {
+    pub(crate) fn empty(kind: ArtifactKind, line: usize) -> Self {
         Self {
+            kind,
+            copies: Vec::new(),
             assembly: Vec::new(),
-            takes: Vec::new(),
             paths: Vec::new(),
             service: Service::empty(),
+            line,
         }
     }
 }
@@ -143,7 +210,7 @@ impl Template {
         for part in &self.parts {
             match part {
                 TemplatePart::Literal(part) => value.push_str(part),
-                TemplatePart::Package { .. } | TemplatePart::Build { .. } => return None,
+                TemplatePart::Package { .. } | TemplatePart::Binder { .. } => return None,
             }
         }
         Some(value)
@@ -169,7 +236,14 @@ impl Template {
                             ..
                         },
                     ) => left_namespace == right_namespace && left == right,
-                    (TemplatePart::Build { .. }, TemplatePart::Build { .. }) => true,
+                    (
+                        TemplatePart::Binder {
+                            name: left_name, ..
+                        },
+                        TemplatePart::Binder {
+                            name: right_name, ..
+                        },
+                    ) => left_name == right_name,
                     _ => false,
                 })
     }
@@ -183,7 +257,8 @@ pub enum TemplatePart {
         attrpath: String,
         line: usize,
     },
-    Build {
+    Binder {
+        name: String,
         line: usize,
     },
 }

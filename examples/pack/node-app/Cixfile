@@ -1,11 +1,12 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
+BUILDER build
+COPY ${src}/server.js app/server.js
+
+SERVICE node-app
 PATH ${pkgs.nodejs}/bin
-
-COPY server.js /app/server.js
-
-ITEM node-app
-TAKE ${build}/app/server.js /app/server.js
+COPY ${build}/app/server.js app/server.js
 EXEC node /app/server.js
 PORT http = 8081
 JIT

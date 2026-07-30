@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Output, Stdio};
+use std::process::{self, Child, Command, ExitStatus, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -10,7 +10,7 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 use crate::config::ResolvedConfig;
-use crate::spec::{Service, Spec};
+use crate::spec::{ManifestKind, Service, Spec};
 use crate::unit::{build_unit, UnitDefinition, UnitMode};
 
 static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -41,6 +41,7 @@ struct Target {
 pub(crate) struct ResolvedService {
     pub output: PathBuf,
     pub name: String,
+    pub kind: ManifestKind,
     pub service: Service,
 }
 
@@ -57,6 +58,13 @@ pub(crate) struct ForegroundResult {
 }
 
 pub fn run(options: RunOptions) -> Result<()> {
+    let target = resolve_service(&options.installable)?;
+    if target.kind == ManifestKind::Item {
+        bail!(
+            "cix run refuses artifact {:?}: manifest kind item is assets-only and has no executable (D47)",
+            target.name
+        );
+    }
     if !options.user && current_uid()? != 0 {
         bail!(
             "cix run targets the system manager and must run as root; use sudo, or pass --user for explicitly degraded dev mode"
@@ -68,8 +76,132 @@ pub fn run(options: RunOptions) -> Result<()> {
         );
     }
 
-    let target = resolve_service(&options.installable)?;
-    run_resolved(target.output, &target.name, &target.service, &options)
+    match target.kind {
+        ManifestKind::Service => {
+            run_resolved(target.output, &target.name, &target.service, &options)
+        }
+        ManifestKind::App => run_app(target, &options),
+        ManifestKind::Item => unreachable!("item was refused above"),
+    }
+}
+
+fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
+    if options.detach {
+        bail!("cix run --detach is not valid for manifest kind app; apps run to completion");
+    }
+    if !options.port.is_empty() {
+        bail!("cix run -p/--port is not valid for manifest kind app (D47)");
+    }
+    let config = ResolvedConfig::resolve(&target.service, &options.env, &[])?;
+    let mode = if options.user {
+        UnitMode::UserFull
+    } else {
+        UnitMode::System
+    };
+    let definition = build_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    if !options.user {
+        let name = format!("cix-run-{}-{}.service", target.name, nonce());
+        let result = run_transient_app(&name, false, &definition)?;
+        if result.status.success() {
+            return Ok(());
+        }
+        let error = with_unit_diagnostics(
+            anyhow::anyhow!("app unit {name} failed: {}", result.stderr.trim()),
+            &name,
+            false,
+        );
+        if !namespace_failure(&error) {
+            return finish_app(result.status);
+        }
+        eprintln!("warning: the system manager rejected PrivatePIDs isolation ({error:#})");
+        eprintln!(
+            "warning: retrying without PrivatePIDs; this app shares the host PID namespace (D36 degraded fallback)"
+        );
+        let fallback = without_properties(&definition, &["PrivatePIDs"]);
+        return finish_app(
+            run_transient_app(
+                &format!("cix-run-{}-{}.service", target.name, nonce()),
+                false,
+                &fallback,
+            )?
+            .status,
+        );
+    }
+
+    let (status, error) = failed_app_attempt(&target.name, true, &definition)?;
+    if status.success() {
+        return Ok(());
+    }
+    if capability_failure(&error) {
+        eprintln!("warning: user manager rejected capability controls ({error:#})");
+        eprintln!(
+            "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
+        );
+        let without_capabilities = without_properties(
+            &definition,
+            &[
+                "AmbientCapabilities",
+                "CapabilityBoundingSet",
+                "ProtectKernelModules",
+                "ProtectKernelLogs",
+            ],
+        );
+        let (retry_status, retry_error) =
+            failed_app_attempt(&target.name, true, &without_capabilities)?;
+        if retry_status.success() {
+            return Ok(());
+        }
+        if !namespace_failure(&retry_error) {
+            return finish_app(retry_status);
+        }
+        return run_app_degraded(&target, &config, retry_error);
+    }
+    if namespace_failure(&error) {
+        return run_app_degraded(&target, &config, error);
+    }
+    finish_app(status)
+}
+
+fn failed_app_attempt(
+    app_name: &str,
+    user: bool,
+    definition: &UnitDefinition,
+) -> Result<(ExitStatus, anyhow::Error)> {
+    let name = format!("cix-run-{app_name}-{}.service", nonce());
+    let result = run_transient_app(&name, user, definition)?;
+    let error = with_unit_diagnostics(
+        anyhow::anyhow!("app unit {name} failed: {}", result.stderr.trim()),
+        &name,
+        user,
+    );
+    Ok((result.status, error))
+}
+
+fn run_app_degraded(
+    target: &ResolvedService,
+    config: &ResolvedConfig,
+    error: anyhow::Error,
+) -> Result<()> {
+    eprintln!("warning: the user manager rejected mount-namespace sandboxing ({error:#})");
+    eprintln!(
+        "warning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; this is the D13 degraded development path"
+    );
+    let degraded = build_unit(
+        &target.output,
+        &target.name,
+        &target.service,
+        config,
+        UnitMode::UserDegraded,
+    )?;
+    let name = format!("cix-run-{}-{}.service", target.name, nonce());
+    finish_app(run_transient_app(&name, true, &degraded)?.status)
+}
+
+fn finish_app(status: ExitStatus) -> Result<()> {
+    if status.success() {
+        return Ok(());
+    }
+    process::exit(status.code().unwrap_or(1));
 }
 
 fn run_resolved(
@@ -492,6 +624,24 @@ pub(crate) fn run_transient_foreground(
     definition: &UnitDefinition,
     interactive: bool,
 ) -> Result<ForegroundResult> {
+    run_transient_foreground_with_type(name, user, definition, interactive, "exec")
+}
+
+fn run_transient_app(
+    name: &str,
+    user: bool,
+    definition: &UnitDefinition,
+) -> Result<ForegroundResult> {
+    run_transient_foreground_with_type(name, user, definition, false, "oneshot")
+}
+
+fn run_transient_foreground_with_type(
+    name: &str,
+    user: bool,
+    definition: &UnitDefinition,
+    interactive: bool,
+    service_type: &str,
+) -> Result<ForegroundResult> {
     let mut command = Command::new("systemd-run");
     if user {
         command.arg("--user");
@@ -501,7 +651,7 @@ pub(crate) fn run_transient_foreground(
         .arg("--collect")
         .arg("--wait")
         .arg(if interactive { "--pty" } else { "--pipe" })
-        .arg("--service-type=exec")
+        .arg(format!("--service-type={service_type}"))
         .arg(format!("--unit={name}"));
 
     for (property, value) in &definition.properties {
@@ -676,6 +826,7 @@ pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
         Ok((name, service)) => Ok(ResolvedService {
             output: target.output,
             name: name.to_owned(),
+            kind: spec.kind,
             service: service.clone(),
         }),
         Err(original_error) if target.requested_service.is_none() => {
@@ -688,6 +839,7 @@ pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
             Ok(ResolvedService {
                 output,
                 name: name.to_owned(),
+                kind: fallback_spec.kind,
                 service: service.clone(),
             })
         }

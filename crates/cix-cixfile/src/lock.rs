@@ -100,8 +100,11 @@ where
     F: FnMut(&str, bool) -> Result<InputLock>,
 {
     if let Some(name) = update.filter(|name| !name.is_empty()) {
-        if !inputs.contains_key(name) {
+        let Some(input) = inputs.get(name) else {
             bail!("--update-lock names undeclared FROM namespace {name:?}");
+        };
+        if input.is_local() {
+            bail!("FROM . AS {name} is the local build context and is not lock-pinned");
         }
     }
 
@@ -124,6 +127,9 @@ where
     });
     let mut changed = false;
     for (name, input) in inputs {
+        if input.is_local() {
+            continue;
+        }
         let refresh = update.is_some_and(|requested| requested.is_empty() || requested == name);
         if refresh || !lock.inputs.contains_key(name) {
             lock.inputs
@@ -131,7 +137,8 @@ where
             changed = true;
         }
     }
-    lock.inputs.retain(|name, _| inputs.contains_key(name));
+    lock.inputs
+        .retain(|name, _| inputs.get(name).is_some_and(|input| !input.is_local()));
     lock.validate_for(inputs)?;
     if changed || was_missing || migrated {
         write_lock(path, &lock)?;
@@ -144,10 +151,14 @@ fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFi
         return Ok(lock);
     }
     let legacy: LegacyLockFile = serde_json::from_slice(contents).context("parsing lock file")?;
-    if inputs.len() != 1 {
+    let remote = inputs
+        .iter()
+        .filter(|(_, input)| !input.is_local())
+        .collect::<Vec<_>>();
+    if remote.len() != 1 {
         bail!("legacy single-input Cixfile.lock needs exactly one FROM input to migrate");
     }
-    let name = inputs.keys().next().expect("one input").clone();
+    let name = remote[0].0.clone();
     Ok(LockFile {
         inputs: BTreeMap::from([(name, legacy.nixpkgs)]),
         fetches: BTreeMap::new(),
@@ -213,6 +224,12 @@ fn archive_nar_hash(url: &str) -> Result<String> {
 impl LockFile {
     pub fn validate_for(&self, declared: &BTreeMap<String, Input>) -> Result<()> {
         for (name, input) in declared {
+            if input.is_local() {
+                if self.inputs.contains_key(name) {
+                    bail!("lock must not pin local FROM . binder {name:?}");
+                }
+                continue;
+            }
             let lock = self
                 .inputs
                 .get(name)
@@ -271,12 +288,16 @@ mod tests {
                 "pkgs".into(),
                 Input {
                     url: DEFAULT_NIXPKGS_URL.into(),
+                    kind: crate::InputKind::PackageUniverse,
+                    line: 1,
                 },
             ),
             (
                 "stable".into(),
                 Input {
                     url: "github:NixOS/nixpkgs/nixos-25.05".into(),
+                    kind: crate::InputKind::PackageUniverse,
+                    line: 2,
                 },
             ),
         ])
@@ -322,6 +343,8 @@ mod tests {
             "pkgs".into(),
             Input {
                 url: DEFAULT_NIXPKGS_URL.into(),
+                kind: crate::InputKind::PackageUniverse,
+                line: 1,
             },
         )]);
         let lock = ensure_lock_with(&path, &declared, None, |_, _| {
@@ -330,5 +353,33 @@ mod tests {
         .unwrap();
         assert_eq!(lock.inputs["pkgs"].rev, "one");
         assert!(fs::read_to_string(path).unwrap().contains("\"inputs\""));
+    }
+
+    #[test]
+    fn local_from_is_never_resolved_or_pinned() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("Cixfile.lock");
+        let mut declared = inputs();
+        declared.insert(
+            "src".into(),
+            Input {
+                url: ".".into(),
+                kind: crate::InputKind::Source,
+                line: 3,
+            },
+        );
+        let resolutions = Cell::new(0);
+        let lock = ensure_lock_with(&path, &declared, None, |url, _| {
+            resolutions.set(resolutions.get() + 1);
+            Ok(entry(url, "one"))
+        })
+        .unwrap();
+        assert_eq!(resolutions.get(), 2);
+        assert!(!lock.inputs.contains_key("src"));
+
+        let error = ensure_lock_with(&path, &declared, Some("src"), |_, _| unreachable!())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("not lock-pinned"), "{error}");
     }
 }

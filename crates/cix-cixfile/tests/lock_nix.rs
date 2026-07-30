@@ -60,7 +60,7 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 #[test]
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
-    let cixfile = parse("FROM nixpkgs AS pkgs\nITEM fixture\nEXEC bin/fixture\n").unwrap();
+    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC bin/fixture\n").unwrap();
     let mut lock = committed_lock();
     lock.inputs.get_mut("pkgs").unwrap().nar_hash =
         "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
@@ -76,7 +76,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM nixpkgs AS pkgs\nITEM fixture\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nEXEC bin/missing\n",
+        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK bin/missing ${pkgs.thisAttributeDoesNotExist}/bin/missing\nEXEC bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -96,7 +96,7 @@ fn real_nix_build_assembles_files_scripts_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
-ITEM fixture
+SERVICE fixture
 FILE share/content <<EOF
 package=${pkgs.hello}
 escaped=$${literal}
@@ -154,8 +154,8 @@ fn path_resolution_writes_the_real_executable_and_runtime_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
+SERVICE fixture
 PATH ${pkgs.coreutils}/bin
-ITEM fixture
 SETUP true
 EXEC true
 "#,
@@ -189,8 +189,8 @@ fn path_resolution_prefers_the_first_matching_directory() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
+SERVICE fixture
 PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
-ITEM fixture
 EXEC bash
 "#,
     )
@@ -220,8 +220,8 @@ fn path_resolution_fails_with_line_and_searched_directories() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
+SERVICE fixture
 PATH ${pkgs.coreutils}/bin
-ITEM fixture
 EXEC definitely-not-a-coreutils-command
 "#,
     )
@@ -246,11 +246,13 @@ fn run_executes_outside_nix_and_build_interpolation_reaches_the_snapshot() {
     fs::write(
         directory.path().join("Cixfile"),
         r#"FROM nixpkgs AS pkgs
+FROM . AS src
+BUILDER build
 PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
-COPY input input
+COPY ${src}/input input
 RUN cp input output
-ITEM fixture
-TAKE ${build}/output bin/output
+SERVICE fixture
+COPY ${build}/output bin/output
 EXEC bin/output
 "#,
     )
@@ -291,4 +293,36 @@ EXEC bin/output
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
+}
+
+#[test]
+fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("payload"), "same context\n").unwrap();
+    let bare = parse("FROM nixpkgs AS pkgs\nITEM fixture\nCOPY payload share/payload\n").unwrap();
+    let explicit = parse(
+        "FROM nixpkgs AS pkgs\nFROM . AS src\nITEM fixture\nCOPY ${src}/payload share/payload\n",
+    )
+    .unwrap();
+    let bare = build_expression(
+        &generate_nix(&bare, directory.path(), &committed_lock(), "x86_64-linux").unwrap(),
+    )
+    .unwrap();
+    let explicit = build_expression(
+        &generate_nix(
+            &explicit,
+            directory.path(),
+            &committed_lock(),
+            "x86_64-linux",
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(bare, explicit);
+    assert_eq!(
+        fs::read_to_string(bare.join("share/payload")).unwrap(),
+        "same context\n"
+    );
+    let manifest = cix_run::spec::Spec::load(&bare).unwrap();
+    assert_eq!(manifest.kind, cix_run::spec::ManifestKind::Item);
 }
