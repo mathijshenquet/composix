@@ -20,7 +20,12 @@ Two mechanisms, both compiled from the existing manifest `health` field:
    running the probe on the manifest interval; consecutive-failure threshold N →
    action.
 
-## Resolved (D48c — Mathijs's round)
+## Resolved (D48c + 07-30 follow-up — Mathijs's rounds)
+
+- **Vocabulary: "health" is dropped entirely** (Mathijs: k8s had it right). The
+  manifest/compose fields are `liveness` and `readiness` — named for their consumers;
+  the legacy `health` manifest field migrates. "Real health is application-layer" is
+  a doc sentence, not a feature.
 
 - **Health is an edge to a consumer, not a property.** k8s names probes by consumer
   (liveness→restart, readiness→traffic, startup→boot-gate) and keeps deep/business

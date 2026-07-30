@@ -24,6 +24,12 @@ services. Two flavors:
   cell; cix-allocated default, operator-precreated expressible). Implement the
   registry once — in whichever track runs first — and consume it in the other.
 - Quota/limits on the shared dir: none in v0, honestly noted.
+- Registry provenance (Mathijs, 07-30): **cix allocates.** Noted-not-built escape
+  hatch for when it ever chafes: a *donation* flow — move existing user data into
+  the cix-managed location and symlink back at the old path (one truth afterwards;
+  strictly better than seeding/copying). Do not build it now.
+- Co-location: shared dirs are fs-tier — members are co-location-constrained per
+  compose-tree §3b; a future multi-host split may never cut through this edge.
 
 ## Scope & gate
 

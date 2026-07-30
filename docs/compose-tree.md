@@ -33,25 +33,32 @@ the `service:` selector field in compose dies with it.
 
 ```json
 {
-  "cix": 4,
+  "cixCompose": 1,
   "name": "projA",
   "network": "pod",
-  "services": {
+  "children": {
     "api":    { "item": "projA-api:v7" },
     "worker": { "item": "projA-worker:v7" },
-    "db":     { "item": "pg:v16" }
+    "db":     { "item": "pg:v16" },
+    "batch":  { "compose": "projA-batch:v7" }
   },
-  "composites": {},
   "edges": {
-    "database": { "producer": { "service": "db", "path": "/run/pg" },
+    "database": { "producer": { "child": "db", "path": "/run/pg" },
                   "consumers": { "api": {}, "worker": {} } }
   },
-  "publish": { "http": { "service": "api", "port": "http" } }
+  "publish": { "http": { "child": "api", "port": "http" } }
 }
 ```
 
-- `services` holds leaf refs (→ pack items); `composites` holds group refs (→ compose
-  artifacts) or inline subtrees. Same per-child options on both: env overrides, `bind`.
+- **One `children` map** (2026-07-30 review, Mathijs): no services/composites split —
+  pod-ness gives every child, leaf or node, a well-defined surface, so the parent
+  never needs to know the kind; `"item":` vs `"compose":` (or an inline subtree)
+  discriminates inside the entry. Same per-child options everywhere: env overrides,
+  `bind`, update policy. Version keys stay per document kind: `cixManifest` on leaf
+  manifests, `cixCompose` on tree files — no shared counter, no bare `cix` key.
+- **Refs are always fully qualified** (`name:tag`, never bare); `cix publish`
+  additionally REJECTS refs that are ambiguous outside their origin — local-only
+  refs are a deploy-time convenience, never published artifact content.
 - **Instance identity = the path in the tree**, not the artifact's self-`name`. Unit
   `cix-<path…>-<svc>.service`, slice `cix-<path…>.slice` (nested; the resource axis is a
   real tree), state dirs keyed by path. Two instances of the same artifact under
@@ -95,6 +102,28 @@ the `service:` selector field in compose dies with it.
   CNI; D27 talks-to ≈ NetworkPolicy; reconciler ≈ kubelet. Deliberate deviation: our
   "pod" may be trust-boundary-sized, not sidecar-sized — the grain is the user's choice,
   and choosing it selects capability-tier wiring (inside) vs network-tier (between).
+
+## 3b. Edges, precisely — and the co-location constraint
+
+An edge is a **directed capability grant of a unix-socket surface**, nothing more.
+The producer declares the runtime dir its socket lives in; the edge compiles to a
+per-edge group, that dir group-owned, and ONLY the consumers receiving that group
+membership plus the dir made visible in their namespaces (at a path of their
+choosing). Authorization = possession of the path (fs permissions + `SO_PEERCRED`) —
+the D25 capability model: no IP, no discovery, no firewall rules; a non-member does
+not even see the socket. In the tree, a producer may also be a child composite's
+published surface. The wiring graph is therefore literally
+"who may reach whose socket".
+
+**Filesystem sharing implies co-location** (2026-07-30 review, Mathijs — the k8s
+RWO/RWX question): everything fs-based (unix edges, shared-rw dirs) only works with
+members on one host. Rule, recorded now to pre-commit multi-host correctly:
+*fs-tier edges constrain their members to co-location; the pod is the atomic
+co-location unit; a tree may later be split across hosts only along IP-tier
+connections (D26) — never through an fs edge.* Today (single host) trivially
+satisfied; tomorrow it is the placement constraint a multi-host realization must
+honor — exactly k8s's "containers sharing volumes live in one pod; cross-node
+sharing needs RWX storage or the network".
 
 ## 4. Refs and locks (D44) — the same rule on every floor
 
