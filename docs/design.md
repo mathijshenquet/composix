@@ -946,24 +946,34 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   BUILDER computes it with jq/yq/tomlq from `${pkgs}` — sandboxed, memoized,
   snapshot-receipted — and writes a file; META references it. Every format on
   earth is supported the day its tool is, and cix ships zero parsers, zero
-  selector grammar, zero Norway problem. What META itself accepts:
-  - `META <field> "literal"`;
-  - `META <field> <reference>` — for inline fields the trimmed FILE CONTENTS become
-    the value (`META description ${build}/output/description`); for document
-    fields (readme/icon/license-file) the file itself is taken into the item;
-  - `META <field> ${pkgs.x}#attr.path` — attrset selection via the eval that
-    already resolves package refs (nix-attrpath syntax incl. quoted segments);
-    NOT file parsing — the dissolves-class keeps its one-liner;
-  - `META source <binder>` — provenance designation only.
-  Honest cost: a pure-assembly artifact wanting a field from its own manifest
-  opens a mini-builder for the extraction, or writes the literal. `META source <binder>` keeps ONLY the
-  provenance-designation role: a remote flakeref binder yields url+rev+narHash (the
-  flakeref IS the url); a `.` binder yields **narHash-only** — a local working copy
-  has no public URL, and claiming one from `.git/config` would be ambient host
-  state (the D12 class) that lies on dirty trees. Steering side-effect: publishable
-  provenance means building from a remote FROM — the reproducible-release flow.
-  So: **IN** (priority on conflict): (1) explicit Cixfile META
-  fields (literal or selector), (2) `META source <binder>` provenance, (3) derived WITH
+  selector grammar, zero Norway problem. What META accepts (final surface,
+  Mathijs's `=`/blob round):
+  - `META <field> = <value>` — literal, or a reference (inline fields read trimmed
+    FILE CONTENTS: `META description = ${build}/output/description`; document
+    fields readme/icon/license-file take the file itself into the item), or
+    `${pkgs.x}#attr.path` (attrset selection via the existing eval — the
+    dissolves-class one-liner; NOT file parsing);
+  - `META <json-ref>` or `META <<EOF {…} EOF` — BULK: a JSON object in the
+    internal schema, strictly validated (unknown field/type = error). The
+    best-of-both-worlds bridge: standard converter TOOLS (a
+    `cix-meta-from-package-json`, anyone's) run in the workshop and emit the
+    blob — ecosystem convenience as tooling, zero parsers in cix core.
+  **`SOURCE` is its own declaration, not a META field** (provenance is a different
+  kind of thing than display). `SOURCE <binder>` = pure receipt: a remote flakeref
+  binder yields url+rev+narHash (the flakeref IS the url); `.` yields
+  **narHash-only** — a local working copy has no public URL, and reading one from
+  `.git/config` would be ambient host state (the D12 class) that lies on dirty
+  trees. `SOURCE <url> <binder>` = **claim + receipt**, the answer to the
+  local-build URL problem: claimed canonical URL and receipted narHash stored
+  SEPARATELY (claim vs fact, never conflated) — and the pair is a *verifiable
+  claim*: anyone can fetch url@rev and compare hashes; inspect renders "built from
+  X@rev" vs "claims origin X (verifiable)"; a future `cix verify-source` verb
+  falls out for free. Authors may invent titles, never provenance — but they may
+  state a checkable address. Honest cost of the parser-free design: a
+  pure-assembly artifact wanting a field from its own manifest opens a
+  mini-builder for the extraction, or writes the literal.
+  So: **IN** (priority on conflict): (1) explicit META
+  fields (literal/reference/bulk), (2) `SOURCE` provenance, (3) derived WITH
   receipts from the lock — `source`/`revision`/`version` are lock-backed
   (FROM+narHash) and non-overridable: authors may invent titles, never provenance.
   **OUT** adapters from one internal schema, final cut (Mathijs's trims): inline =
