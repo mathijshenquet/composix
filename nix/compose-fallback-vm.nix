@@ -1,72 +1,80 @@
 { pkgs, cix }:
 
 let
-  probeService = properties: {
-    wantedBy = [ ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.coreutils}/bin/true";
-    } // properties;
-  };
+  producer = pkgs.runCommand "compose-fallback-producer" { } ''
+    mkdir -p $out/bin
+    cat > $out/bin/producer <<'EOF'
+    #!${pkgs.runtimeShell}
+    set -eu
+    ${pkgs.coreutils}/bin/touch /var/lib/fallback-producer/state-ready
+    ${pkgs.coreutils}/bin/touch /run/fallback-edge/edge-ready
+    exec ${pkgs.coreutils}/bin/sleep infinity
+    EOF
+    chmod +x $out/bin/producer
+    cat > $out/cix-manifest.json <<'EOF'
+    {
+      "cixManifest": 4,
+      "exec": ["bin/producer"],
+      "dirs": {
+        "state": ["/var/lib/fallback-producer"],
+        "run": ["/run/fallback-edge"]
+      }
+    }
+    EOF
+  '';
+
+  consumer = pkgs.runCommand "compose-fallback-consumer" { } ''
+    mkdir -p $out/bin
+    cat > $out/bin/consumer <<'EOF'
+    #!${pkgs.runtimeShell}
+    exec ${pkgs.coreutils}/bin/sleep infinity
+    EOF
+    chmod +x $out/bin/consumer
+    cat > $out/cix-manifest.json <<'EOF'
+    {
+      "cixManifest": 4,
+      "exec": ["bin/consumer"]
+    }
+    EOF
+  '';
+
+  compose = pkgs.writeText "compose-fallback.json" (builtins.toJSON {
+    composeVersion = 1;
+    name = "fallback";
+    services = {
+      producer.item = producer;
+      consumer.item = consumer;
+    };
+    edges.shared = {
+      producer = {
+        service = "producer";
+        path = "/run/fallback-edge";
+      };
+      consumers.consumer = { };
+    };
+  });
+
+  lock = pkgs.writeText "compose-fallback.lock" (builtins.toJSON {
+    services = {
+      producer = {
+        ref = toString producer;
+        storePath = toString producer;
+        narHash = "sha256-compose-fallback-producer";
+      };
+      consumer = {
+        ref = toString consumer;
+        storePath = toString consumer;
+        narHash = "sha256-compose-fallback-consumer";
+      };
+    };
+  });
 in
 pkgs.testers.runNixOSTest {
   name = "compose-fallback";
 
   nodes.machine = { ... }: {
-    environment.systemPackages = [ cix ];
-
-    systemd.services = {
-      compose-probe-edge = {
-        wantedBy = [ ];
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart = "${pkgs.coreutils}/bin/true";
-          RuntimeDirectory = "compose-probe-edge";
-          RuntimeDirectoryMode = "0770";
-        };
-      };
-      compose-probe-full = probeService {
-        DynamicUser = true;
-        PrivatePIDs = true;
-        StateDirectory = "compose-probe-full";
-        BindPaths = "/run/compose-probe-edge:/run/compose-probe-app:rbind";
-        ProtectSystem = "strict";
-        PrivateTmp = true;
-      };
-      compose-probe-no-private-pids = probeService {
-        DynamicUser = true;
-        StateDirectory = "compose-probe-no-private-pids";
-        BindPaths = "/run/compose-probe-edge:/run/compose-probe-app:rbind";
-        ProtectSystem = "strict";
-        PrivateTmp = true;
-      };
-      compose-probe-no-dynamic-user = probeService {
-        PrivatePIDs = true;
-        StateDirectory = "compose-probe-no-dynamic-user";
-        BindPaths = "/run/compose-probe-edge:/run/compose-probe-app:rbind";
-        ProtectSystem = "strict";
-        PrivateTmp = true;
-      };
-      compose-probe-no-state = probeService {
-        DynamicUser = true;
-        PrivatePIDs = true;
-        BindPaths = "/run/compose-probe-edge:/run/compose-probe-app:rbind";
-        ProtectSystem = "strict";
-        PrivateTmp = true;
-      };
-      compose-probe-minimal = probeService {
-        DynamicUser = true;
-        PrivatePIDs = true;
-        StateDirectory = "compose-probe-minimal";
-      };
-      compose-probe-runtime = probeService {
-        DynamicUser = true;
-        PrivatePIDs = true;
-        RuntimeDirectory = "compose-probe-runtime";
-      };
-    };
+    environment.systemPackages = [ cix pkgs.jq ];
+    nix.settings.experimental-features = [ "nix-command" ];
 
     networking.useDHCP = false;
     networking.interfaces.eth0.useDHCP = false;
@@ -75,15 +83,29 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     start_all()
-    machine.succeed("systemctl start compose-probe-edge.service")
-    machine.fail("systemctl start compose-probe-full.service")
-    machine.succeed("systemctl show compose-probe-full.service --property=Result --value | grep -Fx exit-code")
-    machine.succeed("journalctl -u compose-probe-full.service --no-pager | grep -F 'Failed to allocate user namespace'")
-    machine.succeed("systemctl start compose-probe-no-private-pids.service")
-    machine.succeed("systemctl start compose-probe-no-dynamic-user.service")
-    machine.succeed("systemctl start compose-probe-no-state.service")
-    machine.fail("systemctl start compose-probe-minimal.service")
-    machine.succeed("journalctl -u compose-probe-minimal.service --no-pager | grep -F 'Failed to allocate user namespace'")
-    machine.succeed("systemctl start compose-probe-runtime.service")
+    machine.succeed("systemctl --version | head -1 | grep -E '^systemd 261( |$)'")
+    machine.succeed("mkdir -p /tmp/fallback && cp ${compose} /tmp/fallback/compose.json && cp ${lock} /tmp/fallback/cix.lock")
+    status, warning = machine.execute("cix up /tmp/fallback/compose.json 2>&1")
+    print(warning)
+    assert status == 0
+
+    assert "unit cix-fallback-producer.service" in warning
+    assert "dropped PrivatePIDs=yes" in warning
+    assert "systemd 261 failed the DynamicUser=yes + PrivatePIDs=yes + StateDirectory= realization probe" in warning
+    assert "shares the host PID namespace (D36 degraded fallback)" in warning
+
+    manifest = "/nix/var/nix/profiles/cix-compose-fallback/manifest.json"
+    machine.succeed(
+        "jq -e '.degradations == [{\"unit\":\"cix-fallback-producer.service\",\"property\":\"PrivatePIDs=yes\",\"reason\":\"systemd 261 failed the DynamicUser=yes + PrivatePIDs=yes + StateDirectory= realization probe\"}]' "
+        + manifest
+    )
+    machine.succeed("! grep -q '^PrivatePIDs=' /etc/systemd/system/cix-fallback-producer.service")
+    machine.succeed("grep -q '^PrivatePIDs=yes' /etc/systemd/system/cix-fallback-consumer.service")
+    machine.wait_for_unit("cix-fallback.target")
+    machine.wait_for_unit("cix-fallback-producer.service")
+    machine.wait_for_unit("cix-fallback-consumer.service")
+    machine.wait_until_succeeds("test -f /var/lib/fallback-producer/state-ready")
+    machine.wait_until_succeeds("test -f /run/cix-fallback-edge-shared/edge-ready")
+    machine.succeed("cix down fallback")
   '';
 }
