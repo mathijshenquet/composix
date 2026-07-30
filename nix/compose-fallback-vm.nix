@@ -82,7 +82,7 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("cix-fallback.target")
     machine.wait_for_unit("cix-fallback-producer.service")
     machine.wait_for_unit("cix-fallback-consumer.service")
-    machine.succeed("test -d /var/lib/fallback-producer")
+    machine.succeed("test -d /var/lib/private/cix-fallback-producer")
     machine.succeed("test -d /run/cix-fallback-edge-shared")
     machine.succeed("cix down fallback")
   '';
