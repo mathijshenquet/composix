@@ -90,15 +90,6 @@ pub(crate) fn generate_nix_with_snapshots(
                     nix_template(contents)
                 )?;
             }
-            Assembly::Script { contents, .. } => {
-                writeln!(
-                    expression,
-                    "  script{index} = universes.{}.writeText \"cixfile-script-{index}\" (\"#!${{universes.{}.runtimeShell}}\\n\" + {});",
-                    nix_attr(primary),
-                    nix_attr(primary),
-                    nix_template(contents)
-                )?;
-            }
             Assembly::Link { target, .. } => {
                 writeln!(expression, "  link{index} = {};", nix_template(target))?;
             }
@@ -133,11 +124,6 @@ pub(crate) fn generate_nix_with_snapshots(
             Assembly::File { dst, .. } => writeln!(
                 expression,
                 "  install -m 0644 ${{file{index}}} \"$out/{}\"",
-                shell_double_quoted(dst)
-            )?,
-            Assembly::Script { dst, .. } => writeln!(
-                expression,
-                "  install -m 0755 ${{script{index}}} \"$out/{}\"",
                 shell_double_quoted(dst)
             )?,
             Assembly::Link { dst, .. } => writeln!(
@@ -775,9 +761,7 @@ fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
         .iter()
         .map(|copy| &copy.dst)
         .chain(artifact.assembly.iter().map(|assembly| match assembly {
-            Assembly::File { dst, .. }
-            | Assembly::Script { dst, .. }
-            | Assembly::Link { dst, .. } => dst,
+            Assembly::File { dst, .. } | Assembly::Link { dst, .. } => dst,
         }))
         .filter_map(|destination| {
             Path::new(destination)
@@ -798,9 +782,7 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
         .assembly
         .iter()
         .map(|assembly| match assembly {
-            Assembly::File { dst, .. }
-            | Assembly::Script { dst, .. }
-            | Assembly::Link { dst, .. } => dst,
+            Assembly::File { dst, .. } | Assembly::Link { dst, .. } => dst,
         })
         .cloned();
     copy_destinations

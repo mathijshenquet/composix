@@ -80,17 +80,18 @@ Compose now starts from a real Cixfile-built service rather than a harness-creat
 $ ls -1 compose-app
 Cixfile
 Cixfile.lock
+web
 ```
 
 ```sh
-$ cat compose-app/Cixfile
+$ cat compose-app/Cixfile compose-app/web
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
 SERVICE web
-SCRIPT bin/web <<APP
+COPY ${src}/web bin/web
+EXEC ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v1
-APP
-EXEC bin/web
 ```
 
 ```sh
@@ -139,7 +140,7 @@ $ cat cix.lock
     "web": {
       "ref": "tour-compose:current",
       "storePath": "/nix/store/…-cix-item-web",
-      "narHash": "sha256-WwBeeuR7cjULNiA6PcpjHfiuYGFIDtxHJtRYIw8o1t0="
+      "narHash": "sha256-D5lziy7kEZiIyYZiXq9EOYkMZ3Gh406HBCre44PsiyA="
     }
   }
 }
@@ -153,17 +154,17 @@ unit added: cix-tour-compose.target
 service web: - -> /nix/store/…-cix-item-web
 ```
 
-Changing the Cixfile makes a new immutable item; rebuilding with the same tracked tag moves only the name.
+Changing the copied script makes a new immutable item; rebuilding with the same tracked tag moves only the name.
 
 ```sh
-$ cat compose-app/Cixfile
+$ cat compose-app/Cixfile compose-app/web
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
 SERVICE web
-SCRIPT bin/web <<APP
+COPY ${src}/web bin/web
+EXEC ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v2
-APP
-EXEC bin/web
 ```
 
 ```sh

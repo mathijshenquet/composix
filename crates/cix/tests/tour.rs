@@ -636,18 +636,18 @@ fn chapter_distribution() -> String {
 
 fn chapter_build_run_debug() -> String {
     let mut doc = Doc::new("build-run-debug");
+    fs::write(doc.base.join("greeting.txt"), "hello from Cixfile\n")
+        .expect("writing Cixfile greeting fixture");
+    fs::write(doc.base.join("tour-app"), "exec \"$@\"\n").expect("writing Cixfile script fixture");
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
 SERVICE tour-app
-FILE share/greeting <<GREETING
-hello from Cixfile
-GREETING
-SCRIPT bin/tour-app <<APP
-exec ${pkgs.coreutils}/bin/sleep 300
-APP
-EXEC bin/tour-app
+COPY ${src}/greeting.txt share/greeting
+COPY ${src}/tour-app bin/tour-app
+EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 "#,
     )
     .expect("writing Cixfile fixture");
@@ -656,9 +656,11 @@ EXEC bin/tour-app
 
     doc.para("A Cixfile turns source material plus pinned package inputs into a store item with a runtime manifest. We start by looking at every input this tiny build will use.");
     doc.para("## Build");
-    doc.sh("ls -1 Cixfile Cixfile.lock", true);
-    let cixfile = doc.sh("cat Cixfile", true);
+    doc.sh("ls -1 Cixfile Cixfile.lock greeting.txt tour-app", true);
+    let cixfile = doc.sh("cat Cixfile greeting.txt tour-app", true);
     assert!(cixfile.contains("SERVICE tour-app"));
+    assert!(cixfile.contains("COPY ${src}/tour-app bin/tour-app"));
+    assert!(cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     let lock = doc.sh("cat Cixfile.lock", true);
     assert!(lock.contains("\"narHash\""));
 
@@ -670,7 +672,7 @@ EXEC bin/tour-app
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
     assert!(manifest.contains("\"cixManifest\":4"));
     assert!(!manifest.contains("\"services\""));
-    assert!(manifest.contains("\"bin/tour-app\""));
+    assert!(manifest.contains("/bin/sh"));
 
     doc.para("## Run");
     doc.para("The tag is enough to start a transient service. `--user` is the explicitly degraded rootless development path; production uses the system manager with DynamicUser and the full hardening profile.");
@@ -808,7 +810,9 @@ fn chapter_advanced() -> String {
         .expect("writing compose Cixfile lock");
     doc.para("Compose now starts from a real Cixfile-built service rather than a harness-created store path. Its complete build input is visible before use.");
     doc.sh("ls -1 compose-app", true);
-    let first_cixfile = doc.sh("cat compose-app/Cixfile", true);
+    let first_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
+    assert!(first_cixfile.contains("COPY ${src}/web bin/web"));
+    assert!(first_cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     assert!(first_cixfile.contains("compose fixture v1"));
     doc.sh("cat compose-app/Cixfile.lock", true);
     let first_build = doc.sh("cix build compose-app -t tour-compose:current", true);
@@ -845,8 +849,8 @@ fn chapter_advanced() -> String {
     assert!(initial_diff.contains(&first));
 
     write_compose_cixfile(&compose_app, "v2");
-    doc.para("Changing the Cixfile makes a new immutable item; rebuilding with the same tracked tag moves only the name.");
-    let second_cixfile = doc.sh("cat compose-app/Cixfile", true);
+    doc.para("Changing the copied script makes a new immutable item; rebuilding with the same tracked tag moves only the name.");
+    let second_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
     assert!(second_cixfile.contains("compose fixture v2"));
     let second_build = doc.sh("cix build compose-app -t tour-compose:current", true);
     let second = built_store_path(&second_build, "-cix-item-web");
@@ -861,10 +865,13 @@ fn chapter_advanced() -> String {
 
 fn write_compose_cixfile(directory: &Path, version: &str) {
     fs::write(
+        directory.join("web"),
+        format!("echo compose fixture {version}\n"),
+    )
+    .expect("writing compose script");
+    fs::write(
         directory.join("Cixfile"),
-        format!(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE web\nSCRIPT bin/web <<APP\necho compose fixture {version}\nAPP\nEXEC bin/web\n"
-        ),
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web bin/web\nEXEC ${pkgs.bash}/bin/sh ${src}/web\n",
     )
     .expect("writing compose Cixfile");
 }

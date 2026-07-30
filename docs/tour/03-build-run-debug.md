@@ -10,23 +10,24 @@ A Cixfile turns source material plus pinned package inputs into a store item wit
 ## Build
 
 ```sh
-$ ls -1 Cixfile Cixfile.lock
+$ ls -1 Cixfile Cixfile.lock greeting.txt tour-app
 Cixfile
 Cixfile.lock
+greeting.txt
+tour-app
 ```
 
 ```sh
-$ cat Cixfile
+$ cat Cixfile greeting.txt tour-app
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
 SERVICE tour-app
-FILE share/greeting <<GREETING
+COPY ${src}/greeting.txt share/greeting
+COPY ${src}/tour-app bin/tour-app
+EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 hello from Cixfile
-GREETING
-SCRIPT bin/tour-app <<APP
-exec ${pkgs.coreutils}/bin/sleep 300
-APP
-EXEC bin/tour-app
+exec "$@"
 ```
 
 ```sh
@@ -53,7 +54,7 @@ Before running anything, inspect the generated manifest. It is the hash-covered 
 
 ```sh
 $ cat /nix/store/…-cix-item-tour-app/cix-manifest.json
-{"cixManifest":4,"exec":["bin/tour-app"]}
+{"cixManifest":4,"exec":["/nix/store/…-bash-interactive-5.3p15/bin/sh","/nix/store/…-cix-source/tour-app","/nix/store/…-coreutils-9.11/bin/sleep","300"],"mounts":["/bin/tour-app","/share/greeting"]}
 ```
 
 ## Run
@@ -69,7 +70,7 @@ warning: --user is degraded development mode; the system manager with DynamicUse
 ```sh
 $ cix ps
 MANAGER  UNIT                                        STATE       DESCRIPTION
-user     cix-run-tour-app-NONCE.service  active/running  /nix/store/…-cix-item-tour-app/bin/tour-app
+user     cix-run-tour-app-NONCE.service  active/running  /nix/store/…-bash-interactive-5.3p15/bin/sh /nix/store/…-cix-source/tour-app /nix/store/…-coreutils-9.11/bin/sleep 300
 ```
 
 ## Debug

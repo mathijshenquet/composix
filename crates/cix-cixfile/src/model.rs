@@ -82,7 +82,6 @@ pub struct Copy {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Assembly {
     File { dst: String, contents: Template },
-    Script { dst: String, contents: Template },
     Link { dst: String, target: Template },
 }
 
