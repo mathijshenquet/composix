@@ -761,6 +761,43 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   data readers, no interpreter in the index. Monorepo tooling on top: one verb builds
   and publishes the whole family for a version bump, one atomic table move per name.
 
+- ✅ D47 (2026-07-30) — **the Cixfile becomes blocks and binders; zero ambient names**
+  (Mathijs's redesign round, same day as D40/D41 landed — the cheapest moment there
+  will ever be). The language is a graph of named blocks; every `${name}` has a
+  visible binder:
+  (a) **Block kinds**: `BUILDER <name>` (the workshop: COPY/FETCH/RUN/CACHE/PATH;
+  memoized, advisory, may be messy; the block name binds its final workdir snapshot —
+  `${build}` magic dies because you wrote `BUILDER build`), `SERVICE <name>` (def-node
+  artifact, v4 manifest), `APP <name>` (executable, run-to-completion: exec/env/
+  outbound/dirs; NO ports/listeners/health — parser-enforced; manifest kind "app"),
+  `ITEM <name>` (pure assets, no exec). D40's ITEM-as-service keyword is superseded.
+  (b) **RUN is caged**: legal only inside BUILDER. **Network always pins**: `FROM`
+  (universes AND sources — `FROM . AS src` binds the local source tree, killing the
+  last ambient root; remote `FROM github:… AS src` builds foreign sources, flake-input
+  semantics; `.` is not lock-pinned — it IS the input, like a flake's own tree) and
+  `FETCH` (two forms: top-level `FETCH <name> <cmd>` in an empty workdir — a pinned
+  ingredient whose memo key never moves with source edits; in-builder `FETCH <cmd>` as
+  chain step for lockfile-context fetches).
+  (c) **COPY is the one mover; TAKE dies**: sources are ALWAYS binder-rooted
+  (`${src}/…`, `${build}/…`, `${webvault}/…`, `${pkgs.x}/…`; bare relative source =
+  error suggesting `FROM . AS src`); destinations are ALWAYS subject-relative (inside
+  the block's own artifact/workdir — one destination per block, grammar-enforced;
+  writing outside your own artifact is inexpressible). Multi-stage = multiple BUILDERs
+  chained via `COPY ${prev}/ .` — no new mechanism.
+  (d) **CACHE and PATH become builder-scoped** (each builder its own toolchain/caches);
+  CACHE survives the redesign — cache-safety is app-semantic knowledge (D20 line),
+  never inferable. Item-relative PATH in artifact blocks stays (D31).
+  (e) **Doctrine, now grammar**: workshop (BUILDER: memoized, sandboxed-offline,
+  nondeterminism tolerated per D39.1) vs shipping dock (artifact blocks: pure assembly
+  from bound sources, deterministic by construction, sampled clean rebuilds as the
+  bridge check). Reference rule: backward only; cycles grammatically impossible.
+  Deliberately deferred (each behind its own forcing example): APP's timer form
+  (corpus: CronJob/Renovate row), APP as compose lifecycle hook (helm-hook/migration
+  row), build secrets for FETCH (playwright row). Bazel positioning noted for the
+  ledger: composix is the cage, not the compiler-orchestrator — ecosystem tools keep
+  their own fine-grained incrementality (CACHE), correctness comes from
+  sandbox-by-construction, not declared deps.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
