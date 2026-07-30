@@ -1011,6 +1011,57 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   the actual lesson; the RUN heredoc demo stays (it is D51's own ask).
   Migration-grade parse error for SCRIPT; rides the next language micro-round.
 
+- ✅ D56 (2026-07-30) — **`EXPECT` on FETCH: declared output hash beats TOFU**
+  (from Mathijs's adminer giga-FETCH review). Optional
+  `FETCH <name> EXPECT sha256-…= <cmd>` (both FETCH forms): when present there is
+  NO trust-on-first-use window — the lock entry must match the declared hash or
+  the build fails. Safer (declared beats first-fetch trust), shorter (the manual
+  `curl … && sha256sum -c` ceremony and its `bash -c` wrapper die), and it
+  migrates 1:1 (Dockerfile checksums become the EXPECT value — prompt lesson).
+  Without EXPECT, TOFU stays the honest default for sources without a known hash.
+  Prior art: nix fixed-output derivations, exactly.
+- ✅ D57 (2026-07-30) — **narrow read-keying: the wall becomes unnecessary**
+  (Mathijs's round: "the output of a BUILDER is the filesystem it leaves behind;
+  consumers key on what they read — and that key is narrow"). The cache/snapshot
+  wall was an artifact of coarse keys; with narrow keys it dissolves. Invariants
+  (the law; mechanics follow them):
+  (1) **no key ever derives from workdir bytes** — step keys form a pure
+  derivation chain: hash(command, closure, predecessor keys, declared source
+  contents, env) — nix's own input-addressed model;
+  (2) **artifact bytes come only from consumed-path records**: an artifact-bound
+  `COPY ${builder}/path` keys and plucks on the content hash of exactly that path,
+  recorded content-addressed in the store (memo replay materializes precisely the
+  consumed paths — no whole-workdir snapshots as key material);
+  (3) **workspaces are persistent overlays**: fresh staged lower (declared inputs,
+  deletions included — ghost sources structurally impossible), persistent written
+  upper (target/, node_modules/); **`rm -rf` of any workspace is always correct**
+  (nothing keyed depends on it) — workspace GC is LRU policy, not correctness;
+  (4) **CACHE is removed** — persistence is the unsurprising default, exclusion
+  from keys is automatic (nothing is keyed unless read); migration-grade error;
+  (5) **warm ≡ cold on artifacts**, enforced by the sampled clean rebuild with
+  **per-consumed-path attribution**: a mismatch names the exact artifact-bound
+  COPY line (Mathijs's detector) — staleness stays sampling-territory, now with
+  the receipt pointing at the culprit.
+  Cold-machine replay granularity is honest: a builder whose chain keys all hit
+  materializes only its recorded consumed paths; any changed step re-runs the
+  chain from staging (step-level skipping is a warm-workspace benefit — which is
+  exactly how ecosystem incrementality works anyway). Whole-tree consumers
+  (`COPY ${prev}/ .`) key on everything they read and pay accordingly; docs
+  advise narrow. RUN-edge read-tracing (the D38/D39 v0.5 tracer) remains the
+  later increment for pruning offered closures — this decision needs none of it.
+
+- ✅ D58 (2026-07-30) — **FETCH sandboxes carry CA trust by default** (Mathijs's
+  "SSL_CERT_FILE song & dance" review). FETCH is by definition THE network step;
+  trust roots are part of that capability — sandbox equipment in the same family
+  as D39's injected repro-env defaults, not app semantics. The engine sets
+  `SSL_CERT_FILE`/`GIT_SSL_CAINFO`/`CURL_CA_BUNDLE` to the locked nixpkgs `cacert`
+  bundle and adds cacert to FETCH steps' offered closure automatically
+  (deterministic via the lock; an explicit env in the FETCH line still overrides).
+  RUN remains networkless and gets nothing. Companion prompt/style note: inside a
+  BUILDER the declared PATH already applies to FETCH and RUN alike — tools are
+  called bare; full `${pkgs.…}/bin/` prefixes are only for the top-level FETCH
+  form, which has no PATH scope.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
