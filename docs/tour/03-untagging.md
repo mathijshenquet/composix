@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-Removing a tag removes its local GC root and its metadata sidecar.
+Removing a tag writes a new empty table. The name remains so its history chain can be inspected while its old tables survive in the store.
 
 ```sh
 $ echo 'hello from my app v1' > my-app-v1 && cix tag "$(nix store add my-app-v1)" my-app:v1
@@ -19,7 +19,7 @@ $ cix untag my-app:v1
 $ cix ls
 ```
 
-Unpinned means the next `nix-collect-garbage` may reclaim the build; nothing else in cix holds it.
+Fresh resolves no longer offer the tag. Existing copies still load by store path, and the next `nix-collect-garbage` may reclaim unrooted historical bytes.
 
 
 ---

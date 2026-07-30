@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use cix_common::Ref;
 use regex::Regex;
 
 const TOUR_LISTEN: &str = "127.0.0.1:8420";
@@ -286,10 +287,19 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         &format!("echo '{contents}' > {name} && cix tag \"$(nix store add {name})\" my-app:v1"),
         true,
     );
-    let path = fs::read_link(state_dir.join("roots").join(root_filename()))
-        .expect("reading fixture GC root")
-        .to_string_lossy()
-        .into_owned();
+    let table_root = state_dir
+        .join("roots/names")
+        .join(root_filename())
+        .join("table");
+    let table_path = fs::read_link(table_root).expect("reading fixture table root");
+    let table: serde_json::Value = serde_json::from_slice(
+        &fs::read(table_path.join("table.json")).expect("reading fixture table"),
+    )
+    .expect("parsing fixture table");
+    let path = table["tags"]["v1"]["storePath"]
+        .as_str()
+        .expect("reading fixture store path")
+        .to_owned();
     assert!(
         path.starts_with("/nix/store/"),
         "unexpected store path: {path}"
@@ -472,26 +482,38 @@ fn compose_fixture(doc: &Doc, version: &str) -> String {
 }
 
 fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) {
-    let metadata = fs::read_dir(doc.state_dir.join("tags"))
-        .expect("listing compose tag metadata")
-        .filter_map(Result::ok)
-        .map(|entry| fs::read_to_string(entry.path()).expect("reading compose tag metadata"))
-        .find(|contents| contents.contains(&format!("\"reference\": \"{reference}\"")))
-        .expect("finding compose tag metadata");
-    let store_path = Regex::new(r#""storePath":\s*"([^"]+)""#)
-        .expect("valid store path regex")
-        .captures(&metadata)
-        .expect("finding compose store path")[1]
+    let reference = Ref::parse(reference).expect("parsing compose reference");
+    let reference_text = reference.display();
+    let pointer: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            doc.state_dir
+                .join("names")
+                .join(cix_index::Store::encode_name(&reference.name)),
+        )
+        .expect("reading compose name pointer"),
+    )
+    .expect("parsing compose name pointer");
+    let table: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(pointer["storePath"].as_str().expect("pointer store path"))
+                .join("table.json"),
+        )
+        .expect("reading compose tag table"),
+    )
+    .expect("parsing compose tag table");
+    let record = &table["tags"][&reference.tag];
+    let store_path = record["storePath"]
+        .as_str()
+        .expect("finding compose store path")
         .to_owned();
-    let nar_hash = Regex::new(r#""narHash":\s*"([^"]+)""#)
-        .expect("valid nar hash regex")
-        .captures(&metadata)
-        .expect("finding compose nar hash")[1]
+    let nar_hash = record["narHash"]
+        .as_str()
+        .expect("finding compose nar hash")
         .to_owned();
     fs::write(
         cix_compose::Compose::lock_path(compose_path),
         format!(
-            "{{\n  \"services\": {{\n    \"web\": {{\n      \"ref\": \"{reference}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
+            "{{\n  \"services\": {{\n    \"web\": {{\n      \"ref\": \"{reference_text}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
         ),
     )
     .expect("writing resolved compose lock");
@@ -560,7 +582,7 @@ fn wait_for_http(listen: &str, expected: &str) {
 }
 
 fn root_filename() -> &'static str {
-    "bXktYXBwOnYx"
+    "bXktYXBw"
 }
 
 fn scenario_tagging_a_build() -> String {
@@ -572,20 +594,26 @@ fn scenario_tagging_a_build() -> String {
     assert!(listing.contains("my-app:v1"));
     assert!(listing.contains(&store_path));
 
-    doc.para("The tag database is an `ls`-able symlink farm. Each symlink is a Nix GC root, so the pin *is* the name.");
-    let roots = doc.sh("ls \"$CIX_STATE_DIR/roots\"", true);
+    doc.para("A name points at one immutable tag table. Cix roots that table and the store paths it currently references.");
+    let roots = doc.sh("ls \"$CIX_STATE_DIR/roots/names\"", true);
     assert_eq!(roots.trim(), root_filename());
     let link = doc.sh(
-        &format!("readlink \"$CIX_STATE_DIR/roots/{}\"", root_filename()),
+        &format!(
+            "readlink \"$CIX_STATE_DIR/roots/names/{}/table\"",
+            root_filename()
+        ),
         true,
     );
-    assert_eq!(link.trim(), store_path);
-    let sidecar = doc.sh(
-        &format!("cat \"$CIX_STATE_DIR/tags/{}.json\"", root_filename()),
+    assert!(link.trim().starts_with("/nix/store/"));
+    let table = doc.sh(
+        &format!(
+            "cat \"$(readlink $CIX_STATE_DIR/roots/names/{}/table)/table.json\"",
+            root_filename()
+        ),
         true,
     );
-    assert!(sidecar.contains("\"reference\": \"my-app:v1\""));
-    assert!(sidecar.contains(&store_path));
+    assert!(table.contains("\"cixTagTable\": 1"));
+    assert!(table.contains(&store_path));
 
     doc.finish()
 }
@@ -602,26 +630,30 @@ fn scenario_moving_a_tag() -> String {
     assert!(listing.contains(&second));
     assert!(!listing.contains(&first));
 
-    doc.para("Tags are mutable pointers over immutable store paths. Retagging changes the symlink; the old path is now unpinned by this tag.");
+    doc.para("Tags are entries in a name's immutable table. Retagging atomically moves the name pointer; the old path is now unpinned by this name.");
     let link = doc.sh(
-        &format!("readlink \"$CIX_STATE_DIR/roots/{}\"", root_filename()),
+        &format!(
+            "readlink \"$CIX_STATE_DIR/roots/names/{}/table\"",
+            root_filename()
+        ),
         true,
     );
-    assert_eq!(link.trim(), second);
+    assert!(link.trim().starts_with("/nix/store/"));
+    assert_ne!(first, second);
 
     doc.finish()
 }
 
 fn scenario_untagging() -> String {
     let mut doc = Doc::new("untagging");
-    doc.para("Removing a tag removes its local GC root and its metadata sidecar.");
+    doc.para("Removing a tag writes a new empty table. The name remains so its history chain can be inspected while its old tables survive in the store.");
 
     fixture(&mut doc, "my-app-v1", "hello from my app v1");
     doc.sh("cix untag my-app:v1", true);
     let listing = doc.sh("cix ls", true);
     assert!(listing.trim().is_empty());
 
-    doc.para("Unpinned means the next `nix-collect-garbage` may reclaim the build; nothing else in cix holds it.");
+    doc.para("Fresh resolves no longer offer the tag. Existing copies still load by store path, and the next `nix-collect-garbage` may reclaim unrooted historical bytes.");
     doc.finish()
 }
 

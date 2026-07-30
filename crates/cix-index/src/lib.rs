@@ -188,6 +188,7 @@ impl Store {
     fn with_pointer_lock<T>(&self, operation: impl FnOnce() -> Result<T>) -> Result<T> {
         let lock = fs::OpenOptions::new()
             .create(true)
+            .truncate(false)
             .write(true)
             .open(self.pointer_lock_path())
             .context("opening name pointer lock")?;
@@ -234,11 +235,13 @@ impl Store {
     }
 
     fn add_table(&self, table: &TagTable) -> Result<TablePointer> {
-        let directory = self.tmp_dir().join(format!(
+        let parent = self.tmp_dir().join(format!(
             "table-{}-{}",
             std::process::id(),
             SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
         ));
+        fs::create_dir(&parent).with_context(|| format!("creating {}", parent.display()))?;
+        let directory = parent.join("table");
         fs::create_dir(&directory).with_context(|| format!("creating {}", directory.display()))?;
         let result = (|| {
             let mut json = serde_json::to_vec_pretty(table)?;
@@ -254,8 +257,7 @@ impl Store {
                 nar_hash: output.nar_hash,
             })
         })();
-        fs::remove_dir_all(&directory)
-            .with_context(|| format!("removing {}", directory.display()))?;
+        fs::remove_dir_all(&parent).with_context(|| format!("removing {}", parent.display()))?;
         result
     }
 
@@ -1488,6 +1490,17 @@ mod tests {
             .cas_pointer("x", expected.as_ref(), &candidate, &table)
             .unwrap_err();
         assert!(error.downcast_ref::<PointerChanged>().is_some());
+        remove_store(&store);
+    }
+
+    #[test]
+    fn identical_tag_tables_have_identical_store_paths() {
+        let store = test_store("deterministic-table");
+        let (_, table) = store.current_table("x").unwrap();
+        assert_eq!(
+            store.add_table(&table).unwrap(),
+            store.add_table(&table).unwrap()
+        );
         remove_store(&store);
     }
 

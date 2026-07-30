@@ -21,11 +21,11 @@ REF        SYSTEMS       PATH                                                   
 my-app:v1  x86_64-linux  /nix/store/…-my-app-v2  -         0s
 ```
 
-Tags are mutable pointers over immutable store paths. Retagging changes the symlink; the old path is now unpinned by this tag.
+Tags are entries in a name's immutable table. Retagging atomically moves the name pointer; the old path is now unpinned by this name.
 
 ```sh
-$ readlink "$CIX_STATE_DIR/roots/bXktYXBwOnYx"
-/nix/store/…-my-app-v2
+$ readlink "$CIX_STATE_DIR/roots/names/bXktYXBw/table"
+/nix/store/…-table
 ```
 
 

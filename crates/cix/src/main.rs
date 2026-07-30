@@ -45,7 +45,7 @@ enum Command {
     Index(cix_index::cli::Command),
     /// Index maintenance commands.
     #[command(name = "index")]
-    IndexCommand {
+    IndexGroup {
         #[command(subcommand)]
         command: cix_index::cli::Command,
     },
@@ -59,7 +59,7 @@ fn main() -> anyhow::Result<()> {
         Command::Cixfile(cmd) => cmd.run(),
         Command::Compose(cmd) => cmd.run(),
         Command::Index(cmd) => cmd.run(),
-        Command::IndexCommand { command } => command.run(),
+        Command::IndexGroup { command } => command.run(),
         Command::Run(cix_run::cli::Command::Ps) => cix_compose::ps(),
         Command::Run(cmd) => cmd.run(),
     }
