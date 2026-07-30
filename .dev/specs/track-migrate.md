@@ -46,6 +46,21 @@ browser images, multi-hour compiles. Note per candidate: source URL, what it exe
 weight toward the middle: trivial teaches the prompt nothing, nasty teaches it
 everything at once.
 
+## Class split & sampling correction (Mathijs, after rounds 1–3)
+
+Most popular images dissolve into `EXEC ${pkgs.x}` — a strength of cix (for known
+software, migration honestly IS "use nixpkgs") but a weakness of the measurement:
+the real `cix migrate` market is people migrating their OWN Dockerfiles, and own
+apps are never in nixpkgs. Two rules from round 4 on:
+
+- **Loss is reported split by resulting-Cixfile class**: *dissolves-class* (pkgs-only)
+  vs *build-class* (has a BUILDER). The build-class loss is the prompt's real grade;
+  a converter may always take the nixpkgs shortcut when it exists (it is the right
+  conversion), which is exactly why the split is by result, not by candidate.
+- **Rounds oversample no-escape candidates** (apps not packaged in nixpkgs — mark
+  them in CANDIDATES.md): they simulate the own-app market that popularity-sampling
+  systematically misses.
+
 ## The loop (per round; batch sizes N = 1, 2, 4, 8, 16)
 
 1. Take the next N candidates (plus at most one retry of a prior failure after a
