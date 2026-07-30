@@ -12,7 +12,10 @@ pub enum Command {
         tag: Option<String>,
         #[arg(long, num_args = 0..=1, default_missing_value = "")]
         update_lock: Option<String>,
-        /// Re-run build steps without persistent CACHE directories.
+        /// Re-run builders with empty persistent workspaces and verify consumed outputs.
+        #[arg(long)]
+        cold: bool,
+        /// Deprecated alias for --cold.
         #[arg(long)]
         no_cache: bool,
     },
@@ -25,13 +28,17 @@ impl Command {
                 dir,
                 tag,
                 update_lock,
+                cold,
                 no_cache,
             } => {
+                if no_cache {
+                    eprintln!("warning: --no-cache is deprecated; use --cold");
+                }
                 let items = crate::build(&BuildOptions {
                     directory: dir,
                     update_lock,
                     tag,
-                    no_cache,
+                    cold: cold || no_cache,
                 })?;
                 if items.len() == 1 {
                     println!("{}", items[0].store_path);

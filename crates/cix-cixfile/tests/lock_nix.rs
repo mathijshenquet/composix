@@ -103,7 +103,7 @@ escaped=$${literal}
 runtime=$VALUE
 EOF
 LINK ${pkgs.hello}/bin/hello bin/hello
-PATH bin
+ENV PATH = bin
 EXEC hello
 "#,
     )
@@ -137,12 +137,12 @@ EXEC hello
 }
 
 #[test]
-fn path_resolution_writes_the_real_executable_and_runtime_default() {
+fn env_path_resolution_writes_the_real_executable_and_runtime_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-PATH ${pkgs.coreutils}/bin
+ENV PATH = ${pkgs.coreutils}/bin
 SETUP true
 EXEC true
 "#,
@@ -172,12 +172,12 @@ EXEC true
 }
 
 #[test]
-fn path_resolution_prefers_the_first_matching_directory() {
+fn env_path_resolution_prefers_the_first_matching_directory() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-PATH ${pkgs.bash}/bin ${pkgs.bashInteractive}/bin
+ENV PATH = ${pkgs.bash}/bin:${pkgs.bashInteractive}/bin
 EXEC bash
 "#,
     )
@@ -203,12 +203,12 @@ EXEC bash
 }
 
 #[test]
-fn path_resolution_fails_with_line_and_searched_directories() {
+fn env_path_resolution_fails_with_line_and_searched_directories() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-PATH ${pkgs.coreutils}/bin
+ENV PATH = ${pkgs.coreutils}/bin
 EXEC definitely-not-a-coreutils-command
 "#,
     )
@@ -222,7 +222,7 @@ EXEC definitely-not-a-coreutils-command
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
     assert!(error.contains("line 4"), "{error}");
-    assert!(error.contains("declared PATH directories"), "{error}");
+    assert!(error.contains("declared ENV PATH directories"), "{error}");
     assert!(error.contains("/bin"), "{error}");
 }
 
@@ -235,7 +235,7 @@ fn run_executes_outside_nix_and_build_interpolation_reaches_the_snapshot() {
         r#"FROM nixpkgs AS pkgs
 FROM . AS src
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
 COPY ${src}/input input
 RUN <<BUILD
 # A RUN heredoc is sent to the same builder shell as a one-line RUN.
@@ -260,7 +260,7 @@ EXEC bin/output
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
-        no_cache: false,
+        cold: false,
     })
     .unwrap();
     let output = &output[0].store_path;
@@ -279,7 +279,7 @@ EXEC bin/output
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
-        no_cache: false,
+        cold: false,
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
@@ -306,7 +306,7 @@ fn fetch_expect_matches_in_both_forms_and_records_the_declared_hash() {
             r#"FROM nixpkgs AS pkgs
 FETCH ingredient EXPECT {expected} ${{pkgs.coreutils}}/bin/printf 'fixed\n' > payload
 BUILDER build
-PATH ${{pkgs.bash}}/bin ${{pkgs.coreutils}}/bin
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 FETCH EXPECT {expected} printf 'fixed\n' > payload
 SERVICE top
 COPY ${{ingredient}}/payload payload
@@ -335,7 +335,7 @@ EXEC /bin/true
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
-        no_cache: false,
+        cold: false,
     })
     .unwrap();
     assert_eq!(output.len(), 2);
@@ -365,13 +365,132 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
         directory: directory.path().to_owned(),
         update_lock: None,
         tag: None,
-        no_cache: false,
+        cold: false,
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
     assert!(rendered.contains("declared sha256-AAAA"), "{rendered}");
     assert!(rendered.contains("fetched sha256-"), "{rendered}");
     assert!(!rendered.contains("--update-lock to accept"), "{rendered}");
+}
+
+#[test]
+fn imported_cacert_enables_bare_git_over_https() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let cixfile = |cacert: &str| {
+        format!(
+            r#"FROM nixpkgs AS pkgs
+BUILDER fetch
+IMPORT ${{pkgs.bash}} ${{pkgs.gitMinimal}}{cacert}
+FETCH git ls-remote https://github.com/NixOS/nixpkgs.git HEAD > head
+SERVICE result
+COPY ${{fetch}}/head head
+EXEC /bin/true
+"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("")).unwrap();
+    let error = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap_err();
+    let rendered = format!("{error:#}");
+    assert!(rendered.contains("FETCH failed"), "{rendered}");
+    assert!(
+        rendered.to_ascii_lowercase().contains("certificate"),
+        "{rendered}"
+    );
+
+    fs::write(directory.path().join("Cixfile"), cixfile(" ${pkgs.cacert}")).unwrap();
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    let head = fs::read_to_string(PathBuf::from(&output[0].store_path).join("head")).unwrap();
+    assert!(head.ends_with("\tHEAD\n"), "{head}");
+}
+
+#[test]
+fn newly_consumed_path_reruns_the_chain_and_extends_its_record() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let cixfile = |extra_copy: &str| {
+        format!(
+            r#"FROM nixpkgs AS pkgs
+BUILDER build
+IMPORT ${{pkgs.bash}}
+RUN printf x >> runs; printf one > one; printf two > two
+SERVICE result
+COPY ${{build}}/runs runs
+COPY ${{build}}/one one
+{extra_copy}EXEC /bin/true
+"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("")).unwrap();
+    let first = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&first[0].store_path).join("runs")).unwrap(),
+        "x"
+    );
+
+    fs::write(
+        directory.path().join("Cixfile"),
+        cixfile("COPY ${build}/two two\n"),
+    )
+    .unwrap();
+    let second = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&second[0].store_path).join("runs")).unwrap(),
+        "xx"
+    );
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(lock.memo.len(), 1);
+    assert_eq!(
+        lock.memo
+            .values()
+            .next()
+            .unwrap()
+            .paths
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["one", "runs", "two"]
+    );
 }
 
 #[test]

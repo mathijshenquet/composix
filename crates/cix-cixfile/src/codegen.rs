@@ -49,12 +49,15 @@ pub(crate) fn generate_nix_with_snapshots(
     let primary = primary_namespace(cixfile)?;
 
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
-    writeln!(
-        expression,
-        "  pathDirs = {};",
-        nix_templates(&artifact.paths)
-    )?;
-    if !artifact.paths.is_empty() {
+    if service_uses_bare_command(&artifact.service) {
+        let path = service_path_default(&artifact.service)
+            .context("bare EXEC/SETUP command has no ENV PATH default")?;
+        writeln!(
+            expression,
+            "  pathDirs = universes.{}.lib.splitString \":\" {};",
+            nix_attr(primary),
+            nix_template(path)
+        )?;
         writeln!(expression, "  resolveExecutable = line: command:")?;
         writeln!(expression, "    let")?;
         writeln!(
@@ -68,7 +71,7 @@ pub(crate) fn generate_nix_with_snapshots(
         writeln!(expression, "    in if found == [] then")?;
         writeln!(
             expression,
-            r#"      throw "line ${{builtins.toString line}}: command ${{command}} was not found in declared PATH directories: ${{builtins.concatStringsSep ", " pathDirs}}""#
+            r#"      throw "line ${{builtins.toString line}}: command ${{command}} was not found in declared ENV PATH directories: ${{builtins.concatStringsSep ", " pathDirs}}""#
         )?;
         writeln!(expression, "    else builtins.head found;")?;
     }
@@ -162,7 +165,7 @@ pub(crate) fn generate_nix_with_snapshots(
             expression,
             "  test -x \"$executable{index}\" || {{ echo {} >&2; exit 1; }}",
             nix_string(&format!(
-                "line {line}: resolved PATH command {command:?} is not executable"
+                "line {line}: resolved ENV PATH command {command:?} is not executable"
             )),
         )?;
     }
@@ -196,7 +199,11 @@ pub(crate) fn generate_builder_context_nix(
         "  offers = [ {} ];",
         offer_expressions(&package_refs, templates.iter().copied())
     )?;
-    writeln!(expression, "  paths = {};", nix_templates(&builder.paths))?;
+    writeln!(
+        expression,
+        "  imports = {};",
+        nix_templates(&builder.imports)
+    )?;
     writeln!(
         expression,
         "  commands = {};",
@@ -290,7 +297,7 @@ pub(crate) fn generate_fetch_context_nix(
     )?;
     writeln!(
         expression,
-        "  paths = [ \"${{universes.{}.bash}}/bin\" ];",
+        "  imports = [ \"${{universes.{}.bash}}\" ];",
         nix_attr(primary)
     )?;
     writeln!(
@@ -415,7 +422,7 @@ fn nix_prelude(
 
 fn builder_templates(builder: &Builder) -> Vec<&Template> {
     builder
-        .paths
+        .imports
         .iter()
         .chain(builder.steps.iter().flat_map(|step| match step {
             BuildStep::Copy(copy) => vec![&copy.src],
@@ -426,7 +433,7 @@ fn builder_templates(builder: &Builder) -> Vec<&Template> {
 
 fn builder_command_templates(builder: &Builder) -> Vec<&Template> {
     builder
-        .paths
+        .imports
         .iter()
         .chain(builder.steps.iter().filter_map(|step| match step {
             BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
@@ -558,11 +565,8 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
             nix_command(setup, service.setup_line.expect("SETUP has a line"))
         )?;
     }
-    if !service.env.is_empty() || !artifact.paths.is_empty() {
+    if !service.env.is_empty() {
         output.push_str(" env = {");
-        if !artifact.paths.is_empty() {
-            output.push_str(" \"PATH\" = { default = builtins.concatStringsSep \":\" pathDirs; };");
-        }
         for (name, env) in &service.env {
             write!(output, " {} = {{", nix_attr(name))?;
             if let Some(default) = &env.default {
@@ -825,7 +829,7 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     let mut value = Map::new();
     value.insert(
         "exec".into(),
-        literal_command(&service.exec, &artifact.paths)?,
+        literal_command(&service.exec, service_path_default(service))?,
     );
     if !mounts.is_empty() {
         value.insert(
@@ -834,26 +838,13 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         );
     }
     if let Some(setup) = &service.setup {
-        value.insert("setup".into(), literal_command(setup, &artifact.paths)?);
+        value.insert(
+            "setup".into(),
+            literal_command(setup, service_path_default(service))?,
+        );
     }
-    if !service.env.is_empty() || !artifact.paths.is_empty() {
+    if !service.env.is_empty() {
         let mut envs = Map::new();
-        if !artifact.paths.is_empty() {
-            envs.insert(
-                "PATH".into(),
-                Value::Object(Map::from_iter([(
-                    "default".into(),
-                    Value::String(
-                        artifact
-                            .paths
-                            .iter()
-                            .map(literal_template)
-                            .collect::<Result<Vec<_>>>()?
-                            .join(":"),
-                    ),
-                )])),
-            );
-        }
         for (name, env) in &service.env {
             let mut declaration = Map::new();
             if let Some(default) = &env.default {
@@ -938,23 +929,41 @@ fn literal_dirs(service: &Service) -> Map<String, Value> {
     dirs
 }
 
-fn literal_command(arguments: &[Template], paths: &[Template]) -> Result<Value> {
+fn literal_command(arguments: &[Template], path: Option<&Template>) -> Result<Value> {
     let mut values = arguments
         .iter()
         .map(literal_template)
         .collect::<Result<Vec<_>>>()?;
     if let Some(command) = bare_command(arguments) {
-        let directory = paths
-            .first()
-            .context("cannot render a bare command without PATH")?;
-        values[0] = format!(
-            "{}/{command}",
-            literal_template(directory)?.trim_end_matches('/')
-        );
+        let directory = path
+            .context("cannot render a bare command without ENV PATH")?
+            .literal_value()
+            .context("cannot render package interpolation in ENV PATH without Nix evaluation")?
+            .split(':')
+            .next()
+            .filter(|directory| !directory.is_empty())
+            .context("cannot render a bare command with an empty ENV PATH")?
+            .to_owned();
+        values[0] = format!("{}/{command}", directory.trim_end_matches('/'));
     }
     Ok(Value::Array(
         values.into_iter().map(Value::String).collect(),
     ))
+}
+
+fn service_path_default(service: &Service) -> Option<&Template> {
+    service
+        .env
+        .get("PATH")
+        .and_then(|declaration| declaration.default.as_ref())
+}
+
+fn service_uses_bare_command(service: &Service) -> bool {
+    bare_command(&service.exec).is_some()
+        || service
+            .setup
+            .as_deref()
+            .is_some_and(|setup| bare_command(setup).is_some())
 }
 
 fn literal_template(template: &Template) -> Result<String> {

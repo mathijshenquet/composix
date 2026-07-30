@@ -2,7 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE node-app
-PATH ${pkgs.nodejs}/bin
+ENV PATH = ${pkgs.nodejs}/bin
 COPY ${src}/server.js app/server.js
 EXEC node /app/server.js
 PORT http = 8081

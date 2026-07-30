@@ -13,7 +13,7 @@ pub struct BuildOptions {
     pub directory: PathBuf,
     pub update_lock: Option<String>,
     pub tag: Option<String>,
-    pub no_cache: bool,
+    pub cold: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,7 +74,7 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
         &mut lock,
         &system,
         requested_update,
-        options.no_cache,
+        options.cold,
     );
     save_lock(&lock_path, &lock)?;
     let snapshots = snapshots?;
@@ -194,7 +194,7 @@ mod tests {
     #[test]
     fn update_lock_refuses_expected_fetches_in_both_forms() {
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nPATH ${pkgs.bash}/bin\nFETCH EXPECT sha256-two printf two\nSERVICE app\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-two printf two\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap();
         let top = reject_expected_fetch_update(&cixfile, "ingredient")

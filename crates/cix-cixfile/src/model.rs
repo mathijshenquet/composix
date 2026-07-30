@@ -40,8 +40,7 @@ pub struct Fetch {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Builder {
-    pub paths: Vec<Template>,
-    pub caches: Vec<String>,
+    pub imports: Vec<Template>,
     pub steps: Vec<BuildStep>,
     pub line: usize,
 }
@@ -49,8 +48,7 @@ pub struct Builder {
 impl Builder {
     pub(crate) fn empty(line: usize) -> Self {
         Self {
-            paths: Vec::new(),
-            caches: Vec::new(),
+            imports: Vec::new(),
             steps: Vec::new(),
             line,
         }
@@ -114,7 +112,6 @@ pub struct Artifact {
     pub kind: ArtifactKind,
     pub copies: Vec<Copy>,
     pub assembly: Vec<Assembly>,
-    pub paths: Vec<Template>,
     pub service: Service,
     pub line: usize,
 }
@@ -125,7 +122,6 @@ impl Artifact {
             kind,
             copies: Vec::new(),
             assembly: Vec::new(),
-            paths: Vec::new(),
             service: Service::empty(),
             line,
         }
