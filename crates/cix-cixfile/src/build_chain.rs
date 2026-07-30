@@ -652,16 +652,16 @@ fn builder_chain_keys(
                 ("RUN", command.clone(), Vec::new(), None)
             }
         };
-        predecessor = step_key(
+        predecessor = step_key(StepKeyRequest {
             kind,
-            &arguments,
+            arguments: &arguments,
             offered_closure,
-            &context.imports,
-            &predecessor,
-            &sources,
+            ordered_imports: &context.imports,
+            predecessor: &predecessor,
+            declared_sources: &sources,
             environment,
             fetch_pin,
-        )?;
+        })?;
         keys.push(predecessor.clone());
     }
     Ok(Some(keys))
@@ -673,38 +673,20 @@ fn top_fetch_chain_key(
     environment: &BTreeMap<String, String>,
     pin: &str,
 ) -> Result<String> {
-    step_key(
-        "FETCH",
-        command,
+    step_key(StepKeyRequest {
+        kind: "FETCH",
+        arguments: command,
         offered_closure,
-        &[],
-        &hex_hash(b"TOP-LEVEL-FETCH"),
-        &[],
+        ordered_imports: &[],
+        predecessor: &hex_hash(b"TOP-LEVEL-FETCH"),
+        declared_sources: &[],
         environment,
-        Some(pin),
-    )
+        fetch_pin: Some(pin),
+    })
 }
 
-fn step_key(
-    kind: &str,
-    arguments: &str,
-    offered_closure: &BTreeSet<String>,
-    ordered_imports: &[String],
-    predecessor: &str,
-    declared_sources: &[String],
-    environment: &BTreeMap<String, String>,
-    fetch_pin: Option<&str>,
-) -> Result<String> {
-    Ok(hex_hash(&serde_json::to_vec(&StepKeyRequest {
-        kind,
-        arguments,
-        offered_closure,
-        ordered_imports,
-        predecessor,
-        declared_sources,
-        environment,
-        fetch_pin,
-    })?))
+fn step_key(request: StepKeyRequest<'_>) -> Result<String> {
+    Ok(hex_hash(&serde_json::to_vec(&request)?))
 }
 
 fn memo_has_paths(
@@ -1500,87 +1482,87 @@ mod tests {
     #[test]
     fn step_key_tracks_chain_inputs_without_workdir_bytes() {
         let environment = BTreeMap::from([("PATH".into(), "/nix/store/tool/bin".into())]);
-        let base = step_key(
-            "RUN",
-            "cargo build",
-            &closure(&["/nix/store/tool"]),
-            &[],
-            "previous-key",
-            &[],
-            &environment,
-            None,
-        )
+        let base = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "cargo build",
+            offered_closure: &closure(&["/nix/store/tool"]),
+            ordered_imports: &[],
+            predecessor: "previous-key",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+        })
         .unwrap();
         assert_eq!(
             base,
-            step_key(
-                "RUN",
-                "cargo build",
-                &closure(&["/nix/store/tool"]),
-                &[],
-                "previous-key",
-                &[],
-                &environment,
-                None,
-            )
+            step_key(StepKeyRequest {
+                kind: "RUN",
+                arguments: "cargo build",
+                offered_closure: &closure(&["/nix/store/tool"]),
+                ordered_imports: &[],
+                predecessor: "previous-key",
+                declared_sources: &[],
+                environment: &environment,
+                fetch_pin: None,
+            })
             .unwrap()
         );
         assert_ne!(
             base,
-            step_key(
-                "RUN",
-                "cargo test",
-                &closure(&["/nix/store/tool"]),
-                &[],
-                "previous-key",
-                &[],
-                &environment,
-                None,
-            )
+            step_key(StepKeyRequest {
+                kind: "RUN",
+                arguments: "cargo test",
+                offered_closure: &closure(&["/nix/store/tool"]),
+                ordered_imports: &[],
+                predecessor: "previous-key",
+                declared_sources: &[],
+                environment: &environment,
+                fetch_pin: None,
+            })
             .unwrap()
         );
         let changed_environment =
             BTreeMap::from([("PATH".into(), "/nix/store/other-tool/bin".into())]);
         assert_ne!(
             base,
-            step_key(
-                "RUN",
-                "cargo build",
-                &closure(&["/nix/store/tool"]),
-                &[],
-                "previous-key",
-                &[],
-                &changed_environment,
-                None,
-            )
+            step_key(StepKeyRequest {
+                kind: "RUN",
+                arguments: "cargo build",
+                offered_closure: &closure(&["/nix/store/tool"]),
+                ordered_imports: &[],
+                predecessor: "previous-key",
+                declared_sources: &[],
+                environment: &changed_environment,
+                fetch_pin: None,
+            })
             .unwrap()
         );
         assert_ne!(
             base,
-            step_key(
-                "RUN",
-                "cargo build",
-                &closure(&["/nix/store/new-tool"]),
-                &[],
-                "previous-key",
-                &[],
-                &environment,
-                None,
-            )
+            step_key(StepKeyRequest {
+                kind: "RUN",
+                arguments: "cargo build",
+                offered_closure: &closure(&["/nix/store/new-tool"]),
+                ordered_imports: &[],
+                predecessor: "previous-key",
+                declared_sources: &[],
+                environment: &environment,
+                fetch_pin: None,
+            })
             .unwrap()
         );
         assert_ne!(
             base,
-            step_key(
-                "RUN",
-                "cargo build",
-                &closure(&["/nix/store/tool"]),
-                &[],
-                "changed-predecessor",
-                &[],
-                &environment,
-                None,
-            )
+            step_key(StepKeyRequest {
+                kind: "RUN",
+                arguments: "cargo build",
+                offered_closure: &closure(&["/nix/store/tool"]),
+                ordered_imports: &[],
+                predecessor: "changed-predecessor",
+                declared_sources: &[],
+                environment: &environment,
+                fetch_pin: None,
+            })
             .unwrap()
         );
     }
@@ -1589,27 +1571,27 @@ mod tests {
     fn copy_source_hash_and_fetch_pin_participate_in_chain_keys() {
         let environment = BTreeMap::new();
         let offered = closure(&["/nix/store/tool"]);
-        let before = step_key(
-            "COPY",
-            "COPY src .",
-            &BTreeSet::new(),
-            &[],
-            "previous",
-            &["sha256-source-one".into()],
-            &environment,
-            None,
-        )
+        let before = step_key(StepKeyRequest {
+            kind: "COPY",
+            arguments: "COPY src .",
+            offered_closure: &BTreeSet::new(),
+            ordered_imports: &[],
+            predecessor: "previous",
+            declared_sources: &["sha256-source-one".into()],
+            environment: &environment,
+            fetch_pin: None,
+        })
         .unwrap();
-        let after = step_key(
-            "COPY",
-            "COPY src .",
-            &BTreeSet::new(),
-            &[],
-            "previous",
-            &["sha256-source-two".into()],
-            &environment,
-            None,
-        )
+        let after = step_key(StepKeyRequest {
+            kind: "COPY",
+            arguments: "COPY src .",
+            offered_closure: &BTreeSet::new(),
+            ordered_imports: &[],
+            predecessor: "previous",
+            declared_sources: &["sha256-source-two".into()],
+            environment: &environment,
+            fetch_pin: None,
+        })
         .unwrap();
         assert_ne!(before, after);
         assert_ne!(
@@ -1622,27 +1604,27 @@ mod tests {
     fn ordered_imports_participate_in_chain_keys() {
         let environment = BTreeMap::from([("PATH".into(), "/bin".into())]);
         let offered = closure(&["/nix/store/one", "/nix/store/two"]);
-        let one_first = step_key(
-            "RUN",
-            "tool",
-            &offered,
-            &["/nix/store/one".into(), "/nix/store/two".into()],
-            "previous",
-            &[],
-            &environment,
-            None,
-        )
+        let one_first = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "tool",
+            offered_closure: &offered,
+            ordered_imports: &["/nix/store/one".into(), "/nix/store/two".into()],
+            predecessor: "previous",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+        })
         .unwrap();
-        let two_first = step_key(
-            "RUN",
-            "tool",
-            &offered,
-            &["/nix/store/two".into(), "/nix/store/one".into()],
-            "previous",
-            &[],
-            &environment,
-            None,
-        )
+        let two_first = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "tool",
+            offered_closure: &offered,
+            ordered_imports: &["/nix/store/two".into(), "/nix/store/one".into()],
+            predecessor: "previous",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+        })
         .unwrap();
         assert_ne!(one_first, two_first);
     }
