@@ -360,3 +360,9 @@
 - No new design decision: this consumes D36's loud degraded fallback. D43 and D44 remain the explicit scenario FRONTIER markers (pod networking / nested-composite `--update <edge>` respectively).
 - Verification green: all five `scenario-*` VM checks, ignored index hammer, workspace fmt/clippy/tests, and explicit tour regeneration with zero `docs/tour` diff. Exact commands and current-truth assertions are in `nix/LOG.md`.
 - Open with Mathijs: none. Open for agents: independently re-verify the committed `track/scenarios` branch before merge.
+
+## 2026-07-30 (track/scenarios fixture gate close)
+
+- Committed `c1ad836` (`Harden scenario fixtures`): bounded every scenario curl probe, repaired the DynamicUser Unix-edge socket permissions, bounded fixture client I/O, and corrected lifecycle state/cgroup and collision assertions.
+- Verification after the fixture repair: lifecycle and side-by-side each passed their already-recorded 3/3 forced-rebuild series; update-repin, gc-survival, and observability passed their serialized VM checks; ignored index hammer, workspace fmt/clippy/tests, and explicit tour regeneration with zero `docs/tour` diff are green. Exact repro commands are appended to `nix/LOG.md`.
+- Decisions: no new design decision. Open with Mathijs: none. Open for agents: independently re-verify `c1ad836` before merge.

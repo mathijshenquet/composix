@@ -16,13 +16,18 @@ let
         pass
     listener = socket.socket(socket.AF_UNIX)
     listener.bind(path)
+    os.chmod(path, 0o666)
     listener.listen()
     print("db-line ready", flush=True)
     while True:
         connection, _ = listener.accept()
         with connection:
-            connection.recv(1024)
-            connection.sendall(b"PONG")
+            connection.settimeout(2)
+            try:
+                connection.recv(1024)
+                connection.sendall(b"PONG")
+            except OSError:
+                pass
     PY
     chmod 0755 "$out/opt/scenario/db.py"
     cat > "$out/cix-manifest.json" <<EOF
@@ -39,22 +44,34 @@ let
     state = "/var/lib/api/sentinel"
     os.makedirs(os.path.dirname(state), exist_ok=True)
     with open(state, "w", encoding="utf-8") as handle:
-        handle.write("survives\\n")
+        handle.write("survives\n")
 
     listener = socket.fromfd(3, socket.AF_INET, socket.SOCK_STREAM)
     print("api-line " + os.environ["MESSAGE"], flush=True)
     while True:
         connection, _ = listener.accept()
         with connection:
-            connection.recv(4096)
-            db = socket.socket(socket.AF_UNIX)
-            db.connect("/run/db/db.sock")
-            db.sendall(b"PING")
-            pong = db.recv(1024).decode("ascii")
-            db.close()
-            body = os.environ["MESSAGE"] + ":" + pong + "\\n"
-            response = "HTTP/1.1 200 OK\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{}".format(len(body), body)
-            connection.sendall(response.encode("ascii"))
+            connection.settimeout(5)
+            try:
+                connection.recv(4096)
+                with socket.socket(socket.AF_UNIX) as db:
+                    db.settimeout(2)
+                    db.connect("/run/db/db.sock")
+                    db.sendall(b"PING")
+                    pong = db.recv(1024).decode("ascii")
+                if pong != "PONG":
+                    raise OSError("unexpected database response")
+            except (OSError, UnicodeDecodeError) as error:
+                print("api-db failure: " + str(error), flush=True)
+                body = "db unavailable\n"
+                response = "HTTP/1.1 503 Service Unavailable\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}".format(len(body), body)
+            else:
+                body = os.environ["MESSAGE"] + ":" + pong + "\n"
+                response = "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}".format(len(body), body)
+            try:
+                connection.sendall(response.encode("ascii"))
+            except OSError:
+                pass
     PY
     chmod 0755 "$out/opt/scenario/api.py"
     cat > "$out/cix-manifest.json" <<EOF

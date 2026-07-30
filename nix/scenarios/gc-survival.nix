@@ -8,7 +8,7 @@ scenario.node ''
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "live"}) scenario-api:track")
   machine.succeed("cp ${scenario.composeFile "gc" "127.0.0.1:18084" "scenario-api:track" null} /tmp/scenario/compose.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
-  machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18084/ | grep -Fx live:PONG")
+  machine.wait_until_succeeds("curl --max-time 5 --fail --silent http://127.0.0.1:18084/ | grep -Fx live:PONG")
   active = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-gc").strip()
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.api "new"}) scenario-api:track")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
