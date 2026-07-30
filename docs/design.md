@@ -691,6 +691,76 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   row flips from ❌ to a sandboxed, memoized, lock-pinned ✅ — the universal escape hatch,
   made honest.
 
+- ✅ D40 (2026-07-30) — **build outputs & caches** (designed 07-29, go via the 07-30 tree
+  round: Mathijs, "spec het maar precies en laat het bouwen"). (a) **`ITEM` plucks**: a
+  Cixfile produces one or more *items*, each declaring `TAKE <build-path> <item-path>`
+  plucks — items carry declared subpaths, not the whole final workdir snapshot (kills the
+  `${build}` cargo-bookkeeping bloat, and the D39.1 layer noise lives exactly there).
+  `ITEM` supersedes `SERVICE` as the block keyword. (b) **`CACHE <dir>`**: advisory
+  per-step cache directories that live OUTSIDE the memo key and OUTSIDE the snapshot —
+  the docker `RUN --mount=type=cache` analogue; enables ecosystem-incremental builds
+  (cargo target dirs, pnpm stores), soundness bounded by sampled clean rebuilds (D39.1
+  policy). (c) Gate: proj1 (a real multi-item application) builds, runs, and re-builds
+  incrementally end-to-end.
+- ✅ D41 (2026-07-30) — **item = exactly one service; the manifest is a bare def-node**
+  (Mathijs's push: a rust project building 5 services must not fuse them into one item —
+  that's non-granular rebuild; the store dedupes shared closures at path level so
+  splitting is free). `cix-manifest.json` v4 drops the `services` map: the file IS one
+  service body (`exec`/`setup`/typed `env`/`ports`/`listeners`/`dirs`/`health`/`jit`/
+  `outbound`). Multi-service manifests (D8-era) retire; compose's `service:` selector
+  field dies. Runner accepts 1–4 per D15.
+- ✅ D42 (2026-07-30) — **the compose tree: one grammar, two artifact kinds.** A *pack
+  item* (filesystem + def-node manifest) is the leaf; a *compose artifact* (`cix.json`:
+  children refs + `edges` + `publish` + `network`, optionally nested) is the node; both
+  are store items, both taggable in the index. Instance identity = **path in the tree**
+  (units `cix-<path…>-<svc>.service`, nested slices, path-keyed state) — the artifact's
+  `name` is self-description only; two instances of one artifact under different keys are
+  fully disjoint. The **host root is the same format in a mutable file** (+ lock), and
+  day-two CLI verbs are structured edits of that file (the D28 machine-format payoff);
+  only the root must live on the host, every subtree may be a ref. Full story:
+  docs/compose-tree.md.
+- ✅ D43 (2026-07-30) — **pod-ness is a scoped property, not a stratum.** `network: "pod"`
+  on any composite claims one netns for its subtree; **nearest-pod-ancestor** decides
+  each service's namespace (pod-in-pod legal; embedding never strips a sealed artifact's
+  declared boundary). Crossing a boundary requires declaration: `publish` climbs one
+  boundary at a time (child publish → parent scope, where it's `bind`-ed or re-published),
+  `edges` (D25 fd tier) cross netns for free. Absence of pod-ness anywhere = today's
+  host networking (rawdog = absence of a property; the `network: host` escape flag
+  dies). Per-service **`outbound: true`** (renamed from "egress" — D20-side app
+  semantics) declares outward initiation; absence = loopback-only view, zero network
+  machinery for pure composites. Amends D23's fixed boundary; compose-netns.md remains
+  the realization paper.
+- ✅ D44 (2026-07-30) — **ref/lock semantics unified on every floor** (Mathijs: pinning
+  was always a root-level affair). Refs are always `name:tag` — no bare names, no
+  ranges, no solver; softness is publisher tag discipline (immutable tags or
+  hash-qualified refs for hard sealing). The **operative lock lives with the deployer**;
+  a published composite embeds an *advisory* lock snapshot (seed + hermetic testing +
+  provenance, not authority). `cix up` replays the lock; `cix up --update [edge…]`
+  repins deliberately; root-side `track` = auto-repin on up (reconciler case);
+  publisher-side pin/track fields do not exist. Every generation is fully pinned
+  regardless — the axis only decides *who may move which pointer*. Repin runs the
+  wiring-as-interface check (new artifact must still provide the surfaces the tree uses).
+  **Override is not built**: evidence-gated future in cargo-`[patch]` shape, declared at
+  the piercing level; unit-level piercing already exists as systemd drop-ins +
+  `systemd-delta`. Rollback = generations as mechanical crash net; semantic undo = tag
+  push (roll-forward). This is D32's flake-inputs move re-derived at compose level.
+- ✅ D45 (2026-07-30) — **the index re-founded: names → content-addressed tag tables.**
+  Per name, one store item holds the tag table (`tag → {storePath, narHash, meta}`) +
+  the parent table's hash (history chain, publish-rollback, audit by construction). The
+  only mutable cell is a `name → table-item-hash` map; publish = build table item +
+  **CAS the name pointer** (atomic multi-tag publishes, race detection). Yank =
+  publish a table without the tag — advisory by nature (crates.io semantics; bytes
+  cannot be recalled, deletion stays GC per D35). Signing (D35 ⏳) collapses to signing
+  the table hash per name; **auth is name-level: who may move this name**. Serving
+  degrades toward substituters-for-bytes + a static `name → hash` lookup. Prior art
+  convergence: git refs/objects, OCI tag→manifest, crates.io index, nix channels.
+- ✅ D46 (2026-07-30) — **computable composes: publish-time expansion only.** A
+  parametric compose (`my-app:$tag` ≡ compose of `my-frontend:$tag` + `my-backend:$tag`;
+  `$tag` is the only variable, only in tag position) is macro-expanded by
+  `cix publish my-app:v1.2.5` into an ordinary concrete artifact — resolvers stay dumb
+  data readers, no interpreter in the index. Monorepo tooling on top: one verb builds
+  and publishes the whole family for a version bump, one atomic table move per name.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

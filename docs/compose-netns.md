@@ -4,6 +4,16 @@ Status: **proposal for the D23–D27 design round** (nothing here is decided; de
 design.md win on conflict). Prepared 2026-07-29 as the working paper for compose v1's
 netns debt — the ledger's "the design debt the compose era must pay first."
 
+> **Amended by the 2026-07-30 tree round (D42–D44, docs/compose-tree.md):** "egress" is
+> renamed **`outbound`** (per-service spec field; opt-in capability polarity kept — the
+> zero-machinery-by-default property depends on it); the composite-level `network: host`
+> escape dies in favor of *pod-ness as an optional scoped property* (`network: "pod"`,
+> nearest-pod-ancestor; absence anywhere = host networking); the "one netns per
+> composite" framing generalizes to "one netns per pod-claiming composite". The
+> mechanics below (netns lifecycle units, attachment, fd-first publishing, veth/
+> masquerade egress tier, IPAM constraints) are unchanged and remain the realization
+> plan, applied at pod-claiming nodes.
+
 ## Scope claimed for v1
 
 One thing, done completely: **the composite netns of D23**, with explicit host-edge
