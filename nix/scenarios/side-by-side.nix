@@ -7,8 +7,8 @@ scenario.node ''
   # D43 FRONTIER (flip when pod-ness lands): identical internal ports without any bind conflict once both claim network: pod
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.db} scenario-db:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "side"} scenario-api:v1")
-  machine.succeed("printf '%s' '${scenario.compose "alpha" "127.0.0.1:18081" "scenario-api:v1" null}' > /tmp/scenario/alpha.json")
-  machine.succeed("printf '%s' '${scenario.compose "beta" "127.0.0.1:18082" "scenario-api:v1" null}' > /tmp/scenario/beta.json")
+  machine.succeed("cp ${scenario.composeFile "alpha" "127.0.0.1:18081" "scenario-api:v1" null} /tmp/scenario/alpha.json")
+  machine.succeed("cp ${scenario.composeFile "beta" "127.0.0.1:18082" "scenario-api:v1" null} /tmp/scenario/beta.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/alpha.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/beta.json")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18081/ | grep -Fx side:PONG")
@@ -16,7 +16,7 @@ scenario.node ''
   machine.succeed("test -d /sys/fs/cgroup/cix-alpha.slice; test -d /sys/fs/cgroup/cix-beta.slice")
   machine.succeed("test -d /run/cix-alpha-edge-database; test -d /run/cix-beta-edge-database")
   machine.succeed("test ! -e /run/cix-alpha-edge-database/.same-as-beta")
-  machine.succeed("printf '%s' '${scenario.compose "collision" "127.0.0.1:18081" "scenario-api:v1" null}' > /tmp/scenario/collision.json")
+  machine.succeed("cp ${scenario.composeFile "collision" "127.0.0.1:18081" "scenario-api:v1" null} /tmp/scenario/collision.json")
   conflict = machine.fail("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/collision.json")
   assert "failed" in conflict.lower() or "address" in conflict.lower(), conflict
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down alpha; CIX_STATE_DIR=/var/lib/cix-index cix down beta")

@@ -80,6 +80,9 @@ let
     }
   '';
 
+  composeFile = name: bind: apiRef: message:
+    pkgs.writeText "scenario-${name}.json" (compose name bind apiRef message);
+
   node = script: pkgs.testers.runNixOSTest {
     name = "scenario";
     nodes.machine = { ... }: {
@@ -97,5 +100,5 @@ let
   };
 in
 {
-  inherit api compose db node;
+  inherit api compose composeFile db node;
 }

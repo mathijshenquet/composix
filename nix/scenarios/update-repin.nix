@@ -7,7 +7,7 @@ scenario.node ''
   # D44 FRONTIER: --update <edge> selective repin on nested composites
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.db} scenario-db:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag ${scenario.api "v1"} scenario-api:track")
-  machine.succeed("printf '%s' '${scenario.compose "repin" "127.0.0.1:18083" "scenario-api:track" null}' > /tmp/scenario/compose.json")
+  machine.succeed("cp ${scenario.composeFile "repin" "127.0.0.1:18083" "scenario-api:track" null} /tmp/scenario/compose.json")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/compose.json")
   machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:18083/ | grep -Fx v1:PONG")
   old_generation = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-repin").strip()
