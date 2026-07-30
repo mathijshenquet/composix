@@ -16,7 +16,11 @@ The sourcing sweep and harness scaffolding may start immediately.
   This file doubles as future user documentation; its git history is the distillation
   log. HARD RULE: the prompt may state general lessons only — naming specific images
   or hardcoding per-image fixes is overfitting and forbidden.
-- **`corpus/migrate/<name>/`** per pair:
+- **`corpus/migrate/<name>/`** per pair — the pair root contains ONLY the pair
+  artifacts (Dockerfile, SOURCE, Cixfile, Cixfile.lock, check.sh, receipt.md);
+  any Docker build-context files (entrypoints, configs, or a whole fetched app
+  tree) live under **`context/`**, never loose in the root (layout convention,
+  Mathijs 2026-07-30 — a pair must be readable at a glance):
   - `Dockerfile` (verbatim from the wild) + `SOURCE` (url + fetch date + image ref)
   - `Cixfile` (the conversion, D47 syntax)
   - `check.sh` — the minimal dual health check: `./check.sh docker` builds+runs the
