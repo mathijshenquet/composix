@@ -35,6 +35,11 @@ SERVICE myapp                    # one artifact = one service
 - Inside a FETCH command there is no ambient toolchain: reference every tool by its
   full package path (`${pkgs.git}/bin/git`, `${pkgs.curl}/bin/curl`) and give TLS a
   CA bundle: `SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt`.
+- Do NOT chain network steps into one long shell line. Top-level `FETCH <name>` runs
+  in an EMPTY workdir — use it only for truly independent ingredients (a dist
+  tarball, a prebuilt UI). Steps that build on each other (clone, then download
+  deps) are MULTIPLE small `FETCH` lines inside the BUILDER — they chain on the
+  workdir and each gets its own pin and memo entry.
 - When the Dockerfile builds from a repo context, FETCH the repo (git clone) and
   record the resolved revision in your SOURCE notes. Language dependency caches
   fetched over the network must live INSIDE the fetched tree so the offline RUN can
