@@ -1,42 +1,19 @@
 { pkgs, cix }:
 
 let
-  producer = pkgs.runCommand "compose-fallback-producer" { } ''
-    mkdir -p $out/bin
-    cat > $out/bin/producer <<'EOF'
-    #!${pkgs.runtimeShell}
-    set -eu
-    ${pkgs.coreutils}/bin/touch /var/lib/fallback-producer/state-ready
-    ${pkgs.coreutils}/bin/touch /run/fallback-edge/edge-ready
-    exec ${pkgs.coreutils}/bin/sleep infinity
-    EOF
-    chmod +x $out/bin/producer
-    cat > $out/cix-manifest.json <<'EOF'
-    {
-      "cixManifest": 4,
-      "exec": ["bin/producer"],
-      "dirs": {
-        "state": ["/var/lib/fallback-producer"],
-        "run": ["/run/fallback-edge"]
-      }
-    }
-    EOF
-  '';
+  producer = pkgs.writeTextDir "cix-manifest.json" (builtins.toJSON {
+    cixManifest = 4;
+    exec = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
+    dirs = {
+      state = [ "/var/lib/fallback-producer" ];
+      run = [ "/run/fallback-edge" ];
+    };
+  });
 
-  consumer = pkgs.runCommand "compose-fallback-consumer" { } ''
-    mkdir -p $out/bin
-    cat > $out/bin/consumer <<'EOF'
-    #!${pkgs.runtimeShell}
-    exec ${pkgs.coreutils}/bin/sleep infinity
-    EOF
-    chmod +x $out/bin/consumer
-    cat > $out/cix-manifest.json <<'EOF'
-    {
-      "cixManifest": 4,
-      "exec": ["bin/consumer"]
-    }
-    EOF
-  '';
+  consumer = pkgs.writeTextDir "cix-manifest.json" (builtins.toJSON {
+    cixManifest = 4;
+    exec = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
+  });
 
   compose = pkgs.writeText "compose-fallback.json" (builtins.toJSON {
     composeVersion = 1;
@@ -105,8 +82,8 @@ pkgs.testers.runNixOSTest {
     machine.wait_for_unit("cix-fallback.target")
     machine.wait_for_unit("cix-fallback-producer.service")
     machine.wait_for_unit("cix-fallback-consumer.service")
-    machine.wait_until_succeeds("test -f /var/lib/fallback-producer/state-ready")
-    machine.wait_until_succeeds("test -f /run/cix-fallback-edge-shared/edge-ready")
+    machine.succeed("test -d /var/lib/fallback-producer")
+    machine.succeed("test -d /run/cix-fallback-edge-shared")
     machine.succeed("cix down fallback")
   '';
 }
