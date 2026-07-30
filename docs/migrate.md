@@ -30,7 +30,8 @@ SERVICE myapp                    # one artifact = one service
   NO network. `FETCH <cmd>` (inside a builder) or `FETCH <name> <cmd>` (top-level,
   empty workdir, binds `${name}`) is the only network access; its output hash is
   pinned in `Cixfile.lock` automatically. If a re-fetch legitimately changes the
-  output, accept it with `cix build --update-lock`.
+  output, accept it with `cix build --update-lock <binder-name> .` (the FETCH's
+  name).
 - Inside a FETCH command there is no ambient toolchain: reference every tool by its
   full package path (`${pkgs.git}/bin/git`, `${pkgs.curl}/bin/curl`) and give TLS a
   CA bundle: `SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt`.
@@ -55,7 +56,11 @@ SERVICE myapp                    # one artifact = one service
   one with `COPY ${earlier}/ .`; `COPY --from=X` → `COPY ${X}/path dest`.
 - **`RUN --mount=type=cache,target=D`** → `CACHE D` in the builder.
 - **`curl|wget + checksum` downloads** → a `FETCH` (the pin is enforced for you).
-- **`VOLUME /data`** → `DIR state /var/lib/<name>` and point the app there (env/flag).
+- **`VOLUME /data`** → `STATE /var/lib/<name>` and point the app there (env/flag).
+  Writable role dirs in SERVICE/APP blocks: `STATE /var/lib/…` (persistent),
+  `CACHEDIR /var/cache/…`, `LOGS /var/log/…`, `CONFIG /etc/…`, `RUNDIR /run/…`.
+  Apps that want writable XDG/home dirs get a STATE/CACHEDIR dir plus env vars
+  (`XDG_DATA_HOME=…`) pointing into it.
 - **`EXPOSE N`** → `PORT http = N` (or via env). **`USER`/`gosu`/`su-exec`/`tini`**
   → delete: systemd runs the service as an unprivileged dynamic user and is the init.
 - **A Dockerfile's `COPY` of sibling files** (entrypoint.sh, config files) refers to
