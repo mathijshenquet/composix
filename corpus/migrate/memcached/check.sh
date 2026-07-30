@@ -27,7 +27,7 @@ probe() {
 cd "$root"
 case $mode in
   docker)
-    image=$(timeout 360 docker build --quiet --tag "$docker_tag" .)
+    image=$(timeout 360 docker build --quiet --file "$root/Dockerfile" --tag "$docker_tag" "$root/context")
     printf 'docker image %s\n' "$image"
     container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:11211:11211 "$docker_tag")
     probe 11211

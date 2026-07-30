@@ -1,11 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-FETCH src ${pkgs.bash}/bin/bash -c '${pkgs.git}/bin/git -c http.sslCAInfo=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt clone https://github.com/traefik/whoami.git . && SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt GOMODCACHE=$PWD/.gomodcache ${pkgs.go}/bin/go mod download'
-
-# Networked module download stays in FETCH; the builder consumes that cache without egress.
 BUILDER build
-  PATH ${pkgs.bash}/bin ${pkgs.go}/bin ${pkgs.gnumake}/bin
-  COPY ${src}/ .
+  PATH ${pkgs.bash}/bin ${pkgs.git}/bin ${pkgs.go}/bin \
+    ${pkgs.gnumake}/bin
+  # Each networked stage is independently pinned; RUN only consumes its snapshot.
+  FETCH ${pkgs.git}/bin/git -c http.sslCAInfo=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt clone https://github.com/traefik/whoami.git .
+  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt GOMODCACHE=$PWD/.gomodcache ${pkgs.go}/bin/go mod download
   RUN GOMODCACHE=$PWD/.gomodcache make build
 
 SERVICE whoami

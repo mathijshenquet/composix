@@ -1,6 +1,7 @@
 # caddy migration receipt
 
 Date: 2026-07-30
+Layout refreshed: 2026-07-30 (no Cix rerun; the recorded check failure remains live)
 
 Docker image digest (local image ID): `sha256:bc898ebca91b534678f81a7d6d352a788be403e3e7af027564731f9dd77fa9c4`
 

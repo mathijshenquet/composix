@@ -35,3 +35,25 @@ cix-capability-gaps:
 - Echo Server's npm-cache `FETCH` did not complete within its bounded check timeout; no Cix item was produced.
 
 artifacts: corpus/migrate/{caddy,echo-server,adminer,memcached}/{Dockerfile,SOURCE,context files,Cixfile,Cixfile.lock,check.sh,receipt.md}. Passing Cix items: adminer=/nix/store/6wqrprc1lqkb7g116812x0d4wvkfx17p-cix-item-adminer; memcached=/nix/store/kg6afp6d8dvkwjl8r3qip4yyy3y5lpww-cix-item-memcached.
+
+2026-07-30 — living-receipt refresh after D50–D53
+layout: moved Adminer, Memcached, and the complete Echo Server upstream tree into
+their pair `context/` directories. Docker checks for those pairs now use
+`docker build --file "$root/Dockerfile" "$root/context"`; pair roots contain only
+the six declared artifacts. Caddy and Echo Server were layout-only: their known Cix
+check failure/timeout remains recorded rather than being represented as a pass.
+
+language: whoami now uses two builder-local FETCH steps (clone, then Go module
+download) with a continuation-form PATH and a comment explaining the pin boundary.
+The new pins were accepted with `../../../target/debug/cix build --update-lock build .`.
+
+verdicts: whoami=pass, traefik=pass, nats=pass, adminer=pass, memcached=pass.
+Refreshed Cix item paths: whoami=/nix/store/y696s2gxr34bvcqzndm8gz2hkkhf9fci-cix-item-whoami;
+traefik=/nix/store/wnxvm6b76y05ay18ixa2vcsvkk1f578h-cix-item-traefik;
+nats=/nix/store/x0q9whg4ff6khpr23lkmlz5bzlpqjiz6-cix-item-nats;
+adminer=/nix/store/6wqrprc1lqkb7g116812x0d4wvkfx17p-cix-item-adminer;
+memcached=/nix/store/kg6afp6d8dvkwjl8r3qip4yyy3y5lpww-cix-item-memcached.
+
+exact repro: `cargo build -p cix`; `cd corpus/migrate/whoami && ../../../target/debug/cix build --update-lock build . && ./check.sh cix`; `cd corpus/migrate/traefik && ./check.sh cix`; `cd corpus/migrate/nats && ./check.sh cix`; `cd corpus/migrate/adminer && ./check.sh cix`; `cd corpus/migrate/memcached && ./check.sh cix`.
+
+candidate audit: added the no-escape column using `nix search nixpkgs '^(whoami|traefik|nats|caddy|echo-server|adminer|memcached|ntfy|filebrowser|homer|it-tools|mailpit|nginx|redis|valkey|haproxy|httpd|mosquitto|mysql|mariadb|mongo|postgresql|tomcat|phpmyadmin|registry|vault|minio|syncthing|miniflux|gotify|uptime-kuma|healthchecks|changedetection|freshrss|kanboard|verdaccio|homepage|ghost|vaultwarden|rabbitmq|wordpress|nextcloud|gitea|pihole|dozzle|watchtower)$' --json`; alternate-name search for nats-server/distribution/gotify-server/homepage-dashboard/rabbitmq-server/etc.; and `nix eval --raw nixpkgs#<attr>.pname` checks. Ghost and LinuxServer/nginx remain explicitly ambiguous.
