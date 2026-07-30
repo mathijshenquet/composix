@@ -950,12 +950,17 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   formats, not ecosystems)**: no per-ecosystem adapters at all; ONE generic
   selector — `META <field> <source>#<keypath>` (the `#` spelling is flakeref
   muscle memory: `nixpkgs#hello`; no clash with D53 comments, which are
-  full-line-only) — bake-time pure via `builtins.fromTOML`/`fromJSON` by extension,
-  and the same selector walks a package binder's eval'd `meta` attrset
-  (`META description ${pkgs.nginx}#meta.description`). YAML (in practice only
-  Dart's pubspec as an identity manifest) is evidence-gated on demand, not
-  feasibility — if a user arrives, the parse can live Rust-side (serde_yaml) just
-  as purely. Bulk field
+  full-line-only) — bake-time pure, parsed in ONE home: Rust-side serde
+  (json/toml/**yaml**) over the content-addressed path, result baked into the
+  manifest. YAML is in from day one (Mathijs, reversing the earlier gate by this
+  round's own principle: formats-not-ecosystems means all three manifest formats —
+  excluding YAML would be ecosystem bias through the back door, and pubspec/Flutter
+  is no fringe). The generated-nix-builtins variant is dropped: it would split the
+  implementation the moment YAML arrived. Norway-problem note for the docs: we only
+  read and select — scalars are stringified, and a selection yielding a non-stringy
+  value is a clear error, never silent coercion. The package-binder form
+  (`META description ${pkgs.nginx}#meta.description`) stays on the existing eval —
+  that is attrset selection, not file parsing. Bulk field
   import is dead: every field is author-pointed; cix maintains two file formats and
   zero ecosystem tables (prior art for the eval: crane, pyproject-nix — we take the
   builtins, not the frameworks). `META source <binder>` keeps ONLY the
