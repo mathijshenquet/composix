@@ -211,3 +211,14 @@
   ephemeral-VM regression omits stack teardown and keeps its assertion scope on
   activation and fallback honesty. Next: regenerate and review the tour, then
   run the full specified gate against the final source state.
+
+- 2026-07-30 17:22 UTC — Pre-gate tour regeneration exposed a rootless-path
+  regression: exact command
+  `cargo test -p cix --test tour -- --ignored generate_tour` failed because
+  `cix compose diff` attempted the system-manager realization probe and polkit
+  rejected it with “Interactive authentication required.” The actual probe
+  remains in root-only `cix up`. Rootless diff now reuses an active generation's
+  recorded `PrivatePIDs=yes` capability decision so it remains stable after a
+  degraded activation; with no active generation it renders the fully hardened
+  form. A focused pure test covers both cases. Next: rerun tour regeneration and
+  the complete gate.

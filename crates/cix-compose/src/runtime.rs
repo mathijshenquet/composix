@@ -32,9 +32,10 @@ pub fn check(compose_path: &Path) -> Result<()> {
 
 pub fn diff(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
-    let capabilities = HostCapabilities::probe()?;
-    let built = build_generation(&checked, compose_path, &capabilities)?;
     let old = current_generation(&checked.compose.name)?;
+    let old_manifest = old.as_deref().map(load_manifest).transpose()?;
+    let capabilities = capabilities_for_diff(old_manifest.as_ref());
+    let built = build_generation(&checked, compose_path, &capabilities)?;
     let report = compare_generations(old.as_deref(), &built.store_path)?;
     if report.is_empty() {
         println!("no changes");
@@ -72,6 +73,22 @@ fn warn_degradations(manifest: &Manifest) {
             degradation.unit, degradation.property, degradation.reason
         );
     }
+}
+
+fn capabilities_for_diff(manifest: Option<&Manifest>) -> HostCapabilities {
+    manifest
+        .and_then(|manifest| {
+            manifest
+                .degradations
+                .iter()
+                .find(|degradation| degradation.property == "PrivatePIDs=yes")
+        })
+        .map(|degradation| {
+            HostCapabilities::private_pids_with_persistent_directories_unsupported(
+                &degradation.reason,
+            )
+        })
+        .unwrap_or_else(HostCapabilities::all_supported)
 }
 
 pub fn rollback(name: &str) -> Result<()> {
@@ -447,7 +464,7 @@ fn cleanup_edge_destinations(generation: &Path) -> Result<()> {
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::generation::{ManifestService, ManifestUnit};
+    use crate::generation::{ManifestDegradation, ManifestService, ManifestUnit};
 
     use super::*;
 
@@ -522,6 +539,29 @@ mod tests {
                 "unit changed: cix-stack-web.service",
                 "service web: /nix/store/old-web -> /nix/store/new-web",
             ]
+        );
+    }
+
+    #[test]
+    fn diff_reuses_the_active_generation_capability_decision() {
+        let directory = tempfile::tempdir().unwrap();
+        let generation = generation(directory.path(), "/nix/store/old-web", "old service", None);
+        let mut manifest = load_manifest(&generation).unwrap();
+        manifest.degradations.push(ManifestDegradation {
+            unit: "cix-stack-web.service".into(),
+            property: "PrivatePIDs=yes".into(),
+            reason: "synthetic realization failure".into(),
+        });
+
+        assert_eq!(
+            capabilities_for_diff(Some(&manifest))
+                .private_pids_with_persistent_directories
+                .unsupported_reason(),
+            Some("synthetic realization failure")
+        );
+        assert_eq!(
+            capabilities_for_diff(None),
+            HostCapabilities::all_supported()
         );
     }
 }
