@@ -6,7 +6,9 @@
   fetch with imported curl and CA roots. `build/projB` proves the Rust FETCH/RUN path;
   `build/projB-chef` proves the same manifest-first dependency workflow. `build/proj1` is
   D57's two-service Rust workspace: one persistent named builder feeds independent API and
-  worker artifacts through narrow consumed-path records.
+  worker artifacts through narrow consumed-path records. `build/from-item` is the small D65
+  cross-item COPY demonstration: tag the nginx example, then consume its configuration through
+  a lock-pinned FROM binder.
 
 The adoption ladder is: Cixfile for Docker-shaped authoring, `composix.lib.withSpec` for
 attaching a manifest to an existing derivation, then plain Nix for the fully native escape

@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cix_cixfile::{build, build_family, generate_nix, parse, BuildOptions, LockFile};
+use cix_cixfile::{build, build_family, generate_nix, parse, ArtifactPin, BuildOptions, LockFile};
 
 fn committed_lock() -> LockFile {
     let input = serde_json::from_value(
@@ -16,6 +16,7 @@ fn committed_lock() -> LockFile {
     .unwrap();
     LockFile {
         inputs: std::collections::BTreeMap::from([("pkgs".into(), input)]),
+        artifacts: std::collections::BTreeMap::new(),
         fetches: std::collections::BTreeMap::new(),
         memo: std::collections::BTreeMap::new(),
     }
@@ -61,7 +62,10 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 #[test]
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
-    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC /bin/fixture\n").unwrap();
+    let cixfile = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nEXEC /bin/fixture\n",
+    )
+    .unwrap();
     let mut lock = committed_lock();
     lock.inputs.get_mut("pkgs").unwrap().nar_hash =
         "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
@@ -77,7 +81,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nEXEC /bin/missing\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nEXEC /bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -96,7 +100,7 @@ fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
 fn real_nix_build_assembles_files_links_and_spec() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 FILE /share/content <<EOF
 package=${pkgs.hello}
@@ -140,7 +144,7 @@ EXEC hello
 fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.coreutils}/bin/true /bin/true
 ENV PATH = ${pkgs.bash}/bin
@@ -171,7 +175,7 @@ EXEC true
 fn bare_commands_ignore_explicit_path_when_resolving() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.bash}/bin/bash /bin/bash
 ENV PATH = ${pkgs.coreutils}/bin
@@ -200,7 +204,7 @@ EXEC bash
 fn bare_command_failure_lists_the_item_bin_entries() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.coreutils}/bin/true /bin/true
 EXEC definitely-not-in-bin
@@ -226,7 +230,7 @@ fn run_executes_outside_nix_and_build_interpolation_reaches_the_snapshot() {
     fs::write(directory.path().join("input"), "sandboxed\n").unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 BUILDER build
 IMPORT ${pkgs.bash} ${pkgs.coreutils}
@@ -285,7 +289,7 @@ fn selected_member_executes_only_its_backward_builder_slice() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        r#"FROM nixpkgs AS pkgs
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER wanted
 IMPORT ${pkgs.bash}
 RUN printf wanted > wanted
@@ -348,7 +352,7 @@ fn fetch_expect_matches_in_both_forms_and_records_the_declared_hash() {
     fs::write(
         directory.path().join("Cixfile"),
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FETCH ingredient EXPECT {expected} ${{pkgs.coreutils}}/bin/printf 'fixed\n' > payload
 BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
@@ -395,7 +399,7 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nEXEC /bin/true\n",
     )
     .unwrap();
     fs::write(
@@ -432,7 +436,7 @@ fn imported_cacert_enables_bare_git_over_https() {
     .unwrap();
     let cixfile = |cacert: &str| {
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER fetch
 IMPORT ${{pkgs.bash}} ${{pkgs.gitMinimal}}{cacert}
 FETCH git ls-remote https://github.com/NixOS/nixpkgs.git HEAD > head
@@ -487,7 +491,7 @@ fn usr_bin_env_shebang_requires_an_imported_env() {
     fs::set_permissions(&script, permissions).unwrap();
     let cixfile = |coreutils: &str| {
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 BUILDER build
 IMPORT ${{pkgs.bash}}{coreutils}
@@ -544,7 +548,7 @@ fn newly_consumed_path_reruns_the_chain_and_extends_its_record() {
     .unwrap();
     let cixfile = |extra_copy: &str| {
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER build
 IMPORT ${{pkgs.bash}}
 RUN printf x >> runs; printf one > one; printf two > two
@@ -621,7 +625,7 @@ fn warm_source_edit_after_fetch_reuses_the_pinned_prefix() {
     fs::write(
         directory.path().join("Cixfile"),
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
@@ -688,7 +692,7 @@ fn changed_step_before_fetch_replays_command_prefix_in_clean_workspace() {
     .to_owned();
     let cixfile = |middle: &str| {
         format!(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 RUN printf 'present\n' > required
@@ -737,11 +741,11 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
     let bare = parse(
-        "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nEXEC /bin/true\n",
     )
     .unwrap();
     let explicit = parse(
-        "FROM nixpkgs AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload /share/payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload /share/payload\nEXEC /bin/true\n",
     )
     .unwrap();
     let bare = build_expression(
@@ -765,6 +769,164 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     );
     let manifest = cix_run::spec::Spec::load(&bare).unwrap();
     assert_eq!(manifest.kind, cix_run::spec::ManifestKind::Service);
+}
+
+#[test]
+fn cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash() {
+    let state = tempfile::tempdir().unwrap();
+    std::env::set_var("CIX_STATE_DIR", state.path());
+
+    let missing = tempfile::tempdir().unwrap();
+    fs::write(
+        missing.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM family/missing:v1 AS missing
+SERVICE consumer
+COPY ${missing}/payload /payload
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        missing.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let missing_error = build(&BuildOptions {
+        directory: missing.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap_err()
+    .to_string();
+    assert!(
+        missing_error.contains("pull it or tag it first"),
+        "{missing_error}"
+    );
+
+    let producer = tempfile::tempdir().unwrap();
+    fs::write(
+        producer.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE source
+FILE /payload <<EOF
+first
+EOF
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        producer.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let producer_output = build(&BuildOptions {
+        directory: producer.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap()
+    .remove(0)
+    .store_path;
+    cix_index::tag(&producer_output, "family/source:v1", None).unwrap();
+
+    let consumer = tempfile::tempdir().unwrap();
+    fs::write(
+        consumer.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM family/source:v1 AS source
+SERVICE consumer
+COPY ${source}/payload /payload
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        consumer.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let first = build(&BuildOptions {
+        directory: consumer.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&first[0].store_path).join("payload")).unwrap(),
+        "first\n"
+    );
+    let mut lock: LockFile =
+        serde_json::from_slice(&fs::read(consumer.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let pin = lock.artifacts["family/source:v1"].clone();
+    assert_eq!(pin.store_path, producer_output);
+
+    let moved_tree = tempfile::tempdir().unwrap();
+    fs::write(moved_tree.path().join("payload"), "moved\n").unwrap();
+    let moved = cix_common::nix(&["store", "add-path", moved_tree.path().to_str().unwrap()])
+        .unwrap()
+        .trim()
+        .to_owned();
+    cix_index::tag(&moved, "family/source:v1", None).unwrap();
+
+    let pinned = build(&BuildOptions {
+        directory: consumer.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&pinned[0].store_path).join("payload")).unwrap(),
+        "first\n"
+    );
+
+    let updated = build(&BuildOptions {
+        directory: consumer.path().to_owned(),
+        update_lock: Some("source".into()),
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&updated[0].store_path).join("payload")).unwrap(),
+        "moved\n"
+    );
+
+    lock.artifacts.insert(
+        "family/source:v1".into(),
+        ArtifactPin {
+            store_path: moved,
+            nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+        },
+    );
+    fs::write(
+        consumer.path().join("Cixfile.lock"),
+        format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
+    )
+    .unwrap();
+    let error = build(&BuildOptions {
+        directory: consumer.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("narHash mismatch"), "{error}");
 }
 
 fn nar_hash(path: &std::path::Path) -> String {

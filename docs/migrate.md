@@ -28,6 +28,7 @@ Prelude declarations bind inputs:
 
 - `FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs` binds a locked package universe.
 - `FROM <remote-flakeref> AS src` binds a locked remote source tree.
+- `FROM family/member:v3 AS prebuilt` binds a tagged cix item as a lock-pinned source tree.
 - `FROM . AS src` optionally names the local Cixfile directory. Bare relative `COPY`
   sources use that same local context without a binder.
 - `FETCH <name> [EXPECT <sri-hash>] <command...>` performs an independent network fetch in
@@ -242,11 +243,12 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 
 | Docker mechanism | Cix treatment | Important caveat |
 | --- | --- | --- |
-| `FROM debian`, `alpine`, or another runtime image | Start from the needed `${pkgs.*}` packages | `FROM` in a Cixfile binds a package universe or source; it never inherits a root filesystem. |
+| `FROM debian`, `alpine`, or another runtime image | Start from the needed `${pkgs.*}` packages | `FROM` binds a package universe, source tree, or explicit-tag cix item; it never inherits a root filesystem. |
 | `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in a builder, `${pkgs.x}/bin/x` in an artifact directive | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
 | `RUN command` | Offline `RUN` inside a named `BUILDER` | Import every command as a whole package and invoke it by bare name. |
 | Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, preferably with `EXPECT` | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
 | Multi-stage `COPY --from=build` | `COPY ${build}/path /destination` | Blocks refer backward; prefer a narrow output path. |
+| Cross-image `COPY --from=<image>` | `FROM family/member:v3 AS prebuilt`, then `COPY ${prebuilt}/path /destination` | The index ref must have an explicit tag. It is NAR-verified and lock-pinned; a moved tag takes effect only through `--update-lock prebuilt`. |
 | Context `COPY` | `COPY path /destination` or `COPY ${src}/path /destination` | Artifact destinations are absolute in the item's runtime world; BUILDER destinations stay relative. Read every copied script/config first. Directory COPY is preferred when contents move together. |
 | `ADD` URL or automatic tar extraction | `FETCH` the URL, then `RUN` an explicit extractor | There is no implicit URL fetch or archive extraction. |
 | `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default; workspace bytes never enter keys. Use `cix build --cold` to compare warm and clean outputs. |

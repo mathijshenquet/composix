@@ -1,6 +1,6 @@
 # The Cixfile
 
-*Status: D47 blocks and binders through D64 are implemented: named persistent builders,
+*Status: D47 blocks and binders through D65 are implemented: named persistent builders,
 narrow consumed-path records, package IMPORT unions, declared or TOFU-pinned network fetches,
 directive continuations, RUN heredocs, and full-line comments.*
 
@@ -45,7 +45,8 @@ Prelude declarations come first:
 
 | declaration | meaning |
 | --- | --- |
-| `FROM <flakeref> AS <name>` | bind a locked package universe when the ref is nixpkgs, or a locked source tree for another remote flake |
+| `FROM <flakeref> AS <name>` | bind a locked package universe or source tree |
+| `FROM <index-ref:tag> AS <name>` | bind a lock-pinned cix item as a source tree |
 | `FROM . AS <name>` | optionally name the Cixfile directory; it is local input and is not lock-pinned |
 | `FETCH <name> [EXPECT <sri-hash>] <command…>` | run a networked command in an empty workdir and bind its pinned output |
 
@@ -80,7 +81,7 @@ COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/cert.pem
 
 A source is either a bare relative path in the implicit Cixfile-directory context or a path
 under a declared binder. Only remote sources need an explicit `FROM` binder. Package
-references use `${universe.attrpath}`; source, fetch, and builder references use
+references use `${universe.attrpath}`; source, cix-item, fetch, and builder references use
 `${binder}/path`. Copying a binder without `/path` copies its whole root. A whole-builder read
 is legal but expensive: the entire left-behind tree becomes one consumed object and any
 changed byte invalidates that consumer. Prefer narrow paths for build artifacts. BUILDER
@@ -142,7 +143,7 @@ The complete body is the command and therefore part of the same memo key as a on
 Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
 use `$${…}` when the shell itself must receive a braced expansion.
 
-### Package universes and source binders
+### Package universes, source binders, and cix-item binders
 
 `AS` is required. The documented nixpkgs spelling is:
 
@@ -152,16 +153,40 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 `${pkgs.postgresql}/bin/postgres` and
 `${pkgs.python3Packages.black}/bin/black` resolve package attributes from that locked
-revision. Other remote flakes are source trees, not package universes:
+revision. A flakeref is a fetch address, not a promise that the tree contains a `flake.nix`.
+Its accepted spellings start with `github:`, `git+`, `path:`, `tarball+`, `.`, or `./`.
+Other remote trees are source binders:
 
 ```dockerfile
 FROM github:owner/project/v1.2.3 AS upstream
 ```
 
-The lock records remote revisions and NAR hashes. `FROM .` and the implicit local context are
-not pinned: the content of each declared COPY source enters its builder's chain key. `$VAR` remains runtime
-environment syntax and is valid in `EXEC` and `SETUP`; `${…}` is resolved while building.
-Copied file content is always verbatim.
+The third FROM input is an explicit-tag index ref:
+
+```dockerfile
+FROM cix.my-org.com/acme/web-vault:v3 AS webvault
+
+SERVICE web
+COPY ${webvault}/share/web-vault /share/web-vault
+EXEC /bin/true
+```
+
+It resolves through the cix index (qualified refs fetch when needed), verifies its NAR hash,
+and records `artifacts.<ref> = { storePath, narHash }` in `Cixfile.lock`. The tag may move;
+the lock keeps this build on the selected store path until `cix build --update-lock webvault`.
+A missing local ref says to pull or tag it first. Item binders are trees: use only
+`${webvault}/path` in `COPY` or `LINK`. `${webvault.attr}` is rejected because index refs never
+create package namespaces (D65(c)), and `IMPORT ${webvault}` is deliberately deferred (D65(d)).
+
+Disambiguation is deliberately mechanical: a known flakeref spelling is a flakeref; every
+other FROM token must be a valid index ref with an explicit `:tag`. There is no default tag.
+An untagged `family/web-vault` therefore gives the same `:latest is not a thing here` error as
+the rest of the index surface.
+
+The lock records remote revisions/NAR hashes and cix-item store paths/NAR hashes. `FROM .` and
+the implicit local context are not pinned: the content of each declared COPY source enters its
+builder's chain key. `$VAR` remains runtime environment syntax and is valid in `EXEC` and
+`SETUP`; `${…}` is resolved while building. Copied file content is always verbatim.
 
 ## Builders, `IMPORT`, `RUN`, and `FETCH`
 

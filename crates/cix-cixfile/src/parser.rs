@@ -230,7 +230,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile needs a package universe; try: FROM nixpkgs AS pkgs",
+                "a Cixfile needs a package universe; try: FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs",
             ));
         }
         if self.artifacts.is_empty() {
@@ -281,7 +281,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "FROM requires an explicit binder: FROM <flakeref|.> AS <name>",
+                "FROM requires an explicit binder: FROM <flakeref|index-ref:tag> AS <name>",
             ));
         }
         let (url, kind) = normalize_input(fields[0], line, source)?;
@@ -396,7 +396,7 @@ impl Parser<'_> {
         for field in fields {
             reject_runtime_variable(field, "IMPORT package", line, source)?;
             let package = self.build_template(field, line, source, false)?;
-            validate_import_template(&package, line, source)?;
+            validate_import_template(&package, &self.inputs, line, source)?;
             if existing
                 .iter()
                 .chain(&additions)
@@ -1331,6 +1331,15 @@ fn build_template(
                         ),
                     ));
                 };
+                if input.kind == InputKind::Artifact {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "cix-item binder {namespace:?} is a tree; ${{{namespace}.…}} would make it a package namespace, which D65(c) forbids; use ${{{namespace}}}/<path>"
+                        ),
+                    ));
+                }
                 if input.kind != InputKind::PackageUniverse {
                     return Err(ParseError::new(
                         line,
@@ -1572,9 +1581,24 @@ pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
 
 fn validate_import_template(
     template: &Template,
+    inputs: &BTreeMap<String, Input>,
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
+    if let [TemplatePart::Binder { name, .. }] = template.parts.as_slice() {
+        if inputs
+            .get(name)
+            .is_some_and(|input| input.kind == InputKind::Artifact)
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "IMPORT of cix-item binder {name:?} is deferred by D65(d); cix items are COPY/LINK source trees, not builder imports"
+                ),
+            ));
+        }
+    }
     if matches!(
         template.parts.as_slice(),
         [TemplatePart::Package { .. } | TemplatePart::Binder { .. }]
@@ -1712,20 +1736,18 @@ fn normalize_input(
     line: usize,
     source: &str,
 ) -> Result<(String, InputKind), ParseError> {
-    if value == "." {
-        return Ok((".".to_owned(), InputKind::Source));
-    }
-    if value == "nixpkgs" {
-        return Ok((
-            crate::DEFAULT_NIXPKGS_URL.to_owned(),
-            InputKind::PackageUniverse,
-        ));
+    if value == "." || value.starts_with("./") {
+        return Ok((value.to_owned(), InputKind::Source));
     }
     let github = value.strip_prefix("github:").is_some_and(|path| {
         let parts = path.split('/').collect::<Vec<_>>();
         (2..=3).contains(&parts.len()) && parts.iter().all(|part| !part.is_empty())
     });
-    if github || value.starts_with("https://") {
+    if github
+        || value.starts_with("git+")
+        || value.starts_with("path:")
+        || value.starts_with("tarball+")
+    {
         let kind = if value
             .strip_prefix("github:")
             .is_some_and(|path| path.starts_with("NixOS/nixpkgs/") || path == "NixOS/nixpkgs")
@@ -1736,11 +1758,16 @@ fn normalize_input(
         };
         return Ok((value.to_owned(), kind));
     }
-    Err(ParseError::new(
-        line,
-        source,
-        "FROM accepts ., nixpkgs, github:owner/repo[/ref], or an https tarball URL",
-    ))
+    match cix_common::Ref::parse(value) {
+        Ok(reference) => Ok((reference.display(), InputKind::Artifact)),
+        Err(error) => Err(ParseError::new(
+            line,
+            source,
+            format!(
+                "FROM input must be a known flakeref (github:, git+, path:, tarball+, ., or ./…) or an index ref with an explicit :tag; {error}"
+            ),
+        )),
+    }
 }
 
 fn take_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
@@ -1995,7 +2022,7 @@ mod d47_tests {
     #[test]
     fn parses_blocks_binders_and_both_artifact_kinds() {
         let parsed = parse(
-            r#"FROM nixpkgs AS pkgs
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 FETCH ingredient ${pkgs.coreutils}/bin/printf payload
 BUILDER build
@@ -2043,7 +2070,7 @@ STATEDIR /var/lib/migrate
     #[test]
     fn fetch_expect_parses_in_both_forms_and_validates_the_hash() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-top ${pkgs.coreutils}/bin/printf top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-step printf step\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-top ${pkgs.coreutils}/bin/printf top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-step printf step\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap();
         assert_eq!(
@@ -2056,7 +2083,7 @@ STATEDIR /var/lib/migrate
         assert_eq!(expected.as_deref(), Some("sha256-step"));
 
         let error = parse(
-            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT not-sri printf payload\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT not-sri printf payload\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(error.line, 2);
@@ -2066,13 +2093,13 @@ STATEDIR /var/lib/migrate
     #[test]
     fn import_accepts_whole_package_refs_and_path_has_migration_errors() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nIMPORT ${pkgs.coreutils}\nRUN true\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nIMPORT ${pkgs.coreutils}\nRUN true\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap();
         assert_eq!(parsed.builders["build"].imports.len(), 2);
 
         let suffix = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert!(
@@ -2081,12 +2108,12 @@ STATEDIR /var/lib/migrate
         );
 
         let builder_path = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(builder_path.message, "PATH was replaced by IMPORT (D58)");
         let service_path =
-            parse("FROM nixpkgs AS pkgs\nSERVICE app\nPATH ${pkgs.bash}/bin\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nPATH ${pkgs.bash}/bin\nEXEC /bin/true\n")
                 .unwrap_err();
         assert_eq!(
             service_path.message,
@@ -2097,7 +2124,7 @@ STATEDIR /var/lib/migrate
     #[test]
     fn bare_and_explicit_local_copy_sources_coexist() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFROM . AS src\nBUILDER build\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nSERVICE app\nCOPY bare.txt /bare\nCOPY ${src}/explicit.txt /explicit\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nBUILDER build\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nSERVICE app\nCOPY bare.txt /bare\nCOPY ${src}/explicit.txt /explicit\nEXEC /bin/true\n",
         )
         .unwrap();
         let BuildStep::Copy(bare) = &parsed.builders["build"].steps[0] else {
@@ -2113,7 +2140,7 @@ STATEDIR /var/lib/migrate
 
     #[test]
     fn bare_artifact_commands_need_no_explicit_path() {
-        let parsed = parse("FROM nixpkgs AS pkgs\nSERVICE app\nSETUP setup\nEXEC app\n").unwrap();
+        let parsed = parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSETUP setup\nEXEC app\n").unwrap();
         assert_eq!(
             parsed.artifacts["app"].service.exec[0].literal_value(),
             Some("app".into())
@@ -2127,7 +2154,7 @@ STATEDIR /var/lib/migrate
     #[test]
     fn names_share_one_namespace_and_references_are_backward_only() {
         let duplicate =
-            parse("FROM nixpkgs AS pkgs\nBUILDER pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n")
                 .unwrap_err();
         assert_eq!(duplicate.line, 2);
         assert!(duplicate.message.contains("line 1"), "{duplicate}");
@@ -2137,14 +2164,14 @@ STATEDIR /var/lib/migrate
         );
 
         let forward = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER final\nCOPY ${prior}/x x\nBUILDER prior\nCOPY x x\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER final\nCOPY ${prior}/x x\nBUILDER prior\nCOPY x x\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(forward.line, 3);
         assert!(forward.message.contains("backward-only"), "{forward}");
 
         let cycle = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY ${build}/x x\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY ${build}/x x\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(cycle.line, 3);
@@ -2155,27 +2182,27 @@ STATEDIR /var/lib/migrate
     fn migration_errors_name_the_d47_rewrite() {
         for (input, line, message) in [
             (
-                "FROM nixpkgs AS pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n",
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n",
                 2,
                 "RUN is only legal inside a BUILDER block",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${build}/bin/app /bin/app\nEXEC /bin/app\n",
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY ${build}/bin/app /bin/app\nEXEC /bin/app\n",
                 3,
                 "no binder named `build`; name your builder: `BUILDER build`",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nTAKE bin/app /bin/app\nEXEC /bin/app\n",
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nTAKE bin/app /bin/app\nEXEC /bin/app\n",
                 3,
                 "TAKE was removed by D47",
             ),
             (
-                "FROM nixpkgs AS pkgs\nITEM app\n",
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM app\n",
                 2,
                 "ITEM was dropped (D50); use SERVICE or APP",
             ),
             (
-                "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
                 2,
                 "PATH was replaced by IMPORT (D58)",
             ),
@@ -2190,7 +2217,7 @@ STATEDIR /var/lib/migrate
     #[test]
     fn outbound_has_a_d48_migration_error_and_is_not_an_alias() {
         let error =
-            parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
         assert_eq!(error.line, 4);
         assert!(error.message.contains("GRANT egress"), "{error}");
         assert!(error.message.contains("D60"), "{error}");
@@ -2200,7 +2227,7 @@ STATEDIR /var/lib/migrate
     fn script_has_the_d55_migration_error_and_is_not_an_alias() {
         let source = "SCRIPT bin/start <<EOF";
         let error = parse(&format!(
-            "FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\n{source}\ntrue\nEOF\n"
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true\n{source}\ntrue\nEOF\n"
         ))
         .unwrap_err();
         assert_eq!(error.line, 4);
@@ -2273,18 +2300,21 @@ EXEC /bin/true \
     #[test]
     fn run_heredoc_errors_use_physical_body_lines() {
         let error = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nRUN <<SCRIPT\ntrue\nprintf ${missing}\nSCRIPT\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nRUN <<SCRIPT\ntrue\nprintf ${missing}\nSCRIPT\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(error.line, 5, "{error}");
         assert_eq!(error.source, "printf ${missing}");
 
-        let dangling = parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true \\\n").unwrap_err();
+        let dangling = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true \\\n",
+        )
+        .unwrap_err();
         assert_eq!(dangling.line, 3, "{dangling}");
         assert!(dangling.message.contains("continuation"), "{dangling}");
 
         let continued = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash} \\\n    ${missing.tool}\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash} \\\n    ${missing.tool}\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(continued.line, 4, "{continued}");
@@ -2294,7 +2324,7 @@ EXEC /bin/true \
     #[test]
     fn cixfile_comments_are_full_line_only() {
         let parsed = parse(
-            "  # ignored before the first declaration \\\nFROM nixpkgs AS pkgs\nSERVICE app\n# ignored in a block\nEXEC /bin/echo #kept\n",
+            "  # ignored before the first declaration \\\nFROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\n# ignored in a block\nEXEC /bin/echo #kept\n",
         )
         .unwrap();
         let exec = &parsed.artifacts["app"].service.exec;
@@ -2305,7 +2335,7 @@ EXEC /bin/true \
     #[test]
     fn cachedir_and_link_use_the_d52_spellings() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nEXEC /bin/hello\nCACHEDIR /var/cache/app\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nEXEC /bin/hello\nCACHEDIR /var/cache/app\n",
         )
         .unwrap();
         assert!(parsed.artifacts["app"]
@@ -2323,7 +2353,7 @@ EXEC /bin/true \
         ));
 
         let cache =
-            parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nCACHE /var/cache/app\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true\nCACHE /var/cache/app\n")
                 .unwrap_err();
         assert_eq!(cache.line, 4);
         assert_eq!(
@@ -2332,7 +2362,7 @@ EXEC /bin/true \
         );
 
         let link = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC /bin/hello\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC /bin/hello\n",
         )
         .unwrap_err();
         assert_eq!(link.line, 3);
@@ -2343,7 +2373,7 @@ EXEC /bin/true \
     #[test]
     fn builder_env_is_ordered_plain_text_and_exec_argv_is_quote_aware() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nENV COREPACK_HOME = $PWD/.corepack\nRUN printf '%s\\n' ok\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;'\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nENV COREPACK_HOME = $PWD/.corepack\nRUN printf '%s\\n' ok\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;'\n",
         )
         .unwrap();
         assert!(matches!(
@@ -2358,7 +2388,7 @@ EXEC /bin/true \
         );
 
         let unterminated = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;\n",
         )
         .unwrap_err();
         assert_eq!(unterminated.line, 3);
@@ -2371,7 +2401,7 @@ EXEC /bin/true \
     #[test]
     fn role_directory_directives_and_grant_are_hard_migrations() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nGRANT jit\nGRANT egress\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nGRANT jit\nGRANT egress\n",
         )
         .unwrap();
         let dirs = &parsed.artifacts["web"].service.dirs;
@@ -2392,7 +2422,7 @@ EXEC /bin/true \
             ("EGRESS", "GRANT egress", "D60"),
         ] {
             let error = parse(&format!(
-                "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
             ))
             .unwrap_err();
             assert_eq!(error.line, 4);
@@ -2400,7 +2430,7 @@ EXEC /bin/true \
             assert!(error.message.contains(decision), "{error}");
         }
         let unknown =
-            parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
         assert!(unknown.message.contains("jit, egress"), "{unknown}");
     }
 
@@ -2419,7 +2449,7 @@ EXEC /bin/true \
                 "PATH was removed (D58); declare ENV PATH = ... explicitly",
             ),
         ] {
-            let input = format!("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n{directive}\n");
+            let input = format!("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nEXEC /bin/true\n{directive}\n");
             let error = parse(&input).unwrap_err();
             assert_eq!(error.line, 4, "{directive}: {error}");
             assert!(error.message.contains(message), "{directive}: {error}");
@@ -2428,7 +2458,10 @@ EXEC /bin/true \
 
     #[test]
     fn item_has_a_d50_migration_error_and_is_not_an_alias() {
-        let error = parse("FROM nixpkgs AS pkgs\nITEM data\nCOPY payload payload\n").unwrap_err();
+        let error = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\nCOPY payload payload\n",
+        )
+        .unwrap_err();
         assert_eq!(error.line, 2);
         assert!(error.message.contains("ITEM was dropped (D50)"), "{error}");
         assert!(error.message.contains("SERVICE or APP"), "{error}");
@@ -2438,13 +2471,13 @@ EXEC /bin/true \
     #[test]
     fn source_and_package_interpolation_are_distinct() {
         let tree_attr = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:owner/repo AS src\nSERVICE app\nCOPY ${src.subdir} subdir\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repo AS src\nSERVICE app\nCOPY ${src.subdir} subdir\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert!(tree_attr.message.contains("${src}/<path>"), "{tree_attr}");
 
         let universe_tree =
-            parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${pkgs} pkgs\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY ${pkgs} pkgs\nEXEC /bin/true\n")
                 .unwrap_err();
         assert!(
             universe_tree.message.contains("needs an attribute path"),
@@ -2455,12 +2488,12 @@ EXEC /bin/true \
     #[test]
     fn builder_destinations_are_relative_and_artifact_destinations_are_absolute() {
         parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY . .\nSERVICE app\nCOPY ${build} /\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY . .\nSERVICE app\nCOPY ${build} /\nEXEC /bin/true\n",
         )
         .unwrap();
         for (destination, spelling) in [("relative", "/relative"), (".", "/")] {
             let input = format!(
-                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload {destination}\nEXEC /bin/true\n"
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY payload {destination}\nEXEC /bin/true\n"
             );
             let error = parse(&input).unwrap_err();
             assert_eq!(error.line, 3);
@@ -2471,7 +2504,7 @@ EXEC /bin/true \
             assert!(error.message.contains(spelling), "{destination}: {error}");
         }
         let builder = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY payload /bad\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY payload /bad\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert!(builder.message.contains("clean relative path"), "{builder}");
@@ -2482,7 +2515,7 @@ EXEC /bin/true \
             "EXEC bin/tool",
             "SETUP bin/tool\nEXEC /bin/true",
         ] {
-            let input = format!("FROM nixpkgs AS pkgs\nSERVICE app\n{directive}\nEXEC /bin/true\n");
+            let input = format!("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\n{directive}\nEXEC /bin/true\n");
             let error = parse(&input).unwrap_err();
             assert!(error.message.contains("D66"), "{directive}: {error}");
             assert!(error.message.contains("/bin") || error.message.contains("/etc"));
@@ -2491,11 +2524,40 @@ EXEC /bin/true \
 
     #[test]
     fn from_local_is_optional_but_a_package_universe_is_required() {
-        parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload /payload\nEXEC /bin/true\n")
+        parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY payload /payload\nEXEC /bin/true\n")
             .unwrap();
         let error =
             parse("FROM . AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n")
                 .unwrap_err();
         assert!(error.message.contains("package universe"), "{error}");
+    }
+
+    #[test]
+    fn from_cix_item_is_an_artifact_tree_with_d65_errors() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web:v3 AS webvault\nSERVICE app\nCOPY ${webvault}/payload /payload\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.inputs["webvault"].kind, InputKind::Artifact);
+        assert_eq!(parsed.inputs["webvault"].url, "family/web:v3");
+
+        let untagged = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web AS webvault\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(untagged.message.contains("flakeref"), "{untagged}");
+        assert!(untagged.message.contains(":latest"), "{untagged}");
+
+        let attr_use = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web:v3 AS webvault\nSERVICE app\nCOPY ${webvault.payload} /payload\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(attr_use.message.contains("D65(c)"), "{attr_use}");
+
+        let import = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web:v3 AS webvault\nBUILDER build\nIMPORT ${webvault}\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(import.message.contains("D65(d)"), "{import}");
     }
 }

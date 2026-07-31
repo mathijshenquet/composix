@@ -1302,9 +1302,10 @@ pub fn resolve(reference: &str) -> Result<Output> {
         return Ok(output);
     }
     let store = Store::open()?;
-    store
+    let metadata = store
         .load(&reference)?
-        .with_context(|| format!("local tag `{}` does not exist", reference.display()))?
+        .with_context(|| format!("local tag `{}` does not exist", reference.display()))?;
+    let output = metadata
         .entry
         .outputs
         .get(&system)
@@ -1314,7 +1315,9 @@ pub fn resolve(reference: &str) -> Result<Output> {
                 "local tag `{}` has no output for {system}",
                 reference.display()
             )
-        })
+        })?;
+    fetch_output(&reference, &metadata.entry, &output)?;
+    Ok(output)
 }
 
 fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {

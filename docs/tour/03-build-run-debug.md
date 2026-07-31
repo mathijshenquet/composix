@@ -50,6 +50,51 @@ $ cix build . -t v1
 {"tour-app":"/nix/store/…-cix-item-tour-app"}
 ```
 
+## Copy from a tagged item
+
+A tagged cix item is a third FROM input kind. It is a source tree—not a package namespace or inherited root filesystem—so a second Cixfile can copy one declared path from it.
+
+```sh
+$ cat prebuilt/Cixfile
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM tour-app:v1 AS prior
+
+APP copied-greeting
+COPY ${prior}/share/greeting /share/greeting
+EXEC /bin/true
+```
+
+```sh
+$ cix build prebuilt
+{"copied-greeting":"/nix/store/…-cix-item-copied-greeting"}
+```
+
+```sh
+$ cat /nix/store/…-cix-item-copied-greeting/share/greeting
+hello from Cixfile
+```
+
+The generated lock pins the tag's selected store path and NAR hash. A later tag move does not affect this consumer until `cix build --update-lock prior prebuilt` deliberately refreshes that binder.
+
+```sh
+$ cat prebuilt/Cixfile.lock
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  },
+  "artifacts": {
+    "tour-app:v1": {
+      "storePath": "/nix/store/…-cix-item-tour-app",
+      "narHash": "sha256-pKlUpQ4hv16aA6+OCH1r7NBTTICCtd4jxQ6rN+CIl18="
+    }
+  }
+}
+```
+
 Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.
 
 ```sh

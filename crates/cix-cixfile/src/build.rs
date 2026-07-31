@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn tags_are_tag_only_and_namespaces_supply_family_names() {
         let multi = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE api\nEXEC /bin/true\nSERVICE worker\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE api\nEXEC /bin/true\nSERVICE worker\nEXEC /bin/true\n",
         )
         .unwrap();
         let error = tag_namespace(&multi, None, &["v7".into()])
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn update_lock_refuses_expected_fetches_in_both_forms() {
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-two printf two\nSERVICE app\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-two printf two\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap();
         let top = reject_expected_fetch_update(&cixfile, "ingredient")
