@@ -1320,6 +1320,31 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   pre-declared-IMPORTs inheritance idea is dead.
   (d) `IMPORT` of a cix item inside builders: deferred, evidence-gated.
 
+- ✅ D66 (2026-07-31) — **artifact destinations are absolute: you declare places
+  in your runtime world** (Mathijs, after the /srv/www-mount question exposed
+  the COPY/LINK spelling split: "relatief dat toch een mount wordt is niet wat
+  je zou verwachten — doe dan liever alles absoluut").
+  (a) In SERVICE/APP blocks, every destination-like path is spelled ABSOLUTE:
+  `COPY ${src}/index.html /srv/www/index.html`, `LINK <target> /etc/nginx/
+  mime.types`, `FILE … /etc/app.conf`, `EXEC /bin/example`. The path names a
+  place in *your item's world*, rooted at `/` = your item root — that it is
+  concretely stored at `<item>/srv/www/…` and realized per top-level dir
+  (bind-mount claims for `/etc`/`/srv`-class dirs, the D64 PATH for `/bin`)
+  is realization, "almost an implementation detail". This unifies the block:
+  STATEDIR/CACHEDIR/RUNDIR/PORT already spoke absolute runtime language —
+  COPY was the odd one out. Writing outside your own artifact remains
+  inexpressible: `/` IS yours, there is nothing else to name.
+  (b) Relative destinations in artifact blocks DIE (migration-grade error
+  naming the absolute spelling); `EXEC bin/x` follows (→ `/bin/x`); bare
+  `EXEC x` (D64) is untouched. LINK linkpath becomes absolute-only (its
+  both-spellings tolerance was the inconsistency that surfaced this).
+  (c) **BUILDER destinations stay workdir-relative** (`COPY ${src}/ .`) — the
+  workshop is a bench with a cwd, the dock ships to declared addresses. The
+  workshop/dock doctrine now shows in path spelling too.
+  (d) Docker muscle memory lands exactly right: Dockerfile `COPY x /app/x`
+  translates 1:1, with the same honest meaning docker gives it — "inside your
+  own root".
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
