@@ -1,5 +1,40 @@
 # composix work log
 
+## 2026-07-31 evening (D63–D65 + demofix, selfbin, corpuspolish, gcroots)
+
+- **Decisions**: D63 (two acts — anonymous loop vs naming act — + unit-lifetime
+  GC roots under /run, compose-dev-without-tags parked), D64 (implicit self-bin:
+  runtime PATH=<item>/bin, bare EXEC resolves against own bin/, leaf-consumer
+  principle per nix prior art), D65 (FROM's three input kinds: tree/universe
+  via flakeref — classic default.nix import, flake-only trees documented out —
+  plus NEW cix-item index refs as artifact binders; universe-tags dissolved:
+  prelude = substitution keyed on the lock pin). All Mathijs verdicts in
+  dialogue; universe-tags formally closed.
+- **Merged** (each independently re-verified): track/demofix (`7b0d93c` —
+  found post-famtags: all 8 demo scripts silently broken by the JSON build
+  contract, no automated gate runs demos [structural gap, noted for the
+  scenario tier]; fixed via member selectors; nginx example renamed my-nginx,
+  README verbatim again); track/selfbin (`b20c1cf`, D64); track/corpuspolish
+  (`0007ec8` — all 14 pairs in D56–D64 language, fresh receipts: 10 cix-green,
+  caddy/nginx/redis/phpmyadmin NEWLY green vs the r-rounds; product findings:
+  /usr/bin/env shebang class fails in the builder union [echo-server], go-mod
+  FETCH pin instability [dozzle], tomcat unreachable — r5 fodder);
+  track/gcroots (`8b70dc7`, D63(b) — terra needed two legs [context ceiling,
+  honest handoff]; live root lifecycle proven: present during run, cleaned on
+  stop, dangling auto-link pruned by nix).
+- Housekeeping: worktrees pruned 17→2 (sandbox caused phantom "busy" errors —
+  metadata removal needed to run unsandboxed); model table updated in
+  nix-config (terra 5 flawless rounds + honest interruption handling; sol
+  clean prose round).
+- **Open with Mathijs**: D66 — COPY/LINK destination spelling inconsistency
+  (LINK accepts item-rooted absolute, COPY refuses; recommendation: allow both
+  everywhere, leading `/` = own item root, docker muscle memory on the
+  adoption bridge). Also: /usr/bin/env as sandbox-skeleton symlink (same class
+  as /bin/sh, forcing example in corpus).
+- Open for agents: D65 implementation (FROM index refs — spec to write),
+  migrate r5 (new no-escape set + tomcat/dozzle/echo-server findings),
+  tourvm (queued).
+
 ## 2026-07-31 addendum (D62 + famtags + promptrefresh)
 
 - **D62 registered and amended same day** (dialogue rounds with Mathijs; prior-art
