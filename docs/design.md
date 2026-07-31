@@ -1169,6 +1169,71 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   realization (D49) — netns and identities want the daemon as their home;
   machine after.
 
+- ✅ D62 (2026-07-31) — **family tags: declared names, external tags, three honest
+  layers** (dialogue round with Mathijs; prior-art scan: docker/compose/buildx-bake/
+  OCI, nix flakes, cargo workspaces, maven, Go modules, npm scopes, skopeo. The
+  winning shape is Go modules': *name in the source, version from outside* — with
+  skopeo's amendment that the name must not be baked into the bytes).
+  (a) **Three layers, spelled out.** (1) *Identity* = the store path:
+  anonymous, content-addressed, never changed by naming (the skopeo invariant —
+  promotion/retag is always a metadata operation on unchanged bytes). (2)
+  *Declared identity* = names in the Cixfile: `SERVICE <name>` block names are
+  the real member names (shipping labels — builders keep local binder names:
+  workshop names local, dock names global), plus an optional **`NAMESPACE
+  <name>`** directive declaring the family name. A namespace claim, not a grant
+  (publish checks D45 name-level auth); optionally host-qualified
+  (`NAMESPACE cix.my-org.com/my-app` — go-module style), **schemeless** (scheme
+  is transport, not identity; skopeo separates them too); NOT a binder (no
+  `${…}` participation), does NOT leak into consumers via FROM (lexical, like
+  all of D47), and is NOT baked into the built item (no manifest field, no
+  store bytes — else Go's fork pain at byte level and every promotion becomes a
+  rebuild). **Required as soon as a Cixfile has more than one artifact block**
+  (the D32 "AS is REQUIRED" taste: no default binding, bare sibling names must
+  never leak into a global namespace); a single-artifact file may omit it — the
+  member name itself is then the family. (3) *Naming* = index operations: tag/
+  publish/promote are D45 table moves; `cix build -t` is sugar into this layer,
+  never a build-layer act — the "naming belongs where?" impedance dissolves.
+  (b) **`cix build .` (no `-t`) emits ONLY the member map as JSON**
+  (`{"member": "/nix/store/…"}` — always the same shape, also for one member)
+  and tags nothing: pure layer 1. **`cix build .#member` materializes just that
+  member's backward DAG slice** (D47 backward references; D57 memoization makes
+  the next member's build cheap) and prints the **bare store path** (scripting:
+  `cix run $(cix build .#my-app)`). Grammar rule per layer: **`#` = build-side
+  member selection** (nix muscle memory, local context) — no conflict with D41,
+  which killed the selector *within* an item; **`/` = index-side member
+  naming** (registry muscle memory): refs are `[host/]family/member:tag`,
+  host recognized docker-style (first segment with a dot/port), family and
+  member single segments.
+  (c) **`-t <tag>` is tag-only, repeatable, and family-wide.** Multiple `-t`s
+  publish atomically (D45 already promised atomic multi-tag; the semver cascade
+  `-t v3 -t v3.2 -t v3.1.2` is three `-t`s — cascade *computation* stays
+  tooling-on-top per D46's monorepo line). **Selector and `-t` exclude each
+  other**: a tag names a coherent family at a version (Go lesson: you don't tag
+  half a module); partial stamps would demand merge semantics on tag tables.
+  Whole-family tagging is cheap anyway — unchanged members come from the memo.
+  `--namespace <name>` overrides the declared namespace (explicit CLI, so no
+  ambient sin) — the fork/staging escape that keeps Go's model without Go's
+  fork pain. Old spellings die with migration-grade errors: `-t name:tag`
+  ("names moved into the Cixfile"), bare `-t v1`-multi-regime (bare block
+  names in the index), dirname-derived anything (compose's ambient-identity
+  sin — the dir name may appear in an error *suggestion*, never as silent
+  identity).
+  (d) **No implicit `:latest`, anywhere.** A ref without `:tag` is a parse
+  error everywhere (docker's `:latest` is a silent default in tag position —
+  the D12 sin family; refused on build, run, and pull). Moving pointers are
+  ordinary explicitly-managed tags (`-t latest`, `-t stable` — no cix
+  semantics), and the D45 history chain makes them auditable (when did
+  `latest` move, to what) — something docker's `:latest` cannot answer.
+  (e) **Index form: a family is ONE D45 name whose tag table maps
+  `tag → {member → {storePath, narHash, meta}}`** — atomic whole-family
+  publish is the existing CAS pointer move, auth stays name-level = family-
+  level, resolvers stay dumb readers (member lookup is a map key after
+  resolution), single-artifact is a one-member map (no structural special
+  case). **Increment plan**: round one lands language+CLI with family/member
+  as plain slashed names in the existing per-name tables (resolver-untouched;
+  multi-member publish interim non-atomic, honestly N moves); the true family
+  tables + atomic multi-member publish ride the D46 parametric-publish work.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
