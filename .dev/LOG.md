@@ -1,5 +1,30 @@
 # composix work log
 
+## 2026-07-31 night (D66 + absdest, usrbinenv; famref + r5 launched)
+
+- **Decisions**: D66 (absolute artifact destinations — "you declare places in
+  your runtime world"; relative died, BUILDER stays workdir-relative; the
+  "here" rule addendum: relative is coherent exactly where a here exists),
+  D58 addendum (/usr/bin/env joins the sandbox skeleton; the NixOS-two-paths
+  boundary — /bin/sh via union, /usr/bin/env via skeleton, never a third),
+  D64(b) aligned with implementation (bare EXEC resolves against the
+  EFFECTIVE PATH — declared ENV PATH replaces self-bin for resolution too).
+- **Merged** (independently re-verified): track/absdest (`30e8262` — full
+  absolute-destination sweep incl. corpus re-checks); track/usrbinenv
+  (`575e2fe` — skeleton symlink, skeleton version in chain keys, actionable
+  missing-env hint; **echo-server now FULLY green: first npm source-build
+  through the whole chain** — 11th green pair, independently re-proven on a
+  fresh fetch).
+- **Launched, running**: track/famref (terra — D65 index refs as FROM artifact
+  binders) and track/migrate-r5 (sol — batch: excalidraw, parse-server,
+  wallos [.nix escape-hatch exercise], directus, filestash [cgo/lib
+  boundary], + tomcat diagnosis + dozzle pin-instability documentation;
+  class-split grading is the deliverable).
+- **Open with Mathijs**: review-reads (design.md D60–D66 prose, docs/
+  migrate.md, tour narrative after five sweeps). Coming design question:
+  FETCH-pin stability for npm/go-mod-class fetches (r5 will document the
+  evidence).
+
 ## 2026-07-31 evening (D63–D65 + demofix, selfbin, corpuspolish, gcroots)
 
 - **Decisions**: D63 (two acts — anonymous loop vs naming act — + unit-lifetime
