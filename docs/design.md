@@ -1623,9 +1623,34 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   (b) **cix-index splits into modules** (refs, tags, roots, serve, pull)
   with a thin lib.rs.
   (c) **spec.rs collapses to the single v0 schema** (D72).
-  (d) Parser diet per the pending analysis report (separate verdict).
+  (d) Parser diet per the analysis report (adopted: modules + tests out of
+  the file, declarative migration table, validator consolidation; generated
+  metadata explicitly NOT warranted for a 22-keyword language).
   Sequencing: after pinkeys merges; the underlay (D71) then lands in the
   new cix-build crate — a clean home instead of a bigger pile.
+  **Addendum (2026-08-01, Mathijs): user-facing diagnostics never cite
+  D-numbers** — design-journal references are internals; messages point at
+  stable doc anchors (docs/cixfile.md sections) instead, with D-numbers
+  surviving only as code comments beside the message. Rides track/crunchy
+  for the sweep; the declarative migration table keeps the D-number as an
+  internal field.
+
+- ✅ D74 (2026-08-01) — **`cix fmt`** (prior-art round with Mathijs; the
+  post-gofmt consensus — cargo/black/terraform/zig/deno — adopted, minus one
+  flag). `cix fmt [PATH…]`: default `.`, recursive discovery of `Cixfile`s,
+  .gitignore-respecting, apply-in-place, parse-gated (unparseable file ⇒
+  the ordinary parse error, nothing written), idempotent.
+  **`--check` = verify AND explain**: no writes, exit 1, prints the per-file
+  unified diff (Mathijs's merge of check+diff: at Cixfile scale the diff IS
+  the explanation, and a name-only check forces a second local run; the
+  big-repo noise argument does not apply). `-` = stdin→stdout for editors.
+  No other flags. Canon v1, deliberately minimal: block bodies indented two
+  spaces, blank line between blocks, prelude FROMs unindented at top, single
+  spaces between tokens and around `=`, trailing whitespace and CRLF
+  normalized; comments preserved verbatim (D53 — this forces the
+  trivia-preserving printer, which is the real work), heredoc bodies
+  untouched. Alignment/sorting = v2, evidence-gated. `cix fmt --check`
+  joins the standard gate.
 
 ## Non-goals (for now)
 

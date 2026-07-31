@@ -24,9 +24,16 @@ message that names the problem, the location, and the likely fix.
    binders, `${pkg.x}` vs `${pkgs.x}`, attrpath typos, heredoc mistakes.
 2. **Snapshot + grade every message**: a test harness that runs each fixture
    and snapshots the diagnostic. Grade against: names the problem? exact
-   line? suggests the fix? cites the D-number when it is a migration? Keep
-   the snapshots as committed tests so message quality is drift-checked
-   forever.
+   line? suggests the fix? points at a STABLE public doc anchor when
+   guidance is needed (docs/cixfile.md section)? Keep the snapshots as
+   committed tests so message quality is drift-checked forever.
+   **Diagnostics policy (Mathijs, D73 addendum): user-facing messages NEVER
+   cite D-numbers** — those are design-journal internals. Strip D-references
+   from ALL existing diagnostics as part of this round (migration errors
+   included: "STATE was renamed to STATEDIR; see docs/cixfile.md#role-dirs"
+   style — ensure the doc anchors you point at actually exist, adding
+   anchors to docs/cixfile.md where needed). D-numbers may live on as code
+   comments next to the message, never in the string.
 3. **Improve the poor ones**: suggestions via edit-distance over the live
    directive table ("unknown directive SERVIC; did you mean SERVICE?");
    docker-idiom directives get purpose-built messages pointing at the
