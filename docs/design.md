@@ -1240,6 +1240,27 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   multi-member publish interim non-atomic, honestly N moves); the true family
   tables + atomic multi-member publish ride the D46 parametric-publish work.
 
+- ✅ D64 (2026-07-31) — **the implicit self-bin: your runtime toolset IS your own
+  `bin/`** (Mathijs, spotting the corpus's pre-D58 `PATH bin` idiom: a service
+  putting its OWN bin tree on the runtime PATH is a *self-import* that can
+  always be implicit — and that settles "compose a PATH from other dirs" vs
+  "assemble your own bin/ tree" in favor of the latter).
+  (a) SERVICE and APP get an implicit runtime `PATH=<item>/bin` default. An
+  explicit `ENV PATH = …` REPLACES the default entirely — no merge magic
+  (D58's YAGNI-return clause stays the escape for genuine multi-dir needs).
+  (b) Bare `EXEC <name>` (and SETUP) resolves at build time against the item's
+  own `bin/` (the D31 item-relative mechanics with the implicit dir); not
+  found = clear error listing what bin/ contains. `EXEC ${pkgs.x}/bin/x` and
+  `EXEC bin/x` stay valid.
+  (c) `cix exec`/`debug` shells inherit the same PATH — D31's toolbox
+  rationale collapses to "PATH = the item's /bin".
+  (d) Minimal-magic audit: the default references nothing outside the artifact
+  — self-referential and content-addressed, the D47-context-sugar class
+  (ambient in spelling, never in content). External tools enter the toolset as
+  visible `LINK ${pkgs.x}/bin/<tool> bin/<tool>` lines: the runtime toolset is
+  enumerated in the tree, stronger provenance than D31's PATH lists ever had.
+  Nothing beyond your own tree is ever implicit.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
