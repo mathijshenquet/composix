@@ -1468,6 +1468,22 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   `cix install` sugar vs pointing at `nix profile install <path>`) is index
   scope. Both need forcing examples, not forward design.
 
+- ✅ D68 (2026-07-31) — **ITEM returns as a manifest-less pure store tree**
+  (Mathijs's correction during the strata round: "voor een ITEM willen we
+  toch juist [geen] manifest — een manifest is een systemd/cap-dec shaped
+  ding"; supersedes D50's drop, whose evidence was zero consumers — the
+  consumers exist now: D65 FROM-item binders and the stratum-2
+  build-language use-case, forced concretely by the gitsitter/crane
+  comparison).
+  An ITEM block assembles a bare store tree with **NO cix-manifest.json** —
+  the manifest is stratum-1a vocabulary (D67) and an item is not runnable.
+  Allowed directives: COPY/FILE/LINK (pure assembly). Stratum-1a vocabulary
+  (EXEC/SETUP/ENV/PORT/LISTENER/GRANT/role dirs/health) is a parse error
+  naming the seam ("items are build products; SERVICE/APP declare runnable
+  contracts"); `cix run` on a manifest-less item errors the same way. Items
+  are `.#`-selectable, D65-consumable, and taggable/publishable — stratum 3
+  is manifest-agnostic by construction.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
