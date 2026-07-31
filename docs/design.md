@@ -1098,6 +1098,56 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   "no quoting grammar" boring-choice is hereby superseded for the two directives
   where argv fidelity is the contract.
 
+- ✅ D60 (2026-07-31) — **`GRANT <capability>`: the capability-grant family**
+  (Mathijs: "akkoord met grant voor nu"; prior-art survey against macOS
+  hardened-runtime entitlements — `com.apple.security.cs.allow-jit` is literally
+  our `jit` —, flatpak finish-args, snap plugs/interfaces, k8s/docker cap-add,
+  OpenBSD pledge).
+  (a) **Grammar**: repeatable directive, **one grant per line** (no multi-arg —
+  keeps future argumented grants like `GRANT device dri`, flatpak-style,
+  unambiguous without a later grammar flip). Legal in SERVICE and APP blocks
+  only: BUILDER stays networkless/sandboxed by design, ITEM has no exec.
+  (b) **Manifest**: a single `grants` list replaces the ad-hoc `jit`/`egress`
+  booleans (version gate per D15). Per-capability semantics stay per-capability:
+  `egress` keeps its D49(a) compose-level usage override (snap's declare/connect
+  split is the precedent that need-declaration and instance-usage knobs compose),
+  `jit` has none.
+  (c) **Vocabulary**: closed, cix-owned, semantic names per D20a; each entry is
+  documented as its exact systemd property delta (D48e transparency — e.g. `jit`
+  ⇒ drop `MemoryDenyWriteExecute=`). Day one: exactly `jit` and `egress` — a pure
+  spelling migration, hard flip with migration-grade errors (the `JIT`/`EGRESS`
+  directives die). Evidence-gated queue, each behind a forcing example already in
+  the corpus or ledger: `mlock` (vault's IPC_LOCK row), the net-admin corner
+  (pihole — semantic split like `tun`/`rawsock` when it lands), `device <class>`
+  (the docker.md `--device` deferral), `realtime`, `namespaces` (self-sandboxing
+  apps), `fuse`.
+  (d) **Refusals**: no `GRANT all`/privileged (D20a; ledger ❌), no raw `CAP_*`
+  names (the k8s anti-model — mechanism must not leak into the language).
+  Beyond-vocabulary needs are escape-hatch territory (compose operator overrides,
+  the `.nix` route), never language.
+
+- ✅ D61 (2026-07-31) — **the rootless/non-Linux user story: settled lanes**
+  (Mathijs's verdicts on the docker-desktop/podman/systemd survey).
+  (a) **`cix machine` is wanted unconditionally** ("sowieso ideaal voor dev en
+  dit soort tour dingen"): a cix-managed lightweight NixOS VM running the real
+  system systemd — full-fidelity system-mode semantics for dev on any host;
+  Linux first (host store shared read-only via virtiofs), macOS via the
+  Virtualization.framework/linux-builder pattern, Windows via NixOS-WSL. The VM
+  lane is commodity (docker desktop, podman machine + gvproxy prove the recipe);
+  track/tourvm is its first dogfood.
+  (b) **No homegrown rootless imitation** ("totdat systemd rootless land zou ik
+  het niet namaken"): the podman userns stack (setuid newuidmap/newgidmap,
+  subuid ranges, pasta) is refused as parallel plumbing against D48(e).
+  systemd's own unprivileged-sandboxing line is surfed, not rebuilt: interim
+  stance is `--user` as fallback with its blanket "degraded" stamp upgraded to
+  an honest per-capability graded banner driven by the existing D36 probes —
+  every systemd release improves the tier without cix building anything.
+  (c) Quadlet is acknowledged as prior art validating
+  unit-generation-as-product; nothing of podman's runtime is adopted.
+  **Open (under discussion): the daemon route** — a thin privileged cix service
+  (nix-daemon precedent) giving unprivileged callers real system-mode without a
+  VM; not yet decided.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
