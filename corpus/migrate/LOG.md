@@ -482,3 +482,29 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   'migrate-r5|migrate-r4'`, and `git ls-files 'corpus/migrate/*/context/**'` all
   returned empty. `git diff --check` passed. The two-run Dozzle scratch directory
   was removed after its exact hashes were recorded. Next: commit the corpus-only diff.
+
+## 2026-07-31 — D69 FETCH consumed-set re-check
+
+- Fresh contexts: `cd corpus/migrate && bash ./fetch.sh parse-server && bash
+  ./fetch.sh dozzle` — pass at their recorded revisions.
+- Parse Server: two `cd corpus/migrate/parse-server && ../../../target/debug/cix
+  build --update-lock build .#parse-server` runs followed by
+  `../../../target/debug/cix build .#parse-server` — pass. The lock now records
+  the seven consumed final paths and a FETCH replay snapshot; both double-fetch
+  probes name the known `.npm` cache/index/debug-log files and sizes, while all
+  consumed hashes retain the former stable values. This closes the false
+  whole-workdir pin failure; no runtime health-pass claim is added here.
+- ProjB: from the repository root, `target/debug/cix build --update-lock build
+  examples/build/projB#projb` twice, then `target/debug/cix build
+  examples/build/projB#projb` — pass. The probe records only the 57,344-byte
+  `.cargo/.global-cache`; the consumed `target/release/projb` pin is stable and
+  the ordinary build memo-hits.
+- Dozzle remains split honestly: in disposable `/tmp/pinkeys-dozzle-backend`, a
+  backend-only Cixfile using the recorded source plus minimal generated `dist`
+  and placeholder absent cert files ran `/home/mathijs/composix/.worktrees/pinkeys/target/debug/cix
+  build --update-lock build .` twice, then `.../target/debug/cix build .` — all
+  pass, same `/nix/store/l8l5vlf0v4zzhz0vv7xrimqm7la36l3d-cix-item-proof`, and
+  the final build memo-hit. Its automatic FETCH pin contains only `dozzle`; the
+  sumdb tile paths are probe facts, hence unconsumed. The UI's pnpm/Vite `dist`
+  remains a consumed-byte instability and is recorded, not excluded or normalized
+  by cix. The required Docker socket remains an independent runtime boundary.

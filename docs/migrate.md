@@ -155,10 +155,15 @@ FETCH EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
 Replace the placeholder with the real SRI hash; never guess one. The value hashes the complete
 FETCH work directory, including names and modes, rather than merely re-encoding one file's
 published digest. `EXPECT` removes the trust-on-first-use window and a mismatch reports
-declared versus fetched content. Without a declared output hash, the first result is pinned in
-`Cixfile.lock`; updating that pin must be an explicit review with `--update-lock`. `FETCH`
-deliberately has no heredoc: split network steps. Offline transformations such as checkout,
-extraction, compilation, and copying belong in `RUN`.
+declared versus fetched content. Without `EXPECT`, the automatic lock pin covers only paths
+later consumers read; incidental package-manager cache files outside that set are diagnosed by
+the update probe but do not become false instability. `cix build --update-lock <fetch-or-builder>`
+runs the fetch twice and records differing names and sizes as facts. If a volatile byte reaches
+a consumed path, normalize it in the fetch command (for example, keep package-manager metadata
+outside the workdir); cix does not guess exclusions. `cix build --cold` replays pinned FETCH
+snapshots without network access, so it proves the offline builder suffix while the pin remains
+the fetched-input trust boundary. `FETCH` deliberately has no heredoc: split network steps.
+Offline transformations such as checkout, extraction, compilation, and copying belong in `RUN`.
 
 Builder `ENV NAME = value` is plain text and applies to subsequent steps in declaration
 order. It is part of the build key and expands through each step shell, so values such as

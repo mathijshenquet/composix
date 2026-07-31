@@ -1,5 +1,67 @@
 # Cixfile track work log
 
+- 2026-07-31T23:05:00Z — Final D69 gate is green. Exact repros: `devenv shell
+  -- cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace
+  --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`
+  (exit 0). No `cold_audit` executable exists on this base (`rg -n
+  'cold_audit|cold-audit' . --glob '!target/**' --glob
+  '!corpus/migrate/**/context/**'` finds the D69 design mention only). Tour
+  repros: `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git add docs/tour && git diff --exit-code -- docs/tour`;
+  `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo test
+  -p cix --test tour generated_tour_is_deterministic -- --exact` (twice), all
+  passed. The dogfood VM repro `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed; receipt confirmed with
+  `nix path-info /nix/store/ssxw6w6gx1pivkalbzy220x6xydpyp16-vm-test-run-vm-dogfood`.
+  Exhibit repros: Parse Server's two `cd corpus/migrate/parse-server &&
+  ../../../target/debug/cix build --update-lock build .#parse-server` plus
+  `../../../target/debug/cix build .#parse-server`; ProjB's `target/debug/cix
+  build --update-lock build examples/build/projB#projb` twice plus `target/debug/cix
+  build examples/build/projB#projb`; and disposable Dozzle backend's
+  `/home/mathijs/composix/.worktrees/pinkeys/target/debug/cix build --update-lock
+  build .` twice plus `.../target/debug/cix build .` all passed. `git diff
+  --check` and `git diff --cached --check` pass. Cleanup repro: `systemctl
+  --user stop 'cix-*' >/dev/null 2>&1 || true; systemctl --user reset-failed
+  'cix-*' >/dev/null 2>&1 || true; systemctl --user stop cix-run.slice
+  >/dev/null 2>&1 || true; sudo -n systemctl stop 'cix-*' >/dev/null 2>&1 ||
+  true; sudo -n systemctl reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo -n
+  systemctl daemon-reload; ! sudo -n systemctl list-units 'cix-*' --all
+  --no-legend --plain | grep -q .; ! systemctl --user list-units 'cix-*' --all
+  --no-legend --plain | grep -q .` passed. Next: stage this scoped diff and
+  commit `track/pinkeys`.
+
+- 2026-07-31T22:25:00Z — D69 focused implementation is green: automatic pins
+  now record consumed `paths` plus a replayable `storePath`; declared EXPECT
+  remains a whole-tree `narHash`; `--cold` replays both builder and top-level
+  FETCH snapshots without executing FETCH; `--update-lock` double-runs automatic
+  FETCH and records/reports volatile name+size facts; memo/chain keys include
+  `cix-cixfile`'s D69 codegen fingerprint (`0.1.0:d69-v1`), causing the expected
+  one-time global memo miss. Exact focused repros: `devenv shell -- cargo fmt
+  --all`; `devenv shell -- cargo test -p cix-cixfile --lib`; `devenv shell --
+  cargo test -p cix-cixfile --test lock_nix -- --nocapture`; and targeted
+  `lock_nix` tests `automatic_fetch_pins_only_consumed_paths_and_cold_replays_its_snapshot`,
+  `cold_replays_a_top_level_fetch_snapshot_without_executing_fetch`,
+  `newly_consumed_fetch_path_extends_an_automatic_pin`, and
+  `update_lock_double_fetch_records_volatile_files_without_pinning_them` (all
+  passed). Fresh `parse-server` context was fetched with `cd corpus/migrate &&
+  bash ./fetch.sh parse-server`; `../../../target/debug/cix build --update-lock
+  build .#parse-server` completed twice and records the known `.npm` volatility
+  while its consumed map matches the seven final service paths. The first attempt
+  hit temporary inode exhaustion; removed only five explicitly verified-unheld,
+  stale `/tmp/cix-build-cold-*` Cix workspaces (no repo/Nix-store content).
+  Next: finish corpus receipts (ordinary parse build/projB/dozzle), full gate,
+  then commit.
+
+- 2026-07-31T00:00:00Z — Started `.dev/specs/track-pinkeys.md` on
+  `track/pinkeys`. Read AGENTS.md, the session journal, authoritative D69(a,b,c,e)
+  in full, the diagnosis report, the complete track spec, and this crate journal.
+  Scope: automatic FETCH consumed-set pins; offline `--cold` replay from pinned
+  fetch snapshots; `--update-lock` double-fetch volatile-file probe; codegen
+  fingerprinting; docs and honest corpus receipts. Expected compatibility effect:
+  the new fingerprint creates a one-time global memo miss. Next: map the lock and
+  build-chain seams, implement with focused tests, then run the prescribed gate.
+
 - 2026-07-31T21:57:00Z — Committed the green D68 implementation on
   `track/itemrevive` (`Implement D68 manifest-less ITEM trees`). No open items
   remain for this track.

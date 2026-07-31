@@ -27,7 +27,16 @@ seven extra Go checksum-database tile files totaling 35,808 bytes:
 ```
 
 Thus the mismatch is not changed module source: concurrent sumdb cache
-population chooses a different valid tile subset, and Cix pins that incidental
-cache tree byte-for-byte. Forced lock refresh also reaches the historical missing
+population chooses a different valid tile subset. A disposable backend-only D69
+reproduction (the exact source revision, a minimal generated `dist`, and
+placeholder absent cert files solely to make the historical source compile) ran
+`cix build --update-lock build .` twice, then `cix build .`. Both probes produced
+`/nix/store/l8l5vlf0v4zzhz0vv7xrimqm7la36l3d-cix-item-proof`; the second pair's
+ordinary build memo-hit. Its automatic pin is only `dozzle`, while the recorded
+volatile facts include the sumdb tile paths above. This proves D69 consumed-set
+keying handles the Go-side FETCH without representing the full service conversion
+as passing. The UI remains the honest normalization case: its pnpm/Vite-generated
+consumed `dist` bytes differ across clean runs, so D69 records rather than
+excludes it. Forced lock refresh also reaches the historical missing
 `shared_cert.pem` source failure. Independently, no faithful Cix runtime exists:
 Dozzle requires Docker's host socket/API, which remains an explicit boundary.

@@ -1,5 +1,17 @@
 # composix work log
 
+## 2026-08-01 early (D69)
+
+- **Merged: track/pinkeys** (`b8016a8` — D69 automatic FETCH pins now key only
+  downstream-consumed paths, retain a Nix-store replay snapshot for offline
+  `--cold`, and record/report `--update-lock` double-fetch volatility facts.
+  EXPECT remains a whole-tree assertion; a versioned codegen fingerprint causes
+  the intentional one-time memo miss. Full workspace, tour/determinism,
+  vm-dogfood, and Parse Server/ProjB/Dozzle backend proofs passed.)
+- **Open with Mathijs**: none from D69; Dozzle's consumed pnpm/Vite `dist`
+  instability and Docker socket runtime boundary remain explicitly recorded.
+- **Open for agents**: none.
+
 ## 2026-08-01 early (the strata dialogue: D67/D68; r5 merged)
 
 - **D67 registered** after a long dialogue round (first draft deliberately
