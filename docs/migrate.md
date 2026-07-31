@@ -67,7 +67,7 @@ SERVICE myapp                    # one artifact = one service
 - **`curl|wget + checksum` downloads** → a `FETCH` (the pin is enforced for you).
 - **`VOLUME /data`** → `STATEDIR /var/lib/<name>` and point the app there (env/flag).
   Writable role dirs in SERVICE/APP blocks: `STATEDIR /var/lib/…` (persistent),
-  `CACHEDIR /var/cache/…`, `LOGS /var/log/…`, `CONFIG /etc/…`, `RUNDIR /run/…`.
+  `CACHEDIR /var/cache/…`, `LOGSDIR /var/log/…`, `CONFIGDIR /etc/…`, `RUNDIR /run/…`.
   Apps that want writable XDG/home dirs get a STATEDIR/CACHEDIR dir plus env vars
   (`XDG_DATA_HOME=…`) pointing into it.
 - **`EXPOSE N`** → `PORT http = N` (or via env). **`USER`/`gosu`/`su-exec`/`tini`**
