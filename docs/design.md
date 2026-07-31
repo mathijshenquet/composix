@@ -1563,6 +1563,33 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   worlds; `OVERLAY` is the project-local pretty form. The composed-ITEM
   route (D68+D65) stays the org-wide distribution form.
 
+- ✅ D71 (2026-08-01) — **the underlay: builder runs always start on their own
+  last end-state** (Mathijs's framing, closing the warm-edit gap the
+  nixcompare measurement exposed: both we and crane discarded own-step
+  increments, so our warm edit was a full recompile plus overhead. The
+  doctrine already promised this model — D47(e)'s workshop is "persistent,
+  disposable, may be messy" — the implementation was stricter than the
+  prose; this restores the prose, now that the safety nets exist).
+  (a) **Underlay-always**: a builder re-run starts from the last end-state of
+  the SAME builder (same project workspace, same builder name) as its lower
+  layer; what this run writes is the upper. No opt-in keyword — it IS the
+  workshop semantics. `rm -rf` workspace = drop underlay = cold: "deleting a
+  workspace is always correct" stays literally true.
+  (b) **`--cold` = without underlay** — the clean semantics stay definable
+  and are the audit verb (offline per D69(e)).
+  (c) **The ghost-file hazard, named**: warm results are path-dependent —
+  build(A→B) may differ from build(B) (deleted sources/deps surviving in
+  underlay state). Accepted under D39.1 because the correctness boundary is
+  the dock, guarded by consumed-output records + the STANDING cold audit
+  (D47e made real) + the codegen fingerprint (D69e). BuildKit cache-mounts
+  ship exactly this hazard with no audit verb; we ship it with one.
+  (d) Workspace growth is LRU policy, never correctness. Cross-builder or
+  cross-project underlay reuse does not exist.
+  (e) Living receipts: migrate.md's `RUN --mount=type=cache` row becomes
+  fully true (previously subtly overclaimed vs BuildKit), and
+  docs/nix-build.md re-measures the warm-edit column (expectation: real
+  cargo increments, 2–5s where crane does 16.5s).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
