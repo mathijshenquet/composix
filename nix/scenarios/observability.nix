@@ -13,7 +13,7 @@ scenario.node ''
   machine.succeed("journalctl --no-pager -u cix-observe-api.service | grep -F 'api-line observe'")
   machine.succeed("! journalctl --no-pager -u cix-observe-api.service | grep -F 'db-line ready'")
   machine.succeed("systemctl status cix-observe.slice | grep -F cix-observe-api.service")
-  machine.succeed("test -d /sys/fs/cgroup/cix-observe.slice")
+  machine.succeed("test -d /sys/fs/cgroup/cix.slice/cix-observe.slice")
   machine.succeed("systemd-cgtop --batch --iterations=1 | grep -F cix-observe")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down observe")
 ''
