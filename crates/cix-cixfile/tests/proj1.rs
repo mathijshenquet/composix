@@ -106,12 +106,13 @@ fn assert_items_are_minimal_and_v4(items: &[BuiltItem]) {
 
         let manifest: serde_json::Value =
             serde_json::from_slice(&fs::read(root.join("cix-manifest.json")).unwrap()).unwrap();
-        assert_eq!(manifest["cixManifest"], 4);
+        assert_eq!(manifest["cixManifest"], 5);
         assert!(manifest.get("services").is_none());
-        assert_eq!(
-            manifest.get("egress").and_then(serde_json::Value::as_bool),
-            (item.name == "proj1-worker").then_some(true)
-        );
+        if item.name == "proj1-worker" {
+            assert_eq!(manifest["grants"], serde_json::json!(["egress"]));
+        } else {
+            assert!(manifest.get("grants").is_none());
+        }
     }
 }
 

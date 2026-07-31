@@ -252,7 +252,7 @@ pub(crate) fn build_unit_with_options(
         ("ProtectControlGroups".into(), "yes".into()),
         ("LockPersonality".into(), "yes".into()),
     ]);
-    if service.jit != Some(true) {
+    if !service.has_grant("jit") {
         properties.push(("MemoryDenyWriteExecute".into(), "yes".into()));
     }
     properties.push(("SystemCallFilter".into(), "@system-service".into()));
@@ -863,6 +863,25 @@ mod tests {
         assert_eq!(actual, include_str!("../tests/fixtures/v2-system.unit"));
         assert!(!actual.contains("TemporaryFileSystem=/run"));
         assert!(!actual.contains("MemoryDenyWriteExecute"));
+    }
+
+    #[test]
+    fn v5_jit_grant_drops_memory_deny_write_execute() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":5,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"grants":["jit"]}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(!actual.contains("MemoryDenyWriteExecute"), "{actual}");
     }
 
     #[test]

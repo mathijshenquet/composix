@@ -180,6 +180,7 @@ fn execute_top_fetch(
         &shell,
         command,
         &environment,
+        &BTreeMap::new(),
         &offered_closure,
         &context.imports,
         None,
@@ -251,7 +252,7 @@ fn execute_builder(
     let command_count = builder
         .steps
         .iter()
-        .filter(|step| !matches!(step, BuildStep::Copy(_)))
+        .filter(|step| matches!(step, BuildStep::Fetch { .. } | BuildStep::Run { .. }))
         .count();
     let copy_count = builder
         .steps
@@ -293,7 +294,8 @@ fn execute_builder(
     } else {
         None
     };
-    let environment = build_environment(context.environment.clone());
+    let mut environment = build_environment(context.environment.clone());
+    let mut export_prelude = BTreeMap::new();
     install_declared_expectations(builder_name, builder, &context.commands, lock);
     let existing_keys = builder_chain_keys(
         builder_name,
@@ -369,6 +371,19 @@ fn execute_builder(
     let mut copy_index = 0;
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
+            BuildStep::Env {
+                name,
+                value,
+                line,
+                source,
+            } => {
+                environment.insert(name.clone(), value.clone());
+                export_prelude.insert(name.clone(), value.clone());
+                eprintln!(
+                    "BUILDER {builder_name} step {} ENV {name} declared (line {line}: {source})",
+                    index + 1
+                );
+            }
             BuildStep::Copy(copy) => {
                 let resolved_source = &context.copies[copy_index];
                 copy_index += 1;
@@ -406,6 +421,7 @@ fn execute_builder(
                     shell.as_deref().expect("command steps have a shell"),
                     command,
                     &environment,
+                    &export_prelude,
                     &offered_closure,
                     &context.imports,
                     if is_fetch { None } else { run_network },
@@ -533,6 +549,7 @@ fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, Needed
         }
         for step in &builder.steps {
             match step {
+                BuildStep::Env { .. } => {}
                 BuildStep::Copy(copy) => {
                     if let Some((binder, path)) = binder_path(&copy.src) {
                         add(
@@ -589,6 +606,7 @@ fn install_declared_expectations(
     let mut command_index = 0;
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
+            BuildStep::Env { .. } => {}
             BuildStep::Fetch { expected, .. } => {
                 let command = &commands[command_index];
                 if let Some(expected) = expected {
@@ -615,12 +633,17 @@ fn builder_chain_keys(
     environment: &BTreeMap<String, String>,
     lock: &LockFile,
 ) -> Result<Option<Vec<String>>> {
+    let mut environment = environment.clone();
     let mut predecessor = hex_hash(format!("BUILDER\0{builder_name}").as_bytes());
     let mut keys = Vec::with_capacity(builder.steps.len());
     let mut command_index = 0;
     let mut copy_index = 0;
     for (index, step) in builder.steps.iter().enumerate() {
         let (kind, arguments, sources, fetch_pin) = match step {
+            BuildStep::Env { name, value, .. } => {
+                environment.insert(name.clone(), value.clone());
+                ("ENV", format!("{name}={value}"), Vec::new(), None)
+            }
             BuildStep::Copy(copy) => {
                 let source = &context.copies[copy_index];
                 copy_index += 1;
@@ -659,7 +682,7 @@ fn builder_chain_keys(
             ordered_imports: &context.imports,
             predecessor: &predecessor,
             declared_sources: &sources,
-            environment,
+            environment: &environment,
             fetch_pin,
         })?;
         keys.push(predecessor.clone());
@@ -1137,11 +1160,13 @@ fn find_shell(paths: &[String]) -> Result<String> {
         .context("RUN/FETCH requires bash in an IMPORTed package")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_sandbox(
     workdir: &Path,
     _shell: &str,
     command: &str,
     environment: &BTreeMap<String, String>,
+    export_prelude: &BTreeMap<String, String>,
     offered_closure: &BTreeSet<String>,
     imports: &[String],
     run_network: Option<RunNetwork>,
@@ -1199,9 +1224,14 @@ fn run_sandbox(
     for (name, value) in environment {
         process.args(["--setenv", name, value]);
     }
+    let exports = export_prelude
+        .iter()
+        .map(|(name, value)| format!("export {name}={value};"))
+        .collect::<String>();
+    let shell_program = format!("umask 022; {exports}eval \"$1\"");
     let output = process
         .arg("/bin/bash")
-        .args(["-c", "umask 022; eval \"$1\"", "cix-build", command])
+        .args(["-c", &shell_program, "cix-build", command])
         .output()
         .context(
             "starting bubblewrap sandbox; this host may restrict unprivileged user namespaces",
@@ -1795,6 +1825,7 @@ mod tests {
             work.path(),
             shell.to_str().unwrap(),
             "printf fallback-ok > result",
+            &BTreeMap::new(),
             &BTreeMap::new(),
             &offered_closure,
             &[offer],

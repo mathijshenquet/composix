@@ -126,7 +126,7 @@ EXEC hello
         .ends_with("/bin/hello"));
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_manifest, 4);
+    assert_eq!(spec.cix_manifest, 5);
     assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/hello"]);
     assert_eq!(
         spec.select_service(None).unwrap().1.env["PATH"]
@@ -237,9 +237,10 @@ FROM . AS src
 BUILDER build
 IMPORT ${pkgs.bash} ${pkgs.coreutils}
 COPY ${src}/input input
+ENV OUTPUT = $PWD/output
 RUN <<BUILD
 # A RUN heredoc is sent to the same builder shell as a one-line RUN.
-cp input output
+cp input "$OUTPUT"
 BUILD
 SERVICE fixture
 COPY ${build}/output bin/output

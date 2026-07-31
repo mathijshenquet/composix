@@ -75,7 +75,7 @@ PORT http = 18084
 SERVICE proj1-worker
 COPY ${build}/target/release/proj1-worker bin/proj1-worker
 EXEC bin/proj1-worker
-EGRESS
+GRANT egress
 ```
 
 One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.

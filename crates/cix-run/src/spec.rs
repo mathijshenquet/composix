@@ -52,6 +52,8 @@ pub struct Service {
     pub dirs: Dirs,
     pub health: Option<Health>,
     pub network: Option<Network>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grants: Vec<String>,
     pub jit: Option<bool>,
     #[serde(default)]
     pub egress: bool,
@@ -136,7 +138,7 @@ impl Spec {
             .context("cix-manifest.json field \"cixManifest\" must be an integer")?;
         let version = u32::try_from(version).context("cixManifest version is too large")?;
         reject_outbound_field(&value, version)?;
-        let spec = if version == 4 {
+        let spec = if matches!(version, 4 | 5) {
             let mut body = value
                 .as_object()
                 .cloned()
@@ -146,12 +148,12 @@ impl Spec {
                 .remove("kind")
                 .map(serde_json::from_value)
                 .transpose()
-                .context("cix-manifest.json v4 field \"kind\" must be service or app")?
+                .context("cix-manifest.json v4/v5 field \"kind\" must be service or app")?
                 .unwrap_or_default();
             let service: Service = serde_json::from_value(serde_json::Value::Object(body))
-                .context("failed to parse cix-manifest.json v4 def-node")?;
+                .context("failed to parse cix-manifest.json v4/v5 def-node")?;
             Self {
-                cix_manifest: 4,
+                cix_manifest: version,
                 kind,
                 services: BTreeMap::from([("artifact".to_owned(), service)]),
             }
@@ -173,12 +175,12 @@ impl Spec {
         let json = fs::read(&path)
             .with_context(|| format!("failed to read manifest at {}", path.display()))?;
         let mut spec = Self::from_slice(&json)?;
-        if spec.cix_manifest == 4 {
+        if matches!(spec.cix_manifest, 4 | 5) {
             if let Some(name) = item_name_from_store_path(output) {
                 let service = spec
                     .services
                     .remove("artifact")
-                    .expect("parsed v4 def-node");
+                    .expect("parsed bare def-node");
                 spec.services.insert(name, service);
             }
         }
@@ -186,11 +188,17 @@ impl Spec {
     }
 
     pub fn select_service<'a>(&'a self, requested: Option<&str>) -> Result<(&'a str, &'a Service)> {
-        if self.cix_manifest == 4 {
+        if matches!(self.cix_manifest, 4 | 5) {
             if requested.is_some() {
-                bail!("cixManifest 4 is one bare def-node and has no #service selector (D41)");
+                bail!(
+                    "cixManifest {} is one bare def-node and has no #service selector (D41)",
+                    self.cix_manifest
+                );
             }
-            let (name, service) = self.services.first_key_value().expect("validated v4 item");
+            let (name, service) = self
+                .services
+                .first_key_value()
+                .expect("validated bare item");
             return Ok((name, service));
         }
         if let Some(name) = requested {
@@ -214,9 +222,9 @@ impl Spec {
     }
 
     fn validate(&self) -> Result<()> {
-        if !matches!(self.cix_manifest, 1..=4) {
+        if !matches!(self.cix_manifest, 1..=5) {
             bail!(
-                "unsupported cixManifest version {}; this cix supports versions 1, 2, 3, and 4",
+                "unsupported cixManifest version {}; this cix supports versions 1, 2, 3, 4, and 5",
                 self.cix_manifest
             );
         }
@@ -251,7 +259,7 @@ fn reject_outbound_field(value: &serde_json::Value, version: u32) -> Result<()> 
     };
     if has_outbound {
         bail!(
-            "manifest field \"outbound\" was renamed to \"egress\" by D48(b); update cix-manifest.json"
+            "manifest field \"outbound\" was replaced by the \"grants\" list with \"egress\" (D60); update cix-manifest.json"
         );
     }
     Ok(())
@@ -361,9 +369,6 @@ impl Service {
                 if self.health.is_some() {
                     bail!("kind app must not declare health (D47)");
                 }
-                if self.jit.is_some() {
-                    bail!("kind app must not declare jit (D47)");
-                }
                 if !self.dirs.logs.is_empty()
                     || !self.dirs.config.is_empty()
                     || self
@@ -381,6 +386,12 @@ impl Service {
 
     pub fn has_network(&self) -> bool {
         !self.ports.is_empty() || self.network == Some(Network::Host)
+    }
+
+    pub fn has_grant(&self, grant: &str) -> bool {
+        self.grants.iter().any(|declared| declared == grant)
+            || (grant == "jit" && self.jit == Some(true))
+            || (grant == "egress" && self.egress)
     }
 
     fn validate_version_fields(&self, version: u32) -> Result<()> {
@@ -409,8 +420,27 @@ impl Service {
         if version < 4 && self.egress {
             bail!("field \"egress\" requires cixManifest 4");
         }
-        if version == 4 && self.network.is_some() {
+        if version >= 4 && self.network.is_some() {
             bail!("field \"network\" is retired in cixManifest 4; use \"egress\" per D48(b)");
+        }
+        if version < 5 && !self.grants.is_empty() {
+            bail!("field \"grants\" requires cixManifest 5");
+        }
+        if version == 5 {
+            if self.jit.is_some() || self.egress {
+                bail!(
+                    "cixManifest 5 replaces \"jit\" and \"egress\" with the \"grants\" list (D60)"
+                );
+            }
+            let mut seen = BTreeSet::new();
+            for grant in &self.grants {
+                if !matches!(grant.as_str(), "jit" | "egress") {
+                    bail!("unknown grant {grant:?}; supported grants: jit, egress");
+                }
+                if !seen.insert(grant) {
+                    bail!("grant {grant:?} is declared more than once");
+                }
+            }
         }
         Ok(())
     }
@@ -421,19 +451,19 @@ impl Serialize for Spec {
     where
         S: serde::Serializer,
     {
-        if self.cix_manifest == 4 {
+        if matches!(self.cix_manifest, 4 | 5) {
             let service = self
                 .services
                 .first_key_value()
                 .map(|(_, service)| service)
-                .ok_or_else(|| serde::ser::Error::custom("v4 manifest has no def-node"))?;
+                .ok_or_else(|| serde::ser::Error::custom("bare manifest has no def-node"))?;
             let value = serde_json::to_value(service).map_err(serde::ser::Error::custom)?;
             let body = value
                 .as_object()
-                .ok_or_else(|| serde::ser::Error::custom("v4 def-node is not an object"))?;
+                .ok_or_else(|| serde::ser::Error::custom("bare def-node is not an object"))?;
             let kind_fields = usize::from(self.kind != ManifestKind::Service);
             let mut map = serializer.serialize_map(Some(body.len() + 1 + kind_fields))?;
-            map.serialize_entry("cixManifest", &4)?;
+            map.serialize_entry("cixManifest", &self.cix_manifest)?;
             if self.kind != ManifestKind::Service {
                 map.serialize_entry("kind", &self.kind)?;
             }
@@ -787,14 +817,36 @@ mod tests {
     }
 
     #[test]
+    fn v5_grants_replace_legacy_capability_fields() {
+        let spec =
+            parse(r#"{"cixManifest":5,"kind":"app","exec":["bin/job"],"grants":["jit","egress"]}"#)
+                .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        assert!(service.has_grant("jit"));
+        assert!(service.has_grant("egress"));
+        assert_eq!(
+            serde_json::to_value(&spec).unwrap()["grants"],
+            serde_json::json!(["jit", "egress"])
+        );
+        for json in [
+            r#"{"cixManifest":5,"exec":["bin/app"],"jit":true}"#,
+            r#"{"cixManifest":5,"exec":["bin/app"],"egress":true}"#,
+            r#"{"cixManifest":5,"exec":["bin/app"],"grants":["all"]}"#,
+            r#"{"cixManifest":5,"exec":["bin/app"],"grants":["jit","jit"]}"#,
+        ] {
+            assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
+        }
+    }
+
+    #[test]
     fn outbound_manifest_field_has_a_d48_migration_error_and_is_not_an_alias() {
         for json in [
             r#"{"cixManifest":4,"exec":["bin/app"],"outbound":true}"#,
             r#"{"cixManifest":3,"services":{"app":{"exec":["bin/app"],"outbound":true}}}"#,
         ] {
             let error = Spec::from_slice(json.as_bytes()).unwrap_err().to_string();
-            assert!(error.contains("renamed to \"egress\""), "{error}");
-            assert!(error.contains("D48(b)"), "{error}");
+            assert!(error.contains("\"grants\" list"), "{error}");
+            assert!(error.contains("D60"), "{error}");
         }
     }
 

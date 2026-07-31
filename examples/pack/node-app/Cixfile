@@ -6,4 +6,4 @@ ENV PATH = ${pkgs.nodejs}/bin
 COPY ${src}/server.js app/server.js
 EXEC node /app/server.js
 PORT http = 8081
-JIT
+GRANT jit

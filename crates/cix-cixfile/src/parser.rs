@@ -186,16 +186,18 @@ impl Parser<'_> {
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
-                "STATE" | "CACHEDIR" | "LOGS" | "CONFIG" | "RUNDIR" => {
+                "STATEDIR" | "CACHEDIR" | "LOGS" | "CONFIG" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
-                "JIT" => self.jit(line_number, source, arguments)?,
-                "EGRESS" => self.egress(line_number, source, arguments)?,
+                "STATE" => return Err(ParseError::new(line_number, source, "STATE was renamed to STATEDIR by D52; replace this directive with STATEDIR")),
+                "GRANT" => self.grant(line_number, source, arguments)?,
+                "JIT" => return Err(ParseError::new(line_number, source, "JIT was replaced by GRANT jit (D60); replace this directive with GRANT jit")),
+                "EGRESS" => return Err(ParseError::new(line_number, source, "EGRESS was replaced by GRANT egress (D60); replace this directive with GRANT egress")),
                 "OUTBOUND" => {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "OUTBOUND was renamed to EGRESS by D48(b); replace this directive with EGRESS",
+                        "OUTBOUND was replaced by GRANT egress (D60); replace this directive with GRANT egress",
                     ));
                 }
                 "TAKE" => return Err(take_removed_error(line_number, source, arguments)),
@@ -663,7 +665,7 @@ impl Parser<'_> {
         setup: bool,
     ) -> Result<(), ParseError> {
         let directive = if setup { "SETUP" } else { "EXEC" };
-        let fields = at_least_one_field(arguments, line, source, directive)?;
+        let fields = argv_fields(arguments, line, source, directive)?;
         let artifact_name = self
             .current_artifact_name(directive, line, source)?
             .to_owned();
@@ -717,6 +719,36 @@ impl Parser<'_> {
     }
 
     fn env(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if matches!(self.current, Some(CurrentBlock::Builder(_))) {
+            let fields = exact_fields(arguments, 3, line, source, "ENV <name> = <plain-value>")?;
+            validate_env_name(fields[0], line, source)?;
+            if fields[1] != "=" {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "builder ENV name must be followed by '='",
+                ));
+            }
+            if fields[2].contains("${") {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "builder ENV values are plain text and do not support build-time interpolation",
+                ));
+            }
+            let name = self.current_builder_name("ENV", line, source)?.to_owned();
+            self.builders
+                .get_mut(&name)
+                .expect("current builder exists")
+                .steps
+                .push(BuildStep::Env {
+                    name: fields[0].to_owned(),
+                    value: fields[2].to_owned(),
+                    line,
+                    source: source.to_owned(),
+                });
+            return Ok(());
+        }
         self.require_artifact_kind(
             "ENV",
             line,
@@ -879,7 +911,7 @@ impl Parser<'_> {
         arguments: &str,
     ) -> Result<(), ParseError> {
         let allowed = match directive {
-            "STATE" | "CACHEDIR" => &[ArtifactKind::Service, ArtifactKind::App][..],
+            "STATEDIR" | "CACHEDIR" => &[ArtifactKind::Service, ArtifactKind::App][..],
             _ => &[ArtifactKind::Service][..],
         };
         self.require_artifact_kind(directive, line, source, allowed)?;
@@ -887,7 +919,7 @@ impl Parser<'_> {
         reject_build_interpolation(fields[0], "directory path", line, source)?;
         reject_runtime_variable(fields[0], "directory path", line, source)?;
         let (root, role) = match directive {
-            "STATE" => ("/var/lib", "state"),
+            "STATEDIR" => ("/var/lib", "state"),
             "CACHEDIR" => ("/var/cache", "cache"),
             "LOGS" => ("/var/log", "logs"),
             "CONFIG" => ("/etc", "config"),
@@ -897,7 +929,7 @@ impl Parser<'_> {
         validate_role_path(fields[0], root, role, line, source)?;
         let service = self.current_service_mut(directive, line, source)?;
         let paths = match directive {
-            "STATE" => &mut service.dirs.state,
+            "STATEDIR" => &mut service.dirs.state,
             "CACHEDIR" => &mut service.dirs.cache,
             "LOGS" => &mut service.dirs.logs,
             "CONFIG" => &mut service.dirs.config,
@@ -914,42 +946,35 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn jit(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        self.require_artifact_kind("JIT", line, source, &[ArtifactKind::Service])?;
-        if !arguments.is_empty() {
-            return Err(ParseError::new(line, source, "JIT takes no arguments"));
-        }
-        let service = self.current_service_mut("JIT", line, source)?;
-        if service.jit {
-            return Err(ParseError::new(
-                line,
-                source,
-                "JIT is already declared for this service",
-            ));
-        }
-        service.jit = true;
-        Ok(())
-    }
-
-    fn egress(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+    fn grant(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         self.require_artifact_kind(
-            "EGRESS",
+            "GRANT",
             line,
             source,
             &[ArtifactKind::Service, ArtifactKind::App],
         )?;
-        if !arguments.is_empty() {
-            return Err(ParseError::new(line, source, "EGRESS takes no arguments"));
-        }
-        let service = self.current_service_mut("EGRESS", line, source)?;
-        if service.egress {
+        let fields = exact_fields(arguments, 1, line, source, "GRANT <jit|egress>")?;
+        if !matches!(fields[0], "jit" | "egress") {
             return Err(ParseError::new(
                 line,
                 source,
-                "EGRESS is already declared for this artifact",
+                format!(
+                    "unknown GRANT capability {:?}; supported capabilities: jit, egress",
+                    fields[0]
+                ),
             ));
         }
-        service.egress = true;
+        let service = self.current_service_mut("GRANT", line, source)?;
+        if !service.grants.insert(fields[0].to_owned()) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "GRANT {:?} is already declared for this artifact",
+                    fields[0]
+                ),
+            ));
+        }
         Ok(())
     }
 
@@ -1001,6 +1026,27 @@ impl Parser<'_> {
                 line,
                 source,
                 format!("{directive} must appear inside an artifact block"),
+            )),
+        }
+    }
+
+    fn current_builder_name(
+        &self,
+        directive: &str,
+        line: usize,
+        source: &str,
+    ) -> Result<&str, ParseError> {
+        match &self.current {
+            Some(CurrentBlock::Builder(name)) => Ok(name),
+            Some(CurrentBlock::Artifact(_)) => Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} is not legal inside an artifact block"),
+            )),
+            None => Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} must appear inside a BUILDER block"),
             )),
         }
     }
@@ -1147,6 +1193,56 @@ fn at_least_one_field<'a>(
     directive: &str,
 ) -> Result<Vec<&'a str>, ParseError> {
     let fields = arguments.split_whitespace().collect::<Vec<_>>();
+    if fields.is_empty() {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{directive} requires at least one argument"),
+        ));
+    }
+    Ok(fields)
+}
+
+fn argv_fields(
+    arguments: &str,
+    line: usize,
+    source: &str,
+    directive: &str,
+) -> Result<Vec<String>, ParseError> {
+    let mut fields = Vec::new();
+    let mut field = String::new();
+    let mut quote = None;
+    let mut started = false;
+    for character in arguments.chars() {
+        match (quote, character) {
+            (Some(delimiter), character) if character == delimiter => quote = None,
+            (Some(_), character) => field.push(character),
+            (None, '\'' | '"') => {
+                quote = Some(character);
+                started = true;
+            }
+            (None, character) if character.is_whitespace() => {
+                if started {
+                    fields.push(std::mem::take(&mut field));
+                    started = false;
+                }
+            }
+            (None, character) => {
+                field.push(character);
+                started = true;
+            }
+        }
+    }
+    if quote.is_some() {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("unterminated quote in {directive} arguments"),
+        ));
+    }
+    if started {
+        fields.push(field);
+    }
     if fields.is_empty() {
         return Err(ParseError::new(
             line,
@@ -1887,20 +1983,20 @@ SETUP bin/web
 ENV PORT = 8080 required
 PORT http = $PORT
 LISTENER admin
-STATE /var/lib/web
+STATEDIR /var/lib/web
 	CACHEDIR /var/cache/web
 LOGS /var/log/web
 CONFIG /etc/web
 RUNDIR /run/web
-JIT
-EGRESS
+GRANT jit
+GRANT egress
 APP migrate
 COPY ${ingredient} payload
 EXEC /bin/true
 ENV MODE = once
-STATE /var/lib/migrate
+STATEDIR /var/lib/migrate
 	CACHEDIR /var/cache/migrate
-	EGRESS
+	GRANT egress
 	"#,
         )
         .unwrap();
@@ -2051,8 +2147,8 @@ STATE /var/lib/migrate
         let error =
             parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
         assert_eq!(error.line, 4);
-        assert!(error.message.contains("renamed to EGRESS"), "{error}");
-        assert!(error.message.contains("D48(b)"), "{error}");
+        assert!(error.message.contains("GRANT egress"), "{error}");
+        assert!(error.message.contains("D60"), "{error}");
     }
 
     #[test]
@@ -2200,11 +2296,71 @@ EXEC /bin/true \
     }
 
     #[test]
+    fn builder_env_is_ordered_plain_text_and_exec_argv_is_quote_aware() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nENV COREPACK_HOME = $PWD/.corepack\nRUN printf '%s\\n' ok\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;'\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            &parsed.builders["build"].steps[0],
+            BuildStep::Env { name, value, .. } if name == "COREPACK_HOME" && value == "$PWD/.corepack"
+        ));
+        assert_eq!(
+            parsed.artifacts["web"].service.exec[2]
+                .literal_value()
+                .as_deref(),
+            Some("daemon off;")
+        );
+
+        let unterminated = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;\n",
+        )
+        .unwrap_err();
+        assert_eq!(unterminated.line, 3);
+        assert!(
+            unterminated.message.contains("unterminated quote"),
+            "{unterminated}"
+        );
+    }
+
+    #[test]
+    fn statedir_and_grant_are_hard_migrations() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\nSTATEDIR /var/lib/job\nGRANT jit\nGRANT egress\n",
+        )
+        .unwrap();
+        assert!(parsed.artifacts["job"]
+            .service
+            .dirs
+            .state
+            .contains("/var/lib/job"));
+        assert_eq!(
+            parsed.artifacts["job"].service.grants,
+            BTreeSet::from(["egress".into(), "jit".into()])
+        );
+        for (directive, replacement) in [
+            ("STATE /var/lib/job", "STATEDIR"),
+            ("JIT", "GRANT jit"),
+            ("EGRESS", "GRANT egress"),
+        ] {
+            let error = parse(&format!(
+                "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
+            ))
+            .unwrap_err();
+            assert_eq!(error.line, 4);
+            assert!(error.message.contains(replacement), "{error}");
+        }
+        let unknown =
+            parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
+        assert!(unknown.message.contains("jit, egress"), "{unknown}");
+    }
+
+    #[test]
     fn app_rejects_service_only_surface_at_the_directive_line() {
         for (directive, message) in [
             ("PORT http = 8080", "PORT is not legal inside APP"),
             ("LISTENER http", "LISTENER is not legal inside APP"),
-            ("JIT", "JIT is not legal inside APP"),
+            ("JIT", "JIT was replaced by GRANT jit"),
             ("SETUP /bin/true", "SETUP is not legal inside APP"),
             ("LOGS /var/log/job", "LOGS is not legal inside APP"),
             ("CONFIG /etc/job", "CONFIG is not legal inside APP"),

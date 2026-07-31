@@ -1,5 +1,5 @@
 {
-  "cixManifest": 4,
+  "cixManifest": 5,
   "dirs": {
     "cache": [
       "/var/cache/app"
@@ -33,7 +33,9 @@
     "/tools/first/app",
     "$PORT"
   ],
-  "jit": true,
+  "grants": [
+    "jit"
+  ],
   "ports": {
     "http": {
       "env": "PORT",

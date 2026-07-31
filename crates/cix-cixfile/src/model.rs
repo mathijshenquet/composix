@@ -57,6 +57,12 @@ impl Builder {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BuildStep {
+    Env {
+        name: String,
+        value: String,
+        line: usize,
+        source: String,
+    },
     Copy(Copy),
     Fetch {
         expected: Option<String>,
@@ -138,8 +144,7 @@ pub struct Service {
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
-    pub jit: bool,
-    pub egress: bool,
+    pub grants: BTreeSet<String>,
 }
 
 impl Service {
@@ -153,8 +158,7 @@ impl Service {
             ports: BTreeMap::new(),
             listeners: BTreeSet::new(),
             dirs: Dirs::default(),
-            jit: false,
-            egress: false,
+            grants: BTreeSet::new(),
         }
     }
 }

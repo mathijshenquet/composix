@@ -53,9 +53,9 @@ Blocks then declare work and outputs:
 
 | block | allowed directives | result |
 | --- | --- | --- |
-| `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATE`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `JIT`, `EGRESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `EGRESS`, `STATE`, `CACHEDIR` | a run-to-completion app artifact |
+| `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `GRANT` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `GRANT`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
 and a declaration cannot refer to a later declaration. Errors report both the bad line and,
@@ -183,6 +183,12 @@ COPY ${compile}/target/release/app bin/app
 EXEC bin/app
 ```
 
+Builder `ENV NAME = value` is plain text, applies only to later builder steps, and is part of
+the chain key as declared. It is exported through each step shell, so `ENV CACHE = $PWD/.cache`
+expands `$PWD` in that step's `/work` directory. `EXEC` and `SETUP` accept single- and
+double-quoted argv words; for example, `EXEC nginx -g 'daemon off;'` passes `daemon off;` as one
+argument. Unterminated quotes are line-numbered errors.
+
 `IMPORT` takes whole package references, is repeatable, and unions each package's `bin`,
 `etc`, and `share` trees read-only at `/bin`, `/etc`, and `/share`. Earlier declarations win
 collisions. Bare builder commands resolve through `/bin`; IMPORTed package closures and
@@ -224,17 +230,18 @@ hash.
 
 ## Artifact kinds
 
-Each `SERVICE` or `APP` produces its own store item and bare v4 manifest.
+Each `SERVICE` or `APP` produces its own store item and bare v5 manifest.
 
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
-idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATE`,
+idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATEDIR`,
 `CACHEDIR`, `LOGS`, `CONFIG`, and `RUNDIR` map directly to systemd's managed
-`*Directory=` roles. `JIT` grants writable-and-executable memory, and `EGRESS` declares
-outward network access.
+`*Directory=` roles. `GRANT jit` drops `MemoryDenyWriteExecute=`; `GRANT egress` declares
+outward network access and retains compose's usage-override semantics. The grant vocabulary is
+closed to `jit` and `egress`, one grant per line.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
-health checks, JIT grant, or log/config/run role directories.
+health checks or log/config/run role directories.
 
 Relative copied destinations live at the artifact root and are projected at their native
 runtime path. Package binaries remain direct store references. Services that need runtime
