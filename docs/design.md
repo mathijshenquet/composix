@@ -1589,6 +1589,13 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   fully true (previously subtly overclaimed vs BuildKit), and
   docs/nix-build.md re-measures the warm-edit column (expectation: real
   cargo increments, 2–5s where crane does 16.5s).
+  **Retreat path, recorded up front (Mathijs): if the aggressive
+  underlaying ever chafes** (ghost-file wrongness showing up faster than the
+  sampled cold audit catches it, or path-dependence confusing users),
+  **CACHE returns** — the D48(a)-era declared exception, making the warm
+  surface opt-in per path instead of whole-workspace-always. The dial goes
+  underlay-always → CACHE-declared → prefix-only; we start at the warm end
+  deliberately, with the audit verb as the regulator.
 
 ## Non-goals (for now)
 
