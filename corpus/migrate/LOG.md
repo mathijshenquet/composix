@@ -126,3 +126,25 @@ Static verification: `bash -n corpus/migrate/fetch.sh` and all ten guarded
 context-backed `check.sh` scripts passed; `git diff --check HEAD` passed;
 `git diff --name-only HEAD -- crates` is empty. Final diff removes 2,707 tracked
 context files and adds the fetch/docs/guard/source-metadata changes only.
+## 2026-07-31 — corpus-polish start
+
+- `cd corpus/migrate && ./fetch.sh --all` — pass; freshly fetched pinned contexts for adminer (`7088bf0e2003398930eed5ea00032b61aa3b55cb`), dozzle (`c159db5f0b5cccb80e7432d51823eb2702b617bc`), echo-server (`2b735482f942cbd889f1d49f3ff892364d0519ac`), memcached (`53ac0ecb0bf88b471a0110f8996ce791baf1a667`), nginx (`e0f008fab4e1ce252c9451590c6a2aff305dd03c`), phpmyadmin (`452a995fe6c90b96473fc17c3d704786c33d42bc`), redis (`2ac6f46c6ba6f3ece54183a518a2bfd865390368`), and tomcat (`f3407586eb54489354943d0d1be0a595a11825d7`).
+- `devenv shell -- cargo build -p cix` — pass; produced `target/debug/cix`. `bash -n corpus/migrate/*/check.sh` and `git diff --check` also pass.
+- Fresh Cix receipts (all after the fetch above, using the D62 member selector in each check script):
+  - `cd corpus/migrate/adminer && ./check.sh cix` — pass; `/nix/store/g0yd5br9x691yawy8mjsfx6dd0ssp8mp-cix-item-adminer` served the login page.
+  - `cd corpus/migrate/caddy && ./check.sh cix` — pass; `/nix/store/d8aiy4fv1wb3zm6b69h410kfp28q82pi-cix-item-caddy` served its response (after the existing D36 PrivatePIDs fallback).
+  - `cd corpus/migrate/dozzle && ./check.sh cix` — non-zero; after the refreshed UI build, the Go-module `FETCH` pin changes between runs. A forced update then reaches the separate missing `shared_cert.pem` source failure. The runtime Docker-socket boundary remains ❌.
+  - `cd corpus/migrate/echo-server && ./check.sh cix` — non-zero; network npm materialization completed inside the check window, then the offline webpack launcher failed because its `/usr/bin/env` interpreter is unavailable in the builder union. This remains a non-passing npm-build row.
+  - `cd corpus/migrate/memcached && ./check.sh cix` — pass; `/nix/store/i9zz4b30wg3lnjmshj5bkjz51999hpmc-cix-item-memcached` answered `VERSION`.
+  - `cd corpus/migrate/nats && ./check.sh cix` — pass; `/nix/store/6nj4ggg4wmfpy6hw6hlp3wwnrn66w6ic-cix-item-nats` answered `{"status":"ok"}`.
+  - `cd corpus/migrate/nginx && ./check.sh cix` — pass; `/nix/store/xlnmhf6gwsl8c41q7f8iq241vgs5r102-cix-item-nginx` served HTTP with quote-aware `-g 'daemon off;'` argv.
+  - `cd corpus/migrate/phpmyadmin && ./check.sh cix` — pass; `/nix/store/gbfjxsjkc07w22y99jgglmsxf3s0yydb-cix-item-phpmyadmin` served the phpMyAdmin page.
+  - `cd corpus/migrate/redis && ./check.sh cix` — pass; `/nix/store/zsjh7kxzh2y2hc3hz4c69hkzxzcc2l63-cix-item-redis` answered `PONG` after the D36 fallback.
+  - `cd corpus/migrate/tomcat && ./check.sh cix` — non-zero; `/nix/store/4qpc7nnkf21jkd7bg2wddiyqzisyrdd4-cix-item-tomcat` did not become reachable.
+  - `cd corpus/migrate/traefik && ./check.sh cix` — pass; `/nix/store/nnil2w7r861fw33aarp97szdgkzxl33v-cix-item-traefik` answered its ping probe.
+  - `cd corpus/migrate/verdaccio && ./check.sh cix` — non-zero during the Corepack/pnpm build sequence; no item produced.
+  - `cd corpus/migrate/watchtower && ./check.sh cix` — non-zero after building `/nix/store/49xrwxb2760x3g7zg47n61s6jvg4l3b0-cix-item-watchtower`; the runtime Docker-socket boundary remains ❌.
+  - `cd corpus/migrate/whoami && ./check.sh cix` — pass; `/nix/store/5raa2baz0ixyj7lrhqzrcdbpvf8rlj0i-cix-item-whoami` served the HTTP probe.
+- Lock refresh required by the changed dozzle builder graph: `cd corpus/migrate/dozzle && ../../../target/debug/cix build --update-lock ui .#dozzle` and `../../../target/debug/cix build --update-lock build .#dozzle`; the final ordinary check still correctly reports the unstable Go-module FETCH pin above.
+- Gate smoke: `devenv shell -- cargo test --workspace` — pass. Final static repros: `for file in corpus/migrate/*/check.sh; do bash -n "$file"; done`; `git diff --check`; `git ls-files 'corpus/migrate/*/context/**'`; and `git diff --name-only | rg -v '^corpus/migrate/' && exit 1 || true` — all pass (the context listing is empty and the diff is corpus-only).
+- Cleanup repro: `systemctl --user reset-failed 'cix-*'; systemctl --user stop cix-run.slice; sudo -n systemctl reset-failed 'cix-*'; sudo -n systemctl stop cix-run.slice` — completed; test-created units are stopped/reset.

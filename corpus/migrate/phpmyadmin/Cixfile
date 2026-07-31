@@ -1,12 +1,13 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER build
-  PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin ${pkgs.curl}/bin ${pkgs.gnutar}/bin ${pkgs.xz}/bin
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt ${pkgs.curl}/bin/curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.xz} ${pkgs.cacert}
+  FETCH EXPECT sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE= curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz
   RUN mkdir app && tar -xJf phpMyAdmin-5.2.3-all-languages.tar.xz --strip-components=1 -C app
 
 SERVICE phpmyadmin
   COPY ${build}/app srv/phpmyadmin
-  STATE /var/lib/phpmyadmin
-  EXEC ${pkgs.php83}/bin/php -S 0.0.0.0:8080 -t /srv/phpmyadmin
+  STATEDIR /var/lib/phpmyadmin
+  LINK ${pkgs.php83}/bin/php bin/php
+  EXEC php -S 0.0.0.0:8080 -t /srv/phpmyadmin
   PORT http = 8080

@@ -1,17 +1,14 @@
-# Receipt
+# verdaccio migration receipt
 
-Verdict: **build-fail** (Cixfile class: build). The conversion pins both the Corepack and pnpm dependency fetches, but did not yield a final cix item in this round.
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, `STATEDIR`, explicit Node `bin/`, and `GRANT jit`/`egress`).
 
-Verbatim failing transcript from the initial build attempt:
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## `./check.sh cix`
+
+```text
+BUILDER build step 3 FETCH executed
+Adding pnpm@11.1.2 to the cache...
 ```
-$ ../../../target/debug/cix build .
-[ERROR] Failed to switch pnpm to v11.1.2. Looks like pnpm CLI is missing at "/work/.pnpm-store/v11/links/@/pnpm/11.1.2/d5d049f82626f807048f13466af21737098073e057ec189edfd512367b5366a6/bin" or is incorrect
-Error: line 8: FETCH failed
-```
-Docker digest and cix store path: not produced.
 
-## Corpus fetch verification (2026-07-31)
-
-The raw pinned checkout contains six development/example paths that were absent
-from the historic build context. `SOURCE` now names those exclusions; the selected
-checkout diffed byte-identically with the vendored tree.
+Exit status: non-zero during the Corepack/pnpm build sequence; no item was produced.

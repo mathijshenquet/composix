@@ -1,6 +1,7 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE redis
-  STATE /var/lib/redis
-  EXEC ${pkgs.redis}/bin/redis-server --dir /var/lib/redis --port 6379
+  STATEDIR /var/lib/redis
+  LINK ${pkgs.redis}/bin/redis-server bin/redis-server
+  EXEC redis-server --dir /var/lib/redis --port 6379
   PORT redis = 6379

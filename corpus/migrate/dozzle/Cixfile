@@ -2,24 +2,25 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER ui
-  PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin ${pkgs.nodejs_24}/bin ${pkgs.pnpm}/bin
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
+  ENV COREPACK_HOME = $PWD/.corepack
   COPY ${src}/context/ .
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt COREPACK_HOME=$PWD/.corepack corepack install
-  RUN COREPACK_HOME=$PWD/.corepack pnpm config set store-dir $PWD/.pnpm-store
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt COREPACK_HOME=$PWD/.corepack pnpm fetch --ignore-scripts
-  RUN COREPACK_HOME=$PWD/.corepack pnpm install --offline --ignore-scripts
-  RUN COREPACK_HOME=$PWD/.corepack pnpm build
+  FETCH corepack install
+  RUN pnpm config set store-dir $PWD/.pnpm-store
+  FETCH pnpm fetch --ignore-scripts
+  RUN pnpm install --offline --ignore-scripts
+  RUN pnpm build
 
 BUILDER build
-  PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin ${pkgs.go}/bin ${pkgs.gcc}/bin
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.gcc} ${pkgs.cacert}
+  ENV GOMODCACHE = $PWD/.gomodcache
   COPY ${src}/context/ .
   COPY ${ui}/dist dist
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt GOMODCACHE=$PWD/.gomodcache ${pkgs.go}/bin/go mod download
-  RUN GOMODCACHE=$PWD/.gomodcache CGO_ENABLED=0 go build -o dozzle
+  FETCH go mod download
+  RUN CGO_ENABLED=0 go build -o dozzle
 
 SERVICE dozzle
   COPY ${build}/dozzle bin/dozzle
-  PATH bin
-  STATE /var/lib/dozzle
+  STATEDIR /var/lib/dozzle
   EXEC dozzle
   PORT http = 8080

@@ -1,11 +1,13 @@
-# Receipt
+# nginx migration receipt
 
-Verdict: **run-fail** (Cixfile class: dissolves / pkgs-only).
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`LOGSDIR`, explicit artifact `bin/`, and quote-aware `EXEC`).
 
-Verbatim cix run diagnostic:
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/xlnmhf6gwsl8c41q7f8iq241vgs5r102-cix-item-nginx
 ```
-[systemd-run] .../bin/nginx -g "daemon\\" "off\\;"
-```
-The Cixfile grammar preserved neither quotes nor backslash escapes as one `-g` argument, so nginx exits and the HTTP probe fails.
-Cix store path: `/nix/store/f9r3jz7mxjc5h1d706g58sai08vzxr7a-cix-item-nginx`.
-Docker digest: not produced.
+
+Exit status: 0. The HTTP probe passed; `-g 'daemon off;'` is now one argv word.

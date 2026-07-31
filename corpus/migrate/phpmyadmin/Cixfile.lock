@@ -10,11 +10,22 @@
     "builder:build:0-23a8742ecb78": {
       "narHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE="
     },
+    "builder:build:0-6bc01e968126": {
+      "narHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE="
+    },
     "pma-src": {
       "narHash": "sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE="
     }
   },
   "memo": {
+    "20a7e7d00be8fd7780dde773289bb3ecab68c3a7dd3b02afd066bd5333245fe9": {
+      "paths": {
+        "app": {
+          "narHash": "sha256-qmyjvZdcH7iw3A7L0+811d491vgoMDXyPsCgiRE1VQA=",
+          "storePath": "/nix/store/i0hswybwp1jpaw9d4fvimdy36jbqjqkx-cix-build-consumed"
+        }
+      }
+    },
     "679d696a8d00d1d9552289ca8c008ee197fe0a93ca994aba8cc400af0e5d4bb2": {
       "outputNarHash": "sha256-CJwE9BGSdhyOBLOGiNVq7xKBG50EiQyR5icThGcfrhU=",
       "storePath": "/nix/store/j9mbzi71c3qfvzban74ljsw45w4hy1pw-cix-build-snapshot",

@@ -1,14 +1,14 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER build
-  PATH ${pkgs.bash}/bin ${pkgs.git}/bin ${pkgs.go}/bin \
-    ${pkgs.gnumake}/bin
+  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.go} ${pkgs.gnumake} ${pkgs.cacert}
+  ENV GOMODCACHE = $PWD/.gomodcache
   # Each networked stage is independently pinned; RUN only consumes its snapshot.
-  FETCH ${pkgs.git}/bin/git -c http.sslCAInfo=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt clone https://github.com/traefik/whoami.git .
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt GOMODCACHE=$PWD/.gomodcache ${pkgs.go}/bin/go mod download
-  RUN GOMODCACHE=$PWD/.gomodcache make build
+  FETCH git clone https://github.com/traefik/whoami.git .
+  FETCH go mod download
+  RUN make build
 
 SERVICE whoami
   COPY ${build}/whoami bin/whoami
-  EXEC bin/whoami
+  EXEC whoami
   PORT http = 80

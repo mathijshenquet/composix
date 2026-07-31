@@ -12,6 +12,9 @@
     },
     "builder:build:2-aacab3c7b81f": {
       "narHash": "sha256-dwjY48zOnjFW1lIquyLZ2yGH792a6vXviZWeBisCa2I="
+    },
+    "builder:build:2-cee80c31585b": {
+      "narHash": "sha256-8Crf2oXTkJRiCMc/BaKZYsc755nnPkFgPBbOb31U314="
     }
   },
   "memo": {

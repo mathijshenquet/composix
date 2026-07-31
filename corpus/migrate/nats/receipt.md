@@ -1,23 +1,14 @@
 # nats migration receipt
 
-Date: 2026-07-30
-Refreshed: 2026-07-30 (D50–D53 corpus run; unchanged Cix item)
+Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `EXEC`).
 
-Docker image digest: `sha256:f0f977e50ad69c0b9a041f145cce27df06166295792391f98f4ac415a067756c`
-
-Cix item store path: `/nix/store/x0q9whg4ff6khpr23lkmlz5bzlpqjiz6-cix-item-nats`
-
-## `./check.sh docker`
-
-```text
-docker image sha256:f0f977e50ad69c0b9a041f145cce27df06166295792391f98f4ac415a067756c
-{"status":"ok"}PASS docker
-```
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:f0f977e50ad69c0b9a041f145cce27df06166295792391f98f4ac415a067756c`.
 
 ## `./check.sh cix`
 
 ```text
-/nix/store/x0q9whg4ff6khpr23lkmlz5bzlpqjiz6-cix-item-nats
-cix unit cix-run-nats-18c7313166451adb0.service
+cix item /nix/store/6nj4ggg4wmfpy6hw6hlp3wwnrn66w6ic-cix-item-nats
 {"status":"ok"}PASS cix
 ```
+
+Exit status: 0.

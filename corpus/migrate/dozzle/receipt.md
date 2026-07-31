@@ -1,21 +1,14 @@
-# Receipt
+# dozzle migration receipt
 
-Verdict: **capability-gap** (Cixfile class: build). Dozzle requires the Docker socket/API at runtime; cix has no declared host Unix-socket or Docker-API grant. Independently, this attempted build fails before the runtime boundary.
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and `STATEDIR`).
 
-Verbatim transcript:
+Docker side: historical 2026-07-30 receipt, not rerun. The Docker runtime contract includes `/var/run/docker.sock`.
+
+## `./check.sh cix`
+
+```text
+Error: line 19: FETCH output changed
+  | "  FETCH go mod download"
 ```
-$ timeout 120 ../../../target/debug/cix build .
-$ vite build
-sh: /work/node_modules/.bin/vite: /bin/sh: bad interpreter: No such file or directory
-[ELIFECYCLE] Command failed with exit code 126.
-Error: line 11: RUN failed
-status=1
-```
-Docker digest and cix store path: not produced.
 
-## Corpus fetch verification (2026-07-31)
-
-The raw pinned checkout additionally contains `.claude/`, which was not in the
-historic build context and is not a Docker build input. `SOURCE` now records that
-one exclusion; the selected checkout diffed byte-identically with the vendored
-tree.
+Exit status: non-zero. Forced lock refresh reaches the subsequent missing `shared_cert.pem` source failure. Independently of both build failures, no faithful Cix runtime conversion exists: Dozzle requires Docker's host socket/API, which remains an explicit ❌ boundary.

@@ -37,8 +37,8 @@ case $mode in
     printf 'PASS docker\n'
     ;;
   cix)
-    build_output=$(timeout 20 "$cix" build . | tee /dev/stderr)
-    item=$(printf '%s\n' "$build_output" | tail -n 1)
+    item=$(timeout 20 "$cix" build "$root#echo-server")
+    printf 'cix item %s\n' "$item"
     unit=$(timeout 30 sudo -n "$cix" run --detach "$item")
     printf 'cix unit %s\n' "$unit"
     probe http://127.0.0.1:80/

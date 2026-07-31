@@ -1,12 +1,13 @@
-# Receipt
+# watchtower migration receipt
 
-Verdict: **capability-gap** (Cixfile class: build). The original Dockerfile expects a prebuilt `./watchtower` that is absent from the resolved repository context. The Cixfile instead compiles the supplied Go source successfully, but the resulting service cannot be given Docker's Unix socket/API; it exits immediately when run.
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and bare `EXEC` from artifact `bin/`).
 
-Verbatim build transcript:
+Docker side: historical 2026-07-30 receipt, not rerun. The historical Docker build lacked the CI-provided `./watchtower` binary; its runtime contract also requires `/var/run/docker.sock`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/49xrwxb2760x3g7zg47n61s6jvg4l3b0-cix-item-watchtower
 ```
-$ ../../../target/debug/cix build .
-BUILDER build step 3 RUN memo miss 6d31ca0bc908 (3845 ms) -> /nix/store/1d2liw2mxzs2n2ahiz39fn4rfsapqvbw-cix-build-snapshot
-/nix/store/29ixrxncnhq9bq0jr64nvzb6lscvm690-cix-item-watchtower
-```
-Cix store path: `/nix/store/29ixrxncnhq9bq0jr64nvzb6lscvm690-cix-item-watchtower`.
-Docker digest: not produced (missing required `./watchtower` context artifact).
+
+Exit status: non-zero. The Go build succeeds, but no faithful Cix runtime conversion exists: Watchtower needs Docker's host socket/API, an explicit ❌ boundary.
