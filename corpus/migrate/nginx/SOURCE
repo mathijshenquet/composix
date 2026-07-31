@@ -1,5 +1,6 @@
 Dockerfile: https://raw.githubusercontent.com/nginx/docker-nginx/e0f008fab4e1ce252c9451590c6a2aff305dd03c/mainline/alpine-slim/Dockerfile
 Repository: https://github.com/nginx/docker-nginx.git
 Resolved revision: e0f008fab4e1ce252c9451590c6a2aff305dd03c
+Context path: .
 Dockerfile sha256: 27ed3bcc98e683e210066251fb72c0b52c31a0b089471d041aed30ba499e81a3
 Build context: repository archive in context/; sibling entrypoint files are in context/mainline/alpine-slim/.

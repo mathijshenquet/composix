@@ -3,6 +3,10 @@ set -euo pipefail
 
 mode=${1:-}
 root=$(cd -- "$(dirname -- "$0")" && pwd)
+if [[ ! -d $root/context ]]; then
+  echo 'context/ missing — run ../fetch.sh memcached first' >&2
+  exit 1
+fi
 cix=${CIX:-"$root/../../../target/debug/cix"}
 docker_tag=migrate-memcached-docker
 container=

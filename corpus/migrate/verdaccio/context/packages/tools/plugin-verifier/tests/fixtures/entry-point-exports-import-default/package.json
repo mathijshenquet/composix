@@ -1,9 +1,0 @@
-{
-  "exports": {
-    ".": {
-      "import": {
-        "default": "./lib/entry.mjs"
-      }
-    }
-  }
-}

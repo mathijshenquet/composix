@@ -1,5 +1,6 @@
 Dockerfile: https://raw.githubusercontent.com/phpmyadmin/docker/452a995fe6c90b96473fc17c3d704786c33d42bc/apache/Dockerfile
 Repository: https://github.com/phpmyadmin/docker.git
 Resolved revision: 452a995fe6c90b96473fc17c3d704786c33d42bc
+Context path: .
 Dockerfile sha256: 308b162fc2904d9e64c0e05418eb8a3ae5a2e20c615446f945a88343fc4c8836
 Build context: repository archive in context/ (includes config.inc.php, helpers.php, and docker-entrypoint.sh).

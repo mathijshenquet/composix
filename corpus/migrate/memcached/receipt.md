@@ -17,6 +17,13 @@ PASS docker
 
 Exit status: 0
 
+## Corpus fetch verification (2026-07-31)
+
+The raw pinned checkout contains the complete docker-library repository. The
+historic build context is its `1/alpine/` subtree without the separately tracked
+Dockerfile; those selections are now explicit in `SOURCE`. The selected checkout
+diffed byte-identically with the vendored tree.
+
 ## `./check.sh cix`
 
 ```text

@@ -41,3 +41,9 @@ HEAD is now at 2b73548 chore(deps): update logstash docker tag to v8.12.0 (#146)
 ```
 
 Exit status: 124 (`timeout 20` around `cix build .`).
+
+## Corpus fetch verification (2026-07-31)
+
+The raw pinned checkout also contains its Dockerfile. The migration tracks that
+Dockerfile separately, so `SOURCE` now excludes it from the fetched build context.
+The selected checkout diffed byte-identically with the vendored tree.

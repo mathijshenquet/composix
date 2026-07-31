@@ -1,3 +1,0 @@
-<?php
-
-$cfg['ShowPhpInfo'] = true;

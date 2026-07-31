@@ -1,5 +1,7 @@
 Dockerfile and build context: https://github.com/docker-library/memcached.git, directory `1/alpine`
 Resolved revision: 53ac0ecb0bf88b471a0110f8996ce791baf1a667
+Context path: 1/alpine
+Exclude context path: Dockerfile
 Dockerfile URL: https://raw.githubusercontent.com/docker-library/memcached/master/1/alpine/Dockerfile
 Retrieved: 2026-07-30
 

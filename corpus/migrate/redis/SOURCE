@@ -1,5 +1,6 @@
 Dockerfile: https://raw.githubusercontent.com/redis/docker-library-redis/2ac6f46c6ba6f3ece54183a518a2bfd865390368/7.4/alpine/Dockerfile
 Repository: https://github.com/redis/docker-library-redis.git
 Resolved revision: 2ac6f46c6ba6f3ece54183a518a2bfd865390368
+Context path: .
 Dockerfile sha256: d5528f34e21d829ae01bdb8db174ce08f29fcd517082f7b892532296eceece33
 Build context: repository archive in context/; sibling docker-entrypoint.sh is in context/7.4/alpine/.

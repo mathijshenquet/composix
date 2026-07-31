@@ -60,6 +60,10 @@ used sparingly.
 
 ## Curation notes
 
+- A fresh clone must fetch the pinned upstream build contexts before running any
+  migration check: `cd corpus/migrate && ./fetch.sh --all`. To fetch one context,
+  use `./fetch.sh <name>`; `check.sh` names the exact command when it is missing.
+
 - The `no escape?` column was refreshed against the current nixpkgs on 2026-07-30:
   `nix search nixpkgs '^(…)$' --json` for the candidate and known alternate names,
   followed by `nix eval --raw nixpkgs#<attr>.pname` for aliases. `yes` means no

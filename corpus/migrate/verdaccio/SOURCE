@@ -1,5 +1,12 @@
 Dockerfile: https://raw.githubusercontent.com/verdaccio/verdaccio/15b3f0c66aa60d1fbd3d7229f730fe827911b5f9/Dockerfile
 Repository: https://github.com/verdaccio/verdaccio.git
 Resolved revision: 15b3f0c66aa60d1fbd3d7229f730fe827911b5f9
+Context path: .
+Exclude context path: .vscode
+Exclude context path: docker-examples/v6/docker-local-storage-volume/storage
+Exclude context path: docker-examples/v6/proxy/https-portal-example/storage
+Exclude context path: docker-examples/v7/docker-local-storage-volume/storage
+Exclude context path: docker-examples/v7/reverse_proxy/https-portal/storage
+Exclude context path: packages/ui-components/src/components/Readme/github-markdown.css
 Dockerfile sha256: e8338745e15f4211fa8ed95ed16c79d7c8f19471c5bbf9e0749743d15a51a54f
 Build context: repository archive in context/ (Dockerfile COPY .).

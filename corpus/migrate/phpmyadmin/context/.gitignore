@@ -1,7 +1,0 @@
-config.secret.inc.php
-__pycache__
-.pytest_cache
-.vscode
-.history
-.venv
-testing/*.pem

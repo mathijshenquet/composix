@@ -73,3 +73,56 @@ Prompt gaps, verbatim:
 Black-box observations: the documented ENV form is rejected; `ENV NAME = value` parses. RUN/FETCH requires bash in a declared PATH, so the prompt's top-level FETCH form has no documented way to satisfy the tool. EGRESS accepts no argument. FROM rejects `context` although the prescribed corpus layout places build context there. EXEC does not preserve quoted/escaped multiword argv values, blocking nginx's `-g 'daemon off;'`. Node-generated launchers requiring `/bin/sh` fail in builder sandboxes.
 
 Cix capability gaps: no declared host Unix-socket bind/mount or Docker API capability, so Dozzle and Watchtower cannot faithfully receive `/var/run/docker.sock`; Watchtower's upstream Dockerfile also expects a CI-provided binary absent from the resolved repository context. Docker checks not explicitly marked pass were not promoted without a completed dual-mode transcript.
+
+## 2026-07-31 — corpusfetch start
+
+Scope: replace the ten tracked upstream `context/` trees with one pinned fetch
+script. Before any removal, reproduce every recorded repository/revision into an
+isolated temporary directory and compare it recursively with the currently
+vendored tree, excluding `.git`.
+
+## 2026-07-31 — corpusfetch verification
+
+Pre-removal reproduction command (run once for each candidate):
+`git clone --no-checkout <SOURCE repository> <scratch>/<name>; git -C
+<scratch>/<name> checkout --detach <SOURCE revision>; diff -r --exclude=.git
+corpus/migrate/<name>/context <selected scratch tree>`. All selected trees were
+byte-identical:
+
+- `adminer` `7088bf0e2003398930eed5ea00032b61aa3b55cb`
+- `dozzle` `c159db5f0b5cccb80e7432d51823eb2702b617bc`
+- `echo-server` `2b735482f942cbd889f1d49f3ff892364d0519ac`
+- `memcached` `53ac0ecb0bf88b471a0110f8996ce791baf1a667`
+- `nginx` `e0f008fab4e1ce252c9451590c6a2aff305dd03c`
+- `phpmyadmin` `452a995fe6c90b96473fc17c3d704786c33d42bc`
+- `redis` `2ac6f46c6ba6f3ece54183a518a2bfd865390368`
+- `tomcat` `f3407586eb54489354943d0d1be0a595a11825d7`
+- `verdaccio` `15b3f0c66aa60d1fbd3d7229f730fe827911b5f9`
+- `watchtower` `ca0e86e824ec05389ab972ea97d04d4bf0476e90`
+
+Initial raw-checkout diffs found five historic contexts to be deliberately
+projected Docker build contexts, not bad revisions. `SOURCE` now makes their
+selectors explicit: Adminer `5/` without its Dockerfile and `fastcgi/`;
+Memcached `1/alpine/` without its Dockerfile; Echo Server without its separately
+tracked Dockerfile; Dozzle without `.claude/`; and Verdaccio without six
+development/example paths. The per-candidate receipts record those honest
+findings. All other candidates are the checkout root.
+
+Post-removal repro: `cd corpus/migrate && ./fetch.sh --all` completed twice
+without error; each run fetched the ten revisions above and installed no `.git`
+directory. `./fetch.sh nats` exits 1 with the clear diagnostic `nats SOURCE lacks
+a parseable repository URL`. `git check-ignore
+corpus/migrate/echo-server/context/README.md` reports
+`.gitignore:14:corpus/migrate/*/context/`; `git ls-files
+'corpus/migrate/*/context/**'` reports zero files.
+
+Smoke: `./corpus/migrate/fetch.sh echo-server`; `devenv shell -- cargo build`
+passed. `cd corpus/migrate/echo-server && ./check.sh cix` reached the current cix
+parser but failed before a build: `line 7: PATH was replaced by IMPORT (D58)`.
+This historical corpus Cixfile is pre-D58 and remains outside the corpusfetch
+scope; no crate source was changed.
+
+Static verification: `bash -n corpus/migrate/fetch.sh` and all ten guarded
+context-backed `check.sh` scripts passed; `git diff --check HEAD` passed;
+`git diff --name-only HEAD -- crates` is empty. Final diff removes 2,707 tracked
+context files and adds the fetch/docs/guard/source-metadata changes only.

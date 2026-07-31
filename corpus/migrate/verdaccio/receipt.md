@@ -9,3 +9,9 @@ $ ../../../target/debug/cix build .
 Error: line 8: FETCH failed
 ```
 Docker digest and cix store path: not produced.
+
+## Corpus fetch verification (2026-07-31)
+
+The raw pinned checkout contains six development/example paths that were absent
+from the historic build context. `SOURCE` now names those exclusions; the selected
+checkout diffed byte-identically with the vendored tree.
