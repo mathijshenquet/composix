@@ -611,7 +611,7 @@ fn automatic_fetch_pins_only_consumed_paths_and_cold_replays_its_snapshot() {
 BUILDER build
 IMPORT ${pkgs.bash} ${pkgs.coreutils}
 FETCH test ! -e fetch-ran; touch fetch-ran; printf payload > wanted; printf incidental > ignored
-RUN cp wanted result
+RUN printf suffix >> wanted; cp wanted result
 SERVICE result
 COPY ${build}/result /result
 EXEC /bin/true
@@ -641,10 +641,7 @@ EXEC /bin/true
         pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
         ["result"]
     );
-    assert!(pin
-        .store_path
-        .as_deref()
-        .is_some_and(|path| path.starts_with("/nix/store/")));
+    assert!(pin.store_path.is_none());
 
     // The replay snapshot already contains fetch-ran. Re-executing FETCH would fail
     // its first command, so a successful cold build proves no fetch process spawned.
@@ -657,7 +654,7 @@ EXEC /bin/true
     .unwrap();
     assert_eq!(
         fs::read_to_string(Path::new(&output[0].store_path).join("result")).unwrap(),
-        "payload"
+        "payloadsuffix"
     );
 }
 
@@ -788,6 +785,18 @@ EXEC /bin/true
         cold: false,
     })
     .unwrap();
+    let first_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: Some("build".into()),
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        first_lock,
+        fs::read(directory.path().join("Cixfile.lock")).unwrap()
+    );
     let lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
     let pin = lock.fetches.values().next().unwrap();

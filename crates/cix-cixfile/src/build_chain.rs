@@ -157,23 +157,20 @@ fn execute_top_fetch(
         .map(|pin| top_fetch_chain_key(command, &offered_closure, &environment, &pin))
         .transpose()?;
     if cold && !force {
-        if let Some(pin) = lock.fetches.get(name) {
-            if let Some(snapshot) = pin.store_path.as_deref() {
-                verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
-                if needed.is_empty() {
-                    needed.insert(".".into(), NeededPath::default());
-                }
-                let paths = store_consumed_paths(Path::new(snapshot), &needed)?;
-                let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin.key())?;
-                lock.memo.insert(key.clone(), memo_entry(paths.clone()));
-                let view = materialize_view(&paths)?;
-                eprintln!(
-                    "FETCH {name} replayed pinned snapshot {} -> {view}",
-                    short_key(&key)
-                );
-                return Ok(view);
-            }
-        }
+        let pin = lock.fetches.get(name).with_context(|| {
+            format!("FETCH {name} has no pin to replay; --cold never refetches")
+        })?;
+        let snapshot = replay_fetch_snapshot(directory, name, pin)?;
+        verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
+        let paths = store_consumed_paths(Path::new(&snapshot), &needed)?;
+        let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin.key())?;
+        lock.memo.insert(key.clone(), memo_entry(paths.clone()));
+        let view = materialize_view(&paths)?;
+        eprintln!(
+            "FETCH {name} replayed pinned snapshot {} -> {view}",
+            short_key(&key)
+        );
+        return Ok(view);
     }
     if !force {
         if let Some(key) = &existing_key {
@@ -260,10 +257,10 @@ fn execute_top_fetch(
         fetch.expected.is_some(),
         force,
         actual_paths,
-        snapshot,
         volatile,
         name,
     )?;
+    cache_fetch_snapshot(directory, name, &refreshed, &snapshot)?;
     lock.fetches.insert(name.to_owned(), refreshed);
     let pin = lock.fetches[name].key();
     let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin)?;
@@ -413,7 +410,7 @@ fn execute_builder(
     let mut command_index = 0;
     let mut copy_index = 0;
     let mut fetch_snapshots =
-        BTreeMap::<String, (bool, String, BTreeMap<String, VolatilePath>)>::new();
+        BTreeMap::<String, (bool, Option<String>, BTreeMap<String, VolatilePath>)>::new();
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
             BuildStep::Env {
@@ -464,32 +461,32 @@ fn execute_builder(
                     .then(|| format!("builder:{builder_name}:{}", fetch_id(index, command)));
                 if let Some(id) = &fetch_id {
                     if cold {
-                        if let Some(snapshot) = lock
-                            .fetches
-                            .get(id)
-                            .and_then(|pin| pin.store_path.as_deref())
-                        {
-                            restore_snapshot(Path::new(snapshot), &workdir)?;
-                            fetch_snapshots.insert(
-                                id.clone(),
-                                (
-                                    matches!(
-                                        step,
-                                        BuildStep::Fetch {
-                                            expected: Some(_),
-                                            ..
-                                        }
-                                    ),
-                                    snapshot.to_owned(),
-                                    lock.fetches[id].volatile.clone(),
+                        let pin = lock.fetches.get(id).with_context(|| {
+                            format!(
+                                "BUILDER {builder_name} FETCH has no pin to replay; --cold never refetches"
+                            )
+                        })?;
+                        let snapshot = replay_fetch_snapshot(directory, id, pin)?;
+                        restore_snapshot(Path::new(&snapshot), &workdir)?;
+                        fetch_snapshots.insert(
+                            id.clone(),
+                            (
+                                matches!(
+                                    step,
+                                    BuildStep::Fetch {
+                                        expected: Some(_),
+                                        ..
+                                    }
                                 ),
-                            );
-                            eprintln!(
-                                "BUILDER {builder_name} step {} FETCH replayed pinned snapshot",
-                                index + 1
-                            );
-                            continue;
-                        }
+                                None,
+                                pin.volatile.clone(),
+                            ),
+                        );
+                        eprintln!(
+                            "BUILDER {builder_name} step {} FETCH replayed pinned snapshot",
+                            index + 1
+                        );
+                        continue;
                     }
                 }
                 let probe_before = (is_fetch
@@ -552,7 +549,7 @@ fn execute_builder(
                         lock.fetches.insert(id.clone(), FetchPin::automatic());
                     }
                     let snapshot = add_store_object(&workdir, "cix-fetch-snapshot")?;
-                    fetch_snapshots.insert(id, (expected.is_some(), snapshot, volatile));
+                    fetch_snapshots.insert(id, (expected.is_some(), Some(snapshot), volatile));
                 }
                 eprintln!(
                     "BUILDER {builder_name} step {} {kind} executed ({} ms)",
@@ -570,10 +567,12 @@ fn execute_builder(
                 expected,
                 update_fetch_pins,
                 actual_paths.clone(),
-                snapshot,
                 volatile,
                 &id,
             )?;
+            if let Some(snapshot) = snapshot {
+                cache_fetch_snapshot(directory, &id, &refreshed, &snapshot)?;
+            }
             lock.fetches.insert(id, refreshed);
         }
     }
@@ -999,7 +998,64 @@ fn restore_snapshot(snapshot: &Path, destination: &Path) -> Result<()> {
             snapshot.display()
         );
     }
-    replace_workspace_tree(snapshot, destination)
+    replace_workspace_tree(snapshot, destination)?;
+    make_writable(destination)
+}
+
+fn replay_fetch_snapshot(directory: &Path, name: &str, pin: &FetchPin) -> Result<String> {
+    if let Some(snapshot) = pin.store_path.as_deref() {
+        if ensure_store_path(snapshot)? {
+            return Ok(snapshot.to_owned());
+        }
+    }
+    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
+    let snapshot = fs::read_to_string(&receipt)
+        .ok()
+        .map(|text| text.trim().to_owned())
+        .filter(|path| !path.is_empty())
+        .filter(|path| ensure_store_path(path).unwrap_or(false));
+    snapshot.with_context(|| {
+        format!(
+            "FETCH {name} has no locally cached replay snapshot at {}; run a non-cold build first (--cold never refetches)",
+            receipt.display()
+        )
+    })
+}
+
+fn cache_fetch_snapshot(
+    directory: &Path,
+    name: &str,
+    pin: &FetchPin,
+    snapshot: &str,
+) -> Result<()> {
+    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
+    let parent = receipt
+        .parent()
+        .expect("fetch snapshot receipt has a parent");
+    fs::create_dir_all(parent)
+        .with_context(|| format!("creating FETCH snapshot cache {}", parent.display()))?;
+    fs::write(&receipt, format!("{snapshot}\n"))
+        .with_context(|| format!("recording FETCH snapshot cache {}", receipt.display()))
+}
+
+fn fetch_snapshot_receipt(directory: &Path, name: &str, pin: &FetchPin) -> Result<PathBuf> {
+    let base = if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
+        PathBuf::from(path)
+    } else {
+        PathBuf::from(
+            std::env::var_os("HOME")
+                .context("HOME is unset; set XDG_CACHE_HOME for FETCH replay snapshots")?,
+        )
+        .join(".cache")
+    };
+    let directory = directory.canonicalize().with_context(|| {
+        format!(
+            "resolving Cixfile directory for FETCH snapshot cache {}",
+            directory.display()
+        )
+    })?;
+    let key = hex_hash(format!("{}\0{name}\0{}", directory.display(), pin.key()).as_bytes());
+    Ok(base.join("cix/fetch-snapshots").join(key))
 }
 
 fn copied_snapshot(source: &Path) -> Result<tempfile::TempDir> {
@@ -1719,7 +1775,6 @@ fn refresh_fetch_pin(
     expected: bool,
     force: bool,
     actual_paths: BTreeMap<String, String>,
-    store_path: String,
     volatile: BTreeMap<String, VolatilePath>,
     name: &str,
 ) -> Result<FetchPin> {
@@ -1727,7 +1782,7 @@ fn refresh_fetch_pin(
         let mut pin = previous
             .cloned()
             .context("declared EXPECT pin was not installed")?;
-        pin.store_path = Some(store_path);
+        pin.store_path = None;
         if !volatile.is_empty() {
             pin.volatile = volatile;
         }
@@ -1757,7 +1812,7 @@ fn refresh_fetch_pin(
     }
     pin.nar_hash.clear();
     pin.paths = actual_paths;
-    pin.store_path = Some(store_path);
+    pin.store_path = None;
     if force {
         pin.volatile = volatile;
     }

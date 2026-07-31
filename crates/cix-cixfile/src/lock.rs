@@ -50,8 +50,9 @@ pub struct FetchPin {
     /// Automatic pins cover only paths that later consumers can observe.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub paths: BTreeMap<String, String>,
-    /// A Nix-store snapshot lets --cold replay a FETCH without asking the network.
-    #[serde(rename = "storePath", default, skip_serializing_if = "Option::is_none")]
+    /// Legacy replay path. New locks keep replay snapshots in the local cache,
+    /// keyed by the stable pin, so volatile workspace bytes cannot churn locks.
+    #[serde(rename = "storePath", default, skip_serializing)]
     pub store_path: Option<String>,
     /// Facts from an explicit --update-lock double-fetch probe; never a filter.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]

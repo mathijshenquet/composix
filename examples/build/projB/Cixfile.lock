@@ -11,7 +11,6 @@
       "paths": {
         "target/release/projb": "sha256-W7llym7kkkMA0t8urhg7WSeFCNu7D+uo0xxyK3f2UBo="
       },
-      "storePath": "/nix/store/4la0f9h5ann6avjcj5b1bw0ssc4h0vv9-cix-fetch-snapshot",
       "volatile": {
         ".cargo/.global-cache": {
           "firstSize": 57344,

@@ -1,5 +1,51 @@
 # Cixfile track work log
 
+- 2026-08-01T00:15:00Z — Follow-up D69 correction final gate is green. Exact
+  Rust commands: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --
+  cargo test --workspace`; focused `devenv shell -- cargo test -p cix-cixfile
+  --test lock_nix -- --nocapture`. No cold-audit executable exists on this
+  base (the prescribed `rg -n 'cold_audit|cold-audit' . --glob '!target/**'
+  --glob '!corpus/migrate/**/context/**'` finds only design/log prose). Tour
+  gate, with `TMPDIR=/dev/shm` to avoid the shared `/tmp` inode limit: ignored
+  regeneration, `git diff --exit-code -- docs/tour`, committed-doc matching,
+  and deterministic generation passed twice. VM command `TMPDIR=/dev/shm
+  devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`
+  passed under expected TCG fallback; receipt
+  `/nix/store/g4m1zwpm319lqfc80k3wrjbfk41pmhxi-vm-test-run-vm-dogfood` exists.
+  Exhibits: Parse Server double-clean byte equality plus fresh `--cold` replay;
+  ProjB double-clean byte equality plus ordinary memo hit; Dozzle retains its
+  recorded missing-cert/UI failure and no failed refresh lock change. Final
+  `git diff --check` / cached check and system/user `cix-*` cleanup pass.
+  Next: stage scoped correction and commit on `track/pinkeys`.
+
+- 2026-07-31T23:50:00Z — Fixed the D69 lock churn: new `FetchPin.storePath`
+  values deserialize only as legacy compatibility data and are never serialized;
+  full replay snapshots live in `$XDG_CACHE_HOME/cix/fetch-snapshots`, keyed by
+  the stable pin plus Cixfile directory/FETCH id. `--cold` restores that local
+  snapshot and never refetches (missing cache is a clear failure). Restored
+  snapshots are made writable so later offline RUN steps retain normal builder
+  semantics. Focused `lock_nix` is green, including mutated restored input and
+  double-`--update-lock` byte equality. Exact real acceptance: two clean Parse
+  Server commands with separate fresh `CIX_BUILD_WORKSPACE_DIR` values and
+  `TMPDIR=/tmp` produced byte-identical `Cixfile.lock` (`sha256
+  1e5a2a6f69f716245fc1434b6b0a064165518951c2511fe21ddc9be1e4ed9bb2`),
+  and no fetch `storePath`; a further fresh-workspace Parse Server `--cold`
+  replayed step 5 then ran both offline suffix RUNs successfully. One initial
+  cold attempt hit `/tmp`'s inode limit (not a product failure); removed only
+  the three exact temporary workspaces created for this reproduction, then the
+  retry passed. Next: prescribed workspace/tour/VM/exhibit gate and commit.
+
+- 2026-07-31T23:30:00Z — Independent D69 verification found the required
+  double-clean `--update-lock` acceptance failing: Parse Server's automatic
+  consumed-path hashes were stable, but `fetches.*.storePath` still named the
+  complete volatile `.npm` workspace snapshot and therefore churned. Fix in
+  progress: do not serialize automatic replay snapshot paths into
+  `Cixfile.lock`; retain a local replay cache keyed by the stable fetch pin so
+  `--cold` stays offline, with an explicit no-refetch error if that local
+  replay data is unavailable. Next: add focused coverage, run the exact
+  double-clean Parse Server repro, then rerun the prescribed gate.
+
 - 2026-07-31T23:05:00Z — Final D69 gate is green. Exact repros: `devenv shell
   -- cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace
   --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`

@@ -17,7 +17,6 @@
         "public": "sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=",
         "views": "sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50="
       },
-      "storePath": "/nix/store/c6h5dgd54kq0z5r0k6x4b9l1wslrrk9j-cix-fetch-snapshot",
       "volatile": {
         ".npm/_cacache/index-v5/00/4b/41506cb5a6f673ed7600df661739e6f20e0b312c5b1d12d644bdb881af61": {
           "firstSize": 742,
@@ -5439,13 +5438,13 @@
           "firstSize": 695,
           "secondSize": 695
         },
-        ".npm/_logs/2026-07-31T22_22_25_727Z-debug-0.log": {
-          "firstSize": 706845,
+        ".npm/_logs/2026-07-31T23_01_03_014Z-debug-0.log": {
+          "firstSize": 706864,
           "secondSize": 0
         },
-        ".npm/_logs/2026-07-31T22_22_31_433Z-debug-0.log": {
+        ".npm/_logs/2026-07-31T23_01_08_603Z-debug-0.log": {
           "firstSize": 0,
-          "secondSize": 706961
+          "secondSize": 706855
         }
       }
     }

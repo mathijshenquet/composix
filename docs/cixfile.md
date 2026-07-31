@@ -260,15 +260,17 @@ There are two intentionally different fetch forms:
 - A `FETCH <command…>` inside a builder runs with that builder's incoming workdir and advances
   its chain.
 
-Both are the only network-enabled build steps. An automatic pin records a map of the paths
-downstream consumers actually use, plus a replayable store snapshot; incidental cache files
-outside that set do not make a build flap. First use of an additional consumed path is reported
-and recorded as a fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately
-fetches twice, reports differing file names and sizes, and records those volatile-file facts in
-the lock; it never silently removes them. Add `EXPECT <sri-hash>` before the command to keep a
-whole-workdir author integrity assertion instead: this removes the first-use trust window and
-reports declared versus actual on a mismatch. `--update-lock` is intentionally rejected for
-EXPECT fetches; change the declared hash.
+Both are the only network-enabled build steps. An automatic lock pin records only a map of the
+paths downstream consumers actually use; incidental cache files outside that set do not make a
+build flap. A local Nix-store replay cache, keyed by that stable pin rather than serialized into
+the lock, lets `--cold` restore the complete FETCH workspace without making volatile cache bytes
+part of `Cixfile.lock`. First use of an additional consumed path is reported and recorded as a
+fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately fetches twice, reports
+differing file names and sizes, and records those volatile-file facts in the lock; it never
+silently removes them. Add `EXPECT <sri-hash>` before the command to keep a whole-workdir author
+integrity assertion instead: this removes the first-use trust window and reports declared versus
+actual on a mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the
+declared hash.
 
 ## Artifact kinds
 

@@ -160,9 +160,11 @@ later consumers read; incidental package-manager cache files outside that set ar
 the update probe but do not become false instability. `cix build --update-lock <fetch-or-builder>`
 runs the fetch twice and records differing names and sizes as facts. If a volatile byte reaches
 a consumed path, normalize it in the fetch command (for example, keep package-manager metadata
-outside the workdir); cix does not guess exclusions. `cix build --cold` replays pinned FETCH
-snapshots without network access, so it proves the offline builder suffix while the pin remains
-the fetched-input trust boundary. `FETCH` deliberately has no heredoc: split network steps.
+outside the workdir); cix does not guess exclusions. `cix build --cold` replays locally cached
+FETCH snapshots without network access, so it proves the offline builder suffix while the pin
+remains the fetched-input trust boundary. The cache is keyed by the stable pin and is deliberately
+not serialized into `Cixfile.lock`; if it is absent, `--cold` fails rather than refetching.
+`FETCH` deliberately has no heredoc: split network steps.
 Offline transformations such as checkout, extraction, compilation, and copying belong in `RUN`.
 
 Builder `ENV NAME = value` is plain text and applies to subsequent steps in declaration
