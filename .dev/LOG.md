@@ -1,5 +1,44 @@
 # composix work log
 
+## 2026-08-01 late (CI GREEN + D70–D74; crunchy landed; pinkeys in leg 3)
+
+- **CI on main is fully green** (`fb0d7c5`) — first since 2026-07-30. The
+  campaign fixed five named causes (gc-root product bug, host-dependent
+  fixture, serve race, compose-fallback root registration, clippy
+  unused_io_amount micro-fix). **New convention in AGENTS.md: track gates
+  end with the full `nix flake check -L`** — the thirteen-merges-past-red-CI
+  lesson.
+- **Decisions**: D70 overlay universes (`FROM <flakeref> OVERLAY ./x.nix AS
+  pkgs`; USING died — "a function call in a jacket"; getFlake stays
+  evidence-gated); D71 the underlay (+retreat path: CACHE returns if it
+  chafes; dial underlay→CACHE→prefix); D72 alpha manifest = version 0
+  (schema moves freely until 1.0; D15 suspended); D73 decomposition round
+  (cix-build crate split, index modules, spec v0 collapse, parser diet per
+  analysis; complexity-monster house principle; addendum: NO D-numbers in
+  user-facing diagnostics — stable doc anchors instead); D74 `cix fmt`
+  (apply-by-default, recursive, `--check` prints diffs and exits 1 — check
+  subsumes diff; `-` stdin; minimal canon v1; trivia-preserving printer).
+- **Merged**: track/cigreen2 (`fb0d7c5`, terra + orchestrator micro-fix) and
+  track/crunchy (`d20f866`, sol — 60-fixture torture corpus as permanent
+  snapshot suite, did-you-mean suggestions, per-docker-directive guidance,
+  D-number sweep, explicit accept-fixtures for the forgiveness boundary).
+- **pinkeys (D69) in leg 3**: leg 1 flapped on snapshot paths in the lock
+  (caught by the independent double-clean-update-lock proof); leg 2 moved
+  snapshots to a stable-pin-keyed local cache but the probe still persisted
+  npm's self-generated log path; leg 3 filters persisted volatile facts to
+  later-consumed paths. Orchestrator acceptance: byte-identical locks across
+  a workspace WIPE between two clean update-locks. Gate (incl. full tier)
+  running.
+- Parser analysis (sol, read-only): 403 machine / 715 directives / 186
+  migrations / 760 helpers / 571 in-file tests → adopted into D73(d).
+- Ops: /tmp cleaned per mtime (Mathijs-authorized; 31G + 125k inodes freed;
+  ageq leftovers were the bulk); ENOSPC root-caused to tmpfs inode
+  exhaustion; orchestrator shell-honesty lessons memorized
+  (gate-scripts-fail-loud).
+- **Queue**: pinkeys merge → decomposition round → underlay (+ nix-build.md
+  re-measurement: does the warm edit beat crane) → fmt implementation (D74)
+  → D70 implementation (overlay universes + wallos rewrite).
+
 ## 2026-08-01 (pin-stability D69/D70 + the CI-green campaign)
 
 - **Decisions**: D69 FETCH pin stability (consumed-set keying [a]; update-lock
