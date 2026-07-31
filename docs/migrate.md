@@ -41,11 +41,13 @@ Blocks have distinct jobs:
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
 | `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `GRANT` |
 | `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `STATEDIR`, `CACHEDIR`, `GRANT` |
+| `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
-`SERVICE` and `APP` block names are the real member names. `BUILDER` names are local
-workshop binders. `ITEM` and `SCRIPT` do not exist. Builder `PATH` and `CACHE` do not exist
-either: `IMPORT` provides tools, workspaces are warm by default, and deleting a workspace is
-always correct.
+`SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
+workshop binders. An ITEM is a build product, not a runnable contract: use only pure assembly
+there, then consume or tag the resulting tree. `SCRIPT` does not exist. Builder `PATH` and
+`CACHE` do not exist either: `IMPORT` provides tools, workspaces are warm by default, and
+deleting a workspace is always correct.
 
 Do not create a `BUILDER` just to copy files. Pure assembly belongs directly in the artifact
 that consumes the sources.

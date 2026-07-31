@@ -172,6 +172,12 @@ impl Spec {
 
     pub fn load(output: &Path) -> Result<Self> {
         let path = output.join("cix-manifest.json");
+        if !path.exists() {
+            bail!(
+                "{} has no cix-manifest.json: it is a manifest-less ITEM (D68); items are build products, so use SERVICE/APP to declare a runnable contract",
+                output.display()
+            );
+        }
         let json = fs::read(&path)
             .with_context(|| format!("failed to read manifest at {}", path.display()))?;
         let mut spec = Self::from_slice(&json)?;
@@ -1121,5 +1127,16 @@ mod d47_kind_tests {
             let error = format!("{:#}", Spec::from_slice(json.as_bytes()).unwrap_err());
             assert!(error.contains(message), "{error}");
         }
+    }
+
+    #[test]
+    fn manifest_less_item_names_the_d68_seam() {
+        let item = tempfile::tempdir().unwrap();
+        let error = Spec::load(item.path()).unwrap_err().to_string();
+        assert!(error.contains("manifest-less ITEM (D68)"), "{error}");
+        assert!(
+            error.contains("items are build products, so use SERVICE/APP"),
+            "{error}"
+        );
     }
 }

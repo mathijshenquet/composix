@@ -1,5 +1,37 @@
 # composix work log
 
+## 2026-08-01 early (the strata dialogue: D67/D68; r5 merged)
+
+- **D67 registered** after a long dialogue round (first draft deliberately
+  scrapped by Mathijs, re-derived in chat, registered on his "ja zeker"):
+  the strata (manifest/runner · compose · Cixfile · index), the necessity
+  chain 2⇒3⇒1a (store-native ⇒ artifact distribution ⇒ eval-free consumer;
+  flake-interop an explicit non-goal), the recipes-vs-artifacts inversion
+  with determinism-liberation as keystone (by-artifact distribution licenses
+  D39.1), prior work weighed (fetchClosure/CA-derivations = byte layer
+  solved; name layer open; OCI-flight as demand evidence), pin/audit quality
+  as the differentiators (pin in META never in tag strings; docker's variant
+  zoo = missing-metadata symptom), plateaus & avalanches (+CA-derivations
+  expectation), early-vs-late binding ("isolation and relocation are the
+  same mechanism"), the price list + trust ladder (D35 dependency). Open
+  product questions marked: stratum-1a standalone; tool-distribution scope.
+- **D68 registered**: ITEM returns as a manifest-less pure store tree
+  (Mathijs's correction: a manifest is stratum-1a vocabulary).
+- **Merged: track/migrate-r5** (`ed7f8be`, sol — class-split: node 1/3
+  [excalidraw ✅; parse-server FETCH instability; directus FHS-native-binary
+  gap], PHP 1/1 [wallos ✅ via the D4 .nix escape — first real exercise of
+  that boundary], go+cgo 0/1 [filestash static-lib gap]; legacy: tomcat
+  root-caused AND repaired ✅, dozzle pin-flap documented to the byte (seven
+  sumdb tile files, 35,808 B). All three passes independently re-verified.
+  Failure classes moved from "language too poor" to genuine design
+  questions: FETCH-pin normalization, FHS binaries.)
+- **Launched**: track/coldaudit (terra — D47e sampled clean rebuilds as a
+  standing test target) and track/itemrevive (terra — D68). Queued after
+  itemrevive: track/nixcompare (sol — gitsitter flake vs crane vs Cixfile,
+  tour-style doc with timing receipts + index-distribution chapter).
+- Coming design round once evidence lands: FETCH-pin stability
+  (normalization vs per-ecosystem guidance; dozzle bytes are the exhibit).
+
 ## 2026-07-31 night (D66 + absdest, usrbinenv; famref + r5 launched)
 
 - **Decisions**: D66 (absolute artifact destinations — "you declare places in

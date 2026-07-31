@@ -13,6 +13,9 @@ use crate::{
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let (_, artifact) = only_artifact(cixfile)?;
+    if !artifact.kind.is_runnable() {
+        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+    }
     let value = literal_spec(artifact)?;
     let mut json = serde_json::to_string_pretty(&value)?;
     json.push('\n');
@@ -49,7 +52,9 @@ pub(crate) fn generate_nix_with_snapshots(
     let primary = primary_namespace(cixfile)?;
 
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
-    writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
+    if artifact.kind.is_runnable() {
+        writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
+    }
     for (index, copy) in artifact.copies.iter().enumerate() {
         writeln!(
             expression,
@@ -72,11 +77,13 @@ pub(crate) fn generate_nix_with_snapshots(
             }
         }
     }
-    writeln!(
-        expression,
-        "  manifestFile = universes.{}.writeText \"cix-manifest.json\" (builtins.toJSON spec + \"\\n\");",
-        nix_attr(primary)
-    )?;
+    if artifact.kind.is_runnable() {
+        writeln!(
+            expression,
+            "  manifestFile = universes.{}.writeText \"cix-manifest.json\" (builtins.toJSON spec + \"\\n\");",
+            nix_attr(primary)
+        )?;
+    }
     writeln!(expression, "in")?;
     writeln!(
         expression,
@@ -111,45 +118,47 @@ pub(crate) fn generate_nix_with_snapshots(
             )?,
         }
     }
-    let service = &artifact.service;
-    for (arguments, line, directive) in [
-        (&service.exec[..], service.exec_line, "EXEC"),
-        (
-            service.setup.as_deref().unwrap_or_default(),
-            service.setup_line.unwrap_or_default(),
-            "SETUP",
-        ),
-    ]
-    .into_iter()
-    {
-        let Some(command) = bare_command(arguments) else {
-            continue;
-        };
+    if artifact.kind.is_runnable() {
+        let service = &artifact.service;
+        for (arguments, line, directive) in [
+            (&service.exec[..], service.exec_line, "EXEC"),
+            (
+                service.setup.as_deref().unwrap_or_default(),
+                service.setup_line.unwrap_or_default(),
+                "SETUP",
+            ),
+        ]
+        .into_iter()
+        {
+            let Some(command) = bare_command(arguments) else {
+                continue;
+            };
+            writeln!(
+                expression,
+                "  if ! test -x \"$out/bin/{}\"; then",
+                shell_double_quoted(&command),
+            )?;
+            writeln!(
+                expression,
+                "    entries=\"\"; if test -d \"$out/bin\"; then entries=\"$(ls -1A \"$out/bin\" | paste -sd ', ' -)\"; fi"
+            )?;
+            writeln!(
+                expression,
+                "    if test -n \"$entries\"; then echo \"{} (contains: $entries)\" >&2; else echo \"{} (contains: <empty>)\" >&2; fi; exit 1",
+                shell_double_quoted(&format!(
+                    "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
+                )),
+                shell_double_quoted(&format!(
+                    "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
+                )),
+            )?;
+            writeln!(expression, "  fi")?;
+        }
         writeln!(
             expression,
-            "  if ! test -x \"$out/bin/{}\"; then",
-            shell_double_quoted(&command),
+            "  install -m 0644 ${{manifestFile}} \"$out/cix-manifest.json\""
         )?;
-        writeln!(
-            expression,
-            "    entries=\"\"; if test -d \"$out/bin\"; then entries=\"$(ls -1A \"$out/bin\" | paste -sd ', ' -)\"; fi"
-        )?;
-        writeln!(
-            expression,
-            "    if test -n \"$entries\"; then echo \"{} (contains: $entries)\" >&2; else echo \"{} (contains: <empty>)\" >&2; fi; exit 1",
-            shell_double_quoted(&format!(
-                "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
-            )),
-            shell_double_quoted(&format!(
-                "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
-            )),
-        )?;
-        writeln!(expression, "  fi")?;
     }
-    writeln!(
-        expression,
-        "  install -m 0644 ${{manifestFile}} \"$out/cix-manifest.json\""
-    )?;
     writeln!(expression, "''")?;
     Ok(expression)
 }
@@ -527,6 +536,9 @@ fn nix_copy_source(template: &Template) -> String {
 }
 
 fn nix_spec(artifact: &Artifact) -> Result<String> {
+    if !artifact.kind.is_runnable() {
+        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+    }
     let mounts = projected_mounts(artifact);
     let mut output = String::from("{ cixManifest = 5;");
     if let Some(kind) = artifact.kind.manifest_name() {
@@ -813,6 +825,9 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
 }
 
 fn literal_spec(artifact: &Artifact) -> Result<Value> {
+    if !artifact.kind.is_runnable() {
+        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+    }
     let mounts = projected_mounts(artifact);
     let Value::Object(mut value) = literal_service(artifact, &mounts)? else {
         unreachable!("artifact literal is an object");
