@@ -1344,6 +1344,15 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   (d) Docker muscle memory lands exactly right: Dockerfile `COPY x /app/x`
   translates 1:1, with the same honest meaning docker gives it — "inside your
   own root".
+  **Addendum (same day, the "here" rule — Mathijs's principle, refined by its
+  one counterexample): relative paths are coherent exactly where a *here*
+  exists.** The workshop has a runtime here (the workdir: RUN, FETCH, builder
+  COPY destinations, `$PWD` in builder ENV); the Cixfile text has an authoring
+  here (its own directory — the D47 bare-relative COPY-source context sugar,
+  legal in artifact blocks too, is relative to THAT here, not to any cwd).
+  The dock, the index, and the runtime namespace have no here — hence
+  absolute. Runtime-relative argv paths belong to the process's own cwd; the
+  language stays out of them.
 
 ## Non-goals (for now)
 
