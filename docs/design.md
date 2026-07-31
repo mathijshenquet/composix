@@ -1370,6 +1370,104 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   absolute. Runtime-relative argv paths belong to the process's own cwd; the
   language stays out of them.
 
+- ✅ D67 (2026-07-31) — **the strata and the distribution inversion** (a long
+  dialogue round with Mathijs; his articulation, jointly stress-tested. The
+  origin story frames it: composix arose from pulling one thread — "can
+  nix+systemd replace docker" — and the products that emerged decompose along
+  real seams).
+  (a) **The strata.** (1a) *manifest/runner*: a directory plus cix-manifest
+  declares "this can become a hardened systemd unit" — the schema is
+  nix-independent (evidence: vm-dogfood hand-writes manifests onto runCommand
+  outputs; D54's cix-parses-nobody's-manifest; the D20 capability thesis),
+  with two honest nix anchors today: `cix run` takes store paths, and the
+  *integrity* story (closure-as-only-true-manifest D32, D63 GC roots) is
+  store-bound — detachable at the cost of the trust story, not of
+  runnability. (1b) *compose*: composites over manifested items; nix-anchor
+  is profile atomicity (D30), an implementation choice. (2) *the Cixfile*:
+  the fix for nix's building story — builders and (future) pure items are
+  stratum 2; **SERVICE/APP are the 2→1a adapters**, and the seam runs through
+  the middle of those blocks (assembly directives vs contract directives) —
+  Dockerfile's own shape, which the adoption bridge (D16) justifies.
+  (3) *the index*: nix-native naming/distribution — D45 tables over store
+  paths, manifest-agnostic by construction.
+  (b) **The necessity chain: 2 ⇒ 3 ⇒ 1a.** A Cixfile build is store-native,
+  NOT derivation-native (cix orchestrates builders with D57 keys, warm
+  workspaces, and pinned network FETCH — none of which are expressible as
+  pure derivations) — so recipients cannot re-derive, so distribution must be
+  by artifact (3), and what arrives must run without evaluation — which is
+  what (1a) is. Flake-interop (a flake depending on a Cixfile output through
+  eval) is a deliberate NON-GOAL: the same choice docker made against distro
+  packaging — own build world, shared artifact world (the store).
+  (c) **The inversion: nix distributes recipes (bytes as an optimization);
+  cix distributes artifacts (the recipe as optional provenance).** The flake
+  model forces consumers to evaluate and to choose between world-duplication
+  (follow the publisher's lock, hit their cache, carry their nixpkgs) and
+  recompilation-with-skew (`follows` their own); the cix consumer path —
+  resolve name → path → bytes → run — is evaluation-free end to end (dumb
+  D45 resolvers, manifest-as-data). **Keystone: by-artifact distribution is
+  what LICENSES the workshop's nondeterminism tolerance (D39.1)** — recipe
+  distribution must be deterministic because the recipe is the object; we
+  may tolerate nondeterminism because the bytes are the object, and
+  determinism remains an opt-in (EXPECT-pinned inputs, deterministic dock,
+  `--cold` as the audit verb) instead of an entry fee.
+  (d) **Prior work honestly weighed**: the byte layer is solved upstream and
+  we ride it (substituters/narinfo signing; `fetchClosure` is nix's own
+  acknowledgment of artifact-first consumption; CA-derivations move identity
+  bytes-ward). The NAME layer is the open lane: channels are coarse,
+  FlakeHub versions recipes (semver over flakes, pin in the lock — they too
+  keep the pin out of the version), Flox catalogs packages; none have
+  mutable name→tag tables with a content-addressed history chain and
+  name-level auth. The strongest demand evidence is the ecosystem's flight
+  to OCI (dockerTools/nix2container/nix-snapshotter): people wrap store
+  outputs in image tarballs purely to obtain name:tag+registry.
+  (e) **Everything moves; the differentiators are pin quality and audit
+  quality.** Docker's variant tags (`3.15-slim-bookworm`) move invisibly and
+  its pin (digest) is second-class, so builds are unpinned in practice;
+  nixpkgs channels move with git-grade audit; cix enforces first-class pins
+  (locks everywhere, D32) and gives artifact tags git-grade audit (the D45
+  chain). Corollary: the nixpkgs pin belongs in table META and receipts
+  (hash-true per D54), never in the tag string — docker's variant-tag
+  cross-product is the symptom of tags-as-only-metadata; variant tags remain
+  available as mere convention for genuine multi-world publishers.
+  Freshness/CVE republish = a deliberate, audited move of the SAME tag plus
+  the D46 family bump.
+  (f) **The world moves in plateaus and avalanches** (a package's path
+  changes only when its transitive drv inputs change; stdenv/glibc bumps
+  avalanche — the staging workflow exists for this). Content-addressing
+  makes cix publications mirror that sparseness: on a pin bump only
+  truly-changed members get new bytes, the family move stays one table op,
+  and the chain shows no-op members honestly. Caveat inherited from
+  input-addressed nix: path churn outruns byte churn (no early cutoff), and
+  our items embed those paths; upstream CA-derivations (hash-modulo
+  self-reference rewriting + signed realisations — themselves kin to our
+  signed name→bytes tables) would lengthen our plateaus for free.
+  (g) **Early vs late binding — the runner's second dividend.** Nix binds
+  references at build time into bytes (self-sufficient anywhere; everything
+  churns together). Cix binds the content layer at RUN time via namespace
+  projection (D66): store references concentrate in the thin generated
+  layer (manifest argv, LINK targets) while authored content speaks
+  projected absolute paths — which is what makes stratum 1a separable,
+  keeps bump deltas small, makes items CA-easy (no self-references), and
+  preserves docker's relocatable-content property. The price, stated: a
+  projection-capable runner must exist at runtime; the manifest is the
+  binding record. **Isolation and relocation are the same mechanism** — the
+  namespace adopted for hardening turned out to be the projection engine;
+  principled constraints keep paying where they were never aimed.
+  (h) **The honest price list**: visible-but-real nixpkgs skew between
+  publishers (docker pays it blindly; our closures/locks/receipts at least
+  show it); the CVE-republish duty moves to the publisher (softened by (f));
+  and the trust ladder — reproduce it yourself / trust a signer / trust
+  whoever fills the store — on which cix currently stands at rung three
+  until D35 signing lands, with richer provenance than either neighbor
+  (verifiable SOURCE claims, naming audit) and rung one available per item
+  as an option. Upstreaming to nixpkgs and publishing to a cix index share
+  the same ultimate requirement: you trust whoever fills the store.
+  **Open product questions, deliberately unresolved**: whether stratum 1a is
+  ever sold separately (manifest-on-a-tarball as a product) or stays an
+  internal seam; and whether tool distribution (the gitsitter itch —
+  `cix install` sugar vs pointing at `nix profile install <path>`) is index
+  scope. Both need forcing examples, not forward design.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
