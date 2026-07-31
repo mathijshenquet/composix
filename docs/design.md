@@ -1484,6 +1484,39 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   are `.#`-selectable, D65-consumable, and taggable/publishable — stratum 3
   is manifest-agnostic by construction.
 
+- ✅ D69 (2026-08-01) — **FETCH pin stability** (the round forced by four
+  exhibits across three ecosystems: dozzle's go-sumdb tiles — seven files,
+  35,808 B, precisely diffed; parse-server's npm ci flapping on every run;
+  dozzle's pnpm UI cache; projB's stale cargo pin caught by cold-audit's
+  first-ever sweep. Root diagnosis: FETCH pins the whole workdir tree, but
+  package-manager fetches emit *payload + incidental cache state*, and the
+  incidental part is nondeterministic by design — docker never notices
+  because docker pins nothing).
+  (a) **Consumed-set keying** (Mathijs: "obviously correct, free win"): the
+  automatic FETCH pin narrows from whole-tree to the paths downstream steps
+  actually consume — D57's narrow read-keying extended to fetch outputs.
+  Unread bytes cannot influence the output, so the pin still covers
+  everything that matters. Accepted consequence, stated: the pin re-keys
+  when later steps start reading MORE (first-use of a previously unread file
+  is recorded loudly as a fresh pin) — honest, defensible. A declared
+  `EXPECT` stays what it is: an author-level whole-tree integrity claim for
+  those who want that strength.
+  (b) **The `--update-lock` double-fetch instability probe** (Mathijs's
+  mechanism, discovery-as-warning not discovery-as-surgery): when a pin is
+  set or moved, cix runs the fetch twice, diffs, reports loudly which files
+  are volatile (names + sizes), and records the volatile set in the lock as
+  fact. This answers "why is this fetch unstable" *structurally* at the
+  moment it matters, and feeds both (a)'s verification and (c)'s authoring.
+  (c) **Volatile bytes inside consumed files** are authoring territory:
+  normalize in the fetch command itself (cache outside the pinned root,
+  prune volatile metadata) — per-ecosystem recipes taught by docs/migrate.md,
+  zero cix mechanism; the probe names the targets.
+  (d) **Refused**: a declarative `STABLE FETCH` (auto-rm of a two-run
+  intersection falls between the stools: probabilistic where consumed-keying
+  is deterministic, unsafe exactly where normalization is needed); and
+  functions in `${…}` (reaffirming the D32 line — `${…}` stays a pure,
+  provenance-auditable name lookup; composition lives in nix-land).
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
