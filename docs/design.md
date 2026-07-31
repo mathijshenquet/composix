@@ -1179,18 +1179,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   promotion/retag is always a metadata operation on unchanged bytes). (2)
   *Declared identity* = names in the Cixfile: `SERVICE <name>` block names are
   the real member names (shipping labels — builders keep local binder names:
-  workshop names local, dock names global), plus an optional **`NAMESPACE
-  <name>`** directive declaring the family name. A namespace claim, not a grant
-  (publish checks D45 name-level auth); optionally host-qualified
-  (`NAMESPACE cix.my-org.com/my-app` — go-module style), **schemeless** (scheme
-  is transport, not identity; skopeo separates them too); NOT a binder (no
-  `${…}` participation), does NOT leak into consumers via FROM (lexical, like
-  all of D47), and is NOT baked into the built item (no manifest field, no
-  store bytes — else Go's fork pain at byte level and every promotion becomes a
-  rebuild). **Required as soon as a Cixfile has more than one artifact block**
-  (the D32 "AS is REQUIRED" taste: no default binding, bare sibling names must
-  never leak into a global namespace); a single-artifact file may omit it — the
-  member name itself is then the family. (3) *Naming* = index operations: tag/
+  workshop names local, dock names global). **Amendment (same day, Mathijs's
+  YAGNI call): there is NO `NAMESPACE` directive.** The not-baked rule below
+  had already hollowed it out to a mere default for the `-t` sugar — a claim
+  binding nothing, with the `--namespace` flag existing anyway — and the
+  human-facing "what is this called" need is D54 META territory when that
+  builds (where a family name would also sit wrong mechanically: META fields
+  are per-artifact-block and baked/hash-covered, a family name is per-file and
+  deliberately unbaked). The operational family name is publisher knowledge
+  and comes exclusively from `--namespace` at tag/publish time; with it gone
+  from the file, Go's fork pain vanishes entirely rather than being mitigated.
+  Nothing about naming is baked into the built item (no manifest field, no
+  store bytes — else fork pain at byte level and every promotion becomes a
+  rebuild). (3) *Naming* = index operations: tag/
   publish/promote are D45 table moves; `cix build -t` is sugar into this layer,
   never a build-layer act — the "naming belongs where?" impedance dissolves.
   (b) **`cix build .` (no `-t`) emits ONLY the member map as JSON**
@@ -1211,9 +1212,14 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   other**: a tag names a coherent family at a version (Go lesson: you don't tag
   half a module); partial stamps would demand merge semantics on tag tables.
   Whole-family tagging is cheap anyway — unchanged members come from the memo.
-  `--namespace <name>` overrides the declared namespace (explicit CLI, so no
-  ambient sin) — the fork/staging escape that keeps Go's model without Go's
-  fork pain. Old spellings die with migration-grade errors: `-t name:tag`
+  `--namespace <name>` supplies the family name (explicit CLI, so no ambient
+  sin): **required when tagging a multi-artifact file** (bare sibling names
+  must never leak into a global namespace — the D32 "AS is REQUIRED" taste);
+  optional for a single-artifact file, whose member name is then the family.
+  Optionally host-qualified (`--namespace cix.my-org.com/my-app`, go-module
+  style), **schemeless** (scheme is transport, not identity; skopeo separates
+  them too); a claim, not a grant — publish checks D45 name-level auth. Old
+  spellings die with migration-grade errors: `-t name:tag`
   ("names moved into the Cixfile"), bare `-t v1`-multi-regime (bare block
   names in the index), dirname-derived anything (compose's ambient-identity
   sin — the dir name may appear in an error *suggestion*, never as silent
