@@ -812,11 +812,10 @@ EXEC /bin/true
     fs::write(
         producer.path().join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-SERVICE source
+ITEM source
 FILE /payload <<EOF
 first
 EOF
-EXEC /bin/true
 "#,
     )
     .unwrap();
@@ -837,6 +836,17 @@ EXEC /bin/true
     .unwrap()
     .remove(0)
     .store_path;
+    assert!(!Path::new(&producer_output)
+        .join("cix-manifest.json")
+        .exists());
+    let manifest_error = cix_run::spec::Spec::load(Path::new(&producer_output))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        manifest_error.contains("manifest-less ITEM (D68)"),
+        "{manifest_error}"
+    );
+    assert!(manifest_error.contains("SERVICE/APP"), "{manifest_error}");
     cix_index::tag(&producer_output, "family/source:v1", None).unwrap();
 
     let consumer = tempfile::tempdir().unwrap();

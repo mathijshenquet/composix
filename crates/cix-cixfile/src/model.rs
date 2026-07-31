@@ -59,15 +59,17 @@ fn artifact_templates(artifact: &Artifact) -> Vec<&Template> {
         Assembly::File { contents, .. } => contents,
         Assembly::Link { target, .. } => target,
     }));
-    templates.extend(artifact.service.exec.iter());
-    templates.extend(artifact.service.setup.iter().flatten());
-    templates.extend(
-        artifact
-            .service
-            .env
-            .values()
-            .filter_map(|env| env.default.as_ref()),
-    );
+    if artifact.kind.is_runnable() {
+        templates.extend(artifact.service.exec.iter());
+        templates.extend(artifact.service.setup.iter().flatten());
+        templates.extend(
+            artifact
+                .service
+                .env
+                .values()
+                .filter_map(|env| env.default.as_ref()),
+        );
+    }
     templates
 }
 
@@ -177,6 +179,7 @@ pub enum Assembly {
 pub enum ArtifactKind {
     Service,
     App,
+    Item,
 }
 
 impl ArtifactKind {
@@ -184,6 +187,7 @@ impl ArtifactKind {
         match self {
             Self::Service => None,
             Self::App => Some("app"),
+            Self::Item => None,
         }
     }
 
@@ -191,7 +195,12 @@ impl ArtifactKind {
         match self {
             Self::Service => "SERVICE",
             Self::App => "APP",
+            Self::Item => "ITEM",
         }
+    }
+
+    pub fn is_runnable(self) -> bool {
+        !matches!(self, Self::Item)
     }
 }
 

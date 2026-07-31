@@ -7,7 +7,8 @@ directive continuations, RUN heredocs, and full-line comments.*
 A Cixfile turns a directory into one or more composix artifacts. It is Dockerfile-shaped, so
 the common operations are recognizable, but its boundaries are explicit: builders do
 networked or executable build work; `SERVICE` and `APP` blocks assemble independent runtime
-artifacts. The `.nix` escape hatch remains first-class for custom derivations.
+artifacts; `ITEM` assembles a pure store tree. The `.nix` escape hatch remains first-class for
+custom derivations.
 
 ## A Cixfile, next to the Dockerfile you'd write instead
 
@@ -57,19 +58,20 @@ Blocks then declare work and outputs:
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
 | `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `GRANT` | a long-running service artifact |
 | `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `GRANT`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
+| `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
 and a declaration cannot refer to a later declaration. Errors report both the bad line and,
 where useful, the first declaration line.
 
 **A BUILDER exists only when there is RUN or FETCH work to do.** Pure assembly belongs
-directly in the `SERVICE` or `APP` that consumes the sources; routing local files through a
-COPY-only builder adds a name without adding a boundary.
+directly in the `SERVICE`, `APP`, or `ITEM` that consumes the sources; routing local files
+through a COPY-only builder adds a name without adding a boundary.
 
 ### Unified `COPY`
 
 `COPY <source> <destination>` is used in builders and artifact blocks. A BUILDER destination is
-workdir-relative; a SERVICE or APP destination is absolute in that item's runtime world:
+workdir-relative; a SERVICE, APP, or ITEM destination is absolute in that item's runtime world:
 
 ```dockerfile
 COPY README.md .
@@ -85,9 +87,10 @@ references use `${universe.attrpath}`; source, cix-item, fetch, and builder refe
 `${binder}/path`. Copying a binder without `/path` copies its whole root. A whole-builder read
 is legal but expensive: the entire left-behind tree becomes one consumed object and any
 changed byte invalidates that consumer. Prefer narrow paths for build artifacts. BUILDER
-destinations are clean workdir-relative paths, and `.` means that whole workdir. SERVICE and APP
-destinations must start with `/`: this is the item's runtime root, stored item-relatively beneath
-the resulting artifact. `COPY source /` is the absolute spelling for the whole item root.
+destinations are clean workdir-relative paths, and `.` means that whole workdir. SERVICE, APP,
+and ITEM destinations must start with `/`: this is the item's runtime root, stored
+item-relatively beneath the resulting artifact. `COPY source /` is the absolute spelling for the
+whole item root.
 
 Prefer one directory COPY when its contents move as a unit:
 
@@ -264,7 +267,9 @@ hash.
 
 ## Artifact kinds
 
-Each `SERVICE` or `APP` produces its own store item and bare v5 manifest.
+Each `SERVICE` or `APP` produces its own store item and bare v5 manifest. An `ITEM` produces a
+pure store tree with no `cix-manifest.json`; it is suitable for `FROM` consumption and tagging,
+not for `cix run` or `cix debug`.
 
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
 idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATEDIR`,
@@ -291,17 +296,16 @@ store references remain valid. Add external runtime tools visibly with lines suc
 entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
 package-owned assets such as nginx's `mime.types`.
 
-There is no content-only block. The old `ITEM` spelling was dropped in D50 because its meaning
-was not legible without context. Assets used within one Cixfile are copied into the service or
-app that consumes them. If standalone content artifacts earn a real use case, the
-evidence-gated name is `ASSETS`.
+`ITEM` is the content-only block. It accepts only `COPY`, `FILE`, and `LINK`: runtime directives
+such as `EXEC`, `ENV`, ports, grants, or role directories cross the D68 seam and are rejected.
+Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family
 
-`SERVICE` and `APP` names are the declared member names. They are not bytes in the generated
-manifest: the same source can be forked, promoted, or tagged under another family without a
-rebuild. `cix build .` prints only a stable JSON member map, even for one member, and does not
-tag anything:
+`SERVICE`, `APP`, and `ITEM` names are the declared member names. They are not bytes in the
+generated manifest or tree: the same source can be forked, promoted, or tagged under another
+family without a rebuild. `cix build .` prints only a stable JSON member map, even for one
+member, and does not tag anything:
 
 ```sh
 $ cix build .

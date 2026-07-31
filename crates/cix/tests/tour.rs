@@ -648,6 +648,9 @@ fn chapter_build_run_debug() -> String {
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
+ITEM tour-assets
+COPY ${src}/greeting.txt /share/greeting
+
 SERVICE tour-app
 COPY ${src}/greeting.txt /share/greeting
 COPY ${src}/tour-app /bin/tour-app
@@ -662,15 +665,24 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     doc.para("## Build");
     doc.sh("ls -1 Cixfile Cixfile.lock greeting.txt tour-app", true);
     let cixfile = doc.sh("cat Cixfile greeting.txt tour-app", true);
+    assert!(cixfile.contains("ITEM tour-assets"));
     assert!(cixfile.contains("SERVICE tour-app"));
     assert!(cixfile.contains("COPY ${src}/tour-app /bin/tour-app"));
     assert!(cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     let lock = doc.sh("cat Cixfile.lock", true);
     assert!(lock.contains("\"narHash\""));
 
-    doc.para("The package universe is pinned by revision and content hash. This SERVICE performs only assembly, so it needs no BUILDER: builders exist only when FETCH or RUN has work to do.");
-    let built = doc.sh("cix build . -t v1", true);
+    doc.para("The package universe is pinned by revision and content hash. These ITEM and SERVICE blocks perform only assembly, so they need no BUILDER: builders exist only when FETCH or RUN has work to do.");
+    let built = doc.sh("cix build . --namespace tour -t v1", true);
     let store_path = built_store_path(&built, "-cix-item-tour-app");
+    let assets_path = built_store_path(&built, "-cix-item-tour-assets");
+
+    doc.para("The ITEM is a pure store tree. It deliberately has no runtime manifest, so it can be tagged and copied from but cannot become a systemd unit.");
+    let assets = doc.sh(&format!("find {assets_path} -type f | sort"), true);
+    assert!(assets.contains("share/greeting"));
+    assert!(!assets.contains("cix-manifest.json"));
+    let item_run_error = doc.sh("cix run tour/tour-assets:v1 --user", false);
+    assert!(item_run_error.contains("manifest-less ITEM (D68)"));
 
     doc.para("## Copy from a tagged item");
     doc.para("A tagged cix item is a third FROM input kind. It is a source tree—not a package namespace or inherited root filesystem—so a second Cixfile can copy one declared path from it.");
@@ -679,7 +691,7 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     fs::write(
         prebuilt.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM tour-app:v1 AS prior
+FROM tour/tour-assets:v1 AS prior
 
 APP copied-greeting
 COPY ${prior}/share/greeting /share/greeting
@@ -690,7 +702,7 @@ EXEC /bin/true
     fs::write(prebuilt.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
         .expect("writing tagged-item consumer lock");
     let consumer = doc.sh("cat prebuilt/Cixfile", true);
-    assert!(consumer.contains("FROM tour-app:v1 AS prior"));
+    assert!(consumer.contains("FROM tour/tour-assets:v1 AS prior"));
     assert!(consumer.contains("COPY ${prior}/share/greeting"));
     let copied = doc.sh("cix build prebuilt", true);
     let copied_path = built_store_path(&copied, "-cix-item-copied-greeting");
@@ -699,7 +711,7 @@ EXEC /bin/true
     doc.para("The generated lock pins the tag's selected store path and NAR hash. A later tag move does not affect this consumer until `cix build --update-lock prior prebuilt` deliberately refreshes that binder.");
     let consumer_lock = doc.sh("cat prebuilt/Cixfile.lock", true);
     assert!(consumer_lock.contains("\"artifacts\""));
-    assert!(consumer_lock.contains("tour-app:v1"));
+    assert!(consumer_lock.contains("tour/tour-assets:v1"));
 
     doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
@@ -709,7 +721,7 @@ EXEC /bin/true
 
     doc.para("## Run");
     doc.para("The tag is enough to start a transient service. `--user` is the explicitly degraded rootless development path; production uses the system manager with DynamicUser and the full hardening profile.");
-    let started = doc.sh("cix run tour-app:v1 --detach --user", true);
+    let started = doc.sh("cix run tour/tour-app:v1 --detach --user", true);
     let unit_name = started
         .lines()
         .find(|line| line.starts_with("cix-run-tour-app-") && line.ends_with(".service"))
@@ -725,7 +737,7 @@ EXEC /bin/true
     doc.para("## Debug");
     doc.para("`cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.");
     let debugged = doc.sh(
-        "cix debug tour-app:v1 --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'",
+        "cix debug tour/tour-app:v1 --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'",
         true,
     );
     assert!(debugged.contains("debug-command-ran"));

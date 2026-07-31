@@ -22,6 +22,9 @@ $ cat Cixfile greeting.txt tour-app
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
+ITEM tour-assets
+COPY ${src}/greeting.txt /share/greeting
+
 SERVICE tour-app
 COPY ${src}/greeting.txt /share/greeting
 COPY ${src}/tour-app /bin/tour-app
@@ -43,11 +46,23 @@ $ cat Cixfile.lock
 }
 ```
 
-The package universe is pinned by revision and content hash. This SERVICE performs only assembly, so it needs no BUILDER: builders exist only when FETCH or RUN has work to do.
+The package universe is pinned by revision and content hash. These ITEM and SERVICE blocks perform only assembly, so they need no BUILDER: builders exist only when FETCH or RUN has work to do.
 
 ```sh
-$ cix build . -t v1
-{"tour-app":"/nix/store/…-cix-item-tour-app"}
+$ cix build . --namespace tour -t v1
+{"tour-app":"/nix/store/…-cix-item-tour-app","tour-assets":"/nix/store/…-cix-item-tour-assets"}
+```
+
+The ITEM is a pure store tree. It deliberately has no runtime manifest, so it can be tagged and copied from but cannot become a systemd unit.
+
+```sh
+$ find /nix/store/…-cix-item-tour-assets -type f | sort
+/nix/store/…-cix-item-tour-assets/share/greeting
+```
+
+```sh
+$ cix run tour/tour-assets:v1 --user
+Error: /nix/store/…-cix-item-tour-assets has no cix-manifest.json: it is a manifest-less ITEM (D68); items are build products, so use SERVICE/APP to declare a runnable contract
 ```
 
 ## Copy from a tagged item
@@ -57,7 +72,7 @@ A tagged cix item is a third FROM input kind. It is a source tree—not a packag
 ```sh
 $ cat prebuilt/Cixfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM tour-app:v1 AS prior
+FROM tour/tour-assets:v1 AS prior
 
 APP copied-greeting
 COPY ${prior}/share/greeting /share/greeting
@@ -87,9 +102,9 @@ $ cat prebuilt/Cixfile.lock
     }
   },
   "artifacts": {
-    "tour-app:v1": {
-      "storePath": "/nix/store/…-cix-item-tour-app",
-      "narHash": "sha256-pKlUpQ4hv16aA6+OCH1r7NBTTICCtd4jxQ6rN+CIl18="
+    "tour/tour-assets:v1": {
+      "storePath": "/nix/store/…-cix-item-tour-assets",
+      "narHash": "sha256-Zav/GPnMh1fTIW3HoM20hjbFGlBbdrr35lNlXrdaf7U="
     }
   }
 }
@@ -107,7 +122,7 @@ $ cat /nix/store/…-cix-item-tour-app/cix-manifest.json
 The tag is enough to start a transient service. `--user` is the explicitly degraded rootless development path; production uses the system manager with DynamicUser and the full hardening profile.
 
 ```sh
-$ cix run tour-app:v1 --detach --user
+$ cix run tour/tour-app:v1 --detach --user
 cix-run-tour-app-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
@@ -123,7 +138,7 @@ user     cix-run-tour-app-NONCE.service  active/running  /nix/store/…-bash-int
 `cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.
 
 ```sh
-$ cix debug tour-app:v1 --user -- /bin/sh -c 'test -n "$CIX_APP" && echo debug-command-ran'
+$ cix debug tour/tour-app:v1 --user -- /bin/sh -c 'test -n "$CIX_APP" && echo debug-command-ran'
 debug-command-ran
 warning: cix debug --user is degraded development mode; it does not provide the full system-manager sandbox or DynamicUser identity
 === cix debug: degraded service sandbox; service=tour-app; identity=caller (--user) ===
