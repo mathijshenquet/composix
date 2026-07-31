@@ -1052,7 +1052,13 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   exactly how ecosystem incrementality works anyway). Whole-tree consumers
   (`COPY ${prev}/ .`) key on everything they read and pay accordingly; docs
   advise narrow. RUN-edge read-tracing (the D38/D39 v0.5 tracer) remains the
-  later increment for pruning offered closures — this decision needs none of it.
+  later increment for pruning offered closures — this decision needs none of it. **Operational addendum (Mathijs, fleet
+  experience): do NOT chase per-dep store substitution for build speed** — one
+  derivation per crate makes cargo builds ~5x slower (why they left crate2nix for
+  crane), and constant artifact-pulling is itself the slowdown; the only truly
+  fast form was a custom runner with persistent /nix + ./target. That IS this
+  model, formalized — so the CI story is: persistent runner workspaces by
+  default, scheduled `--cold` runs as the honesty check.
 
 - ✅ D58 (2026-07-30, arrived via the "SSL_CERT_FILE song & dance" → "isn't that
   just LINK?" → "make it generic" ladder with Mathijs) — **`IMPORT` replaces PATH:
