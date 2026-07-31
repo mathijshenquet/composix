@@ -18,7 +18,7 @@ pub struct Ref {
 }
 
 impl Ref {
-    /// Parses `[root_url/]name[:tag]` using Docker's registry disambiguation.
+    /// Parses `[root_url/]name:tag` using Docker's registry disambiguation.
     pub fn parse(input: &str) -> Result<Self> {
         if input.is_empty() || input.starts_with('/') || input.ends_with('/') {
             bail!("invalid ref `{input}`");
@@ -29,10 +29,12 @@ impl Ref {
             Some(last_slash) => *colon > last_slash,
             None => true,
         });
-        let (without_tag, tag) = match tag_start {
-            Some(colon) => (&input[..colon], &input[colon + 1..]),
-            None => (input, "latest"),
+        let Some(colon) = tag_start else {
+            bail!(
+                "ref `{input}` has no explicit tag; :latest is not a thing here — write {input}:<tag>"
+            );
         };
+        let (without_tag, tag) = (&input[..colon], &input[colon + 1..]);
         if !valid_part(tag) {
             bail!("invalid tag `{tag}` in ref `{input}`");
         }
@@ -52,7 +54,11 @@ impl Ref {
         } else {
             (None, without_tag.to_owned())
         };
-        if name.is_empty() || !name.split('/').all(valid_part) {
+        let name_parts = name.split('/').collect::<Vec<_>>();
+        if name.is_empty()
+            || name_parts.len() > 2
+            || !name_parts.iter().all(|part| valid_part(part))
+        {
             bail!("invalid name `{name}` in ref `{input}`");
         }
         Ok(Self {
@@ -69,6 +75,13 @@ impl Ref {
             .map(|root| format!("{root}/"))
             .unwrap_or_default();
         format!("{prefix}{}:{}", self.name, self.tag)
+    }
+
+    pub fn looks_like_untagged_ref(input: &str) -> bool {
+        !input.contains('#')
+            && !input.starts_with('/')
+            && !input.contains("://")
+            && Self::parse(&format!("{input}:tag")).is_ok()
     }
 }
 
@@ -123,13 +136,13 @@ mod tests {
     use super::Ref;
 
     #[test]
-    fn local_ref_and_default_tag() {
+    fn local_ref_requires_an_explicit_tag() {
         assert_eq!(
-            Ref::parse("team/my_app").unwrap(),
+            Ref::parse("team/my_app:v1").unwrap(),
             Ref {
                 root_url: None,
                 name: "team/my_app".into(),
-                tag: "latest".into(),
+                tag: "v1".into(),
             }
         );
     }
@@ -137,15 +150,15 @@ mod tests {
     #[test]
     fn registry_disambiguation() {
         for (input, root, name, tag) in [
-            ("localhost/x:v1", "localhost", "x", "v1"),
-            ("localhost:8420/a/b", "localhost:8420", "a/b", "latest"),
+            ("localhost/family/x:v1", "localhost", "family/x", "v1"),
+            ("localhost:8420/a/b:v1", "localhost:8420", "a/b", "v1"),
             (
                 "cix.example.com/team/app:stable",
                 "cix.example.com",
                 "team/app",
                 "stable",
             ),
-            ("127.0.0.1/x:1", "127.0.0.1", "x", "1"),
+            ("127.0.0.1/family/x:1", "127.0.0.1", "family/x", "1"),
         ] {
             let parsed = Ref::parse(input).unwrap();
             assert_eq!(parsed.root_url.as_deref(), Some(root));
@@ -156,22 +169,31 @@ mod tests {
 
     #[test]
     fn colons_before_name_are_ports_not_tags() {
-        let parsed = Ref::parse("localhost:8420/demo").unwrap();
+        let parsed = Ref::parse("localhost:8420/family/demo:v1").unwrap();
         assert_eq!(parsed.root_url.as_deref(), Some("localhost:8420"));
-        assert_eq!(parsed.tag, "latest");
+        assert_eq!(parsed.tag, "v1");
+    }
+
+    #[test]
+    fn missing_tag_explains_that_latest_does_not_exist() {
+        let error = Ref::parse("family/member").unwrap_err().to_string();
+        assert!(error.contains(":latest is not a thing here"), "{error}");
+    }
+
+    #[test]
+    fn recognizes_docker_shaped_untagged_names() {
+        assert!(Ref::looks_like_untagged_ref("family/member"));
+        assert!(Ref::looks_like_untagged_ref(
+            "cix.example.com/family/member"
+        ));
+        assert!(!Ref::looks_like_untagged_ref(".#package"));
+        assert!(!Ref::looks_like_untagged_ref("family/member:v1"));
     }
 
     #[test]
     fn rejects_nasty_refs() {
         for input in [
-            "",
-            "/x",
-            "x/",
-            "Upper",
-            "x:bad!",
-            "localhost",
-            "a//b",
-            "a:b/c",
+            "", "/x", "x/", "x", "Upper", "x:bad!", "a//b", "a:b/c", "a/b/c:v1",
         ] {
             assert!(Ref::parse(input).is_err(), "{input} should fail");
         }

@@ -669,7 +669,7 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     assert!(lock.contains("\"narHash\""));
 
     doc.para("The package universe is pinned by revision and content hash. This SERVICE performs only assembly, so it needs no BUILDER: builders exist only when FETCH or RUN has work to do.");
-    let built = doc.sh("cix build . -t tour-app:v1", true);
+    let built = doc.sh("cix build . -t v1", true);
     let store_path = built_store_path(&built, "-cix-item-tour-app");
 
     doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.");
@@ -862,7 +862,7 @@ fn chapter_advanced() -> String {
     assert!(first_cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     assert!(first_cixfile.contains("compose fixture v1"));
     doc.sh("cat compose-app/Cixfile.lock", true);
-    let first_build = doc.sh("cix build compose-app -t tour-compose:current", true);
+    let first_build = doc.sh("cix build compose-app -t current", true);
     let first = built_store_path(&first_build, "-cix-item-web");
 
     fs::write(
@@ -872,7 +872,7 @@ fn chapter_advanced() -> String {
   "name": "tour-compose",
   "services": {
     "web": {
-      "item": "tour-compose:current",
+      "item": "web:current",
       "update": "track"
     }
   }
@@ -888,7 +888,7 @@ fn chapter_advanced() -> String {
         "compose tour-compose: 1 services, 0 edges, valid"
     );
 
-    write_resolved_compose_lock(&doc, &doc.base.join("compose.json"), "tour-compose:current");
+    write_resolved_compose_lock(&doc, &doc.base.join("compose.json"), "web:current");
     doc.para("`check` resolves and validates without activation. Root `cix up` owns the persistent lock write, so this rootless chapter records the checked tag's actual values before showing the lock and dry diff.");
     let lock = doc.sh("cat cix.lock", true);
     assert!(lock.contains(&first));
@@ -899,7 +899,7 @@ fn chapter_advanced() -> String {
     doc.para("Changing the copied script makes a new immutable item; rebuilding with the same tracked tag moves only the name.");
     let second_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
     assert!(second_cixfile.contains("compose fixture v2"));
-    let second_build = doc.sh("cix build compose-app -t tour-compose:current", true);
+    let second_build = doc.sh("cix build compose-app -t current", true);
     let second = built_store_path(&second_build, "-cix-item-web");
     assert_ne!(first, second);
     let changed_diff = doc.sh_after_warming("cix compose diff compose.json", true);
@@ -924,12 +924,10 @@ fn write_compose_cixfile(directory: &Path, version: &str) {
 }
 
 fn built_store_path(output: &str, suffix: &str) -> String {
-    output
-        .lines()
-        .rev()
-        .find(|line| line.starts_with("/nix/store/") && line.ends_with(suffix))
+    build_member_map(output)
+        .into_values()
+        .find(|path| path.ends_with(suffix))
         .unwrap_or_else(|| panic!("build did not print an item ending in {suffix:?}:\n{output}"))
-        .to_owned()
 }
 
 fn chapter_proj1() -> String {
@@ -954,7 +952,7 @@ fn chapter_proj1() -> String {
 
     doc.para("One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.");
     let first = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build . --namespace proj1 -t v1",
         true,
     );
     assert!(first.contains("BUILDER build memo miss"), "{first}");
@@ -1012,7 +1010,7 @@ fn chapter_proj1() -> String {
     assert_eq!(proj1_item_path(&wiped, "proj1-api"), clean_api);
     assert_eq!(proj1_item_path(&wiped, "proj1-worker"), clean_worker);
 
-    let started = doc.sh(&format!("cix run {clean_api} --user --detach"), true);
+    let started = doc.sh("cix run proj1/proj1-api:v1 --user --detach", true);
     let unit_name = started
         .lines()
         .find(|line| line.starts_with("cix-run-proj1-api-") && line.ends_with(".service"))
@@ -1029,11 +1027,18 @@ fn chapter_proj1() -> String {
 }
 
 fn proj1_item_path(output: &str, name: &str) -> String {
-    output
-        .lines()
-        .find_map(|line| line.strip_prefix(&format!("{name} ")))
+    build_member_map(output)
+        .remove(name)
         .unwrap_or_else(|| panic!("proj1 build did not print the {name} item:\n{output}"))
-        .to_owned()
+}
+
+fn build_member_map(output: &str) -> std::collections::BTreeMap<String, String> {
+    let json = output
+        .lines()
+        .find(|line| line.starts_with('{'))
+        .unwrap_or_else(|| panic!("build did not print a JSON member map:\n{output}"));
+    serde_json::from_str(json)
+        .unwrap_or_else(|error| panic!("build printed invalid member JSON: {error}\n{output}"))
 }
 
 #[derive(Debug, PartialEq, Eq)]

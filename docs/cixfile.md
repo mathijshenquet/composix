@@ -255,8 +255,36 @@ was not legible without context. Assets used within one Cixfile are copied into 
 app that consumes them. If standalone content artifacts earn a real use case, the
 evidence-gated name is `ASSETS`.
 
-When a Cixfile has several artifacts, `cix build . -t v1` tags them as
-`<artifact-name>:v1`. `-t name:tag` is accepted only for a single-artifact build.
+## Building and tagging a family
+
+`SERVICE` and `APP` names are the declared member names. They are not bytes in the generated
+manifest: the same source can be forked, promoted, or tagged under another family without a
+rebuild. `cix build .` prints only a stable JSON member map, even for one member, and does not
+tag anything:
+
+```sh
+$ cix build .
+{"api":"/nix/store/…-cix-item-api","worker":"/nix/store/…-cix-item-worker"}
+```
+
+`cix build .#api` builds only `api` and the backward FETCH/BUILDER slice it consumes, then
+prints that bare store path. It cannot be combined with `-t`: a tag names the complete family.
+
+`-t` takes a tag only, is repeatable, and applies to every member. A multi-member Cixfile must
+supply its operational family with `--namespace`; this name is CLI-only and never enters output
+bytes:
+
+```sh
+cix build . --namespace my-project -t v3 -t stable
+# my-project/api:v3, my-project/worker:v3, …
+```
+
+A single-member Cixfile may omit `--namespace`, so `SERVICE my-nginx` plus `-t v1` creates
+`my-nginx:v1`. A namespace may be host-qualified, such as
+`--namespace cix.example.com/my-project`, but it never has a scheme. `-t name:tag` and
+`-t family/tag` are migration errors: member names live in the Cixfile and the family belongs
+in `--namespace`. There is no implicit `:latest`; every ref used by `run`, `pull`, or `inspect`
+must spell its tag.
 
 ## Where this is honestly not a Dockerfile
 

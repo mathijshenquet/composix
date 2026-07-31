@@ -1,5 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use anyhow::{Context, Result};
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Cixfile {
     pub inputs: BTreeMap<String, Input>,
@@ -9,6 +11,85 @@ pub struct Cixfile {
     pub builder_order: Vec<String>,
     pub artifacts: BTreeMap<String, Artifact>,
     pub artifact_order: Vec<String>,
+}
+
+impl Cixfile {
+    /// Keeps one artifact and only the FETCH/BUILDER binders it can reach.
+    pub(crate) fn backward_slice(&self, artifact_name: &str) -> Result<Self> {
+        let artifact = self
+            .artifacts
+            .get(artifact_name)
+            .with_context(|| format!("unknown Cixfile member {artifact_name:?}"))?;
+        let mut needed = binder_names(artifact_templates(artifact));
+        let mut pending = needed.clone();
+
+        while let Some(name) = pending.pop_first() {
+            let dependencies = if let Some(fetch) = self.fetches.get(&name) {
+                binder_names([&fetch.command])
+            } else if let Some(builder) = self.builders.get(&name) {
+                binder_names(builder_templates(builder))
+            } else {
+                BTreeSet::new()
+            };
+            for dependency in dependencies {
+                if needed.insert(dependency.clone()) {
+                    pending.insert(dependency);
+                }
+            }
+        }
+
+        let mut slice = self.clone();
+        slice.fetches.retain(|name, _| needed.contains(name));
+        slice.fetch_order.retain(|name| needed.contains(name));
+        slice.builders.retain(|name, _| needed.contains(name));
+        slice.builder_order.retain(|name| needed.contains(name));
+        slice.artifacts.retain(|name, _| name == artifact_name);
+        slice.artifact_order = vec![artifact_name.to_owned()];
+        Ok(slice)
+    }
+}
+
+fn artifact_templates(artifact: &Artifact) -> Vec<&Template> {
+    let mut templates = artifact
+        .copies
+        .iter()
+        .map(|copy| &copy.src)
+        .collect::<Vec<_>>();
+    templates.extend(artifact.assembly.iter().map(|assembly| match assembly {
+        Assembly::File { contents, .. } => contents,
+        Assembly::Link { target, .. } => target,
+    }));
+    templates.extend(artifact.service.exec.iter());
+    templates.extend(artifact.service.setup.iter().flatten());
+    templates.extend(
+        artifact
+            .service
+            .env
+            .values()
+            .filter_map(|env| env.default.as_ref()),
+    );
+    templates
+}
+
+fn builder_templates(builder: &Builder) -> Vec<&Template> {
+    let mut templates = builder.imports.iter().collect::<Vec<_>>();
+    templates.extend(builder.steps.iter().filter_map(|step| match step {
+        BuildStep::Copy(copy) => Some(&copy.src),
+        BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
+        BuildStep::Env { .. } => None,
+    }));
+    templates
+}
+
+fn binder_names<'a>(templates: impl IntoIterator<Item = &'a Template>) -> BTreeSet<String> {
+    templates
+        .into_iter()
+        .flat_map(|template| &template.parts)
+        .filter_map(|part| match part {
+            TemplatePart::Binder { name, .. } => Some(name.clone()),
+            TemplatePart::Literal(_) | TemplatePart::Package { .. } => None,
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

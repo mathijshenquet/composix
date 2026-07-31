@@ -46,8 +46,8 @@ $ cat Cixfile.lock
 The package universe is pinned by revision and content hash. This SERVICE performs only assembly, so it needs no BUILDER: builders exist only when FETCH or RUN has work to do.
 
 ```sh
-$ cix build . -t tour-app:v1
-/nix/store/…-cix-item-tour-app
+$ cix build . -t v1
+{"tour-app":"/nix/store/…-cix-item-tour-app"}
 ```
 
 Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.

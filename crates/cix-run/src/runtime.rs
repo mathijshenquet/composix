@@ -873,8 +873,8 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
         return Ok(direct_path);
     }
 
-    if let Ok(reference) = Ref::parse(installable) {
-        match cix_index::resolve(installable) {
+    match Ref::parse(installable) {
+        Ok(reference) => match cix_index::resolve(installable) {
             Ok(output) => return Ok(PathBuf::from(output.store_path)),
             Err(error) if reference.root_url.is_some() => {
                 return Err(error).with_context(|| {
@@ -882,7 +882,9 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
                 });
             }
             Err(_) => {}
-        }
+        },
+        Err(error) if Ref::looks_like_untagged_ref(installable) => return Err(error),
+        Err(_) => {}
     }
 
     let output = nix_build(installable)?;

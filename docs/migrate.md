@@ -53,6 +53,19 @@ SERVICE myapp                    # one artifact = one service
   plus cache/logs/run variants.
 - `APP <name>` is like SERVICE but run-to-completion (no ports).
 
+## Build names and tags
+
+`SERVICE <name>` declares a family member name. `cix build .` prints a JSON object mapping every
+member to its store path and creates no tags. Use `cix build .#<member>` when a script needs one
+member's bare store path; it builds only that member's backward dependency slice.
+
+Tags are supplied externally and always name the whole family. `-t` takes only a tag, never a
+member or ref. For a multi-member Cixfile, publish with `cix build . --namespace family -t v1`,
+which creates `family/<member>:v1` for each block. A single member can omit `--namespace` and
+uses its declared name directly. There is no `NAMESPACE` directive: naming does not enter the
+manifest or store bytes. Every run/pull/inspect tag reference must spell `:tag`; `:latest` is
+not a default.
+
 ## Mapping heuristics
 
 - **`FROM debian/alpine` + `apt/apk install X`** → do not install anything: reference

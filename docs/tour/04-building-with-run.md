@@ -70,10 +70,10 @@ IMPORT makes bare tools available through the read-only `/bin` union. The chain 
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
-workspace-state: cold
-/nix/store/…-cix-item-run-tour
+{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+workspace-state: cold
 BUILDER build step 2 RUN executed
 BUILDER build memo miss 22cbe0007646 -> /nix/store/…-cix-build-view
 ```
@@ -87,7 +87,7 @@ The lock records just those consumed paths. Repeating the unchanged build materi
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
-/nix/store/…-cix-item-run-tour
+{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build memo hit 22cbe0007646 -> /nix/store/…-cix-build-view
 ```
 
@@ -99,10 +99,10 @@ $ sed -i 's/hello-from-run-tour/hello-from-run-tour-edited/' src/app
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
-workspace-state: warm
-/nix/store/…-cix-item-run-tour
+{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+workspace-state: warm
 BUILDER build step 2 RUN executed
 BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
 ```
@@ -111,9 +111,9 @@ BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .
-workspace-state: cold
-/nix/store/…-cix-item-run-tour
+{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
+workspace-state: cold
 BUILDER build step 2 RUN executed
 BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
 ```
@@ -126,7 +126,7 @@ $ rm -rf ../.workspaces-run
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
-/nix/store/…-cix-item-run-tour
+{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build memo hit 0aa4872f09e0 -> /nix/store/…-cix-build-view
 ```
 

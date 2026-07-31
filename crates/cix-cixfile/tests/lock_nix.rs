@@ -1,8 +1,8 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cix_cixfile::{build, generate_nix, parse, BuildOptions, LockFile};
+use cix_cixfile::{build, build_family, generate_nix, parse, BuildOptions, LockFile};
 
 fn committed_lock() -> LockFile {
     let input = serde_json::from_value(
@@ -284,6 +284,56 @@ EXEC bin/output
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
+}
+
+#[test]
+fn selected_member_executes_only_its_backward_builder_slice() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM nixpkgs AS pkgs
+BUILDER wanted
+IMPORT ${pkgs.bash}
+RUN printf wanted > wanted
+BUILDER unrelated
+IMPORT ${pkgs.bash}
+RUN exit 42
+SERVICE api
+COPY ${wanted}/wanted payload
+EXEC /bin/true
+SERVICE worker
+COPY ${unrelated}/missing missing
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    let output = build_family(
+        &BuildOptions {
+            directory: directory.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+        },
+        &[],
+        None,
+        Some("api"),
+    )
+    .unwrap();
+    assert_eq!(output.len(), 1);
+    assert_eq!(output[0].name, "api");
+    assert_eq!(
+        fs::read_to_string(Path::new(&output[0].store_path).join("payload")).unwrap(),
+        "wanted"
+    );
 }
 
 #[test]

@@ -23,6 +23,16 @@ pub struct BuiltItem {
 }
 
 pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
+    let tags = options.tag.iter().cloned().collect::<Vec<_>>();
+    build_family(options, &tags, None, None)
+}
+
+pub fn build_family(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+) -> Result<Vec<BuiltItem>> {
     let directory = options
         .directory
         .canonicalize()
@@ -31,13 +41,24 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    let cixfile = match selector {
+        Some(member) => cixfile.backward_slice(member).with_context(|| {
+            format!(
+                "unknown Cixfile member {member:?}; available members: {}",
+                cixfile.artifact_order.join(", ")
+            )
+        })?,
+        None => cixfile,
+    };
+    if selector.is_some() && !tags.is_empty() {
+        anyhow::bail!("a tag names the whole family; do not combine a member selector with -t")
+    }
+    if requested_namespace.is_some() && tags.is_empty() {
+        anyhow::bail!("--namespace is only meaningful with -t")
+    }
+    let namespace = tag_namespace(&cixfile, requested_namespace, tags)?;
     if let Some(requested) = options.update_lock.as_deref() {
         reject_expected_fetch_update(&cixfile, requested)?;
-    }
-    if let Some(tag) = &options.tag {
-        for name in &cixfile.artifact_order {
-            tag_reference(cixfile.artifacts.len(), name, tag)?;
-        }
     }
     let requested_update = options.update_lock.as_deref();
     let input_update = match requested_update {
@@ -84,15 +105,18 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
             generate_nix_with_snapshots(&cixfile, name, &directory, &lock, &system, &snapshots)?;
         let realized = build_expression(&expression)?;
         let store_path = add_item_to_store(&realized, name)?;
-        if let Some(tag) = &options.tag {
-            let reference = tag_reference(cixfile.artifacts.len(), name, tag)?;
-            cix_index::tag(&store_path, &reference, None)
-                .with_context(|| format!("tagging built artifact {name:?} as {reference:?}"))?;
-        }
         outputs.push(BuiltItem {
             name: name.clone(),
             store_path,
         });
+    }
+    for item in &outputs {
+        for tag in tags {
+            let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
+            cix_index::tag(&item.store_path, &reference, None).with_context(|| {
+                format!("tagging built member {:?} as {reference:?}", item.name)
+            })?;
+        }
     }
     Ok(outputs)
 }
@@ -127,17 +151,66 @@ fn reject_expected_fetch_update(cixfile: &crate::Cixfile, requested: &str) -> Re
     Ok(())
 }
 
-fn tag_reference(artifact_count: usize, artifact_name: &str, tag: &str) -> Result<String> {
-    if artifact_count > 1 && tag.contains(':') {
+fn tag_namespace(
+    cixfile: &crate::Cixfile,
+    namespace: Option<&str>,
+    tags: &[String],
+) -> Result<Option<String>> {
+    if tags.is_empty() {
+        return Ok(None);
+    }
+    for tag in tags {
+        validate_tag(tag)?;
+    }
+    match (cixfile.artifacts.len(), namespace) {
+        (count, None) if count > 1 => anyhow::bail!(
+            "a multi-artifact Cixfile needs --namespace when tagging; bare sibling names must never enter the index"
+        ),
+        (_, Some(namespace)) => {
+            validate_namespace(namespace)?;
+            Ok(Some(namespace.to_owned()))
+        }
+        (_, None) => Ok(None),
+    }
+}
+
+fn validate_tag(tag: &str) -> Result<()> {
+    if tag.contains(':') || tag.contains('/') {
         anyhow::bail!(
-            "-t name:tag is ambiguous for a multi-artifact Cixfile; pass only the tag so each artifact is tagged as <block-name>:<tag>"
+            "member names live in the Cixfile (SERVICE); the family name is --namespace; -t takes only tags"
         );
     }
-    Ok(if artifact_count == 1 && tag.contains(':') {
-        tag.to_owned()
-    } else {
-        format!("{artifact_name}:{tag}")
-    })
+    cix_common::Ref::parse(&format!("member:{tag}"))?;
+    Ok(())
+}
+
+fn validate_namespace(namespace: &str) -> Result<()> {
+    if namespace.contains("://") {
+        anyhow::bail!("--namespace must be schemeless: scheme is transport, not identity")
+    }
+    let reference = format!("{namespace}/member:tag");
+    let parsed = cix_common::Ref::parse(&reference)
+        .with_context(|| format!("invalid --namespace {namespace:?}"))?;
+    if namespace.contains('/') && parsed.root_url.is_none() {
+        anyhow::bail!(
+            "invalid --namespace {namespace:?}; use one family segment, optionally qualified as host/family"
+        )
+    }
+    if parsed.root_url.is_some() && parsed.name.split('/').count() != 2 {
+        anyhow::bail!(
+            "invalid --namespace {namespace:?}; a qualified namespace needs both host and family"
+        )
+    }
+    Ok(())
+}
+
+fn tag_reference(namespace: Option<&str>, member: &str, tag: &str) -> Result<String> {
+    let reference = match namespace {
+        Some(namespace) => format!("{namespace}/{member}:{tag}"),
+        None => format!("{member}:{tag}"),
+    };
+    cix_common::Ref::parse(&reference)?;
+    Ok(reference)
 }
 
 fn build_expression(expression: &str) -> Result<String> {
@@ -177,18 +250,36 @@ fn add_item_to_store(path: &str, name: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{reject_expected_fetch_update, tag_reference};
+    use super::{
+        reject_expected_fetch_update, tag_namespace, tag_reference, validate_namespace,
+        validate_tag,
+    };
     use crate::parse;
 
     #[test]
-    fn multi_item_tags_are_item_names_and_reject_full_refs() {
-        assert_eq!(tag_reference(2, "api", "v7").unwrap(), "api:v7".to_owned());
-        let error = tag_reference(2, "api", "other:v7").unwrap_err().to_string();
-        assert!(error.contains("multi-artifact"), "{error}");
+    fn tags_are_tag_only_and_namespaces_supply_family_names() {
+        let multi = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE api\nEXEC /bin/true\nSERVICE worker\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        let error = tag_namespace(&multi, None, &["v7".into()])
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("--namespace"), "{error}");
         assert_eq!(
-            tag_reference(1, "api", "other:v7").unwrap(),
-            "other:v7".to_owned()
+            tag_namespace(&multi, Some("family"), &["v7".into()]).unwrap(),
+            Some("family".into())
         );
+        assert_eq!(
+            tag_reference(Some("family"), "api", "v7").unwrap(),
+            "family/api:v7"
+        );
+        let error = validate_tag("family:v7").unwrap_err().to_string();
+        assert!(error.contains("member names live"), "{error}");
+        let error = validate_namespace("https://example.com/family")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("scheme is transport"), "{error}");
     }
 
     #[test]
