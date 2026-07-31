@@ -1,5 +1,35 @@
 # composix work log
 
+## 2026-07-31 addendum (D62 + famtags + promptrefresh)
+
+- **D62 registered and amended same day** (dialogue rounds with Mathijs; prior-art
+  scan docker/compose/bake/OCI/flakes/cargo/maven/go/npm/skopeo): three layers
+  (store path = anonymous identity; SERVICE/APP block names = declared member
+  names, never baked into bytes; tags = index metadata). NO NAMESPACE directive
+  (YAGNI amendment — the not-baked rule had hollowed it to a default; family
+  name is `--namespace` at tag time, required for multi-artifact). Bare
+  `cix build .` = JSON member map only; `.#member` = backward slice, bare path;
+  `-t` tag-only + repeatable (atomic multi-tag; semver cascade = multiple -t);
+  selector XOR tag; no implicit `:latest` anywhere; `#`=build-side selection,
+  `/`=index-side naming; family tag tables (tag → member map) ride D46 later —
+  round one uses slashed names in existing tables.
+- Merged: **track/famtags** (`23a4491`, terra — D62 round one; README
+  inconsistency that started the discussion is fixed) and **track/promptrefresh**
+  (`e4fc75a`, sol — docs/migrate.md living-receipts rewrite in D47–D62 language,
+  both complete samples independently re-built; quality high, no overclaims
+  found).
+- Critical analysis of Mathijs's two-mode docker observation recorded in chat:
+  the axis is unnamed-loop vs naming-act (not local vs CI); D7/D35(b) already
+  give tag=root GC; **real gap found: `cix run` registers no runtime GC root**
+  — anonymous dev-loop runs can be swept by `nix store gc` under a live unit
+  (compose safe via D30 profiles). Proposed D63: two modes as acts +
+  unit-lifetime GC roots + compose-dev-without-tags parked evidence-gated.
+- **Open with Mathijs**: D63 verdict. Minor: examples/pack/nginx could rename
+  SERVICE nginx → my-nginx to restore the README "verbatim" claim (cosmetic).
+- Open for agents: gcroots mini-round (after D63), corpus polish round
+  (post-D62 language + fresh receipts — echo-server check.sh currently fails
+  honestly at pre-D58 PATH), migrate r5 from the new no-escape set.
+
 ## 2026-07-31 (D60/D61 + three tracks: argvenv, dirnames, corpusfetch)
 
 - Merged (each gate independently re-verified before merge): **track/argvenv**
