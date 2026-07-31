@@ -120,36 +120,50 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     start_all()
-    pid_unit = machine.succeed("cix run ${pidProbe} --detach").strip()
+    pid_probe = machine.succeed("nix-store --add ${pidProbe}").strip()
+    pid_unit = machine.succeed("cix run " + pid_probe + " --detach").strip()
+    pid_root = "/run/cix/gcroots/" + pid_unit + ".root"
+    machine.succeed("test -L " + pid_root)
+    machine.succeed("readlink " + pid_root + " | grep -Fx " + pid_probe)
+    machine.succeed("systemctl show " + pid_unit + " --property=ExecStopPost --value | grep -F " + pid_root)
+    machine.succeed("find /nix/var/nix/gcroots/auto -type l -lname " + pid_root + " | grep -q .")
     machine.succeed("systemctl show " + pid_unit + " --property=PrivatePIDs --value | grep -Fx yes")
     machine.succeed("cix exec " + pid_unit + " --root -- /bin/sh -c 'read -r comm < /proc/1/comm; test \"$comm\" = pid-probe'")
     machine.succeed("systemctl stop " + pid_unit)
+    machine.succeed("test ! -L " + pid_root)
+    machine.succeed("nix-store --gc --max-freed 1 >/dev/null")
+    machine.succeed("test -z \"$(find /nix/var/nix/gcroots/auto -type l -lname " + pid_root + ")\"")
 
-    nginx_unit = machine.succeed("cix run ${nginx} --detach").strip()
+    nginx_item = machine.succeed("nix-store --add ${nginx}").strip()
+    nginx_unit = machine.succeed("cix run " + nginx_item + " --detach").strip()
     machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:8080/ | grep -F 'hello from composix'")
     machine.succeed("cix ps | grep -F " + nginx_unit)
     machine.succeed("systemctl stop " + nginx_unit)
 
-    postgres_unit = machine.succeed("cix run ${postgres} --detach").strip()
+    postgres_item = machine.succeed("nix-store --add ${postgres}").strip()
+    postgres_unit = machine.succeed("cix run " + postgres_item + " --detach").strip()
     machine.wait_until_succeeds(
         "${postgres}/bin/psql --host=127.0.0.1 --port=5432 --username=cix --dbname=postgres --no-password --tuples-only --no-align --command='SELECT 1' | grep -Fx 1"
     )
     machine.succeed("cix ps | grep -F " + postgres_unit)
     machine.succeed("systemctl stop " + postgres_unit)
 
-    redis_unit = machine.succeed("cix run ${redis} --detach").strip()
+    redis_item = machine.succeed("nix-store --add ${redis}").strip()
+    redis_unit = machine.succeed("cix run " + redis_item + " --detach").strip()
     machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -h 127.0.0.1 -p 6379 PING | grep -Fx PONG")
     machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -s /run/redis/redis.sock PING | grep -Fx PONG")
     machine.succeed("cix ps | grep -F " + redis_unit)
     machine.succeed("systemctl stop " + redis_unit)
 
-    caddy_unit = machine.succeed("cix run ${caddy} --detach").strip()
+    caddy_item = machine.succeed("nix-store --add ${caddy}").strip()
+    caddy_unit = machine.succeed("cix run " + caddy_item + " --detach").strip()
     machine.succeed("systemctl show " + caddy_unit + " --property=AmbientCapabilities --value | grep -Fx cap_net_bind_service")
     machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:80/ | grep -F 'hello from composix caddy'")
     machine.succeed("cix ps | grep -F " + caddy_unit)
     machine.succeed("systemctl stop " + caddy_unit)
 
-    node_unit = machine.succeed("cix run ${nodeApp} --detach").strip()
+    node_item = machine.succeed("nix-store --add ${nodeApp}").strip()
+    node_unit = machine.succeed("cix run " + node_item + " --detach").strip()
     machine.succeed("systemctl show " + node_unit + " --property=MemoryDenyWriteExecute --value | grep -Fx no")
     machine.wait_until_succeeds("curl --fail --silent http://127.0.0.1:8081/ | grep -Fx 'node JIT is enabled'")
     machine.succeed("cix ps | grep -F " + node_unit)

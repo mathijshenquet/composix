@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command, ExitStatus, Output, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -95,7 +96,7 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
     let definition = build_unit(&target.output, &target.name, &target.service, &config, mode)?;
     if !options.user {
         let name = format!("cix-run-{}-{}.service", target.name, nonce());
-        let result = run_transient_app(&name, false, &definition)?;
+        let result = run_transient_app(&name, false, &target.output, &definition)?;
         if result.status.success() {
             return Ok(());
         }
@@ -116,13 +117,14 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
             run_transient_app(
                 &format!("cix-run-{}-{}.service", target.name, nonce()),
                 false,
+                &target.output,
                 &fallback,
             )?
             .status,
         );
     }
 
-    let (status, error) = failed_app_attempt(&target.name, true, &definition)?;
+    let (status, error) = failed_app_attempt(&target.name, true, &target.output, &definition)?;
     if status.success() {
         return Ok(());
     }
@@ -141,7 +143,7 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
             ],
         );
         let (retry_status, retry_error) =
-            failed_app_attempt(&target.name, true, &without_capabilities)?;
+            failed_app_attempt(&target.name, true, &target.output, &without_capabilities)?;
         if retry_status.success() {
             return Ok(());
         }
@@ -159,10 +161,11 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
 fn failed_app_attempt(
     app_name: &str,
     user: bool,
+    output: &Path,
     definition: &UnitDefinition,
 ) -> Result<(ExitStatus, anyhow::Error)> {
     let name = format!("cix-run-{app_name}-{}.service", nonce());
-    let result = run_transient_app(&name, user, definition)?;
+    let result = run_transient_app(&name, user, output, definition)?;
     let error = with_unit_diagnostics(
         anyhow::anyhow!("app unit {name} failed: {}", result.stderr.trim()),
         &name,
@@ -188,7 +191,7 @@ fn run_app_degraded(
         UnitMode::UserDegraded,
     )?;
     let name = format!("cix-run-{}-{}.service", target.name, nonce());
-    finish_app(run_transient_app(&name, true, &degraded)?.status)
+    finish_app(run_transient_app(&name, true, &target.output, &degraded)?.status)
 }
 
 fn finish_app(status: ExitStatus) -> Result<()> {
@@ -223,7 +226,7 @@ pub fn start_service(
     let name = format!("cix-run-{service_name}-{}.service", nonce());
     if !user {
         let definition = build_unit(output, service_name, service, config, UnitMode::System)?;
-        return match start_with_listeners(&name, false, config, &definition) {
+        return match start_with_listeners(&name, false, output, config, &definition) {
             Ok(()) => Ok(StartedUnit {
                 name,
                 user: false,
@@ -232,13 +235,13 @@ pub fn start_service(
             Err(error) => {
                 let error = with_unit_diagnostics(error, &name, false);
                 let _ = stop_service(&name, false);
-                private_pids_fallback(service_name, config, &definition, error)
+                private_pids_fallback(output, service_name, config, &definition, error)
             }
         };
     }
 
     let definition = build_unit(output, service_name, service, config, UnitMode::UserFull)?;
-    match start_with_listeners(&name, true, config, &definition) {
+    match start_with_listeners(&name, true, output, config, &definition) {
         Ok(()) => Ok(StartedUnit {
             name,
             user: true,
@@ -263,7 +266,13 @@ pub fn start_service(
                         "ProtectKernelLogs",
                     ],
                 );
-                match start_with_listeners(&capability_name, true, config, &without_capabilities) {
+                match start_with_listeners(
+                    &capability_name,
+                    true,
+                    output,
+                    config,
+                    &without_capabilities,
+                ) {
                     Ok(()) => {
                         return Ok(StartedUnit {
                             name: capability_name,
@@ -306,7 +315,7 @@ fn namespace_fallback(
         config,
         UnitMode::UserDegraded,
     )?;
-    start_with_listeners(&fallback_name, true, config, &degraded)?;
+    start_with_listeners(&fallback_name, true, output, config, &degraded)?;
     Ok(StartedUnit {
         name: fallback_name,
         user: true,
@@ -315,6 +324,7 @@ fn namespace_fallback(
 }
 
 fn private_pids_fallback(
+    output: &Path,
     service_name: &str,
     config: &ResolvedConfig,
     definition: &UnitDefinition,
@@ -329,7 +339,7 @@ fn private_pids_fallback(
         "warning: retrying without PrivatePIDs; this service shares the host PID namespace (D36 degraded fallback)"
     );
     let fallback = without_properties(definition, &["PrivatePIDs"]);
-    start_with_listeners(&fallback_name, false, config, &fallback)?;
+    start_with_listeners(&fallback_name, false, output, config, &fallback)?;
     Ok(StartedUnit {
         name: fallback_name,
         user: false,
@@ -383,15 +393,24 @@ pub fn stop_service(name: &str, user: bool) -> Result<()> {
 fn start_with_listeners(
     name: &str,
     user: bool,
+    output: &Path,
     config: &ResolvedConfig,
     definition: &UnitDefinition,
 ) -> Result<()> {
+    let (definition, gc_root) = definition_with_gc_root(name, user, output, definition)?;
     if config.listeners.is_empty() {
-        return start_once(name, user, definition);
+        let result = start_once(name, user, &definition);
+        if result.is_err() {
+            remove_gc_root(gc_root.as_ref());
+        }
+        return result;
     }
     let sockets = listener_socket_names(name, config);
-    let definition = with_listener_dependencies(definition, &sockets);
-    write_service_unit(name, user, &definition)?;
+    let definition = with_listener_dependencies(&definition, &sockets);
+    if let Err(error) = write_service_unit(name, user, &definition) {
+        remove_gc_root(gc_root.as_ref());
+        return Err(error);
+    }
     match create_listener_sockets(name, user, config).and_then(|created| {
         debug_assert_eq!(created, sockets);
         systemctl_action(user, "start", name)
@@ -402,7 +421,142 @@ fn start_with_listeners(
                 let _ = remove_socket_unit(socket, user);
             }
             let _ = remove_service_unit(name, user);
+            remove_gc_root(gc_root.as_ref());
             Err(error)
+        }
+    }
+}
+
+fn definition_with_gc_root(
+    name: &str,
+    user: bool,
+    output: &Path,
+    definition: &UnitDefinition,
+) -> Result<(UnitDefinition, Option<PathBuf>)> {
+    let link = match gc_root_link(name, user) {
+        Ok(link) => link,
+        Err(error) if user => {
+            eprintln!(
+                "warning: could not create the user GC-root directory; this run is not GC-protected ({error:#})"
+            );
+            return Ok((definition.clone(), None));
+        }
+        Err(error) => return Err(error),
+    };
+    let cleanup = match gc_root_cleanup_command(&link, user) {
+        Ok(cleanup) => cleanup,
+        Err(error) if user => {
+            eprintln!(
+                "warning: could not prepare user GC-root cleanup; this run is not GC-protected ({error:#})"
+            );
+            return Ok((definition.clone(), None));
+        }
+        Err(error) => return Err(error),
+    };
+    match register_gc_root(&link, output) {
+        Ok(()) => {
+            let mut definition = definition.clone();
+            definition
+                .properties
+                .push(("ExecStopPost".into(), cleanup.clone()));
+            definition.text = definition.text.replacen(
+                "ExecStart=",
+                &format!("ExecStopPost={cleanup}\nExecStart="),
+                1,
+            );
+            Ok((definition, Some(link)))
+        }
+        Err(error) if user => {
+            eprintln!(
+                "warning: could not register the user GC root at {}; this run is not GC-protected ({error:#})",
+                link.display()
+            );
+            Ok((definition.clone(), None))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn gc_root_link(name: &str, user: bool) -> Result<PathBuf> {
+    let directory = if user {
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR")
+            .context("XDG_RUNTIME_DIR is not set for the user manager")?;
+        PathBuf::from(runtime).join("cix/gcroots")
+    } else {
+        PathBuf::from("/run/cix/gcroots")
+    };
+    fs::create_dir_all(&directory)
+        .with_context(|| format!("creating GC root directory {}", directory.display()))?;
+    fs::set_permissions(&directory, fs::Permissions::from_mode(0o755))
+        .with_context(|| format!("setting GC root directory mode on {}", directory.display()))?;
+    Ok(directory.join(format!("{name}.root")))
+}
+
+fn register_gc_root(link: &Path, output: &Path) -> Result<()> {
+    if fs::symlink_metadata(link).is_ok() {
+        fs::remove_file(link).with_context(|| format!("replacing GC root {}", link.display()))?;
+    }
+    let link = link
+        .to_str()
+        .context("GC root path is not valid UTF-8")?
+        .to_owned();
+    let output = output
+        .to_str()
+        .context("store output path is not valid UTF-8")?
+        .to_owned();
+    let result = nix_store_command(&["--add-root", &link, "--indirect", "--realise", &output])?;
+    if !result.status.success() {
+        bail!(
+            "failed to register GC root {}: {}",
+            link,
+            command_error(&result)
+        );
+    }
+    if !fs::symlink_metadata(link.as_str())
+        .with_context(|| format!("Nix did not create GC root {link}"))?
+        .file_type()
+        .is_symlink()
+    {
+        bail!("Nix created a non-symlink GC root at {link}");
+    }
+    Ok(())
+}
+
+fn gc_root_cleanup_command(link: &Path, user: bool) -> Result<String> {
+    let rm = find_path_program("rm")?;
+    let rm = rm
+        .to_str()
+        .context("rm path is not valid UTF-8")?
+        .to_owned();
+    let link = link
+        .to_str()
+        .context("GC root path is not valid UTF-8")?
+        .to_owned();
+    let prefix = if user { "" } else { "+" };
+    Ok(format!("{prefix}{rm} -f {link}"))
+}
+
+fn find_path_program(name: &str) -> Result<PathBuf> {
+    let path = std::env::var_os("PATH").context("PATH is not set")?;
+    for directory in std::env::split_paths(&path) {
+        let candidate = directory.join(name);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    bail!("could not find {name} on PATH for GC-root cleanup")
+}
+
+fn remove_gc_root(link: Option<&PathBuf>) {
+    let Some(link) = link else {
+        return;
+    };
+    if let Err(error) = fs::remove_file(link) {
+        if error.kind() != ErrorKind::NotFound {
+            eprintln!(
+                "warning: failed to remove GC root {}: {error}",
+                link.display()
+            );
         }
     }
 }
@@ -624,9 +778,13 @@ pub(crate) fn run_transient_foreground(
 fn run_transient_app(
     name: &str,
     user: bool,
+    output: &Path,
     definition: &UnitDefinition,
 ) -> Result<ForegroundResult> {
-    run_transient_foreground_with_type(name, user, definition, false, "oneshot")
+    let (definition, gc_root) = definition_with_gc_root(name, user, output, definition)?;
+    let result = run_transient_foreground_with_type(name, user, &definition, false, "oneshot");
+    remove_gc_root(gc_root.as_ref());
+    result
 }
 
 fn run_transient_foreground_with_type(
@@ -916,21 +1074,31 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
 }
 
 fn nix_build(installable: &str) -> Result<Output> {
-    let invoke = |program: &Path| {
-        Command::new(program)
-            .args(["build", "--no-link", "--print-out-paths", "--"])
-            .arg(installable)
-            .output()
-    };
+    nix_command(&["build", "--no-link", "--print-out-paths", "--", installable])
+        .with_context(|| format!("failed to invoke nix for installable {installable:?}"))
+}
 
+fn nix_command(args: &[&str]) -> Result<Output> {
+    let invoke = |program: &Path| Command::new(program).args(args).output();
     match invoke(Path::new("nix")) {
         Ok(output) => Ok(output),
         Err(error) if error.kind() == ErrorKind::NotFound => {
             invoke(Path::new("/nix/var/nix/profiles/default/bin/nix"))
-                .with_context(|| format!("failed to invoke nix for installable {installable:?}"))
+                .context("failed to invoke fallback nix executable")
         }
-        Err(error) => Err(error)
-            .with_context(|| format!("failed to invoke nix for installable {installable:?}")),
+        Err(error) => Err(error).context("failed to invoke nix"),
+    }
+}
+
+fn nix_store_command(args: &[&str]) -> Result<Output> {
+    let invoke = |program: &Path| Command::new(program).args(args).output();
+    match invoke(Path::new("nix-store")) {
+        Ok(output) => Ok(output),
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            invoke(Path::new("/nix/var/nix/profiles/default/bin/nix-store"))
+                .context("failed to invoke fallback nix-store executable")
+        }
+        Err(error) => Err(error).context("failed to invoke nix-store"),
     }
 }
 
