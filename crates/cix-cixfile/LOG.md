@@ -1,5 +1,56 @@
 # Cixfile track work log
 
+- 2026-07-31T19:25:00Z — Final D58 `/usr/bin/env` gate is green. Exact
+  prescribed repros: `devenv shell -- cargo fmt --all --check`; `devenv shell
+  -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --
+  cargo test --workspace`; `devenv shell -- cargo test -p cix --test tour --
+  --ignored generate_tour`; `git add docs/tour && git diff --exit-code --
+  docs/tour`; `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo test
+  -p cix --test tour generated_tour_is_deterministic -- --exact` (twice). The
+  dogfood VM repro `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed under normal TCG
+  fallback after KVM denial; receipt confirmed with `devenv shell -- nix
+  path-info .#checks.x86_64-linux.vm-dogfood`:
+  `/nix/store/dpnkmcgs7vhshm9ypabfk6i8ka8f35s9-vm-test-run-vm-dogfood`.
+  `git diff --check` and `git diff --cached --check` pass. Cleanup repro:
+  `sudo -n systemctl stop 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl daemon-reload;
+  systemctl --user stop 'cix-*' >/dev/null 2>&1 || true; systemctl --user
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; systemctl --user stop
+  cix-run.slice >/dev/null 2>&1 || true; ! sudo -n systemctl list-units
+  'cix-*' --all --no-legend --plain | grep -q .; ! systemctl --user
+  list-units 'cix-*' --all --no-legend --plain | grep -q .` passed. Next:
+  final scope audit and commit the green track.
+
+- 2026-07-31T19:12:00Z — D58 `/usr/bin/env` focused implementation and corpus
+  proof are green. Bubblewrap now creates only `/usr/bin/env → /bin/env` in
+  addition to the existing union; `/usr` otherwise remains empty. The alias
+  dangles without an imported `env`, and a failed command then names the alias
+  and suggests `IMPORT ${pkgs.coreutils}`. Chain-key decision: the fixed
+  skeleton is a versioned serialized step-key input (`v1:/usr/bin/env->/bin/env`),
+  so this semantic change invalidates prior memo keys and retains D57's
+  disposable-workspace guarantee; a repeated successful build memo-hits rather
+  than flapping. Exact focused repros: `devenv shell -- cargo fmt --all`;
+  `devenv shell -- cargo test -p cix-cixfile --test lock_nix
+  usr_bin_env_shebang_requires_an_imported_env -- --nocapture`; `devenv shell
+  -- cargo test -p cix-cixfile --lib`; `devenv shell -- cargo build -p cix`;
+  `cd corpus/migrate && ./fetch.sh echo-server`; and `cd
+  corpus/migrate/echo-server && ../../../target/debug/cix build --update-lock
+  build .#echo-server && ./check.sh cix`. The regression proves both a literal
+  shebang success with bash/coreutils imports and the loud missing-coreutils
+  failure. Echo Server now reaches and passes webpack plus its HTTP check;
+  receipt and corpus journal contain the full honest result. Next: review the
+  track diff and run the prescribed full Rust/tour/VM gate.
+
+- 2026-07-31T19:00:00Z — Started `.dev/specs/track-usrbinenv.md` on
+  `track/usrbinenv`. Read AGENTS.md, the session journal, D58’s complete
+  2026-07-31 `/usr/bin/env` addendum, the full track spec, and this crate
+  journal. Scope: add exactly the `/usr/bin/env → /bin/env` builder-skeleton
+  alias, preserve D57 memo correctness, cover present/absent IMPORT behaviour,
+  update builder docs, and re-check echo-server honestly. Next: inspect the
+  union/sandbox and real-Nix test seams, then implement the minimal skeleton.
+
 - 2026-07-31T18:00:00Z — Started `.dev/specs/track-absdest.md` on
   `track/absdest`. Read AGENTS.md, the session journal, authoritative D66 in
   full, the complete track spec, and this crate journal. D66 makes SERVICE/APP

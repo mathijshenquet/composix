@@ -42,6 +42,10 @@ struct StepKeyRequest<'a> {
     fetch_pin: Option<&'a str>,
 }
 
+// Bump whenever the fixed bubblewrap filesystem skeleton changes: memoized
+// commands must not be reused across a different execution environment.
+const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
+
 #[derive(Clone, Debug, Default)]
 struct NeededPath {
     attributions: Vec<Attribution>,
@@ -709,7 +713,7 @@ fn top_fetch_chain_key(
 }
 
 fn step_key(request: StepKeyRequest<'_>) -> Result<String> {
-    Ok(hex_hash(&serde_json::to_vec(&request)?))
+    Ok(hex_hash(&serde_json::to_vec(&(SANDBOX_SKELETON, request))?))
 }
 
 fn memo_has_paths(
@@ -1172,6 +1176,7 @@ fn run_sandbox(
     run_network: Option<RunNetwork>,
 ) -> Result<()> {
     let import_union = prepare_import_union(imports, run_network.is_none())?;
+    let env_is_missing = !import_union.path().join("bin/env").is_file();
     let mut process = Command::new("bwrap");
     process.args([
         "--die-with-parent",
@@ -1195,6 +1200,8 @@ fn run_sandbox(
         None
     };
     process.args(["--dir", "/nix", "--dir", "/nix/store"]);
+    process.args(["--dir", "/usr", "--dir", "/usr/bin"]);
+    process.args(["--symlink", "/bin/env", "/usr/bin/env"]);
     for path in offered_closure {
         process.args(["--ro-bind", path, path]);
     }
@@ -1240,6 +1247,11 @@ fn run_sandbox(
     io::stderr().write_all(&output.stderr)?;
     if !output.status.success() {
         let mut failure = sandbox_failure(output.status, run_network);
+        if env_is_missing {
+            failure.push_str(
+                "\nhint: /usr/bin/env is a fixed alias to /bin/env; IMPORT ${pkgs.coreutils} or another package that supplies env",
+            );
+        }
         let stderr = String::from_utf8_lossy(&output.stderr);
         if !stderr.trim().is_empty() {
             failure.push_str("\ncommand stderr:\n");

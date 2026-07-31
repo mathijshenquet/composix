@@ -160,3 +160,19 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   phpmyadmin, and redis used the existing D36 PrivatePIDs fallback on this
   host. The known non-green dozzle, echo-server, tomcat, verdaccio, and
   watchtower rows were not promoted.
+
+## 2026-07-31 — D58 `/usr/bin/env` addendum
+
+- `cd corpus/migrate && ./fetch.sh echo-server` refreshed Echo Server's pinned
+  context. Its first ordinary `./check.sh cix` stopped at the historical git
+  FETCH pin, so `cd corpus/migrate/echo-server && ../../../target/debug/cix
+  build --update-lock build .#echo-server` refreshed only that builder's pins
+  and reached the intended launcher proof: webpack's wrapper failed at
+  `/usr/bin/env` with the new explicit coreutils IMPORT hint.
+- Adding `${pkgs.coreutils}` to Echo Server's builder IMPORT is the explicit
+  provisioning required by D58; no ambient software was added. Repro:
+  `cd corpus/migrate/echo-server && ../../../target/debug/cix build
+  --update-lock build .#echo-server && ./check.sh cix`. It passed: webpack
+  compiled with its eight upstream warnings and the service passed its bounded
+  HTTP probe. Final item:
+  `/nix/store/mjvw61rg51b8zv3qvmz81n2rhphnn6is-cix-item-echo-server`.

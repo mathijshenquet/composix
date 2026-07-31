@@ -1,7 +1,7 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.nodejs} ${pkgs.cacert}
+  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.cacert}
   ENV NPM_CONFIG_CACHE = $PWD/.npm
   FETCH git clone https://github.com/Ealenn/Echo-Server.git . && git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac
   FETCH npm ci --ignore-scripts --no-audit --no-fund

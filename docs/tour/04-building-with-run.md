@@ -75,7 +75,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 22cbe0007646 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 7b0df1de1642 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -88,7 +88,7 @@ The lock records just those consumed paths. Repeating the unchanged build materi
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
 {"run-tour":"/nix/store/…-cix-item-run-tour"}
-BUILDER build memo hit 22cbe0007646 -> /nix/store/…-cix-build-view
+BUILDER build memo hit 7b0df1de1642 -> /nix/store/…-cix-build-view
 ```
 
 Changing a declared input changes the chain key. The builder runs again in its persistent workspace, so its private marker is warm while the selected outputs still depend only on declared inputs.
@@ -104,7 +104,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 985dd9ba4cb7 -> /nix/store/…-cix-build-view
 ```
 
 `--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.
@@ -115,7 +115,7 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 0aa4872f09e0 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 985dd9ba4cb7 -> /nix/store/…-cix-build-view
 ```
 
 A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.
@@ -127,7 +127,7 @@ $ rm -rf ../.workspaces-run
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
 {"run-tour":"/nix/store/…-cix-item-run-tour"}
-BUILDER build memo hit 0aa4872f09e0 -> /nix/store/…-cix-build-view
+BUILDER build memo hit 985dd9ba4cb7 -> /nix/store/…-cix-build-view
 ```
 
 

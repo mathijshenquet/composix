@@ -1,4 +1,5 @@
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -466,6 +467,68 @@ EXEC /bin/true
     .unwrap();
     let head = fs::read_to_string(PathBuf::from(&output[0].store_path).join("head")).unwrap();
     assert!(head.ends_with("\tHEAD\n"), "{head}");
+}
+
+#[test]
+fn usr_bin_env_shebang_requires_an_imported_env() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let script = directory.path().join("script");
+    fs::write(&script, "#!/usr/bin/env bash\nprintf shebang-ok\n").unwrap();
+    let mut permissions = fs::metadata(&script).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&script, permissions).unwrap();
+    let cixfile = |coreutils: &str| {
+        format!(
+            r#"FROM nixpkgs AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${{pkgs.bash}}{coreutils}
+COPY ${{src}}/script script
+RUN ./script > output
+SERVICE result
+COPY ${{build}}/output /output
+EXEC /bin/true
+"#
+        )
+    };
+
+    fs::write(directory.path().join("Cixfile"), cixfile("")).unwrap();
+    let error = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap_err();
+    let rendered = format!("{error:#}");
+    assert!(rendered.contains("RUN failed"), "{rendered}");
+    assert!(rendered.contains("/usr/bin/env"), "{rendered}");
+    assert!(rendered.contains("IMPORT ${pkgs.coreutils}"), "{rendered}");
+
+    fs::write(
+        directory.path().join("Cixfile"),
+        cixfile(" ${pkgs.coreutils}"),
+    )
+    .unwrap();
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&output[0].store_path).join("output")).unwrap(),
+        "shebang-ok"
+    );
 }
 
 #[test]

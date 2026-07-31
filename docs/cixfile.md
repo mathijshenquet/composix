@@ -198,8 +198,14 @@ collisions. Bare builder commands resolve through `/bin`; IMPORTed package closu
 explicit package references are the only store paths offered to the sandbox. Import
 `${pkgs.cacert}` when a FETCH needs public TLS roots. RUN remains networkless.
 
+The fixed skeleton adds exactly one alias: `/usr/bin/env` points to `/bin/env`. This lets
+tool-generated `#!/usr/bin/env bash` (or similar) launchers work when an IMPORT supplies
+`env`, typically `${pkgs.coreutils}`; it deliberately dangles otherwise. No other `/usr`
+content is present.
+
 Every step key hashes its directive and resolved arguments, the ordered imports and offered
-closure, the predecessor key, the fixed environment, COPY source hashes, and any FETCH pin.
+closure, the predecessor key, the versioned fixed sandbox skeleton and environment, COPY source
+hashes, and any FETCH pin.
 It never hashes workspace bytes. The environment is cleared and rebuilt with `PATH=/bin`,
 `SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt`, `HOME=/work`, `SOURCE_DATE_EPOCH=1`, `TZ=UTC`,
 `LC_ALL=C`, `TMPDIR=/tmp`, and umask 022. The certificate path becomes readable only when an
