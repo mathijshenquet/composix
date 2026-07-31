@@ -1261,10 +1261,13 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   (a) SERVICE and APP get an implicit runtime `PATH=<item>/bin` default. An
   explicit `ENV PATH = …` REPLACES the default entirely — no merge magic
   (D58's YAGNI-return clause stays the escape for genuine multi-dir needs).
-  (b) Bare `EXEC <name>` (and SETUP) resolves at build time against the item's
-  own `bin/` (the D31 item-relative mechanics with the implicit dir); not
-  found = clear error listing what bin/ contains. `EXEC ${pkgs.x}/bin/x` and
-  `EXEC bin/x` stay valid.
+  (b) Bare `EXEC <name>` (and SETUP) resolves at build time against the
+  *effective* PATH: the item's own `bin/` by default, or the declared
+  `ENV PATH = …` when present (the D31 build-time resolution mechanics under
+  the (a) replacement rule — e.g. `ENV PATH = ${pkgs.redis}/bin` +
+  `EXEC redis-server` resolves into the package); not found = clear error
+  listing the searched entries. `EXEC ${pkgs.x}/bin/x` stays valid; the
+  relative `EXEC bin/x` form died with D66.
   (c) `cix exec`/`debug` shells inherit the same PATH — D31's toolbox
   rationale collapses to "PATH = the item's /bin".
   (d) Minimal-magic audit: the default references nothing outside the artifact
