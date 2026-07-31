@@ -1,6 +1,0 @@
-{
-  "name": "verdaccio-exports-sugar-plugin",
-  "version": "1.0.0",
-  "type": "module",
-  "exports": { "import": "./entry.js" }
-}

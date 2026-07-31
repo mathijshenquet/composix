@@ -1,4 +1,6 @@
 Dockerfile and build context: https://github.com/Ealenn/Echo-Server.git
 Resolved revision: 2b735482f942cbd889f1d49f3ff892364d0519ac
+Context path: .
+Exclude context path: Dockerfile
 Dockerfile URL: https://raw.githubusercontent.com/Ealenn/Echo-Server/master/Dockerfile
 Retrieved: 2026-07-30

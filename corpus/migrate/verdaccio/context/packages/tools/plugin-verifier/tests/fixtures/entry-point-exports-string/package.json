@@ -1,5 +1,0 @@
-{
-  "exports": {
-    ".": "./lib/main.js"
-  }
-}

@@ -16,6 +16,13 @@ PASS docker
 
 Exit status: 0
 
+## Corpus fetch verification (2026-07-31)
+
+The raw pinned checkout contains the repository's other version directories. The
+historic build context is exactly its `5/` subtree, excluding the separately
+tracked Dockerfile and unused `fastcgi/`; those selections are now explicit in
+`SOURCE`. The selected checkout diffed byte-identically with the vendored tree.
+
 ## `./check.sh cix`
 
 ```text

@@ -11,6 +11,7 @@ devenv.local.yaml
 
 # Rust
 target/
+corpus/migrate/*/context/
 
 # nix build outputs
 result
