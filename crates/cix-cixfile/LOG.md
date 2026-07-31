@@ -1,5 +1,56 @@
 # Cixfile track work log
 
+- 2026-07-31T17:15:24Z — Committed the green D64 implementation on
+  `track/selfbin` as `Implement D64 implicit self-bin runtime PATH`. No open
+  items remain for this track.
+
+- 2026-07-31T17:15:24Z — Final D64 gate is green. Exact prescribed repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git diff --exit-code -- docs/tour`; `devenv shell -- cargo
+  test -p cix --test tour tour_matches_committed_document -- --exact`; and
+  `devenv shell -- cargo test -p cix --test tour generated_tour_is_deterministic
+  -- --exact` (passed twice). The dogfood gate `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed under normal TCG
+  fallback after expected KVM denial; receipt confirmed with `devenv shell --
+  nix path-info .#checks.x86_64-linux.vm-dogfood`:
+  `/nix/store/q5yysxm4n1j2mb9pknhchzq9q9rnw9a6-vm-test-run-vm-dogfood`.
+  `git diff --check` and `git diff --cached --check` pass. Unit cleanup repro:
+  `systemctl --user reset-failed 'cix-*' || true; systemctl --user stop
+  cix-run.slice >/dev/null 2>&1 || true; ! systemctl --user list-units
+  'cix-*' --all --no-legend --plain | grep -q .`; it left no cix user units.
+  Removed only the untracked, devenv-generated `devenv.lock`. Next: stage the
+  remaining track files and commit this green D64 implementation.
+
+- 2026-07-31T17:15:00Z — Compiler/runner milestone is focused-green. Bare
+  EXEC/SETUP now writes `bin/<name>` to v5 manifests and validates executable
+  presence only after the item is assembled; its failure names the directive,
+  line, and contents of `bin/`. Codegen emits `PATH=bin` for every SERVICE/APP
+  unless explicit `ENV PATH` exists, which is emitted unchanged. No manifest
+  field was added or retyped, so v5 stays v5 (D15 not triggered). Runner tests
+  prove both `cix run` units and debug units project that item-relative default
+  to the absolute output `bin/`; exec inherits the same generated unit
+  Environment through its existing systemd inspection. Exact green repros:
+  `devenv shell -- cargo fmt --all`; `devenv shell -- cargo test -p cix-run
+  --lib`; `devenv shell -- cargo test -p cix-cixfile --lib`; and `devenv shell
+  -- cargo test -p cix-cixfile --test lock_nix -- --nocapture` (all 16
+  real-Nix tests, including default, explicit-PATH replacement, self-bin-only
+  resolution, and diagnostic listing). Next: regenerate/review the tour and
+  execute the prescribed full gate.
+
+- 2026-07-31T17:01:47Z — Started `.dev/specs/track-selfbin.md` on
+  `track/selfbin` at `7b0d93c`. Read AGENTS.md, authoritative D64 in full, the
+  complete track spec, session journal, and this crate journal. D64 replaces
+  D31's explicit external runtime PATH resolution: SERVICE/APP will always
+  generate `PATH=bin` unless an explicit `ENV PATH = …` replaces it; bare
+  EXEC/SETUP resolves only against the assembled item's own `bin/`, while
+  explicit `bin/x` and store paths stay literal. This changes generated values
+  in the existing v5 `env`/`exec` fields only, so no manifest field or version
+  change is expected. Next: update compiler and runner coverage, sweep active
+  examples/docs/tour, then run the prescribed full gate and record exact
+  commands here.
+
 - 2026-07-31T16:55:00Z — Final demofix gate is green. Exact demo invocations
   (each passed) were `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/nginx/demo.sh`;
   `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/caddy/demo.sh`;

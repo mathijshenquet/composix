@@ -49,32 +49,6 @@ pub(crate) fn generate_nix_with_snapshots(
     let primary = primary_namespace(cixfile)?;
 
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
-    if service_uses_bare_command(&artifact.service) {
-        let path = service_path_default(&artifact.service)
-            .context("bare EXEC/SETUP command has no ENV PATH default")?;
-        writeln!(
-            expression,
-            "  pathDirs = universes.{}.lib.splitString \":\" {};",
-            nix_attr(primary),
-            nix_template(path)
-        )?;
-        writeln!(expression, "  resolveExecutable = line: command:")?;
-        writeln!(expression, "    let")?;
-        writeln!(
-            expression,
-            "      candidates = map (directory: \"${{directory}}/${{command}}\") pathDirs;"
-        )?;
-        writeln!(
-            expression,
-            "      found = builtins.filter (candidate: builtins.substring 0 1 candidate != \"/\" || builtins.pathExists candidate) candidates;"
-        )?;
-        writeln!(expression, "    in if found == [] then")?;
-        writeln!(
-            expression,
-            r#"      throw "line ${{builtins.toString line}}: command ${{command}} was not found in declared ENV PATH directories: ${{builtins.concatStringsSep ", " pathDirs}}""#
-        )?;
-        writeln!(expression, "    else builtins.head found;")?;
-    }
     writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
     for (index, copy) in artifact.copies.iter().enumerate() {
         writeln!(
@@ -138,36 +112,39 @@ pub(crate) fn generate_nix_with_snapshots(
         }
     }
     let service = &artifact.service;
-    for (index, (arguments, line)) in [
-        (&service.exec[..], service.exec_line),
+    for (arguments, line, directive) in [
+        (&service.exec[..], service.exec_line, "EXEC"),
         (
             service.setup.as_deref().unwrap_or_default(),
             service.setup_line.unwrap_or_default(),
+            "SETUP",
         ),
     ]
     .into_iter()
-    .enumerate()
     {
         let Some(command) = bare_command(arguments) else {
             continue;
         };
         writeln!(
             expression,
-            "  resolved{index}=${{universes.{}.lib.escapeShellArg (resolveExecutable {line} {})}}",
-            nix_attr(primary),
-            nix_string(&command),
+            "  if ! test -x \"$out/bin/{}\"; then",
+            shell_double_quoted(&command),
         )?;
         writeln!(
             expression,
-            "  case \"$resolved{index}\" in /*) executable{index}=\"$resolved{index}\" ;; *) executable{index}=\"$out/$resolved{index}\" ;; esac"
+            "    entries=\"\"; if test -d \"$out/bin\"; then entries=\"$(ls -1A \"$out/bin\" | paste -sd ', ' -)\"; fi"
         )?;
         writeln!(
             expression,
-            "  test -x \"$executable{index}\" || {{ echo {} >&2; exit 1; }}",
-            nix_string(&format!(
-                "line {line}: resolved ENV PATH command {command:?} is not executable"
+            "    if test -n \"$entries\"; then echo \"{} (contains: $entries)\" >&2; else echo \"{} (contains: <empty>)\" >&2; fi; exit 1",
+            shell_double_quoted(&format!(
+                "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
+            )),
+            shell_double_quoted(&format!(
+                "line {line}: bare {directive} command {command:?} was not found in this item's bin/"
             )),
         )?;
+        writeln!(expression, "  fi")?;
     }
     writeln!(
         expression,
@@ -543,11 +520,7 @@ fn nix_spec(artifact: &Artifact) -> Result<String> {
 fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String> {
     let service = &artifact.service;
     let mut output = String::from("{");
-    write!(
-        output,
-        " exec = {};",
-        nix_command(&service.exec, service.exec_line)
-    )?;
+    write!(output, " exec = {};", nix_command(&service.exec))?;
     if !mounts.is_empty() {
         write!(
             output,
@@ -560,14 +533,13 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
         )?;
     }
     if let Some(setup) = &service.setup {
-        write!(
-            output,
-            " setup = {};",
-            nix_command(setup, service.setup_line.expect("SETUP has a line"))
-        )?;
+        write!(output, " setup = {};", nix_command(setup))?;
     }
-    if !service.env.is_empty() {
+    {
         output.push_str(" env = {");
+        if !service.env.contains_key("PATH") {
+            write!(output, " {} = {{ default = \"bin\"; }};", nix_attr("PATH"))?;
+        }
         for (name, env) in &service.env {
             write!(output, " {} = {{", nix_attr(name))?;
             if let Some(default) = &env.default {
@@ -662,11 +634,11 @@ fn nix_templates(templates: &[Template]) -> String {
     )
 }
 
-fn nix_command(arguments: &[Template], line: usize) -> String {
+fn nix_command(arguments: &[Template]) -> String {
     let Some(command) = bare_command(arguments) else {
         return nix_templates(arguments);
     };
-    let mut output = format!("[ (resolveExecutable {line} {})", nix_string(&command));
+    let mut output = format!("[ {}", nix_string(&format!("bin/{command}")));
     for argument in &arguments[1..] {
         write!(output, " {}", nix_template(argument)).unwrap();
     }
@@ -834,10 +806,7 @@ fn literal_spec(artifact: &Artifact) -> Result<Value> {
 fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Value> {
     let service = &artifact.service;
     let mut value = Map::new();
-    value.insert(
-        "exec".into(),
-        literal_command(&service.exec, service_path_default(service))?,
-    );
+    value.insert("exec".into(), literal_command(&service.exec)?);
     if !mounts.is_empty() {
         value.insert(
             "mounts".into(),
@@ -845,13 +814,19 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         );
     }
     if let Some(setup) = &service.setup {
-        value.insert(
-            "setup".into(),
-            literal_command(setup, service_path_default(service))?,
-        );
+        value.insert("setup".into(), literal_command(setup)?);
     }
-    if !service.env.is_empty() {
+    {
         let mut envs = Map::new();
+        if !service.env.contains_key("PATH") {
+            envs.insert(
+                "PATH".into(),
+                Value::Object(Map::from_iter([(
+                    "default".into(),
+                    Value::String("bin".into()),
+                )])),
+            );
+        }
         for (name, env) in &service.env {
             let mut declaration = Map::new();
             if let Some(default) = &env.default {
@@ -936,41 +911,17 @@ fn literal_dirs(service: &Service) -> Map<String, Value> {
     dirs
 }
 
-fn literal_command(arguments: &[Template], path: Option<&Template>) -> Result<Value> {
+fn literal_command(arguments: &[Template]) -> Result<Value> {
     let mut values = arguments
         .iter()
         .map(literal_template)
         .collect::<Result<Vec<_>>>()?;
     if let Some(command) = bare_command(arguments) {
-        let directory = path
-            .context("cannot render a bare command without ENV PATH")?
-            .literal_value()
-            .context("cannot render package interpolation in ENV PATH without Nix evaluation")?
-            .split(':')
-            .next()
-            .filter(|directory| !directory.is_empty())
-            .context("cannot render a bare command with an empty ENV PATH")?
-            .to_owned();
-        values[0] = format!("{}/{command}", directory.trim_end_matches('/'));
+        values[0] = format!("bin/{command}");
     }
     Ok(Value::Array(
         values.into_iter().map(Value::String).collect(),
     ))
-}
-
-fn service_path_default(service: &Service) -> Option<&Template> {
-    service
-        .env
-        .get("PATH")
-        .and_then(|declaration| declaration.default.as_ref())
-}
-
-fn service_uses_bare_command(service: &Service) -> bool {
-    bare_command(&service.exec).is_some()
-        || service
-            .setup
-            .as_deref()
-            .is_some_and(|setup| bare_command(setup).is_some())
 }
 
 fn literal_template(template: &Template) -> Result<String> {
@@ -1060,11 +1011,29 @@ mod tests {
         let service = parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n").unwrap();
         let spec = generate_spec_json(&service).unwrap();
         assert!(!spec.contains("\"kind\""), "{spec}");
+        assert!(
+            spec.contains("\"PATH\": {\n      \"default\": \"bin\""),
+            "{spec}"
+        );
 
         let app = parse("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n").unwrap();
         let manifest = generate_spec_json(&app).unwrap();
         assert!(manifest.contains("\"kind\": \"app\""), "{manifest}");
         assert!(manifest.contains("\"exec\""), "{manifest}");
+        assert!(
+            manifest.contains("\"PATH\": {\n      \"default\": \"bin\""),
+            "{manifest}"
+        );
+
+        let explicit =
+            parse("FROM nixpkgs AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nEXEC /bin/true\n")
+                .unwrap();
+        let explicit_spec = generate_spec_json(&explicit).unwrap();
+        assert!(
+            explicit_spec.contains("\"default\": \"/tools/bin\""),
+            "{explicit_spec}"
+        );
+        assert!(!explicit_spec.contains("bin:/tools/bin"), "{explicit_spec}");
     }
 
     #[test]

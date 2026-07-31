@@ -259,4 +259,34 @@ mod tests {
         );
         assert_eq!(debug.text, expected);
     }
+
+    #[test]
+    fn debug_projects_the_item_bin_default() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 5,
+                "exec": ["bin/app"],
+                "env": {"PATH": {"default": "bin"}}
+            }"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let output = Path::new("/nix/store/00000000000000000000000000000000-app");
+        let mut config = ResolvedConfig::resolve_debug(service, &[]).unwrap();
+        config.env = config.item_environment(output).unwrap();
+        let definition = debug_definition(
+            output,
+            "app",
+            service,
+            &config,
+            UnitMode::System,
+            vec![output.join("bin/app").to_string_lossy().into_owned()],
+        )
+        .unwrap();
+
+        assert!(definition.environment.contains(&(
+            "PATH".into(),
+            output.join("bin").to_string_lossy().into_owned(),
+        )));
+    }
 }

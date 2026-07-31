@@ -1,6 +1,6 @@
 # The Cixfile
 
-*Status: D47 blocks and binders through D56–D58 are implemented: named persistent builders,
+*Status: D47 blocks and binders through D64 are implemented: named persistent builders,
 narrow consumed-path records, package IMPORT unions, declared or TOFU-pinned network fetches,
 directive continuations, RUN heredocs, and full-line comments.*
 
@@ -180,7 +180,7 @@ BUILD
 
 APP app
 COPY ${compile}/target/release/app bin/app
-EXEC bin/app
+EXEC app
 ```
 
 Builder `ENV NAME = value` is plain text, applies only to later builder steps, and is part of
@@ -244,11 +244,14 @@ output, and returns the command's exit status. Apps have no setup hooks, ports, 
 health checks or log/config/run role directories.
 
 Relative copied destinations live at the artifact root and are projected at their native
-runtime path. Package binaries remain direct store references. Services that need runtime
-command lookup declare it explicitly, for example
-`ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin`. Item-relative `EXEC bin/app`
-resolution is unchanged. `LINK` is best used for package-owned assets such as nginx's
-`mime.types`.
+runtime path. Every SERVICE and APP gets `PATH=bin` unless it explicitly declares
+`ENV PATH = …`, which replaces that default entirely. A one-word `EXEC app` or `SETUP app`
+therefore resolves at build time to that item's `bin/app`; use it as the preferred spelling
+after copying or linking a runtime binary there. `EXEC bin/app` and package binaries as direct
+store references remain valid. Add external runtime tools visibly with lines such as
+`LINK ${pkgs.postgresql}/bin/postgres bin/postgres`, rather than making them ambient PATH
+entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
+package-owned assets such as nginx's `mime.types`.
 
 There is no content-only block. The old `ITEM` spelling was dropped in D50 because its meaning
 was not legible without context. Assets used within one Cixfile are copied into the service or

@@ -66,8 +66,11 @@ Do not write `${pkgs.cargo}/bin/cargo` inside `RUN`, and do not construct a buil
 earlier imports win collisions. Importing `${pkgs.cacert}` makes the conventional CA bundle
 available, but composix never imports it implicitly. `RUN` has no network access.
 
-Interpolated absolute store paths belong at the shipping dock, where artifact `EXEC`, `LINK`
-targets, and `COPY` sources refer to immutable package assets:
+The runtime toolset is the artifact's own `bin/`. Copy or link package binaries there, then use
+bare `EXEC`/`SETUP`: every SERVICE and APP gets `PATH=bin` by default, and a bare command is
+checked against that assembled tree at build time. An explicit `ENV PATH = …` replaces that
+default entirely. Interpolated absolute store paths remain valid at the shipping dock, where
+artifact `EXEC`, `LINK` targets, and `COPY` sources refer to immutable package assets:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.

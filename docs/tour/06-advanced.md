@@ -140,7 +140,7 @@ $ cat cix.lock
     "web": {
       "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",
-      "narHash": "sha256-x89hj7V519BkYOMWTa1vgZJ36cGgG5jiTmW3/jBmQAo="
+      "narHash": "sha256-Ztxtp1HQTXq6Bhy3/XLurmjmth8doHDw2HIpGOtR8Iw="
     }
   }
 }

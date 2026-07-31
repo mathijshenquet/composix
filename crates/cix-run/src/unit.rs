@@ -885,6 +885,27 @@ mod tests {
     }
 
     #[test]
+    fn item_bin_default_is_projected_into_the_run_unit_environment() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":5,"exec":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let output = Path::new("/nix/store/00000000000000000000000000000000-app");
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let definition = build_unit(output, "app", service, &config, UnitMode::System).unwrap();
+
+        assert_eq!(
+            definition.argv,
+            [output.join("bin/app").to_string_lossy().into_owned()]
+        );
+        assert!(definition.environment.contains(&(
+            "PATH".into(),
+            output.join("bin").to_string_lossy().into_owned(),
+        )));
+    }
+
+    #[test]
     fn v3_listener_unit_keeps_network_private_and_denies_binds() {
         let spec =
             Spec::from_slice(include_bytes!("../tests/fixtures/v3-listener-spec.json")).unwrap();

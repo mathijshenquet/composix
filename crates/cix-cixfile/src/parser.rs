@@ -256,7 +256,6 @@ impl Parser<'_> {
                 ));
             }
             validate_service_references(&artifact.service, &self.metadata[name])?;
-            validate_bare_commands(&artifact.service, &self.metadata[name])?;
         }
         Ok(Cixfile {
             inputs: self.inputs,
@@ -1552,34 +1551,6 @@ fn validate_service_references(
     Ok(())
 }
 
-fn validate_bare_commands(service: &Service, metadata: &ServiceMetadata) -> Result<(), ParseError> {
-    for (arguments, location) in [
-        (&service.exec[..], metadata.exec.as_ref()),
-        (
-            service.setup.as_deref().unwrap_or_default(),
-            metadata.setup.as_ref(),
-        ),
-    ] {
-        let Some((line, source)) = location else {
-            continue;
-        };
-        if bare_command(arguments).is_some()
-            && service
-                .env
-                .get("PATH")
-                .and_then(|declaration| declaration.default.as_ref())
-                .is_none()
-        {
-            return Err(ParseError::new(
-                *line,
-                source,
-                "bare EXEC/SETUP command requires ENV PATH = ... or an absolute ${<namespace>.<attrpath>}/bin/... path",
-            ));
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
     let command = arguments.first()?.literal_value()?;
     (!command.is_empty() && !command.contains('/') && !command.contains('$')).then_some(command)
@@ -2079,6 +2050,19 @@ STATEDIR /var/lib/migrate
             BuildStep::Copy(Copy { .. })
         ));
         assert_eq!(parsed.artifacts["app"].copies.len(), 2);
+    }
+
+    #[test]
+    fn bare_artifact_commands_need_no_explicit_path() {
+        let parsed = parse("FROM nixpkgs AS pkgs\nSERVICE app\nSETUP setup\nEXEC app\n").unwrap();
+        assert_eq!(
+            parsed.artifacts["app"].service.exec[0].literal_value(),
+            Some("app".into())
+        );
+        assert_eq!(
+            parsed.artifacts["app"].service.setup.as_ref().unwrap()[0].literal_value(),
+            Some("setup".into())
+        );
     }
 
     #[test]
