@@ -17,6 +17,7 @@ use crate::{
 };
 
 const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
+const GC_ROOT_DIRECTORY: &str = "/var/lib/cix-compose/gcroots";
 const UNIT_DIRECTORY: &str = "/etc/systemd/system";
 
 pub fn check(compose_path: &Path) -> Result<()> {
@@ -56,6 +57,7 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let built = build_generation(&checked, compose_path, &capabilities)?;
     warn_degradations(&built.manifest);
     let old = current_generation(&checked.compose.name)?;
+    register_generation_gc_roots(&checked.compose.name, &built.store_path, &built.manifest)?;
     set_profile(&checked.compose.name, &built.store_path)?;
     activate_generation(&checked.compose.name, old.as_deref(), &built.store_path)?;
     println!(
@@ -296,6 +298,44 @@ fn set_profile(name: &str, generation: &Path) -> Result<()> {
     nix_env(&["-p", &profile_text(name), "--set", &generation])
 }
 
+fn register_generation_gc_roots(name: &str, generation: &Path, manifest: &Manifest) -> Result<()> {
+    let generation_name = generation
+        .file_name()
+        .context("compose generation has no store-path name")?;
+    let directory = Path::new(GC_ROOT_DIRECTORY)
+        .join(name)
+        .join(generation_name);
+    fs::create_dir_all(&directory)
+        .with_context(|| format!("creating compose GC-root directory {}", directory.display()))?;
+    register_gc_root(&directory.join("generation.root"), generation)?;
+    for (service, entry) in &manifest.services {
+        register_gc_root(
+            &directory.join(format!("{service}.root")),
+            Path::new(&entry.store_path),
+        )?;
+    }
+    Ok(())
+}
+
+fn register_gc_root(link: &Path, store_path: &Path) -> Result<()> {
+    match fs::symlink_metadata(link) {
+        Ok(_) => fs::remove_file(link)
+            .with_context(|| format!("replacing compose GC root {}", link.display()))?,
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("inspecting compose GC root {}", link.display()))
+        }
+    }
+    let link = link
+        .to_str()
+        .context("compose GC-root path is not valid UTF-8")?;
+    let store_path = store_path
+        .to_str()
+        .context("compose store path is not valid UTF-8")?;
+    nix_store(&["--add-root", link, "--indirect", "--realise", store_path])
+}
+
 fn apply_sysusers(name: &str, generation: &Path) -> Result<()> {
     let fragment = generation
         .join("sysusers.d")
@@ -367,6 +407,19 @@ fn nix_env(arguments: &[&str]) -> Result<()> {
                 .is_some_and(|io| io.kind() == ErrorKind::NotFound) =>
         {
             command("/nix/var/nix/profiles/default/bin/nix-env", arguments).map(|_| ())
+        }
+        result => result.map(|_| ()),
+    }
+}
+
+fn nix_store(arguments: &[&str]) -> Result<()> {
+    match command("nix-store", arguments) {
+        Err(error)
+            if error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|io| io.kind() == ErrorKind::NotFound) =>
+        {
+            command("/nix/var/nix/profiles/default/bin/nix-store", arguments).map(|_| ())
         }
         result => result.map(|_| ()),
     }
