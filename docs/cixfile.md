@@ -24,9 +24,9 @@ EXPOSE 8080
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-SERVICE nginx
-COPY ${src}/index.html srv/www/index.html
-COPY ${src}/nginx.conf etc/nginx/nginx.conf
+SERVICE my-nginx
+COPY ${src}/index.html /srv/www/index.html
+COPY ${src}/nginx.conf /etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
@@ -35,8 +35,8 @@ RUNDIR /run/nginx
 ```
 
 `FROM . AS src` gives the Cixfile directory a name. Bare relative sources remain legal:
-`COPY index.html srv/www/index.html` means exactly the same thing as
-`COPY ${src}/index.html srv/www/index.html`. Explicit binders become useful when a file has
+`COPY index.html /srv/www/index.html` means exactly the same thing as
+`COPY ${src}/index.html /srv/www/index.html`. Explicit binders become useful when a file has
 more than one possible origin.
 
 ## Structure
@@ -67,14 +67,15 @@ COPY-only builder adds a name without adding a boundary.
 
 ### Unified `COPY`
 
-`COPY <source> <destination>` is used in builders and artifact blocks:
+`COPY <source> <destination>` is used in builders and artifact blocks. A BUILDER destination is
+workdir-relative; a SERVICE or APP destination is absolute in that item's runtime world:
 
 ```dockerfile
-COPY README.md share/README.md
-COPY ${src}/config.toml etc/my-app/config.toml
-COPY ${download}/archive.tar share/archive.tar
-COPY ${compile}/bin/server bin/server
-COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt etc/ssl/cert.pem
+COPY README.md .
+COPY ${src}/config.toml /etc/my-app/config.toml
+COPY ${download}/archive.tar /share/archive.tar
+COPY ${compile}/bin/server /bin/server
+COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/cert.pem
 ```
 
 A source is either a bare relative path in the implicit Cixfile-directory context or a path
@@ -82,8 +83,10 @@ under a declared binder. Only remote sources need an explicit `FROM` binder. Pac
 references use `${universe.attrpath}`; source, fetch, and builder references use
 `${binder}/path`. Copying a binder without `/path` copies its whole root. A whole-builder read
 is legal but expensive: the entire left-behind tree becomes one consumed object and any
-changed byte invalidates that consumer. Prefer narrow paths for build artifacts. Destinations
-are clean paths relative to the builder or artifact root; `.` means the whole root.
+changed byte invalidates that consumer. Prefer narrow paths for build artifacts. BUILDER
+destinations are clean workdir-relative paths, and `.` means that whole workdir. SERVICE and APP
+destinations must start with `/`: this is the item's runtime root, stored item-relatively beneath
+the resulting artifact. `COPY source /` is the absolute spelling for the whole item root.
 
 Prefer one directory COPY when its contents move as a unit:
 
@@ -96,7 +99,7 @@ copying dependency manifests before source. Structural globs such as `**/Cargo.t
 implemented; the known manifest-first cases are already expressible without a glob language.
 
 There is no magic `${build}` namespace and `TAKE` is gone. A migrated file should name its
-builder, normally `BUILDER build`, and use `COPY ${build}/path destination`. The parser emits
+builder, normally `BUILDER build`, and use `COPY ${build}/path /destination`. The parser emits
 that migration directly instead of turning either spelling into a mysterious unknown name.
 
 `FILE <destination> <<EOF` adds an inline interpolated file. Use it when content must contain
@@ -104,7 +107,7 @@ a build-time store path; ordinary files and scripts should remain real source fi
 with `COPY`. Invoke a copied script through an explicit package shell:
 
 ```dockerfile
-COPY start bin/start
+COPY start /bin/start
 EXEC ${pkgs.bash}/bin/sh /bin/start
 ```
 
@@ -179,7 +182,7 @@ cargo build --release --locked --offline
 BUILD
 
 APP app
-COPY ${compile}/target/release/app bin/app
+COPY ${compile}/target/release/app /bin/app
 EXEC app
 ```
 
@@ -247,13 +250,13 @@ An anonymous `cix run` holds an indirect Nix GC root for the item's unit lifetim
 visible `ExecStopPost=` removes that root when the unit stops. Tags remain the durable naming
 and GC-root mechanism; an untagged item becomes collectable again after its run ends (D63).
 
-Relative copied destinations live at the artifact root and are projected at their native
-runtime path. Every SERVICE and APP gets `PATH=bin` unless it explicitly declares
+Artifact destinations name their native runtime paths and are stored item-relatively. Every
+SERVICE and APP gets `PATH=bin` unless it explicitly declares
 `ENV PATH = …`, which replaces that default entirely. A one-word `EXEC app` or `SETUP app`
 therefore resolves at build time to that item's `bin/app`; use it as the preferred spelling
-after copying or linking a runtime binary there. `EXEC bin/app` and package binaries as direct
+after copying or linking a runtime binary there. `EXEC /bin/app` and package binaries as direct
 store references remain valid. Add external runtime tools visibly with lines such as
-`LINK ${pkgs.postgresql}/bin/postgres bin/postgres`, rather than making them ambient PATH
+`LINK ${pkgs.postgresql}/bin/postgres /bin/postgres`, rather than making them ambient PATH
 entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
 package-owned assets such as nginx's `mime.types`.
 

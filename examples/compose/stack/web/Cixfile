@@ -2,8 +2,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE nginx
-COPY ${src}/nginx.conf etc/nginx/nginx.conf
-COPY ${src}/start bin/start
+COPY ${src}/nginx.conf /etc/nginx/nginx.conf
+COPY ${src}/start /bin/start
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 EXEC ${pkgs.bash}/bin/sh /bin/start ${pkgs.nginx}/bin/nginx
 LISTENER http

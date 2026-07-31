@@ -3,7 +3,7 @@ FROM . AS src
 
 SERVICE node-app
 ENV PATH = ${pkgs.nodejs}/bin
-COPY ${src}/server.js app/server.js
+COPY ${src}/server.js /app/server.js
 EXEC node /app/server.js
 PORT http = 8081
 GRANT jit

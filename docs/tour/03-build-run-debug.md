@@ -23,8 +23,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE tour-app
-COPY ${src}/greeting.txt share/greeting
-COPY ${src}/tour-app bin/tour-app
+COPY ${src}/greeting.txt /share/greeting
+COPY ${src}/tour-app /bin/tour-app
 EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 hello from Cixfile
 exec "$@"

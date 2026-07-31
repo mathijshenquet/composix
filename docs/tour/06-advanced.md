@@ -89,7 +89,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE web
-COPY ${src}/web bin/web
+COPY ${src}/web /bin/web
 EXEC ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v1
 ```
@@ -140,7 +140,7 @@ $ cat cix.lock
     "web": {
       "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",
-      "narHash": "sha256-Ztxtp1HQTXq6Bhy3/XLurmjmth8doHDw2HIpGOtR8Iw="
+      "narHash": "sha256-wbMSvxufGxcOtBfxii4hYBMSo29q8VOhidF4RdImE3U="
     }
   }
 }
@@ -162,7 +162,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE web
-COPY ${src}/web bin/web
+COPY ${src}/web /bin/web
 EXEC ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v2
 ```

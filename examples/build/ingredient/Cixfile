@@ -8,5 +8,5 @@ FETCH EXPECT sha256-XhP7EsnseO1i7z6hXTRfJ17kuLWNtxv0r2fWrgOpz58= \
     --output README.md
 
 SERVICE ingredient
-COPY ${payload}/README.md share/nixpkgs-README.md
+COPY ${payload}/README.md /share/nixpkgs-README.md
 EXEC ${pkgs.coreutils}/bin/sleep infinity

@@ -422,7 +422,6 @@ impl Parser<'_> {
         let fields = exact_fields(arguments, 2, line, source, "COPY <src> <dst>")?;
         reject_runtime_variable(fields[0], "COPY source", line, source)?;
         reject_runtime_variable(fields[1], "COPY destination", line, source)?;
-        validate_copy_relative_path(fields[1], "COPY destination", line, source)?;
         let src = self.build_template(fields[0], line, source, false)?;
         validate_copy_source(&src, line, source)?;
         let block = self.current.clone().ok_or_else(|| {
@@ -432,6 +431,15 @@ impl Parser<'_> {
                 "COPY must appear inside a BUILDER, SERVICE, or APP block under D47",
             )
         })?;
+        let destination = match &block {
+            CurrentBlock::Builder(_) => {
+                validate_copy_relative_path(fields[1], "COPY destination", line, source)?;
+                fields[1]
+            }
+            CurrentBlock::Artifact(_) => {
+                normalize_artifact_copy_destination(fields[1], "COPY destination", line, source)?
+            }
+        };
         let name = match &block {
             CurrentBlock::Builder(name) | CurrentBlock::Artifact(name) => name,
         };
@@ -439,20 +447,20 @@ impl Parser<'_> {
             .destinations
             .get_mut(name)
             .expect("block destinations exist")
-            .insert(fields[1].to_owned())
+            .insert(destination.to_owned())
         {
             return Err(ParseError::new(
                 line,
                 source,
                 format!(
                     "{} destination {:?} is already populated",
-                    self.names[name].kind, fields[1]
+                    self.names[name].kind, destination
                 ),
             ));
         }
         let copy = Copy {
             src,
-            dst: fields[1].to_owned(),
+            dst: destination.to_owned(),
             line,
             source: source.to_owned(),
         };
@@ -566,7 +574,12 @@ impl Parser<'_> {
             source,
             &format!("{directive} <dst> <<EOF"),
         )?;
-        validate_item_path(fields[0], &format!("{directive} destination"), line, source)?;
+        let destination = normalize_artifact_destination(
+            fields[0],
+            &format!("{directive} destination"),
+            line,
+            source,
+        )?;
         reject_build_interpolation(fields[0], &format!("{directive} destination"), line, source)?;
         reject_runtime_variable(fields[0], &format!("{directive} destination"), line, source)?;
         let delimiter = fields[1]
@@ -580,9 +593,9 @@ impl Parser<'_> {
                 )
             })?;
         let contents = self.read_heredoc_body(directive, delimiter, line, source)?;
-        self.claim_artifact_destination(fields[0], line, source)?;
+        self.claim_artifact_destination(destination, line, source)?;
         let assembly = Assembly::File {
-            dst: fields[0].to_owned(),
+            dst: destination.to_owned(),
             contents,
         };
         self.artifacts
@@ -636,7 +649,7 @@ impl Parser<'_> {
                 "LINK argument order changed in D52; replace old `LINK <linkpath> <target>` with `LINK <target> <linkpath>`",
             ));
         }
-        validate_item_path(fields[1], "LINK path", line, source)?;
+        let destination = normalize_artifact_destination(fields[1], "LINK path", line, source)?;
         reject_build_interpolation(fields[1], "LINK path", line, source)?;
         reject_runtime_variable(fields[1], "LINK path", line, source)?;
         reject_runtime_variable(fields[0], "LINK target", line, source)?;
@@ -648,11 +661,11 @@ impl Parser<'_> {
                 "LINK target must not be empty",
             ));
         }
-        self.claim_artifact_destination(fields[1], line, source)?;
+        self.claim_artifact_destination(destination, line, source)?;
         self.current_artifact_mut("LINK", line, source)?
             .assembly
             .push(Assembly::Link {
-                dst: fields[1].to_owned(),
+                dst: destination.to_owned(),
                 target,
             });
         Ok(())
@@ -667,6 +680,7 @@ impl Parser<'_> {
     ) -> Result<(), ParseError> {
         let directive = if setup { "SETUP" } else { "EXEC" };
         let fields = argv_fields(arguments, line, source, directive)?;
+        validate_artifact_command_path(&fields[0], directive, line, source)?;
         let artifact_name = self
             .current_artifact_name(directive, line, source)?
             .to_owned();
@@ -1811,6 +1825,51 @@ fn validate_item_path(
     }
 }
 
+fn normalize_artifact_copy_destination<'a>(
+    value: &'a str,
+    label: &str,
+    line: usize,
+    source: &str,
+) -> Result<&'a str, ParseError> {
+    if value == "/" {
+        return Ok(".");
+    }
+    normalize_artifact_destination(value, label, line, source)
+}
+
+fn normalize_artifact_destination<'a>(
+    value: &'a str,
+    label: &str,
+    line: usize,
+    source: &str,
+) -> Result<&'a str, ParseError> {
+    let Some(relative) = value.strip_prefix('/') else {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{label} must be an absolute item-world path under D66; write /{value}"),
+        ));
+    };
+    validate_projected_path(value, label, line, source)?;
+    Ok(relative)
+}
+
+fn validate_artifact_command_path(
+    value: &str,
+    directive: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    if !value.contains("${") && value.contains('/') && !value.starts_with('/') {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{directive} path {value:?} must be absolute in an artifact block under D66; write /{value}"),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_projected_path(
     value: &str,
     label: &str,
@@ -1945,14 +2004,14 @@ COPY Cargo.toml Cargo.toml
 FETCH printf fetched > fetched
 RUN cp fetched built
 SERVICE web
-COPY ${build}/built bin/web
-FILE etc/app.conf <<E
+COPY ${build}/built /bin/web
+FILE /etc/app.conf <<E
 source=${src}
 E
-	LINK ${pkgs.bash}/bin/bash bin/sh
+	LINK ${pkgs.bash}/bin/bash /bin/sh
 	ENV PATH = bin
 EXEC web
-SETUP bin/web
+SETUP /bin/web
 ENV PORT = 8080 required
 PORT http = $PORT
 LISTENER admin
@@ -1964,7 +2023,7 @@ RUNDIR /run/web
 GRANT jit
 GRANT egress
 APP migrate
-COPY ${ingredient} payload
+COPY ${ingredient} /payload
 EXEC /bin/true
 ENV MODE = once
 STATEDIR /var/lib/migrate
@@ -2038,7 +2097,7 @@ STATEDIR /var/lib/migrate
     #[test]
     fn bare_and_explicit_local_copy_sources_coexist() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nFROM . AS src\nBUILDER build\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nSERVICE app\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nFROM . AS src\nBUILDER build\nCOPY bare.txt bare\nCOPY ${src}/explicit.txt explicit\nSERVICE app\nCOPY bare.txt /bare\nCOPY ${src}/explicit.txt /explicit\nEXEC /bin/true\n",
         )
         .unwrap();
         let BuildStep::Copy(bare) = &parsed.builders["build"].steps[0] else {
@@ -2101,12 +2160,12 @@ STATEDIR /var/lib/migrate
                 "RUN is only legal inside a BUILDER block",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${build}/bin/app bin/app\nEXEC bin/app\n",
+                "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY ${build}/bin/app /bin/app\nEXEC /bin/app\n",
                 3,
                 "no binder named `build`; name your builder: `BUILDER build`",
             ),
             (
-                "FROM nixpkgs AS pkgs\nSERVICE app\nTAKE bin/app bin/app\nEXEC bin/app\n",
+                "FROM nixpkgs AS pkgs\nSERVICE app\nTAKE bin/app /bin/app\nEXEC /bin/app\n",
                 3,
                 "TAKE was removed by D47",
             ),
@@ -2246,7 +2305,7 @@ EXEC /bin/true \
     #[test]
     fn cachedir_and_link_use_the_d52_spellings() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello bin/hello\nEXEC bin/hello\nCACHEDIR /var/cache/app\n",
+            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nEXEC /bin/hello\nCACHEDIR /var/cache/app\n",
         )
         .unwrap();
         assert!(parsed.artifacts["app"]
@@ -2273,7 +2332,7 @@ EXEC /bin/true \
         );
 
         let link = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC bin/hello\n",
+            "FROM nixpkgs AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC /bin/hello\n",
         )
         .unwrap_err();
         assert_eq!(link.line, 3);
@@ -2394,29 +2453,48 @@ EXEC /bin/true \
     }
 
     #[test]
-    fn copy_destinations_are_subject_relative_and_dot_means_the_root() {
+    fn builder_destinations_are_relative_and_artifact_destinations_are_absolute() {
         parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY . .\nSERVICE app\nCOPY ${build} .\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY . .\nSERVICE app\nCOPY ${build} /\nEXEC /bin/true\n",
         )
         .unwrap();
-        for destination in ["/absolute", "../escape"] {
+        for (destination, spelling) in [("relative", "/relative"), (".", "/")] {
             let input = format!(
                 "FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload {destination}\nEXEC /bin/true\n"
             );
             let error = parse(&input).unwrap_err();
             assert_eq!(error.line, 3);
             assert!(
-                error.message.contains("clean relative path"),
+                error.message.contains("absolute item-world path"),
                 "{destination}: {error}"
             );
+            assert!(error.message.contains(spelling), "{destination}: {error}");
+        }
+        let builder = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nCOPY payload /bad\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(builder.message.contains("clean relative path"), "{builder}");
+
+        for directive in [
+            "FILE etc/app.conf <<EOF\nvalue\nEOF",
+            "LINK /nix/store/target bin/tool",
+            "EXEC bin/tool",
+            "SETUP bin/tool\nEXEC /bin/true",
+        ] {
+            let input = format!("FROM nixpkgs AS pkgs\nSERVICE app\n{directive}\nEXEC /bin/true\n");
+            let error = parse(&input).unwrap_err();
+            assert!(error.message.contains("D66"), "{directive}: {error}");
+            assert!(error.message.contains("/bin") || error.message.contains("/etc"));
         }
     }
 
     #[test]
     fn from_local_is_optional_but_a_package_universe_is_required() {
-        parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload payload\nEXEC /bin/true\n").unwrap();
+        parse("FROM nixpkgs AS pkgs\nSERVICE app\nCOPY payload /payload\nEXEC /bin/true\n")
+            .unwrap();
         let error =
-            parse("FROM . AS src\nSERVICE data\nCOPY ${src}/payload payload\nEXEC /bin/true\n")
+            parse("FROM . AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n")
                 .unwrap_err();
         assert!(error.message.contains("package universe"), "{error}");
     }

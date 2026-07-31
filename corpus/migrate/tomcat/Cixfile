@@ -4,6 +4,6 @@ SERVICE tomcat
   STATEDIR /var/lib/tomcat
   LOGSDIR /var/log/tomcat
   RUNDIR /run/tomcat
-  LINK ${pkgs.tomcat}/bin/catalina.sh bin/catalina.sh
+  LINK ${pkgs.tomcat}/bin/catalina.sh /bin/catalina.sh
   EXEC catalina.sh run
   PORT http = 8080

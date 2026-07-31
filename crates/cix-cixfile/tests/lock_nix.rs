@@ -60,7 +60,7 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 #[test]
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
-    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC bin/fixture\n").unwrap();
+    let cixfile = parse("FROM nixpkgs AS pkgs\nSERVICE fixture\nEXEC /bin/fixture\n").unwrap();
     let mut lock = committed_lock();
     lock.inputs.get_mut("pkgs").unwrap().nar_hash =
         "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".to_owned();
@@ -76,7 +76,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing bin/missing\nEXEC bin/missing\n",
+        "FROM nixpkgs AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nEXEC /bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -97,12 +97,12 @@ fn real_nix_build_assembles_files_links_and_spec() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-FILE share/content <<EOF
+FILE /share/content <<EOF
 package=${pkgs.hello}
 escaped=$${literal}
 runtime=$VALUE
 EOF
-LINK ${pkgs.hello}/bin/hello bin/hello
+LINK ${pkgs.hello}/bin/hello /bin/hello
 EXEC hello
 "#,
     )
@@ -141,7 +141,7 @@ fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-LINK ${pkgs.coreutils}/bin/true bin/true
+LINK ${pkgs.coreutils}/bin/true /bin/true
 ENV PATH = ${pkgs.bash}/bin
 SETUP true
 EXEC true
@@ -172,7 +172,7 @@ fn bare_commands_ignore_explicit_path_when_resolving() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-LINK ${pkgs.bash}/bin/bash bin/bash
+LINK ${pkgs.bash}/bin/bash /bin/bash
 ENV PATH = ${pkgs.coreutils}/bin
 EXEC bash
 "#,
@@ -201,7 +201,7 @@ fn bare_command_failure_lists_the_item_bin_entries() {
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-LINK ${pkgs.coreutils}/bin/true bin/true
+LINK ${pkgs.coreutils}/bin/true /bin/true
 EXEC definitely-not-in-bin
 "#,
     )
@@ -236,8 +236,8 @@ RUN <<BUILD
 cp input "$OUTPUT"
 BUILD
 SERVICE fixture
-COPY ${build}/output bin/output
-EXEC bin/output
+COPY ${build}/output /bin/output
+EXEC /bin/output
 "#,
     )
     .unwrap();
@@ -263,7 +263,7 @@ EXEC bin/output
         "sandboxed\n"
     );
     let spec = cix_run::spec::Spec::load(&PathBuf::from(&output)).unwrap();
-    assert_eq!(spec.select_service(None).unwrap().1.exec[0], "bin/output");
+    assert_eq!(spec.select_service(None).unwrap().1.exec[0], "/bin/output");
 
     let lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
@@ -292,10 +292,10 @@ BUILDER unrelated
 IMPORT ${pkgs.bash}
 RUN exit 42
 SERVICE api
-COPY ${wanted}/wanted payload
+COPY ${wanted}/wanted /payload
 EXEC /bin/true
 SERVICE worker
-COPY ${unrelated}/missing missing
+COPY ${unrelated}/missing /missing
 EXEC /bin/true
 "#,
     )
@@ -353,10 +353,10 @@ BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 FETCH EXPECT {expected} printf 'fixed\n' > payload
 SERVICE top
-COPY ${{ingredient}}/payload payload
+COPY ${{ingredient}}/payload /payload
 EXEC /bin/true
 SERVICE nested
-COPY ${{build}}/payload payload
+COPY ${{build}}/payload /payload
 EXEC /bin/true
 "#,
         ),
@@ -394,7 +394,7 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload payload\nEXEC /bin/true\n",
+        "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nEXEC /bin/true\n",
     )
     .unwrap();
     fs::write(
@@ -436,7 +436,7 @@ BUILDER fetch
 IMPORT ${{pkgs.bash}} ${{pkgs.gitMinimal}}{cacert}
 FETCH git ls-remote https://github.com/NixOS/nixpkgs.git HEAD > head
 SERVICE result
-COPY ${{fetch}}/head head
+COPY ${{fetch}}/head /head
 EXEC /bin/true
 "#
         )
@@ -486,8 +486,8 @@ BUILDER build
 IMPORT ${{pkgs.bash}}
 RUN printf x >> runs; printf one > one; printf two > two
 SERVICE result
-COPY ${{build}}/runs runs
-COPY ${{build}}/one one
+COPY ${{build}}/runs /runs
+COPY ${{build}}/one /one
 {extra_copy}EXEC /bin/true
 "#
         )
@@ -507,7 +507,7 @@ COPY ${{build}}/one one
 
     fs::write(
         directory.path().join("Cixfile"),
-        cixfile("COPY ${build}/two two\n"),
+        cixfile("COPY ${build}/two /two\n"),
     )
     .unwrap();
     let second = build(&BuildOptions {
@@ -567,7 +567,7 @@ FETCH EXPECT {expected} printf 'fixed\n' > payload
 COPY ${{src}}/source source
 RUN cp source output
 SERVICE result
-COPY ${{build}}/output output
+COPY ${{build}}/output /output
 EXEC /bin/true
 "#
         ),
@@ -632,7 +632,7 @@ RUN printf 'present\n' > required
 RUN {middle}
 FETCH EXPECT {expected} test -f required
 SERVICE result
-COPY ${{build}}/required required
+COPY ${{build}}/required /required
 EXEC /bin/true
 "#
         )
@@ -674,11 +674,11 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
     let bare = parse(
-        "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload share/payload\nEXEC /bin/true\n",
+        "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nEXEC /bin/true\n",
     )
     .unwrap();
     let explicit = parse(
-        "FROM nixpkgs AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload share/payload\nEXEC /bin/true\n",
+        "FROM nixpkgs AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload /share/payload\nEXEC /bin/true\n",
     )
     .unwrap();
     let bare = build_expression(

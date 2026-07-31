@@ -20,7 +20,7 @@ BUILDER build
   RUN CGO_ENABLED=0 go build -o dozzle
 
 SERVICE dozzle
-  COPY ${build}/dozzle bin/dozzle
+  COPY ${build}/dozzle /bin/dozzle
   STATEDIR /var/lib/dozzle
   EXEC dozzle
   PORT http = 8080

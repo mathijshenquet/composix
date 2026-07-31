@@ -48,8 +48,8 @@ touch .cix-warm
 BUILD
 
 SERVICE run-tour
-COPY ${build}/app bin/app
-COPY ${build}/result/upper result/upper
+COPY ${build}/app /bin/app
+COPY ${build}/result/upper /result/upper
 EXEC app
 ```
 

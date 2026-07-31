@@ -649,8 +649,8 @@ fn chapter_build_run_debug() -> String {
 FROM . AS src
 
 SERVICE tour-app
-COPY ${src}/greeting.txt share/greeting
-COPY ${src}/tour-app bin/tour-app
+COPY ${src}/greeting.txt /share/greeting
+COPY ${src}/tour-app /bin/tour-app
 EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 "#,
     )
@@ -663,7 +663,7 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     doc.sh("ls -1 Cixfile Cixfile.lock greeting.txt tour-app", true);
     let cixfile = doc.sh("cat Cixfile greeting.txt tour-app", true);
     assert!(cixfile.contains("SERVICE tour-app"));
-    assert!(cixfile.contains("COPY ${src}/tour-app bin/tour-app"));
+    assert!(cixfile.contains("COPY ${src}/tour-app /bin/tour-app"));
     assert!(cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     let lock = doc.sh("cat Cixfile.lock", true);
     assert!(lock.contains("\"narHash\""));
@@ -746,8 +746,8 @@ touch .cix-warm
 BUILD
 
 SERVICE run-tour
-COPY ${build}/app bin/app
-COPY ${build}/result/upper result/upper
+COPY ${build}/app /bin/app
+COPY ${build}/result/upper /result/upper
 EXEC app
 "#,
     )
@@ -858,7 +858,7 @@ fn chapter_advanced() -> String {
     doc.para("Compose now starts from a real Cixfile-built service rather than a harness-created store path. Its complete build input is visible before use.");
     doc.sh("ls -1 compose-app", true);
     let first_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
-    assert!(first_cixfile.contains("COPY ${src}/web bin/web"));
+    assert!(first_cixfile.contains("COPY ${src}/web /bin/web"));
     assert!(first_cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
     assert!(first_cixfile.contains("compose fixture v1"));
     doc.sh("cat compose-app/Cixfile.lock", true);
@@ -918,7 +918,7 @@ fn write_compose_cixfile(directory: &Path, version: &str) {
     .expect("writing compose script");
     fs::write(
         directory.join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web bin/web\nEXEC ${pkgs.bash}/bin/sh ${src}/web\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web /bin/web\nEXEC ${pkgs.bash}/bin/sh ${src}/web\n",
     )
     .expect("writing compose Cixfile");
 }
