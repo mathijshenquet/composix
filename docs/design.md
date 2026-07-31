@@ -1611,6 +1611,22 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   compatibility-bearing schema — a real cost-benefit decision then, not an
   accreting alpha tax now.
 
+- ✅ D73 (2026-08-01) — **the decomposition round; complexity is actively
+  managed** (Mathijs: "probeer het complexiteitsmonster te allen tijde onder
+  controle te houden" — recorded as a house principle alongside D48(e):
+  measure periodically, decompose along the strata, thin the hotspots
+  before they calcify. Baseline this day: ~19.6k SLOC Rust; hotspots
+  parser.rs 2.6k, build_chain.rs 1.9k, index/lib.rs 1.6k, spec.rs 1.1k).
+  (a) **Crate split: `cix-build` leaves `cix-cixfile`** — the workshop
+  engine (chain, keying, workspaces, sandbox) is stratum-2 machinery, the
+  parser/codegen are language; the crate graph should mirror the D67 seams.
+  (b) **cix-index splits into modules** (refs, tags, roots, serve, pull)
+  with a thin lib.rs.
+  (c) **spec.rs collapses to the single v0 schema** (D72).
+  (d) Parser diet per the pending analysis report (separate verdict).
+  Sequencing: after pinkeys merges; the underlay (D71) then lands in the
+  new cix-build crate — a clean home instead of a bigger pile.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
