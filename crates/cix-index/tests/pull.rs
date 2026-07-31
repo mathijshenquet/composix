@@ -200,7 +200,7 @@ fn readiness_request(stream: &mut TcpStream) -> std::io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_millis(100)))?;
     stream.write_all(b"GET / HTTP/1.1\r\nHost: readiness.cix.test\r\nConnection: close\r\n\r\n")?;
     let mut response = [0; 1];
-    stream.read(&mut response)?;
+    stream.read_exact(&mut response)?;
     Ok(())
 }
 
