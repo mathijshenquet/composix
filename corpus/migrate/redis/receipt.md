@@ -1,11 +1,13 @@
-# Receipt
+# redis migration receipt
 
-Verdict: **check-fail** (Cixfile class: dissolves / pkgs-only). Cix mode passes the Redis PING probe; Docker mode was not completed, so this is not claimed as a dual pass.
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`STATEDIR`, explicit artifact `bin/`, and bare `EXEC`).
 
-Verbatim cix probe transcript:
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/zsjh7kxzh2y2hc3hz4c69hkzxzcc2l63-cix-item-redis
 ```
-$ ./check.sh cix
-status=0
-```
-Cix store path: `/nix/store/59l13asfkr7x39i3k4w1vvrp9by3azwc-cix-item-redis`.
-Docker digest: not produced.
+
+Exit status: 0. The Redis PING probe passed after the existing D36 fallback.

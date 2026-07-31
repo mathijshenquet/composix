@@ -9,9 +9,20 @@
   "fetches": {
     "adminer_src": {
       "narHash": "sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ="
+    },
+    "builder:adminer_src:0-5041e7b369cf": {
+      "narHash": "sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ="
     }
   },
   "memo": {
+    "eca6544e4ba9d39bcd23d1ced7d2bacb7d58bcb0554e8c8c620e502a07a4e6ce": {
+      "paths": {
+        "adminer.php": {
+          "narHash": "sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=",
+          "storePath": "/nix/store/4mswbjgarb5g1kgab75lbnd9f01h38ly-cix-build-consumed"
+        }
+      }
+    },
     "ed6c877a4f3f1a4274ab712c738ea374797c9c96ccf47769f670bb3b5ae421d0": {
       "outputNarHash": "sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=",
       "storePath": "/nix/store/avgkp0gxdl3ib2lxd5khs7vg24sxbh3a-cix-build-snapshot",

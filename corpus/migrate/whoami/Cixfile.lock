@@ -13,6 +13,12 @@
     "builder:build:1-1b1da2a6a3d8": {
       "narHash": "sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s="
     },
+    "builder:build:1-27b58dcd6983": {
+      "narHash": "sha256-tlqh63S9lnbcmOfO5kZAXG/pQSZxAdNThZ7LUMXRHwg="
+    },
+    "builder:build:2-42a8263a643c": {
+      "narHash": "sha256-9M0AkvtAzsOYNGxFP8wMLqR9Im70h+BR/8h1pAzQs5E="
+    },
     "src": {
       "narHash": "sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0="
     }
@@ -47,6 +53,14 @@
       "outputNarHash": "sha256-kbQ2Is0WxwurR56xrNPPj0vSoH9k6AZISRGXvuvprEE=",
       "storePath": "/nix/store/ywhk4k8rh44c5z2g9zbsm04xj4hijr21-cix-build-snapshot",
       "wallMs": 714
+    },
+    "fdfcf51098c4fc502b6dfede33c247f6bf9374f9bc6666894ce5e385eb89811b": {
+      "paths": {
+        "whoami": {
+          "narHash": "sha256-PGesaKnYMmvgp7XYL1rVlTNPgnvUsGu/EvJAwEKk6wg=",
+          "storePath": "/nix/store/nqxmz348wlc8mryvyw5zas5nk280mdsg-cix-build-consumed"
+        }
+      }
     }
   }
 }

@@ -1,13 +1,13 @@
-# Receipt
+# tomcat migration receipt
 
-Verdict: **run-fail** (Cixfile class: dissolves / pkgs-only).
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`STATEDIR`, `LOGSDIR`, and explicit artifact `bin/`).
 
-Verbatim cix probe transcript:
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/4qpc7nnkf21jkd7bg2wddiyqzisyrdd4-cix-item-tomcat
 ```
-$ sudo systemctl is-active cix-run-tomcat-18c73367d3790ed61.service
-inactive
-$ curl --max-time 5 --fail --silent --show-error http://127.0.0.1:8080/
-curl: (7) Failed to connect to 127.0.0.1 port 8080 after 0 ms: Could not connect to server
-```
-Cix store path: `/nix/store/rg22y4i573ys3ji2hn4g7qz4x3224ygj-cix-item-tomcat`.
-Docker digest: not produced.
+
+Exit status: non-zero. The service did not become reachable on port 8080.

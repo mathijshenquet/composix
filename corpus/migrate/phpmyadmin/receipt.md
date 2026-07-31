@@ -1,19 +1,13 @@
-# Receipt
+# phpmyadmin migration receipt
 
-Verdict: **check-fail** (Cixfile class: build). The cix probe passed, but the required Docker-mode check did not produce a completed transcript in this round, so this is not claimed as a pass.
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, `EXPECT`, `STATEDIR`, and explicit artifact `bin/`).
 
-Cix transcript:
-```
-$ ./check.sh cix
-BUILDER build step 1 FETCH memo hit df52c5d63888 -> /nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot
-BUILDER build step 2 RUN memo hit 679d696a8d00 -> /nix/store/j9mbzi71c3qfvzban74ljsw45w4hy1pw-cix-build-snapshot
-status=0
-```
-Cix store path: `/nix/store/avmjazzz9dal1sd2zwvribiisyp7bj1j-cix-item-phpmyadmin`.
+Docker side: historical 2026-07-30 receipt, not rerun; no completed Docker transcript was captured then.
 
-Docker transcript:
+## `./check.sh cix`
+
+```text
+cix item /nix/store/gbfjxsjkc07w22y99jgglmsxf3s0yydb-cix-item-phpmyadmin
 ```
-$ timeout 300 ./check.sh docker
-(no completed transcript captured)
-```
-Docker digest: not produced.
+
+Exit status: 0. The phpMyAdmin HTTP probe passed after the existing D36 fallback.

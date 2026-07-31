@@ -2,21 +2,24 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-  PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin ${pkgs.nodejs_24}/bin ${pkgs.pnpm}/bin ${pkgs.gnused}/bin
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
+  ENV COREPACK_HOME = $PWD/.corepack
   COPY ${src}/context/ .
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt COREPACK_HOME=$PWD/.corepack corepack install
-  RUN COREPACK_HOME=$PWD/.corepack pnpm config set store-dir $PWD/.pnpm-store
-  FETCH SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt COREPACK_HOME=$PWD/.corepack pnpm fetch --frozen-lockfile
-  RUN COREPACK_HOME=$PWD/.corepack pnpm install --offline --frozen-lockfile --ignore-scripts
-  RUN COREPACK_HOME=$PWD/.corepack pnpm run build
-  RUN COREPACK_HOME=$PWD/.corepack pnpm --filter verdaccio --prod --legacy deploy deploy
+  FETCH corepack install
+  RUN pnpm config set store-dir $PWD/.pnpm-store
+  FETCH pnpm fetch --frozen-lockfile
+  RUN pnpm install --offline --frozen-lockfile --ignore-scripts
+  RUN pnpm run build
+  RUN pnpm --filter verdaccio --prod --legacy deploy deploy
   COPY ${src}/context/packages/config/src/conf/docker.yaml config.yaml
   RUN sed -e 's@/verdaccio/storage@/var/lib/verdaccio@g' -e 's@/verdaccio/plugins@/var/lib/verdaccio/plugins@g' config.yaml > config.cix.yaml
 
 SERVICE verdaccio
   COPY ${build}/deploy app
   COPY ${build}/config.cix.yaml etc/verdaccio/config.yaml
-  STATE /var/lib/verdaccio
-  EXEC ${pkgs.nodejs_24}/bin/node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
+  STATEDIR /var/lib/verdaccio
+  LINK ${pkgs.nodejs_24}/bin/node bin/node
+  EXEC node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
   PORT http = 4873
-  EGRESS
+  GRANT jit
+  GRANT egress
