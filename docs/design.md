@@ -1261,6 +1261,60 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   enumerated in the tree, stronger provenance than D31's PATH lists ever had.
   Nothing beyond your own tree is ever implicit.
 
+- ✅ D63 (2026-07-31) — **two acts, not two places: the anonymous loop and the
+  naming act; the GC contract completed with runtime roots** (Mathijs's
+  two-mode docker observation, critically sharpened; verdict "ja, links in
+  /run lijkt me prima").
+  (a) The design keys on the *act*, not the location: the **anonymous loop**
+  (bare build → JSON member map, selector → bare path, run by store path;
+  nothing named, everything collectable) versus the **naming act** (`-t`/
+  publish, D45 table moves). Not local-vs-CI: PR pipelines run the loop in CI;
+  laptops publish. Docker's local junk-tags are a workaround for unusable
+  image-ID handles, not a want — store paths are usable handles, so cix
+  delivers the loop docker only approximates.
+  (b) GC: D7/D35(b) already give tag=root, untag=unrooted=collected, no prune
+  machinery. The gap this closes: **`cix run` registers a unit-lifetime GC
+  root** — an indirect root `/run/cix/gcroots/<unit>.root → <item>` (user
+  mode: the XDG_RUNTIME_DIR analogue) created at start, removed by an
+  injected `ExecStopPost=` (D48e-transparent). /run is tmpfs, so reboot
+  self-heals stale roots; a dangling auto-side link is pruned by nix itself.
+  Why needed: nix's /proc-scan runtime roots protect only currently-mapped/
+  open paths — the restart path (the loaded ExecStart= string, an un-run
+  ExecStartPre, later-opened files) is unprotected; nix's own temproots are
+  connection-scoped, the wrong shape for detached services. Compose is
+  already safe (D30 profiles are roots).
+  (c) Compose-dev without tags: parked, evidence-gated (docker's `build:`
+  section is the prior art); the honest bridge is a throwaway `-t dev`,
+  fully unpinned again by untag per D7.
+
+- ✅ D65 (2026-07-31) — **FROM's three input kinds; universe-tags resolved**
+  (closes the open universe-tags design; Mathijs: "die FROM semantiek lijkt
+  me inderdaad prima zo").
+  (a) A flakeref is a *fetch address* (closed scheme set: `github:`, `git+…`,
+  `path:`, `tarball+…`, `.`); **no flake.nix is required** — bare repos are
+  first-class trees. FROM binds three kinds: (1) *tree via flakeref* →
+  source binder (D47, exists); (2) *package universe via flakeref* →
+  namespace binder (D32, exists) — the tree is imported classically
+  (`import <tree> { system }`), so the requirement is evaluability as a
+  package set, not flake.nix; (3) **NEW: cix item via index ref → artifact
+  binder**: `FROM cix.my-org.com/acme/web-vault:v3 AS webvault` — resolved
+  via the D45 index (pull if absent), narHash-verified, lock-pinned
+  (`ref → {storePath, narHash}`; the ref may move, `--update-lock` moves it
+  deliberately), usable as a COPY/LINK source. Docker's cross-image
+  `COPY --from=<image>` made honest; corpus forcing example: vaultwarden's
+  prebuilt web-vault.
+  (b) Disambiguation via D62's own rules: a known flakeref scheme ⇒ flakeref;
+  otherwise the token must parse as an index ref with an explicit `:tag`;
+  otherwise an error naming both grammars. Local unqualified refs are allowed
+  (the lock pins them); qualified refs give from-anywhere reproducibility.
+  (c) **An index ref never binds a namespace** — universes stay flakeref-only
+  (name provenance). Universe-tags land dissolved: the eval side IS the
+  flakeref (nothing new); the prebuilt-prelude side is *substitution keyed on
+  the lock pin* — availability plumbing, invisible to grammar; short
+  spellings, if ever wanted, via D32's cix-owned constant table. The earlier
+  pre-declared-IMPORTs inheritance idea is dead.
+  (d) `IMPORT` of a cix item inside builders: deferred, evidence-gated.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
