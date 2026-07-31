@@ -54,7 +54,7 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGS`, `CONFIG`, `RUNDIR`, `GRANT` | a long-running service artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `GRANT` | a long-running service artifact |
 | `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `GRANT`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -234,7 +234,7 @@ Each `SERVICE` or `APP` produces its own store item and bare v5 manifest.
 
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
 idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATEDIR`,
-`CACHEDIR`, `LOGS`, `CONFIG`, and `RUNDIR` map directly to systemd's managed
+`CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
 `*Directory=` roles. `GRANT jit` drops `MemoryDenyWriteExecute=`; `GRANT egress` declares
 outward network access and retains compose's usage-override semantics. The grant vocabulary is
 closed to `jit` and `egress`, one grant per line.

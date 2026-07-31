@@ -186,10 +186,12 @@ impl Parser<'_> {
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
-                "STATEDIR" | "CACHEDIR" | "LOGS" | "CONFIG" | "RUNDIR" => {
+                "STATEDIR" | "CACHEDIR" | "LOGSDIR" | "CONFIGDIR" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
                 "STATE" => return Err(ParseError::new(line_number, source, "STATE was renamed to STATEDIR by D52; replace this directive with STATEDIR")),
+                "LOGS" => return Err(ParseError::new(line_number, source, "LOGS was renamed to LOGSDIR by D52; replace this directive with LOGSDIR")),
+                "CONFIG" => return Err(ParseError::new(line_number, source, "CONFIG was renamed to CONFIGDIR by D52; replace this directive with CONFIGDIR")),
                 "GRANT" => self.grant(line_number, source, arguments)?,
                 "JIT" => return Err(ParseError::new(line_number, source, "JIT was replaced by GRANT jit (D60); replace this directive with GRANT jit")),
                 "EGRESS" => return Err(ParseError::new(line_number, source, "EGRESS was replaced by GRANT egress (D60); replace this directive with GRANT egress")),
@@ -921,8 +923,8 @@ impl Parser<'_> {
         let (root, role) = match directive {
             "STATEDIR" => ("/var/lib", "state"),
             "CACHEDIR" => ("/var/cache", "cache"),
-            "LOGS" => ("/var/log", "logs"),
-            "CONFIG" => ("/etc", "config"),
+            "LOGSDIR" => ("/var/log", "logs"),
+            "CONFIGDIR" => ("/etc", "config"),
             "RUNDIR" => ("/run", "run"),
             _ => unreachable!(),
         };
@@ -931,8 +933,8 @@ impl Parser<'_> {
         let paths = match directive {
             "STATEDIR" => &mut service.dirs.state,
             "CACHEDIR" => &mut service.dirs.cache,
-            "LOGS" => &mut service.dirs.logs,
-            "CONFIG" => &mut service.dirs.config,
+            "LOGSDIR" => &mut service.dirs.logs,
+            "CONFIGDIR" => &mut service.dirs.config,
             "RUNDIR" => &mut service.dirs.run,
             _ => unreachable!(),
         };
@@ -1985,8 +1987,8 @@ PORT http = $PORT
 LISTENER admin
 STATEDIR /var/lib/web
 	CACHEDIR /var/cache/web
-LOGS /var/log/web
-CONFIG /etc/web
+LOGSDIR /var/log/web
+CONFIGDIR /etc/web
 RUNDIR /run/web
 GRANT jit
 GRANT egress
@@ -2324,24 +2326,27 @@ EXEC /bin/true \
     }
 
     #[test]
-    fn statedir_and_grant_are_hard_migrations() {
+    fn role_directory_directives_and_grant_are_hard_migrations() {
         let parsed = parse(
-            "FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\nSTATEDIR /var/lib/job\nGRANT jit\nGRANT egress\n",
+            "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nGRANT jit\nGRANT egress\n",
         )
         .unwrap();
-        assert!(parsed.artifacts["job"]
-            .service
-            .dirs
-            .state
-            .contains("/var/lib/job"));
+        let dirs = &parsed.artifacts["web"].service.dirs;
+        assert!(dirs.state.contains("/var/lib/web"));
+        assert!(dirs.cache.contains("/var/cache/web"));
+        assert!(dirs.logs.contains("/var/log/web"));
+        assert!(dirs.config.contains("/etc/web"));
+        assert!(dirs.run.contains("/run/web"));
         assert_eq!(
-            parsed.artifacts["job"].service.grants,
+            parsed.artifacts["web"].service.grants,
             BTreeSet::from(["egress".into(), "jit".into()])
         );
-        for (directive, replacement) in [
-            ("STATE /var/lib/job", "STATEDIR"),
-            ("JIT", "GRANT jit"),
-            ("EGRESS", "GRANT egress"),
+        for (directive, replacement, decision) in [
+            ("STATE /var/lib/web", "STATEDIR", "D52"),
+            ("LOGS /var/log/web", "LOGSDIR", "D52"),
+            ("CONFIG /etc/web", "CONFIGDIR", "D52"),
+            ("JIT", "GRANT jit", "D60"),
+            ("EGRESS", "GRANT egress", "D60"),
         ] {
             let error = parse(&format!(
                 "FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
@@ -2349,6 +2354,7 @@ EXEC /bin/true \
             .unwrap_err();
             assert_eq!(error.line, 4);
             assert!(error.message.contains(replacement), "{error}");
+            assert!(error.message.contains(decision), "{error}");
         }
         let unknown =
             parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
@@ -2362,8 +2368,8 @@ EXEC /bin/true \
             ("LISTENER http", "LISTENER is not legal inside APP"),
             ("JIT", "JIT was replaced by GRANT jit"),
             ("SETUP /bin/true", "SETUP is not legal inside APP"),
-            ("LOGS /var/log/job", "LOGS is not legal inside APP"),
-            ("CONFIG /etc/job", "CONFIG is not legal inside APP"),
+            ("LOGSDIR /var/log/job", "LOGSDIR is not legal inside APP"),
+            ("CONFIGDIR /etc/job", "CONFIGDIR is not legal inside APP"),
             ("RUNDIR /run/job", "RUNDIR is not legal inside APP"),
             (
                 "PATH bin",
