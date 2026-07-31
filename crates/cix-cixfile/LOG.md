@@ -1,5 +1,96 @@
 # Cixfile track work log
 
+- 2026-07-31T22:17:34Z — Final nixcompare gate is green with the corrected,
+  self-contained warm benchmark. Exact fixture repros passed in sequence:
+  `devenv shell -- nix build
+  github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+  --no-link -L`; `devenv shell -- nix build
+  path:./examples/compare/gitsitter/crane --no-link -L`; and `devenv shell --
+  target/debug/cix build examples/compare/gitsitter/cix#gitsitter`, which
+  returned `/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter`.
+  The required untouched smoke `devenv shell -- cargo test --workspace` passed
+  from the start, including 44 compiler unit tests, 18 real-Nix compiler tests,
+  proj1, serve/pull, runner, and tour drift/determinism coverage. The committed
+  `measure-warm.sh` full replay passed with exactly three receipt lines:
+  upstream 30.64 s, crane 16.46 s, Cix 20.28 s. Doc drift audits diffed the
+  displayed upstream/crane excerpts and complete Cixfile against their source
+  files with no differences; logical LOC re-counted as 38/30/17. `bash -n`,
+  executable-mode, `git diff --check`, and 28 balanced Markdown fence markers
+  passed. Scope is the requested `docs/nix-build.md`,
+  `examples/compare/gitsitter/**`, plus this explicitly required track log; no
+  crate source changed. Removed only the generated untracked `devenv.lock` and
+  four exact temporary benchmark/distribution directories. Next: stage the
+  audited scope, commit on `track/nixcompare`, and verify the committed tree.
+
+- 2026-07-31T22:16:00Z — Corrected the warm-edit receipt after making the
+  committed harness independent of prior store/workspace state. The original
+  8.16 s Cix number was contaminated: its “prime” accepted the committed
+  remote-build memo and did not establish local predecessor workspaces. The
+  final `measure-warm.sh` deletes only the copied final memo, retains the input
+  and FETCH pins, performs an untimed isolated local prime, then applies the
+  committed patch. A complete green replay reported upstream 30.64 s, crane
+  16.46 s, and Cix 20.28 s. The honest result is crane fastest on this source
+  edit, Cix roughly one-third faster than upstream, and no 8.16 s claim. Two
+  earlier harness failures (Nix `--rebuild` before first realization, then
+  read-only copied source modes) produced no accepted measurements; the final
+  script realizes patched Nix targets before timed checks and makes only its
+  temporary Cix copy writable. Next: update the positioning prose with this
+  corrected receipt, audit sample drift and scope, then run the all-three-build
+  and workspace gates.
+
+- 2026-07-31T21:57:48Z — Completed the dated x86_64-linux measurement matrix
+  on this 32-thread NixOS host. Exact no-op results were upstream 0.07 s,
+  crane 0.64 s, Cixfile 1.13 s. Subject-cold results (pre-existing toolchain/
+  native inputs, substitutes disabled for the rebuilt subject derivations)
+  were upstream 28.82 s, crane 37.81 s, and `cix build --cold` 26.94 s.
+  The committed one-line `warm.patch`, after priming each route at the
+  unpatched source, measured upstream 30.58 s, crane 15.94 s, Cixfile 8.16 s.
+  Result sizes from `nix path-info -sSh`: upstream 9.0 MiB/63.5 MiB NAR/
+  closure, crane 9.1 MiB/63.6 MiB, Cix ITEM 9.1 MiB/9.1 MiB. Determinism:
+  upstream and crane final derivation `--check` rebuilds retained identical
+  paths/NAR hashes; normalized Cix vendoring made warm and `--cold` converge
+  on `/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter`.
+  Two caveats are receipts, not wins: crane's internal 154 MiB cargo-artifact
+  archive failed `--check` although its shipped result reproduced; and the Cix
+  ITEM reports zero references despite `ldd` naming store-linked glibc,
+  libgit2, OpenSSL, and libgcc, so its apparent closure-size win is a missing-
+  reference/distribution gap. The stratum-3 local-serve flow itself passed:
+  single-member `-t measured` needed no namespace, `serve --with-store`, and a
+  separate consumer index `pull --as` all succeeded; a second local Nix store
+  attempt failed in pull's path-info JSON parser, so the doc must describe the
+  shared-store receipt exactly. Next: write `docs/nix-build.md` around these
+  outputs and limitations, audit every claim/command against committed files,
+  then run the prescribed workspace and all-three-build gate.
+
+- 2026-07-31T21:42:00Z — The three pinned baseline routes are focused-green
+  for gitsitter `29c8a2d` with nixpkgs `9cf7092`. Inspection proved that the
+  upstream baseline uses `rustPlatform.buildRustPackage` with Cargo.lock,
+  pkg-config/git, and openssl/libgit2/sqlite rather than a low-level handwritten
+  derivation. The new idiomatic crane fixture uses `buildDepsOnly` plus
+  `buildPackage`; its first attempt exposed that gitsitter's workflow test needs
+  `git` at check time, matching upstream's declared native input, and passed
+  after adding it. Exact focused repros now pass: `devenv shell -- nix build
+  github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+  --no-link -L`; `devenv shell -- nix build
+  path:./examples/compare/gitsitter/crane --no-link -L`; and `devenv shell --
+  target/debug/cix build examples/compare/gitsitter/cix#gitsitter`, which
+  produced `/nix/store/l7r5d2d4jc5jx7wf6rjk6q1pj30xm7q4-cix-item-gitsitter`.
+  The Cixfile uses the required remote source binder, a pinned FETCH, offline
+  Cargo RUN, and a D68 ITEM. Next: validate locks/output shape, add the
+  reproducible one-line patch fixture, then run the controlled measurement
+  matrix and distribution flow.
+
+- 2026-07-31T21:34:18Z — Started `.dev/specs/track-nixcompare.md` on
+  `track/nixcompare` at `4193e20`. Read AGENTS.md, the current session and
+  Cixfile journals, authoritative D62/D65/D67/D68 in full, and the complete
+  track spec. Scope is documentation and committed comparison fixtures only:
+  upstream gitsitter flake versus an idiomatic crane flake versus a stratum-2
+  manifest-less Cixfile ITEM, with dated reproducible authoring/timing/closure/
+  determinism receipts and an honest stratum-3 distribution walkthrough. The
+  branch-local environment probe `devenv shell -- true` passed. Next: inspect
+  the resolved upstream source/flake and establish a reproducible benchmark
+  protocol before implementing the two local routes.
+
 - 2026-07-31T21:57:00Z — Committed the green D68 implementation on
   `track/itemrevive` (`Implement D68 manifest-less ITEM trees`). No open items
   remain for this track.
