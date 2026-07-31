@@ -1,0 +1,2 @@
+line 5: STATE is obsolete; replace it with STATEDIR; see docs/cixfile.md#role-dirs
+  | "STATE /var/lib/app"

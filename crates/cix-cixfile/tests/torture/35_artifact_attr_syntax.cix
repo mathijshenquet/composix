@@ -1,0 +1,5 @@
+# grade: problem=pass line=5 fix=pass docs=docs/cixfile.md#inputs
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM family/assets:v1 AS assets
+SERVICE app
+COPY ${assets.payload} /payload

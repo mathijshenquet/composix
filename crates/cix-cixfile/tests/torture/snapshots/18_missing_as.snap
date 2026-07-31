@@ -1,0 +1,2 @@
+line 2: FROM is missing AS before binder "pkgs"; write FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+  | "FROM github:NixOS/nixpkgs/nixos-unstable pkgs"

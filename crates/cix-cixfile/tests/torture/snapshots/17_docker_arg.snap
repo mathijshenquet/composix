@@ -1,0 +1,2 @@
+line 3: ARG, which is Docker vocabulary; use explicit FROM/FETCH inputs or builder ENV; see docs/migrate.md#docker-vocabulary
+  | "ARG VERSION=1"

@@ -1,0 +1,3 @@
+# grade: problem=pass line=3 fix=pass docs=docs/cixfile.md#inputs
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+PKG hello

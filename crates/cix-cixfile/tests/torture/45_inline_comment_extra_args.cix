@@ -1,0 +1,3 @@
+# grade: problem=pass line=3 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE app # comments must be full-line

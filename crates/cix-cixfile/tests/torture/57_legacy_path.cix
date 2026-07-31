@@ -1,0 +1,4 @@
+# grade: problem=pass line=4 fix=pass docs=docs/cixfile.md#builders
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+PATH ${pkgs.bash}/bin

@@ -1,11 +1,11 @@
 use std::{
     env, fs,
     io::{Read, Write},
-    net::TcpListener,
+    net::{SocketAddr, TcpListener, TcpStream},
     path::PathBuf,
     process::Command,
     thread,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use cix_common::Ref;
@@ -50,7 +50,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     thread::spawn(move || {
         serve(&format!("127.0.0.1:{port}"), Vec::new(), true, None).unwrap();
     });
-    thread::sleep(Duration::from_millis(250));
+    wait_for_listen(port);
 
     let browser = get(port, "/", "text/html", "index.example.test");
     assert_eq!(browser.status, 200);
@@ -152,7 +152,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     thread::spawn(move || {
         serve(&format!("127.0.0.1:{mirror_port}"), Vec::new(), false, None).unwrap();
     });
-    thread::sleep(Duration::from_millis(100));
+    wait_for_listen(mirror_port);
     let mirror_names = get(
         mirror_port,
         "/?format=json",
@@ -166,6 +166,42 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     fs::remove_dir_all(client_state).unwrap();
     fs::remove_dir_all(mirror_state).unwrap();
     fs::remove_dir_all(source).unwrap();
+}
+
+fn wait_for_listen(port: u16) {
+    const TIMEOUT: Duration = Duration::from_secs(5);
+    let address = SocketAddr::from(([127, 0, 0, 1], port));
+    let deadline = Instant::now() + TIMEOUT;
+
+    loop {
+        match TcpStream::connect_timeout(&address, Duration::from_millis(100)) {
+            Ok(mut stream) => match readiness_request(&mut stream) {
+                Ok(()) => return,
+                Err(error) if Instant::now() >= deadline => {
+                    panic!(
+                        "cix serve listened on {address} but did not answer a readiness request within {} seconds: {error}",
+                        TIMEOUT.as_secs(),
+                    );
+                }
+                Err(_) => thread::sleep(Duration::from_millis(10)),
+            },
+            Err(error) if Instant::now() >= deadline => {
+                panic!(
+                    "cix serve did not listen on {address} within {} seconds: {error}",
+                    TIMEOUT.as_secs(),
+                );
+            }
+            Err(_) => thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+fn readiness_request(stream: &mut TcpStream) -> std::io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+    stream.write_all(b"GET / HTTP/1.1\r\nHost: readiness.cix.test\r\nConnection: close\r\n\r\n")?;
+    let mut response = [0; 1];
+    stream.read_exact(&mut response)?;
+    Ok(())
 }
 
 struct HttpResponse {

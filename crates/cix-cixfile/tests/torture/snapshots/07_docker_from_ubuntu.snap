@@ -1,0 +1,2 @@
+line 2: no package universe is declared; Docker images are not inherited here; add FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs; see docs/migrate.md#docker-vocabulary
+  | "FROM ubuntu:22.04 AS base"

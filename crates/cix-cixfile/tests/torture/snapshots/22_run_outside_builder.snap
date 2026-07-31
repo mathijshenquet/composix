@@ -1,0 +1,2 @@
+line 3: RUN is outside a BUILDER; add BUILDER <name> before this line
+  | "RUN make"

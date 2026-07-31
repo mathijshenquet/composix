@@ -17,6 +17,17 @@ fn app_propagates_exit_status() -> Result<()> {
     let app = temporary.path().join("app-fixture");
     fs::create_dir(&app)?;
     let shell = find_program("sh")?;
+    let shell = if Path::new(&shell).starts_with("/nix/store") {
+        shell
+    } else {
+        match store_shell() {
+            Ok(shell) => shell,
+            Err(error) => {
+                eprintln!("skipping: requires a store-backed shell for the app fixture: {error:#}");
+                return Ok(());
+            }
+        }
+    };
     write_manifest(
         &app,
         serde_json::json!({
@@ -78,6 +89,28 @@ fn find_program(name: &str) -> Result<String> {
         bail!("could not find {name}");
     }
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn store_shell() -> Result<String> {
+    // Tests may use the ambient registry only to replace a host PATH shell with a store path.
+    let output = Command::new("nix")
+        .args(["build", "--print-out-paths", "--no-link", "nixpkgs#bash"])
+        .output()
+        .context("failed to obtain a store-backed shell")?;
+    if !output.status.success() {
+        bail!(
+            "nix build nixpkgs#bash failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let output = String::from_utf8(output.stdout)?;
+    output
+        .lines()
+        .map(|store_path| Path::new(store_path).join("bin/sh"))
+        .find(|shell| shell.starts_with("/nix/store") && shell.is_file())
+        .map(|shell| shell.to_string_lossy().into_owned())
+        .context("nix build nixpkgs#bash did not provide /nix/store/.../bin/sh")
 }
 
 fn command_succeeds(program: &str, args: &[&str]) -> bool {

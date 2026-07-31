@@ -1,0 +1,2 @@
+line 4: unknown directive "IMPROT"; did you mean IMPORT?
+  | "IMPROT ${pkgs.bash}"

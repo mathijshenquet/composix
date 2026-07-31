@@ -7,6 +7,8 @@ use crate::model::{
     InputKind, Port, Service, Template, TemplatePart,
 };
 
+mod diagnostics;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseError {
     pub line: usize,
@@ -109,7 +111,7 @@ impl Parser<'_> {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "directive line continuation has no following physical line",
+                        "directive line continuation has no next line; remove the trailing backslash or add the continuation",
                     ));
                 };
                 self.index += 1;
@@ -127,7 +129,7 @@ impl Parser<'_> {
                     return Err(ParseError::new(
                         continuation_line,
                         continuation,
-                        "directive line continuation has no following physical line",
+                        "directive line continuation has no next line; remove the trailing backslash or add the continuation",
                     ));
                 }
             }
@@ -148,17 +150,19 @@ impl Parser<'_> {
                     self.begin_artifact(ArtifactKind::Service, line_number, source, arguments)?
                 }
                 "APP" => self.begin_artifact(ArtifactKind::App, line_number, source, arguments)?,
-                "ITEM" => self.begin_artifact(ArtifactKind::Item, line_number, source, arguments)?,
+                "ITEM" => {
+                    self.begin_artifact(ArtifactKind::Item, line_number, source, arguments)?
+                }
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "RUN" => self.run(line_number, source, arguments)?,
                 "IMPORT" => self.import(line_number, source, arguments)?,
                 "PATH" => {
                     let message = match &self.current {
-                        Some(CurrentBlock::Builder(_)) => "PATH was replaced by IMPORT (D58)",
+                        Some(CurrentBlock::Builder(_)) => "PATH was removed; use IMPORT ${pkgs.<package>} inside a BUILDER; see docs/cixfile.md#builders",
                         Some(CurrentBlock::Artifact(_)) => {
-                            "PATH was removed (D58); declare ENV PATH = ... explicitly"
+                            "PATH was removed; use ENV PATH = <value>; see docs/cixfile.md#runtime-path"
                         }
-                        None => "PATH was replaced by IMPORT (D58)",
+                        None => "PATH was removed; use IMPORT ${pkgs.<package>} inside a BUILDER; see docs/cixfile.md#builders",
                     };
                     return Err(ParseError::new(line_number, source, message));
                 }
@@ -166,7 +170,7 @@ impl Parser<'_> {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "CACHE was removed (D57): workspaces persist by default and nothing is keyed unless read; delete the line",
+                        "CACHE was removed; delete this line because builder workspaces persist automatically; see docs/cixfile.md#builders",
                     ));
                 }
                 "FILE" => self.heredoc(directive, line_number, source, arguments)?,
@@ -174,7 +178,7 @@ impl Parser<'_> {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "SCRIPT was dropped (D55); COPY a real script and EXEC ${pkgs.bash}/bin/sh <path>, or use FILE if the content needs store-path interpolation",
+                        "SCRIPT was removed; COPY a script and invoke it with EXEC ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy",
                     ));
                 }
                 "LINK" => self.link(line_number, source, arguments)?,
@@ -186,26 +190,21 @@ impl Parser<'_> {
                 "STATEDIR" | "CACHEDIR" | "LOGSDIR" | "CONFIGDIR" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
-                "STATE" => return Err(ParseError::new(line_number, source, "STATE was renamed to STATEDIR by D52; replace this directive with STATEDIR")),
-                "LOGS" => return Err(ParseError::new(line_number, source, "LOGS was renamed to LOGSDIR by D52; replace this directive with LOGSDIR")),
-                "CONFIG" => return Err(ParseError::new(line_number, source, "CONFIG was renamed to CONFIGDIR by D52; replace this directive with CONFIGDIR")),
-                "GRANT" => self.grant(line_number, source, arguments)?,
-                "JIT" => return Err(ParseError::new(line_number, source, "JIT was replaced by GRANT jit (D60); replace this directive with GRANT jit")),
-                "EGRESS" => return Err(ParseError::new(line_number, source, "EGRESS was replaced by GRANT egress (D60); replace this directive with GRANT egress")),
-                "OUTBOUND" => {
+                "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND" => {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "OUTBOUND was replaced by GRANT egress (D60); replace this directive with GRANT egress",
+                        diagnostics::migration(directive).expect("migration is declared"),
                     ));
                 }
+                "GRANT" => self.grant(line_number, source, arguments)?,
                 "TAKE" => return Err(take_removed_error(line_number, source, arguments)),
                 "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 _ => {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        format!("unknown directive {directive:?}"),
+                        diagnostics::unknown_directive(directive),
                     ));
                 }
             }
@@ -227,7 +226,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile needs a package universe; try: FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs",
+                "no package universe is declared; Docker images are not inherited here; add FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs; see docs/migrate.md#docker-vocabulary",
             ));
         }
         if self.artifacts.is_empty() {
@@ -247,7 +246,7 @@ impl Parser<'_> {
                         .copied()
                         .unwrap_or_default(),
                     format!(
-                        "{} {name:?} must declare exactly one EXEC",
+                        "{} {name:?} has no EXEC; add exactly one EXEC <command> inside this block",
                         artifact.kind.keyword()
                     ),
                 ));
@@ -277,6 +276,16 @@ impl Parser<'_> {
         }
         let fields = arguments.split_whitespace().collect::<Vec<_>>();
         if fields.len() != 3 || fields.get(1) != Some(&"AS") {
+            if fields.len() == 2 {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "FROM is missing AS before binder {:?}; write FROM {} AS {}",
+                        fields[1], fields[0], fields[1]
+                    ),
+                ));
+            }
             return Err(ParseError::new(
                 line,
                 source,
@@ -418,7 +427,24 @@ impl Parser<'_> {
     }
 
     fn copy(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        if arguments.starts_with("--from=") {
+            return Err(ParseError::new(
+                line,
+                source,
+                "COPY --from is Docker vocabulary; use a named binder such as COPY ${build}/<path> /<destination>; see docs/migrate.md#docker-vocabulary",
+            ));
+        }
         let fields = exact_fields(arguments, 2, line, source, "COPY <src> <dst>")?;
+        if fields[0].starts_with('/') && fields[1].contains("${") {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "COPY arguments are source then destination; write COPY {} {}",
+                    fields[1], fields[0]
+                ),
+            ));
+        }
         reject_runtime_variable(fields[0], "COPY source", line, source)?;
         reject_runtime_variable(fields[1], "COPY destination", line, source)?;
         let src = self.build_template(fields[0], line, source, false)?;
@@ -427,11 +453,24 @@ impl Parser<'_> {
             ParseError::new(
                 line,
                 source,
-                "COPY must appear inside a BUILDER, SERVICE, or APP block under D47",
+                "COPY is outside a block; put it inside BUILDER, SERVICE, APP, or ITEM",
             )
         })?;
         let destination = match &block {
             CurrentBlock::Builder(_) => {
+                if fields[1].starts_with('/') {
+                    let replacement = fields[1]
+                        .strip_prefix('/')
+                        .filter(|path| !path.is_empty())
+                        .unwrap_or(".");
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        format!(
+                            "BUILDER COPY destination must be workdir-relative; write {replacement}"
+                        ),
+                    ));
+                }
                 validate_copy_relative_path(fields[1], "COPY destination", line, source)?;
                 fields[1]
             }
@@ -482,11 +521,12 @@ impl Parser<'_> {
 
     fn run(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
         let Some(CurrentBlock::Builder(name)) = self.current.clone() else {
-            return Err(ParseError::new(
-                line,
-                source,
-                "RUN is only legal inside a BUILDER block (D47 workshop/shipping-dock doctrine)",
-            ));
+            let message = if arguments.split_whitespace().next() == Some("apt-get") {
+                "RUN apt-get is Docker vocabulary; use IMPORT ${pkgs.<package>} in a BUILDER, then RUN the imported tools; see docs/migrate.md#docker-vocabulary"
+            } else {
+                "RUN is outside a BUILDER; add BUILDER <name> before this line"
+            };
+            return Err(ParseError::new(line, source, message));
         };
         let command = if let Some(delimiter) = heredoc_delimiter(arguments, "RUN", line, source)? {
             self.read_heredoc_body("RUN", delimiter, line, source)?
@@ -629,7 +669,9 @@ impl Parser<'_> {
         Err(ParseError::new(
             line,
             source,
-            format!("unterminated {directive} heredoc; expected {delimiter:?}"),
+            format!(
+                "unterminated {directive} heredoc; close it with {delimiter} on a line by itself with no indentation"
+            ),
         ))
     }
 
@@ -645,7 +687,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "LINK argument order changed in D52; replace old `LINK <linkpath> <target>` with `LINK <target> <linkpath>`",
+                "LINK arguments are target then link path; write LINK <target> <absolute-linkpath>; see docs/cixfile.md#link",
             ));
         }
         let destination = normalize_artifact_destination(fields[1], "LINK path", line, source)?;
@@ -691,7 +733,7 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "SETUP is not legal inside APP blocks under D47; put preparation in the APP executable",
+                "SETUP is not allowed inside APP; move preparation into the APP executable; see docs/cixfile.md#artifact-kinds",
             ));
         }
         let templates = fields
@@ -722,7 +764,7 @@ impl Parser<'_> {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "EXEC is already declared for this artifact",
+                    "EXEC is already declared for this artifact; remove one EXEC line",
                 ));
             }
             service.exec = templates;
@@ -1083,12 +1125,17 @@ impl Parser<'_> {
         if allowed.contains(&kind) {
             return Ok(());
         }
+        let destination = allowed
+            .iter()
+            .map(|kind| kind.keyword())
+            .collect::<Vec<_>>()
+            .join(" or ");
         Err(ParseError::new(
             line,
             source,
             format!(
-                "{directive} is not legal inside {} blocks under D47",
-                kind.keyword()
+                "{directive} is not allowed inside {}; move it to {destination}; see docs/cixfile.md#blocks-and-directives",
+                kind.keyword(),
             ),
         ))
     }
@@ -1130,7 +1177,7 @@ impl Parser<'_> {
             line,
             source,
             format!(
-                "{directive} crosses the ITEM seam (D68): items are build products; SERVICE/APP declare runnable contracts"
+                "{directive} is runtime vocabulary, but ITEM is content-only; use SERVICE or APP for a runnable contract; see docs/cixfile.md#item"
             ),
         )
     }
@@ -1200,7 +1247,7 @@ impl Parser<'_> {
                 line,
                 source,
                 format!(
-                    "name {name:?} is already bound by a {} on line {}; block and binder names share one namespace",
+                    "name {name:?} is already bound by a {} on line {}; block and binder names share one namespace, so rename this declaration",
                     first.kind, first.line
                 ),
             ));
@@ -1231,6 +1278,16 @@ fn heredoc_delimiter<'a>(
                 format!("{directive} heredoc must use << followed by a delimiter"),
             )
         })?;
+    if delimiter.starts_with(['\'', '"']) || delimiter.ends_with(['\'', '"']) {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!(
+                "{directive} heredoc delimiters are unquoted; write <<{}",
+                delimiter.trim_matches(['\'', '"'])
+            ),
+        ));
+    }
     Ok(Some(delimiter))
 }
 
@@ -1243,6 +1300,13 @@ fn exact_fields<'a>(
 ) -> Result<Vec<&'a str>, ParseError> {
     let fields = arguments.split_whitespace().collect::<Vec<_>>();
     if fields.len() != count {
+        if fields.iter().any(|field| field.starts_with('#')) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("expected {usage}; Cixfile comments must start on their own line"),
+            ));
+        }
         return Err(ParseError::new(line, source, format!("expected {usage}")));
     }
     Ok(fields)
@@ -1271,6 +1335,16 @@ fn argv_fields(
     source: &str,
     directive: &str,
 ) -> Result<Vec<String>, ParseError> {
+    if arguments
+        .chars()
+        .any(|character| matches!(character, '‘' | '’' | '“' | '”'))
+    {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("smart quotes are not valid in {directive}; replace them with ASCII ' or \""),
+        ));
+    }
     let mut fields = Vec::new();
     let mut field = String::new();
     let mut quote = None;
@@ -1299,7 +1373,7 @@ fn argv_fields(
         return Err(ParseError::new(
             line,
             source,
-            format!("unterminated quote in {directive} arguments"),
+            format!("unterminated quote in {directive} arguments; add the matching quote"),
         ));
     }
     if started {
@@ -1364,12 +1438,24 @@ fn build_template(
                             ),
                         ));
                     }
-                    let declared = inputs
+                    let package_namespaces = inputs
                         .iter()
                         .filter(|(_, input)| input.kind == InputKind::PackageUniverse)
-                        .map(|(name, _)| name.clone())
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                        .map(|(name, _)| name.as_str())
+                        .collect::<Vec<_>>();
+                    if let Some(candidate) = diagnostics::namespace_suggestion(
+                        namespace,
+                        package_namespaces.iter().copied(),
+                    ) {
+                        return Err(ParseError::new(
+                            line,
+                            source,
+                            format!(
+                                "unknown package namespace {namespace:?}; did you mean {candidate:?}?"
+                            ),
+                        ));
+                    }
+                    let declared = package_namespaces.join(", ");
                     return Err(ParseError::new(
                         line,
                         source,
@@ -1383,7 +1469,7 @@ fn build_template(
                         line,
                         source,
                         format!(
-                            "cix-item binder {namespace:?} is a tree; ${{{namespace}.…}} would make it a package namespace, which D65(c) forbids; use ${{{namespace}}}/<path>"
+                            "cix-item binder {namespace:?} is a source tree; use ${{{namespace}}}/<path>, not attribute syntax; see docs/cixfile.md#inputs"
                         ),
                     ));
                 }
@@ -1400,7 +1486,9 @@ fn build_template(
                     return Err(ParseError::new(
                         line,
                         source,
-                        "package interpolation must name a dot-separated attribute path after its namespace",
+                        format!(
+                            "package attribute path {attrpath:?} is malformed; use ${{{namespace}.<dot-separated-attrpath>}}"
+                        ),
                     ));
                 }
                 if !literal.is_empty() {
@@ -1440,6 +1528,13 @@ fn build_template(
                         line,
                         source,
                         "no binder named `build`; name your builder: `BUILDER build`",
+                    ));
+                }
+                if let Some(candidate) = diagnostics::binder_suggestion(reference, names) {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        format!("no binder named {reference:?}; did you mean {candidate:?}?"),
                     ));
                 }
                 if valid_attrpath(reference) {
@@ -1641,7 +1736,7 @@ fn validate_import_template(
                 line,
                 source,
                 format!(
-                    "IMPORT of cix-item binder {name:?} is deferred by D65(d); cix items are COPY/LINK source trees, not builder imports"
+                    "IMPORT cannot use cix-item binder {name:?}; use it as a COPY or LINK source tree; see docs/cixfile.md#inputs"
                 ),
             ));
         }
@@ -1821,9 +1916,9 @@ fn take_removed_error(line: usize, source: &str, arguments: &str) -> ParseError 
     let mut fields = arguments.split_whitespace();
     let rewrite = match (fields.next(), fields.next(), fields.next()) {
         (Some(from), Some(to), None) => format!(
-            "TAKE was removed by D47; inside the artifact block use COPY ${{build}}/{from} {to}, and name the producing block `BUILDER build`"
+            "TAKE was removed; inside the artifact block write COPY ${{build}}/{from} {to}, with a producing `BUILDER build`; see docs/cixfile.md#copy"
         ),
-        _ => "TAKE was removed by D47; use COPY ${<builder>}/<path> <destination> inside the artifact block".to_owned(),
+        _ => "TAKE was removed; use COPY ${<builder>}/<path> <destination> inside the artifact block; see docs/cixfile.md#copy".to_owned(),
     };
     ParseError::new(line, source, rewrite)
 }
@@ -1834,11 +1929,11 @@ fn pkg_removed_error(line: usize, source: &str, arguments: &str) -> ParseError {
         .next()
         .filter(|attribute| valid_attrpath(attribute))
         .map_or_else(
-            || "PKG was removed by D32; reference packages directly as ${pkgs.<attrpath>}"
+            || "PKG was removed; reference packages directly as ${pkgs.<attrpath>}; see docs/cixfile.md#inputs"
                 .to_owned(),
             |attribute| {
                 format!(
-                    "PKG was removed by D32; delete this line and replace ${{{attribute}}} with ${{pkgs.{attribute}}}"
+                    "PKG was removed; delete this line and replace ${{{attribute}}} with ${{pkgs.{attribute}}}; see docs/cixfile.md#inputs"
                 )
             },
         );
@@ -1921,7 +2016,7 @@ fn normalize_artifact_destination<'a>(
         return Err(ParseError::new(
             line,
             source,
-            format!("{label} must be an absolute item-world path under D66; write /{value}"),
+            format!("{label} must be absolute inside the item; write /{value}; see docs/cixfile.md#copy"),
         ));
     };
     validate_projected_path(value, label, line, source)?;
@@ -1938,7 +2033,7 @@ fn validate_artifact_command_path(
         return Err(ParseError::new(
             line,
             source,
-            format!("{directive} path {value:?} must be absolute in an artifact block under D66; write /{value}"),
+            format!("{directive} path {value:?} must be absolute inside an artifact; write /{value}; see docs/cixfile.md#runtime-path"),
         ));
     }
     Ok(())
@@ -1955,7 +2050,7 @@ fn validate_projected_path(
         return Err(ParseError::new(
             line,
             source,
-            format!("{label} is denied by the D22 v3 filesystem-projection rule"),
+            format!("{label} targets a reserved runtime path; choose a path below it; see docs/cixfile.md#copy"),
         ));
     }
     if value.ends_with('/')
@@ -1974,7 +2069,7 @@ fn validate_projected_path(
         return Err(ParseError::new(
             line,
             source,
-            format!("{label} is denied by the D22 v3 filesystem-projection rule"),
+            format!("{label} targets a reserved runtime path; choose a path below it; see docs/cixfile.md#copy"),
         ));
     }
     Ok(())
@@ -2158,13 +2253,16 @@ STATEDIR /var/lib/migrate
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
-        assert_eq!(builder_path.message, "PATH was replaced by IMPORT (D58)");
+        assert!(
+            builder_path.message.contains("use IMPORT"),
+            "{builder_path}"
+        );
         let service_path =
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nPATH ${pkgs.bash}/bin\nEXEC /bin/true\n")
                 .unwrap_err();
         assert_eq!(
             service_path.message,
-            "PATH was removed (D58); declare ENV PATH = ... explicitly"
+            "PATH was removed; use ENV PATH = <value>; see docs/cixfile.md#runtime-path"
         );
     }
 
@@ -2231,7 +2329,7 @@ STATEDIR /var/lib/migrate
             (
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nRUN true\nSERVICE app\nEXEC /bin/true\n",
                 2,
-                "RUN is only legal inside a BUILDER block",
+                "RUN is outside a BUILDER",
             ),
             (
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY ${build}/bin/app /bin/app\nEXEC /bin/app\n",
@@ -2241,12 +2339,12 @@ STATEDIR /var/lib/migrate
             (
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nTAKE bin/app /bin/app\nEXEC /bin/app\n",
                 3,
-                "TAKE was removed by D47",
+                "TAKE was removed",
             ),
             (
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
                 2,
-                "PATH was replaced by IMPORT (D58)",
+                "PATH was removed; use IMPORT",
             ),
         ] {
             let error = parse(input).unwrap_err();
@@ -2262,7 +2360,7 @@ STATEDIR /var/lib/migrate
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
         assert_eq!(error.line, 4);
         assert!(error.message.contains("GRANT egress"), "{error}");
-        assert!(error.message.contains("D60"), "{error}");
+        assert!(error.message.contains("docs/cixfile.md#grants"), "{error}");
     }
 
     #[test]
@@ -2276,7 +2374,7 @@ STATEDIR /var/lib/migrate
         assert_eq!(error.source, source);
         assert_eq!(
             error.message,
-            "SCRIPT was dropped (D55); COPY a real script and EXEC ${pkgs.bash}/bin/sh <path>, or use FILE if the content needs store-path interpolation"
+            "SCRIPT was removed; COPY a script and invoke it with EXEC ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy"
         );
     }
 
@@ -2400,7 +2498,7 @@ EXEC /bin/true \
         assert_eq!(cache.line, 4);
         assert_eq!(
             cache.message,
-            "CACHE was removed (D57): workspaces persist by default and nothing is keyed unless read; delete the line"
+            "CACHE was removed; delete this line because builder workspaces persist automatically; see docs/cixfile.md#builders"
         );
 
         let link = parse(
@@ -2408,8 +2506,8 @@ EXEC /bin/true \
         )
         .unwrap_err();
         assert_eq!(link.line, 3);
-        assert!(link.message.contains("argument order changed in D52"));
-        assert!(link.message.contains("LINK <target> <linkpath>"));
+        assert!(link.message.contains("arguments are target then link path"));
+        assert!(link.message.contains("LINK <target> <absolute-linkpath>"));
     }
 
     #[test]
@@ -2456,12 +2554,12 @@ EXEC /bin/true \
             parsed.artifacts["web"].service.grants,
             BTreeSet::from(["egress".into(), "jit".into()])
         );
-        for (directive, replacement, decision) in [
-            ("STATE /var/lib/web", "STATEDIR", "D52"),
-            ("LOGS /var/log/web", "LOGSDIR", "D52"),
-            ("CONFIG /etc/web", "CONFIGDIR", "D52"),
-            ("JIT", "GRANT jit", "D60"),
-            ("EGRESS", "GRANT egress", "D60"),
+        for (directive, replacement, anchor) in [
+            ("STATE /var/lib/web", "STATEDIR", "#role-dirs"),
+            ("LOGS /var/log/web", "LOGSDIR", "#role-dirs"),
+            ("CONFIG /etc/web", "CONFIGDIR", "#role-dirs"),
+            ("JIT", "GRANT jit", "#grants"),
+            ("EGRESS", "GRANT egress", "#grants"),
         ] {
             let error = parse(&format!(
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
@@ -2469,7 +2567,7 @@ EXEC /bin/true \
             .unwrap_err();
             assert_eq!(error.line, 4);
             assert!(error.message.contains(replacement), "{error}");
-            assert!(error.message.contains(decision), "{error}");
+            assert!(error.message.contains(anchor), "{error}");
         }
         let unknown =
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
@@ -2479,17 +2577,14 @@ EXEC /bin/true \
     #[test]
     fn app_rejects_service_only_surface_at_the_directive_line() {
         for (directive, message) in [
-            ("PORT http = 8080", "PORT is not legal inside APP"),
-            ("LISTENER http", "LISTENER is not legal inside APP"),
-            ("JIT", "JIT was replaced by GRANT jit"),
-            ("SETUP /bin/true", "SETUP is not legal inside APP"),
-            ("LOGSDIR /var/log/job", "LOGSDIR is not legal inside APP"),
-            ("CONFIGDIR /etc/job", "CONFIGDIR is not legal inside APP"),
-            ("RUNDIR /run/job", "RUNDIR is not legal inside APP"),
-            (
-                "PATH bin",
-                "PATH was removed (D58); declare ENV PATH = ... explicitly",
-            ),
+            ("PORT http = 8080", "PORT is not allowed inside APP"),
+            ("LISTENER http", "LISTENER is not allowed inside APP"),
+            ("JIT", "replace it with GRANT jit"),
+            ("SETUP /bin/true", "SETUP is not allowed inside APP"),
+            ("LOGSDIR /var/log/job", "LOGSDIR is not allowed inside APP"),
+            ("CONFIGDIR /etc/job", "CONFIGDIR is not allowed inside APP"),
+            ("RUNDIR /run/job", "RUNDIR is not allowed inside APP"),
+            ("PATH bin", "PATH was removed; use ENV PATH = <value>"),
         ] {
             let input = format!("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nEXEC /bin/true\n{directive}\n");
             let error = parse(&input).unwrap_err();
@@ -2528,13 +2623,11 @@ EXEC /bin/true \
             let error = parse(&input).unwrap_err();
             assert_eq!(error.line, 3, "{directive}: {error}");
             assert!(
-                error.message.contains("ITEM seam (D68)"),
+                error.message.contains("ITEM is content-only"),
                 "{directive}: {error}"
             );
             assert!(
-                error
-                    .message
-                    .contains("items are build products; SERVICE/APP declare runnable contracts"),
+                error.message.contains("use SERVICE or APP"),
                 "{directive}: {error}"
             );
         }
@@ -2570,7 +2663,7 @@ EXEC /bin/true \
             let error = parse(&input).unwrap_err();
             assert_eq!(error.line, 3);
             assert!(
-                error.message.contains("absolute item-world path"),
+                error.message.contains("absolute inside the item"),
                 "{destination}: {error}"
             );
             assert!(error.message.contains(spelling), "{destination}: {error}");
@@ -2579,7 +2672,8 @@ EXEC /bin/true \
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY payload /bad\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
-        assert!(builder.message.contains("clean relative path"), "{builder}");
+        assert!(builder.message.contains("workdir-relative"), "{builder}");
+        assert!(builder.message.contains("write bad"), "{builder}");
 
         for directive in [
             "FILE etc/app.conf <<EOF\nvalue\nEOF",
@@ -2589,7 +2683,10 @@ EXEC /bin/true \
         ] {
             let input = format!("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\n{directive}\nEXEC /bin/true\n");
             let error = parse(&input).unwrap_err();
-            assert!(error.message.contains("D66"), "{directive}: {error}");
+            assert!(
+                error.message.contains("must be absolute"),
+                "{directive}: {error}"
+            );
             assert!(error.message.contains("/bin") || error.message.contains("/etc"));
         }
     }
@@ -2624,12 +2721,18 @@ EXEC /bin/true \
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web:v3 AS webvault\nSERVICE app\nCOPY ${webvault.payload} /payload\nEXEC /bin/true\n",
         )
         .unwrap_err();
-        assert!(attr_use.message.contains("D65(c)"), "{attr_use}");
+        assert!(
+            attr_use.message.contains("docs/cixfile.md#inputs"),
+            "{attr_use}"
+        );
 
         let import = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM family/web:v3 AS webvault\nBUILDER build\nIMPORT ${webvault}\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
-        assert!(import.message.contains("D65(d)"), "{import}");
+        assert!(
+            import.message.contains("docs/cixfile.md#inputs"),
+            "{import}"
+        );
     }
 }

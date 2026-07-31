@@ -1,0 +1,2 @@
+line 4: FILE heredoc must use << followed by a delimiter
+  | "FILE /etc/app.conf <<"

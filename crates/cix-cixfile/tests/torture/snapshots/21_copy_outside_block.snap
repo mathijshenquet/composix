@@ -1,0 +1,2 @@
+line 3: COPY is outside a block; put it inside BUILDER, SERVICE, APP, or ITEM
+  | "COPY payload /payload"

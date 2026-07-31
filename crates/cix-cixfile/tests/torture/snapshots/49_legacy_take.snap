@@ -1,0 +1,2 @@
+line 4: TAKE was removed; inside the artifact block write COPY ${build}/bin/app /bin/app, with a producing `BUILDER build`; see docs/cixfile.md#copy
+  | "TAKE bin/app /bin/app"

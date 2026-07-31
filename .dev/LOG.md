@@ -1,34 +1,85 @@
 # composix work log
 
-## 2026-08-01 follow-up (D69 stability correction)
+## 2026-08-01 late (CI GREEN + D70–D74; crunchy landed; pinkeys in leg 3)
 
-- **Fixed on track/pinkeys, ready to commit**: automatic FETCH pins already
-  used the seven downstream Parse Server outputs; the lock churn was the
-  serialized double-fetch `volatile` observation admitting npm's own
-  timestamped debug log. Persisted probe facts now use the same downstream
-  consumed-path boundary, while raw volatility remains reported. Exact fresh
-  disk-TMPDIR, fresh-workspace-between-runs Parse Server acceptance is
-  byte-identical (`Cixfile.lock` sha256
-  `609a7e76aa891c2b66aaec11e0e5c81f43ec509636e1ca2b58bce8508d915bde`).
-- **Verification**: focused timestamped-log and boundary tests; full serial
-  Rust suite after resetting a pre-existing transient-user-unit race; tour
-  drift/determinism; all 61 `nix flake check -L` checks (current VM dogfood
-  under expected TCG fallback); Parse Server and ProjB receipts. The final
-  diff also removes obsolete unconsumed volatile maps from the Parse Server
-  and ProjB committed locks.
-- **Open with Mathijs**: none. **Open for agents**: none.
+- **CI on main is fully green** (`fb0d7c5`) — first since 2026-07-30. The
+  campaign fixed five named causes (gc-root product bug, host-dependent
+  fixture, serve race, compose-fallback root registration, clippy
+  unused_io_amount micro-fix). **New convention in AGENTS.md: track gates
+  end with the full `nix flake check -L`** — the thirteen-merges-past-red-CI
+  lesson.
+- **Decisions**: D70 overlay universes (`FROM <flakeref> OVERLAY ./x.nix AS
+  pkgs`; USING died — "a function call in a jacket"; getFlake stays
+  evidence-gated); D71 the underlay (+retreat path: CACHE returns if it
+  chafes; dial underlay→CACHE→prefix); D72 alpha manifest = version 0
+  (schema moves freely until 1.0; D15 suspended); D73 decomposition round
+  (cix-build crate split, index modules, spec v0 collapse, parser diet per
+  analysis; complexity-monster house principle; addendum: NO D-numbers in
+  user-facing diagnostics — stable doc anchors instead); D74 `cix fmt`
+  (apply-by-default, recursive, `--check` prints diffs and exits 1 — check
+  subsumes diff; `-` stdin; minimal canon v1; trivia-preserving printer).
+- **Merged**: track/cigreen2 (`fb0d7c5`, terra + orchestrator micro-fix) and
+  track/crunchy (`d20f866`, sol — 60-fixture torture corpus as permanent
+  snapshot suite, did-you-mean suggestions, per-docker-directive guidance,
+  D-number sweep, explicit accept-fixtures for the forgiveness boundary).
+- **pinkeys (D69) in leg 3**: leg 1 flapped on snapshot paths in the lock
+  (caught by the independent double-clean-update-lock proof); leg 2 moved
+  snapshots to a stable-pin-keyed local cache but the probe still persisted
+  npm's self-generated log path; leg 3 filters persisted volatile facts to
+  later-consumed paths. Orchestrator acceptance: byte-identical locks across
+  a workspace WIPE between two clean update-locks. Gate (incl. full tier)
+  running.
+- Parser analysis (sol, read-only): 403 machine / 715 directives / 186
+  migrations / 760 helpers / 571 in-file tests → adopted into D73(d).
+- Ops: /tmp cleaned per mtime (Mathijs-authorized; 31G + 125k inodes freed;
+  ageq leftovers were the bulk); ENOSPC root-caused to tmpfs inode
+  exhaustion; orchestrator shell-honesty lessons memorized
+  (gate-scripts-fail-loud).
+- **Queue**: pinkeys merge → decomposition round → underlay (+ nix-build.md
+  re-measurement: does the warm edit beat crane) → fmt implementation (D74)
+  → D70 implementation (overlay universes + wallos rewrite).
 
-## 2026-08-01 early (D69)
+## 2026-08-01 (pin-stability D69/D70 + the CI-green campaign)
 
-- **Merged: track/pinkeys** (`b8016a8` — D69 automatic FETCH pins now key only
-  downstream-consumed paths, retain a Nix-store replay snapshot for offline
-  `--cold`, and record/report `--update-lock` double-fetch volatility facts.
-  EXPECT remains a whole-tree assertion; a versioned codegen fingerprint causes
-  the intentional one-time memo miss. Full workspace, tour/determinism,
-  vm-dogfood, and Parse Server/ProjB/Dozzle backend proofs passed.)
-- **Open with Mathijs**: none from D69; Dozzle's consumed pnpm/Vite `dist`
-  instability and Docker socket runtime boundary remain explicitly recorded.
-- **Open for agents**: none.
+- **Decisions**: D69 FETCH pin stability (consumed-set keying [a]; update-lock
+  double-fetch probe [b, Mathijs's mechanism]; consumed-volatile = authoring
+  normalization [c]; STABLE FETCH + functions-in-${} refused [d]; --cold never
+  refetches / offline by construction + codegen fingerprint in memo keys [e]).
+  D70 overlay universes (`FROM <flakeref> OVERLAY ./x.nix AS pkgs` — the
+  wallos forcing example; USING died in dialogue: "a function call in a
+  jacket"; getFlake back to evidence-gated). Diagnosis report (sol, scratch):
+  warm memo hits never refetch; parse-server's npm noise is 1,355 timestamped
+  cache-index records, node_modules byte-identical → consumed-keying fixes
+  3 of 4 exhibit classes; pnpm/dist is the normalization case.
+- **CI-red anatomy resolved**: main's full tier red since the scenario tier
+  entered CI (last green 4a1ddde, 2026-07-30) — thirteen merges passed a red
+  CI unnoticed (track gates don't run the full tier; compounded by my
+  tail-pipeline exit-code measuring bug). Two causes: (1)
+  **scenario-gc-survival: real product bug** — `nix store add-path` created
+  compose generations without reference edges to service items; profile
+  rooted the generation, not the items; retag → GC ate the live item. Fixed
+  (persistent indirect roots per generation+service, generation.rs:77 /
+  runtime.rs) and merged with coldaudit (`98887dc`). (2) artifact_kinds
+  fixture resolves host `sh` (/usr/bin/sh on CI) — track/cifix running.
+  **Process fix needed: full flake tier into the merge gate** (or a loud
+  daily main run).
+- **Merged**: track/coldaudit+gcfix (`98887dc` — cold_audit standing test,
+  projB/projB-chef pins proven unstable across two clean update-lock runs
+  [cargo joins the dozzle class], D64 example repairs, observability receipt
+  fix); track/nixcompare (`9b57ad1` — docs/nix-build.md: LOC 17 vs 30 vs 38,
+  cold 26.9s wins, warm-edit loses to crane 20.3 vs 16.5 [explained: both
+  discard own-step increments; our 4s = snapshot/hash overhead], no-op loses
+  to eval-cache; honest zero-runtime-references caveat).
+- **New design questions surfaced**: (1) **warm step replay** — let a RUN
+  step reuse its own previous workspace state (true cargo increments, beats
+  crane; licensed by D39.1 + the new cold-audit safety net; also fixes
+  migrate.md's subtle overclaim vs BuildKit cache-mounts); (2) **closure
+  truth for builder-made dynamic binaries** — they reference union paths,
+  not store paths (nixcompare receipt: zero registered references; clean-
+  store distribution unproven) — patchelf-at-the-dock or store-path
+  toolchain refs, needs a round. Both await Mathijs.
+- **Running**: track/pinkeys (D69 impl), track/cifix. Queued: D70 impl
+  (overlay universes + wallos rewrite), coldaudit-style full-tier gate rule.
 
 ## 2026-08-01 early (the strata dialogue: D67/D68; r5 merged)
 

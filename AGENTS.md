@@ -23,6 +23,7 @@ Other landmarks: `.dev/specs/track-*.md` (past agent specs; write new ones here)
 - Keep your assigned LOG.md current (append-only, timestamped) — it is the durable memory.
 - "Green" claims by agents get independently re-verified before merge — design for that: leave exact repro commands in your LOG.
 - Decisions live in docs/design.md only; propose amendments there, don't fork design prose into other files.
+- Track gates END with the full `devenv shell -- nix flake check -L` — never a cherry-picked VM subset. (Lesson of 2026-07-31: thirteen merges passed a red CI because per-track gates ran hand-picked checks.)
 
 ## Session close (orchestrator)
 Append a dated entry to `.dev/LOG.md`: merged work, decisions taken (with D-numbers), open items *with Mathijs* vs open items *for agents*.

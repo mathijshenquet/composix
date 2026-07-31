@@ -1,0 +1,2 @@
+line 6: no binder named "comiple"; did you mean "compile"?
+  | "COPY ${comiple}/app /bin/app"

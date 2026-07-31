@@ -1,0 +1,2 @@
+line 4: RUN heredoc delimiters are unquoted; write <<BUILD
+  | "RUN <<'BUILD'"

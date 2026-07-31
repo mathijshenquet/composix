@@ -1,0 +1,2 @@
+line 4: unterminated RUN heredoc; close it with BUILD on a line by itself with no indentation
+  | "RUN <<BUILD"

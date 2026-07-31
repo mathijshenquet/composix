@@ -1528,6 +1528,130 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   stale checkout getting memo hits from bytes built by newer cix — caught
   via tour narHash drift).
 
+- ✅ D70 (2026-08-01) — **overlay universes: the escape hatch for package
+  composition** (the wallos/`php.withExtensions` forcing example; a dialogue
+  arc worth keeping honest: sidecar-package → explicit `USING` injection →
+  Mathijs's "USING is a function call in a jacket" and "why not a file that
+  IS nixpkgs-except-my-php" → this).
+  (a) **`FROM <flakeref> OVERLAY <./file.nix>… AS <name>`**: the base
+  universe evaluated with nixpkgs' own overlay mechanism —
+  `import <tree> { system; overlays = [ (import ./file.nix) … ]; }`. The
+  overlay file is the bare nix idiom (`final: prev: { php =
+  prev.php83.withExtensions …; }` — three lines); repeatable, order =
+  overlay order. Implementation is one argument on the existing classic
+  import; **getFlake stays evidence-gated** (this removes its forcing
+  example). Computation lives in the .nix file, the Cixfile only wires a
+  path — the same boundary that refused functions-in-`${…}` (D69d) and
+  killed `USING`.
+  (b) **Requirements, checked with clear errors**: the base must accept an
+  `overlays` argument (functionArgs-checked; else "wrap the base or use a
+  full universe tree"); the overlay file must be a `final: prev:` function
+  to attrset. Semantics are the real nixpkgs fixpoint — an overlay can
+  override deep (`openssl`) and the whole `${pkgs.*}` world follows; power
+  and cost both standard and visible.
+  (c) **Keying/lock**: universe identity in chain keys = (base pin, ordered
+  overlay file hashes); overlay files are context content; one lock —
+  `--update-lock` moves the base pin, overlay edits are ordinary source
+  edits. Overlays cannot reference Cixfile binders (pure final/prev —
+  source-dependent building is builder territory). Multiple universes side
+  by side stay legal (name provenance) with the documented hygiene note
+  that this deliberately reopens world-skew inside one item. Eval-time
+  impurity in .nix files (unpinned fetchTarball) is the author's own,
+  identical to full universe trees — documented, not newly introduced.
+  (d) Full universe trees (a repo's default.nix that IS
+  nixpkgs-plus-overlay) remain the general mechanism per D65 for org-owned
+  worlds; `OVERLAY` is the project-local pretty form. The composed-ITEM
+  route (D68+D65) stays the org-wide distribution form.
+
+- ✅ D71 (2026-08-01) — **the underlay: builder runs always start on their own
+  last end-state** (Mathijs's framing, closing the warm-edit gap the
+  nixcompare measurement exposed: both we and crane discarded own-step
+  increments, so our warm edit was a full recompile plus overhead. The
+  doctrine already promised this model — D47(e)'s workshop is "persistent,
+  disposable, may be messy" — the implementation was stricter than the
+  prose; this restores the prose, now that the safety nets exist).
+  (a) **Underlay-always**: a builder re-run starts from the last end-state of
+  the SAME builder (same project workspace, same builder name) as its lower
+  layer; what this run writes is the upper. No opt-in keyword — it IS the
+  workshop semantics. `rm -rf` workspace = drop underlay = cold: "deleting a
+  workspace is always correct" stays literally true.
+  (b) **`--cold` = without underlay** — the clean semantics stay definable
+  and are the audit verb (offline per D69(e)).
+  (c) **The ghost-file hazard, named**: warm results are path-dependent —
+  build(A→B) may differ from build(B) (deleted sources/deps surviving in
+  underlay state). Accepted under D39.1 because the correctness boundary is
+  the dock, guarded by consumed-output records + the STANDING cold audit
+  (D47e made real) + the codegen fingerprint (D69e). BuildKit cache-mounts
+  ship exactly this hazard with no audit verb; we ship it with one.
+  (d) Workspace growth is LRU policy, never correctness. Cross-builder or
+  cross-project underlay reuse does not exist.
+  (e) Living receipts: migrate.md's `RUN --mount=type=cache` row becomes
+  fully true (previously subtly overclaimed vs BuildKit), and
+  docs/nix-build.md re-measures the warm-edit column (expectation: real
+  cargo increments, 2–5s where crane does 16.5s).
+  **Retreat path, recorded up front (Mathijs): if the aggressive
+  underlaying ever chafes** (ghost-file wrongness showing up faster than the
+  sampled cold audit catches it, or path-dependence confusing users),
+  **CACHE returns** — the D48(a)-era declared exception, making the warm
+  surface opt-in per path instead of whole-workspace-always. The dial goes
+  underlay-always → CACHE-declared → prefix-only; we start at the warm end
+  deliberately, with the audit verb as the regulator.
+
+- ✅ D72 (2026-08-01) — **alpha compat posture: the manifest version is 0**
+  (Mathijs: "we zijn alpha — noem de alpha spec v0; alle manifests en
+  Cixfiles leven in deze repo, voor nu is het ons feestje"). Pre-1.0 there
+  is exactly ONE manifest version and it is `cixManifest: 0`: its schema
+  changes freely with the language — no bumps, no ranges, no compat matrix.
+  The v1–v5 numbering and the entire back-compat validation in
+  cix-run/spec.rs die; any non-zero (or unknown-shaped) manifest gets a
+  hard, friendly "rebuild with the current cix" error. All in-repo manifests
+  and fixtures sweep to 0 (vm-dogfood's hand-written v2 manifests
+  included). D15's version-gating regime is SUSPENDED for the alpha and
+  returns at 1.0, when `cixManifest: 1` becomes the first versioned,
+  compatibility-bearing schema — a real cost-benefit decision then, not an
+  accreting alpha tax now.
+
+- ✅ D73 (2026-08-01) — **the decomposition round; complexity is actively
+  managed** (Mathijs: "probeer het complexiteitsmonster te allen tijde onder
+  controle te houden" — recorded as a house principle alongside D48(e):
+  measure periodically, decompose along the strata, thin the hotspots
+  before they calcify. Baseline this day: ~19.6k SLOC Rust; hotspots
+  parser.rs 2.6k, build_chain.rs 1.9k, index/lib.rs 1.6k, spec.rs 1.1k).
+  (a) **Crate split: `cix-build` leaves `cix-cixfile`** — the workshop
+  engine (chain, keying, workspaces, sandbox) is stratum-2 machinery, the
+  parser/codegen are language; the crate graph should mirror the D67 seams.
+  (b) **cix-index splits into modules** (refs, tags, roots, serve, pull)
+  with a thin lib.rs.
+  (c) **spec.rs collapses to the single v0 schema** (D72).
+  (d) Parser diet per the analysis report (adopted: modules + tests out of
+  the file, declarative migration table, validator consolidation; generated
+  metadata explicitly NOT warranted for a 22-keyword language).
+  Sequencing: after pinkeys merges; the underlay (D71) then lands in the
+  new cix-build crate — a clean home instead of a bigger pile.
+  **Addendum (2026-08-01, Mathijs): user-facing diagnostics never cite
+  D-numbers** — design-journal references are internals; messages point at
+  stable doc anchors (docs/cixfile.md sections) instead, with D-numbers
+  surviving only as code comments beside the message. Rides track/crunchy
+  for the sweep; the declarative migration table keeps the D-number as an
+  internal field.
+
+- ✅ D74 (2026-08-01) — **`cix fmt`** (prior-art round with Mathijs; the
+  post-gofmt consensus — cargo/black/terraform/zig/deno — adopted, minus one
+  flag). `cix fmt [PATH…]`: default `.`, recursive discovery of `Cixfile`s,
+  .gitignore-respecting, apply-in-place, parse-gated (unparseable file ⇒
+  the ordinary parse error, nothing written), idempotent.
+  **`--check` = verify AND explain**: no writes, exit 1, prints the per-file
+  unified diff (Mathijs's merge of check+diff: at Cixfile scale the diff IS
+  the explanation, and a name-only check forces a second local run; the
+  big-repo noise argument does not apply). `-` = stdin→stdout for editors.
+  No other flags. Canon v1, deliberately minimal: block bodies indented two
+  spaces, blank line between blocks, prelude FROMs unindented at top, single
+  spaces between tokens and around `=`, trailing whitespace and CRLF
+  normalized; comments preserved verbatim (D53 — this forces the
+  trivia-preserving printer, which is the real work), heredoc bodies
+  untouched. Alignment/sorting = v2, evidence-gated. `cix fmt --check`
+  joins the standard gate.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·

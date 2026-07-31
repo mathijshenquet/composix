@@ -1,0 +1,5 @@
+# grade: problem=pass line=4 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+RUN <<BUILD
+make all

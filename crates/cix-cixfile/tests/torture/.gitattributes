@@ -1,0 +1,2 @@
+52_accept_crlf.cix whitespace=cr-at-eol
+54_accept_trailing_whitespace.cix whitespace=-trailing-space

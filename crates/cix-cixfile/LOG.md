@@ -152,6 +152,98 @@
   fingerprinting; docs and honest corpus receipts. Expected compatibility effect:
   the new fingerprint creates a one-time global memo miss. Next: map the lock and
   build-chain seams, implement with focused tests, then run the prescribed gate.
+||||||| fb7a023
+
+- 2026-07-31T22:17:34Z — Final nixcompare gate is green with the corrected,
+  self-contained warm benchmark. Exact fixture repros passed in sequence:
+  `devenv shell -- nix build
+  github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+  --no-link -L`; `devenv shell -- nix build
+  path:./examples/compare/gitsitter/crane --no-link -L`; and `devenv shell --
+  target/debug/cix build examples/compare/gitsitter/cix#gitsitter`, which
+  returned `/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter`.
+  The required untouched smoke `devenv shell -- cargo test --workspace` passed
+  from the start, including 44 compiler unit tests, 18 real-Nix compiler tests,
+  proj1, serve/pull, runner, and tour drift/determinism coverage. The committed
+  `measure-warm.sh` full replay passed with exactly three receipt lines:
+  upstream 30.64 s, crane 16.46 s, Cix 20.28 s. Doc drift audits diffed the
+  displayed upstream/crane excerpts and complete Cixfile against their source
+  files with no differences; logical LOC re-counted as 38/30/17. `bash -n`,
+  executable-mode, `git diff --check`, and 28 balanced Markdown fence markers
+  passed. Scope is the requested `docs/nix-build.md`,
+  `examples/compare/gitsitter/**`, plus this explicitly required track log; no
+  crate source changed. Removed only the generated untracked `devenv.lock` and
+  four exact temporary benchmark/distribution directories. Next: stage the
+  audited scope, commit on `track/nixcompare`, and verify the committed tree.
+
+- 2026-07-31T22:16:00Z — Corrected the warm-edit receipt after making the
+  committed harness independent of prior store/workspace state. The original
+  8.16 s Cix number was contaminated: its “prime” accepted the committed
+  remote-build memo and did not establish local predecessor workspaces. The
+  final `measure-warm.sh` deletes only the copied final memo, retains the input
+  and FETCH pins, performs an untimed isolated local prime, then applies the
+  committed patch. A complete green replay reported upstream 30.64 s, crane
+  16.46 s, and Cix 20.28 s. The honest result is crane fastest on this source
+  edit, Cix roughly one-third faster than upstream, and no 8.16 s claim. Two
+  earlier harness failures (Nix `--rebuild` before first realization, then
+  read-only copied source modes) produced no accepted measurements; the final
+  script realizes patched Nix targets before timed checks and makes only its
+  temporary Cix copy writable. Next: update the positioning prose with this
+  corrected receipt, audit sample drift and scope, then run the all-three-build
+  and workspace gates.
+
+- 2026-07-31T21:57:48Z — Completed the dated x86_64-linux measurement matrix
+  on this 32-thread NixOS host. Exact no-op results were upstream 0.07 s,
+  crane 0.64 s, Cixfile 1.13 s. Subject-cold results (pre-existing toolchain/
+  native inputs, substitutes disabled for the rebuilt subject derivations)
+  were upstream 28.82 s, crane 37.81 s, and `cix build --cold` 26.94 s.
+  The committed one-line `warm.patch`, after priming each route at the
+  unpatched source, measured upstream 30.58 s, crane 15.94 s, Cixfile 8.16 s.
+  Result sizes from `nix path-info -sSh`: upstream 9.0 MiB/63.5 MiB NAR/
+  closure, crane 9.1 MiB/63.6 MiB, Cix ITEM 9.1 MiB/9.1 MiB. Determinism:
+  upstream and crane final derivation `--check` rebuilds retained identical
+  paths/NAR hashes; normalized Cix vendoring made warm and `--cold` converge
+  on `/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter`.
+  Two caveats are receipts, not wins: crane's internal 154 MiB cargo-artifact
+  archive failed `--check` although its shipped result reproduced; and the Cix
+  ITEM reports zero references despite `ldd` naming store-linked glibc,
+  libgit2, OpenSSL, and libgcc, so its apparent closure-size win is a missing-
+  reference/distribution gap. The stratum-3 local-serve flow itself passed:
+  single-member `-t measured` needed no namespace, `serve --with-store`, and a
+  separate consumer index `pull --as` all succeeded; a second local Nix store
+  attempt failed in pull's path-info JSON parser, so the doc must describe the
+  shared-store receipt exactly. Next: write `docs/nix-build.md` around these
+  outputs and limitations, audit every claim/command against committed files,
+  then run the prescribed workspace and all-three-build gate.
+
+- 2026-07-31T21:42:00Z — The three pinned baseline routes are focused-green
+  for gitsitter `29c8a2d` with nixpkgs `9cf7092`. Inspection proved that the
+  upstream baseline uses `rustPlatform.buildRustPackage` with Cargo.lock,
+  pkg-config/git, and openssl/libgit2/sqlite rather than a low-level handwritten
+  derivation. The new idiomatic crane fixture uses `buildDepsOnly` plus
+  `buildPackage`; its first attempt exposed that gitsitter's workflow test needs
+  `git` at check time, matching upstream's declared native input, and passed
+  after adding it. Exact focused repros now pass: `devenv shell -- nix build
+  github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+  --no-link -L`; `devenv shell -- nix build
+  path:./examples/compare/gitsitter/crane --no-link -L`; and `devenv shell --
+  target/debug/cix build examples/compare/gitsitter/cix#gitsitter`, which
+  produced `/nix/store/l7r5d2d4jc5jx7wf6rjk6q1pj30xm7q4-cix-item-gitsitter`.
+  The Cixfile uses the required remote source binder, a pinned FETCH, offline
+  Cargo RUN, and a D68 ITEM. Next: validate locks/output shape, add the
+  reproducible one-line patch fixture, then run the controlled measurement
+  matrix and distribution flow.
+
+- 2026-07-31T21:34:18Z — Started `.dev/specs/track-nixcompare.md` on
+  `track/nixcompare` at `4193e20`. Read AGENTS.md, the current session and
+  Cixfile journals, authoritative D62/D65/D67/D68 in full, and the complete
+  track spec. Scope is documentation and committed comparison fixtures only:
+  upstream gitsitter flake versus an idiomatic crane flake versus a stratum-2
+  manifest-less Cixfile ITEM, with dated reproducible authoring/timing/closure/
+  determinism receipts and an honest stratum-3 distribution walkthrough. The
+  branch-local environment probe `devenv shell -- true` passed. Next: inspect
+  the resolved upstream source/flake and establish a reproducible benchmark
+  protocol before implementing the two local routes.
 
 - 2026-07-31T21:57:00Z — Committed the green D68 implementation on
   `track/itemrevive` (`Implement D68 manifest-less ITEM trees`). No open items
@@ -651,3 +743,121 @@
 - 2026-07-31T13:45:00Z — Focused green after correction: `devenv shell -- cargo test -p cix-run --lib` (54 tests) and `devenv shell -- cargo test -p cix-cixfile --test lock_nix -- --nocapture` (15 real-Nix tests) passed. The latter includes builder ENV shell-time `$PWD` expansion, argv/manifest v5 loading, and the existing EXPECT/import/workspace receipts. Regenerated the tour with `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`; intended pages 03/05/06 updated (v5 manifest, GRANT egress, changed manifest hash). `devenv shell -- cargo test -p cix --test tour tour_matches_committed_document -- --exact` and one determinism run passed; a second determinism run and the full workspace/tour/VM gate remain. Updated stale OUTBOUND migration diagnostics to point at the current D60 target, `GRANT egress`. Next: format, rerun focused parser/runner checks, then every prescribed gate.
 
 - 2026-07-31T14:05:00Z — D59/D60 track gate is green. Exact repros: `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`; `devenv shell -- cargo test -p cix --test tour tour_matches_committed_document -- --exact`; `devenv shell -- cargo test -p cix --test tour generated_tour_is_deterministic -- --exact` (passed twice); `devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L` (the daemon-owned VM completed successfully at `/nix/store/bqd2dm14hvi1ym2v9a5cn8d5xz2vypac-vm-test-run-vm-dogfood`). The workspace check covers 40 cix-cixfile parser/codegen tests, 54 cix-run tests, the 15 real-Nix compiler tests, proj1, and the rest of the workspace. Final `git diff --check` passed; active Cixfiles/docs/tour have no legacy STATE/JIT/EGRESS directives. Cleanup repro: `systemctl --user reset-failed 'cix-*' && systemctl --user stop cix-run.slice`; it leaves no cix user units. The untracked `devenv.lock` was created by `devenv shell` and is left untouched. Open with Mathijs: should LOGS/CONFIG follow the D52 naming family as LOGSDIR/CONFIGDIR? No decision taken.
+
+- 2026-07-31T23:13:33Z — Started `.dev/specs/track-crunchy.md` on clean
+  `track/crunchy` at `aa7a217`. Read AGENTS.md, the current session and Cixfile
+  journals, the authoritative Cixfile decisions through the diagnostics-policy
+  addendum, and the complete track spec; branch-local direnv/devenv is active.
+  Scope is parser diagnostics, an adversarial 40–60-fixture snapshot corpus, and
+  docs/cixfile.md anchors referenced by messages. Public diagnostics must never
+  expose design-journal identifiers; forgiveness is limited to syntax variance
+  that cannot change meaning. Ownership fences: do not touch `build_chain`,
+  cix-index, or scenarios. Next: inventory the live parser tables, diagnostic
+  strings, test structure, and documentation anchors before designing the
+  fixture/grade format.
+
+- 2026-07-31T23:25:58Z — The 60-file adversarial corpus and diagnostic
+  snapshot/grade harness are focused-green. Each error fixture carries a human
+  `problem/line/fix/docs` grade; the harness checks its exact committed
+  snapshot, physical line, single-line/260-byte terseness budget, absence of
+  public design-journal identifiers, cited text, and existence of the explicit
+  public anchor. Six meaning-preserving variants are accepted (tabs/spacing,
+  CRLF, blank lines, trailing whitespace, indentation, continuation); the
+  other 54 reject ambiguity without aliases. Exact focused repros:
+  `devenv shell -- cargo test -p cix-cixfile --lib` (45 passed) and
+  `devenv shell -- cargo test -p cix-cixfile --test diagnostics` (60 fixtures,
+  60 snapshots). Baseline was independently reproduced from `aa7a217`; exact
+  final text lives in each committed `.snap`. Per-fixture before → after:
+  - `01_typo_servic`: bare unknown → did-you-mean `SERVICE`.
+  - `02_typo_improt`: bare unknown → did-you-mean `IMPORT`.
+  - `03_typo_exposed`: bare unknown → Docker `EXPOSE` recognition + `PORT`/mapping anchor.
+  - `04_typo_fromm`: bare unknown → did-you-mean `FROM`.
+  - `05_lowercase_from`: bare unknown → uppercase-only hint + `FROM`.
+  - `06_mixedcase_from`: bare unknown → uppercase-only hint + `FROM`.
+  - `07_docker_from_ubuntu`: generic missing universe → Docker non-inheritance + exact universe line/mapping anchor.
+  - `08_docker_run_apt_get`: internal doctrine label → `IMPORT`/BUILDER migration + mapping anchor.
+  - `09_docker_workdir`: bare unknown → fixed `/work` model + delete/adjust fix.
+  - `10_docker_cmd`: bare unknown → `EXEC` in SERVICE/APP.
+  - `11_docker_entrypoint`: bare unknown → `EXEC` in SERVICE/APP.
+  - `12_docker_expose`: bare unknown → named `PORT` mapping.
+  - `13_docker_user`: bare unknown → delete `USER`, dynamic-user explanation.
+  - `14_docker_copy_from`: arity error → named-binder `COPY` rewrite.
+  - `15_docker_add`: bare unknown → explicit `COPY`/`FETCH` split.
+  - `16_docker_volume`: bare unknown → exact role-directory family.
+  - `17_docker_arg`: bare unknown → explicit inputs/builder `ENV`.
+  - `18_missing_as`: generic FROM usage → reconstructed line with missing `AS` inserted.
+  - `19_wrong_copy_order`: invalid relative source → exact swapped `COPY` line.
+  - `20_link_old_order`: internal change label → target/link-path order + public anchor.
+  - `21_copy_outside_block`: internal block label → complete legal block list.
+  - `22_run_outside_builder`: internal doctrine label → add `BUILDER <name>`.
+  - `23_item_exec`: internal seam label → content-only ITEM + SERVICE/APP fix/anchor.
+  - `24_app_setup`: internal block label → move preparation into APP executable.
+  - `25_app_port`: internal block label → move `PORT` to SERVICE.
+  - `26_relative_artifact_copy`: internal path label → exact leading-slash rewrite/anchor.
+  - `27_absolute_builder_copy`: generic relative-path error → exact workdir-relative spelling.
+  - `28_duplicate_binder`: problem only → first line + shared namespace + rename fix.
+  - `29_duplicate_exec`: problem only → remove one `EXEC`.
+  - `30_empty_service`: requirement only → add exactly one `EXEC` inside named block.
+  - `31_unknown_binder_typo`: misleading package guess → did-you-mean `compile`.
+  - `32_unknown_namespace_typo`: namespace inventory → did-you-mean `pkgs`.
+  - `33_malformed_attrpath`: generic grammar → bad suffix + exact interpolation shape.
+  - `34_namespace_without_attr`: example retained unchanged (already problem/line/fix complete).
+  - `35_artifact_attr_syntax`: internal rule label → source-tree spelling + inputs anchor.
+  - `36_unterminated_exec_quote`: problem only → add matching quote.
+  - `37_smart_quotes`: silently accepted → reject with ASCII quote replacement.
+  - `38_dangling_continuation`: problem only → remove backslash or add next line.
+  - `39_run_heredoc_missing_close`: expected token only → exact unindented closing line.
+  - `40_run_heredoc_quoted`: misleading unterminated error → unquoted delimiter rewrite.
+  - `41_file_heredoc_missing_delimiter`: retained (already names required delimiter fix).
+  - `42_file_heredoc_indented_close`: expected token only → exact unindented closing line.
+  - `43_stray_equals`: bare unknown → remove unexpected `=`.
+  - `44_stray_colon_directive`: bare unknown → did-you-mean `SERVICE`.
+  - `45_inline_comment_extra_args`: usage only → usage + full-line-comment rule.
+  - `46_legacy_state`: internal rename label → `STATEDIR` + role-dir anchor.
+  - `47_legacy_jit`: internal replacement label → `GRANT jit` + grants anchor.
+  - `48_legacy_pkg`: internal removal label → exact `${pkgs.hello}` rewrite + inputs anchor.
+  - `49_legacy_take`: internal removal label → exact binder `COPY` rewrite + copy anchor.
+  - `50_legacy_cache`: internal removal label → delete line + persistent-workspace anchor.
+  - `51_accept_whitespace_tabs`: accepted → accepted.
+  - `52_accept_crlf`: accepted → accepted (fixture has real CRLF terminators).
+  - `53_accept_blank_lines`: accepted → accepted.
+  - `54_accept_trailing_whitespace`: accepted → accepted.
+  - `55_accept_indentation`: accepted → accepted.
+  - `56_accept_continuation`: accepted → accepted.
+  - `57_legacy_path`: internal replacement label → builder `IMPORT` + builders anchor.
+  - `58_legacy_script`: internal removal label → copied-script/explicit-shell rewrite + copy anchor.
+  - `59_legacy_logs`: internal rename label → `LOGSDIR` + role-dir anchor.
+  - `60_legacy_outbound`: internal replacement label → `GRANT egress` + grants anchor.
+  Parser/codegen residue scan now finds design identifiers only in the migration
+  table's deliberately internal `decision` fields; no snapshot contains one.
+  Next: run workspace regressions, audit the full Cixfile diagnostic surface and
+  scope, then execute the complete tour/determinism/VM gate.
+
+- 2026-07-31T23:34:48Z — Final staged-snapshot gate is green. Exact repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git diff --exit-code -- docs/tour`; `devenv shell -- cargo
+  test -p cix --test tour tour_matches_committed_document -- --exact`;
+  `devenv shell -- cargo test -p cix --test tour
+  generated_tour_is_deterministic -- --exact` (passed twice); and `devenv
+  shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`. The
+  first VM attempt correctly proved Nix's tracked-source boundary by refusing
+  the then-untracked new parser module; after staging the audited intended
+  source set, the exact VM command passed under normal KVM-denied TCG fallback,
+  confirmed by `devenv shell -- nix path-info
+  .#checks.x86_64-linux.vm-dogfood` at
+  `/nix/store/frczhmdmqc7ywwxm54ryv47di3ay9rnh-vm-test-run-vm-dogfood`.
+  `git diff --cached --check` passes with fixture-local whitespace attributes
+  documenting the intentional CRLF and trailing-whitespace cases. Scope audit
+  finds no `build_chain`, cix-index, or scenario paths. Test-created user/system
+  cix units were reset/stopped and both managers list none; the generated
+  untracked `devenv.lock` and the exact temporary baseline checkout were
+  removed. Next: re-stage this final record, review the cached diff summary,
+  commit on `track/crunchy`, and verify the committed tree is clean.
+
+- 2026-07-31T23:35:57Z — Committed the green adversarial-diagnostics
+  implementation on `track/crunchy` as `804fab5` (`Improve Cixfile diagnostics
+  under adversarial syntax`). No open items remain for this track; this final
+  journal-only close records the completed commit and leaves the branch ready
+  for independent verification.

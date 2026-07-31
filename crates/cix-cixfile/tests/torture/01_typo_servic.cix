@@ -1,0 +1,4 @@
+# grade: problem=pass line=3 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVIC app
+EXEC /bin/true

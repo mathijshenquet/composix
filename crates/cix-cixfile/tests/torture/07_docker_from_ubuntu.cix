@@ -1,0 +1,4 @@
+# grade: problem=pass line=2 fix=pass docs=docs/migrate.md#docker-vocabulary
+FROM ubuntu:22.04 AS base
+SERVICE app
+EXEC /bin/true

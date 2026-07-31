@@ -14,7 +14,7 @@ use crate::{
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let (_, artifact) = only_artifact(cixfile)?;
     if !artifact.kind.is_runnable() {
-        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+        bail!("ITEM blocks are content-only and do not have runtime manifests; see docs/cixfile.md#item");
     }
     let value = literal_spec(artifact)?;
     let mut json = serde_json::to_string_pretty(&value)?;
@@ -537,7 +537,7 @@ fn nix_copy_source(template: &Template) -> String {
 
 fn nix_spec(artifact: &Artifact) -> Result<String> {
     if !artifact.kind.is_runnable() {
-        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+        bail!("ITEM blocks are content-only and do not have runtime manifests; see docs/cixfile.md#item");
     }
     let mounts = projected_mounts(artifact);
     let mut output = String::from("{ cixManifest = 5;");
@@ -826,7 +826,7 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
 
 fn literal_spec(artifact: &Artifact) -> Result<Value> {
     if !artifact.kind.is_runnable() {
-        bail!("ITEM blocks are manifest-less pure store trees (D68)");
+        bail!("ITEM blocks are content-only and do not have runtime manifests; see docs/cixfile.md#item");
     }
     let mounts = projected_mounts(artifact);
     let Value::Object(mut value) = literal_service(artifact, &mounts)? else {
