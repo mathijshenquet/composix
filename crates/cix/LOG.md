@@ -1,5 +1,55 @@
 # litdoc work log
 
+- 2026-07-31T23:00:00Z — Started `track-cigreen2` after reading `AGENTS.md`,
+  the repository/design journals, and `.dev/specs/track-cigreen2.md`. Scope:
+  eliminate the cix-index serve/pull listen race and the systemd-261
+  compose-fallback VM regression without weakening the D36 contract. Required
+  final repros (to be recorded with results): `devenv shell -- cargo fmt --all
+  --check`; `devenv shell -- cargo clippy --workspace --all-targets -- -D
+  warnings`; `devenv shell -- cargo test --workspace`; `devenv shell -- cargo
+  test -p cix --test cold_audit -- --ignored`; and `devenv shell -- nix flake
+  check -L`.
+
+- 2026-07-31T23:20:00Z — Reproduced `devenv shell -- nix build
+  .#checks.x86_64-linux.compose-fallback-vm -L --no-link`: after the expected
+  loud D36 PrivatePIDs fallback, `cix up` failed at
+  `crates/cix-compose/src/runtime.rs:336`, whose `nix-store --add-root
+  --indirect --realise` correctly requires every live service item to be in
+  the VM's Nix store. `nix/compose-fallback-vm.nix` had used two manifest-only
+  fixture paths without placing them in the test system closure; Nix attempted
+  an unavailable cache substitution and the test failed at `assert status ==
+  0`. Added those exact items to `system.extraDependencies` and assertions
+  that both service roots under `/var/lib/cix-compose/gcroots/fallback/` point
+  at them. This preserves the GC contract rather than degrading it. The exact
+  repro above is now green. The cix-index pull test now has a five-second
+  bounded `TcpStream::connect_timeout` readiness guard for each spawned serve
+  instance; focused verification passed: `devenv shell -- cargo fmt --all
+  --check` and `devenv shell -- cargo test -p cix-index --test pull`.
+
+- 2026-07-31T23:40:00Z — Required Rust gates pass: `devenv shell -- cargo fmt
+  --all --check`; `devenv shell -- cargo clippy --workspace --all-targets --
+  -D warnings`; and `devenv shell -- cargo test --workspace`. The cold-audit
+  sweep initially exhausted the shared `/tmp` tmpfs while the gitsitter
+  example's sandbox built its release target (`No space left on device` at
+  `/work/target`); this was an environment capacity failure, not an audit
+  mismatch. Re-ran it with its cix temporary workspaces on the worktree
+  filesystem and it passes: `env
+  TMPDIR=/home/mathijs/composix/.worktrees/cigreen2/target/builder-tmp devenv
+  shell -- cargo test -p cix --test cold_audit -- --ignored`. Next: the full
+  `devenv shell -- nix flake check -L` gate.
+
+- 2026-08-01T00:00:00Z — FINAL GATE GREEN. `devenv shell -- nix flake check
+  -L` passed all 61 checks, including `compose-fallback-vm`, `vm-dogfood`, and
+  every scenario VM. Complete successful repro set: `devenv shell -- cargo fmt
+  --all --check`; `devenv shell -- cargo clippy --workspace --all-targets --
+  -D warnings`; `devenv shell -- cargo test --workspace`; `env
+  TMPDIR=/home/mathijs/composix/.worktrees/cigreen2/target/builder-tmp devenv
+  shell -- cargo test -p cix --test cold_audit -- --ignored`; and `devenv shell
+  -- nix flake check -L`. The latter includes the direct VM reproduction
+  `devenv shell -- nix build .#checks.x86_64-linux.compose-fallback-vm -L
+  --no-link`, which also passed after the fixture correction. Next: final diff
+  audit and commit on `track/cigreen2`.
+
 - 2026-07-31T22:30:00Z — Completed `track-cifix`: `artifact_kinds` now retains
   a PATH-resolved `/nix/store` shell, otherwise asks Nix for `nixpkgs#bash` and
   selects the printed output containing `bin/sh` (the derivation can print a
