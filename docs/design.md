@@ -899,8 +899,12 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   errors, ride track/tourbook.
   **Addendum (2026-07-30 session close, Mathijs): `STATE` → `STATEDIR`** —
   completing the family consistency D52 started (mirrors `StateDirectory=` as
-  CACHEDIR/RUNDIR mirror theirs). Open sub-question for that round: do LOGS and
-  CONFIG follow (`LOGSDIR`/`CONFIGDIR`)? Rides track/argvenv.
+  CACHEDIR/RUNDIR mirror theirs). Sub-question resolved (2026-07-31, Mathijs:
+  "eens"): LOGS and CONFIG follow — `LOGSDIR` (mirrors `LogsDirectory=`) and
+  `CONFIGDIR` (mirrors `ConfigurationDirectory=`); the whole role-dir family
+  now spells systemd's names. Directive-level flip only, manifest role keys
+  unchanged (same as the STATE→STATEDIR flip). Rides a micro-round after
+  track/argvenv.
 
 - ✅ D53 (2026-07-30) — **Cixfiles get `#` line comments** (Mathijs, reading the
   corpus whoami pair: none of the wild-corpus Cixfiles could explain themselves).
@@ -1144,9 +1148,26 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   every systemd release improves the tier without cix building anything.
   (c) Quadlet is acknowledged as prior art validating
   unit-generation-as-product; nothing of podman's runtime is adopted.
-  **Open (under discussion): the daemon route** — a thin privileged cix service
-  (nix-daemon precedent) giving unprivileged callers real system-mode without a
-  VM; not yet decided.
+  (d) **(2026-07-31, Mathijs: "eens") The daemon route is the primary Linux
+  rootless answer.** A thin privileged, socket-activated cix service on the
+  nix-daemon pattern: the caller sends a store path plus a narrow, audited
+  override surface (instance knowledge per D49(a)); the daemon compiles the
+  unit itself — hardening non-negotiable, callers never supply raw properties.
+  (The pure systemd+polkit route is refused for exactly that reason: polkit can
+  scope unit *names*, but transient-unit creation lets callers set arbitrary
+  properties (`User=root`) — the security boundary must lie on properties, and
+  only cix's compiler knows the legal surface.) Escalation ceiling: a caller
+  can at worst run a store item as DynamicUser under the full hardening
+  profile — unlike docker's root-equivalent socket group. Explicit non-goals:
+  no supervision (systemd's job), no building (nix-daemon's), no storage (the
+  store's); the D48(d) identity registry lives in the daemon. `cix machine`
+  becomes a *transport* for the same socket protocol (docker-context UX for
+  free); vmspawn-vs-QEMU is decided evidence-gated in machine's own track.
+  `--user` demotes to fallback with no standalone investment: the D36-probe
+  graded banner rides whichever track next touches capabilities.rs.
+  Sequencing: daemon design after the current corpus wave and before netns
+  realization (D49) — netns and identities want the daemon as their home;
+  machine after.
 
 ## Non-goals (for now)
 
