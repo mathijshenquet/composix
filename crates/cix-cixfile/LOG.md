@@ -1,5 +1,50 @@
 # Cixfile track work log
 
+- 2026-08-01T01:30:00Z — Final D69 correction gate is green. `cargo fmt --all
+  --check` and warning-denied workspace clippy passed. The regular parallel
+  workspace command twice exposed the pre-existing fixed-name transient-user
+  test race (`tour_ignores_a_foreign_user_unit`: systemd still had the prior
+  transient unit loaded); after user-manager reset/reload, the complete same
+  suite passed serially with `devenv shell -- cargo test --workspace --
+  --test-threads=1`. Focused test coverage passed: the timestamped npm log
+  lock-equality integration test plus `volatile_facts` boundary unit test.
+  Cold-audit remains absent (the prescribed `rg` finds design/journal prose
+  only). Tour generation, zero drift, committed-doc matching, and two
+  determinism runs passed. VM dogfood was included in the full `devenv shell
+  -- nix flake check -L` run: it evaluated 61 checks and completed the current
+  source's VM/scenario fleet under expected TCG fallback; a cached second
+  invocation completed its remaining seven checks. ProjB double refresh plus
+  ordinary memo hit passed and removes its unconsumed `.cargo/.global-cache`
+  fact. Dozzle completed its disposable probe with no persisted volatile
+  facts. `git diff --check` is clean. Next: final scope review, stage, commit.
+
+- 2026-08-01T00:45:00Z — Root cause confirmed and corrected. The automatic
+  pin's seven `paths` were already downstream COPY outputs; the changing lock
+  entry came from `execute_builder` serializing the unfiltered
+  `volatile_paths` double-FETCH observation through `refresh_fetch_pin`.
+  `consumed_volatile_paths` now retains probe facts only below a consumed path;
+  raw facts still print. Focused regression creates npm-style timestamped
+  `_logs` output after a `find` readdir and proves two update-locks have equal
+  bytes and no persisted unconsumed volatile fact. Exact Parse Server proof:
+  built `target/debug/cix`, ran `CIX_BUILD_WORKSPACE_DIR=<fresh-one>
+  TMPDIR=<fresh-/var/tmp> ../../../target/debug/cix build --update-lock build
+  .#parse-server`, copied the lock, then ran the same command with a distinct
+  fresh workspace (equivalent to a wiped first workspace); `cmp -s` passed.
+  Final lock sha256 is
+  `609a7e76aa891c2b66aaec11e0e5c81f43ec509636e1ca2b58bce8508d915bde`,
+  carries precisely the seven service paths, and has `volatile_count: 0`.
+  The four explicit /var/tmp repro artifacts were moved to Trash. Next: full
+  prescribed gate plus `devenv shell -- nix flake check -L`, then commit.
+
+- 2026-08-01T00:30:00Z — D69 stricter stability proof reopened: wiping
+  `CIX_BUILD_WORKSPACE_DIR` between two clean Parse Server `--update-lock`
+  runs leaves one changing lock entry, npm's timestamped debug-log path. The
+  seven automatic pin paths themselves are stable; diagnosis points to the
+  serialized double-fetch `volatile` facts, which currently include the FETCH
+  command's own read/rotation output. Next: restrict those facts to paths
+  consumed by later steps or artifact COPYs, add a regression, then run the
+  exact wipe repro and full gates including `nix flake check -L`.
+
 - 2026-08-01T00:15:00Z — Follow-up D69 correction final gate is green. Exact
   Rust commands: `devenv shell -- cargo fmt --all --check`; `devenv shell --
   cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --

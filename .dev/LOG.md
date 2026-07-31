@@ -1,5 +1,23 @@
 # composix work log
 
+## 2026-08-01 follow-up (D69 stability correction)
+
+- **Fixed on track/pinkeys, ready to commit**: automatic FETCH pins already
+  used the seven downstream Parse Server outputs; the lock churn was the
+  serialized double-fetch `volatile` observation admitting npm's own
+  timestamped debug log. Persisted probe facts now use the same downstream
+  consumed-path boundary, while raw volatility remains reported. Exact fresh
+  disk-TMPDIR, fresh-workspace-between-runs Parse Server acceptance is
+  byte-identical (`Cixfile.lock` sha256
+  `609a7e76aa891c2b66aaec11e0e5c81f43ec509636e1ca2b58bce8508d915bde`).
+- **Verification**: focused timestamped-log and boundary tests; full serial
+  Rust suite after resetting a pre-existing transient-user-unit race; tour
+  drift/determinism; all 61 `nix flake check -L` checks (current VM dogfood
+  under expected TCG fallback); Parse Server and ProjB receipts. The final
+  diff also removes obsolete unconsumed volatile maps from the Parse Server
+  and ProjB committed locks.
+- **Open with Mathijs**: none. **Open for agents**: none.
+
 ## 2026-08-01 early (D69)
 
 - **Merged: track/pinkeys** (`b8016a8` — D69 automatic FETCH pins now key only

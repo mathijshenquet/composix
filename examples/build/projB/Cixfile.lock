@@ -10,12 +10,6 @@
     "builder:build:3-5a4c4ec7cb48": {
       "paths": {
         "target/release/projb": "sha256-W7llym7kkkMA0t8urhg7WSeFCNu7D+uo0xxyK3f2UBo="
-      },
-      "volatile": {
-        ".cargo/.global-cache": {
-          "firstSize": 57344,
-          "secondSize": 57344
-        }
       }
     }
   },

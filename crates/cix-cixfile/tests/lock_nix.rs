@@ -755,14 +755,14 @@ COPY ${{build}}/result /result
 }
 
 #[test]
-fn update_lock_double_fetch_records_volatile_files_without_pinning_them() {
+fn update_lock_ignores_unconsumed_timestamped_fetch_output() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils}
-FETCH printf payload > result; date +%s%N > volatile
+IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils}
+FETCH mkdir -p .npm/_logs; date +%s%N > .npm/_logs/$(date +%s%N)-debug.log; find .npm/_logs -type f -print >/dev/null; printf payload > result
 SERVICE result
 COPY ${build}/result /result
 EXEC /bin/true
@@ -804,7 +804,7 @@ EXEC /bin/true
         pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
         ["result"]
     );
-    assert!(pin.volatile.contains_key("volatile"));
+    assert!(pin.volatile.is_empty());
 }
 
 #[test]

@@ -230,10 +230,10 @@ fn execute_top_fetch(
                 fetch.line, fetch.source
             )
         })?;
-        let volatile = volatile_paths(first.path(), work.path())?;
-        report_volatile(name, &volatile);
+        let observed_volatile = volatile_paths(first.path(), work.path())?;
+        report_volatile(name, &observed_volatile);
         replace_workspace_tree(first.path(), work.path())?;
-        volatile
+        consumed_volatile_paths(observed_volatile, &needed)
     } else {
         BTreeMap::new()
     };
@@ -525,10 +525,10 @@ fn execute_builder(
                         .with_context(|| {
                             format!("line {line}: FETCH update probe failed\n  | {source:?}")
                         })?;
-                        let volatile = volatile_paths(first.path(), &workdir)?;
-                        report_volatile(&id, &volatile);
+                        let observed_volatile = volatile_paths(first.path(), &workdir)?;
+                        report_volatile(&id, &observed_volatile);
                         replace_workspace_tree(first.path(), &workdir)?;
-                        volatile
+                        consumed_volatile_paths(observed_volatile, &needed)
                     } else {
                         BTreeMap::new()
                     };
@@ -1092,6 +1092,24 @@ fn volatile_paths(first: &Path, second: &Path) -> Result<BTreeMap<String, Volati
         }
     }
     Ok(volatile)
+}
+
+fn consumed_volatile_paths(
+    observed: BTreeMap<String, VolatilePath>,
+    needed: &BTreeMap<String, NeededPath>,
+) -> BTreeMap<String, VolatilePath> {
+    observed
+        .into_iter()
+        .filter(|(path, _)| {
+            needed.keys().any(|needed_path| {
+                needed_path == "."
+                    || path == needed_path
+                    || path
+                        .strip_prefix(needed_path)
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            })
+        })
+        .collect()
 }
 
 fn report_volatile(name: &str, volatile: &BTreeMap<String, VolatilePath>) {
@@ -2137,6 +2155,45 @@ mod tests {
         .to_string();
         assert!(error.contains("hash mismatch"), "{error}");
         assert!(error.contains("--update-lock"), "{error}");
+    }
+
+    #[test]
+    fn volatile_facts_follow_only_consumed_path_boundaries() {
+        let observed = BTreeMap::from([
+            (
+                ".npm/_logs/timestamped-debug.log".into(),
+                VolatilePath {
+                    first_size: 1,
+                    second_size: 2,
+                },
+            ),
+            (
+                "node_modules/pkg/index.js".into(),
+                VolatilePath {
+                    first_size: 3,
+                    second_size: 4,
+                },
+            ),
+            (
+                "result".into(),
+                VolatilePath {
+                    first_size: 5,
+                    second_size: 6,
+                },
+            ),
+        ]);
+        let needed = BTreeMap::from([
+            ("node_modules".into(), NeededPath::default()),
+            ("result".into(), NeededPath::default()),
+        ]);
+
+        assert_eq!(
+            consumed_volatile_paths(observed, &needed)
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["node_modules/pkg/index.js", "result"]
+        );
     }
 
     #[test]
