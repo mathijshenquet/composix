@@ -1,0 +1,2 @@
+line 4: smart quotes are not valid in EXEC; replace them with ASCII ' or "
+  | "EXEC /bin/echo “hello world”"

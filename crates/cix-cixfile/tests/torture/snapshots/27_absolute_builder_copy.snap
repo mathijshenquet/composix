@@ -1,0 +1,2 @@
+line 4: BUILDER COPY destination must be workdir-relative; write payload
+  | "COPY payload /payload"

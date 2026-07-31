@@ -1,0 +1,2 @@
+line 3: name "pkgs" is already bound by a FROM binder on line 2; block and binder names share one namespace, so rename this declaration
+  | "BUILDER pkgs"

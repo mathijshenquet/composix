@@ -1,0 +1,4 @@
+# grade: problem=pass line=4 fix=pass docs=docs/cixfile.md#item
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+ITEM assets
+EXEC /bin/true

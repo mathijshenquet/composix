@@ -1,0 +1,2 @@
+line 2: unknown directive "From"; directives are uppercase; write FROM
+  | "From github:NixOS/nixpkgs/nixos-unstable AS pkgs"

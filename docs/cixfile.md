@@ -40,6 +40,8 @@ RUNDIR /run/nginx
 `COPY ${src}/index.html /srv/www/index.html`. Explicit binders become useful when a file has
 more than one possible origin.
 
+<a id="blocks-and-directives"></a>
+
 ## Structure
 
 Prelude declarations come first:
@@ -67,6 +69,8 @@ where useful, the first declaration line.
 **A BUILDER exists only when there is RUN or FETCH work to do.** Pure assembly belongs
 directly in the `SERVICE`, `APP`, or `ITEM` that consumes the sources; routing local files
 through a COPY-only builder adds a name without adding a boundary.
+
+<a id="copy"></a>
 
 ### Unified `COPY`
 
@@ -115,9 +119,15 @@ COPY start /bin/start
 EXEC ${pkgs.bash}/bin/sh /bin/start
 ```
 
-`SCRIPT` was dropped by D55; the parser reports this migration instead of accepting an alias.
+`SCRIPT` was removed; the parser reports the `COPY` plus explicit-shell migration instead of
+accepting an alias.
+
+<a id="link"></a>
+
 `LINK <target> <linkpath>` adds a symlink. LINK follows both `ln -s TARGET LINKNAME` and
 COPY's source-first reading: where from, then where it lands.
+
+<a id="syntax"></a>
 
 ### Lines, comments, and heredocs
 
@@ -145,6 +155,8 @@ BUILD
 The complete body is the command and therefore part of the same memo key as a one-line RUN.
 Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
 use `$${…}` when the shell itself must receive a braced expansion.
+
+<a id="inputs"></a>
 
 ### Package universes, source binders, and cix-item binders
 
@@ -179,7 +191,7 @@ and records `artifacts.<ref> = { storePath, narHash }` in `Cixfile.lock`. The ta
 the lock keeps this build on the selected store path until `cix build --update-lock webvault`.
 A missing local ref says to pull or tag it first. Item binders are trees: use only
 `${webvault}/path` in `COPY` or `LINK`. `${webvault.attr}` is rejected because index refs never
-create package namespaces (D65(c)), and `IMPORT ${webvault}` is deliberately deferred (D65(d)).
+create package namespaces, and `IMPORT ${webvault}` is deliberately unavailable.
 
 Disambiguation is deliberately mechanical: a known flakeref spelling is a flakeref; every
 other FROM token must be a valid index ref with an explicit `:tag`. There is no default tag.
@@ -190,6 +202,8 @@ The lock records remote revisions/NAR hashes and cix-item store paths/NAR hashes
 the implicit local context are not pinned: the content of each declared COPY source enters its
 builder's chain key. `$VAR` remains runtime environment syntax and is valid in `EXEC` and
 `SETUP`; `${…}` is resolved while building. Copied file content is always verbatim.
+
+<a id="builders"></a>
 
 ## Builders, `IMPORT`, `RUN`, and `FETCH`
 
@@ -265,6 +279,8 @@ the first-use trust window, records the declaration, and reports declared versus
 mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the declared
 hash.
 
+<a id="artifact-kinds"></a>
+
 ## Artifact kinds
 
 Each `SERVICE` or `APP` produces its own store item and bare v5 manifest. An `ITEM` produces a
@@ -274,7 +290,17 @@ not for `cix run` or `cix debug`.
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
 idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATEDIR`,
 `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
-`*Directory=` roles. `GRANT jit` drops `MemoryDenyWriteExecute=`; `GRANT egress` declares
+`*Directory=` roles.
+
+<a id="role-dirs"></a>
+
+Each role directory is exactly one component below its conventional root: state below
+`/var/lib`, cache below `/var/cache`, logs below `/var/log`, configuration below `/etc`, and
+runtime data below `/run`.
+
+<a id="grants"></a>
+
+`GRANT jit` drops `MemoryDenyWriteExecute=`; `GRANT egress` declares
 outward network access and retains compose's usage-override semantics. The grant vocabulary is
 closed to `jit` and `egress`, one grant per line.
 
@@ -286,6 +312,8 @@ An anonymous `cix run` holds an indirect Nix GC root for the item's unit lifetim
 visible `ExecStopPost=` removes that root when the unit stops. Tags remain the durable naming
 and GC-root mechanism; an untagged item becomes collectable again after its run ends (D63).
 
+<a id="runtime-path"></a>
+
 Artifact destinations name their native runtime paths and are stored item-relatively. Every
 SERVICE and APP gets `PATH=bin` unless it explicitly declares
 `ENV PATH = …`, which replaces that default entirely. A one-word `EXEC app` or `SETUP app`
@@ -296,8 +324,10 @@ store references remain valid. Add external runtime tools visibly with lines suc
 entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
 package-owned assets such as nginx's `mime.types`.
 
+<a id="item"></a>
+
 `ITEM` is the content-only block. It accepts only `COPY`, `FILE`, and `LINK`: runtime directives
-such as `EXEC`, `ENV`, ports, grants, or role directories cross the D68 seam and are rejected.
+such as `EXEC`, `ENV`, ports, grants, or role directories are rejected.
 Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family

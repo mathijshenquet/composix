@@ -1,0 +1,2 @@
+line 5: VOLUME, which is Docker vocabulary; use STATEDIR, CACHEDIR, LOGSDIR, CONFIGDIR, or RUNDIR for writable data; see docs/migrate.md#docker-vocabulary
+  | "VOLUME /var/lib/app"

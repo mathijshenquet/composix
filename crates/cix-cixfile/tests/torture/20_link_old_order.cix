@@ -1,0 +1,4 @@
+# grade: problem=pass line=4 fix=pass docs=docs/cixfile.md#link
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE app
+LINK /bin/hello ${pkgs.hello}/bin/hello

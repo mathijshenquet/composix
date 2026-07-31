@@ -1,0 +1,2 @@
+line 4: CACHE was removed; delete this line because builder workspaces persist automatically; see docs/cixfile.md#builders
+  | "CACHE target"

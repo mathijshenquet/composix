@@ -1,0 +1,2 @@
+line 5: cix-item binder "assets" is a source tree; use ${assets}/<path>, not attribute syntax; see docs/cixfile.md#inputs
+  | "COPY ${assets.payload} /payload"

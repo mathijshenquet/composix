@@ -1,0 +1,2 @@
+line 4: unterminated FILE heredoc; close it with EOF on a line by itself with no indentation
+  | "FILE /etc/app.conf <<EOF"

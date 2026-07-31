@@ -1,0 +1,2 @@
+line 3: PKG was removed; delete this line and replace ${hello} with ${pkgs.hello}; see docs/cixfile.md#inputs
+  | "PKG hello"

@@ -1,0 +1,2 @@
+line 5: EXPOSE, which is Docker vocabulary; use PORT <name> = <port> inside SERVICE; see docs/migrate.md#docker-vocabulary
+  | "EXPOSE 8080"

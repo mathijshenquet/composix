@@ -1,0 +1,2 @@
+line 4: CMD, which is Docker vocabulary; use EXEC <command> inside SERVICE or APP; see docs/migrate.md#docker-vocabulary
+  | "CMD [\"server\"]"

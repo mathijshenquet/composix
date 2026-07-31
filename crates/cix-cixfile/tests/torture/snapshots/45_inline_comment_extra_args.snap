@@ -1,0 +1,2 @@
+line 3: expected SERVICE <name>; Cixfile comments must start on their own line
+  | "SERVICE app # comments must be full-line"

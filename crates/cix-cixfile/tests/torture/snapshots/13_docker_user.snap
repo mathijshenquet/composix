@@ -1,0 +1,2 @@
+line 5: USER, which is Docker vocabulary; delete USER; cix runs artifacts as isolated dynamic users; see docs/migrate.md#docker-vocabulary
+  | "USER nobody"
