@@ -176,3 +176,309 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   compiled with its eight upstream warnings and the service passed its bounded
   HTTP probe. Final item:
   `/nix/store/mjvw61rg51b8zv3qvmz81n2rhphnn6is-cix-item-echo-server`.
+
+## 2026-07-31 — migrate r5 start
+
+- Scope loaded from `docs/migrate.md` and `.dev/specs/track-migrate-r5.md`; worktree
+  began clean on `track/migrate-r5`, with direnv active.
+- `php.withExtensions` is evaluator-level package customization and therefore outside
+  Cixfile by D32. The Wallos pair will exercise D4's first-class `.nix` escape hatch,
+  as required by the track spec; this is part of the PHP-class result, not silently
+  treated as native Cixfile support.
+- Exact compiler command started: `devenv shell -- cargo build`.
+- `devenv shell -- cargo build` — pass in 11.06s; produced this worktree's
+  `target/debug/cix` without modifying `crates/**`.
+- Candidate pin discovery commands: `git ls-remote <repository> refs/heads/<branch>`
+  resolved Excalidraw `786ab266ff3a9cfffaed16804cf9132b44bc08ae`, Parse Server
+  `315e157637d902d85f465563b2863a9e19bf1ff4`, Wallos
+  `3a7f965d0412b40ca29a678c90f0c830bc7e3faa`, Directus
+  `b1d7a45a77661fd13928a53448c06649f36b56f5`, and Filestash
+  `cdcb9566d4d24c065e461b1c8e3220ff68ef98ac`.
+- Context materialization: `cd corpus/migrate && ./fetch.sh excalidraw &&
+  ./fetch.sh parse-server && ./fetch.sh wallos && ./fetch.sh directus &&
+  ./fetch.sh filestash` — pass; all five ignored trees checked out exactly at
+  their SOURCE revisions with `.git` removed.
+- Excalidraw contract read before conversion: the pinned Dockerfile copies the full
+  monorepo, runs Yarn 1.22.22 with `yarn.lock`, invokes root
+  `build:app:docker` → `excalidraw-app`'s `cross-env ... vite build`, copies only
+  `excalidraw-app/build` into nginx, and probes `/` with wget. The Cix service
+  retains that static output and probe; Cixfile cannot encode the Docker
+  `HEALTHCHECK`, classified as a product gap even if the paired probe passes.
+- Excalidraw Docker receipt: `cd corpus/migrate/excalidraw && ./check.sh docker`
+  — pass on 2026-07-31; image
+  `sha256:6b5d15281cc14f4a9f8a1f3b4323171c899863b1a6c45173135c68232b7cddd3`
+  served an HTML document containing `Excalidraw Whiteboard` at the natural `/`
+  probe. Build and probe completed well below the 20-minute slow-tier cutoff.
+- Excalidraw Cix receipt: `cd corpus/migrate/excalidraw && ./check.sh cix` —
+  pass; Yarn dependency FETCH completed in 14.849s, offline Vite build in 10.919s,
+  item `/nix/store/7y17li69l72zz85lkp7bpka7bgnb7dqy-cix-item-excalidraw`
+  served the identical title probe under the D36 degraded PrivatePIDs fallback.
+  Classification: node attempted 1/passed 1; residual Cix health-edge omission is
+  a product gap, not a behavioral probe failure.
+- Parse Server contract read before conversion: production starts
+  `node ./bin/parse-server`, requires application ID, master key, server URL, and
+  an external MongoDB/PostgreSQL database; `/parse/health` reports the server
+  lifecycle state. Its two Docker volumes are writable cloud/config inputs and
+  its default file logging needs an explicit log role directory. The pair uses
+  one bounded MongoDB 8.0.4 companion in each mode, marks the master key secret,
+  and declares outbound DB access with `GRANT egress`.
+- Parse Server Docker receipt: `cd corpus/migrate/parse-server && ./check.sh docker`
+  — pass on 2026-07-31; MongoDB companion image digest
+  `sha256:aaad67f2dca93148e5343c03210bcfc89a0107516a4756bfa018acd6579e5b18`,
+  Parse Server image
+  `sha256:395ee46833dd658437dcaedcba0d0ed3bea2e2b4cf03e17bd41540344bbb7289`,
+  and `/parse/health` returned `{"status":"ok"}`.
+- Parse Server first Cix attempt: `cd corpus/migrate/parse-server && ./check.sh cix`
+  — build-fail before execution: D22 correctly rejects artifact destination `/lib`.
+  This was a conversion error, not a product/language loss; the application tree was
+  moved intact under `/parse-server` so the entry script's `../lib` resolution remains
+  faithful without projecting into a denied system path.
+- Parse Server second Cix attempt: the same exact command — build-fail during
+  parsing because `CONFIGDIR /parse-server/cloud` is outside the directive's enforced
+  `/etc/<one-component>` role namespace. Corrected by managing
+  `/etc/parse-server-{cloud,config}` and linking the Docker-visible volume paths to
+  those writable directories; this preserves the application paths while using
+  systemd's configuration-directory contract.
+- Parse Server third Cix attempt: the same exact command — build-fail while
+  resolving `${pkgs.nodejs_20}` because current locked nixpkgs removed upstream-EOL
+  Node 20 on 2026-04-30. Upstream Parse Server's own `engines` explicitly supports
+  Node `>=22.13.0 <23.0.0`, so the conversion selected `${pkgs.nodejs_22}` and
+  records this Docker-image/package version mismatch rather than pretending the
+  literal 20.19 runtime survived.
+- Parse Server fourth Cix attempt: the same exact command — build passed and
+  produced `/nix/store/f8kikjhwvgx23yhac62cmildy57by6gd-cix-item-parse-server`,
+  but `cix run` rejected the broken-at-build-time links from Docker's
+  `/parse-server/{cloud,config}` paths to runtime-created `CONFIGDIR`s. There is
+  no faithful current role-dir spelling for writable configuration outside
+  `/etc/<one-component>`; classified as a product gap. The unused approximation
+  was removed. The central server/DB health contract remains testable, while the
+  receipt explicitly does not claim volume-path fidelity.
+- Parse Server fifth Cix attempt: the same exact command — `npm ci` completed,
+  then its builder `FETCH` output differed from the first pin
+  (`sha256-tAgfKPquYLEt9DBcLDmulhTCr8JjHLCXek/UZIMh33o=` →
+  `sha256-7bmIJlypytNVOcxkptjFPw8HVu0KVxQLW6WN9ZpgbV0=`). Before classifying
+  this node row as a pin-stability loss, the new output will be accepted once with
+  the compiler-prescribed `--update-lock build` and immediately retested normally.
+- Parse Server lock acceptance: `cd corpus/migrate/parse-server &&
+  ../../../target/debug/cix build --update-lock build .#parse-server` — pass;
+  produced `/nix/store/kf4d06323935ym7y4bllbprjidzn367b-cix-item-parse-server`.
+  Immediate ordinary retry `cd corpus/migrate/parse-server && ./check.sh cix` —
+  build-fail again: accepted
+  `sha256-Z0u3uJu6NH9y7FYCFfmdM+ecjvLvxgg2rnAHcCfR7lY=` changed to
+  `sha256-kHA3Y9J6woNYANJAP5X5kT7OLuNFdXAAY59GXT1auvo=`. The required stable
+  pin cannot be obtained from repeated `npm ci` outputs, so the Cix runtime was
+  not promoted from an unrepeatable build. Classification: product gap in
+  FETCH/package-manager output stability. Node class now attempted 2/passed 1.
+- Wallos contract read before conversion: upstream starts nginx, PHP-FPM, and cron
+  under one signal-forwarding shell; initializes and migrates SQLite; persists
+  `/var/www/html/db` and `/var/www/html/images/uploads/logos`; runs scheduled PHP
+  jobs; and probes `/health.php` for exact `OK`. Its `gd`, `intl`, `zip`,
+  `pdo_sqlite`, and `calendar` extensions require `php.withExtensions`, so the
+  implementation uses D4's pinned `default.nix` escape rather than inventing
+  Cixfile syntax. The dynamic-user item maps the two writable app paths through
+  symlinks into `STATEDIR`-equivalent `/var/lib/wallos`, and replaces root-only
+  cron with unprivileged supercronic while retaining the upstream schedule.
+- Wallos Docker receipt: `cd corpus/migrate/wallos && ./check.sh docker` — pass
+  on 2026-07-31; image
+  `sha256:103ffa469b3455ebb5609802c124b6d7202bdd8606690c6e09ae18bc605eae46`
+  returned exact `OK` from `/health.php`.
+- Wallos first Cix receipt: `cd corpus/migrate/wallos && ./check.sh cix` — Nix
+  build passed, producing
+  `/nix/store/chdrq4if7wwvxkxzrmk9aw2dsmrfvq57-cix-item-wallos`; run-fail.
+  Setup successfully created and migrated SQLite through migration 53, then nginx
+  exited because the hardened unit has no usable `/dev/stdout` device. The setup
+  also exposed PCRE's executable-memory expectation. Corrected the access log to
+  declared `/var/log/wallos` and added the exact `jit` grant; this was runtime
+  contract discovery, not a pass claim.
+- Wallos second Cix receipt: the same exact command — Nix build passed, producing
+  `/nix/store/fhfbvd1q90hahxnf8p5gmjg8klwdzfvj-cix-item-wallos`; run-fail.
+  nginx and supercronic started, but PHP-FPM rejected `/proc/self/fd/2` under the
+  hardened device policy just as nginx had rejected `/dev/stdout`. Its error log
+  was moved to the already declared `/var/log/wallos` role directory.
+- Wallos third Cix receipt: the same exact command — Nix build passed, producing
+  `/nix/store/vlnfj18gqm80c4s1lywri6jr2ksai5zc-cix-item-wallos`; run-fail.
+  PHP-FPM's internal `127.0.0.1:9000` bind was correctly denied because the
+  manifest grants only nginx's public port. Switched the private nginx↔FPM edge
+  to `/run/wallos/php-fpm.sock`, matching upstream's alternate supplied nginx
+  config and the declared `RUNDIR`, without exposing a second TCP port.
+- Wallos final Cix receipt: `cd corpus/migrate/wallos && ./check.sh cix` — pass;
+  `/nix/store/gm8yx7vsm3izqvfn94ji8jmqndggrm0r-cix-item-wallos` completed
+  idempotent DB setup/migrations, started PHP-FPM, nginx, and supercronic under
+  DynamicUser, and returned exact `OK` from `/health.php` after the D36 fallback.
+  PHP class attempted 1/passed 1. Escape-hatch finding: expressing
+  `php.withExtensions` was direct and reviewable, but required hand-authoring the
+  whole item manifest, service scripts, mounts, and pin; D4 is capable but a much
+  steeper migration than Cixfile. D48 health-edge omission remains a product gap.
+- Directus contract read before conversion: Node 22/pnpm 10 monorepo performs a
+  pinned dependency fetch, offline recursive install/build, production deploy,
+  then `cli.js bootstrap` before PM2 starts `cli.js start`. PM2 dissolves into
+  systemd; SQLite, extensions, and uploads are symlinked from the immutable app
+  tree to `/var/lib/directus`; the natural probe is exact `pong` from
+  `/server/ping`.
+- Directus Docker receipt: `cd corpus/migrate/directus && ./check.sh docker` —
+  pass on 2026-07-31; image
+  `sha256:1f0b93fb3d7cbb737e1b13e164c01266a85b824fe9510195492bd768435b1498`
+  returned exact `pong`.
+- Directus first Cix receipt: `cd corpus/migrate/directus && ./check.sh cix` —
+  build-fail in pnpm's nixpkgs wrapper because it invokes bare `sed`. Added the
+  missing whole-package `${pkgs.gnused}` IMPORT, exactly following the migration
+  prompt's builder provisioning rule; conversion error, not a class loss.
+- Directus second Cix receipt: the same exact command — build-fail during pnpm's
+  sqlite3 native fallback because current `${pkgs.python3}` is Python 3.14 and
+  node-gyp 8 imports removed stdlib `distutils`; upstream Docker explicitly adds
+  Python plus setuptools. Selected still-packaged `${pkgs.python311}`, whose
+  stdlib retains the interface required by this pinned node-gyp. This is a
+  package/toolchain version mismatch correction, not yet a class verdict.
+- Directus third Cix receipt: the same exact command — Python 3.11 allowed the
+  sqlite3 native fallback to compile, but the FETCH output disagreed with its
+  prior pin (`sha256-gcvNcwjgcSI1zemo9XMLCvB5bz9fLFeTqxLikykWEJk=` →
+  `sha256-S9eT81DZxrGwAvv4v4wjT7SzbcZRdqDpsSxFUTBcLI0=`). As with Parse
+  Server, accept once then immediately ordinary-retest before assigning the
+  final pin-stability classification.
+- Directus lock acceptance/build continuation: `cd corpus/migrate/directus &&
+  ../../../target/debug/cix build --update-lock build .#directus` — FETCH and
+  native sqlite3 compilation passed, but offline `pnpm run build` failed when
+  pnpm's downloaded `sass-embedded-linux-x64` tried to spawn its FHS-linked
+  `dart` executable (`ENOENT`). With `lib` deliberately absent from IMPORT (D58),
+  the builder has no declared way to supply that prebuilt ELF interpreter/loader.
+  Classification: language gap. No runtime item or Cix pass claimed. Node class:
+  attempted 3/passed 1.
+- Filestash contract read before conversion: upstream clones its branch inside
+  Docker rather than consuming the supplied context, runs `go get ./...` plus five
+  `go generate` directives, and links both system cgo libraries and bundled static
+  archives before copying `dist` into a Debian runtime. The Cix pair instead uses
+  the SOURCE-pinned context, provisions every named build package, maps its mutable
+  `data/state` tree to `/var/lib/filestash` through `FILESTASH_PATH`, and keeps
+  ffmpeg/poppler runtime helpers explicit. The natural `/` probe validates the
+  upstream `X-Powered-By: Filestash` response even when first-run setup redirects.
+- Filestash initial Docker command: `cd corpus/migrate/filestash && ./check.sh docker`
+  built image `sha256:903502d3fc0f4ccaa5dc88d4ac037a88960647f81ccc4149706f37f77cfd8ff8`,
+  but the first check implementation wrongly searched the empty body of the valid
+  `/` 307 response. Classified as a probe error, not an application failure; the
+  probe was corrected to assert the product header on the natural endpoint.
+- Filestash Docker receipt: `cd corpus/migrate/filestash && ./check.sh docker` —
+  pass on 2026-07-31; image
+  `sha256:c5bfe487160aa1eb52d3b1afb84ebea8c403e782119ff1594329de43cb54ab51`
+  returned `X-Powered-By: Filestash` at `/`. Upstream's Dockerfile clones moving
+  `master` despite the recorded SOURCE revision, so its independent build is an
+  honest upstream reproducibility weakness; the Cix input itself remains pinned.
+- Filestash first Cix attempt: `cd corpus/migrate/filestash && ./check.sh cix` —
+  build-fail because three upstream `go generate` programs fetch cdnjs and GitHub,
+  while the conversion initially placed generation in an offline `RUN`. Classified
+  as a conversion error: generation was moved into the networked `FETCH`, matching
+  upstream `make init`, while compilation remains offline.
+- Filestash second Cix attempt: the same exact command — development headers and
+  ffmpeg pkg-config metadata were not added to compiler search paths merely by
+  whole-package IMPORTs; compilation reported missing Brotli/LibRaw headers and
+  all libav `.pc` files. This was a conversion error. The necessary dev outputs
+  and explicit `CPATH`, `LIBRARY_PATH`, and `PKG_CONFIG_PATH` flags were added.
+- Filestash third Cix attempt: the same exact command — build-fail before compile
+  because the combined network generator output changed from
+  `sha256-n2k0tbaO2MlzScCJVi0fYVzHd/C5VQPPzAQsKDZ7grk=` to
+  `sha256-8MT+jdjGPLslQ6N/V4fWSl1mRJrzDr1HwBaJdkxj8Dk=`. As a bounded diagnostic,
+  `cd corpus/migrate/filestash && ../../../target/debug/cix build --update-lock
+  build .#filestash` accepted one output and continued to compilation.
+- Filestash first lock-acceptance continuation: that exact command — compile-fail
+  after reaching the image plugins because jpeg/png/webp/gif development headers
+  were still absent. These are split nixpkgs outputs rather than missing packages;
+  all available dev outputs were added explicitly, with libwebp/giflib headers
+  taken from their single outputs.
+- Filestash second lock-acceptance continuation: `cd corpus/migrate/filestash &&
+  ../../../target/debug/cix build --update-lock build .#filestash` — compile reached
+  the final linker, which could not find the literal static archives demanded by
+  upstream cgo (`libwebp.a`, `libjpeg.a`, `libpng.a`, `libz.a`, `libraw.a`, plus
+  lcms2). Normal nixpkgs outputs intentionally ship most of these only shared.
+  This confirmed the Go+cgo shape rather than a missing header/import mistake.
+- Filestash final bounded attempt: the same exact lock-acceptance command after
+  selecting explicit `pkgsStatic` outputs — closure-fail in locked nixpkgs itself:
+  `giflib-static-x86_64-unknown-linux-musl-6.1.3` tries to link `libgif.so` using
+  `crtbeginT.o` and fails with relocation `R_X86_64_32` against `__TMC_END__`;
+  both static libwebp derivations and the remaining closure are cancelled.
+  Cixfile cannot express the package override needed to build a tailored glibc
+  static dependency set (D32). Classification: language/package-selection gap;
+  the changing generated FETCH is separately a product pin-stability gap. Go+cgo
+  class attempted 1/passed 0.
+- Legacy context materialization: `cd corpus/migrate && ./fetch.sh tomcat &&
+  ./fetch.sh dozzle` — pass; both ignored trees match their recorded SOURCE pins.
+- Tomcat root-cause reproduction: `cd corpus/migrate/tomcat && item=$(../../../target/debug/cix
+  build .#tomcat); unit=$(sudo -n ../../../target/debug/cix run --detach "$item" |
+  tail -n1); ... journalctl ...` — the original item exited immediately because
+  the sole linked `catalina.sh` lacked `uname`, `ls`, `expr`, and `dirname`, then
+  resolved its symlink under `/bin` and reported `Cannot find //bin/setclasspath.sh`.
+  Root cause: incomplete artifact/runtime closure, not a network reachability bug.
+- Tomcat repair attempt 1: `cd corpus/migrate/tomcat && ./check.sh cix` — parse-fail,
+  because `IMPORT` is builder-only. The complete coreutils package was instead
+  copied into the service artifact and added to runtime PATH.
+- Tomcat repair attempt 2: the same exact command — run validation rejected direct
+  EXEC `/tomcat/bin/catalina.sh`; retained the complete package tree but added the
+  required executable projection at `/bin/catalina.sh`.
+- Tomcat repair attempt 3: the same exact command — setup-fail because nixpkgs
+  Tomcat has no `webapps/` directory. Removed the invalid seed copy; an empty
+  writable deployment directory correctly represents the no-application image.
+- Tomcat repair attempt 4: the same exact command — Tomcat reached JVM startup,
+  then failed `Failed to mark memory page as executable`; added the exact `jit`
+  grant required by the JVM.
+- Tomcat repair attempt 5: the same exact command — Tomcat bound port 8080, then
+  its undeclared private shutdown socket on 8005 was denied and it exited. Setup
+  now idempotently changes only that listener to `port="-1"`; it also creates the
+  writable Catalina deployment directory.
+- Tomcat repair attempt 6: the same exact command — setup-fail because `cp -a`
+  preserved the read-only Nix source modes in `CATALINA_BASE`. Switched to GNU
+  `cp --no-preserve=mode,ownership`; before retesting, exact disposable test state
+  was audited and reset with `sudo -n rm -rf /var/lib/private/cix-run-tomcat
+  /var/log/private/cix-run-tomcat /run/private/cix-run-tomcat`.
+- Tomcat final Cix receipt: `cd corpus/migrate/tomcat && ./check.sh cix` — pass;
+  item `/nix/store/zb77wa6z6fka2yx3dmz9s3b0wnbb7d3w-cix-item-tomcat` responded at
+  natural `/` on 8080 under the D36 fallback. The candidate says “responds,” so
+  the probe now correctly accepts Tomcat's expected no-webapp HTTP 404 rather than
+  requiring a success body. Legacy language/product verdict: fixed conversion;
+  no remaining Cix gap beyond the documented degraded host fallback.
+- Dozzle current legacy command: `cd corpus/migrate/dozzle && ./check.sh cix` —
+  build-fail even before the recorded Go FETCH: UI `pnpm fetch --ignore-scripts`
+  changed from `sha256-Dynp64Cg8LvghhD7NTFFHwjO6OBnlTs5X9G0E+VtRx8=` to
+  `sha256-odtJxzY8QgJHbwT85Auvy+3CaBfSRugnCoeuuFvSSs8=`. Not fixed, per spec.
+- Dozzle byte-level Go reproduction command: create two clean `mktemp` run dirs,
+  copy pinned `context/{go.mod,go.sum}` into each, then run
+  `GOMODCACHE=<run>/cache $(nix build --no-link --print-out-paths --quiet
+  nixpkgs#go_1_26)/bin/go mod download` once per directory; compare with
+  `diff -qr`, sorted `find ... -type f -printf '%P\\n'`, `wc -c`, and `sha256sum`.
+  Outcome: all 33,862 common files were byte-identical. Run 1 alone contained
+  seven `cache/download/sumdb/sum.golang.org` tiles: `tile/8/0/x227/780`
+  (8192 bytes, sha256 `5ce1866f55639c30e34a8a4263205c463eb33139b0ac61c16eb73885aff666a4`),
+  `tile/8/0/x227/780.p/82` (2624, `04139b3c45aa7d142dd22b6a8efcd1d30d25cdfa1ccf3f0c49dde689e84e1943`),
+  `tile/8/0/x228/452.p/108` (3456, `128cf09fa3fa0cd5e449d7271fb746f6a66685bbc4856196cc081e0dc991216c`),
+  `tile/8/1/889` (8192, `9fb9ad926448981cf511d1f6a80447c405219f96b85f22007cab313767af09cf`),
+  `tile/8/1/889.p/196` (6272, `7cb74e7014427857c5cf794619570efbb8164a34a9c0c865a30b9503709fa249`),
+  `tile/8/1/892.p/100` (3200, `483bc44b9cc5dff03517b57ed07048e7d3460eafcdc15e7abb003174ef1f68ff`),
+  and `tile/8/2/003.p/121` (3872, `7372f71815c1761628e9786325a1e42c0bf8d169f7d94fcc926505e89cb2bd68`).
+  They total exactly 35,808 extra bytes, equal to the total tree-size difference;
+  there are no differing bytes in common files. Classification: product gap—FETCH
+  pins incidental concurrent Go sumdb cache population, not just dependency source.
+  Independently, Dozzle's required Docker socket remains an explicit product boundary.
+- Batch grade: Node attempted 3/passed 1 (Excalidraw pass; Parse Server product
+  FETCH-stability gap; Directus language gap around an FHS-linked downloaded native
+  tool), PHP attempted 1/passed 1 through D4's `.nix` escape, and Go+cgo attempted
+  1/passed 0 (Filestash language/package-selection gap). Overall new build-class
+  loss is 3/5 pairs. Every candidate's Docker build and natural probe passed.
+- Complete classification ledger: language gaps — Directus downloaded FHS ELF and
+  Filestash's required customized static-library set cannot be expressed by a plain
+  package selector; product gaps — repeated npm/go-generator/sumdb FETCH snapshots,
+  writable Parse volume paths outside current role-dir grammar, Docker HEALTHCHECK
+  edges omitted by Cix manifests, and Docker-socket workloads; prompt gap — the
+  track suggested source-dependent CGO flags through builder `ENV`, but builder ENV
+  is deliberately plain text and rejected `${pkgs...}` interpolation, so the usable
+  spelling is an inline environment on `RUN`; upstream flakes — Filestash Docker's
+  moving-master clone and locked nixpkgs's broken `pkgsStatic.giflib` build. Proposed
+  design-round inputs for the orchestrator: define which package-manager cache bytes
+  FETCH should normalize/exclude, consider an expression escape for customized build
+  packages (or document mandatory `.nix` fallback), and reconcile health edges and
+  writable application-path projections without weakening role ownership.
+- Final smoke gate: `devenv shell -- cargo test --workspace` — pass on 2026-07-31;
+  all workspace unit/integration/doc tests passed (two intentional ignored tests).
+  Devenv's generated untracked root `devenv.lock` was removed after the gate so the
+  track remains confined to `corpus/migrate/**`.
+- Final cleanup/audit: `sudo -n systemctl list-units 'cix-run-*' --all --no-legend
+  --plain`, `docker ps --format '{{.ID}} {{.Names}} {{.Ports}}' | rg
+  'migrate-r5|migrate-r4'`, and `git ls-files 'corpus/migrate/*/context/**'` all
+  returned empty. `git diff --check` passed. The two-run Dozzle scratch directory
+  was removed after its exact hashes were recorded. Next: commit the corpus-only diff.

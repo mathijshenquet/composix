@@ -1,9 +1,21 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE tomcat
+  COPY ${pkgs.coreutils} /coreutils
+  COPY ${pkgs.gnused} /gnused
+  COPY ${pkgs.tomcat10} /tomcat
+  COPY ${pkgs.jdk21_headless} /jre
+  COPY setup.sh /bin/tomcat-setup
+  LINK ${pkgs.tomcat10}/bin/catalina.sh /bin/catalina.sh
   STATEDIR /var/lib/tomcat
   LOGSDIR /var/log/tomcat
   RUNDIR /run/tomcat
-  LINK ${pkgs.tomcat}/bin/catalina.sh /bin/catalina.sh
+  ENV CATALINA_HOME = /tomcat
+  ENV CATALINA_BASE = /var/lib/tomcat
+  ENV CATALINA_TMPDIR = /run/tomcat
+  ENV JRE_HOME = /jre
+  ENV PATH = /coreutils/bin:/gnused/bin:/bin
+  SETUP tomcat-setup
   EXEC catalina.sh run
   PORT http = 8080
+  GRANT jit

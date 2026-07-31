@@ -1,0 +1,38 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go_1_26} ${pkgs.gnumake} \
+    ${pkgs.gcc} ${pkgs.pkg-config} ${pkgs.cacert} ${pkgs.libjpeg} \
+    ${pkgs.libtiff} ${pkgs.libpng} ${pkgs.libwebp} ${pkgs.libraw} \
+    ${pkgs.libheif} ${pkgs.giflib} ${pkgs.vips} ${pkgs.ffmpeg} \
+    ${pkgs.glib} ${pkgs.lcms2} ${pkgs.zlib} ${pkgs.brotli} \
+    ${pkgs.brotli.dev} ${pkgs.libjpeg.dev} ${pkgs.libpng.dev} \
+    ${pkgs.libraw.dev} \
+    ${pkgs.ffmpeg.dev} ${pkgs.glib.dev} ${pkgs.gcc.cc.lib} \
+    ${pkgs.pkgsStatic.libjpeg.out} ${pkgs.pkgsStatic.libpng.out} \
+    ${pkgs.pkgsStatic.libwebp} ${pkgs.pkgsStatic.libraw.lib} \
+    ${pkgs.pkgsStatic.lcms2.out} ${pkgs.pkgsStatic.zlib.out}
+ENV GOMODCACHE = $PWD/.gomodcache
+COPY ${src}/context/ .
+FETCH go mod download && go generate -x ./server/...
+RUN CPATH=${pkgs.brotli.dev}/include:${pkgs.libjpeg.dev}/include:${pkgs.libpng.dev}/include:${pkgs.libwebp}/include:${pkgs.libraw.dev}/include:${pkgs.giflib}/include \
+    LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib \
+    PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig \
+    go build --tags fts5 -o dist/filestash cmd/main.go
+
+SERVICE filestash
+COPY ${build}/dist/filestash /bin/filestash
+COPY ${src}/context/config/config.json /share/filestash-config.json
+COPY setup.sh /bin/filestash-setup
+LINK ${pkgs.ffmpeg}/bin/ffmpeg /bin/ffmpeg
+LINK ${pkgs.ffmpeg}/bin/ffprobe /bin/ffprobe
+LINK ${pkgs.poppler-utils}/bin/pdftotext /bin/pdftotext
+LINK ${pkgs.poppler-utils}/bin/pdfinfo /bin/pdfinfo
+SETUP filestash-setup
+EXEC filestash
+ENV FILESTASH_PATH = /var/lib/filestash
+ENV FILESTASH_PORT = 18094
+PORT http = $FILESTASH_PORT
+STATEDIR /var/lib/filestash
+GRANT egress

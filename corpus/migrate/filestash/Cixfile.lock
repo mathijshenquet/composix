@@ -1,0 +1,17 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "1559d3daa3ecc813a650b79375ea61b6741b8746",
+      "narHash": "sha256-LQy14TZp77TwbQf40gg1V3jo8FwJG0jGDkAH+zRHqg8="
+    }
+  },
+  "fetches": {
+    "builder:build:2-27a70b69a918": {
+      "narHash": "sha256-KSviBOEh74raIuUUupkL2T1sPpSqb9Ck1ByDOTRYVP8="
+    },
+    "builder:build:2-42a8263a643c": {
+      "narHash": "sha256-HYMB8Ae+Nwd6RqAYViWFX4AmGP45fSvdLNr2qEdvVuM="
+    }
+  }
+}
