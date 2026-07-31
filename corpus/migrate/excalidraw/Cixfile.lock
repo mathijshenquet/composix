@@ -1,0 +1,24 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "1559d3daa3ecc813a650b79375ea61b6741b8746",
+      "narHash": "sha256-LQy14TZp77TwbQf40gg1V3jo8FwJG0jGDkAH+zRHqg8="
+    }
+  },
+  "fetches": {
+    "builder:build:1-abebcd0f3ea0": {
+      "narHash": "sha256-nF7h2WZql4zy41y+w+1PFtf0xpsgdHzuJ5w2SbxoD2Q="
+    }
+  },
+  "memo": {
+    "b5849854d5ad6ce75d762f2357dacdee9ffa69e0483b4508aa74c6bf980c9778": {
+      "paths": {
+        "excalidraw-app/build": {
+          "narHash": "sha256-Po3W44O1Wr086yxT+1YMJR4TOhdBCoK2bw0D0NZib7s=",
+          "storePath": "/nix/store/yvrmvbl9dpjw9pxjd0lyk0k5izs1mzkz-cix-build-consumed"
+        }
+      }
+    }
+  }
+}

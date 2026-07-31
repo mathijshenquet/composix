@@ -1,0 +1,6 @@
+Dockerfile: https://raw.githubusercontent.com/directus/directus/b1d7a45a77661fd13928a53448c06649f36b56f5/Dockerfile
+Repository: https://github.com/directus/directus.git
+Resolved revision: b1d7a45a77661fd13928a53448c06649f36b56f5
+Context path: .
+Dockerfile sha256: 86254b15e16f2c3e124143c470654204c624b86c3b863bf364e1d24f3e4fa768
+Retrieved: 2026-07-31

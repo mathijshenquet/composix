@@ -1,0 +1,6 @@
+Dockerfile: https://raw.githubusercontent.com/parse-community/parse-server/315e157637d902d85f465563b2863a9e19bf1ff4/Dockerfile
+Repository: https://github.com/parse-community/parse-server.git
+Resolved revision: 315e157637d902d85f465563b2863a9e19bf1ff4
+Context path: .
+Dockerfile sha256: 6f3c47982fc03b84751d5c17ce94778102e2cc4a4ab25e054f3f064c23ef727b
+Retrieved: 2026-07-31

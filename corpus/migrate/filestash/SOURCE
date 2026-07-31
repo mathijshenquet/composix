@@ -1,0 +1,6 @@
+Dockerfile: https://raw.githubusercontent.com/mickael-kerjean/filestash/cdcb9566d4d24c065e461b1c8e3220ff68ef98ac/docker/Dockerfile
+Repository: https://github.com/mickael-kerjean/filestash.git
+Resolved revision: cdcb9566d4d24c065e461b1c8e3220ff68ef98ac
+Context path: .
+Dockerfile sha256: 99c94b7066525d018f0a58efb7caac48136c2bede13e23d71d77dfe96f82e297
+Retrieved: 2026-07-31
