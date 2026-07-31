@@ -701,3 +701,9 @@
   untracked `devenv.lock` and the exact temporary baseline checkout were
   removed. Next: re-stage this final record, review the cached diff summary,
   commit on `track/crunchy`, and verify the committed tree is clean.
+
+- 2026-07-31T23:35:57Z — Committed the green adversarial-diagnostics
+  implementation on `track/crunchy` as `804fab5` (`Improve Cixfile diagnostics
+  under adversarial syntax`). No open items remain for this track; this final
+  journal-only close records the completed commit and leaves the branch ready
+  for independent verification.
