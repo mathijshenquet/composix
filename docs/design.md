@@ -1528,6 +1528,41 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   stale checkout getting memo hits from bytes built by newer cix — caught
   via tour narHash drift).
 
+- ✅ D70 (2026-08-01) — **overlay universes: the escape hatch for package
+  composition** (the wallos/`php.withExtensions` forcing example; a dialogue
+  arc worth keeping honest: sidecar-package → explicit `USING` injection →
+  Mathijs's "USING is a function call in a jacket" and "why not a file that
+  IS nixpkgs-except-my-php" → this).
+  (a) **`FROM <flakeref> OVERLAY <./file.nix>… AS <name>`**: the base
+  universe evaluated with nixpkgs' own overlay mechanism —
+  `import <tree> { system; overlays = [ (import ./file.nix) … ]; }`. The
+  overlay file is the bare nix idiom (`final: prev: { php =
+  prev.php83.withExtensions …; }` — three lines); repeatable, order =
+  overlay order. Implementation is one argument on the existing classic
+  import; **getFlake stays evidence-gated** (this removes its forcing
+  example). Computation lives in the .nix file, the Cixfile only wires a
+  path — the same boundary that refused functions-in-`${…}` (D69d) and
+  killed `USING`.
+  (b) **Requirements, checked with clear errors**: the base must accept an
+  `overlays` argument (functionArgs-checked; else "wrap the base or use a
+  full universe tree"); the overlay file must be a `final: prev:` function
+  to attrset. Semantics are the real nixpkgs fixpoint — an overlay can
+  override deep (`openssl`) and the whole `${pkgs.*}` world follows; power
+  and cost both standard and visible.
+  (c) **Keying/lock**: universe identity in chain keys = (base pin, ordered
+  overlay file hashes); overlay files are context content; one lock —
+  `--update-lock` moves the base pin, overlay edits are ordinary source
+  edits. Overlays cannot reference Cixfile binders (pure final/prev —
+  source-dependent building is builder territory). Multiple universes side
+  by side stay legal (name provenance) with the documented hygiene note
+  that this deliberately reopens world-skew inside one item. Eval-time
+  impurity in .nix files (unpinned fetchTarball) is the author's own,
+  identical to full universe trees — documented, not newly introduced.
+  (d) Full universe trees (a repo's default.nix that IS
+  nixpkgs-plus-overlay) remain the general mechanism per D65 for org-owned
+  worlds; `OVERLAY` is the project-local pretty form. The composed-ITEM
+  route (D68+D65) stays the org-wide distribution form.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
