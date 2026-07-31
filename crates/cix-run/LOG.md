@@ -1,5 +1,51 @@
 # cix-run work log
 
+- 2026-07-31 18:14 UTC — Final local cleanup: stopped the explicit empty
+  system `cix-run.slice` with `sudo -n systemctl stop cix-run.slice`, then
+  stopped the user slice and cleared collected historical failures with
+  `systemctl --user stop cix-run.slice` and `systemctl --user reset-failed
+  'cix-*'`. `systemctl list-units --all --no-legend 'cix-*'` and its
+  `--user` counterpart are both empty. Removed the generated untracked
+  `devenv.lock` from the worktree.
+
+- 2026-07-31 18:11 UTC — D63(b) final gate passed on `track/gcroots` after
+  correcting system-mode cleanup: `/run/cix/gcroots` is root-owned, so the
+  visible `ExecStopPost=` uses systemd's `+` prefix only for system units;
+  user-mode cleanup stays unprivileged in the user-owned runtime directory.
+  Exact successful repros: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`;
+  `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test -p
+  cix --test tour -- --ignored generate_tour`; then `devenv shell -- cargo
+  test -p cix --test tour` twice; and `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L`. Regeneration changed no
+  tour documents; both drift/determinism passes were green. The VM proved the
+  link and auto-root exist while the service runs, the link is gone after
+  `systemctl stop`, and `nix-store --gc --max-freed 1` logged removal of the
+  dangling auto link before the test confirmed it absent. The VM cleaned every
+  cix unit; the known node stop timeout is tolerated by its existing test and
+  the test completed successfully.
+
+- 2026-07-31 17:34 UTC — Started track/gcroots after reading AGENTS.md, the
+  current `.dev/LOG.md`, D63 in full, and `.dev/specs/track-gcroots.md`.
+  Scope is `cix run` unit-lifetime indirect GC roots plus the requested docs and
+  runtime tests; corpus is explicitly untouched. The clean `track/gcroots`
+  branch is at `b9e5264`. Next: reuse the index’s `nix build --out-link` root
+  registration, add visible `ExecStopPost=` cleanup, and prove lifecycle in the
+  system projection test.
+
+- 2026-07-31 17:48 UTC — Implemented D63(b) with `nix-store --add-root
+  <link> --indirect --realise <item>`, per-run system/user root directories,
+  explicit degraded-user warning, and a visible `ExecStopPost=`. Focused repros
+  passed: `devenv shell -- cargo fmt --all --check`, `devenv shell -- cargo
+  clippy -p cix-run --all-targets -- -D warnings`, and `devenv shell -- cargo
+  test -p cix-run`. VM repro is `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L`: it proved creation and auto
+  registration, then exposed the cleanup executable resolving through NixOS's
+  coreutils multicall binary. The cleanup lookup now preserves the executable
+  symlink (`.../bin/rm`) rather than canonicalizing it; next is rerunning this
+  VM gate, then the complete specified gate, tour no-op verification, cleanup,
+  and commit.
+
 - 2026-07-29 11:29 UTC — Correction round 1 full gate passes: fmt, workspace build, warning-denied clippy, all workspace tests (including deterministic/drift-checked tour and system/rootless integrations), and the NixOS VM dogfood check. Live debug/exec outputs and cleanup are recorded in `.dev/specs/track-exec.LOG.md`. Next: final audit and commit.
 
 - 2026-07-29 11:19 UTC — Correction round 1 replaces the D34 resolver with one shared effective lookup order: recorded/generated PATH, then `/usr/bin:/bin`, for shell and explicit commands in both debug and exec. Empty-environment coverage and focused tests/clippy pass. Exec now identifies private namespaces by comparing the target and caller nsfs device/inode pairs, enters only differing handles, and reports the private/shared sets instead of claiming PID/network isolation that nginx does not have. Next: repeat the real nginx system/user debug and live exec demonstrations, then the workspace and VM gates.

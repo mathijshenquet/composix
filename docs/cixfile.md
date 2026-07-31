@@ -243,6 +243,10 @@ closed to `jit` and `egress`, one grant per line.
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
 health checks or log/config/run role directories.
 
+An anonymous `cix run` holds an indirect Nix GC root for the item's unit lifetime, then its
+visible `ExecStopPost=` removes that root when the unit stops. Tags remain the durable naming
+and GC-root mechanism; an untagged item becomes collectable again after its run ends (D63).
+
 Relative copied destinations live at the artifact root and are projected at their native
 runtime path. Every SERVICE and APP gets `PATH=bin` unless it explicitly declares
 `ENV PATH = …`, which replaces that default entirely. A one-word `EXEC app` or `SETUP app`

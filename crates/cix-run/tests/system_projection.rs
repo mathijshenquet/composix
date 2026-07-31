@@ -88,6 +88,16 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
     if !command_succeeds("systemctl", &["is-active", "--quiet", &started.name]) {
         bail!("{} did not remain active", started.name);
     }
+    let gc_root = Path::new("/run/cix/gcroots").join(format!("{}.root", started.name));
+    assert_eq!(fs::read_link(&gc_root)?, store_path);
+    assert!(
+        auto_root_exists(&gc_root)?,
+        "missing auto root for {}",
+        gc_root.display()
+    );
+    let unit = unit_file(&started.name)?;
+    assert!(unit.contains("ExecStopPost=+"), "{unit}");
+    assert!(unit.contains(gc_root.to_string_lossy().as_ref()), "{unit}");
     let binds = Command::new("systemctl")
         .args([
             "show",
@@ -106,6 +116,12 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
 
     stop_service(&started.name, false)?;
     std::mem::forget(guard);
+    assert!(
+        fs::symlink_metadata(&gc_root)
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound),
+        "GC root {} remained after stop",
+        gc_root.display()
+    );
     drop(slice_guard);
     fs::remove_dir_all(&temporary)?;
     Ok(())
@@ -343,6 +359,17 @@ fn assert_property(unit: &str, property: &str, expected: &str) -> Result<()> {
 fn unit_file(unit: &str) -> Result<String> {
     let path = systemctl_property(unit, "FragmentPath")?;
     Ok(fs::read_to_string(path)?)
+}
+
+fn auto_root_exists(root: &Path) -> Result<bool> {
+    let roots = Path::new("/nix/var/nix/gcroots/auto");
+    for entry in fs::read_dir(roots).with_context(|| format!("reading {}", roots.display()))? {
+        let entry = entry?;
+        if fs::read_link(entry.path()).is_ok_and(|target| target == root) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn add_to_store(path: &Path) -> Result<PathBuf> {
