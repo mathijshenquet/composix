@@ -15,6 +15,6 @@ COPY ${src}/src/ src
 RUN cargo build --release --locked --offline
 
 SERVICE projb-chef
-COPY ${build}/target/release/projb-chef bin/projb-chef
+COPY ${build}/target/release/projb-chef /bin/projb-chef
 EXEC projb-chef
 PORT http = 18083

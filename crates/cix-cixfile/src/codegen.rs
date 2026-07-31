@@ -767,7 +767,7 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
         .map(|assembly| match assembly {
             Assembly::File { dst, .. } | Assembly::Link { dst, .. } => dst,
         })
-        .cloned();
+        .map(|dst| format!("/{dst}"));
     copy_destinations
         .chain(assembly_destinations)
         .filter_map(|destination| {
@@ -994,7 +994,7 @@ mod tests {
     fn emits_kind_and_unified_copy_sources() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload bin/payload\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nEXEC /bin/true\n",
         )
         .unwrap();
         let nix =
@@ -1037,10 +1037,43 @@ mod tests {
     }
 
     #[test]
+    fn absolute_artifact_destinations_keep_the_pre_d66_manifest_shape() {
+        let cixfile = parse(
+            "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nEXEC /bin/tool\n",
+        )
+        .unwrap();
+        assert_eq!(cixfile.artifacts["fixture"].copies[0].dst, "share/payload");
+        assert!(matches!(
+            &cixfile.artifacts["fixture"].assembly[..],
+            [Assembly::File { dst: file, .. }, Assembly::Link { dst: link, .. }]
+                if file == "etc/fixture.conf" && link == "bin/tool"
+        ));
+        let manifest = generate_spec_json(&cixfile).unwrap();
+        let before_d66 = r#"{
+  "cixManifest": 5,
+  "env": {
+    "PATH": {
+      "default": "bin"
+    }
+  },
+  "exec": [
+    "/bin/tool"
+  ],
+  "mounts": [
+    "/bin/tool",
+    "/etc/fixture.conf",
+    "/share/payload"
+  ]
+}
+"#;
+        assert_eq!(manifest, before_d66);
+    }
+
+    #[test]
     fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload payload\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n",
         )
         .unwrap();
         let mut lock = fixture_lock();

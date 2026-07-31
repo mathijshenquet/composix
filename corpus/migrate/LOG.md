@@ -148,3 +148,15 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
 - Lock refresh required by the changed dozzle builder graph: `cd corpus/migrate/dozzle && ../../../target/debug/cix build --update-lock ui .#dozzle` and `../../../target/debug/cix build --update-lock build .#dozzle`; the final ordinary check still correctly reports the unstable Go-module FETCH pin above.
 - Gate smoke: `devenv shell -- cargo test --workspace` — pass. Final static repros: `for file in corpus/migrate/*/check.sh; do bash -n "$file"; done`; `git diff --check`; `git ls-files 'corpus/migrate/*/context/**'`; and `git diff --name-only | rg -v '^corpus/migrate/' && exit 1 || true` — all pass (the context listing is empty and the diff is corpus-only).
 - Cleanup repro: `systemctl --user reset-failed 'cix-*'; systemctl --user stop cix-run.slice; sudo -n systemctl reset-failed 'cix-*'; sudo -n systemctl stop cix-run.slice` — completed; test-created units are stopped/reset.
+
+## 2026-07-31 — D66 absolute artifact destinations
+
+- `cd corpus/migrate && ./fetch.sh --all` — pass; all eight fetched contexts
+  were refreshed from their pins before the Cixfile sweep.
+- After `devenv shell -- cargo build -p cix`, the previously green receipts
+  were re-run with their exact commands: `cd corpus/migrate/{adminer,caddy,
+  memcached,nats,nginx,phpmyadmin,redis,traefik,whoami} && ./check.sh cix`.
+  All nine passed using D66 absolute COPY/LINK destinations; caddy, nginx,
+  phpmyadmin, and redis used the existing D36 PrivatePIDs fallback on this
+  host. The known non-green dozzle, echo-server, tomcat, verdaccio, and
+  watchtower rows were not promoted.

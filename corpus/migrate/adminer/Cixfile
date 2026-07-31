@@ -7,9 +7,9 @@ BUILDER adminer_src
   FETCH EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ= curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php
 
 SERVICE adminer
-  COPY ${src}/context/index.php index.php
-  COPY ${src}/context/plugin-loader.php plugin-loader.php
-  COPY ${adminer_src}/adminer.php adminer.php
-  LINK ${pkgs.php84}/bin/php bin/php
+  COPY ${src}/context/index.php /index.php
+  COPY ${src}/context/plugin-loader.php /plugin-loader.php
+  COPY ${adminer_src}/adminer.php /adminer.php
+  LINK ${pkgs.php84}/bin/php /bin/php
   EXEC php -S 0.0.0.0:8080 -t .
   PORT http = 8080

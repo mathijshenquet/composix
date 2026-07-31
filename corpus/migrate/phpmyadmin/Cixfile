@@ -6,8 +6,8 @@ BUILDER build
   RUN mkdir app && tar -xJf phpMyAdmin-5.2.3-all-languages.tar.xz --strip-components=1 -C app
 
 SERVICE phpmyadmin
-  COPY ${build}/app srv/phpmyadmin
+  COPY ${build}/app /srv/phpmyadmin
   STATEDIR /var/lib/phpmyadmin
-  LINK ${pkgs.php83}/bin/php bin/php
+  LINK ${pkgs.php83}/bin/php /bin/php
   EXEC php -S 0.0.0.0:8080 -t /srv/phpmyadmin
   PORT http = 8080

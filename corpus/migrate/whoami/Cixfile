@@ -9,6 +9,6 @@ BUILDER build
   RUN make build
 
 SERVICE whoami
-  COPY ${build}/whoami bin/whoami
+  COPY ${build}/whoami /bin/whoami
   EXEC whoami
   PORT http = 80

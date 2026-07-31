@@ -68,12 +68,12 @@ touch target/.cix-warm
 BUILD
 
 SERVICE proj1-api
-COPY ${build}/target/release/proj1-api bin/proj1-api
+COPY ${build}/target/release/proj1-api /bin/proj1-api
 EXEC proj1-api
 PORT http = 18084
 
 SERVICE proj1-worker
-COPY ${build}/target/release/proj1-worker bin/proj1-worker
+COPY ${build}/target/release/proj1-worker /bin/proj1-worker
 EXEC proj1-worker
 GRANT egress
 ```

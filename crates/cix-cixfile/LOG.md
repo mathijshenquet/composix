@@ -1,5 +1,61 @@
 # Cixfile track work log
 
+- 2026-07-31T18:00:00Z — Started `.dev/specs/track-absdest.md` on
+  `track/absdest`. Read AGENTS.md, the session journal, authoritative D66 in
+  full, the complete track spec, and this crate journal. D66 makes SERVICE/APP
+  destinations runtime-world absolute while retaining item-relative storage;
+  BUILDER COPY stays workdir-relative. Next: fetch every corpus context,
+  normalize parser storage after validating absolute spellings, migrate live
+  Cixfiles/docs/tour, prove manifest equivalence, then run the prescribed
+  Rust/tour/corpus/docs/VM gates and record exact repros here.
+
+- 2026-07-31T18:40:00Z — D66 compiler/surface milestone is focused-green.
+  SERVICE/APP COPY/FILE/LINK now require an item-world absolute spelling and
+  normalize it to the pre-existing item-relative model; `/` normalizes to the
+  existing COPY-root `.`. Relative EXEC/SETUP paths with a slash give the same
+  migration-grade absolute spelling, while bare commands remain D64 commands.
+  BUILDER COPY remains relative and now explicitly rejects an absolute
+  destination. Codegen keeps stored files byte-identical and derives assembly
+  mounts from their normalized runtime paths; a manifest test compares the
+  D66 parse result with the pre-D66 v5 shape. Exact focused repros passed:
+  `devenv shell -- cargo fmt --all`; `devenv shell -- cargo test -p
+  cix-cixfile --lib`; and `devenv shell -- cargo test -p cix-cixfile --test
+  lock_nix -- --nocapture` (43 unit and 16 real-Nix tests).
+  `cd corpus/migrate && ./fetch.sh --all` fetched all pinned contexts, and
+  the nine previously green checks (adminer, caddy, memcached, nats, nginx,
+  phpmyadmin, redis, traefik, whoami) pass via `./check.sh cix`; exact corpus
+  results are appended to `corpus/migrate/LOG.md`. Both complete migrate.md
+  samples were copied verbatim to ignored `.dev/scratch/absdest/` fixtures and
+  built with `devenv shell -- target/debug/cix build .dev/scratch/absdest/{dissolve,fetch}`;
+  the sample and README/reference verbatim diffs pass. Tour regeneration via
+  `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`
+  passed. Next: review generated docs, run the full prescribed Rust/tour/VM
+  gate, cleanup units, then commit.
+
+- 2026-07-31T18:55:00Z — Final D66 gate is green. Exact prescribed repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git add docs/tour && git diff --exit-code -- docs/tour`;
+  `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo
+  test -p cix --test tour generated_tour_is_deterministic -- --exact` (passed
+  twice). The dogfood gate `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed under normal TCG
+  fallback after KVM denial; receipt independently confirmed with `devenv
+  shell -- nix path-info .#checks.x86_64-linux.vm-dogfood`:
+  `/nix/store/xn34wazhykc9xvp1fjn9f73jymixha7l-vm-test-run-vm-dogfood`.
+  `git diff --check` and `git diff --cached --check` pass. Unit cleanup repro:
+  `sudo -n systemctl stop 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl daemon-reload;
+  systemctl --user stop 'cix-*' >/dev/null 2>&1 || true; systemctl --user
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; systemctl --user stop
+  cix-run.slice >/dev/null 2>&1 || true; ! sudo -n systemctl list-units
+  'cix-*' --all --no-legend --plain | grep -q .; ! systemctl --user list-units
+  'cix-*' --all --no-legend --plain | grep -q .` passed. Removed only the
+  untracked devenv-generated `devenv.lock`. Next: stage all track files and
+  commit this green D66 implementation.
+
 - 2026-07-31T17:15:24Z — Committed the green D64 implementation on
   `track/selfbin` as `Implement D64 implicit self-bin runtime PATH`. No open
   items remain for this track.

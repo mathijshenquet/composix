@@ -2,9 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE backend
-COPY ${src}/greeting.txt srv/backend/greeting.txt
-COPY ${src}/backend.py bin/backend.py
-COPY ${src}/start bin/start
+COPY ${src}/greeting.txt /srv/backend/greeting.txt
+COPY ${src}/backend.py /bin/backend.py
+COPY ${src}/start /bin/start
 EXEC ${pkgs.bash}/bin/sh /bin/start ${pkgs.python3}/bin/python3 /bin/backend.py ${pkgs.redis}/bin/redis-cli
 ENV SUFFIX
 RUNDIR /run/backend

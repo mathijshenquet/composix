@@ -3,9 +3,9 @@ FROM . AS src
 
 SERVICE postgres
 ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
-COPY ${src}/runtime-env.sh opt/postgres/runtime-env.sh
-COPY ${src}/setup opt/postgres/setup
-COPY ${src}/start opt/postgres/start
+COPY ${src}/runtime-env.sh /opt/postgres/runtime-env.sh
+COPY ${src}/setup /opt/postgres/setup
+COPY ${src}/start /opt/postgres/start
 LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
 SETUP ${pkgs.bash}/bin/sh /opt/postgres/setup
 EXEC ${pkgs.bash}/bin/sh /opt/postgres/start $PORT

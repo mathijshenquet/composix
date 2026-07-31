@@ -9,6 +9,6 @@ BUILDER build
   RUN go build -o watchtower .
 
 SERVICE watchtower
-  COPY ${build}/watchtower bin/watchtower
+  COPY ${build}/watchtower /bin/watchtower
   EXEC watchtower
   PORT http = 8080

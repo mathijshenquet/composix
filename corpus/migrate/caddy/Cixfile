@@ -4,6 +4,6 @@ SERVICE caddy
   STATEDIR /var/lib/caddy
   ENV XDG_CONFIG_HOME = /var/lib/caddy/config
   ENV XDG_DATA_HOME = /var/lib/caddy/data
-  LINK ${pkgs.caddy}/bin/caddy bin/caddy
+  LINK ${pkgs.caddy}/bin/caddy /bin/caddy
   EXEC caddy respond --listen :8080 Caddy
   PORT http = 8080

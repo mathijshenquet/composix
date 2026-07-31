@@ -1,6 +1,6 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE memcached
-  LINK ${pkgs.memcached}/bin/memcached bin/memcached
+  LINK ${pkgs.memcached}/bin/memcached /bin/memcached
   EXEC memcached -l 0.0.0.0
   PORT memcached = 11211

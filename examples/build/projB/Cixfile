@@ -13,6 +13,6 @@ COPY ${src}/src/ src
 RUN cargo build --release --locked --offline --bin projb
 
 SERVICE projb
-COPY ${build}/target/release/projb bin/projb
+COPY ${build}/target/release/projb /bin/projb
 EXEC projb
 PORT http = 18082

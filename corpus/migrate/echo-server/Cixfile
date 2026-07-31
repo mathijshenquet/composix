@@ -8,9 +8,9 @@ BUILDER build
   RUN npm ci --offline --ignore-scripts --no-audit --no-fund && npm run build
 
 SERVICE echo-server
-  COPY ${build}/src/global.json global.json
-  COPY ${build}/dist/webserver.js webserver.js
-  LINK ${pkgs.nodejs}/bin/node bin/node
+  COPY ${build}/src/global.json /global.json
+  COPY ${build}/dist/webserver.js /webserver.js
+  LINK ${pkgs.nodejs}/bin/node /bin/node
   EXEC node webserver.js
   PORT http = 80
   GRANT jit

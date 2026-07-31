@@ -84,7 +84,7 @@ actually part of the service, copy it as a real file, and invoke an explicit she
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
-COPY start bin/start
+COPY start /bin/start
 EXEC ${pkgs.bash}/bin/sh /bin/start
 ```
 
@@ -112,7 +112,8 @@ package manager, cleanup commands, and copied shared libraries together.
 ### 2. Bind inputs, then choose the smallest graph
 
 Use one nixpkgs `FROM ... AS pkgs`. Bind a source tree only when naming its origin improves
-clarity; local bare `COPY file dest` is valid. Use one `BUILDER` per meaningful workshop
+clarity; local bare `COPY file /dest` is valid in an artifact; builder destinations stay
+workdir-relative. Use one `BUILDER` per meaningful workshop
 boundary, not per Docker layer. Later builders can consume an earlier result with
 `COPY ${earlier}/path destination`.
 
@@ -125,7 +126,7 @@ COPY ${src}/rust/ .
 
 Enumerate files only to create a deliberate memo boundary, such as dependency manifests
 before source. Artifact consumers should copy narrow builder outputs:
-`COPY ${build}/target/release/server bin/server`. Copying `${build}/` wholesale makes every
+`COPY ${build}/target/release/server /bin/server`. Copying `${build}/` wholesale makes every
 left-behind byte part of that consumer.
 
 ### 3. Separate network from offline work
@@ -243,8 +244,8 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in a builder, `${pkgs.x}/bin/x` in an artifact directive | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
 | `RUN command` | Offline `RUN` inside a named `BUILDER` | Import every command as a whole package and invoke it by bare name. |
 | Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, preferably with `EXPECT` | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
-| Multi-stage `COPY --from=build` | `COPY ${build}/path destination` | Blocks refer backward; prefer a narrow output path. |
-| Context `COPY` | `COPY path destination` or `COPY ${src}/path destination` | Read every copied script/config first. Directory COPY is preferred when contents move together. |
+| Multi-stage `COPY --from=build` | `COPY ${build}/path /destination` | Blocks refer backward; prefer a narrow output path. |
+| Context `COPY` | `COPY path /destination` or `COPY ${src}/path /destination` | Artifact destinations are absolute in the item's runtime world; BUILDER destinations stay relative. Read every copied script/config first. Directory COPY is preferred when contents move together. |
 | `ADD` URL or automatic tar extraction | `FETCH` the URL, then `RUN` an explicit extractor | There is no implicit URL fetch or archive extraction. |
 | `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default; workspace bytes never enter keys. Use `cix build --cold` to compare warm and clean outputs. |
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
@@ -269,8 +270,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE web
-COPY ${src}/index.html srv/www/index.html
-COPY ${src}/nginx.conf etc/nginx/nginx.conf
+COPY ${src}/index.html /srv/www/index.html
+COPY ${src}/nginx.conf /etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 EXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
@@ -303,7 +304,7 @@ cp README.md "$OUTPUT/README.md"
 BUILD
 
 SERVICE readme
-COPY ${payload}/output/README.md share/nixpkgs-README.md
+COPY ${payload}/output/README.md /share/nixpkgs-README.md
 EXEC ${pkgs.coreutils}/bin/sleep infinity
 ```
 

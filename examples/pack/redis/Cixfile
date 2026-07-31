@@ -3,7 +3,7 @@ FROM . AS src
 
 SERVICE redis
 ENV PATH = ${pkgs.redis}/bin
-COPY ${src}/redis.conf etc/redis/redis.conf
+COPY ${src}/redis.conf /etc/redis/redis.conf
 EXEC redis-server /etc/redis/redis.conf
 PORT redis = 6379
 RUNDIR /run/redis
