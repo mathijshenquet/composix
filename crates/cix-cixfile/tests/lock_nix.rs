@@ -103,7 +103,6 @@ escaped=$${literal}
 runtime=$VALUE
 EOF
 LINK ${pkgs.hello}/bin/hello bin/hello
-ENV PATH = bin
 EXEC hello
 "#,
     )
@@ -137,12 +136,13 @@ EXEC hello
 }
 
 #[test]
-fn env_path_resolution_writes_the_real_executable_and_runtime_default() {
+fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-ENV PATH = ${pkgs.coreutils}/bin
+LINK ${pkgs.coreutils}/bin/true bin/true
+ENV PATH = ${pkgs.bash}/bin
 SETUP true
 EXEC true
 "#,
@@ -158,12 +158,7 @@ EXEC true
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     let service = spec.select_service(None).unwrap().1;
-    assert!(
-        service.exec[0].starts_with("/nix/store/"),
-        "{:?}",
-        service.exec
-    );
-    assert!(service.exec[0].ends_with("/bin/true"), "{:?}", service.exec);
+    assert_eq!(service.exec, ["bin/true"]);
     assert_eq!(service.setup.as_ref().unwrap(), &service.exec);
     assert!(service.env["PATH"]
         .default
@@ -172,12 +167,13 @@ EXEC true
 }
 
 #[test]
-fn env_path_resolution_prefers_the_first_matching_directory() {
+fn bare_commands_ignore_explicit_path_when_resolving() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-ENV PATH = ${pkgs.bash}/bin:${pkgs.bashInteractive}/bin
+LINK ${pkgs.bash}/bin/bash bin/bash
+ENV PATH = ${pkgs.coreutils}/bin
 EXEC bash
 "#,
     )
@@ -192,24 +188,21 @@ EXEC bash
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     let service = spec.select_service(None).unwrap().1;
-    let first_directory = service.env["PATH"]
+    assert_eq!(service.exec, ["bin/bash"]);
+    assert!(service.env["PATH"]
         .default
         .as_deref()
-        .unwrap()
-        .split(':')
-        .next()
-        .unwrap();
-    assert_eq!(service.exec[0], format!("{first_directory}/bash"));
+        .is_some_and(|path| path.starts_with("/nix/store/") && path.ends_with("/bin")));
 }
 
 #[test]
-fn env_path_resolution_fails_with_line_and_searched_directories() {
+fn bare_command_failure_lists_the_item_bin_entries() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
         r#"FROM nixpkgs AS pkgs
 SERVICE fixture
-ENV PATH = ${pkgs.coreutils}/bin
-EXEC definitely-not-a-coreutils-command
+LINK ${pkgs.coreutils}/bin/true bin/true
+EXEC definitely-not-in-bin
 "#,
     )
     .unwrap();
@@ -222,8 +215,8 @@ EXEC definitely-not-a-coreutils-command
     .unwrap();
     let error = build_expression(&expression).unwrap_err().to_string();
     assert!(error.contains("line 4"), "{error}");
-    assert!(error.contains("declared ENV PATH directories"), "{error}");
-    assert!(error.contains("/bin"), "{error}");
+    assert!(error.contains("item's bin/"), "{error}");
+    assert!(error.contains("true"), "{error}");
 }
 
 #[test]

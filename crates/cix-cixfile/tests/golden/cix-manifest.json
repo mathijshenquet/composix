@@ -30,7 +30,7 @@
     }
   },
   "exec": [
-    "/tools/first/app",
+    "bin/app",
     "$PORT"
   ],
   "grants": [
@@ -43,6 +43,6 @@
     }
   },
   "setup": [
-    "/tools/first/setup"
+    "bin/setup"
   ]
 }

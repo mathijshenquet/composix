@@ -540,6 +540,9 @@ mod tests {
         assert_eq!(env["SINGLE"], "x y");
         assert_eq!(env["BACKSLASH"], r"a\b");
         assert_eq!(env["EMPTY"], "");
+
+        let item_bin = parse_environment("PATH=/nix/store/example-cix-item-web/bin").unwrap();
+        assert_eq!(item_bin["PATH"], "/nix/store/example-cix-item-web/bin");
     }
 
     #[test]

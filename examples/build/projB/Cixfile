@@ -14,5 +14,5 @@ RUN cargo build --release --locked --offline --bin projb
 
 SERVICE projb
 COPY ${build}/target/release/projb bin/projb
-EXEC bin/projb
+EXEC projb
 PORT http = 18082
