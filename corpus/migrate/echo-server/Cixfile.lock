@@ -8,10 +8,24 @@
   },
   "fetches": {
     "builder:build:1-d1134e7bd38c": {
-      "narHash": "sha256-LBGSQqb5XFhk/Gw+BGVjk92doNaDsWyrFCS7BqAOsg4="
+      "narHash": "sha256-5Cf8r8nyBXGmLeeSylacY7GocPd9vZAJ6KGUThg2BMg="
     },
     "builder:build:2-9514b3517c82": {
-      "narHash": "sha256-vJoW/5AYx/PLCme0WMsPdxHqXsYBjxKQl+0jGLkvFB8="
+      "narHash": "sha256-8i6L/uNdRsju4wVkbyIsdcKJ3MWUK6S1/2sMgw2cwKU="
+    }
+  },
+  "memo": {
+    "088585685c59505a65e41e1a6de2755fed6b319487ff97099c62b1a7342e18e5": {
+      "paths": {
+        "dist/webserver.js": {
+          "narHash": "sha256-Nw0iWhsCfq9lxXqIC8dscJ/vuDBTJVrsaXWXl6iF9HY=",
+          "storePath": "/nix/store/8yd7q7yl104wpmdwihz1b3wzamz06y5c-cix-build-consumed"
+        },
+        "src/global.json": {
+          "narHash": "sha256-JVZ764iPBHUAdewHjN3Z9mmTICY81eb8y/Bf90KR4WI=",
+          "storePath": "/nix/store/vgmv8szf6yp3hqa6icx834gn3mqri75g-cix-build-consumed"
+        }
+      }
     }
   }
 }

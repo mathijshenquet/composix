@@ -65,6 +65,8 @@ Do not write `${pkgs.cargo}/bin/cargo` inside `RUN`, and do not construct a buil
 `IMPORT` unions the packages' `bin`, `etc`, and `share` trees at `/bin`, `/etc`, and `/share`;
 earlier imports win collisions. Importing `${pkgs.cacert}` makes the conventional CA bundle
 available, but composix never imports it implicitly. `RUN` has no network access.
+Tool-generated `#!/usr/bin/env ...` launchers also need an import that supplies `env` (usually
+`${pkgs.coreutils}`): the fixed `/usr/bin/env` alias points only at `/bin/env`.
 
 The runtime toolset is the artifact's own `bin/`. Copy or link package binaries there, then use
 bare `EXEC`/`SETUP`: every SERVICE and APP gets `PATH=bin` by default, and a bare command is
