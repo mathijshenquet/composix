@@ -1597,6 +1597,18 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   underlay-always → CACHE-declared → prefix-only; we start at the warm end
   deliberately, with the audit verb as the regulator.
 
+- ✅ D72 (2026-08-01) — **alpha compat posture: one manifest version**
+  (Mathijs: "we zijn alpha — we hebben nog geen specs en backward
+  compatibility nodig"). Pre-1.0, cix supports exactly ONE manifest version:
+  the current one (v5 today). The v1–v4 compat matrix in cix-run/spec.rs
+  dies; an older manifest gets a hard, friendly error ("rebuild with the
+  current cix"). D15's regime survives amended: new fields still bump the
+  version, but the runner's acceptance range is {current}. Fixtures follow
+  (vm-dogfood's hand-written v2 manifests → v5). Backward compatibility
+  returns as a real cost-benefit decision at 1.0, not as an accreting alpha
+  tax — each old version's paths were ~100 lines of validation that no user
+  has.
+
 ## Non-goals (for now)
 
 Hosting nars (D6, modulo O2) · multi-host orchestration · per-service netns · build-on-pull ·
