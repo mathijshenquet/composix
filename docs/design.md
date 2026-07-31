@@ -1295,8 +1295,13 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   first-class trees. FROM binds three kinds: (1) *tree via flakeref* →
   source binder (D47, exists); (2) *package universe via flakeref* →
   namespace binder (D32, exists) — the tree is imported classically
-  (`import <tree> { system }`), so the requirement is evaluability as a
-  package set, not flake.nix; (3) **NEW: cix item via index ref → artifact
+  (`import <tree> { system }`, i.e. the tree's `default.nix`), so the
+  requirement is evaluability as a package set, not flake.nix. Any tree with
+  such an entry point qualifies (nixpkgs, or a company repo whose default.nix
+  returns nixpkgs+overlay); the mirror edge is documented, not a bug: a
+  flake-ONLY repo (flake.nix, no default.nix) is not usable as a universe
+  today — the known small extension (getFlake → `legacyPackages.<system>`
+  fallback) is evidence-gated; (3) **NEW: cix item via index ref → artifact
   binder**: `FROM cix.my-org.com/acme/web-vault:v3 AS webvault` — resolved
   via the D45 index (pull if absent), narHash-verified, lock-pinned
   (`ref → {storePath, narHash}`; the ref may move, `--update-lock` moves it
