@@ -1,5 +1,30 @@
 # litdoc work log
 
+- 2026-07-31T22:30:00Z — Completed `track-cifix`: `artifact_kinds` now retains
+  a PATH-resolved `/nix/store` shell, otherwise asks Nix for `nixpkgs#bash` and
+  selects the printed output containing `bin/sh` (the derivation can print a
+  manual output first). A failed lookup/build is an honest skip; the fixture
+  never passes a host executable to cix. Gates pass: `devenv shell -- cargo fmt
+  --all --check`; `devenv shell -- cargo clippy --workspace --all-targets -- -D
+  warnings`; and `devenv shell -- cargo test --workspace`. Both fixture paths
+  pass: `devenv shell -- cargo test -p cix --test artifact_kinds` (devenv store
+  shell) and `bash -c 'cix_cargo=$(command -v cargo);
+  PATH=/nix/var/nix/profiles/default/bin:/usr/bin:/bin "$cix_cargo" test -p cix
+  --test artifact_kinds -- --nocapture'` (host `/usr/bin/sh`, registry fallback).
+  The track's literal `PATH=/usr/bin:/bin cargo test -p cix --test
+  artifact_kinds` cannot start on this host because neither `cargo` nor `nix`
+  is installed there; the recorded equivalent preserves only Nix/Cargo launch
+  paths and excludes every store shell.
+
+- 2026-07-31T00:00:00Z — Started `.dev/specs/track-cifix.md` after reading the
+  repository context. Scope is `crates/cix/tests/artifact_kinds.rs`: make its
+  app fixture select a store-backed `sh` even when host PATH resolves
+  `/usr/bin/sh`, with an honest skip if Nix cannot provide `nixpkgs#bash`.
+  Planned verification: `devenv shell -- cargo fmt --all --check`; `devenv
+  shell -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv
+  shell -- cargo test --workspace`; and the stripped-PATH artifact-kinds
+  reproduction specified by the track.
+
 - 2026-07-31T01:30:00Z — Final explicit tour gate (`devenv shell -- cargo test -p
   cix --test tour`) and `git diff --check` pass after the VM work. Removed the
   transient untracked `devenv.lock`. The commit contains the ignored D47(e) audit,
