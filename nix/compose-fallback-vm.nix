@@ -51,6 +51,7 @@ pkgs.testers.runNixOSTest {
 
   nodes.machine = { ... }: {
     environment.systemPackages = [ cix pkgs.jq ];
+    system.extraDependencies = [ producer consumer ];
     nix.settings.experimental-features = [ "nix-command" ];
 
     networking.useDHCP = false;
@@ -73,6 +74,9 @@ pkgs.testers.runNixOSTest {
     assert "shares the host PID namespace (D36 degraded fallback)" in warning
 
     manifest = "/nix/var/nix/profiles/cix-compose-fallback/manifest.json"
+    generation = machine.succeed("readlink -f /nix/var/nix/profiles/cix-compose-fallback").strip()
+    machine.succeed("test \"$(readlink /var/lib/cix-compose/gcroots/fallback/" + generation.split("/")[-1] + "/producer.root)\" = \"${producer}\"")
+    machine.succeed("test \"$(readlink /var/lib/cix-compose/gcroots/fallback/" + generation.split("/")[-1] + "/consumer.root)\" = \"${consumer}\"")
     machine.succeed(
         "jq -e '.degradations == [{\"unit\":\"cix-fallback-producer.service\",\"property\":\"PrivatePIDs=yes\",\"reason\":\"systemd 261 failed the DynamicUser=yes + PrivatePIDs=yes + StateDirectory= realization probe\"}]' "
         + manifest
