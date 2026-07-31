@@ -74,3 +74,45 @@ used sparingly.
   is itself a realistic migration mechanism (maps to D47 top-level FETCH).
 - The docker-socket rows (dozzle, watchtower) are expected ❌/corpus-gap material —
   they are in the list to *prove* the boundary, not to pass.
+
+## No-escape additions — 2026-07-31 hunt (Mathijs: grow the build-class share)
+
+The original 48 rows contain only 5 without a nixpkgs escape. These 12 additions all
+BUILD from source in their Dockerfile AND have no nixpkgs package: exact `nix search
+nixpkgs '^name$'` empty and broad alternate-name search empty, verified 2026-07-31,
+each row independently re-verified after agent curation (one agent false-absent,
+`stump`, was caught and removed in that pass). Migration rounds wanting build-class
+grades should draw from here; the difficulty philosophy (middling teaches most)
+carries over.
+
+| name | Dockerfile URL | base image | est. build | difficulty | mechanisms | natural probe | no escape? (nixpkgs) |
+|---|---|---|---|---|---|---|---|
+| excalidraw | https://raw.githubusercontent.com/excalidraw/excalidraw/master/Dockerfile | node:24 (BUILDPLATFORM-aware) → nginx:stable-alpine-slim | fast | easy | multi-stage yarn build, static output into nginx, HEALTHCHECK (wget) | HTTP GET / (canvas app loads) | yes — only unrelated `excalidraw_export` CLI |
+| parse-server | https://raw.githubusercontent.com/parse-community/parse-server/alpha/Dockerfile | node:20.19.0-alpine3.20 (multi-stage) | fast | easy | multi-stage `npm ci` with dev/prod node_modules split trick, `npm run build`, VOLUME cloud/config | GET /parse/health, :1337 | yes — no matching app found |
+| wallos | https://raw.githubusercontent.com/ellite/Wallos/main/Dockerfile | php:8.3-fpm-alpine | fast | middling | apk + `docker-php-ext-install` compiling gd/intl/zip/pdo_sqlite, nginx+php-fpm+dcron multi-process via startup.sh, HEALTHCHECK | GET /health.php (per HEALTHCHECK) | yes — no matching app found |
+| nodebb | https://raw.githubusercontent.com/NodeBB/NodeBB/master/Dockerfile | node:lts → node:lts-slim (multi-stage) | medium | middling | multi-stage `npm install` w/ corepack, tini entrypoint, VOLUME node_modules/build/uploads/config | HTTP GET / (forum homepage), :4567 | yes — no matching app found |
+| habitica | https://raw.githubusercontent.com/HabitRPG/habitica/develop/Dockerfile-Dev | node:20 | medium | middling | single-stage `npm install` + postinstall + `client:build` + `gulp build:prod`; named "-Dev" but is what habitica's own docker-compose.yml builds for both client and server | HTTP GET / (login page), :3000, needs mongo | yes — only client libs `habiticalib`/`habitipy` |
+| directus | https://raw.githubusercontent.com/directus/directus/main/Dockerfile | node:22-alpine (multi-stage) | medium | middling | corepack+pnpm workspace build (`pnpm fetch` → offline install → `pnpm deploy --prod`), pm2-runtime process manager, sqlite default DB | GET /server/ping → "pong", :8055 | yes — no matching app found |
+| shlink | https://raw.githubusercontent.com/shlinkio/shlink/main/Dockerfile | php:8.5-alpine (multi-stage) | medium | middling | composer-install build stage, optional RoadRunner runtime binary, multi DB-driver support, non-root user | GET /health, :8080 | yes — only unrelated `hashlink` Haxe VM |
+| docmost | https://raw.githubusercontent.com/docmost/docmost/main/Dockerfile | node:26-slim (multi-stage) | medium | middling | pnpm monorepo build (server/client/shared packages), prod-only reinstall in installer stage, non-root `node` user, VOLUME /app/data/storage | HTTP GET / (login page), :3000 | yes — no matching app found |
+| filestash | https://raw.githubusercontent.com/mickael-kerjean/filestash/master/docker/Dockerfile | alpine/git (clone) → golang:1.26-trixie (build) → debian:stable-slim (runtime) | medium | middling | 3-stage build, `make build` compiling Go backend linked against libvips/ffmpeg/libraw/libheif C libraries, non-root user | HTTP GET / (connection screen), :8334 | yes — no matching app found |
+| baserow | https://raw.githubusercontent.com/baserow/baserow/master/backend/Dockerfile | python (uv-based, many builder stages) | slow | nasty | dedicated builder stages compile su-exec, wasmtime, and QuickJS-NG-as-WASI from source, then uv-managed Python deps for the Django backend; aggressive prod-image size trimming | GET /api/_health/, :8000 | yes — no matching app found |
+| grist | https://raw.githubusercontent.com/gristlabs/grist-core/main/Dockerfile | node:22-trixie (builder) → python:3.11-slim-trixie (py collector) → node:22-trixie-slim (runtime) | slow | nasty | TS/webpack app build + embedded Python/Pyodide sandbox + gVisor-unprivileged binary fetch (untrusted-formula sandboxing), tini entrypoint | HTTP GET /status, :8484 | yes — checked `grist` and `grist-core` |
+| chatwoot | https://raw.githubusercontent.com/chatwoot/chatwoot/develop/docker/Dockerfile | ruby:3.4.4-alpine3.21 (multi-stage) | slow | nasty | bundler gem install + pnpm JS deps + Rails asset precompile, vips/imagemagick runtime libs, git-sha stamping, dev/prod conditional npm install | HTTP GET / (login page), :3000, needs postgres+redis | yes — no matching app found |
+
+Hunt residue (checked, not added): rocketchat and zulip-server are genuinely absent
+from nixpkgs but heavy (Meteor / Python+webpack); teable/wekan/taiga/huly/appwrite/
+plane absent but heavy-multi-service; leantime and invoice-ninja absent but their
+Dockerfiles only `ADD` prebuilt release tarballs (no build to migrate); ryot's
+backend binary is CI-prebuilt (mechanism already represented). Checked and found
+PACKAGED (don't re-hunt these; notable corrections: `stump` and `mattermost` ARE
+packaged despite first-pass claims otherwise): stump, mattermost, beszel, gatus,
+stirling-pdf, firefly-iii, karakeep, linkwarden, vikunja, mealie,
+speedtest-tracker, documenso, docuseal, listmonk, umami, n8n, bookstack,
+trilium-next, silverbullet, readeck, linkding, wiki-js, stalwart-mail, snipe-it,
+librenms, komga, kavita, audiobookshelf, photoview, monica, grocy,
+tandoor-recipes, kimai, netbox, soft-serve, diun, woodpecker (server+agent+cli),
+outline, gotosocial, pixelfed, misskey, homebox, inventree, wallabag,
+actual-server, pairdrop, slskd, dashy-ui, memos, gotenberg, glance,
+standardnotes (attr present, server-vs-client ambiguity unresolved), and the
+conduwuit successors matrix-continuwuity/matrix-tuwunel.
