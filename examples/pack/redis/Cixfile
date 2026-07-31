@@ -2,8 +2,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE redis
-ENV PATH = ${pkgs.redis}/bin
 COPY ${src}/redis.conf /etc/redis/redis.conf
+LINK ${pkgs.redis}/bin/redis-server /bin/redis-server
 EXEC redis-server /etc/redis/redis.conf
 PORT redis = 6379
 RUNDIR /run/redis

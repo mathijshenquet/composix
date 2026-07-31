@@ -1,5 +1,95 @@
 # litdoc work log
 
+- 2026-07-31T01:30:00Z — Final explicit tour gate (`devenv shell -- cargo test -p
+  cix --test tour`) and `git diff --check` pass after the VM work. Removed the
+  transient untracked `devenv.lock`. The commit contains the ignored D47(e) audit,
+  its named unstable FETCH exclusions, D64-correct node/redis examples, and the
+  repaired observability cgroup receipt. No FETCH pin changes are committed because
+  both audit-discovered stale candidates failed the required two-clean-update stability
+  check. `nix flake check`'s independent GC-survival failure remains an open product
+  item; all gates required by track-coldaudit itself are green.
+
+- 2026-07-31T00:20:00Z — Orchestrator authorized the required deliberate refresh
+  investigation for `examples/build/projB`. Before changing its source lock, I ran
+  `target/debug/cix build --update-lock build` against two independently copied
+  contexts, each with empty `CIX_STATE_DIR` and `CIX_BUILD_WORKSPACE_DIR`. The cargo
+  FETCH pins differed: first `sha256-06PCsUnBBcaZC2A4QNZ9Wgmq4oXAM4yKpNYz3NYoJlw=`,
+  then `sha256-kqhKUDMp1Msbe8ohn1j6eAPZ6SUUMpR9OsQ1KBVr2IE=`. This is a second
+  cargo-FETCH pin-instability exhibit in the documented dozzle class, not a
+  stale-since-toolchain-move pin: no re-pin is valid. The cold-audit sweep now
+  explicitly excludes `examples/build/projB` with that exhibit name and diagnostic;
+  the remaining sweep will reveal any independent stale pins.
+
+- 2026-07-31T00:30:00Z — The resumed sweep exposed another stale reported pin in
+  `examples/build/projB-chef`, for `FETCH cargo chef cook`. Two independently copied,
+  clean-state `--update-lock build` samples again disagreed:
+  `sha256-vGc+zmLVj4WvqNizTznaDhQZ6DZAjdMOeFB9VYtEH/c=` then
+  `sha256-Uq2xVgN/N05IwL3PPy0i1O8BC5bsP0E89I7OpzBNapA=`. It is therefore another
+  dozzle-class cargo-FETCH pin-instability exhibit, not stale-since-toolchain-move;
+  its source lock remains untouched and the sweep explicitly excludes it with the
+  named diagnostic. Next: resume the complete examples scan for any stable stale pin.
+
+- 2026-07-31T00:40:00Z — With the two unstable cargo FETCH examples excluded, the
+  audit reached `examples/pack/node-app` and showed a separate, deterministic
+  stale-since-toolchain-move example drift: D64 now resolves bare EXEC from the
+  artifact's own `/bin`, whereas node-app retained its old external `ENV PATH` form.
+  `examples/pack/redis` had the same bare-command pattern. Replaced both external
+  PATH declarations with explicit `/bin/node` and `/bin/redis-server` LINKs, the D64
+  provenance form. These are no-pin source adjustments; neither FETCH lock was
+  refreshed. The only discovered FETCH locks (projB and projB-chef) remain unstable.
+
+- 2026-07-31T01:00:00Z — The fmt, `-D warnings` workspace clippy, workspace tests,
+  complete explicit cold audit, and focused foreign-user tour regression all pass.
+  The `nix flake check` VM tier then exposed a stale test receipt unrelated to the
+  audit: `scenario-observability` correctly found `cix-observe.slice` in `systemctl`
+  but asserted the obsolete flat cgroup path. systemd's hierarchical slice naming
+  places it at `/sys/fs/cgroup/cix.slice/cix-observe.slice`; the direct serial repro
+  failed at the old assertion, so I corrected that receipt before rerunning the VM
+  gate. This is a gate-maintenance adjustment, not a product behavior change.
+
+- 2026-07-31T01:20:00Z — Required gate status: `devenv shell -- cargo fmt --all
+  --check`, `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`,
+  `devenv shell -- cargo test --workspace`, and `devenv shell -- cargo test -p cix
+  --test cold_audit -- --ignored` pass. The direct repaired observability VM repro
+  (`devenv shell -- nix build .#checks.x86_64-linux.scenario-observability -L
+  --no-link`) passes, as does the spec-required dogfood VM gate (`devenv shell -- nix
+  build .#checks.x86_64-linux.vm-dogfood -L --no-link`). The latter exercised the
+  linked node-app and succeeded; its node stop waits for systemd's 90s timeout under
+  this VM. A broader `devenv shell -- nix flake check` remains honestly non-green on
+  `scenario-gc-survival`: following a tag move, its compose profile leaves the old
+  API item unrooted and `nix-collect-garbage` removes it. That is an out-of-scope
+  D68-era compose/GC contract regression, retained as a failing assertion rather than
+  weakened. Next: rerun the explicit tour gate, remove transient `devenv.lock`, review
+  the diff, and commit the track work.
+
+- 2026-07-31T00:00:00Z — Started `.dev/specs/track-coldaudit.md` after reading the
+  repository context and D47(e). Scope is a new ignored host-side `cold_audit` cix
+  integration test plus gate convention record; corpus content and `cix-cixfile`
+  sources stay untouched. I will compare each real `cix build <dir>` member JSON map
+  against `cix build --cold <dir>`, add an opt-in fetched corpus pair mode, prove the
+  mismatch diagnostic with a temporary fixture, then run: `devenv shell -- cargo fmt
+  --all --check`; `devenv shell -- cargo clippy --workspace --all-targets -- -D
+  warnings`; `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test -p
+  cix --test cold_audit -- --ignored`; `devenv shell -- cargo test -p cix --test tour`;
+  and `devenv shell -- nix flake check`.
+
+- 2026-07-31T00:10:00Z — Added `crates/cix/tests/cold_audit.rs`: it snapshots each
+  `examples/**/Cixfile` tree into ignored `target/test-tmp`, uses isolated
+  `CIX_STATE_DIR` and `CIX_BUILD_WORKSPACE_DIR`, seeds the documented `my-nginx:v1`
+  producer for `build/from-item`, then compares the real warm and `--cold` JSON member
+  maps member by member. `COLD_AUDIT=<pair>` fetches one corpus context with
+  `bash corpus/migrate/fetch.sh <pair>` before auditing its snapshot. The ignored proof
+  `nondeterministic_builder_is_rejected` passed with `cargo test -p cix --test
+  cold_audit -- --ignored nondeterministic_builder_is_rejected`; it confirms the real
+  cold bridge reports `COPY ${build}/x (line 6) differs between warm and cold`.
+  The prescribed full audit currently stops before comparison on the warm
+  `examples/build/projB` build: `devenv shell -- cargo test -p cix --test cold_audit
+  -- --ignored every_example_matches_a_clean_rebuild` reports the committed
+  `FETCH cargo fetch --locked` pin `sha256-HYh…` differs from current fetched output
+  `sha256-jPdm…`. No example or corpus content has been changed. A source-lock refresh
+  is required to make the specified every-example gate green; that is outside this
+  track's stated crates/cix-plus-gate-doc scope, so work awaits direction.
+
 - 2026-07-29T02:23:35Z — Started the cold-cache repair for scenario 10. The first fresh tour render can include Nix progress in the compose transcript, causing committed-document drift despite later renders passing. I will make the harness warm each build-performing compose command before recording its shown invocation, preserving the displayed command and output as one real execution, regenerate the page if needed, then verify three first-run fresh-state renders and commit the repair.
 
 - 2026-07-29T02:25:32Z — Implemented compose-diff pre-warming in the shared tour harness. `check` only resolves, while each `diff` constructs a generation; each displayed diff is still a second, real invocation captured verbatim after an unrecorded first-use warm-up. Regeneration left `docs/tour/` unchanged. Three complete fresh-temp-state `devenv shell -- cargo test -p cix --test tour` runs passed, including document drift, consecutive-render determinism, and the foreign-user-unit regression; `cargo fmt --all --check` and `git diff --check` also pass. Next: remove the transient devenv lock and commit the repair.
