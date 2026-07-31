@@ -1,0 +1,2 @@
+line 4: PATH was removed; use IMPORT ${pkgs.<package>} inside a BUILDER; see docs/cixfile.md#builders
+  | "PATH ${pkgs.bash}/bin"

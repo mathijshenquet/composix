@@ -1,0 +1,2 @@
+line 4: COPY arguments are source then destination; write COPY ${pkgs.hello}/bin/hello /bin/hello
+  | "COPY /bin/hello ${pkgs.hello}/bin/hello"

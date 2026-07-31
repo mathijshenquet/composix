@@ -1,0 +1,2 @@
+line 3: RUN apt-get is Docker vocabulary; use IMPORT ${pkgs.<package>} in a BUILDER, then RUN the imported tools; see docs/migrate.md#docker-vocabulary
+  | "RUN apt-get install curl"

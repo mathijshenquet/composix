@@ -1,0 +1,2 @@
+line 4: ADD, which is Docker vocabulary; use COPY for local files or FETCH for network input; see docs/migrate.md#docker-vocabulary
+  | "ADD archive.tar /share/archive.tar"

@@ -1,0 +1,7 @@
+# grade: problem=pass line=6 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER compile
+RUN true
+SERVICE app
+COPY ${comiple}/app /bin/app
+EXEC /bin/app

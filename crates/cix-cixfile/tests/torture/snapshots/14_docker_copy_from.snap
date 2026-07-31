@@ -1,0 +1,2 @@
+line 4: COPY --from is Docker vocabulary; use a named binder such as COPY ${build}/<path> /<destination>; see docs/migrate.md#docker-vocabulary
+  | "COPY --from=build /bin/app /bin/app"

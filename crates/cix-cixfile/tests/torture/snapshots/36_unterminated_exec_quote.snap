@@ -1,0 +1,2 @@
+line 4: unterminated quote in EXEC arguments; add the matching quote
+  | "EXEC /bin/echo 'hello"

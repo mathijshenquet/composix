@@ -1,0 +1,6 @@
+# grade: problem=pass line=4 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE app
+FILE /etc/app.conf <<EOF
+value
+  EOF

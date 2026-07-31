@@ -1,0 +1,6 @@
+# grade: problem=pass line=4 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+IMPROT ${pkgs.bash}
+SERVICE app
+EXEC /bin/true

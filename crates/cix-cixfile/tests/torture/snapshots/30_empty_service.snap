@@ -1,0 +1,2 @@
+line 3: SERVICE "empty" has no EXEC; add exactly one EXEC <command> inside this block
+  | "SERVICE empty"

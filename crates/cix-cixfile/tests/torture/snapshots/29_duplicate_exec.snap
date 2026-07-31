@@ -1,0 +1,2 @@
+line 5: EXEC is already declared for this artifact; remove one EXEC line
+  | "EXEC /bin/two"

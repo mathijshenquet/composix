@@ -1,0 +1,4 @@
+# grade: problem=pass line=4 fix=pass docs=docs/migrate.md#docker-vocabulary
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE app
+ENTRYPOINT ["/bin/server"]

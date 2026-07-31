@@ -1,0 +1,2 @@
+line 3: WORKDIR, which is Docker vocabulary; builders already run in /work; delete WORKDIR and adjust RUN paths if needed; see docs/migrate.md#docker-vocabulary
+  | "WORKDIR /app"

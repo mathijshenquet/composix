@@ -1,0 +1,2 @@
+line 4: PORT is not allowed inside APP; move it to SERVICE; see docs/cixfile.md#blocks-and-directives
+  | "PORT http = 8080"

@@ -1,0 +1,2 @@
+# grade: problem=pass line=2 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable pkgs
