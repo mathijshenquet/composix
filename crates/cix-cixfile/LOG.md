@@ -1,5 +1,63 @@
 # Cixfile track work log
 
+- 2026-07-31T21:57:00Z — Committed the green D68 implementation on
+  `track/itemrevive` (`Implement D68 manifest-less ITEM trees`). No open items
+  remain for this track.
+
+- 2026-07-31T21:55:00Z — Final D68 gate is green. Exact prescribed repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git add docs/tour && git diff --exit-code -- docs/tour`;
+  `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo test
+  -p cix --test tour generated_tour_is_deterministic -- --exact` (passed
+  twice). The dogfood VM repro `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed under normal TCG
+  fallback after KVM denial; receipt confirmed with `nix path-info
+  /nix/store/c0fiy75v3ysgdpag3s5cnbp83fqi9yh9-vm-test-run-vm-dogfood`.
+  Standalone example repro: `devenv shell -- target/debug/cix build
+  examples/build/item#welcome-assets` produced
+  `/nix/store/6gj8yjw457z35sr1l7rk2pv3x47qgn5d-cix-item-welcome-assets`;
+  `test -f` on its declared files plus `test ! -e` on
+  `cix-manifest.json` passed. `git diff --check` and `git diff --cached
+  --check` pass. Cleanup repro: `sudo -n systemctl stop 'cix-*' >/dev/null
+  2>&1 || true; sudo -n systemctl reset-failed 'cix-*' >/dev/null 2>&1 ||
+  true; sudo -n systemctl daemon-reload; systemctl --user stop 'cix-*'
+  >/dev/null 2>&1 || true; systemctl --user reset-failed 'cix-*' >/dev/null
+  2>&1 || true; systemctl --user stop cix-run.slice >/dev/null 2>&1 || true;
+  ! sudo -n systemctl list-units 'cix-*' --all --no-legend --plain | grep -q
+  .; ! systemctl --user list-units 'cix-*' --all --no-legend --plain | grep
+  -q .` passed. Removed only the untracked devenv-generated `devenv.lock`.
+  Next: stage the scoped D68 diff and commit it on `track/itemrevive`.
+
+- 2026-07-31T21:35:00Z — D68 implementation and focused proof are green.
+  `ArtifactKind::Item` reuses named assembly, selection, tagging, and D65 source
+  binders, but writes neither a spec nor `cix-manifest.json`; runtime vocabulary
+  receives one D68 seam diagnostic. `Spec::load` detects manifest-less paths so
+  `cix run` and `cix debug` surface the same actionable boundary before any
+  runtime work. The real-Nix regression is ITEM producer → tag → lock-pinned
+  FROM → COPY consumer and also proves the producer has no manifest. Added
+  `examples/build/item`, reference/migration table rows, and a tour build/tag/
+  consume/run-refusal transcript. Exact focused repros: `devenv shell -- cargo
+  fmt --all`; `devenv shell -- cargo test -p cix-cixfile --lib`; `devenv shell
+  -- cargo test -p cix-run --lib`; `devenv shell -- cargo test -p cix-cixfile
+  --test lock_nix cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash
+  -- --nocapture`; and `devenv shell -- cargo test -p cix --test tour --
+  --ignored generate_tour` (all passed). Next: build the standalone example,
+  review scope, then run the prescribed workspace/tour/determinism/VM gate and
+  record exact results plus cleanup here.
+
+- 2026-07-31T21:05:00Z — Started `.dev/specs/track-itemrevive.md` on
+  `track/itemrevive` at `4c822d9`. Read AGENTS.md, the session and Cixfile
+  journals, authoritative D67/D68 in full, and the complete track spec.
+  Scope: restore named ITEM as a D68 manifest-less pure store tree; fence
+  stratum-1a directives with the seam diagnostic; reject run/exec/debug on
+  those trees; prove producer → tag → FROM-consume → COPY via real Nix; add
+  a small example, docs, and the tour. The branch-local devenv probe passed:
+  `devenv shell -- true`. Next: map the current parser, codegen, runner, and
+  test seams before applying the smallest compatible representation.
+
 - 2026-07-31T20:00:00Z — Started `.dev/specs/track-famref.md` on
   `track/famref`. Read AGENTS.md, the current session and Cixfile journals,
   authoritative D65 in full, and the complete track spec. Scope: classify

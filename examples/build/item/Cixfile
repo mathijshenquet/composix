@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+ITEM welcome-assets
+COPY ${src}/message.txt /share/message.txt
+FILE /etc/welcome.conf <<EOF
+message=/share/message.txt
+EOF

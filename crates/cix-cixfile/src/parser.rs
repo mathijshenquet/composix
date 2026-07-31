@@ -137,6 +137,9 @@ impl Parser<'_> {
                 .map_or((trimmed, ""), |(directive, arguments)| {
                     (directive, arguments.trim())
                 });
+            if let Some(error) = self.item_seam_error(directive, line_number, source) {
+                return Err(error);
+            }
             match directive {
                 "FROM" => self.from(line_number, source, arguments)?,
                 "FETCH" => self.fetch(line_number, source, arguments)?,
@@ -145,13 +148,7 @@ impl Parser<'_> {
                     self.begin_artifact(ArtifactKind::Service, line_number, source, arguments)?
                 }
                 "APP" => self.begin_artifact(ArtifactKind::App, line_number, source, arguments)?,
-                "ITEM" => {
-                    return Err(ParseError::new(
-                        line_number,
-                        source,
-                        "ITEM was dropped (D50); use SERVICE or APP; a future content-only block would be ASSETS",
-                    ));
-                }
+                "ITEM" => self.begin_artifact(ArtifactKind::Item, line_number, source, arguments)?,
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "RUN" => self.run(line_number, source, arguments)?,
                 "IMPORT" => self.import(line_number, source, arguments)?,
@@ -238,11 +235,11 @@ impl Parser<'_> {
             return Err(ParseError::new(
                 line,
                 source,
-                "a Cixfile must declare at least one SERVICE or APP block",
+                "a Cixfile must declare at least one SERVICE, APP, or ITEM block",
             ));
         }
         for (name, artifact) in &self.artifacts {
-            if artifact.service.exec.is_empty() {
+            if artifact.kind.is_runnable() && artifact.service.exec.is_empty() {
                 return Err(ParseError::new(
                     artifact.line,
                     self.lines
@@ -255,7 +252,9 @@ impl Parser<'_> {
                     ),
                 ));
             }
-            validate_service_references(&artifact.service, &self.metadata[name])?;
+            if artifact.kind.is_runnable() {
+                validate_service_references(&artifact.service, &self.metadata[name])?;
+            }
         }
         Ok(Cixfile {
             inputs: self.inputs,
@@ -685,6 +684,9 @@ impl Parser<'_> {
             .current_artifact_name(directive, line, source)?
             .to_owned();
         let kind = self.artifacts[&artifact_name].kind;
+        if !kind.is_runnable() {
+            return Err(self.item_seam_parse_error(directive, line, source));
+        }
         if kind == ArtifactKind::App && setup {
             return Err(ParseError::new(
                 line,
@@ -1075,6 +1077,9 @@ impl Parser<'_> {
     ) -> Result<(), ParseError> {
         let name = self.current_artifact_name(directive, line, source)?;
         let kind = self.artifacts[name].kind;
+        if !kind.is_runnable() {
+            return Err(self.item_seam_parse_error(directive, line, source));
+        }
         if allowed.contains(&kind) {
             return Ok(());
         }
@@ -1086,6 +1091,48 @@ impl Parser<'_> {
                 kind.keyword()
             ),
         ))
+    }
+
+    fn item_seam_error(&self, directive: &str, line: usize, source: &str) -> Option<ParseError> {
+        const RUNTIME_DIRECTIVES: &[&str] = &[
+            "EXEC",
+            "SETUP",
+            "ENV",
+            "PORT",
+            "LISTENER",
+            "STATEDIR",
+            "CACHEDIR",
+            "LOGSDIR",
+            "CONFIGDIR",
+            "RUNDIR",
+            "STATE",
+            "LOGS",
+            "CONFIG",
+            "GRANT",
+            "JIT",
+            "EGRESS",
+            "OUTBOUND",
+            "PATH",
+            "HEALTH",
+        ];
+        if !RUNTIME_DIRECTIVES.contains(&directive) {
+            return None;
+        }
+        let Some(CurrentBlock::Artifact(name)) = &self.current else {
+            return None;
+        };
+        (self.artifacts[name].kind == ArtifactKind::Item)
+            .then(|| self.item_seam_parse_error(directive, line, source))
+    }
+
+    fn item_seam_parse_error(&self, directive: &str, line: usize, source: &str) -> ParseError {
+        ParseError::new(
+            line,
+            source,
+            format!(
+                "{directive} crosses the ITEM seam (D68): items are build products; SERVICE/APP declare runnable contracts"
+            ),
+        )
     }
 
     fn claim_artifact_destination(
@@ -2197,11 +2244,6 @@ STATEDIR /var/lib/migrate
                 "TAKE was removed by D47",
             ),
             (
-                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM app\n",
-                2,
-                "ITEM was dropped (D50); use SERVICE or APP",
-            ),
-            (
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
                 2,
                 "PATH was replaced by IMPORT (D58)",
@@ -2457,15 +2499,45 @@ EXEC /bin/true \
     }
 
     #[test]
-    fn item_has_a_d50_migration_error_and_is_not_an_alias() {
-        let error = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\nCOPY payload payload\n",
+    fn item_is_pure_assembly_and_runtime_directives_name_the_d68_seam() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\nCOPY payload /payload\nFILE /share/message <<EOF\nhello\nEOF\nLINK ${pkgs.hello}/bin/hello /bin/hello\n",
         )
-        .unwrap_err();
-        assert_eq!(error.line, 2);
-        assert!(error.message.contains("ITEM was dropped (D50)"), "{error}");
-        assert!(error.message.contains("SERVICE or APP"), "{error}");
-        assert!(error.message.contains("ASSETS"), "{error}");
+        .unwrap();
+        assert_eq!(parsed.artifacts["data"].kind, ArtifactKind::Item);
+        assert_eq!(parsed.artifacts["data"].copies.len(), 1);
+        assert_eq!(parsed.artifacts["data"].assembly.len(), 2);
+
+        for directive in [
+            "EXEC /bin/hello",
+            "SETUP /bin/hello",
+            "ENV PATH = bin",
+            "PORT http = 8080",
+            "LISTENER http",
+            "STATEDIR /var/lib/data",
+            "CACHEDIR /var/cache/data",
+            "LOGSDIR /var/log/data",
+            "CONFIGDIR /etc/data",
+            "RUNDIR /run/data",
+            "GRANT egress",
+            "HEALTH /bin/hello",
+        ] {
+            let input = format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\n{directive}\n"
+            );
+            let error = parse(&input).unwrap_err();
+            assert_eq!(error.line, 3, "{directive}: {error}");
+            assert!(
+                error.message.contains("ITEM seam (D68)"),
+                "{directive}: {error}"
+            );
+            assert!(
+                error
+                    .message
+                    .contains("items are build products; SERVICE/APP declare runnable contracts"),
+                "{directive}: {error}"
+            );
+        }
     }
 
     #[test]

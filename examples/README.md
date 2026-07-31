@@ -8,7 +8,8 @@
   D57's two-service Rust workspace: one persistent named builder feeds independent API and
   worker artifacts through narrow consumed-path records. `build/from-item` is the small D65
   cross-item COPY demonstration: tag the nginx example, then consume its configuration through
-  a lock-pinned FROM binder.
+  a lock-pinned FROM binder. `build/item` is D68's pure asset-tree example: it emits no manifest
+  and is meant to be tagged or consumed through FROM rather than run.
 
 The adoption ladder is: Cixfile for Docker-shaped authoring, `composix.lib.withSpec` for
 attaching a manifest to an existing derivation, then plain Nix for the fully native escape
