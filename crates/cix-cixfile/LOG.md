@@ -1,5 +1,62 @@
 # Cixfile track work log
 
+- 2026-07-31T20:00:00Z — Started `.dev/specs/track-famref.md` on
+  `track/famref`. Read AGENTS.md, the current session and Cixfile journals,
+  authoritative D65 in full, and the complete track spec. Scope: classify
+  `FROM` inputs as known flakerefs or explicit-tag index refs; resolve and
+  narHash-pin item refs as source-only artifact binders; add real-Nix coverage,
+  a small example, reference/migration/tour documentation, then run the full
+  Rust/tour/determinism/VM gate with exact commands and cleanup recorded here.
+  Next: map the parser, lock, index resolution, and real-Nix test seams before
+  designing the smallest compatible representation.
+
+- 2026-07-31T20:20:00Z — D65(a3) implementation and focused proof are green.
+  `FROM` now classifies only known flakeref spellings as flakerefs; every other
+  token must be an explicit-tag `cix_common::Ref`, which becomes an artifact
+  source binder. `LockFile.artifacts` is keyed by ref and pins `{storePath,
+  narHash}`; resolution uses the index, verifies local/remote output hashes,
+  and a reused lock verifies its exact pinned store path without re-resolving a
+  moved tag. Artifact interpolation is path-only; `${binder.attr}` cites
+  D65(c), and builder IMPORT cites deferred D65(d). Exact focused repros:
+  `devenv shell -- cargo fmt --all`; `devenv shell -- cargo test -p
+  cix-cixfile --lib`; `devenv shell -- cargo test -p cix-cixfile --test
+  lock_nix cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash --
+  --nocapture`; and `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`. The real-Nix test builds and tags a producer, builds a
+  consumer that COPYs it, proves tag-move stability until `--update-lock
+  source`, proves the update, missing-tag `pull it or tag it first` guidance,
+  and a hard forged-narHash failure. Next: inspect the full diff, run the
+  prescribed workspace/tour/VM gate, record exact results and cleanup, then
+  commit.
+
+- 2026-07-31T20:35:00Z — Final D65(a3) gate is green. Exact prescribed
+  repros: `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo
+  clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo
+  test --workspace`; `devenv shell -- cargo test -p cix --test tour --
+  --ignored generate_tour`; `git add docs/tour && git diff --exit-code --
+  docs/tour`; `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo test
+  -p cix --test tour generated_tour_is_deterministic -- --exact` (passed
+  twice). The dogfood VM repro `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed under normal TCG
+  fallback after KVM denial; receipt confirmed with `devenv shell -- nix
+  path-info .#checks.x86_64-linux.vm-dogfood`:
+  `/nix/store/0wak3k68m5kmggmqmww6lbxp51qplfvm-vm-test-run-vm-dogfood`.
+  `git diff --check` and `git diff --cached --check` pass. Cleanup repro:
+  `sudo -n systemctl stop 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo -n systemctl
+  daemon-reload; systemctl --user stop 'cix-*' >/dev/null 2>&1 || true;
+  systemctl --user reset-failed 'cix-*' >/dev/null 2>&1 || true; systemctl
+  --user stop cix-run.slice >/dev/null 2>&1 || true; ! sudo -n systemctl
+  list-units 'cix-*' --all --no-legend --plain | grep -q .; ! systemctl
+  --user list-units 'cix-*' --all --no-legend --plain | grep -q .` passed.
+  Removed only the untracked devenv-generated `devenv.lock`. Next: stage the
+  complete D65(a3) diff and commit it on `track/famref`.
+
+- 2026-07-31T20:40:00Z — Committed the green D65(a3) implementation on
+  `track/famref` (`Implement D65 FROM item binders`). No open items remain for
+  this track.
+
 - 2026-07-31T19:25:00Z — Final D58 `/usr/bin/env` gate is green. Exact
   prescribed repros: `devenv shell -- cargo fmt --all --check`; `devenv shell
   -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --

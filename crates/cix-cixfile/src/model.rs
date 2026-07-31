@@ -103,11 +103,12 @@ pub struct Input {
 pub enum InputKind {
     PackageUniverse,
     Source,
+    Artifact,
 }
 
 impl Input {
     pub fn is_local(&self) -> bool {
-        self.url == "."
+        self.url == "." || self.url.starts_with("./")
     }
 }
 

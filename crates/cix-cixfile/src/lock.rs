@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::Input;
+use crate::{Input, InputKind};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -13,6 +13,8 @@ pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 #[serde(deny_unknown_fields)]
 pub struct LockFile {
     pub inputs: BTreeMap<String, InputLock>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub artifacts: BTreeMap<String, ArtifactPin>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub fetches: BTreeMap<String, FetchPin>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -24,6 +26,15 @@ pub struct LockFile {
 pub struct InputLock {
     pub url: String,
     pub rev: String,
+    #[serde(rename = "narHash")]
+    pub nar_hash: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactPin {
+    #[serde(rename = "storePath")]
+    pub store_path: String,
     #[serde(rename = "narHash")]
     pub nar_hash: String,
 }
@@ -102,17 +113,31 @@ pub fn ensure_lock(
     inputs: &BTreeMap<String, Input>,
     update: Option<&str>,
 ) -> Result<LockFile> {
-    ensure_lock_with(path, inputs, update, resolve_input)
+    let lock = ensure_lock_with(path, inputs, update, resolve_input, resolve_artifact)?;
+    for input in inputs
+        .values()
+        .filter(|input| input.kind == InputKind::Artifact)
+    {
+        verify_artifact_pin(
+            &input.url,
+            lock.artifacts
+                .get(&input.url)
+                .expect("artifact lock was validated"),
+        )?;
+    }
+    Ok(lock)
 }
 
-fn ensure_lock_with<F>(
+fn ensure_lock_with<F, A>(
     path: &Path,
     inputs: &BTreeMap<String, Input>,
     update: Option<&str>,
     mut resolve: F,
+    mut resolve_artifact: A,
 ) -> Result<LockFile>
 where
     F: FnMut(&str, bool) -> Result<InputLock>,
+    A: FnMut(&str) -> Result<ArtifactPin>,
 {
     if let Some(name) = update.filter(|name| !name.is_empty()) {
         let Some(input) = inputs.get(name) else {
@@ -137,6 +162,7 @@ where
     let was_missing = existing.is_none();
     let mut lock = existing.unwrap_or_else(|| LockFile {
         inputs: BTreeMap::new(),
+        artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
     });
@@ -146,14 +172,35 @@ where
             continue;
         }
         let refresh = update.is_some_and(|requested| requested.is_empty() || requested == name);
-        if refresh || !lock.inputs.contains_key(name) {
-            lock.inputs
-                .insert(name.clone(), resolve(&input.url, refresh)?);
-            changed = true;
+        match input.kind {
+            InputKind::Artifact => {
+                if refresh || !lock.artifacts.contains_key(&input.url) {
+                    lock.artifacts
+                        .insert(input.url.clone(), resolve_artifact(&input.url)?);
+                    changed = true;
+                }
+            }
+            InputKind::PackageUniverse | InputKind::Source => {
+                if refresh || !lock.inputs.contains_key(name) {
+                    lock.inputs
+                        .insert(name.clone(), resolve(&input.url, refresh)?);
+                    changed = true;
+                }
+            }
         }
     }
-    lock.inputs
-        .retain(|name, _| inputs.get(name).is_some_and(|input| !input.is_local()));
+    lock.inputs.retain(|name, _| {
+        inputs
+            .get(name)
+            .is_some_and(|input| !input.is_local() && input.kind != InputKind::Artifact)
+    });
+    let artifact_refs = inputs
+        .values()
+        .filter(|input| input.kind == InputKind::Artifact)
+        .map(|input| input.url.as_str())
+        .collect::<std::collections::BTreeSet<_>>();
+    lock.artifacts
+        .retain(|reference, _| artifact_refs.contains(reference.as_str()));
     lock.validate_for(inputs)?;
     if changed || was_missing || migrated {
         write_lock(path, &lock)?;
@@ -176,9 +223,39 @@ fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFi
     let name = remote[0].0.clone();
     Ok(LockFile {
         inputs: BTreeMap::from([(name, legacy.nixpkgs)]),
+        artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
     })
+}
+
+fn resolve_artifact(reference: &str) -> Result<ArtifactPin> {
+    let output = cix_index::resolve(reference).with_context(|| {
+        format!("resolving cix-item FROM ref {reference:?}; pull it or tag it first")
+    })?;
+    Ok(ArtifactPin {
+        store_path: output.store_path,
+        nar_hash: output.nar_hash,
+    })
+}
+
+fn verify_artifact_pin(reference: &str, pin: &ArtifactPin) -> Result<()> {
+    let raw = cix_common::nix(&["path-info", "--json", "--json-format", "1", &pin.store_path])
+        .with_context(|| format!("checking pinned cix-item FROM ref {reference:?}"))?;
+    let infos: BTreeMap<String, PathInfo> =
+        serde_json::from_str(&raw).context("parsing nix path-info JSON")?;
+    let actual = infos
+        .get(&pin.store_path)
+        .or_else(|| infos.values().next())
+        .context("nix path-info returned no pinned cix-item path")?;
+    if actual.nar_hash != pin.nar_hash {
+        bail!(
+            "narHash mismatch for pinned cix-item FROM ref {reference:?}: lock has {}, local store has {}",
+            pin.nar_hash,
+            actual.nar_hash
+        );
+    }
+    Ok(())
 }
 
 fn write_lock(path: &Path, lock: &LockFile) -> Result<()> {
@@ -242,6 +319,26 @@ impl LockFile {
             if input.is_local() {
                 if self.inputs.contains_key(name) {
                     bail!("lock must not pin local FROM . binder {name:?}");
+                }
+                continue;
+            }
+            if input.kind == InputKind::Artifact {
+                let pin = self.artifacts.get(&input.url).with_context(|| {
+                    format!("lock is missing cix-item FROM ref {:?}", input.url)
+                })?;
+                if !pin.store_path.starts_with("/nix/store/") {
+                    bail!(
+                        "lock cix-item ref {:?}.storePath must be a Nix store path, got {:?}",
+                        input.url,
+                        pin.store_path
+                    );
+                }
+                if !pin.nar_hash.starts_with("sha256-") {
+                    bail!(
+                        "lock cix-item ref {:?}.narHash must be an SRI sha256 hash, got {:?}",
+                        input.url,
+                        pin.nar_hash
+                    );
                 }
                 continue;
             }
@@ -344,19 +441,38 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("Cixfile.lock");
         let resolutions = Cell::new(0);
-        let created = ensure_lock_with(&path, &inputs(), None, |url, _| {
-            resolutions.set(resolutions.get() + 1);
-            Ok(entry(url, "one"))
-        })
+        let created = ensure_lock_with(
+            &path,
+            &inputs(),
+            None,
+            |url, _| {
+                resolutions.set(resolutions.get() + 1);
+                Ok(entry(url, "one"))
+            },
+            |_| unreachable!(),
+        )
         .unwrap();
         assert_eq!(created.inputs.len(), 2);
-        let reused = ensure_lock_with(&path, &inputs(), None, |_, _| panic!("must reuse")).unwrap();
+        let reused = ensure_lock_with(
+            &path,
+            &inputs(),
+            None,
+            |_, _| panic!("must reuse"),
+            |_| unreachable!(),
+        )
+        .unwrap();
         assert_eq!(reused, created);
-        let updated = ensure_lock_with(&path, &inputs(), Some("pkgs"), |url, refresh| {
-            assert!(refresh);
-            resolutions.set(resolutions.get() + 1);
-            Ok(entry(url, "two"))
-        })
+        let updated = ensure_lock_with(
+            &path,
+            &inputs(),
+            Some("pkgs"),
+            |url, refresh| {
+                assert!(refresh);
+                resolutions.set(resolutions.get() + 1);
+                Ok(entry(url, "two"))
+            },
+            |_| unreachable!(),
+        )
         .unwrap();
         assert_eq!(updated.inputs["pkgs"].rev, "two");
         assert_eq!(updated.inputs["stable"].rev, "one");
@@ -376,9 +492,13 @@ mod tests {
                 line: 1,
             },
         )]);
-        let lock = ensure_lock_with(&path, &declared, None, |_, _| {
-            panic!("must migrate without resolving")
-        })
+        let lock = ensure_lock_with(
+            &path,
+            &declared,
+            None,
+            |_, _| panic!("must migrate without resolving"),
+            |_| unreachable!(),
+        )
         .unwrap();
         assert_eq!(lock.inputs["pkgs"].rev, "one");
         assert!(fs::read_to_string(path).unwrap().contains("\"inputs\""));
@@ -398,17 +518,29 @@ mod tests {
             },
         );
         let resolutions = Cell::new(0);
-        let lock = ensure_lock_with(&path, &declared, None, |url, _| {
-            resolutions.set(resolutions.get() + 1);
-            Ok(entry(url, "one"))
-        })
+        let lock = ensure_lock_with(
+            &path,
+            &declared,
+            None,
+            |url, _| {
+                resolutions.set(resolutions.get() + 1);
+                Ok(entry(url, "one"))
+            },
+            |_| unreachable!(),
+        )
         .unwrap();
         assert_eq!(resolutions.get(), 2);
         assert!(!lock.inputs.contains_key("src"));
 
-        let error = ensure_lock_with(&path, &declared, Some("src"), |_, _| unreachable!())
-            .unwrap_err()
-            .to_string();
+        let error = ensure_lock_with(
+            &path,
+            &declared,
+            Some("src"),
+            |_, _| unreachable!(),
+            |_| unreachable!(),
+        )
+        .unwrap_err()
+        .to_string();
         assert!(error.contains("not lock-pinned"), "{error}");
     }
 }

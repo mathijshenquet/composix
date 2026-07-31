@@ -672,6 +672,35 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     let built = doc.sh("cix build . -t v1", true);
     let store_path = built_store_path(&built, "-cix-item-tour-app");
 
+    doc.para("## Copy from a tagged item");
+    doc.para("A tagged cix item is a third FROM input kind. It is a source tree—not a package namespace or inherited root filesystem—so a second Cixfile can copy one declared path from it.");
+    let prebuilt = doc.base.join("prebuilt");
+    fs::create_dir(&prebuilt).expect("creating tagged-item consumer directory");
+    fs::write(
+        prebuilt.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM tour-app:v1 AS prior
+
+APP copied-greeting
+COPY ${prior}/share/greeting /share/greeting
+EXEC /bin/true
+"#,
+    )
+    .expect("writing tagged-item consumer Cixfile");
+    fs::write(prebuilt.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+        .expect("writing tagged-item consumer lock");
+    let consumer = doc.sh("cat prebuilt/Cixfile", true);
+    assert!(consumer.contains("FROM tour-app:v1 AS prior"));
+    assert!(consumer.contains("COPY ${prior}/share/greeting"));
+    let copied = doc.sh("cix build prebuilt", true);
+    let copied_path = built_store_path(&copied, "-cix-item-copied-greeting");
+    let greeting = doc.sh(&format!("cat {copied_path}/share/greeting"), true);
+    assert_eq!(greeting.trim(), "hello from Cixfile");
+    doc.para("The generated lock pins the tag's selected store path and NAR hash. A later tag move does not affect this consumer until `cix build --update-lock prior prebuilt` deliberately refreshes that binder.");
+    let consumer_lock = doc.sh("cat prebuilt/Cixfile.lock", true);
+    assert!(consumer_lock.contains("\"artifacts\""));
+    assert!(consumer_lock.contains("tour-app:v1"));
+
     doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
     assert!(manifest.contains("\"cixManifest\":5"));

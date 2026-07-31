@@ -339,7 +339,7 @@ fn nix_prelude(
     for (index, (name, input)) in cixfile
         .inputs
         .iter()
-        .filter(|(_, input)| !input.is_local())
+        .filter(|(_, input)| !input.is_local() && input.kind != InputKind::Artifact)
         .enumerate()
     {
         let locked = &lock.inputs[name];
@@ -354,7 +354,7 @@ fn nix_prelude(
     for (index, (name, input)) in cixfile
         .inputs
         .iter()
-        .filter(|(_, input)| !input.is_local())
+        .filter(|(_, input)| !input.is_local() && input.kind != InputKind::Artifact)
         .enumerate()
     {
         if input.kind == InputKind::PackageUniverse {
@@ -372,7 +372,16 @@ fn nix_prelude(
     for (name, input) in &cixfile.inputs {
         if input.kind == InputKind::Source {
             if input.is_local() {
-                writeln!(expression, "    {} = sourceRoot;", nix_attr(name))?;
+                if input.url == "." {
+                    writeln!(expression, "    {} = sourceRoot;", nix_attr(name))?;
+                } else {
+                    writeln!(
+                        expression,
+                        "    {} = sourceRoot + {};",
+                        nix_attr(name),
+                        nix_string(input.url.trim_start_matches("./"))
+                    )?;
+                }
             } else {
                 writeln!(
                     expression,
@@ -381,7 +390,19 @@ fn nix_prelude(
                 )?;
             }
         }
-        if !input.is_local() {
+        if input.kind == InputKind::Artifact {
+            let pin = lock
+                .artifacts
+                .get(&input.url)
+                .with_context(|| format!("lock is missing cix-item FROM ref {:?}", input.url))?;
+            writeln!(
+                expression,
+                "    {} = builtins.storePath {};",
+                nix_attr(name),
+                nix_string(&pin.store_path)
+            )?;
+        }
+        if !input.is_local() && input.kind != InputKind::Artifact {
             remote_index += 1;
         }
     }
@@ -978,6 +999,7 @@ mod tests {
                     nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
                 },
             )]),
+            artifacts: BTreeMap::new(),
             fetches: BTreeMap::new(),
             memo: BTreeMap::new(),
         }
@@ -994,7 +1016,7 @@ mod tests {
     fn emits_kind_and_unified_copy_sources() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nEXEC /bin/true\n",
         )
         .unwrap();
         let nix =
@@ -1008,7 +1030,10 @@ mod tests {
 
     #[test]
     fn service_manifest_omits_kind_and_app_emits_it() {
-        let service = parse("FROM nixpkgs AS pkgs\nSERVICE web\nEXEC /bin/true\n").unwrap();
+        let service = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\n",
+        )
+        .unwrap();
         let spec = generate_spec_json(&service).unwrap();
         assert!(!spec.contains("\"kind\""), "{spec}");
         assert!(
@@ -1016,7 +1041,9 @@ mod tests {
             "{spec}"
         );
 
-        let app = parse("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n").unwrap();
+        let app =
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nEXEC /bin/true\n")
+                .unwrap();
         let manifest = generate_spec_json(&app).unwrap();
         assert!(manifest.contains("\"kind\": \"app\""), "{manifest}");
         assert!(manifest.contains("\"exec\""), "{manifest}");
@@ -1026,7 +1053,7 @@ mod tests {
         );
 
         let explicit =
-            parse("FROM nixpkgs AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nEXEC /bin/true\n")
                 .unwrap();
         let explicit_spec = generate_spec_json(&explicit).unwrap();
         assert!(
@@ -1039,7 +1066,7 @@ mod tests {
     #[test]
     fn absolute_artifact_destinations_keep_the_pre_d66_manifest_shape() {
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nEXEC /bin/tool\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nEXEC /bin/tool\n",
         )
         .unwrap();
         assert_eq!(cixfile.artifacts["fixture"].copies[0].dst, "share/payload");
@@ -1073,7 +1100,7 @@ mod tests {
     fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM nixpkgs AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n",
         )
         .unwrap();
         let mut lock = fixture_lock();
