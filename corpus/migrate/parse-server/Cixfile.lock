@@ -8,7 +8,15 @@
   },
   "fetches": {
     "builder:build:4-9514b3517c82": {
-      "narHash": "sha256-Z0u3uJu6NH9y7FYCFfmdM+ecjvLvxgg2rnAHcCfR7lY="
+      "paths": {
+        "bin/parse-server": "sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=",
+        "lib": "sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=",
+        "node_modules": "sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=",
+        "package-lock.json": "sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=",
+        "package.json": "sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=",
+        "public": "sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=",
+        "views": "sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50="
+      }
     }
   },
   "memo": {
@@ -45,6 +53,38 @@
       }
     },
     "5217bb5bf26546bad9b4ff9bf28179620fe880343fd44fc24d332f5e767e8fa5": {
+      "paths": {
+        "bin/parse-server": {
+          "narHash": "sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=",
+          "storePath": "/nix/store/m1f13mqip6lz526gr5vdbrxglx7w4yxk-cix-build-consumed"
+        },
+        "lib": {
+          "narHash": "sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=",
+          "storePath": "/nix/store/flv7j7fp3d0g7m5x1giafl9lnwqxlnc2-cix-build-consumed"
+        },
+        "node_modules": {
+          "narHash": "sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=",
+          "storePath": "/nix/store/hlf97x0js5m627nlp1n34p0vgkffdx86-cix-build-consumed"
+        },
+        "package-lock.json": {
+          "narHash": "sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=",
+          "storePath": "/nix/store/lsk15a45qiknqi3szbss87sxqvsfjh1v-cix-build-consumed"
+        },
+        "package.json": {
+          "narHash": "sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=",
+          "storePath": "/nix/store/5zc1649hfhqass7ajd0wcrqp2dm3r6ry-cix-build-consumed"
+        },
+        "public": {
+          "narHash": "sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=",
+          "storePath": "/nix/store/k1dyknn0mhdiy2nsixv7il3wkj04zynl-cix-build-consumed"
+        },
+        "views": {
+          "narHash": "sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50=",
+          "storePath": "/nix/store/q4365sfk8biimbzc03jz90fsj6ffhx7x-cix-build-consumed"
+        }
+      }
+    },
+    "77794052a4358a0eb7a7efa3dc75245f4c4e98f128ef5e567a1b7d5df5536371": {
       "paths": {
         "bin/parse-server": {
           "narHash": "sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=",

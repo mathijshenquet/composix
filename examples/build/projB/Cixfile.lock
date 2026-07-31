@@ -8,11 +8,21 @@
   },
   "fetches": {
     "builder:build:3-5a4c4ec7cb48": {
-      "narHash": "sha256-HYhMRj08ymTPMyPPnuERdtkpJUBWlb0fTbZ/R1ojTaI="
+      "paths": {
+        "target/release/projb": "sha256-W7llym7kkkMA0t8urhg7WSeFCNu7D+uo0xxyK3f2UBo="
+      }
     }
   },
   "memo": {
     "8e646a7a32183894703811e338ea75b9cbb4ddb8e5e4848bfa62ababba380034": {
+      "paths": {
+        "target/release/projb": {
+          "narHash": "sha256-W7llym7kkkMA0t8urhg7WSeFCNu7D+uo0xxyK3f2UBo=",
+          "storePath": "/nix/store/py1h2hhn74vx1v1xbvzzfaa5nvdnzgqz-cix-build-consumed"
+        }
+      }
+    },
+    "f078603119a0b1be767ca0a6c2b9db5cfd4814975fb825b77b4fae1aa45dd9a5": {
       "paths": {
         "target/release/projb": {
           "narHash": "sha256-W7llym7kkkMA0t8urhg7WSeFCNu7D+uo0xxyK3f2UBo=",

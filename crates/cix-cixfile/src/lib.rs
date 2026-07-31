@@ -12,7 +12,7 @@ mod seccomp;
 pub use build::{build, build_family, BuildOptions, BuiltItem};
 pub use codegen::{generate_nix, generate_spec_json};
 pub use lock::{
-    ensure_lock, ArtifactPin, ConsumedPath, FetchPin, InputLock, LockFile, MemoEntry,
+    ensure_lock, ArtifactPin, ConsumedPath, FetchPin, InputLock, LockFile, MemoEntry, VolatilePath,
     DEFAULT_NIXPKGS_URL,
 };
 pub use model::{

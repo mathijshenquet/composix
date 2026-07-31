@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::{Input, InputKind};
 
@@ -42,8 +43,66 @@ pub struct ArtifactPin {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FetchPin {
-    #[serde(rename = "narHash")]
+    /// An author-declared EXPECT is deliberately a whole-tree assertion.  Legacy
+    /// automatic pins also retain their former whole-tree value until refreshed.
+    #[serde(rename = "narHash", default, skip_serializing_if = "String::is_empty")]
     pub nar_hash: String,
+    /// Automatic pins cover only paths that later consumers can observe.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub paths: BTreeMap<String, String>,
+    /// Legacy replay path. New locks keep replay snapshots in the local cache,
+    /// keyed by the stable pin, so volatile workspace bytes cannot churn locks.
+    #[serde(rename = "storePath", default, skip_serializing)]
+    pub store_path: Option<String>,
+    /// Facts from an explicit --update-lock double-fetch probe; never a filter.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub volatile: BTreeMap<String, VolatilePath>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct VolatilePath {
+    #[serde(rename = "firstSize")]
+    pub first_size: u64,
+    #[serde(rename = "secondSize")]
+    pub second_size: u64,
+}
+
+impl FetchPin {
+    pub fn expected(nar_hash: String) -> Self {
+        Self {
+            nar_hash,
+            paths: BTreeMap::new(),
+            store_path: None,
+            volatile: BTreeMap::new(),
+        }
+    }
+
+    pub fn automatic() -> Self {
+        Self {
+            nar_hash: String::new(),
+            paths: BTreeMap::new(),
+            store_path: None,
+            volatile: BTreeMap::new(),
+        }
+    }
+
+    pub fn is_legacy(&self) -> bool {
+        !self.nar_hash.is_empty() && self.paths.is_empty()
+    }
+
+    pub fn key(&self) -> String {
+        if !self.nar_hash.is_empty() {
+            return self.nar_hash.clone();
+        }
+        let encoded = serde_json::to_vec(&self.paths).expect("path hash map serializes");
+        let digest = Sha256::digest(encoded);
+        let text = digest
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        format!("paths:{text}")
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -364,11 +423,25 @@ impl LockFile {
             }
         }
         for (name, pin) in &self.fetches {
-            if !pin.nar_hash.starts_with("sha256-") {
+            if !pin.nar_hash.is_empty() && !pin.nar_hash.starts_with("sha256-") {
                 bail!(
                     "lock FETCH pin {name:?}.narHash must be an SRI sha256 hash, got {:?}",
                     pin.nar_hash
                 );
+            }
+            for (path, hash) in &pin.paths {
+                if !hash.starts_with("sha256-") {
+                    bail!(
+                        "lock FETCH pin {name:?}.paths[{path:?}] must be an SRI sha256 hash, got {hash:?}"
+                    );
+                }
+            }
+            if let Some(path) = &pin.store_path {
+                if !path.starts_with("/nix/store/") {
+                    bail!(
+                        "lock FETCH pin {name:?}.storePath must be a Nix store path, got {path:?}"
+                    );
+                }
             }
         }
         for (key, entry) in &self.memo {

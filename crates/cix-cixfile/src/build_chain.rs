@@ -17,7 +17,7 @@ use crate::codegen::{
 use crate::seccomp;
 use crate::{
     BuildStep, Builder, Cixfile, ConsumedPath, Fetch, FetchPin, LockFile, MemoEntry, Template,
-    TemplatePart,
+    TemplatePart, VolatilePath,
 };
 
 #[derive(Debug, Deserialize)]
@@ -39,12 +39,15 @@ struct StepKeyRequest<'a> {
     predecessor: &'a str,
     declared_sources: &'a [String],
     environment: &'a BTreeMap<String, String>,
-    fetch_pin: Option<&'a str>,
+    fetch_pin: Option<String>,
 }
 
 // Bump whenever the fixed bubblewrap filesystem skeleton changes: memoized
 // commands must not be reused across a different execution environment.
 const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
+// Bump this when codegen-relevant Cixfile semantics change without a package
+// version bump.  It keeps memo keys isolated across concurrently-built checkouts.
+const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d69-v1");
 
 #[derive(Clone, Debug, Default)]
 struct NeededPath {
@@ -92,6 +95,7 @@ pub(crate) fn execute(
             &binders,
             needed.get(name).cloned().unwrap_or_default(),
             update.is_some_and(|requested| requested.is_empty() || requested == name),
+            cold,
         )?;
         binders.insert(name.clone(), view);
     }
@@ -125,14 +129,13 @@ fn execute_top_fetch(
     binders: &BTreeMap<String, String>,
     mut needed: BTreeMap<String, NeededPath>,
     force: bool,
+    cold: bool,
 ) -> Result<String> {
     if let Some(expected) = &fetch.expected {
-        lock.fetches.insert(
-            name.to_owned(),
-            FetchPin {
-                nar_hash: expected.clone(),
-            },
-        );
+        if lock.fetches.get(name).map(|pin| &pin.nar_hash) != Some(expected) {
+            lock.fetches
+                .insert(name.to_owned(), FetchPin::expected(expected.clone()));
+        }
     }
     let context = resolve_fetch_context(cixfile, name, directory, lock, system, binders)?;
     if context.commands.len() != 1 {
@@ -149,25 +152,37 @@ fn execute_top_fetch(
     if needed.is_empty() {
         needed.insert(".".into(), NeededPath::default());
     }
-    let existing_pin = lock.fetches.get(name).map(|pin| pin.nar_hash.as_str());
+    let existing_pin = lock.fetches.get(name).map(FetchPin::key);
     let existing_key = existing_pin
-        .map(|pin| top_fetch_chain_key(command, &offered_closure, &environment, pin))
+        .map(|pin| top_fetch_chain_key(command, &offered_closure, &environment, &pin))
         .transpose()?;
+    if cold && !force {
+        let pin = lock.fetches.get(name).with_context(|| {
+            format!("FETCH {name} has no pin to replay; --cold never refetches")
+        })?;
+        let snapshot = replay_fetch_snapshot(directory, name, pin)?;
+        verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
+        let paths = store_consumed_paths(Path::new(&snapshot), &needed)?;
+        let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin.key())?;
+        lock.memo.insert(key.clone(), memo_entry(paths.clone()));
+        let view = materialize_view(&paths)?;
+        eprintln!(
+            "FETCH {name} replayed pinned snapshot {} -> {view}",
+            short_key(&key)
+        );
+        return Ok(view);
+    }
     if !force {
         if let Some(key) = &existing_key {
             if memo_has_paths(lock.memo.get(key), &needed)? {
                 let entry = &lock.memo[key];
-                verify_fetch_hash(
-                    fetch.expected.as_deref(),
-                    lock.fetches.get(name),
-                    &lock.fetches[name].nar_hash,
-                )
-                .with_context(|| {
-                    format!(
-                        "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
-                        fetch.line, fetch.source
-                    )
-                })?;
+                verify_fetch_hash(fetch.expected.as_deref(), lock.fetches.get(name), None)
+                    .with_context(|| {
+                        format!(
+                            "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
+                            fetch.line, fetch.source
+                        )
+                    })?;
                 let view = materialize_view(&entry.paths)?;
                 eprintln!("FETCH {name} memo hit {} -> {view}", short_key(key));
                 return Ok(view);
@@ -195,38 +210,59 @@ fn execute_top_fetch(
             fetch.line, fetch.source
         )
     })?;
+    let volatile = if force && fetch.expected.is_none() {
+        let first = copied_snapshot(work.path())?;
+        let empty = tempfile::tempdir()?;
+        replace_workspace_tree(empty.path(), work.path())?;
+        run_sandbox(
+            work.path(),
+            &shell,
+            command,
+            &environment,
+            &BTreeMap::new(),
+            &offered_closure,
+            &context.imports,
+            None,
+        )
+        .with_context(|| {
+            format!(
+                "line {}: top-level FETCH {name:?} probe failed\n  | {:?}",
+                fetch.line, fetch.source
+            )
+        })?;
+        let observed_volatile = volatile_paths(first.path(), work.path())?;
+        report_volatile(name, &observed_volatile);
+        replace_workspace_tree(first.path(), work.path())?;
+        consumed_volatile_paths(observed_volatile, &needed)
+    } else {
+        BTreeMap::new()
+    };
     let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     let output_hash = nar_hash(work.path())?;
     if let Some(expected) = fetch.expected.as_deref() {
-        verify_fetch_hash(Some(expected), None, &output_hash).with_context(|| {
+        verify_fetch_hash(Some(expected), None, Some(&output_hash)).with_context(|| {
             format!(
                 "line {}: top-level FETCH {name:?} output did not match EXPECT\n  | {:?}",
                 fetch.line, fetch.source
             )
         })?;
-    } else if force {
-        lock.fetches.insert(
-            name.to_owned(),
-            FetchPin {
-                nar_hash: output_hash.clone(),
-            },
-        );
-    } else if let Some(pin) = lock.fetches.get(name) {
-        verify_fetch_pin(Some(pin), &output_hash).with_context(|| {
-            format!(
-                "line {}: top-level FETCH {name:?} output changed\n  | {:?}",
-                fetch.line, fetch.source
-            )
-        })?;
-    } else {
-        lock.fetches.insert(
-            name.to_owned(),
-            FetchPin {
-                nar_hash: output_hash.clone(),
-            },
-        );
+    } else if force || !lock.fetches.contains_key(name) {
+        lock.fetches.insert(name.to_owned(), FetchPin::automatic());
     }
-    let pin = lock.fetches[name].nar_hash.clone();
+    let snapshot = add_store_object(work.path(), "cix-fetch-snapshot")?;
+    let actual_paths = fetch_path_hashes(work.path(), &needed)?;
+    let pin = lock.fetches.get(name).cloned();
+    let refreshed = refresh_fetch_pin(
+        pin.as_ref(),
+        fetch.expected.is_some(),
+        force,
+        actual_paths,
+        volatile,
+        name,
+    )?;
+    cache_fetch_snapshot(directory, name, &refreshed, &snapshot)?;
+    lock.fetches.insert(name.to_owned(), refreshed);
+    let pin = lock.fetches[name].key();
     let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin)?;
     let paths = store_consumed_paths(work.path(), &needed)?;
     lock.memo.insert(key.clone(), memo_entry(paths.clone()));
@@ -373,6 +409,8 @@ fn execute_builder(
 
     let mut command_index = 0;
     let mut copy_index = 0;
+    let mut fetch_snapshots =
+        BTreeMap::<String, (bool, Option<String>, BTreeMap<String, VolatilePath>)>::new();
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
             BuildStep::Env {
@@ -419,6 +457,43 @@ fn execute_builder(
                 }
                 let is_fetch = matches!(step, BuildStep::Fetch { .. });
                 let kind = if is_fetch { "FETCH" } else { "RUN" };
+                let fetch_id = is_fetch
+                    .then(|| format!("builder:{builder_name}:{}", fetch_id(index, command)));
+                if let Some(id) = &fetch_id {
+                    if cold {
+                        let pin = lock.fetches.get(id).with_context(|| {
+                            format!(
+                                "BUILDER {builder_name} FETCH has no pin to replay; --cold never refetches"
+                            )
+                        })?;
+                        let snapshot = replay_fetch_snapshot(directory, id, pin)?;
+                        restore_snapshot(Path::new(&snapshot), &workdir)?;
+                        fetch_snapshots.insert(
+                            id.clone(),
+                            (
+                                matches!(
+                                    step,
+                                    BuildStep::Fetch {
+                                        expected: Some(_),
+                                        ..
+                                    }
+                                ),
+                                None,
+                                pin.volatile.clone(),
+                            ),
+                        );
+                        eprintln!(
+                            "BUILDER {builder_name} step {} FETCH replayed pinned snapshot",
+                            index + 1
+                        );
+                        continue;
+                    }
+                }
+                let probe_before = (is_fetch
+                    && update_fetch_pins
+                    && matches!(step, BuildStep::Fetch { expected: None, .. }))
+                .then(|| copied_snapshot(&workdir))
+                .transpose()?;
                 let started = Instant::now();
                 run_sandbox(
                     &workdir,
@@ -433,27 +508,48 @@ fn execute_builder(
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                 if is_fetch {
-                    let id = format!("builder:{builder_name}:{}", fetch_id(index, command));
+                    let id = fetch_id.expect("FETCH has an id");
+                    let volatile = if let Some(before) = probe_before {
+                        let first = copied_snapshot(&workdir)?;
+                        replace_workspace_tree(before.path(), &workdir)?;
+                        run_sandbox(
+                            &workdir,
+                            shell.as_deref().expect("command steps have a shell"),
+                            command,
+                            &environment,
+                            &export_prelude,
+                            &offered_closure,
+                            &context.imports,
+                            None,
+                        )
+                        .with_context(|| {
+                            format!("line {line}: FETCH update probe failed\n  | {source:?}")
+                        })?;
+                        let observed_volatile = volatile_paths(first.path(), &workdir)?;
+                        report_volatile(&id, &observed_volatile);
+                        replace_workspace_tree(first.path(), &workdir)?;
+                        consumed_volatile_paths(observed_volatile, &needed)
+                    } else {
+                        BTreeMap::new()
+                    };
                     let actual = nar_hash(&workdir)?;
                     let expected = match step {
                         BuildStep::Fetch { expected, .. } => expected.as_deref(),
                         _ => None,
                     };
                     if let Some(expected) = expected {
-                        verify_fetch_hash(Some(expected), None, &actual).with_context(|| {
-                            format!(
+                        verify_fetch_hash(Some(expected), None, Some(&actual)).with_context(
+                            || {
+                                format!(
                                 "line {line}: FETCH output did not match EXPECT\n  | {source:?}"
                             )
-                        })?;
-                    } else if update_fetch_pins {
-                        lock.fetches.insert(id, FetchPin { nar_hash: actual });
-                    } else if let Some(pin) = lock.fetches.get(&id) {
-                        verify_fetch_pin(Some(pin), &actual).with_context(|| {
-                            format!("line {line}: FETCH output changed\n  | {source:?}")
-                        })?;
-                    } else {
-                        lock.fetches.insert(id, FetchPin { nar_hash: actual });
+                            },
+                        )?;
+                    } else if !lock.fetches.contains_key(&id) {
+                        lock.fetches.insert(id.clone(), FetchPin::automatic());
                     }
+                    let snapshot = add_store_object(&workdir, "cix-fetch-snapshot")?;
+                    fetch_snapshots.insert(id, (expected.is_some(), Some(snapshot), volatile));
                 }
                 eprintln!(
                     "BUILDER {builder_name} step {} {kind} executed ({} ms)",
@@ -461,6 +557,23 @@ fn execute_builder(
                     wall_ms
                 );
             }
+        }
+    }
+    if !fetch_snapshots.is_empty() {
+        let actual_paths = fetch_path_hashes(&workdir, &needed)?;
+        for (id, (expected, snapshot, volatile)) in fetch_snapshots {
+            let refreshed = refresh_fetch_pin(
+                lock.fetches.get(&id),
+                expected,
+                update_fetch_pins,
+                actual_paths.clone(),
+                volatile,
+                &id,
+            )?;
+            if let Some(snapshot) = snapshot {
+                cache_fetch_snapshot(directory, &id, &refreshed, &snapshot)?;
+            }
+            lock.fetches.insert(id, refreshed);
         }
     }
     let step_keys = builder_chain_keys(
@@ -614,12 +727,11 @@ fn install_declared_expectations(
             BuildStep::Fetch { expected, .. } => {
                 let command = &commands[command_index];
                 if let Some(expected) = expected {
-                    lock.fetches.insert(
-                        format!("builder:{builder_name}:{}", fetch_id(index, command)),
-                        FetchPin {
-                            nar_hash: expected.clone(),
-                        },
-                    );
+                    let id = format!("builder:{builder_name}:{}", fetch_id(index, command));
+                    if lock.fetches.get(&id).map(|pin| &pin.nar_hash) != Some(expected) {
+                        lock.fetches
+                            .insert(id, FetchPin::expected(expected.clone()));
+                    }
                 }
                 command_index += 1;
             }
@@ -666,12 +778,7 @@ fn builder_chain_keys(
                 let Some(pin) = lock.fetches.get(&id) else {
                     return Ok(None);
                 };
-                (
-                    "FETCH",
-                    command.clone(),
-                    Vec::new(),
-                    Some(pin.nar_hash.as_str()),
-                )
+                ("FETCH", command.clone(), Vec::new(), Some(pin.key()))
             }
             BuildStep::Run { .. } => {
                 let command = &context.commands[command_index];
@@ -708,12 +815,16 @@ fn top_fetch_chain_key(
         predecessor: &hex_hash(b"TOP-LEVEL-FETCH"),
         declared_sources: &[],
         environment,
-        fetch_pin: Some(pin),
+        fetch_pin: Some(pin.to_owned()),
     })
 }
 
 fn step_key(request: StepKeyRequest<'_>) -> Result<String> {
-    Ok(hex_hash(&serde_json::to_vec(&(SANDBOX_SKELETON, request))?))
+    Ok(hex_hash(&serde_json::to_vec(&(
+        CODEGEN_FINGERPRINT,
+        SANDBOX_SKELETON,
+        request,
+    ))?))
 }
 
 fn memo_has_paths(
@@ -874,6 +985,186 @@ fn replace_workspace_tree(source: &Path, destination: &Path) -> Result<()> {
     remove_path_if_present(destination)?;
     fs::create_dir_all(destination)?;
     copy_tree(source, destination)
+}
+
+fn restore_snapshot(snapshot: &Path, destination: &Path) -> Result<()> {
+    if !ensure_store_path(
+        snapshot
+            .to_str()
+            .context("FETCH snapshot path is not UTF-8")?,
+    )? {
+        bail!(
+            "pinned FETCH snapshot {} is unavailable locally; run --update-lock to refresh it",
+            snapshot.display()
+        );
+    }
+    replace_workspace_tree(snapshot, destination)?;
+    make_writable(destination)
+}
+
+fn replay_fetch_snapshot(directory: &Path, name: &str, pin: &FetchPin) -> Result<String> {
+    if let Some(snapshot) = pin.store_path.as_deref() {
+        if ensure_store_path(snapshot)? {
+            return Ok(snapshot.to_owned());
+        }
+    }
+    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
+    let snapshot = fs::read_to_string(&receipt)
+        .ok()
+        .map(|text| text.trim().to_owned())
+        .filter(|path| !path.is_empty())
+        .filter(|path| ensure_store_path(path).unwrap_or(false));
+    snapshot.with_context(|| {
+        format!(
+            "FETCH {name} has no locally cached replay snapshot at {}; run a non-cold build first (--cold never refetches)",
+            receipt.display()
+        )
+    })
+}
+
+fn cache_fetch_snapshot(
+    directory: &Path,
+    name: &str,
+    pin: &FetchPin,
+    snapshot: &str,
+) -> Result<()> {
+    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
+    let parent = receipt
+        .parent()
+        .expect("fetch snapshot receipt has a parent");
+    fs::create_dir_all(parent)
+        .with_context(|| format!("creating FETCH snapshot cache {}", parent.display()))?;
+    fs::write(&receipt, format!("{snapshot}\n"))
+        .with_context(|| format!("recording FETCH snapshot cache {}", receipt.display()))
+}
+
+fn fetch_snapshot_receipt(directory: &Path, name: &str, pin: &FetchPin) -> Result<PathBuf> {
+    let base = if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
+        PathBuf::from(path)
+    } else {
+        PathBuf::from(
+            std::env::var_os("HOME")
+                .context("HOME is unset; set XDG_CACHE_HOME for FETCH replay snapshots")?,
+        )
+        .join(".cache")
+    };
+    let directory = directory.canonicalize().with_context(|| {
+        format!(
+            "resolving Cixfile directory for FETCH snapshot cache {}",
+            directory.display()
+        )
+    })?;
+    let key = hex_hash(format!("{}\0{name}\0{}", directory.display(), pin.key()).as_bytes());
+    Ok(base.join("cix/fetch-snapshots").join(key))
+}
+
+fn copied_snapshot(source: &Path) -> Result<tempfile::TempDir> {
+    let snapshot = tempfile::Builder::new()
+        .prefix("cix-fetch-probe-")
+        .tempdir()
+        .context("creating FETCH probe snapshot")?;
+    copy_tree(source, snapshot.path())?;
+    Ok(snapshot)
+}
+
+fn volatile_paths(first: &Path, second: &Path) -> Result<BTreeMap<String, VolatilePath>> {
+    let mut first_nodes = BTreeMap::new();
+    let mut second_nodes = BTreeMap::new();
+    collect_files(first, Path::new(""), &mut first_nodes)?;
+    collect_files(second, Path::new(""), &mut second_nodes)?;
+    let names = first_nodes
+        .keys()
+        .chain(second_nodes.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let mut volatile = BTreeMap::new();
+    for name in names {
+        let before = first_nodes.get(&name);
+        let after = second_nodes.get(&name);
+        if before.map(|node| &node.0) != after.map(|node| &node.0) {
+            volatile.insert(
+                name,
+                VolatilePath {
+                    first_size: before.map_or(0, |node| node.1),
+                    second_size: after.map_or(0, |node| node.1),
+                },
+            );
+        }
+    }
+    Ok(volatile)
+}
+
+fn consumed_volatile_paths(
+    observed: BTreeMap<String, VolatilePath>,
+    needed: &BTreeMap<String, NeededPath>,
+) -> BTreeMap<String, VolatilePath> {
+    observed
+        .into_iter()
+        .filter(|(path, _)| {
+            needed.keys().any(|needed_path| {
+                needed_path == "."
+                    || path == needed_path
+                    || path
+                        .strip_prefix(needed_path)
+                        .is_some_and(|suffix| suffix.starts_with('/'))
+            })
+        })
+        .collect()
+}
+
+fn report_volatile(name: &str, volatile: &BTreeMap<String, VolatilePath>) {
+    if volatile.is_empty() {
+        eprintln!("FETCH {name} update probe: two outputs were identical");
+        return;
+    }
+    eprintln!("FETCH {name} update probe found volatile files:");
+    for (path, sizes) in volatile {
+        eprintln!(
+            "  {path} ({} B -> {} B)",
+            sizes.first_size, sizes.second_size
+        );
+    }
+}
+
+fn collect_files(
+    root: &Path,
+    relative: &Path,
+    files: &mut BTreeMap<String, (String, u64)>,
+) -> Result<()> {
+    let directory = root.join(relative);
+    for entry in fs::read_dir(&directory)
+        .with_context(|| format!("reading FETCH probe tree {}", directory.display()))?
+    {
+        let entry = entry?;
+        let name = relative.join(entry.file_name());
+        let path = root.join(&name);
+        let metadata = fs::symlink_metadata(&path)?;
+        if metadata.is_dir() {
+            collect_files(root, &name, files)?;
+        } else {
+            files.insert(
+                name.to_string_lossy().into_owned(),
+                (file_fingerprint(&path, &metadata)?, metadata.len()),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn file_fingerprint(path: &Path, metadata: &fs::Metadata) -> Result<String> {
+    let mut hasher = Sha256::new();
+    hasher.update(metadata.permissions().mode().to_le_bytes());
+    if metadata.file_type().is_symlink() {
+        hasher.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+    } else {
+        let mut file = fs::File::open(path)?;
+        io::copy(&mut file, &mut hasher)?;
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 
 fn workspace_identity(directory: &Path, builder: &str) -> String {
@@ -1477,12 +1768,85 @@ fn nar_hash(path: &Path) -> Result<String> {
     )
 }
 
+fn fetch_path_hashes(
+    workspace: &Path,
+    needed: &BTreeMap<String, NeededPath>,
+) -> Result<BTreeMap<String, String>> {
+    let mut paths = BTreeMap::new();
+    for path in needed.keys() {
+        let source = if path == "." {
+            workspace.to_owned()
+        } else {
+            workspace.join(path)
+        };
+        if !source.exists() && fs::symlink_metadata(&source).is_err() {
+            bail!("FETCH-consumed path {path:?} does not exist");
+        }
+        paths.insert(path.clone(), nar_hash(&source)?);
+    }
+    Ok(paths)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn refresh_fetch_pin(
+    previous: Option<&FetchPin>,
+    expected: bool,
+    force: bool,
+    actual_paths: BTreeMap<String, String>,
+    volatile: BTreeMap<String, VolatilePath>,
+    name: &str,
+) -> Result<FetchPin> {
+    if expected {
+        let mut pin = previous
+            .cloned()
+            .context("declared EXPECT pin was not installed")?;
+        pin.store_path = None;
+        if !volatile.is_empty() {
+            pin.volatile = volatile;
+        }
+        return Ok(pin);
+    }
+
+    let mut pin = previous.cloned().unwrap_or_else(FetchPin::automatic);
+    if !force && !pin.paths.is_empty() {
+        for (path, pinned) in &pin.paths {
+            let actual = actual_paths
+                .get(path)
+                .with_context(|| format!("FETCH pin's consumed path {path:?} disappeared"))?;
+            if actual != pinned {
+                bail!(
+                    "FETCH consumed-path mismatch at {path:?}: lock pins {pinned}, fetched {actual}; rerun with --update-lock to accept the new output"
+                );
+            }
+        }
+        for path in actual_paths
+            .keys()
+            .filter(|path| !pin.paths.contains_key(*path))
+        {
+            eprintln!(
+                "FETCH {name} consumed a newly observed path {path:?}; recording a fresh pin entry"
+            );
+        }
+    }
+    pin.nar_hash.clear();
+    pin.paths = actual_paths;
+    pin.store_path = None;
+    if force {
+        pin.volatile = volatile;
+    }
+    Ok(pin)
+}
+
 fn fetch_id(index: usize, command: &str) -> String {
     format!("{index}-{}", short_key(&hex_hash(command.as_bytes())))
 }
 
-fn verify_fetch_pin(pin: Option<&FetchPin>, actual: &str) -> Result<()> {
+fn verify_fetch_pin(pin: Option<&FetchPin>, actual: Option<&str>) -> Result<()> {
     if let Some(pin) = pin {
+        if pin.nar_hash.is_empty() && actual.is_none() {
+            return Ok(());
+        }
+        let actual = actual.context("FETCH pin needs fetched bytes for whole-tree verification")?;
         if pin.nar_hash != actual {
             bail!(
                 "FETCH hash mismatch: lock pins {}, fetched {}; rerun with --update-lock to accept the new output",
@@ -1494,10 +1858,18 @@ fn verify_fetch_pin(pin: Option<&FetchPin>, actual: &str) -> Result<()> {
     Ok(())
 }
 
-fn verify_fetch_hash(expected: Option<&str>, pin: Option<&FetchPin>, actual: &str) -> Result<()> {
+fn verify_fetch_hash(
+    expected: Option<&str>,
+    pin: Option<&FetchPin>,
+    actual: Option<&str>,
+) -> Result<()> {
     if let Some(expected) = expected {
-        if expected != actual {
-            bail!("FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}");
+        if let Some(actual) = actual {
+            if expected != actual {
+                bail!("FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}");
+            }
+        } else if pin.is_none_or(|pin| pin.nar_hash != expected) {
+            bail!("FETCH EXPECT hash mismatch: declared {expected}, lock has no matching pin");
         }
         return Ok(());
     }
@@ -1776,15 +2148,52 @@ mod tests {
     #[test]
     fn fetch_pin_mismatch_is_loud_and_names_update_lock() {
         let error = verify_fetch_pin(
-            Some(&FetchPin {
-                nar_hash: "sha256-old".into(),
-            }),
-            "sha256-new",
+            Some(&FetchPin::expected("sha256-old".into())),
+            Some("sha256-new"),
         )
         .unwrap_err()
         .to_string();
         assert!(error.contains("hash mismatch"), "{error}");
         assert!(error.contains("--update-lock"), "{error}");
+    }
+
+    #[test]
+    fn volatile_facts_follow_only_consumed_path_boundaries() {
+        let observed = BTreeMap::from([
+            (
+                ".npm/_logs/timestamped-debug.log".into(),
+                VolatilePath {
+                    first_size: 1,
+                    second_size: 2,
+                },
+            ),
+            (
+                "node_modules/pkg/index.js".into(),
+                VolatilePath {
+                    first_size: 3,
+                    second_size: 4,
+                },
+            ),
+            (
+                "result".into(),
+                VolatilePath {
+                    first_size: 5,
+                    second_size: 6,
+                },
+            ),
+        ]);
+        let needed = BTreeMap::from([
+            ("node_modules".into(), NeededPath::default()),
+            ("result".into(), NeededPath::default()),
+        ]);
+
+        assert_eq!(
+            consumed_volatile_paths(observed, &needed)
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            ["node_modules/pkg/index.js", "result"]
+        );
     }
 
     #[test]

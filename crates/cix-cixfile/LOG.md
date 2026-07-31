@@ -1,5 +1,159 @@
 # Cixfile track work log
 
+- 2026-08-01T01:30:00Z — Final D69 correction gate is green. `cargo fmt --all
+  --check` and warning-denied workspace clippy passed. The regular parallel
+  workspace command twice exposed the pre-existing fixed-name transient-user
+  test race (`tour_ignores_a_foreign_user_unit`: systemd still had the prior
+  transient unit loaded); after user-manager reset/reload, the complete same
+  suite passed serially with `devenv shell -- cargo test --workspace --
+  --test-threads=1`. Focused test coverage passed: the timestamped npm log
+  lock-equality integration test plus `volatile_facts` boundary unit test.
+  Cold-audit remains absent (the prescribed `rg` finds design/journal prose
+  only). Tour generation, zero drift, committed-doc matching, and two
+  determinism runs passed. VM dogfood was included in the full `devenv shell
+  -- nix flake check -L` run: it evaluated 61 checks and completed the current
+  source's VM/scenario fleet under expected TCG fallback; a cached second
+  invocation completed its remaining seven checks. ProjB double refresh plus
+  ordinary memo hit passed and removes its unconsumed `.cargo/.global-cache`
+  fact. Dozzle completed its disposable probe with no persisted volatile
+  facts. `git diff --check` is clean. Next: final scope review, stage, commit.
+
+- 2026-08-01T00:45:00Z — Root cause confirmed and corrected. The automatic
+  pin's seven `paths` were already downstream COPY outputs; the changing lock
+  entry came from `execute_builder` serializing the unfiltered
+  `volatile_paths` double-FETCH observation through `refresh_fetch_pin`.
+  `consumed_volatile_paths` now retains probe facts only below a consumed path;
+  raw facts still print. Focused regression creates npm-style timestamped
+  `_logs` output after a `find` readdir and proves two update-locks have equal
+  bytes and no persisted unconsumed volatile fact. Exact Parse Server proof:
+  built `target/debug/cix`, ran `CIX_BUILD_WORKSPACE_DIR=<fresh-one>
+  TMPDIR=<fresh-/var/tmp> ../../../target/debug/cix build --update-lock build
+  .#parse-server`, copied the lock, then ran the same command with a distinct
+  fresh workspace (equivalent to a wiped first workspace); `cmp -s` passed.
+  Final lock sha256 is
+  `609a7e76aa891c2b66aaec11e0e5c81f43ec509636e1ca2b58bce8508d915bde`,
+  carries precisely the seven service paths, and has `volatile_count: 0`.
+  The four explicit /var/tmp repro artifacts were moved to Trash. Next: full
+  prescribed gate plus `devenv shell -- nix flake check -L`, then commit.
+
+- 2026-08-01T00:30:00Z — D69 stricter stability proof reopened: wiping
+  `CIX_BUILD_WORKSPACE_DIR` between two clean Parse Server `--update-lock`
+  runs leaves one changing lock entry, npm's timestamped debug-log path. The
+  seven automatic pin paths themselves are stable; diagnosis points to the
+  serialized double-fetch `volatile` facts, which currently include the FETCH
+  command's own read/rotation output. Next: restrict those facts to paths
+  consumed by later steps or artifact COPYs, add a regression, then run the
+  exact wipe repro and full gates including `nix flake check -L`.
+
+- 2026-08-01T00:15:00Z — Follow-up D69 correction final gate is green. Exact
+  Rust commands: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --
+  cargo test --workspace`; focused `devenv shell -- cargo test -p cix-cixfile
+  --test lock_nix -- --nocapture`. No cold-audit executable exists on this
+  base (the prescribed `rg -n 'cold_audit|cold-audit' . --glob '!target/**'
+  --glob '!corpus/migrate/**/context/**'` finds only design/log prose). Tour
+  gate, with `TMPDIR=/dev/shm` to avoid the shared `/tmp` inode limit: ignored
+  regeneration, `git diff --exit-code -- docs/tour`, committed-doc matching,
+  and deterministic generation passed twice. VM command `TMPDIR=/dev/shm
+  devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`
+  passed under expected TCG fallback; receipt
+  `/nix/store/g4m1zwpm319lqfc80k3wrjbfk41pmhxi-vm-test-run-vm-dogfood` exists.
+  Exhibits: Parse Server double-clean byte equality plus fresh `--cold` replay;
+  ProjB double-clean byte equality plus ordinary memo hit; Dozzle retains its
+  recorded missing-cert/UI failure and no failed refresh lock change. Final
+  `git diff --check` / cached check and system/user `cix-*` cleanup pass.
+  Next: stage scoped correction and commit on `track/pinkeys`.
+
+- 2026-07-31T23:50:00Z — Fixed the D69 lock churn: new `FetchPin.storePath`
+  values deserialize only as legacy compatibility data and are never serialized;
+  full replay snapshots live in `$XDG_CACHE_HOME/cix/fetch-snapshots`, keyed by
+  the stable pin plus Cixfile directory/FETCH id. `--cold` restores that local
+  snapshot and never refetches (missing cache is a clear failure). Restored
+  snapshots are made writable so later offline RUN steps retain normal builder
+  semantics. Focused `lock_nix` is green, including mutated restored input and
+  double-`--update-lock` byte equality. Exact real acceptance: two clean Parse
+  Server commands with separate fresh `CIX_BUILD_WORKSPACE_DIR` values and
+  `TMPDIR=/tmp` produced byte-identical `Cixfile.lock` (`sha256
+  1e5a2a6f69f716245fc1434b6b0a064165518951c2511fe21ddc9be1e4ed9bb2`),
+  and no fetch `storePath`; a further fresh-workspace Parse Server `--cold`
+  replayed step 5 then ran both offline suffix RUNs successfully. One initial
+  cold attempt hit `/tmp`'s inode limit (not a product failure); removed only
+  the three exact temporary workspaces created for this reproduction, then the
+  retry passed. Next: prescribed workspace/tour/VM/exhibit gate and commit.
+
+- 2026-07-31T23:30:00Z — Independent D69 verification found the required
+  double-clean `--update-lock` acceptance failing: Parse Server's automatic
+  consumed-path hashes were stable, but `fetches.*.storePath` still named the
+  complete volatile `.npm` workspace snapshot and therefore churned. Fix in
+  progress: do not serialize automatic replay snapshot paths into
+  `Cixfile.lock`; retain a local replay cache keyed by the stable fetch pin so
+  `--cold` stays offline, with an explicit no-refetch error if that local
+  replay data is unavailable. Next: add focused coverage, run the exact
+  double-clean Parse Server repro, then rerun the prescribed gate.
+
+- 2026-07-31T23:05:00Z — Final D69 gate is green. Exact repros: `devenv shell
+  -- cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace
+  --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`
+  (exit 0). No `cold_audit` executable exists on this base (`rg -n
+  'cold_audit|cold-audit' . --glob '!target/**' --glob
+  '!corpus/migrate/**/context/**'` finds the D69 design mention only). Tour
+  repros: `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git add docs/tour && git diff --exit-code -- docs/tour`;
+  `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; and `devenv shell -- cargo test
+  -p cix --test tour generated_tour_is_deterministic -- --exact` (twice), all
+  passed. The dogfood VM repro `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` passed; receipt confirmed with
+  `nix path-info /nix/store/ssxw6w6gx1pivkalbzy220x6xydpyp16-vm-test-run-vm-dogfood`.
+  Exhibit repros: Parse Server's two `cd corpus/migrate/parse-server &&
+  ../../../target/debug/cix build --update-lock build .#parse-server` plus
+  `../../../target/debug/cix build .#parse-server`; ProjB's `target/debug/cix
+  build --update-lock build examples/build/projB#projb` twice plus `target/debug/cix
+  build examples/build/projB#projb`; and disposable Dozzle backend's
+  `/home/mathijs/composix/.worktrees/pinkeys/target/debug/cix build --update-lock
+  build .` twice plus `.../target/debug/cix build .` all passed. `git diff
+  --check` and `git diff --cached --check` pass. Cleanup repro: `systemctl
+  --user stop 'cix-*' >/dev/null 2>&1 || true; systemctl --user reset-failed
+  'cix-*' >/dev/null 2>&1 || true; systemctl --user stop cix-run.slice
+  >/dev/null 2>&1 || true; sudo -n systemctl stop 'cix-*' >/dev/null 2>&1 ||
+  true; sudo -n systemctl reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo -n
+  systemctl daemon-reload; ! sudo -n systemctl list-units 'cix-*' --all
+  --no-legend --plain | grep -q .; ! systemctl --user list-units 'cix-*' --all
+  --no-legend --plain | grep -q .` passed. Next: stage this scoped diff and
+  commit `track/pinkeys`.
+
+- 2026-07-31T22:25:00Z — D69 focused implementation is green: automatic pins
+  now record consumed `paths` plus a replayable `storePath`; declared EXPECT
+  remains a whole-tree `narHash`; `--cold` replays both builder and top-level
+  FETCH snapshots without executing FETCH; `--update-lock` double-runs automatic
+  FETCH and records/reports volatile name+size facts; memo/chain keys include
+  `cix-cixfile`'s D69 codegen fingerprint (`0.1.0:d69-v1`), causing the expected
+  one-time global memo miss. Exact focused repros: `devenv shell -- cargo fmt
+  --all`; `devenv shell -- cargo test -p cix-cixfile --lib`; `devenv shell --
+  cargo test -p cix-cixfile --test lock_nix -- --nocapture`; and targeted
+  `lock_nix` tests `automatic_fetch_pins_only_consumed_paths_and_cold_replays_its_snapshot`,
+  `cold_replays_a_top_level_fetch_snapshot_without_executing_fetch`,
+  `newly_consumed_fetch_path_extends_an_automatic_pin`, and
+  `update_lock_double_fetch_records_volatile_files_without_pinning_them` (all
+  passed). Fresh `parse-server` context was fetched with `cd corpus/migrate &&
+  bash ./fetch.sh parse-server`; `../../../target/debug/cix build --update-lock
+  build .#parse-server` completed twice and records the known `.npm` volatility
+  while its consumed map matches the seven final service paths. The first attempt
+  hit temporary inode exhaustion; removed only five explicitly verified-unheld,
+  stale `/tmp/cix-build-cold-*` Cix workspaces (no repo/Nix-store content).
+  Next: finish corpus receipts (ordinary parse build/projB/dozzle), full gate,
+  then commit.
+
+- 2026-07-31T00:00:00Z — Started `.dev/specs/track-pinkeys.md` on
+  `track/pinkeys`. Read AGENTS.md, the session journal, authoritative D69(a,b,c,e)
+  in full, the diagnosis report, the complete track spec, and this crate journal.
+  Scope: automatic FETCH consumed-set pins; offline `--cold` replay from pinned
+  fetch snapshots; `--update-lock` double-fetch volatile-file probe; codegen
+  fingerprinting; docs and honest corpus receipts. Expected compatibility effect:
+  the new fingerprint creates a one-time global memo miss. Next: map the lock and
+  build-chain seams, implement with focused tests, then run the prescribed gate.
+||||||| fb7a023
+
 - 2026-07-31T22:17:34Z — Final nixcompare gate is green with the corrected,
   self-contained warm benchmark. Exact fixture repros passed in sequence:
   `devenv shell -- nix build

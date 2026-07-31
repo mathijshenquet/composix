@@ -370,9 +370,7 @@ EXEC /bin/true
     let mut lock = committed_lock();
     lock.fetches.insert(
         "ingredient".into(),
-        cix_cixfile::FetchPin {
-            nar_hash: "sha256-stale".into(),
-        },
+        cix_cixfile::FetchPin::expected("sha256-stale".into()),
     );
     fs::write(
         directory.path().join("Cixfile.lock"),
@@ -550,7 +548,7 @@ fn newly_consumed_path_reruns_the_chain_and_extends_its_record() {
         format!(
             r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER build
-IMPORT ${{pkgs.bash}}
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 RUN printf x >> runs; printf one > one; printf two > two
 SERVICE result
 COPY ${{build}}/runs /runs
@@ -602,6 +600,211 @@ COPY ${{build}}/one /one
             .collect::<Vec<_>>(),
         ["one", "runs", "two"]
     );
+}
+
+#[test]
+fn automatic_fetch_pins_only_consumed_paths_and_cold_replays_its_snapshot() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+FETCH test ! -e fetch-ran; touch fetch-ran; printf payload > wanted; printf incidental > ignored
+RUN printf suffix >> wanted; cp wanted result
+SERVICE result
+COPY ${build}/result /result
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let pin = lock.fetches.values().next().unwrap();
+    assert_eq!(
+        pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["result"]
+    );
+    assert!(pin.store_path.is_none());
+
+    // The replay snapshot already contains fetch-ran. Re-executing FETCH would fail
+    // its first command, so a successful cold build proves no fetch process spawned.
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&output[0].store_path).join("result")).unwrap(),
+        "payloadsuffix"
+    );
+}
+
+#[test]
+fn cold_replays_a_top_level_fetch_snapshot_without_executing_fetch() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FETCH ingredient test ! -e fetch-ran; printf ran > fetch-ran; printf payload > payload
+SERVICE result
+COPY ${ingredient}/payload /payload
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&output[0].store_path).join("payload")).unwrap(),
+        "payload"
+    );
+}
+
+#[test]
+fn newly_consumed_fetch_path_extends_an_automatic_pin() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = |extra_copy: &str| {
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+FETCH printf one > one; printf two > two
+RUN cp one result
+SERVICE result
+COPY ${{build}}/result /result
+{extra_copy}EXEC /bin/true
+"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("")).unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    };
+    build(&options).unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        cixfile("COPY ${build}/two /two\n"),
+    )
+    .unwrap();
+    build(&options).unwrap();
+
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(
+        lock.fetches
+            .values()
+            .next()
+            .unwrap()
+            .paths
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["result", "two"]
+    );
+}
+
+#[test]
+fn update_lock_ignores_unconsumed_timestamped_fetch_output() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils}
+FETCH mkdir -p .npm/_logs; date +%s%N > .npm/_logs/$(date +%s%N)-debug.log; find .npm/_logs -type f -print >/dev/null; printf payload > result
+SERVICE result
+COPY ${build}/result /result
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: Some("build".into()),
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    let first_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
+    build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: Some("build".into()),
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        first_lock,
+        fs::read(directory.path().join("Cixfile.lock")).unwrap()
+    );
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let pin = lock.fetches.values().next().unwrap();
+    assert_eq!(
+        pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["result"]
+    );
+    assert!(pin.volatile.is_empty());
 }
 
 #[test]

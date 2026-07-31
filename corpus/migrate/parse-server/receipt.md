@@ -7,18 +7,15 @@ Docker: `./check.sh docker` passed on 2026-07-31. Parse Server image:
 MongoDB image digest:
 `sha256:aaad67f2dca93148e5343c03210bcfc89a0107516a4756bfa018acd6579e5b18`.
 
-Cix: build-fail. `../../../target/debug/cix build --update-lock build
-.#parse-server` accepted one `npm ci` output and built
-`/nix/store/kf4d06323935ym7y4bllbprjidzn367b-cix-item-parse-server`, but the
-immediate ordinary `./check.sh cix` fetched different bytes again:
-
-```text
-lock:    sha256-Z0u3uJu6NH9y7FYCFfmdM+ecjvLvxgg2rnAHcCfR7lY=
-fetched: sha256-kHA3Y9J6woNYANJAP5X5kT7OLuNFdXAAY59GXT1auvo=
-```
-
-Classification: product gap in stable FETCH handoff for this npm dependency tree.
-No Cix runtime pass is claimed.
+Cix: D69 re-check on 2026-07-31. Two clean
+`../../../target/debug/cix build --update-lock build .#parse-server` runs and a
+subsequent ordinary `../../../target/debug/cix build .#parse-server` all built
+`/nix/store/kf4d06323935ym7y4bllbprjidzn367b-cix-item-parse-server`. The
+automatic FETCH lock now pins the seven consumed final paths, not the whole npm
+workdir; their hashes exactly match the prior final memo. The double-fetch probe
+records the volatile `.npm/_cacache/index-v5/**` metadata and timestamped debug
+logs (names and sizes in `Cixfile.lock`) as facts. No Cix runtime pass is claimed:
+the receipt still does not run the Mongo-dependent service probe.
 
 Both modes start the same bounded MongoDB 8.0.4
 companion because upstream documents a database as part of the runnable contract;

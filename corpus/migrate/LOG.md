@@ -482,3 +482,44 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   'migrate-r5|migrate-r4'`, and `git ls-files 'corpus/migrate/*/context/**'` all
   returned empty. `git diff --check` passed. The two-run Dozzle scratch directory
   was removed after its exact hashes were recorded. Next: commit the corpus-only diff.
+
+## 2026-07-31 — D69 FETCH consumed-set re-check
+
+- Follow-up after independent D69 lock-churn verification: automatic FETCH
+  replay `storePath` values are now local cache data rather than serialized
+  lock fields. The exact Parse Server repro used two fresh
+  `CIX_BUILD_WORKSPACE_DIR` values and `TMPDIR=/tmp` for consecutive
+  `cix build --update-lock build .#parse-server` commands; its resulting
+  locks were byte-identical (sha256
+  `1e5a2a6f69f716245fc1434b6b0a064165518951c2511fe21ddc9be1e4ed9bb2`)
+  with no fetch `storePath`, then a fresh-workspace `--cold` replay completed
+  both offline Parse Server suffix RUNs. ProjB's corresponding two clean
+  updates were byte-identical and its ordinary build memo-hit. Dozzle's
+  documented whole conversion remains an honest failure: a forced current
+  refresh reaches the pre-existing missing `shared_cert.pem` build-source
+  boundary, so its lock was not refreshed; the disposable backend-only
+  receipt below remains the Go consumed-set proof.
+
+- Fresh contexts: `cd corpus/migrate && bash ./fetch.sh parse-server && bash
+  ./fetch.sh dozzle` — pass at their recorded revisions.
+- Parse Server: two `cd corpus/migrate/parse-server && ../../../target/debug/cix
+  build --update-lock build .#parse-server` runs followed by
+  `../../../target/debug/cix build .#parse-server` — pass. The lock now records
+  the seven consumed final paths and a FETCH replay snapshot; both double-fetch
+  probes name the known `.npm` cache/index/debug-log files and sizes, while all
+  consumed hashes retain the former stable values. This closes the false
+  whole-workdir pin failure; no runtime health-pass claim is added here.
+- ProjB: from the repository root, `target/debug/cix build --update-lock build
+  examples/build/projB#projb` twice, then `target/debug/cix build
+  examples/build/projB#projb` — pass. The probe records only the 57,344-byte
+  `.cargo/.global-cache`; the consumed `target/release/projb` pin is stable and
+  the ordinary build memo-hits.
+- Dozzle remains split honestly: in disposable `/tmp/pinkeys-dozzle-backend`, a
+  backend-only Cixfile using the recorded source plus minimal generated `dist`
+  and placeholder absent cert files ran `/home/mathijs/composix/.worktrees/pinkeys/target/debug/cix
+  build --update-lock build .` twice, then `.../target/debug/cix build .` — all
+  pass, same `/nix/store/l8l5vlf0v4zzhz0vv7xrimqm7la36l3d-cix-item-proof`, and
+  the final build memo-hit. Its automatic FETCH pin contains only `dozzle`; the
+  sumdb tile paths are probe facts, hence unconsumed. The UI's pnpm/Vite `dist`
+  remains a consumed-byte instability and is recorded, not excluded or normalized
+  by cix. The required Docker socket remains an independent runtime boundary.
