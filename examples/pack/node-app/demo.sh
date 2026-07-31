@@ -23,7 +23,7 @@ cp "$example_dir/Cixfile.lock" "$no_jit_dir/Cixfile.lock"
 cp "$example_dir/server.js" "$no_jit_dir/server.js"
 sed -i '/^GRANT jit$/d' "$no_jit_dir/Cixfile"
 
-no_jit_store=$("$cix_bin" build "$no_jit_dir")
+no_jit_store=$("$cix_bin" build "$no_jit_dir#node-app")
 no_jit_unit=$(sudo "$cix_bin" run "$no_jit_store" --detach)
 echo "started no-JIT control $no_jit_unit"
 [[ $(sudo systemctl show "$no_jit_unit" --property=MemoryDenyWriteExecute --value) == yes ]]
@@ -40,7 +40,7 @@ sudo journalctl --unit "$no_jit_unit" --no-pager | tail -n 20
 sudo systemctl stop "$no_jit_unit"
 no_jit_unit=
 
-store_path=$("$cix_bin" build "$example_dir")
+store_path=$("$cix_bin" build "$example_dir#node-app")
 unit=$(sudo "$cix_bin" run "$store_path" --detach)
 echo "started $unit"
 [[ $(sudo systemctl show "$unit" --property=MemoryDenyWriteExecute --value) != yes ]]

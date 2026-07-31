@@ -24,7 +24,7 @@ built now. Everything may change.
 ## A taste
 
 ```dockerfile
-# Cixfile — adapted from examples/pack/nginx
+# Cixfile — this is examples/pack/nginx, verbatim
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 

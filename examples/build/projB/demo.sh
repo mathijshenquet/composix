@@ -12,7 +12,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-store_path=$("$cix_bin" build "$example_dir")
+store_path=$("$cix_bin" build "$example_dir#projb")
 unit=$(sudo "$cix_bin" run "$store_path" --detach)
 echo "started $unit"
 

@@ -1,7 +1,7 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-SERVICE nginx
+SERVICE my-nginx
 COPY ${src}/index.html srv/www/index.html
 COPY ${src}/nginx.conf etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
