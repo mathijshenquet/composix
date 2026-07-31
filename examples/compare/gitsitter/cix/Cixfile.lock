@@ -1,0 +1,29 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/9cf7092bdd603554bd8b63c216e8943cf9b12512",
+      "rev": "9cf7092bdd603554bd8b63c216e8943cf9b12512",
+      "narHash": "sha256-9tpvMGFteZnd3gRQZFlRCohVpqooygFuy9yjuyRL2C0="
+    },
+    "src": {
+      "url": "github:mathijshenquet/gitsitter",
+      "rev": "29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd",
+      "narHash": "sha256-fe5j7cpObzeAatIfIyxNPPY0/gjqpY/0EK3aR92u15k="
+    }
+  },
+  "fetches": {
+    "builder:build:3-931067a93fe1": {
+      "narHash": "sha256-zYAi4OiRg76IB/z0999Zhdw1hzuThUdiYVOUpUAURCU="
+    }
+  },
+  "memo": {
+    "d6ea127704ea07a37acd50e8927420fed11a1237a85f99456583406fe632f609": {
+      "paths": {
+        "target/release/gitsitter": {
+          "narHash": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE=",
+          "storePath": "/nix/store/qj0ppi7dif80r8dmxnm4mgjn5r0b6ykp-cix-build-consumed"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+diff --git a/src/main.rs b/src/main.rs
+index d0708a5..4fcf80d 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -8,7 +8,7 @@ use gitsitter::paths::Paths;
+ #[command(
+     name = "gitsitter",
+     version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_COMMIT_HASH"), ")"),
+-    about = "Keep local branches in sync with remotes"
++    about = "Keep each branch in sync with remotes"
+ )]
+ struct Cli {
+     #[command(subcommand)]
