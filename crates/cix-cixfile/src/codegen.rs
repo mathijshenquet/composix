@@ -215,7 +215,7 @@ pub(crate) fn generate_builder_context_nix(
                     BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
                         Some(command.clone())
                     }
-                    BuildStep::Copy(_) => None,
+                    BuildStep::Env { .. } | BuildStep::Copy(_) => None,
                 })
                 .collect::<Vec<_>>()
         )
@@ -425,6 +425,7 @@ fn builder_templates(builder: &Builder) -> Vec<&Template> {
         .imports
         .iter()
         .chain(builder.steps.iter().flat_map(|step| match step {
+            BuildStep::Env { .. } => vec![],
             BuildStep::Copy(copy) => vec![&copy.src],
             BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => vec![command],
         }))
@@ -437,7 +438,7 @@ fn builder_command_templates(builder: &Builder) -> Vec<&Template> {
         .iter()
         .chain(builder.steps.iter().filter_map(|step| match step {
             BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
-            BuildStep::Copy(_) => None,
+            BuildStep::Env { .. } | BuildStep::Copy(_) => None,
         }))
         .collect()
 }
@@ -529,7 +530,7 @@ fn nix_copy_source(template: &Template) -> String {
 
 fn nix_spec(artifact: &Artifact) -> Result<String> {
     let mounts = projected_mounts(artifact);
-    let mut output = String::from("{ cixManifest = 4;");
+    let mut output = String::from("{ cixManifest = 5;");
     if let Some(kind) = artifact.kind.manifest_name() {
         write!(output, " kind = {};", nix_string(kind))?;
     }
@@ -604,11 +605,17 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     if let Some(dirs) = nix_dirs(service) {
         write!(output, " dirs = {dirs};")?;
     }
-    if service.jit {
-        output.push_str(" jit = true;");
-    }
-    if service.egress {
-        output.push_str(" egress = true;");
+    if !service.grants.is_empty() {
+        write!(
+            output,
+            " grants = [ {} ];",
+            service
+                .grants
+                .iter()
+                .map(|grant| nix_string(grant))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
     }
     output.push_str(" }");
     Ok(output)
@@ -817,7 +824,7 @@ fn literal_spec(artifact: &Artifact) -> Result<Value> {
     let Value::Object(mut value) = literal_service(artifact, &mounts)? else {
         unreachable!("artifact literal is an object");
     };
-    value.insert("cixManifest".to_owned(), Value::from(4));
+    value.insert("cixManifest".to_owned(), Value::from(5));
     if let Some(kind) = artifact.kind.manifest_name() {
         value.insert("kind".to_owned(), Value::String(kind.to_owned()));
     }
@@ -901,11 +908,11 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     if !dirs.is_empty() {
         value.insert("dirs".into(), Value::Object(dirs));
     }
-    if service.jit {
-        value.insert("jit".into(), Value::Bool(true));
-    }
-    if service.egress {
-        value.insert("egress".into(), Value::Bool(true));
+    if !service.grants.is_empty() {
+        value.insert(
+            "grants".into(),
+            Value::Array(service.grants.iter().cloned().map(Value::String).collect()),
+        );
     }
     Ok(Value::Object(value))
 }

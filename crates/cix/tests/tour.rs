@@ -672,9 +672,9 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     let built = doc.sh("cix build . -t tour-app:v1", true);
     let store_path = built_store_path(&built, "-cix-item-tour-app");
 
-    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v4 service definition, its executable, and any capabilities or writable directories it declares.");
+    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
-    assert!(manifest.contains("\"cixManifest\":4"));
+    assert!(manifest.contains("\"cixManifest\":5"));
     assert!(!manifest.contains("\"services\""));
     assert!(manifest.contains("/bin/sh"));
 

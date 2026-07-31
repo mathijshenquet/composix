@@ -21,7 +21,7 @@ trap cleanup EXIT
 cp "$example_dir/Cixfile" "$no_jit_dir/Cixfile"
 cp "$example_dir/Cixfile.lock" "$no_jit_dir/Cixfile.lock"
 cp "$example_dir/server.js" "$no_jit_dir/server.js"
-sed -i '/^JIT$/d' "$no_jit_dir/Cixfile"
+sed -i '/^GRANT jit$/d' "$no_jit_dir/Cixfile"
 
 no_jit_store=$("$cix_bin" build "$no_jit_dir")
 no_jit_unit=$(sudo "$cix_bin" run "$no_jit_store" --detach)

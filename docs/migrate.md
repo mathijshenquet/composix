@@ -47,7 +47,7 @@ SERVICE myapp                    # one artifact = one service
   use them (e.g. `GOMODCACHE=$PWD/.gomodcache go mod download` in the FETCH, then
   the same variable in RUN).
 - `SERVICE` blocks assemble the runnable artifact: `COPY`/`LINK`/`FILE`, `EXEC`,
-  `ENV name default=…|required`, `PORT name = <value|env NAME>`, `EGRESS` if the
+  `ENV name default=…|required`, `PORT name = <value|env NAME>`, `GRANT egress` if the
   service initiates outbound connections, and role dirs:
   `DIR state /var/lib/<name>` for persistent data (docker `VOLUME` maps here),
   plus cache/logs/run variants.
@@ -65,10 +65,10 @@ SERVICE myapp                    # one artifact = one service
   workspaces persist by default, while no workspace byte enters a chain key. Use
   narrow `COPY ${build}/path` consumers and sample with `cix build --cold`.
 - **`curl|wget + checksum` downloads** → a `FETCH` (the pin is enforced for you).
-- **`VOLUME /data`** → `STATE /var/lib/<name>` and point the app there (env/flag).
-  Writable role dirs in SERVICE/APP blocks: `STATE /var/lib/…` (persistent),
+- **`VOLUME /data`** → `STATEDIR /var/lib/<name>` and point the app there (env/flag).
+  Writable role dirs in SERVICE/APP blocks: `STATEDIR /var/lib/…` (persistent),
   `CACHEDIR /var/cache/…`, `LOGS /var/log/…`, `CONFIG /etc/…`, `RUNDIR /run/…`.
-  Apps that want writable XDG/home dirs get a STATE/CACHEDIR dir plus env vars
+  Apps that want writable XDG/home dirs get a STATEDIR/CACHEDIR dir plus env vars
   (`XDG_DATA_HOME=…`) pointing into it.
 - **`EXPOSE N`** → `PORT http = N` (or via env). **`USER`/`gosu`/`su-exec`/`tini`**
   → delete: systemd runs the service as an unprivileged dynamic user and is the init.

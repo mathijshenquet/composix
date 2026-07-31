@@ -11,5 +11,5 @@ SETUP ${pkgs.bash}/bin/sh /opt/postgres/setup
 EXEC ${pkgs.bash}/bin/sh /opt/postgres/start $PORT
 ENV PORT = 5432
 PORT postgres = $PORT
-STATE /var/lib/postgresql
+STATEDIR /var/lib/postgresql
 RUNDIR /run/postgresql

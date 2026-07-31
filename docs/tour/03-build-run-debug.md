@@ -50,11 +50,11 @@ $ cix build . -t tour-app:v1
 /nix/store/…-cix-item-tour-app
 ```
 
-Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v4 service definition, its executable, and any capabilities or writable directories it declares.
+Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.
 
 ```sh
 $ cat /nix/store/…-cix-item-tour-app/cix-manifest.json
-{"cixManifest":4,"exec":["/nix/store/…-bash-interactive-5.3p15/bin/sh","/nix/store/…-cix-source/tour-app","/nix/store/…-coreutils-9.11/bin/sleep","300"],"mounts":["/bin/tour-app","/share/greeting"]}
+{"cixManifest":5,"exec":["/nix/store/…-bash-interactive-5.3p15/bin/sh","/nix/store/…-cix-source/tour-app","/nix/store/…-coreutils-9.11/bin/sleep","300"],"mounts":["/bin/tour-app","/share/greeting"]}
 ```
 
 ## Run
