@@ -2,7 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE postgres
-PATH ${pkgs.postgresql}/bin ${pkgs.coreutils}/bin
+ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
 COPY ${src}/runtime-env.sh opt/postgres/runtime-env.sh
 COPY ${src}/setup opt/postgres/setup
 COPY ${src}/start opt/postgres/start

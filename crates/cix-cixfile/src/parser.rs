@@ -154,15 +154,22 @@ impl Parser<'_> {
                 }
                 "COPY" => self.copy(line_number, source, arguments)?,
                 "RUN" => self.run(line_number, source, arguments)?,
-                "PATH" => self.path(line_number, source, arguments)?,
-                "CACHE" if matches!(self.current, Some(CurrentBlock::Builder(_))) => {
-                    self.build_cache(line_number, source, arguments)?
+                "IMPORT" => self.import(line_number, source, arguments)?,
+                "PATH" => {
+                    let message = match &self.current {
+                        Some(CurrentBlock::Builder(_)) => "PATH was replaced by IMPORT (D58)",
+                        Some(CurrentBlock::Artifact(_)) => {
+                            "PATH was removed (D58); declare ENV PATH = ... explicitly"
+                        }
+                        None => "PATH was replaced by IMPORT (D58)",
+                    };
+                    return Err(ParseError::new(line_number, source, message));
                 }
                 "CACHE" => {
                     return Err(ParseError::new(
                         line_number,
                         source,
-                        "CACHE in SERVICE or APP blocks was renamed to CACHEDIR by D52; CACHE is now builder-only",
+                        "CACHE was removed (D57): workspaces persist by default and nothing is keyed unless read; delete the line",
                     ));
                 }
                 "FILE" => self.heredoc(directive, line_number, source, arguments)?,
@@ -245,7 +252,7 @@ impl Parser<'_> {
                 ));
             }
             validate_service_references(&artifact.service, &self.metadata[name])?;
-            validate_bare_commands(&artifact.service, &self.metadata[name], &artifact.paths)?;
+            validate_bare_commands(&artifact.service, &self.metadata[name])?;
         }
         Ok(Cixfile {
             inputs: self.inputs,
@@ -297,15 +304,15 @@ impl Parser<'_> {
                 ),
             ));
         }
-        let (name, command) = arguments.split_once(char::is_whitespace).ok_or_else(|| {
+        let (name, remainder) = arguments.split_once(char::is_whitespace).ok_or_else(|| {
             ParseError::new(
                 line,
                 source,
-                "top-level FETCH requires a binder and command: FETCH <name> <command…>",
+                "top-level FETCH requires a binder and command: FETCH <name> [EXPECT <sri-hash>] <command…>",
             )
         })?;
         validate_namespace(name, line, source)?;
-        let command = command.trim();
+        let (expected, command) = parse_fetch_expect(remainder.trim(), line, source)?;
         if command.is_empty() {
             return Err(ParseError::new(
                 line,
@@ -318,6 +325,7 @@ impl Parser<'_> {
         self.fetches.insert(
             name.to_owned(),
             Fetch {
+                expected,
                 command,
                 line,
                 source: source.to_owned(),
@@ -371,119 +379,39 @@ impl Parser<'_> {
         Ok(())
     }
 
-    fn path(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
-        let fields = at_least_one_field(arguments, line, source, "PATH")?;
-        let current = self.current.clone();
-        let existing = match &current {
-            Some(CurrentBlock::Builder(name)) => &self.builders[name].paths,
-            Some(CurrentBlock::Artifact(name))
-                if self.artifacts[name].kind == ArtifactKind::Service =>
-            {
-                if self.artifacts[name].service.env.contains_key("PATH") {
-                    return Err(ParseError::new(
-                        line,
-                        source,
-                        "PATH conflicts with an explicit ENV PATH declaration",
-                    ));
-                }
-                &self.artifacts[name].paths
-            }
-            Some(CurrentBlock::Artifact(name)) => {
-                return Err(ParseError::new(
-                    line,
-                    source,
-                    format!(
-                        "PATH is not legal inside {} blocks under D47",
-                        self.artifacts[name].kind.keyword()
-                    ),
-                ));
-            }
-            None => {
-                return Err(ParseError::new(
-                    line,
-                    source,
-                    "PATH must appear inside a BUILDER or SERVICE block under D47",
-                ));
-            }
-        };
-        let mut additions = Vec::new();
-        for field in fields {
-            reject_runtime_variable(field, "PATH directory", line, source)?;
-            let path = self.build_template(field, line, source, false)?;
-            validate_path_template(
-                &path,
-                matches!(current, Some(CurrentBlock::Artifact(_))),
+    fn import(&mut self, line: usize, source: &str, arguments: &str) -> Result<(), ParseError> {
+        let fields = at_least_one_field(arguments, line, source, "IMPORT <pkg-ref>…")?;
+        let Some(CurrentBlock::Builder(name)) = self.current.clone() else {
+            return Err(ParseError::new(
                 line,
                 source,
-            )?;
+                "IMPORT is only legal inside a BUILDER block",
+            ));
+        };
+        let existing = &self.builders[&name].imports;
+        let mut additions = Vec::new();
+        for field in fields {
+            reject_runtime_variable(field, "IMPORT package", line, source)?;
+            let package = self.build_template(field, line, source, false)?;
+            validate_import_template(&package, line, source)?;
             if existing
                 .iter()
                 .chain(&additions)
-                .any(|candidate| candidate.same_value(&path))
+                .any(|candidate| candidate.same_value(&package))
             {
                 return Err(ParseError::new(
                     line,
                     source,
-                    format!("PATH directory {field:?} is duplicated"),
+                    format!("IMPORT package {field:?} is duplicated"),
                 ));
             }
-            additions.push(path);
-        }
-        match current {
-            Some(CurrentBlock::Builder(name)) => self
-                .builders
-                .get_mut(&name)
-                .expect("builder exists")
-                .paths
-                .extend(additions),
-            Some(CurrentBlock::Artifact(name)) => self
-                .artifacts
-                .get_mut(&name)
-                .expect("artifact exists")
-                .paths
-                .extend(additions),
-            None => unreachable!(),
-        }
-        Ok(())
-    }
-
-    fn build_cache(
-        &mut self,
-        line: usize,
-        source: &str,
-        arguments: &str,
-    ) -> Result<(), ParseError> {
-        let name = self.current_builder_name("CACHE", line, source)?.to_owned();
-        if !self.builders[&name].steps.is_empty() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "BUILDER CACHE must appear before that builder's COPY/FETCH/RUN chain",
-            ));
-        }
-        let fields = exact_fields(arguments, 1, line, source, "CACHE <dir>")?;
-        reject_build_interpolation(fields[0], "CACHE directory", line, source)?;
-        reject_runtime_variable(fields[0], "CACHE directory", line, source)?;
-        validate_relative_path(fields[0], "CACHE directory", line, source)?;
-        let path = Path::new(fields[0]);
-        if self.builders[&name].caches.iter().any(|existing| {
-            let existing = Path::new(existing);
-            path == existing || path.starts_with(existing) || existing.starts_with(path)
-        }) {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!(
-                    "CACHE directory {:?} is duplicated or overlaps another cache",
-                    fields[0]
-                ),
-            ));
+            additions.push(package);
         }
         self.builders
             .get_mut(&name)
             .expect("builder exists")
-            .caches
-            .push(fields[0].to_owned());
+            .imports
+            .extend(additions);
         Ok(())
     }
 
@@ -558,7 +486,7 @@ impl Parser<'_> {
             }
             self.build_template(arguments, line, source, false)?
         };
-        self.push_builder_command(&name, false, line, source, command);
+        self.push_builder_command(&name, None, false, line, source, command);
         Ok(())
     }
 
@@ -578,14 +506,20 @@ impl Parser<'_> {
                 format!("{directive} requires a command"),
             ));
         }
-        let command = self.build_template(arguments, line, source, false)?;
-        self.push_builder_command(builder, fetch, line, source, command);
+        let (expected, command) = if fetch {
+            parse_fetch_expect(arguments, line, source)?
+        } else {
+            (None, arguments)
+        };
+        let command = self.build_template(command, line, source, false)?;
+        self.push_builder_command(builder, expected, fetch, line, source, command);
         Ok(())
     }
 
     fn push_builder_command(
         &mut self,
         builder: &str,
+        expected: Option<String>,
         fetch: bool,
         line: usize,
         source: &str,
@@ -593,6 +527,7 @@ impl Parser<'_> {
     ) {
         let step = if fetch {
             BuildStep::Fetch {
+                expected,
                 command,
                 line,
                 source: source.to_owned(),
@@ -829,13 +764,6 @@ impl Parser<'_> {
             }
         }
         let artifact_name = self.current_artifact_name("ENV", line, source)?.to_owned();
-        if fields[0] == "PATH" && !self.artifacts[&artifact_name].paths.is_empty() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "ENV PATH conflicts with the SERVICE PATH directive",
-            ));
-        }
         let service = &mut self
             .artifacts
             .get_mut(&artifact_name)
@@ -1073,22 +1001,6 @@ impl Parser<'_> {
                 line,
                 source,
                 format!("{directive} must appear inside an artifact block"),
-            )),
-        }
-    }
-
-    fn current_builder_name(
-        &self,
-        directive: &str,
-        line: usize,
-        source: &str,
-    ) -> Result<&str, ParseError> {
-        match &self.current {
-            Some(CurrentBlock::Builder(name)) => Ok(name),
-            Some(CurrentBlock::Artifact(_)) | None => Err(ParseError::new(
-                line,
-                source,
-                format!("{directive} must appear inside a BUILDER block"),
             )),
         }
     }
@@ -1542,11 +1454,7 @@ fn validate_service_references(
     Ok(())
 }
 
-fn validate_bare_commands(
-    service: &Service,
-    metadata: &ServiceMetadata,
-    paths: &[Template],
-) -> Result<(), ParseError> {
+fn validate_bare_commands(service: &Service, metadata: &ServiceMetadata) -> Result<(), ParseError> {
     for (arguments, location) in [
         (&service.exec[..], metadata.exec.as_ref()),
         (
@@ -1557,11 +1465,17 @@ fn validate_bare_commands(
         let Some((line, source)) = location else {
             continue;
         };
-        if bare_command(arguments).is_some() && paths.is_empty() {
+        if bare_command(arguments).is_some()
+            && service
+                .env
+                .get("PATH")
+                .and_then(|declaration| declaration.default.as_ref())
+                .is_none()
+        {
             return Err(ParseError::new(
                 *line,
                 source,
-            "bare EXEC/SETUP command requires PATH <dir>… or an absolute ${<namespace>.<attrpath>}/bin/... path",
+                "bare EXEC/SETUP command requires ENV PATH = ... or an absolute ${<namespace>.<attrpath>}/bin/... path",
             ));
         }
     }
@@ -1573,24 +1487,22 @@ pub(crate) fn bare_command(arguments: &[Template]) -> Option<String> {
     (!command.is_empty() && !command.contains('/') && !command.contains('$')).then_some(command)
 }
 
-fn validate_path_template(
+fn validate_import_template(
     template: &Template,
-    artifact_relative: bool,
     line: usize,
     source: &str,
 ) -> Result<(), ParseError> {
-    match template.parts.first() {
-        Some(TemplatePart::Literal(value)) if value.starts_with('/') => Ok(()),
-        Some(TemplatePart::Package { .. } | TemplatePart::Binder { .. }) => Ok(()),
-        Some(TemplatePart::Literal(value)) if artifact_relative => {
-            validate_relative_path(value, "SERVICE PATH directory", line, source)
-        }
-        _ => Err(ParseError::new(
-            line,
-            source,
-            "BUILDER PATH directory must be absolute (for example ${pkgs.coreutils}/bin); relative PATH is SERVICE-scoped",
-        )),
+    if matches!(
+        template.parts.as_slice(),
+        [TemplatePart::Package { .. } | TemplatePart::Binder { .. }]
+    ) {
+        return Ok(());
     }
+    Err(ParseError::new(
+        line,
+        source,
+        "IMPORT requires whole package references such as ${pkgs.coreutils}, without a /bin suffix",
+    ))
 }
 
 fn validate_copy_source(template: &Template, line: usize, source: &str) -> Result<(), ParseError> {
@@ -1615,6 +1527,47 @@ fn validate_copy_source(template: &Template, line: usize, source: &str) -> Resul
             "COPY source must be one bare relative path or one binder/package path such as ${src}/sub/path or ${pkgs.hello}/bin/hello",
         )),
     }
+}
+
+fn parse_fetch_expect<'a>(
+    arguments: &'a str,
+    line: usize,
+    source: &str,
+) -> Result<(Option<String>, &'a str), ParseError> {
+    let Some(remainder) = arguments.strip_prefix("EXPECT") else {
+        return Ok((None, arguments));
+    };
+    if remainder
+        .chars()
+        .next()
+        .is_some_and(|character| !character.is_whitespace())
+    {
+        return Ok((None, arguments));
+    }
+    let remainder = remainder.trim_start();
+    let (hash, command) = remainder.split_once(char::is_whitespace).ok_or_else(|| {
+        ParseError::new(
+            line,
+            source,
+            "FETCH EXPECT requires a hash and command: EXPECT <sri-hash> <command…>",
+        )
+    })?;
+    if !hash.starts_with("sha256-") || hash.len() == "sha256-".len() {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("FETCH EXPECT hash must be an SRI sha256 hash, got {hash:?}"),
+        ));
+    }
+    let command = command.trim();
+    if command.is_empty() {
+        return Err(ParseError::new(
+            line,
+            source,
+            "FETCH EXPECT requires a command after the hash",
+        ));
+    }
+    Ok((Some(hash.to_owned()), command))
 }
 
 fn runtime_variables(
@@ -1918,8 +1871,7 @@ mod d47_tests {
 FROM . AS src
 FETCH ingredient ${pkgs.coreutils}/bin/printf payload
 BUILDER build
-PATH ${pkgs.bash}/bin
-CACHE target
+IMPORT ${pkgs.bash}
 COPY Cargo.toml Cargo.toml
 FETCH printf fetched > fetched
 RUN cp fetched built
@@ -1929,7 +1881,7 @@ FILE etc/app.conf <<E
 source=${src}
 E
 	LINK ${pkgs.bash}/bin/bash bin/sh
-PATH bin
+	ENV PATH = bin
 EXEC web
 SETUP bin/web
 ENV PORT = 8080 required
@@ -1956,9 +1908,62 @@ STATE /var/lib/migrate
         assert_eq!(parsed.builder_order, ["build"]);
         assert_eq!(parsed.artifact_order, ["web", "migrate"]);
         assert_eq!(parsed.builders["build"].steps.len(), 3);
-        assert_eq!(parsed.builders["build"].caches, ["target"]);
         assert_eq!(parsed.artifacts["web"].kind, ArtifactKind::Service);
         assert_eq!(parsed.artifacts["migrate"].kind, ArtifactKind::App);
+    }
+
+    #[test]
+    fn fetch_expect_parses_in_both_forms_and_validates_the_hash() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-top ${pkgs.coreutils}/bin/printf top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-step printf step\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.fetches["ingredient"].expected.as_deref(),
+            Some("sha256-top")
+        );
+        let BuildStep::Fetch { expected, .. } = &parsed.builders["build"].steps[0] else {
+            panic!("expected in-builder FETCH");
+        };
+        assert_eq!(expected.as_deref(), Some("sha256-step"));
+
+        let error = parse(
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT not-sri printf payload\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(error.line, 2);
+        assert!(error.message.contains("SRI sha256"), "{error}");
+    }
+
+    #[test]
+    fn import_accepts_whole_package_refs_and_path_has_migration_errors() {
+        let parsed = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nIMPORT ${pkgs.coreutils}\nRUN true\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.builders["build"].imports.len(), 2);
+
+        let suffix = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(
+            suffix.message.contains("whole package references"),
+            "{suffix}"
+        );
+
+        let builder_path = parse(
+            "FROM nixpkgs AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(builder_path.message, "PATH was replaced by IMPORT (D58)");
+        let service_path =
+            parse("FROM nixpkgs AS pkgs\nSERVICE app\nPATH ${pkgs.bash}/bin\nEXEC /bin/true\n")
+                .unwrap_err();
+        assert_eq!(
+            service_path.message,
+            "PATH was removed (D58); declare ENV PATH = ... explicitly"
+        );
     }
 
     #[test]
@@ -2031,7 +2036,7 @@ STATE /var/lib/migrate
             (
                 "FROM nixpkgs AS pkgs\nPATH ${pkgs.bash}/bin\nSERVICE app\nEXEC bash\n",
                 2,
-                "PATH must appear inside a BUILDER or SERVICE block",
+                "PATH was replaced by IMPORT (D58)",
             ),
         ] {
             let error = parse(input).unwrap_err();
@@ -2073,8 +2078,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable \
     AS pkgs
 
 BUILDER build
-PATH ${pkgs.bash}/bin \
-    ${pkgs.coreutils}/bin
+IMPORT ${pkgs.bash} \
+    ${pkgs.coreutils}
 # This comment is ignored by the Cixfile parser.
 RUN printf '%s\n' \
     '# inline shell comment text is data' > continued
@@ -2089,7 +2094,7 @@ EXEC /bin/true \
 "#,
         )
         .unwrap();
-        assert_eq!(parsed.builders["build"].paths.len(), 2);
+        assert_eq!(parsed.builders["build"].imports.len(), 2);
         let BuildStep::Run {
             command,
             line,
@@ -2138,11 +2143,11 @@ EXEC /bin/true \
         assert!(dangling.message.contains("continuation"), "{dangling}");
 
         let continued = parse(
-            "FROM nixpkgs AS pkgs\nBUILDER build\nPATH ${pkgs.bash}/bin \\\n    ${missing.tool}/bin\nSERVICE app\nEXEC /bin/true\n",
+            "FROM nixpkgs AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash} \\\n    ${missing.tool}\nSERVICE app\nEXEC /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(continued.line, 4, "{continued}");
-        assert_eq!(continued.source.trim(), "${missing.tool}/bin");
+        assert_eq!(continued.source.trim(), "${missing.tool}");
     }
 
     #[test]
@@ -2180,7 +2185,10 @@ EXEC /bin/true \
             parse("FROM nixpkgs AS pkgs\nSERVICE app\nEXEC /bin/true\nCACHE /var/cache/app\n")
                 .unwrap_err();
         assert_eq!(cache.line, 4);
-        assert!(cache.message.contains("renamed to CACHEDIR by D52"));
+        assert_eq!(
+            cache.message,
+            "CACHE was removed (D57): workspaces persist by default and nothing is keyed unless read; delete the line"
+        );
 
         let link = parse(
             "FROM nixpkgs AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nEXEC bin/hello\n",
@@ -2201,7 +2209,10 @@ EXEC /bin/true \
             ("LOGS /var/log/job", "LOGS is not legal inside APP"),
             ("CONFIG /etc/job", "CONFIG is not legal inside APP"),
             ("RUNDIR /run/job", "RUNDIR is not legal inside APP"),
-            ("PATH bin", "PATH is not legal inside APP"),
+            (
+                "PATH bin",
+                "PATH was removed (D58); declare ENV PATH = ... explicitly",
+            ),
         ] {
             let input = format!("FROM nixpkgs AS pkgs\nAPP job\nEXEC /bin/true\n{directive}\n");
             let error = parse(&input).unwrap_err();

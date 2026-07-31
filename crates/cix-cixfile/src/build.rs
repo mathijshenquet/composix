@@ -13,7 +13,7 @@ pub struct BuildOptions {
     pub directory: PathBuf,
     pub update_lock: Option<String>,
     pub tag: Option<String>,
-    pub no_cache: bool,
+    pub cold: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -31,6 +31,9 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    if let Some(requested) = options.update_lock.as_deref() {
+        reject_expected_fetch_update(&cixfile, requested)?;
+    }
     if let Some(tag) = &options.tag {
         for name in &cixfile.artifact_order {
             tag_reference(cixfile.artifacts.len(), name, tag)?;
@@ -71,7 +74,7 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
         &mut lock,
         &system,
         requested_update,
-        options.no_cache,
+        options.cold,
     );
     save_lock(&lock_path, &lock)?;
     let snapshots = snapshots?;
@@ -92,6 +95,36 @@ pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
         });
     }
     Ok(outputs)
+}
+
+fn reject_expected_fetch_update(cixfile: &crate::Cixfile, requested: &str) -> Result<()> {
+    let top_level = cixfile.fetch_order.iter().find(|name| {
+        (requested.is_empty() || requested == name.as_str())
+            && cixfile.fetches[*name].expected.is_some()
+    });
+    if let Some(name) = top_level {
+        anyhow::bail!(
+            "--update-lock is meaningless for FETCH {name:?} with EXPECT; change the EXPECT value instead"
+        );
+    }
+    let builder = cixfile.builder_order.iter().find(|name| {
+        (requested.is_empty() || requested == name.as_str())
+            && cixfile.builders[*name].steps.iter().any(|step| {
+                matches!(
+                    step,
+                    crate::BuildStep::Fetch {
+                        expected: Some(_),
+                        ..
+                    }
+                )
+            })
+    });
+    if let Some(name) = builder {
+        anyhow::bail!(
+            "--update-lock is meaningless for EXPECT FETCH in BUILDER {name:?}; change the EXPECT value instead"
+        );
+    }
+    Ok(())
 }
 
 fn tag_reference(artifact_count: usize, artifact_name: &str, tag: &str) -> Result<String> {
@@ -144,7 +177,8 @@ fn add_item_to_store(path: &str, name: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::tag_reference;
+    use super::{reject_expected_fetch_update, tag_reference};
+    use crate::parse;
 
     #[test]
     fn multi_item_tags_are_item_names_and_reject_full_refs() {
@@ -155,5 +189,22 @@ mod tests {
             tag_reference(1, "api", "other:v7").unwrap(),
             "other:v7".to_owned()
         );
+    }
+
+    #[test]
+    fn update_lock_refuses_expected_fetches_in_both_forms() {
+        let cixfile = parse(
+            "FROM nixpkgs AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-two printf two\nSERVICE app\nEXEC /bin/true\n",
+        )
+        .unwrap();
+        let top = reject_expected_fetch_update(&cixfile, "ingredient")
+            .unwrap_err()
+            .to_string();
+        assert!(top.contains("change the EXPECT value"), "{top}");
+        let builder = reject_expected_fetch_update(&cixfile, "build")
+            .unwrap_err()
+            .to_string();
+        assert!(builder.contains("change the EXPECT value"), "{builder}");
+        assert!(reject_expected_fetch_update(&cixfile, "pkgs").is_ok());
     }
 }

@@ -2,11 +2,11 @@
 
 - `pack/<name>/` holds individual service items. A `Cixfile` is the canonical form.
 - `compose/` holds composites that consume pack items through tags.
-- `build/` holds build-story projects. `build/ingredient` proves a standalone named `FETCH`
-  binder with its TOFU pin and memo hit. `build/projB` proves the Rust FETCH/RUN path;
-  `build/projB-chef` proves that copying source after the dependency cook preserves its memo
-  entry. `build/proj1` is D47's two-service Rust workspace: one named builder feeds independent
-  API and worker artifacts and keeps Cargo's target cache outside both outputs.
+- `build/` holds build-story projects. `build/ingredient` proves a small EXPECT-pinned HTTPS
+  fetch with imported curl and CA roots. `build/projB` proves the Rust FETCH/RUN path;
+  `build/projB-chef` proves the same manifest-first dependency workflow. `build/proj1` is
+  D57's two-service Rust workspace: one persistent named builder feeds independent API and
+  worker artifacts through narrow consumed-path records.
 
 The adoption ladder is: Cixfile for Docker-shaped authoring, `composix.lib.withSpec` for
 attaching a manifest to an existing derivation, then plain Nix for the fully native escape

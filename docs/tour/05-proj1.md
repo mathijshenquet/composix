@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-This small Rust workspace makes the cache and output boundaries concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.
+This small Rust workspace makes persistent workspaces and narrow output records concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.
 
 ```sh
 $ ls -R .
@@ -53,51 +53,45 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.cargo}/bin ${pkgs.rustc}/bin \
-    ${pkgs.gcc}/bin ${pkgs.coreutils}/bin
-CACHE target
+IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
+    ${pkgs.gcc} ${pkgs.coreutils}
 
 COPY ${src}/rust/ .
 RUN <<BUILD
-mkdir -p output
 if test -e target/.cix-warm; then
-    printf 'warm\n' > output/cache-state
+    printf 'workspace-state: warm\n'
 else
-    printf 'cold\n' > output/cache-state
+    printf 'workspace-state: cold\n'
 fi
 cargo build --release --locked --offline --workspace
 touch target/.cix-warm
-cp target/release/proj1-api output/proj1-api
-cp target/release/proj1-worker output/proj1-worker
 BUILD
 
 SERVICE proj1-api
-COPY ${build}/output/proj1-api bin/proj1-api
+COPY ${build}/target/release/proj1-api bin/proj1-api
 EXEC bin/proj1-api
 PORT http = 18084
 
 SERVICE proj1-worker
-COPY ${build}/output/proj1-worker bin/proj1-worker
+COPY ${build}/target/release/proj1-worker bin/proj1-worker
 EXEC bin/proj1-worker
 EGRESS
 ```
 
-One directory COPY carries the workspace into the builder. The readable RUN heredoc compiles it, while `CACHE target` persists Cargo state outside snapshots and final items. The first build misses the RUN memo and sees an empty cache.
+One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.
 
 ```sh
-$ cix build .
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
+workspace-state: cold
 proj1-api /nix/store/…-cix-item-proj1-api
 proj1-worker /nix/store/…-cix-item-proj1-worker
-BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> . snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo miss 7080e246cc33 -> /nix/store/…-cix-build-snapshot
+BUILDER build workspace <persistent>
+BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss c54252858687 -> /nix/store/…-cix-build-view
 ```
 
-```sh
-$ printf 'cache-state: ' && cat /nix/store/…-cix-build-snapshot/output/cache-state
-cache-state: cold
-```
-
-Changing only worker source forces a RUN memo miss, but the declared cache is warm. The API item does not move.
+Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.
 
 ```sh
 $ cat rust/worker/src/main.rs
@@ -111,16 +105,14 @@ $ sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs
 ```
 
 ```sh
-$ cix build .
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
+workspace-state: warm
 proj1-api /nix/store/…-cix-item-proj1-api
 proj1-worker /nix/store/…-cix-item-proj1-worker
-BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> . snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo miss 17c8705dcfb7 -> /nix/store/…-cix-build-snapshot
-```
-
-```sh
-$ printf 'cache-state: ' && cat /nix/store/…-cix-build-snapshot/output/cache-state
-cache-state: warm
+BUILDER build workspace <persistent>
+BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss 0849273daf40 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -128,24 +120,34 @@ $ test /nix/store/…-cix-item-proj1-api = /nix/store/…-cix-item-proj1-api && 
 api item unchanged: yes
 ```
 
-A clean `--no-cache` rebuild starts cold again and produces byte-identical items.
+A sampled `--cold` rebuild uses an empty workspace. The marker says cold, and per-path comparison proves both selected binaries—and therefore both item paths—are byte-identical.
 
 ```sh
-$ cix build --no-cache .
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .
+workspace-state: cold
 proj1-api /nix/store/…-cix-item-proj1-api
 proj1-worker /nix/store/…-cix-item-proj1-worker
-BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> . snapshot /nix/store/…-cix-build-snapshot
-BUILDER build step 2 RUN memo miss 17c8705dcfb7 -> /nix/store/…-cix-build-snapshot
-```
-
-```sh
-$ printf 'cache-state: ' && cat /nix/store/…-cix-build-snapshot/output/cache-state
-cache-state: cold
+BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+BUILDER build step 2 RUN executed
+BUILDER build memo miss 0849273daf40 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
 $ test /nix/store/…-cix-item-proj1-api = /nix/store/…-cix-item-proj1-api && test /nix/store/…-cix-item-proj1-worker = /nix/store/…-cix-item-proj1-worker && echo 'item paths byte-identical: yes'
 item paths byte-identical: yes
+```
+
+The warm workspace remains disposable. Delete it and the unchanged chain replays the two recorded binaries without changing either item.
+
+```sh
+$ rm -rf ../.workspaces-proj1
+```
+
+```sh
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
+proj1-api /nix/store/…-cix-item-proj1-api
+proj1-worker /nix/store/…-cix-item-proj1-worker
+BUILDER build memo hit 0849273daf40 -> /nix/store/…-cix-build-view
 ```
 
 ```sh

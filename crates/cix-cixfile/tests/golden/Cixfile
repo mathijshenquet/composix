@@ -1,6 +1,6 @@
 FROM nixpkgs AS pkgs
 SERVICE app
-PATH /tools/first /tools/second
+ENV PATH = /tools/first:/tools/second
 EXEC app $PORT
 SETUP setup
 ENV PORT = 9000 required

@@ -38,12 +38,27 @@ pub struct FetchPin {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MemoEntry {
-    #[serde(rename = "outputNarHash")]
-    pub output_nar_hash: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub paths: BTreeMap<String, ConsumedPath>,
+    #[serde(
+        rename = "outputNarHash",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub legacy_output_nar_hash: Option<String>,
+    #[serde(rename = "storePath", default, skip_serializing_if = "Option::is_none")]
+    pub legacy_store_path: Option<String>,
+    #[serde(rename = "wallMs", default, skip_serializing_if = "Option::is_none")]
+    pub legacy_wall_ms: Option<u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConsumedPath {
+    #[serde(rename = "narHash")]
+    pub nar_hash: String,
     #[serde(rename = "storePath")]
     pub store_path: String,
-    #[serde(rename = "wallMs")]
-    pub wall_ms: u64,
 }
 
 #[derive(Deserialize)]
@@ -260,17 +275,31 @@ impl LockFile {
             }
         }
         for (key, entry) in &self.memo {
-            if !entry.output_nar_hash.starts_with("sha256-") {
-                bail!(
-                    "lock memo {key:?}.outputNarHash must be an SRI sha256 hash, got {:?}",
-                    entry.output_nar_hash
-                );
+            for (path, consumed) in &entry.paths {
+                if !consumed.nar_hash.starts_with("sha256-") {
+                    bail!(
+                        "lock memo {key:?}.paths[{path:?}].narHash must be an SRI sha256 hash, got {:?}",
+                        consumed.nar_hash
+                    );
+                }
+                if !consumed.store_path.starts_with("/nix/store/") {
+                    bail!(
+                        "lock memo {key:?}.paths[{path:?}].storePath must be a Nix store path, got {:?}",
+                        consumed.store_path
+                    );
+                }
             }
-            if !entry.store_path.starts_with("/nix/store/") {
-                bail!(
-                    "lock memo {key:?}.storePath must be a Nix store path, got {:?}",
-                    entry.store_path
-                );
+            if let Some(hash) = &entry.legacy_output_nar_hash {
+                if !hash.starts_with("sha256-") {
+                    bail!(
+                        "lock memo {key:?}.outputNarHash must be an SRI sha256 hash, got {hash:?}"
+                    );
+                }
+            }
+            if let Some(path) = &entry.legacy_store_path {
+                if !path.starts_with("/nix/store/") {
+                    bail!("lock memo {key:?}.storePath must be a Nix store path, got {path:?}");
+                }
             }
         }
         Ok(())

@@ -244,6 +244,8 @@ fn normalize(raw: &str, base: &Path) -> String {
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
     let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
+    let builder_workspace = Regex::new(r"(?m)^BUILDER ([^ ]+) workspace [^\n]+$")
+        .expect("valid builder workspace regex");
     let cargo_progress =
         Regex::new(r"(?m)^\s*(?:Compiling [^\n]+|Finished `release` profile[^\n]*)\n?")
             .expect("valid cargo progress regex");
@@ -269,6 +271,8 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "0s");
     let normalized = build_wall_time.replace_all(&normalized, "");
+    let normalized =
+        builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
     let normalized = cargo_progress.replace_all(&normalized, "");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
     let normalized = unknown_assignment.replace_all(&normalized, "");
@@ -728,11 +732,17 @@ fn chapter_building_with_run() -> String {
 FROM . AS src
 
 BUILDER build
-PATH ${pkgs.bash}/bin ${pkgs.coreutils}/bin
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
 COPY ${src}/src/ .
 RUN <<BUILD
+if test -e .cix-warm; then
+    printf 'workspace-state: warm\n'
+else
+    printf 'workspace-state: cold\n'
+fi
 mkdir -p result
 tr '[:lower:]' '[:upper:]' < app > result/upper
+touch .cix-warm
 BUILD
 
 SERVICE run-tour
@@ -753,18 +763,55 @@ EXEC bin/app
     assert!(cixfile.contains("RUN <<BUILD"));
     doc.sh("cat Cixfile.lock", true);
 
-    doc.para("RUN executes outside Nix evaluation in a networkless sandbox. The offered package closure, incoming directory snapshot, fixed environment, and complete heredoc body form the memo key; the SERVICE copies only the selected results from `${build}`.");
-    let first = doc.sh("cix build .", true);
-    assert!(first.contains("RUN memo miss"));
+    doc.para("IMPORT makes bare tools available through the read-only `/bin` union. The chain key contains the command, imports, predecessor, environment, and declared COPY bytes—but never workspace bytes. The SERVICE consumes only two narrow paths from `${build}`.");
+    let first = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+        true,
+    );
+    assert!(first.contains("workspace-state: cold"), "{first}");
+    assert!(first.contains("BUILDER build memo miss"), "{first}");
     let first_path = built_store_path(&first, "-cix-item-run-tour");
     let transformed = doc.sh(&format!("tail -n 1 {first_path}/result/upper"), true);
     assert_eq!(transformed.trim(), "ECHO HELLO-FROM-RUN-TOUR");
 
-    doc.para("The lock records the content-addressed workdir realization. Repeating the unchanged build replays the directory COPY, hits the RUN memo, and returns the identical final item.");
-    let second = doc.sh("cix build .", true);
-    assert!(second.contains("RUN memo hit"));
+    doc.para("The lock records just those consumed paths. Repeating the unchanged build materializes them from the store without running the builder.");
+    let second = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+        true,
+    );
+    assert!(second.contains("BUILDER build memo hit"), "{second}");
     let second_path = built_store_path(&second, "-cix-item-run-tour");
     assert_eq!(first_path, second_path);
+
+    doc.para("Changing a declared input changes the chain key. The builder runs again in its persistent workspace, so its private marker is warm while the selected outputs still depend only on declared inputs.");
+    doc.sh(
+        "sed -i 's/hello-from-run-tour/hello-from-run-tour-edited/' src/app",
+        true,
+    );
+    let warm = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+        true,
+    );
+    assert!(warm.contains("workspace-state: warm"), "{warm}");
+    let warm_path = built_store_path(&warm, "-cix-item-run-tour");
+
+    doc.para("`--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.");
+    let cold = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .",
+        true,
+    );
+    assert!(cold.contains("workspace-state: cold"), "{cold}");
+    let cold_path = built_store_path(&cold, "-cix-item-run-tour");
+    assert_eq!(warm_path, cold_path);
+
+    doc.para("A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.");
+    doc.sh("rm -rf ../.workspaces-run", true);
+    let wiped = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+        true,
+    );
+    assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
+    assert_eq!(built_store_path(&wiped, "-cix-item-run-tour"), cold_path);
     doc.finish()
 }
 
@@ -895,62 +942,58 @@ fn chapter_proj1() -> String {
         fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
     }
 
-    doc.para("This small Rust workspace makes the cache and output boundaries concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.");
+    doc.para("This small Rust workspace makes persistent workspaces and narrow output records concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.");
     doc.sh("ls -R .", true);
     let cixfile = doc.sh("cat Cixfile", true);
     assert!(cixfile.contains("BUILDER build"));
-    assert!(cixfile.contains("CACHE target"));
+    assert!(cixfile.contains("IMPORT ${pkgs.bash}"));
+    assert!(!cixfile.contains("\nCACHE "));
     assert!(cixfile.contains("COPY ${src}/rust/ ."));
+    assert!(cixfile.contains("COPY ${build}/target/release/proj1-api"));
     assert!(cixfile.contains("RUN <<BUILD"));
 
-    doc.para("One directory COPY carries the workspace into the builder. The readable RUN heredoc compiles it, while `CACHE target` persists Cargo state outside snapshots and final items. The first build misses the RUN memo and sees an empty cache.");
-    let first = doc.sh("cix build .", true);
-    assert!(first.contains("RUN memo miss"), "{first}");
-    let first_api = proj1_item_path(&first, "proj1-api");
-    let first_worker = proj1_item_path(&first, "proj1-worker");
-    let first_snapshot = proj1_build_snapshot(&first);
-    let state = doc.sh(
-        &format!("printf 'cache-state: ' && cat {first_snapshot}/output/cache-state"),
+    doc.para("One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.");
+    let first = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
         true,
     );
-    assert_eq!(state.trim(), "cache-state: cold");
+    assert!(first.contains("BUILDER build memo miss"), "{first}");
+    assert!(first.contains("workspace-state: cold"), "{first}");
+    let first_api = proj1_item_path(&first, "proj1-api");
+    let first_worker = proj1_item_path(&first, "proj1-worker");
 
-    doc.para("Changing only worker source forces a RUN memo miss, but the declared cache is warm. The API item does not move.");
+    doc.para("Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.");
     let worker_source = doc.sh("cat rust/worker/src/main.rs", true);
     assert!(worker_source.contains("proj1-worker"));
     doc.sh(
         "sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs",
         true,
     );
-    let edited = doc.sh("cix build .", true);
-    assert!(edited.contains("RUN memo miss"), "{edited}");
+    let edited = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
+        true,
+    );
+    assert!(edited.contains("BUILDER build memo miss"), "{edited}");
+    assert!(edited.contains("workspace-state: warm"), "{edited}");
     let edited_api = proj1_item_path(&edited, "proj1-api");
     let edited_worker = proj1_item_path(&edited, "proj1-worker");
     assert_eq!(edited_api, first_api);
     assert_ne!(edited_worker, first_worker);
-    let edited_snapshot = proj1_build_snapshot(&edited);
-    let state = doc.sh(
-        &format!("printf 'cache-state: ' && cat {edited_snapshot}/output/cache-state"),
-        true,
-    );
-    assert_eq!(state.trim(), "cache-state: warm");
     let unchanged = doc.sh(
         &format!("test {first_api} = {edited_api} && echo 'api item unchanged: yes'"),
         true,
     );
     assert_eq!(unchanged.trim(), "api item unchanged: yes");
 
-    doc.para("A clean `--no-cache` rebuild starts cold again and produces byte-identical items.");
-    let clean = doc.sh("cix build --no-cache .", true);
-    assert!(clean.contains("RUN memo miss"), "{clean}");
-    let clean_api = proj1_item_path(&clean, "proj1-api");
-    let clean_worker = proj1_item_path(&clean, "proj1-worker");
-    let clean_snapshot = proj1_build_snapshot(&clean);
-    let state = doc.sh(
-        &format!("printf 'cache-state: ' && cat {clean_snapshot}/output/cache-state"),
+    doc.para("A sampled `--cold` rebuild uses an empty workspace. The marker says cold, and per-path comparison proves both selected binaries—and therefore both item paths—are byte-identical.");
+    let clean = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .",
         true,
     );
-    assert_eq!(state.trim(), "cache-state: cold");
+    assert!(clean.contains("BUILDER build memo miss"), "{clean}");
+    assert!(clean.contains("workspace-state: cold"), "{clean}");
+    let clean_api = proj1_item_path(&clean, "proj1-api");
+    let clean_worker = proj1_item_path(&clean, "proj1-worker");
     let identical = doc.sh(
         &format!(
             "test {clean_api} = {edited_api} && test {clean_worker} = {edited_worker} && echo 'item paths byte-identical: yes'"
@@ -958,6 +1001,16 @@ fn chapter_proj1() -> String {
         true,
     );
     assert_eq!(identical.trim(), "item paths byte-identical: yes");
+
+    doc.para("The warm workspace remains disposable. Delete it and the unchanged chain replays the two recorded binaries without changing either item.");
+    doc.sh("rm -rf ../.workspaces-proj1", true);
+    let wiped = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
+        true,
+    );
+    assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
+    assert_eq!(proj1_item_path(&wiped, "proj1-api"), clean_api);
+    assert_eq!(proj1_item_path(&wiped, "proj1-worker"), clean_worker);
 
     let started = doc.sh(&format!("cix run {clean_api} --user --detach"), true);
     let unit_name = started
@@ -981,17 +1034,6 @@ fn proj1_item_path(output: &str, name: &str) -> String {
         .find_map(|line| line.strip_prefix(&format!("{name} ")))
         .unwrap_or_else(|| panic!("proj1 build did not print the {name} item:\n{output}"))
         .to_owned()
-}
-
-fn proj1_build_snapshot(output: &str) -> String {
-    output
-        .lines()
-        .rev()
-        .find_map(|line| {
-            let (event, path) = line.rsplit_once(" -> ")?;
-            event.contains(" RUN memo ").then(|| path.to_owned())
-        })
-        .unwrap_or_else(|| panic!("proj1 build did not print its RUN snapshot:\n{output}"))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1083,7 +1125,7 @@ fn render_tour() -> Vec<GeneratedFile> {
         Scenario {
             filename: "04-building-with-run.md",
             title: "Chapter 4: Building with RUN",
-            description: "Inspect a working directory, execute a heredoc, and reuse its memo.",
+            description: "Build through a persistent workspace and replay only consumed paths.",
             body: chapter_building_with_run(),
         },
         Scenario {

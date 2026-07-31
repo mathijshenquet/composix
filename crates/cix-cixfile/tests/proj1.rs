@@ -22,6 +22,8 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     let source = root.join("examples/build/proj1");
     let temporary = tempfile::tempdir().unwrap();
     copy_project(&source, temporary.path());
+    let workspace_base = temporary.path().join("workspaces");
+    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", &workspace_base);
     let mut clean_lock = load_lock(temporary.path());
     clean_lock.fetches.clear();
     clean_lock.memo.clear();
@@ -32,14 +34,15 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     .unwrap();
 
     let parsed = parse(&fs::read_to_string(temporary.path().join("Cixfile")).unwrap()).unwrap();
-    assert_eq!(parsed.builders["build"].caches, ["target"]);
     assert_eq!(parsed.artifact_order, ["proj1-api", "proj1-worker"]);
 
     let first = run_build(temporary.path(), false);
     assert_items_are_minimal_and_v4(&first);
     let first_lock = load_lock(temporary.path());
     assert_eq!(first_lock.memo.len(), 1);
-    assert_eq!(cache_states(&first_lock), ["cold"]);
+    assert_consumed_binaries(&first_lock);
+    let workspace = only_workspace(&workspace_base);
+    assert!(workspace.join("work/target/.cix-warm").is_file());
 
     let unchanged = run_build(temporary.path(), false);
     assert_eq!(unchanged, first);
@@ -57,19 +60,24 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     assert_ne!(path(&edited, "proj1-worker"), path(&first, "proj1-worker"));
     let edited_lock = load_lock(temporary.path());
     assert_eq!(edited_lock.memo.len(), 2);
-    assert_eq!(cache_states(&edited_lock), ["cold", "warm"]);
+    assert_consumed_binaries(&edited_lock);
 
     let clean = run_build(temporary.path(), true);
     assert_eq!(clean, edited);
-    assert_eq!(cache_states(&load_lock(temporary.path())), ["cold", "cold"]);
+    assert_consumed_binaries(&load_lock(temporary.path()));
+
+    fs::remove_dir_all(&workspace).unwrap();
+    let after_wipe = run_build(temporary.path(), false);
+    assert_eq!(after_wipe, edited);
+    assert!(!workspace.exists());
 }
 
-fn run_build(directory: &Path, no_cache: bool) -> Vec<BuiltItem> {
+fn run_build(directory: &Path, cold: bool) -> Vec<BuiltItem> {
     build(&BuildOptions {
         directory: directory.to_owned(),
         update_lock: None,
         tag: None,
-        no_cache,
+        cold,
     })
     .unwrap()
 }
@@ -133,19 +141,26 @@ fn load_lock(directory: &Path) -> LockFile {
     serde_json::from_slice(&fs::read(directory.join("Cixfile.lock")).unwrap()).unwrap()
 }
 
-fn cache_states(lock: &LockFile) -> Vec<String> {
-    let mut states = lock
-        .memo
+fn assert_consumed_binaries(lock: &LockFile) {
+    let latest = lock.memo.values().next_back().unwrap();
+    assert_eq!(
+        latest.paths.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["target/release/proj1-api", "target/release/proj1-worker"]
+    );
+    assert!(latest
+        .paths
         .values()
-        .map(|entry| {
-            fs::read_to_string(Path::new(&entry.store_path).join("output/cache-state"))
-                .unwrap()
-                .trim()
-                .to_owned()
-        })
+        .all(|path| path.store_path.starts_with("/nix/store/")
+            && path.nar_hash.starts_with("sha256-")));
+}
+
+fn only_workspace(base: &Path) -> PathBuf {
+    let entries = fs::read_dir(base)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
         .collect::<Vec<_>>();
-    states.sort();
-    states
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    entries[0].clone()
 }
 
 fn copy_project(source: &Path, destination: &Path) {

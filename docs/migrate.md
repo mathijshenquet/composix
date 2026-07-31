@@ -14,8 +14,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs   # binds the package universe
 FROM . AS src                                      # (optional) binds the source dir
 
 BUILDER build                    # the workshop: the only place RUN may appear
-  PATH ${pkgs.cargo}/bin ${pkgs.gcc}/bin           # build-time tool search path
-  CACHE target                   # dir that persists across builds (cargo target etc.)
+  IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.gcc}    # /bin + offered closures
   COPY ${src}/ .                 # bare relative sources also work (docker context)
   RUN cargo build --release --offline
 
@@ -32,9 +31,11 @@ SERVICE myapp                    # one artifact = one service
   pinned in `Cixfile.lock` automatically. If a re-fetch legitimately changes the
   output, accept it with `cix build --update-lock <binder-name> .` (the FETCH's
   name).
-- Inside a FETCH command there is no ambient toolchain: reference every tool by its
-  full package path (`${pkgs.git}/bin/git`, `${pkgs.curl}/bin/curl`) and give TLS a
-  CA bundle: `SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt`.
+- A builder has no ambient toolchain. `IMPORT ${pkgs.git} ${pkgs.cacert}` makes
+  `git` available as a bare command and provides the conventional CA tree for
+  git-over-HTTPS; no `SSL_CERT_FILE` ceremony is needed. IMPORT is repeatable,
+  earlier declarations win command or file collisions, and only `bin`, `etc`, and
+  `share` are unioned into the sandbox root.
 - Do NOT chain network steps into one long shell line. Top-level `FETCH <name>` runs
   in an EMPTY workdir — use it only for truly independent ingredients (a dist
   tarball, a prebuilt UI). Steps that build on each other (clone, then download
@@ -55,11 +56,14 @@ SERVICE myapp                    # one artifact = one service
 ## Mapping heuristics
 
 - **`FROM debian/alpine` + `apt/apk install X`** → do not install anything: reference
-  the package from nixpkgs (`${pkgs.X}/bin/…` in EXEC/PATH). Most official images
+  the package from nixpkgs (`${pkgs.X}/bin/…` in EXEC, or `ENV PATH = ${pkgs.X}/bin`
+  for service scripts). Most official images
   (nginx, redis, postgres…) need NO builder at all — the package already exists.
 - **Multi-stage builds** → one `BUILDER` per stage; a later builder stages an earlier
   one with `COPY ${earlier}/ .`; `COPY --from=X` → `COPY ${X}/path dest`.
-- **`RUN --mount=type=cache,target=D`** → `CACHE D` in the builder.
+- **`RUN --mount=type=cache,target=D`** → delete the declaration. Builder
+  workspaces persist by default, while no workspace byte enters a chain key. Use
+  narrow `COPY ${build}/path` consumers and sample with `cix build --cold`.
 - **`curl|wget + checksum` downloads** → a `FETCH` (the pin is enforced for you).
 - **`VOLUME /data`** → `STATE /var/lib/<name>` and point the app there (env/flag).
   Writable role dirs in SERVICE/APP blocks: `STATE /var/lib/…` (persistent),
