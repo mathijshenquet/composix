@@ -1,5 +1,47 @@
 # composix work log
 
+## 2026-08-01 (pin-stability D69/D70 + the CI-green campaign)
+
+- **Decisions**: D69 FETCH pin stability (consumed-set keying [a]; update-lock
+  double-fetch probe [b, Mathijs's mechanism]; consumed-volatile = authoring
+  normalization [c]; STABLE FETCH + functions-in-${} refused [d]; --cold never
+  refetches / offline by construction + codegen fingerprint in memo keys [e]).
+  D70 overlay universes (`FROM <flakeref> OVERLAY ./x.nix AS pkgs` — the
+  wallos forcing example; USING died in dialogue: "a function call in a
+  jacket"; getFlake back to evidence-gated). Diagnosis report (sol, scratch):
+  warm memo hits never refetch; parse-server's npm noise is 1,355 timestamped
+  cache-index records, node_modules byte-identical → consumed-keying fixes
+  3 of 4 exhibit classes; pnpm/dist is the normalization case.
+- **CI-red anatomy resolved**: main's full tier red since the scenario tier
+  entered CI (last green 4a1ddde, 2026-07-30) — thirteen merges passed a red
+  CI unnoticed (track gates don't run the full tier; compounded by my
+  tail-pipeline exit-code measuring bug). Two causes: (1)
+  **scenario-gc-survival: real product bug** — `nix store add-path` created
+  compose generations without reference edges to service items; profile
+  rooted the generation, not the items; retag → GC ate the live item. Fixed
+  (persistent indirect roots per generation+service, generation.rs:77 /
+  runtime.rs) and merged with coldaudit (`98887dc`). (2) artifact_kinds
+  fixture resolves host `sh` (/usr/bin/sh on CI) — track/cifix running.
+  **Process fix needed: full flake tier into the merge gate** (or a loud
+  daily main run).
+- **Merged**: track/coldaudit+gcfix (`98887dc` — cold_audit standing test,
+  projB/projB-chef pins proven unstable across two clean update-lock runs
+  [cargo joins the dozzle class], D64 example repairs, observability receipt
+  fix); track/nixcompare (`9b57ad1` — docs/nix-build.md: LOC 17 vs 30 vs 38,
+  cold 26.9s wins, warm-edit loses to crane 20.3 vs 16.5 [explained: both
+  discard own-step increments; our 4s = snapshot/hash overhead], no-op loses
+  to eval-cache; honest zero-runtime-references caveat).
+- **New design questions surfaced**: (1) **warm step replay** — let a RUN
+  step reuse its own previous workspace state (true cargo increments, beats
+  crane; licensed by D39.1 + the new cold-audit safety net; also fixes
+  migrate.md's subtle overclaim vs BuildKit cache-mounts); (2) **closure
+  truth for builder-made dynamic binaries** — they reference union paths,
+  not store paths (nixcompare receipt: zero registered references; clean-
+  store distribution unproven) — patchelf-at-the-dock or store-path
+  toolchain refs, needs a round. Both await Mathijs.
+- **Running**: track/pinkeys (D69 impl), track/cifix. Queued: D70 impl
+  (overlay universes + wallos rewrite), coldaudit-style full-tier gate rule.
+
 ## 2026-08-01 early (the strata dialogue: D67/D68; r5 merged)
 
 - **D67 registered** after a long dialogue round (first draft deliberately
