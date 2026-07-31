@@ -1087,6 +1087,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   rule, never engine magic. LINK stays as the pincet next to IMPORT's brush for
   non-FHS-shaped outputs. FETCH outputs remain hash-pinned, so trust config stays
   availability plumbing, never an integrity input; RUN remains networkless.
+  **Addendum (2026-07-31, Mathijs: "ja eens, doe maar") — `/usr/bin/env` joins
+  the sandbox skeleton.** The kernel resolves shebang interpreters literally
+  (no PATH lookup), and tool-generated launchers hardcode `#!/usr/bin/env`
+  (every npm `.bin` wrapper — corpus forcing example: echo-server's offline
+  webpack step). IMPORT can never cover it: the union populates only
+  /bin//etc//share. The skeleton therefore provides exactly one extra entry:
+  `/usr/bin/env → /bin/env` — an alias path, not ambient software: it
+  resolves only when something imported ships `env`, and dangles loudly
+  otherwise. Slope-guard, citable: **the boundary is exactly the two paths
+  NixOS itself blesses on a running system** — `/bin/sh` (falls out of the
+  union when a shell is imported) and `/usr/bin/env` (skeleton) — never a
+  third. The patchShebangs school stays right for shipped artifacts; the
+  workshop is a running environment, where the NixOS precedent applies.
 
 - ✅ D59 (2026-07-30) — **post-r4 language round: builder ENV + EXEC argv quoting**
   (both straight from corpus round N=8 evidence; Mathijs: "doe maar").
