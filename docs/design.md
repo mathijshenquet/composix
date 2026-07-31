@@ -1516,6 +1516,17 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   is deterministic, unsafe exactly where normalization is needed); and
   functions in `${…}` (reaffirming the D32 line — `${…}` stays a pure,
   provenance-auditable name lookup; composition lives in nix-land).
+  (e) **`--cold` never refetches — cold rebuilds are offline by construction**
+  (resolving the asymmetry the diagnosis exposed: in-builder FETCH steps
+  re-ran under --cold while top-level FETCH did not). Unified semantics:
+  `--cold` replays RUN steps from empty workspaces but reuses pinned FETCH
+  outputs of both kinds; fetch re-execution belongs exclusively to
+  `--update-lock` and the (b) probe — the moments you deliberately ask the
+  world. Documented boundary: --cold proves builder reproducibility; fetch
+  trust IS the pin. Companion fix in the same round: memo/chain keys gain a
+  cix codegen fingerprint (the cross-version workspace-pollution bug: a
+  stale checkout getting memo hits from bytes built by newer cix — caught
+  via tour narHash drift).
 
 ## Non-goals (for now)
 
