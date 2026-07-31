@@ -1597,17 +1597,19 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   underlay-always → CACHE-declared → prefix-only; we start at the warm end
   deliberately, with the audit verb as the regulator.
 
-- ✅ D72 (2026-08-01) — **alpha compat posture: one manifest version**
-  (Mathijs: "we zijn alpha — we hebben nog geen specs en backward
-  compatibility nodig"). Pre-1.0, cix supports exactly ONE manifest version:
-  the current one (v5 today). The v1–v4 compat matrix in cix-run/spec.rs
-  dies; an older manifest gets a hard, friendly error ("rebuild with the
-  current cix"). D15's regime survives amended: new fields still bump the
-  version, but the runner's acceptance range is {current}. Fixtures follow
-  (vm-dogfood's hand-written v2 manifests → v5). Backward compatibility
-  returns as a real cost-benefit decision at 1.0, not as an accreting alpha
-  tax — each old version's paths were ~100 lines of validation that no user
-  has.
+- ✅ D72 (2026-08-01) — **alpha compat posture: the manifest version is 0**
+  (Mathijs: "we zijn alpha — noem de alpha spec v0; alle manifests en
+  Cixfiles leven in deze repo, voor nu is het ons feestje"). Pre-1.0 there
+  is exactly ONE manifest version and it is `cixManifest: 0`: its schema
+  changes freely with the language — no bumps, no ranges, no compat matrix.
+  The v1–v5 numbering and the entire back-compat validation in
+  cix-run/spec.rs die; any non-zero (or unknown-shaped) manifest gets a
+  hard, friendly "rebuild with the current cix" error. All in-repo manifests
+  and fixtures sweep to 0 (vm-dogfood's hand-written v2 manifests
+  included). D15's version-gating regime is SUSPENDED for the alpha and
+  returns at 1.0, when `cixManifest: 1` becomes the first versioned,
+  compatibility-bearing schema — a real cost-benefit decision then, not an
+  accreting alpha tax now.
 
 ## Non-goals (for now)
 
