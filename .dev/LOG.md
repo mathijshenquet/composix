@@ -1,5 +1,47 @@
 # composix work log
 
+## 2026-07-31 (D60/D61 + three tracks: argvenv, dirnames, corpusfetch)
+
+- Merged (each gate independently re-verified before merge): **track/argvenv**
+  (`ae06c59`, terra — D59 builder ENV + quote-aware EXEC/SETUP argv, D60
+  `GRANT jit|egress` hard flip, STATE→STATEDIR, manifest v5 `grants` list;
+  note: `GRANT jit` now legal on APP — latent-gap fix, hardening applies MDWE
+  to app units too); **track/dirnames** (`faa4b0c`, terra — LOGSDIR/CONFIGDIR
+  complete the D52 role-dir family); **track/corpusfetch** (`01ffc9c`, terra —
+  vendored corpus context trees (~2707 files) replaced by pinned
+  `corpus/migrate/fetch.sh`; all ten contexts re-verified byte-identical
+  against the pins before deletion; echo-server smoke honestly fails at
+  pre-D58 `PATH` — corpus-polish scope).
+- Decisions registered: **D60** GRANT capability-grant family (one per line,
+  SERVICE/APP, closed vocabulary, evidence-gated queue: mlock/net-admin/device/
+  realtime/namespaces/fuse; refusals: no GRANT all, no raw CAP_*). **D61**
+  rootless/non-Linux user story: (a) cix machine wanted unconditionally,
+  (b) no homegrown rootless imitation (podman userns stack refused; surf
+  systemd's unprivileged-sandboxing line — v260 `PrivateUsers=managed` is the
+  DynamicUser-analogue landing), (c) Quadlet acknowledged as prior art,
+  (d) daemon route = primary Linux answer (thin socket-activated compiler-
+  daemon, nix-daemon pattern; property-boundary argument; machine becomes a
+  transport; sequencing after corpus wave, before D49 netns). **D52 addendum
+  closed**: LOGSDIR/CONFIGDIR. Universe-tags knots dissolved in discussion
+  (FROM stays flakeref-only; prelude = substitution keyed on the pin) — not
+  yet registered as a D-number.
+- Corpus: +12 verified no-escape build-class candidates in CANDIDATES.md
+  (hunt; two agent false-claims caught on independent re-check: stump and
+  mattermost ARE packaged). systemd/podman rootless research findings in
+  session scratchpad (`systemd-rootless-findings.md`).
+- Environment: gitsitter (auto-sync daemon) documented in
+  nix-config/global.AGENTS.md with precise ownership-gated push semantics.
+- Specs queued: track-tourvm (de-user the tours via VM-generated transcripts,
+  after argvenv-successor rounds), prompt-refresh (holding for the D62
+  verdict so migrate.md teaches final tag semantics).
+- **Open with Mathijs**: D62 family-tags proposal (`-t name:tag` only;
+  multi-artifact → `family/member:tag`; single-artifact member elision — the
+  elision taste call is his). Also still his: kernel-config probe follow-up is
+  parked long-term (decided this session).
+- Open for agents: prompt-refresh (after D62), corpus polish round (post-keys
+  + post-D60 language, fresh receipts), migrate r5 drawing from the new
+  no-escape set, then the queued wave-two tracks.
+
 ## 2026-07-30 (track/keys complete)
 
 - Merged work: none in this worktree. Completed D56–D58 in `bfde201`,
