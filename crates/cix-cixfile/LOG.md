@@ -1,5 +1,63 @@
 # Cixfile track work log
 
+- 2026-07-31T16:55:00Z — Final demofix gate is green. Exact demo invocations
+  (each passed) were `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/nginx/demo.sh`;
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/caddy/demo.sh`;
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/node-app/demo.sh`;
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/postgres/demo.sh`;
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/build/projB/demo.sh`;
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/build/projB-chef/demo.sh`;
+  and `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/compose/stack/demo.sh`.
+  Exact prescribed gate repros: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`;
+  `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test -p cix
+  --test tour -- --ignored generate_tour`; `git diff --exit-code -- docs/tour`;
+  `devenv shell -- cargo test -p cix --test tour
+  tour_matches_committed_document -- --exact`; `devenv shell -- cargo test -p
+  cix --test tour generated_tour_is_deterministic -- --exact` (twice); and
+  `devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`
+  (passed under TCG after expected KVM denial; output
+  `/nix/store/d79lrmlyfiqvwpkkz6qx538pxdi7vraa-vm-test-run-vm-dogfood`). Final
+  cleanup reproduced the all-empty system and user `systemctl list-units
+  'cix-*'` scans; `git diff --check` passes. `devenv.lock` was generated during
+  the gate and removed, since it was absent on the clean starting tree. The
+  scoped green track is committed on `track/demofix`.
+
+- 2026-07-31T16:48:00Z — Every touched demo is e2e-green with the rebuilt
+  binary, using these exact invocations (all ran from the repository root):
+  `devenv shell -- env CIX_BIN=/home/mathijs/composix/.worktrees/demofix/target/debug/cix bash examples/pack/nginx/demo.sh`
+  (served the nginx page through `my-nginx`); the identical prefix with
+  `examples/pack/caddy/demo.sh` (served the Caddy page and asserted
+  `cap_net_bind_service`); `examples/pack/node-app/demo.sh` (the no-JIT V8
+  control failed as expected, then the `GRANT jit` service served its page);
+  `examples/pack/postgres/demo.sh` (SQL `SELECT 1` passed);
+  `examples/build/projB/demo.sh` (served `hello from RUN v0`);
+  `examples/build/projB-chef/demo.sh` (served `hello from the chef chain`);
+  and `examples/compose/stack/demo.sh` (fd-only web→backend→Redis, selective
+  update, rollback, and `down` all passed). The nginx initial PrivatePIDs
+  attempt and compose web unit used the expected D36 degraded fallback in this
+  host environment; neither affected the assertions. Cleanup repro:
+  `sudo systemctl stop 'cix-*' >/dev/null 2>&1 || true; sudo systemctl
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; sudo systemctl daemon-reload;
+  ! sudo systemctl list-units 'cix-*' --all --no-legend --plain | grep -q .;
+  systemctl --user stop 'cix-*' >/dev/null 2>&1 || true; systemctl --user
+  reset-failed 'cix-*' >/dev/null 2>&1 || true; ! systemctl --user list-units
+  'cix-*' --all --no-legend --plain | grep -q .` passed: both lists are clean.
+  The D62 selector audit finds exactly ten selected builds across seven demos;
+  `sed -n '28,38p' README.md | diff -u examples/pack/nginx/Cixfile -` passed,
+  proving the sample directives and source are byte-identical. Next: full gate.
+
+- 2026-07-31T16:20:00Z — Started `.dev/specs/track-demofix.md` on clean
+  `track/demofix`. Read AGENTS.md, the session and crate journals, authoritative
+  D62, and the complete spec. Scope: repair all ten stale `cix build <dir>`
+  demo captures with D62 member selectors (including the three compose-stack
+  builds), rename the pack nginx SERVICE to `my-nginx`, and make the README
+  sample caption/source verbatim again. Structural gap recorded for follow-up:
+  demos claim e2e verification, but no automated gate executes the demo scripts;
+  a scenario VM tier is the candidate future home. Next: patch selectors and
+  source/caption, then run every touched demo as root and the full prescribed
+  Rust/tour/VM gate with exact receipts here.
+
 - 2026-07-31T16:02:00Z — Final prompt-refresh gate is green. Exact smoke repro:
   `devenv shell -- cargo test --workspace`; it passed the complete workspace,
   including 41 Cixfile unit tests, 16 real-Nix Cixfile tests, the proj1 warm/cold

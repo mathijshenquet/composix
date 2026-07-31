@@ -63,11 +63,11 @@ python3 "$work_dir/generate.py" >"$work_dir/generated.json"
 cmp "$work_dir/compose.json" "$work_dir/generated.json"
 
 db_path=$(nix-build "$repo_root/examples/pack/redis" --no-out-link)
-backend_v1=$("$cix_bin" build "$work_dir/backend")
-web_path=$("$cix_bin" build "$work_dir/web")
+backend_v1=$("$cix_bin" build "$work_dir/backend#backend")
+web_path=$("$cix_bin" build "$work_dir/web#nginx")
 cp -a "$work_dir/backend" "$work_dir/backend-v2"
 printf 'hello from backend v2\n' >"$work_dir/backend-v2/greeting.txt"
-backend_v2=$("$cix_bin" build "$work_dir/backend-v2")
+backend_v2=$("$cix_bin" build "$work_dir/backend-v2#backend")
 
 root_cix tag "$db_path" stack-db:v1
 root_cix tag "$backend_v1" stack-backend:current
