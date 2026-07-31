@@ -81,12 +81,11 @@ GRANT egress
 One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.
 
 ```sh
-$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
-workspace-state: cold
-proj1-api /nix/store/…-cix-item-proj1-api
-proj1-worker /nix/store/…-cix-item-proj1-worker
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build . --namespace proj1 -t v1
+{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+workspace-state: cold
 BUILDER build step 2 RUN executed
 BUILDER build memo miss c54252858687 -> /nix/store/…-cix-build-view
 ```
@@ -106,11 +105,10 @@ $ sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
-workspace-state: warm
-proj1-api /nix/store/…-cix-item-proj1-api
-proj1-worker /nix/store/…-cix-item-proj1-worker
+{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+workspace-state: warm
 BUILDER build step 2 RUN executed
 BUILDER build memo miss 0849273daf40 -> /nix/store/…-cix-build-view
 ```
@@ -124,10 +122,9 @@ A sampled `--cold` rebuild uses an empty workspace. The marker says cold, and pe
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .
-workspace-state: cold
-proj1-api /nix/store/…-cix-item-proj1-api
-proj1-worker /nix/store/…-cix-item-proj1-worker
+{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
+workspace-state: cold
 BUILDER build step 2 RUN executed
 BUILDER build memo miss 0849273daf40 -> /nix/store/…-cix-build-view
 ```
@@ -145,13 +142,12 @@ $ rm -rf ../.workspaces-proj1
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
-proj1-api /nix/store/…-cix-item-proj1-api
-proj1-worker /nix/store/…-cix-item-proj1-worker
+{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build memo hit 0849273daf40 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
-$ cix run /nix/store/…-cix-item-proj1-api --user --detach
+$ cix run proj1/proj1-api:v1 --user --detach
 cix-run-proj1-api-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```

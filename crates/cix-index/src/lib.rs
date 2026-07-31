@@ -1133,13 +1133,17 @@ pub fn serve(
             }
             path => {
                 let input = path.strip_prefix('/').unwrap_or_default();
-                let parsed = Ref::parse(input)
-                    .ok()
-                    .filter(|reference| reference.root_url.is_none());
                 let has_tag = input
                     .rsplit_once('/')
                     .map_or(input, |(_, last)| last)
                     .contains(':');
+                let parsed = if has_tag {
+                    Ref::parse(input)
+                } else {
+                    Ref::parse(&format!("{input}:tag"))
+                }
+                .ok()
+                .filter(|reference| reference.root_url.is_none());
                 match (parsed, has_tag) {
                     (Some(reference), true) => {
                         match tags.iter().find(|(candidate, _)| candidate == &reference) {
@@ -1448,10 +1452,10 @@ mod tests {
     #[test]
     fn publish_resolve_round_trip_and_cli_golden() {
         let store = test_store("round-trip");
-        let reference = Ref::parse("localhost:8420/x:v1").unwrap();
+        let reference = Ref::parse("localhost:8420/family/x:v1").unwrap();
         let artifact = output("round-trip-artifact");
-        let published = metadata("x", "v1", artifact.clone());
-        store.publish("x", "v1", published.clone()).unwrap();
+        let published = metadata("family/x", "v1", artifact.clone());
+        store.publish("family/x", "v1", published.clone()).unwrap();
         assert_eq!(store.load(&reference).unwrap(), Some(published));
         assert_eq!(
             render_list(

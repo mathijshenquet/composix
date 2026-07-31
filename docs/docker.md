@@ -79,7 +79,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | docker | disposition | still missing |
 | --- | --- | --- |
 | [image (artifact)](https://docs.docker.com/get-started/docker-concepts/the-basics/what-is-an-image/) | ✅ manifested store item; D22 projects its sparse rootfs fragments read-only at native paths (`crates/cix-run/tests/system_projection.rs`) | Pulling or running existing OCI/Docker images; composix distributes only Nix closures described by its own entries. |
-| [tag (mutable pointer)](https://docs.docker.com/reference/cli/docker/image/tag/) | ✅ `cix tag` (D5, D7: tags are GC roots) | — |
+| [tag (mutable pointer)](https://docs.docker.com/reference/cli/docker/image/tag/) | ✅ `cix tag`; Cixfile member names are declared while `-t <tag>` applies external family tags without rebuilding (D5, D7, D62; tags are GC roots) | No implicit `latest`; every ref spells its tag. |
 | [digest (`@sha256:…`)](https://docs.docker.com/dhi/core-concepts/digests/) | ✅ the store path *is* the digest (D12); no `@` syntax needed | — |
 | [registry + pull](https://docs.docker.com/reference/cli/docker/image/pull/) | ✅ `cix serve` / `cix pull` (D6, D17) | OCI registry interoperability. |
 | [registry mirrors / pull-through cache](https://docs.docker.com/docker-hub/image-library/mirror/) | 🔁 no mirror feature (D35): bytes — substituters are the mirror surface (entries list multiple locations; content-bound signatures make untrusted mirrors harmless); index availability — plain HTTP caching/CDN, since the API is ordinary content-negotiated GET (D18) | Independent index *redistribution* ⏳ publish-era, gated on entry signing (D35). |

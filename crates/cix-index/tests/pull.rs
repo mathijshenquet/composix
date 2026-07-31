@@ -46,7 +46,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     let root_url = format!("localhost:{port}");
 
     env::set_var("CIX_STATE_DIR", &server_state);
-    tag(&store_path, "x:v1", None).unwrap();
+    tag(&store_path, "family/member:v1", None).unwrap();
     thread::spawn(move || {
         serve(&format!("127.0.0.1:{port}"), Vec::new(), true, None).unwrap();
     });
@@ -65,7 +65,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
             .content_type()
             .starts_with("application/vnd.cix+json;version=1"));
         assert_eq!(response.header("Vary"), Some("Accept"));
-        assert_eq!(response.body, r#"{"names":["x"]}"#);
+        assert_eq!(response.body, r#"{"names":["family/member"]}"#);
     }
     assert!(
         get(port, "/?format=json", "text/html", "index.example.test")
@@ -81,11 +81,16 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     .content_type()
     .starts_with("text/html"));
 
-    let name_page = get(port, "/x", "text/html", "published.example.test");
+    let name_page = get(
+        port,
+        "/family/member",
+        "text/html",
+        "published.example.test",
+    );
     assert_eq!(name_page.status, 200);
     assert!(name_page
         .body
-        .contains("cix pull published.example.test/x:v1"));
+        .contains("cix pull published.example.test/family/member:v1"));
     for accept in ["text/html", "application/vnd.cix+json"] {
         let response = get(port, "/missing", accept, "index.example.test");
         assert_eq!(response.status, 404);
@@ -103,17 +108,26 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     .content_type()
     .starts_with("application/vnd.cix+json;version=1"));
 
-    let error = tag("/not/a/store/path", &format!("{root_url}/x:v1"), None).unwrap_err();
+    let error = tag(
+        "/not/a/store/path",
+        &format!("{root_url}/family/member:v1"),
+        None,
+    )
+    .unwrap_err();
     assert!(error
         .to_string()
         .contains("qualified names denote remote state; tags are bare"));
 
     env::set_var("CIX_STATE_DIR", &client_state);
     assert_eq!(
-        pull(Some(&format!("{root_url}/x:v1")), Some("x")).unwrap(),
+        pull(
+            Some(&format!("{root_url}/family/member:v1")),
+            Some("local/member:v1"),
+        )
+        .unwrap(),
         1
     );
-    let local = Ref::parse("x").unwrap();
+    let local = Ref::parse("local/member:v1").unwrap();
     let metadata = Store::open().unwrap().load(&local).unwrap().unwrap();
     assert_eq!(metadata.upstream.as_deref(), Some(root_url.as_str()));
     assert_eq!(
@@ -128,7 +142,10 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
 
     let mirror_state = temporary_dir("mirror");
     env::set_var("CIX_STATE_DIR", &mirror_state);
-    assert_eq!(pull(Some(&format!("{root_url}/x:v1")), None).unwrap(), 1);
+    assert_eq!(
+        pull(Some(&format!("{root_url}/family/member:v1")), None).unwrap(),
+        1
+    );
     let mirror_listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mirror_port = mirror_listener.local_addr().unwrap().port();
     drop(mirror_listener);

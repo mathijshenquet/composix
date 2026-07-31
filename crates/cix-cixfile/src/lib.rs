@@ -9,7 +9,7 @@ mod model;
 mod parser;
 mod seccomp;
 
-pub use build::{build, BuildOptions, BuiltItem};
+pub use build::{build, build_family, BuildOptions, BuiltItem};
 pub use codegen::{generate_nix, generate_spec_json};
 pub use lock::{
     ensure_lock, ConsumedPath, FetchPin, InputLock, LockFile, MemoEntry, DEFAULT_NIXPKGS_URL,

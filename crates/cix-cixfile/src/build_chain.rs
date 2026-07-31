@@ -1236,7 +1236,7 @@ fn run_sandbox(
         .context(
             "starting bubblewrap sandbox; this host may restrict unprivileged user namespaces",
         )?;
-    io::stdout().write_all(&output.stdout)?;
+    io::stderr().write_all(&output.stdout)?;
     io::stderr().write_all(&output.stderr)?;
     if !output.status.success() {
         let mut failure = sandbox_failure(output.status, run_network);

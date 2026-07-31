@@ -17,18 +17,18 @@ built now. Everything may change.
 | part | what | status |
 | --- | --- | --- |
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
-| **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (manifest v4; reads v1–v4) |
+| **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (manifest v5; reads v1–v5) |
 | **Cixfile** | dockerfile-shaped authoring without writing nix; builders for build work and explicit service/app artifacts | working (v1) |
 | **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
 
 ## A taste
 
 ```dockerfile
-# Cixfile — this is examples/pack/nginx, verbatim
+# Cixfile — adapted from examples/pack/nginx
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-SERVICE nginx
+SERVICE my-nginx
 COPY ${src}/index.html srv/www/index.html
 COPY ${src}/nginx.conf etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
@@ -39,7 +39,7 @@ RUNDIR /run/nginx
 ```
 
 ```sh
-cix build examples/pack/nginx -t my-nginx:v1   # deterministic: nixpkgs pinned in Cixfile.lock
+cix build . -t v1                              # {"my-nginx":"/nix/store/…"}; deterministic pin
 cix run my-nginx:v1                       # a hardened transient systemd unit
 
 # on the box your org's DNS calls cix.my-org.com:

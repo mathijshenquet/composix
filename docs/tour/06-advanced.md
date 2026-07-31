@@ -108,8 +108,8 @@ $ cat compose-app/Cixfile.lock
 ```
 
 ```sh
-$ cix build compose-app -t tour-compose:current
-/nix/store/…-cix-item-web
+$ cix build compose-app -t current
+{"web":"/nix/store/…-cix-item-web"}
 ```
 
 ```sh
@@ -119,7 +119,7 @@ $ cat compose.json
   "name": "tour-compose",
   "services": {
     "web": {
-      "item": "tour-compose:current",
+      "item": "web:current",
       "update": "track"
     }
   }
@@ -138,7 +138,7 @@ $ cat cix.lock
 {
   "services": {
     "web": {
-      "ref": "tour-compose:current",
+      "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",
       "narHash": "sha256-x89hj7V519BkYOMWTa1vgZJ36cGgG5jiTmW3/jBmQAo="
     }
@@ -168,8 +168,8 @@ echo compose fixture v2
 ```
 
 ```sh
-$ cix build compose-app -t tour-compose:current
-/nix/store/…-cix-item-web
+$ cix build compose-app -t current
+{"web":"/nix/store/…-cix-item-web"}
 ```
 
 ```sh
