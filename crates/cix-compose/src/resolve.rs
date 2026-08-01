@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     net::{IpAddr, SocketAddr},
     path::{Path, PathBuf},
 };
@@ -16,6 +16,7 @@ pub enum UpdateRequest {
     None,
     All,
     Service(String),
+    Services(BTreeSet<String>),
 }
 
 #[derive(Clone, Debug)]
@@ -45,10 +46,14 @@ pub(crate) fn check_with(
     update: &UpdateRequest,
     resolver: &dyn Fn(&str) -> Result<Output>,
 ) -> Result<CheckResult> {
-    if let UpdateRequest::Service(name) = update {
-        if !compose.services.contains_key(name) {
-            bail!("--update: service {name:?} is not declared");
+    match update {
+        UpdateRequest::Service(name) => validate_updated_service(compose, name)?,
+        UpdateRequest::Services(names) => {
+            for name in names {
+                validate_updated_service(compose, name)?;
+            }
         }
+        UpdateRequest::None | UpdateRequest::All => {}
     }
     validate_edge_references(compose)?;
     let lock = resolve_lock(compose, existing, update, resolver)?;
@@ -101,7 +106,8 @@ fn resolve_lock(
     let mut services = BTreeMap::new();
     for (name, declaration) in &compose.services {
         let explicitly_updated = matches!(update, UpdateRequest::All)
-            || matches!(update, UpdateRequest::Service(selected) if selected == name);
+            || matches!(update, UpdateRequest::Service(selected) if selected == name)
+            || matches!(update, UpdateRequest::Services(selected) if selected.contains(name));
         let reusable = declaration.update == UpdatePolicy::Pin
             && !explicitly_updated
             && existing
@@ -122,6 +128,13 @@ fn resolve_lock(
         services.insert(name.clone(), locked);
     }
     Ok(Lock { services })
+}
+
+fn validate_updated_service(compose: &Compose, name: &str) -> Result<()> {
+    if !compose.services.contains_key(name) {
+        bail!("--update: service {name:?} is not declared");
+    }
+    Ok(())
 }
 
 fn validate_edge_references(compose: &Compose) -> Result<()> {
@@ -335,6 +348,20 @@ mod tests {
             &compose,
             &old,
             &UpdateRequest::Service("pin".into()),
+            &resolver,
+        )
+        .unwrap();
+        assert_eq!(checked.lock.services["pin"].nar_hash, "pin-new");
+        assert_eq!(
+            &*calls.borrow(),
+            &["pin:v1".to_owned(), "track:v1".to_owned()]
+        );
+
+        calls.borrow_mut().clear();
+        let checked = check_with(
+            &compose,
+            &old,
+            &UpdateRequest::Services(BTreeSet::from(["pin".into()])),
             &resolver,
         )
         .unwrap();
