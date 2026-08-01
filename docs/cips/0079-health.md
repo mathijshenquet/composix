@@ -1,7 +1,8 @@
 # Health: liveness and readiness without the health graph
 
-Status: draft, amended 2026-08-01 after Mathijs's review — settled modulo
-the vocabulary bikeshed (§4.1). Amends design.md D48(c).
+Status: **CIP-79, adopted 2026-08-01** (Mathijs: "HEALTH gewoon
+akkoord"; READINESS/LIVENESS blessed). Amends design.md D48(c).
+Decision in §5.
 
 ## 1. The problem
 
@@ -113,9 +114,24 @@ D48(e).
    `ExecStart=`, Procfile. `EXEC` matches exec(2)/`ExecStart=` and is
    honest about no-shell semantics (D55); recommendation there: keep.
 
+## 5. Decision
+
+Vocabulary: **`READINESS`/`LIVENESS`** (§4.1 as proposed). The
+`LIVELINESS` near-miss (and every directive typo) is covered by the
+parser's existing did-you-mean fuzzy suggestions (the crunchy round) —
+verify `LIVELINESS → did you mean LIVENESS` lands as a suggestion
+fixture when the directives are implemented. Everything else as
+recommended: health graph banned (docker.md ❌ for
+`condition: service_healthy`; ordering-follows-readiness via structural
+edges), probe types `http`/`tcp`/`notify` only, `IN`/`EVERY` params,
+watchdog window 3×EVERY, no FAILURES, LIVENESS = restart opt-in, `IN` =
+startup budget, pull model at proxyd time. The `EXEC` naming bikeshed
+raised during review is spun off to its own draft CIP
+(draft/exec-naming.md).
+
 ## Changelog
 
 - 2026-08-01: drafted; amended after review — FAILURES dropped, exec
   probe dropped (YAGNI), IN/EVERY spelling, ordering-follows-readiness
   clarified (§3), pull model for continuous readiness decided,
-  vocabulary narrowed to §4.1.
+  vocabulary narrowed to §4.1. Adopted same day as CIP-79.

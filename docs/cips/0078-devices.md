@@ -1,10 +1,8 @@
 # Devices, GPU, and shared memory
 
-Status: draft, amended 2026-08-01 (round 2) — the keyword question
-(CLAIM vs GRANT, §4.1) is now the one open item; Frigate's explicit-node
-claim is back in scope (it is corpus row 17 — the YAGNI was miscalled).
-Deliberately dogfood-gated (the manifest v2 deferral said "needs a
-dogfood case" — this doc picks one).
+Status: **CIP-78, adopted 2026-08-01** (Mathijs: "CLAIM is akkoord").
+Decision in §5. Deliberately dogfood-gated (the manifest v2 deferral
+said "needs a dogfood case" — this CIP picks Immich + Frigate).
 
 ## 1. The problem
 
@@ -92,10 +90,22 @@ demanded 90%.
 3. ~~cix run~~ — honors claims directly (CIP-77).
 4. `SHM` confirmed in ("ook niet verkeerd om erin te hebben").
 
+## 5. Decision
+
+**`CLAIM`** is the manifest keyword: `CLAIM gpu`, `CLAIM device
+/dev/<node>`, and the existing `GRANT egress`/`GRANT jit` rename to
+`CLAIM egress`/`CLAIM jit` in one sweep (alpha, D72). The compose-side
+loosening field is reserved the name `grants:` — the manifest CLAIMs,
+the operator GRANTs; the vocabulary teaches the D49(a) polarity. `SHM
+<size>` manifest field with compose override, compiled to
+`TemporaryFileSystem=/dev/shm:size=`. `--privileged` stays refused in
+every layer; `--group-add` dissolves into claims. `cix run` honors
+claims directly (CIP-77).
+
 ## Changelog
 
 - 2026-08-01: drafted; r1 after review — spelling to grant vocabulary,
   Frigate YAGNI'd. r2 same day — YAGNI reversed (Frigate is corpus row
   17), `CLAIM` analysis added with rename-sweep recommendation,
   `CLAIM gpu`-as-sugar clarified (mechanically /dev/dri+groups today,
-  semantically a named need).
+  semantically a named need). Adopted same day as CIP-78.
