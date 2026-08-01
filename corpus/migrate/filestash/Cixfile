@@ -35,4 +35,4 @@ ENV FILESTASH_PATH = /var/lib/filestash
 ENV FILESTASH_PORT = 18094
 PORT http = $FILESTASH_PORT
 STATEDIR /var/lib/filestash
-GRANT egress
+CLAIM egress

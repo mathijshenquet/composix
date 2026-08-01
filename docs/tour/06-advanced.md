@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-The basic chapters use ordinary port grants and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.
+The basic chapters use ordinary port declarations and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.
 
 ## Socket activation
 

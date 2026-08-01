@@ -24,7 +24,7 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "LOGSDIR",
     "CONFIGDIR",
     "RUNDIR",
-    "GRANT",
+    "CLAIM",
 ];
 
 struct Migration {
@@ -56,21 +56,27 @@ const MIGRATIONS: &[Migration] = &[
     },
     Migration {
         directive: "JIT",
-        replacement: "GRANT jit",
-        doc: "docs/cixfile.md#grants",
+        replacement: "CLAIM jit",
+        doc: "docs/cixfile.md#claims",
         decision: "D60",
     },
     Migration {
         directive: "EGRESS",
-        replacement: "GRANT egress",
-        doc: "docs/cixfile.md#grants",
+        replacement: "CLAIM egress",
+        doc: "docs/cixfile.md#claims",
         decision: "D60",
     },
     Migration {
         directive: "OUTBOUND",
-        replacement: "GRANT egress",
-        doc: "docs/cixfile.md#grants",
+        replacement: "CLAIM egress",
+        doc: "docs/cixfile.md#claims",
         decision: "D60",
+    },
+    Migration {
+        directive: "GRANT",
+        replacement: "CLAIM <jit|egress>",
+        doc: "docs/cixfile.md#claims",
+        decision: "CIP-78",
     },
 ];
 

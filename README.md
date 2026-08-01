@@ -55,7 +55,7 @@ URL with `Accept: application/vnd.cix+json` and gets the machine representation.
 registry exists or ever will: bare names are local, qualified names are remote, and
 serving = exposing your tags at whatever URL reaches your box.
 
-**Declaring is granting — and undeclared is denied, kernel-enforced.** No ports declared ⇒
+**Declaring is capability claiming — and undeclared is denied, kernel-enforced.** No ports declared ⇒
 `PrivateNetwork`. A declared port ⇒ exactly that bind allowed (`SocketBindAllow`), below
 1024 ⇒ exactly that capability. A `listeners` service accepts an inherited fd and can create
 no IP socket at all. State/cache/log/run dirs map to systemd's native managed directories at

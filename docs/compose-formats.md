@@ -42,7 +42,7 @@ intentional; differences in meaning are not.
   spec-declared secret causes `LoadCredential=` delivery; secret bytes never
   enter the compose file, Nix store, generated unit, or ordinary environment.
 - A **publish** maps a spec-declared port to a host edge. `socket` requests
-  socket activation/proxying rather than granting the service ambient host
+  socket activation/proxying rather than giving the service ambient host
   networking.
 - A named **socket** is a shared runtime path for apps whose specs already
   declare configurable Unix-socket endpoints. Compose chooses the path; it
@@ -79,7 +79,7 @@ activation on `0.0.0.0:8080`. The app's spec-declared `/var/lib/hello` state
 directory is backed by `/srv/cix/minimal/hello` on the host. Both version tags
 are held.
 
-This scenario is intentionally hostile to Docker-shaped defaults: granting a
+This scenario is intentionally hostile to Docker-shaped defaults: giving a
 shared IP network would be broader and therefore wrong.
 
 ### 2. the fleet dashboard (private repo), as found
@@ -115,8 +115,8 @@ The prototype models one runtime service,
 overrides the declared listener and upstream settings, maps the
 spec-declared `DATABASE_URL` secret to a credential sourced from
 `/run/keys/host-dashboard-database-url`, and attaches to an externally realized
-`tunnelnet` plus a local egress network. Four `talks-to` edges grant the observed
-tunnelnet dependencies and one grants public HTTPS egress. The composite
+`tunnelnet` plus a local egress network. Four `talks-to` edges expose the observed
+tunnelnet dependencies and one exposes public HTTPS egress. The composite
 publishes only its host-loopback `8787` origin. The already-installed the host tunnel
 daemon's `80`/`443` exposure remains explicit
 external host configuration, not a fictional nginx service.

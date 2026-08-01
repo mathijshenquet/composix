@@ -66,7 +66,7 @@ if sudo setpriv --reuid=1001 --regid=1001 --clear-groups \
   echo "uid 1001 unexpectedly traversed the backend runtime directory" >&2
   exit 1
 fi
-echo "ungranted consumer: backend socket is hidden by the producer's 0700 directory"
+echo "unauthorized consumer: backend socket is hidden by the producer's 0700 directory"
 
 sudo chgrp "$edge_group" "$backend_dir" "$backend_socket"
 sudo chmod 2750 "$backend_dir"

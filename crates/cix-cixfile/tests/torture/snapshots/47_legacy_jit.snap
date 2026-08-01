@@ -1,2 +1,2 @@
-line 5: JIT is obsolete; replace it with GRANT jit; see docs/cixfile.md#grants
+line 5: JIT is obsolete; replace it with CLAIM jit; see docs/cixfile.md#claims
   | "JIT"

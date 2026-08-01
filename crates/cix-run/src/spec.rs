@@ -43,8 +43,9 @@ pub struct Service {
     pub dirs: Dirs,
     pub health: Option<Health>,
     pub network: Option<Network>,
+    // `grants` is reserved for the future compose-side loosening field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub grants: Vec<String>,
+    pub claims: Vec<String>,
     pub jit: Option<bool>,
     #[serde(default)]
     pub egress: bool,
@@ -322,23 +323,23 @@ impl Service {
         !self.ports.is_empty() || self.network == Some(Network::Host)
     }
 
-    pub fn has_grant(&self, grant: &str) -> bool {
-        self.grants.iter().any(|declared| declared == grant)
-            || (grant == "jit" && self.jit == Some(true))
-            || (grant == "egress" && self.egress)
+    pub fn has_claim(&self, claim: &str) -> bool {
+        self.claims.iter().any(|declared| declared == claim)
+            || (claim == "jit" && self.jit == Some(true))
+            || (claim == "egress" && self.egress)
     }
 
     fn validate_capabilities(&self) -> Result<()> {
         if self.jit.is_some() || self.egress || self.network.is_some() {
-            bail!("legacy capability fields are not supported; use the \"grants\" list")
+            bail!("legacy capability fields are not supported; use the \"claims\" list")
         }
         let mut seen = BTreeSet::new();
-        for grant in &self.grants {
-            if !matches!(grant.as_str(), "jit" | "egress") {
-                bail!("unknown grant {grant:?}; supported grants: jit, egress");
+        for claim in &self.claims {
+            if !matches!(claim.as_str(), "jit" | "egress") {
+                bail!("unknown claim {claim:?}; supported claims: jit, egress");
             }
-            if !seen.insert(grant) {
-                bail!("grant {grant:?} is declared more than once");
+            if !seen.insert(claim) {
+                bail!("claim {claim:?} is declared more than once");
             }
         }
         Ok(())
@@ -582,12 +583,12 @@ mod tests {
     #[test]
     fn parses_and_serializes_the_v0_def_node() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"grants":["jit"]}"#,
+            br#"{"cixManifest":0,"exec":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"claims":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
         assert_eq!(service.exec, ["bin/app", "$PORT"]);
-        assert!(service.has_grant("jit"));
+        assert!(service.has_claim("jit"));
         assert_eq!(serde_json::to_value(&spec).unwrap()["cixManifest"], 0);
     }
 
@@ -608,7 +609,8 @@ mod tests {
     fn validates_current_schema_fields() {
         for json in [
             r#"{"cixManifest":0,"exec":["bin/app"],"jit":true}"#,
-            r#"{"cixManifest":0,"exec":["bin/app"],"grants":["all"]}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"grants":["jit"]}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"claims":["all"]}"#,
             r#"{"cixManifest":0,"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
             r#"{"cixManifest":0,"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
             r#"{"cixManifest":0,"services":{}}"#,

@@ -105,7 +105,7 @@ the `service:` selector field in compose dies with it.
 
 ## 3b. Edges, precisely — and the co-location constraint
 
-An edge is a **directed capability grant of a unix-socket surface**, nothing more.
+An edge is a **directed capability claim of a unix-socket surface**, nothing more.
 The producer declares the runtime dir its socket lives in; the edge compiles to a
 per-edge group, that dir group-owned, and ONLY the consumers receiving that group
 membership plus the dir made visible in their namespaces (at a path of their

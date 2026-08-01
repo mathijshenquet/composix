@@ -18,4 +18,4 @@ SERVICE tomcat
   SETUP tomcat-setup
   EXEC catalina.sh run
   PORT http = 8080
-  GRANT jit
+CLAIM jit

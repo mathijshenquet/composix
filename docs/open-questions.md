@@ -14,7 +14,7 @@ proposed one-line disposition (awaiting Mathijs), or an era.
 | [dirs](cips/draft/dirs.md) | dir declaration/materialization/lifecycle: operator host-binds, shared writable surfaces, volume-object refusal, down/clean/purge semantics (merges the earlier binds + shared-rw drafts) | `-v/--mount`, named volumes, `volume create/ls/rm/prune/update`, bind mounts, corpus demands #2+#3 |
 | [timers](cips/draft/timers.md) | compose `schedule:` on raw OnCalendar | corpus demand #4, Renovate row |
 | [secrets](cips/draft/secrets.md) | runtime `SECRET`/LoadCredential + build-time fetch credentials | compose secrets ⏳, BuildKit secret/SSH mounts ❓, migrate.md build-secrets ❌, `docker pass` ❓ (host keychain: out of scope), CLI credential stores ❓ (the fetch-credential file), corpus demand #8 |
-| [devices](cips/draft/devices.md) | `GRANT gpu`, `SHM`, tmpfs sizing | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓ (dissolves into grants), tmpfs mounts ❓, compose-level `--privileged` override ❓ (stays ❌) |
+| [devices](cips/0078-devices.md) | `CLAIM gpu`, `SHM`, tmpfs sizing | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓ (dissolves into claims), tmpfs mounts ❓, compose-level `--privileged` override ❓ (stays ❌) |
 | [devloop](cips/draft/devloop.md) | `cix watch` = rebuild+restart; sync refused | compose `watch` ❓, live-reload dev binds |
 | [run-unary-compose](cips/draft/run-unary-compose.md) | design invariant: `cix run` = compose with one anonymous member | the recurring "and what about cix run?" question |
 
@@ -74,7 +74,7 @@ Probe directive spelling: `READINESS`/`LIVENESS` proposed (health §4.1).
 - **`docker mcp`** ❓ → ❌ irrelevant to the runtime; ecosystem tooling
   can sit on `cix` CLI output.
 - **Capabilities coverage beyond NET_BIND_SERVICE** ❓ → grow
-  grant-by-grant with dogfood (devices.md mints the next two); never a
+  capability-by-capability with dogfood (devices.md mints the next two); never a
   raw `--cap-add`.
 - **userns honesty note** ❓ → keep the ledger's honesty wording; a
   hardening comparison doc is worthwhile when security review era

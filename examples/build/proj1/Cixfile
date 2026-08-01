@@ -23,4 +23,4 @@ SERVICE proj1-api
 SERVICE proj1-worker
   COPY ${build}/target/release/proj1-worker /bin/proj1-worker
   EXEC proj1-worker
-  GRANT egress
+  CLAIM egress
