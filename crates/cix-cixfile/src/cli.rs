@@ -1,7 +1,12 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::fs;
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
 
 use crate::BuildOptions;
+use anyhow::{bail, Context};
+use ignore::WalkBuilder;
+use similar::TextDiff;
 
 #[derive(clap::Subcommand)]
 pub enum Command {
@@ -22,6 +27,14 @@ pub enum Command {
         /// Deprecated alias for --cold.
         #[arg(long)]
         no_cache: bool,
+    },
+    /// Format Cixfiles.
+    Fmt {
+        /// Files or directories to format.
+        paths: Vec<PathBuf>,
+        /// Check formatting and print a diff without writing files.
+        #[arg(long)]
+        check: bool,
     },
 }
 
@@ -59,8 +72,94 @@ impl Command {
                 }
                 Ok(())
             }
+            Self::Fmt { paths, check } => format_paths(paths, check),
         }
     }
+}
+
+fn format_paths(paths: Vec<PathBuf>, check: bool) -> anyhow::Result<()> {
+    let paths = if paths.is_empty() {
+        vec![PathBuf::from(".")]
+    } else {
+        paths
+    };
+    let stdin = paths.iter().any(|path| path == Path::new("-"));
+    if stdin && paths.len() != 1 {
+        bail!("`-` (stdin) cannot be combined with file paths");
+    }
+    if stdin {
+        let mut input = String::new();
+        io::stdin().read_to_string(&mut input)?;
+        let formatted = crate::fmt::format(&input)?;
+        if check {
+            if formatted != input {
+                print_diff("-", &input, &formatted)?;
+                bail!("formatting changes required");
+            }
+        } else {
+            io::stdout().write_all(formatted.as_bytes())?;
+        }
+        return Ok(());
+    }
+
+    let files = discover_files(&paths)?;
+    let mut changed = false;
+    for path in files {
+        let input =
+            fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
+        let formatted = crate::fmt::format(&input)?;
+        if formatted == input {
+            continue;
+        }
+        changed = true;
+        if check {
+            print_diff(&path.display().to_string(), &input, &formatted)?;
+        } else {
+            fs::write(&path, formatted).with_context(|| format!("writing {}", path.display()))?;
+        }
+    }
+    if check && changed {
+        bail!("formatting changes required");
+    }
+    Ok(())
+}
+
+fn discover_files(paths: &[PathBuf]) -> anyhow::Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    for path in paths {
+        let metadata = fs::metadata(path).with_context(|| format!("reading {}", path.display()))?;
+        if metadata.is_file() {
+            files.push(path.clone());
+            continue;
+        }
+        let mut walker = WalkBuilder::new(path);
+        walker
+            .hidden(false)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .require_git(false);
+        for entry in walker.build() {
+            let entry = entry?;
+            if entry.file_type().is_some_and(|kind| kind.is_file())
+                && entry.file_name() == "Cixfile"
+            {
+                files.push(entry.into_path());
+            }
+        }
+    }
+    files.sort();
+    files.dedup();
+    Ok(files)
+}
+
+fn print_diff(name: &str, input: &str, formatted: &str) -> anyhow::Result<()> {
+    let diff = TextDiff::from_lines(input, formatted)
+        .unified_diff()
+        .header(name, name)
+        .to_string();
+    io::stdout().write_all(diff.as_bytes())?;
+    Ok(())
 }
 
 fn parse_build_target(input: &str) -> anyhow::Result<(PathBuf, Option<String>)> {

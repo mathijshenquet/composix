@@ -53,11 +53,10 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
-    ${pkgs.gcc} ${pkgs.coreutils}
-
-COPY ${src}/rust/ .
-RUN <<BUILD
+  IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
+      ${pkgs.gcc} ${pkgs.coreutils}
+  COPY ${src}/rust/ .
+  RUN <<BUILD
 if test -e target/.cix-warm; then
     printf 'workspace-state: warm\n'
 else
@@ -68,14 +67,14 @@ touch target/.cix-warm
 BUILD
 
 SERVICE proj1-api
-COPY ${build}/target/release/proj1-api /bin/proj1-api
-EXEC proj1-api
-PORT http = 18084
+  COPY ${build}/target/release/proj1-api /bin/proj1-api
+  EXEC proj1-api
+  PORT http = 18084
 
 SERVICE proj1-worker
-COPY ${build}/target/release/proj1-worker /bin/proj1-worker
-EXEC proj1-worker
-GRANT egress
+  COPY ${build}/target/release/proj1-worker /bin/proj1-worker
+  EXEC proj1-worker
+  GRANT egress
 ```
 
 One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.
@@ -87,7 +86,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss b5730d1683ad -> /nix/store/…-cix-build-view
+BUILDER build memo miss 573771d4353c -> /nix/store/…-cix-build-view
 ```
 
 Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.
@@ -110,7 +109,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 8deeb50bd583 -> /nix/store/…-cix-build-view
+BUILDER build memo miss a46adc5a40be -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -126,7 +125,7 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 8deeb50bd583 -> /nix/store/…-cix-build-view
+BUILDER build memo miss a46adc5a40be -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -143,7 +142,7 @@ $ rm -rf ../.workspaces-proj1
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .
 {"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
-BUILDER build memo hit 8deeb50bd583 -> /nix/store/…-cix-build-view
+BUILDER build memo hit a46adc5a40be -> /nix/store/…-cix-build-view
 ```
 
 ```sh

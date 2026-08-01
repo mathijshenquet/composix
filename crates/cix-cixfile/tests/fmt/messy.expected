@@ -1,0 +1,23 @@
+# prelude comment  
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+# builder comment
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  RUN <<BUILD
+if true; then  
+	printf 'body stays verbatim'  
+fi
+BUILD
+# builder body comment  
+  RUN printf 'still   shell text' \
+      && true
+
+SERVICE app
+  COPY ${pkgs.bash}/bin/bash /bin/bash
+  FILE /etc/app.conf <<EOF
+body=${pkgs.bash}  
+EOF
+  EXEC /bin/bash -c 'echo  hi'
+  ENV MODE = production
+  PORT http = 8080

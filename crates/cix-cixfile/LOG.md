@@ -909,3 +909,103 @@
   under adversarial syntax`). No open items remain for this track; this final
   journal-only close records the completed commit and leaves the branch ready
   for independent verification.
+
+- 2026-08-01T03:00:00Z — Started `track/fmt` after reading `AGENTS.md`,
+  `.dev/specs/track-fmt.md`, the current journals, and D53/D74. Scope: a
+  separate lossless Cixfile formatter, parse-gated CLI/discovery/check mode,
+  golden+torture+CLI coverage, repo adoption, docs, gate wiring, lock-stability
+  proof, the complete prescribed gate, and a scoped commit. `devenv shell --
+  true` confirms the development environment is active. Next: map parser
+  lexical rules and implement the formatter without changing the semantic
+  parser.
+
+- 2026-08-01T03:25:00Z — Implemented the separate `cix_cixfile::fmt` lossless
+  physical-line scanner and the `cix fmt` command. It calls the real parser
+  before scanning, tracks parser-compatible continuations and RUN/FILE
+  heredocs, preserves comments and heredoc body/terminator text, and normalizes
+  the v1 layout outside them. CLI coverage proves unified `--check` diffs,
+  stdin, rejected-input no-write behavior, .gitignore discovery, explicit-file
+  behavior, and unchanged mtime; golden/CRLF tests plus the complete torture
+  sweep prove idempotence and semantic equivalence excluding diagnostic
+  provenance. Focused repros currently green: `devenv shell -- cargo test -p
+  cix-cixfile --test fmt` and `devenv shell -- cargo test -p cix --test fmt`.
+  Next: documentation/gate wiring review, commit the implementation, format
+  examples in its required separate commit, then lock proof and full gate.
+
+- 2026-08-01T05:25:00Z — STOPPED at the D74 lock-stability gate, before
+  committing the separately reformatted examples or claiming the full gate.
+  `cix fmt examples` and the required ignored tour regeneration succeeded, but
+  the regenerated proj1 transcript changed builder memo keys solely from the
+  new Cixfile indentation. The concrete leak is
+  `crates/cix-build/src/build_chain.rs:763`: COPY step key material includes
+  `copy.source`, the physical directive text, rather than the parsed COPY
+  semantics. An isolated reformatted proj1 refresh (`CIX_BUILD_WORKSPACE_DIR=
+  /dev/shm/cix-fmt-lock.fgIocj/workspaces TMPDIR=/dev/shm target/debug/cix build
+  --update-lock build /dev/shm/cix-fmt-lock.fgIocj/proj1`) produced a changed
+  lock (original SHA-256 `1226eb…61519`, refreshed `3b7b3b…ea2ae`) with the new
+  memo key `d505b7…f6d8b0`. This is exactly the keying leak the track says to
+  surface rather than paper over. Implementation commit `7f99aa7` is complete;
+  unstaged adoption/gate changes remain for a follow-up after a decision on
+  fixing the build-key provenance dependency.
+
+- 2026-08-01T05:27:28Z — Merged `origin/main` as required by the D74
+  addendum (`21d5993`), preserving the already-uncommitted formatter adoption
+  work. The addendum confirms this is a D48a/D69 bug, not a design decision.
+  Root-cause work resumed at `builder_chain_keys`: the COPY arguments presently
+  hash `copy.source` verbatim beside `copy.dst`, while the source content is
+  separately nar-hashed. Next: make the semantic COPY key explicit, prove the
+  exact before/after key material, add the formatting/lock regressions, then
+  finish adoption and the prescribed full gate.
+
+- 2026-08-01T05:32:00Z — Root cause pinned down and fixed. The old first
+  proj1 COPY key arguments were `COPY ${src}/rust/ .\0.`; formatting changed
+  only that first component to `  COPY ${src}/rust/ .\0.`. The parsed `src`
+  template (`Binder(src) + Literal(/rust/)`), parsed destination `.`, declared
+  source nar hash, imports, environment, and predecessor are otherwise the
+  same. `builder_chain_keys` now serializes only the semantic template parts
+  (without diagnostic line numbers) and destination, plus the pre-existing nar
+  hash. The codegen fingerprint is bumped from `d69-v1` to `d74-v1`, so old
+  memo entries are deliberately orphaned for one alpha cold rebuild. Repros
+  green: `devenv shell -- cargo test -p cix-build
+  copy_key_arguments_exclude_physical_directive_provenance --lib` and
+  `devenv shell -- cargo test -p cix-cixfile --test fmt
+  formatting_preserves_builder_keys_and_clean_update_lock -- --exact`.
+  The latter runs two isolated clean `--update-lock build` builds of an
+  unformatted/formatted fixture and proves byte-identical locks (hence builder
+  memo key). Next: re-prove D69 pinkeys after workspace wipes, then complete
+  adoption and the full gate.
+
+- 2026-08-01T05:36:00Z — Committed the required standalone repository adoption
+  as `d9077bc` (`Apply Cixfile format canon to examples`): 14 live example
+  Cixfiles only. The unrelated generated untracked `devenv.lock` was removed.
+  Remaining uncommitted scope is the COPY-key correction/regression, tour
+  regeneration, CI formatting check, and this append-only log. Next: rerun
+  the tour for the D74 fingerprint keys and execute the D69 workspace-wipe
+  acceptance before the full gate.
+
+- 2026-08-01T05:39:00Z — Re-proved the D69 pinkeys acceptance with a fresh,
+  disposable automatic-FETCH fixture: clean `--update-lock build` under
+  `d69-workspace-a`, moved that workspace aside (the wipe), reset to the clean
+  input lock, then repeated under fresh `d69-workspace-b`. Both generated
+  `Cixfile.lock` files are byte-identical (`d430fb09…a5a7b7`), despite distinct
+  timestamped `.npm/_logs` volatile probe facts, and `cmp -s` passed. Next:
+  regenerate the tour with the new D74 fingerprint, then run the full gate.
+
+- 2026-08-01T05:40:00Z — Full track gate is green. Passed: `devenv shell --
+  cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace
+  --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`;
+  `devenv shell -- cargo run -- fmt --check examples`; tour regeneration,
+  committed-doc matching, and deterministic generation twice; and the required
+  full `TMPDIR=/dev/shm devenv shell -- nix flake check -L` (69 checks,
+  including VM scenarios; the immediate repeat reported all checks previously
+  built). The regen updates the RUN and proj1 transcript key receipts to the
+  deliberate `d74-v1` namespace. `git diff --check` and cached diff checks
+  pass. Next: remove generated scratch artifacts, stage this remaining scoped
+  correction, review, and commit.
+
+- 2026-08-01T05:41:06Z — Committed the scoped COPY-key correction, regression,
+  CI formatter check, regenerated tour receipts, and journal as `862975b`
+  (`Preserve COPY memo keys across formatting`). Together with standalone
+  adoption `d9077bc` and formatter implementation `7f99aa7`, track/fmt is
+  complete. Worktree is clean; the temporary `/dev/shm/cixfmt-key.eCexDX`
+  acceptance workspace and generated `devenv.lock` have been removed.

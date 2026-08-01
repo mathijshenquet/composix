@@ -2,6 +2,7 @@
 
 mod build;
 pub mod cli;
+pub mod fmt;
 mod parser;
 
 pub use build::{build, build_family, BuildOptions, BuiltItem};

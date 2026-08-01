@@ -1,0 +1,2 @@
+*.cix -whitespace
+*.expected -whitespace

@@ -2,19 +2,18 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
-    ${pkgs.cargo-chef} ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert}
-
+  IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
+      ${pkgs.cargo-chef} ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert}
 # The recipe comes first so source-only edits can reuse the cooked dependency snapshot.
-COPY ${src}/recipe.json recipe.json
-FETCH cargo chef cook --release --recipe-path recipe.json
-RUN cargo chef cook --release --offline --recipe-path recipe.json
-COPY ${src}/Cargo.toml Cargo.toml
-COPY ${src}/Cargo.lock Cargo.lock
-COPY ${src}/src/ src
-RUN cargo build --release --locked --offline
+  COPY ${src}/recipe.json recipe.json
+  FETCH cargo chef cook --release --recipe-path recipe.json
+  RUN cargo chef cook --release --offline --recipe-path recipe.json
+  COPY ${src}/Cargo.toml Cargo.toml
+  COPY ${src}/Cargo.lock Cargo.lock
+  COPY ${src}/src/ src
+  RUN cargo build --release --locked --offline
 
 SERVICE projb-chef
-COPY ${build}/target/release/projb-chef /bin/projb-chef
-EXEC projb-chef
-PORT http = 18083
+  COPY ${build}/target/release/projb-chef /bin/projb-chef
+  EXEC projb-chef
+  PORT http = 18083

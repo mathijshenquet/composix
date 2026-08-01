@@ -16,8 +16,8 @@ use crate::codegen::{
 };
 use crate::seccomp;
 use crate::{
-    BuildStep, Builder, Cixfile, ConsumedPath, Fetch, FetchPin, LockFile, MemoEntry, Template,
-    TemplatePart, VolatilePath,
+    BuildStep, Builder, Cixfile, ConsumedPath, Copy, Fetch, FetchPin, LockFile, MemoEntry,
+    Template, TemplatePart, VolatilePath,
 };
 
 #[derive(Debug, Deserialize)]
@@ -42,12 +42,28 @@ struct StepKeyRequest<'a> {
     fetch_pin: Option<String>,
 }
 
+#[derive(Serialize)]
+struct CopyKey<'a> {
+    src: Vec<TemplateKeyPart<'a>>,
+    dst: &'a str,
+}
+
+#[derive(Serialize)]
+enum TemplateKeyPart<'a> {
+    Literal(&'a str),
+    Package {
+        namespace: &'a str,
+        attrpath: &'a str,
+    },
+    Binder(&'a str),
+}
+
 // Bump whenever the fixed bubblewrap filesystem skeleton changes: memoized
 // commands must not be reused across a different execution environment.
 const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
 // Bump this when codegen-relevant Cixfile semantics change without a package
 // version bump.  It keeps memo keys isolated across concurrently-built checkouts.
-const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d69-v1");
+const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d74-v1");
 
 #[derive(Clone, Debug, Default)]
 struct NeededPath {
@@ -793,7 +809,7 @@ fn builder_chain_keys(
                 copy_index += 1;
                 (
                     "COPY",
-                    format!("{}\0{}", copy.source, copy.dst),
+                    copy_key_arguments(copy)?,
                     vec![nar_hash(Path::new(source))
                         .with_context(|| format!("hashing declared COPY source {source}"))?],
                     None,
@@ -827,6 +843,30 @@ fn builder_chain_keys(
         keys.push(predecessor.clone());
     }
     Ok(Some(keys))
+}
+
+fn copy_key_arguments(copy: &Copy) -> Result<String> {
+    let src = copy
+        .src
+        .parts
+        .iter()
+        .map(|part| match part {
+            TemplatePart::Literal(value) => TemplateKeyPart::Literal(value),
+            TemplatePart::Package {
+                namespace,
+                attrpath,
+                ..
+            } => TemplateKeyPart::Package {
+                namespace,
+                attrpath,
+            },
+            TemplatePart::Binder { name, .. } => TemplateKeyPart::Binder(name),
+        })
+        .collect();
+    Ok(serde_json::to_string(&CopyKey {
+        src,
+        dst: &copy.dst,
+    })?)
 }
 
 fn top_fetch_chain_key(
@@ -2054,6 +2094,43 @@ mod tests {
         assert_ne!(
             top_fetch_chain_key("fetch", &offered, &environment, "sha256-one").unwrap(),
             top_fetch_chain_key("fetch", &offered, &environment, "sha256-two").unwrap()
+        );
+    }
+
+    #[test]
+    fn copy_key_arguments_exclude_physical_directive_provenance() {
+        let original = Copy {
+            src: Template {
+                parts: vec![
+                    TemplatePart::Binder {
+                        name: "src".into(),
+                        line: 8,
+                    },
+                    TemplatePart::Literal("/rust/".into()),
+                ],
+            },
+            dst: ".".into(),
+            line: 8,
+            source: "COPY ${src}/rust/ .".into(),
+        };
+        let formatted = Copy {
+            src: Template {
+                parts: vec![
+                    TemplatePart::Binder {
+                        name: "src".into(),
+                        line: 7,
+                    },
+                    TemplatePart::Literal("/rust/".into()),
+                ],
+            },
+            dst: ".".into(),
+            line: 7,
+            source: "  COPY ${src}/rust/ .".into(),
+        };
+
+        assert_eq!(
+            copy_key_arguments(&original).unwrap(),
+            copy_key_arguments(&formatted).unwrap()
         );
     }
 

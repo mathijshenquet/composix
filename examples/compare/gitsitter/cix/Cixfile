@@ -2,18 +2,18 @@ FROM github:NixOS/nixpkgs/9cf7092bdd603554bd8b63c216e8943cf9b12512 AS pkgs
 FROM github:mathijshenquet/gitsitter AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.pkg-config} \
-    ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert} \
-    ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
-    ${pkgs.sqlite} ${pkgs.sqlite.dev}
-ENV GIT_COMMIT_HASH = 29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
-COPY ${src}/Cargo.toml Cargo.toml
-COPY ${src}/Cargo.lock Cargo.lock
-FETCH cargo vendor --locked vendor > cargo-vendor-config.toml && rm -rf .cargo
-RUN mkdir -p .cargo && cp cargo-vendor-config.toml .cargo/config.toml
-COPY ${src}/build.rs build.rs
-COPY ${src}/src/ src
-RUN PKG_CONFIG_PATH=${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libgit2.dev}/lib/pkgconfig:${pkgs.sqlite.dev}/lib/pkgconfig cargo build --release --locked --offline
+  IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.pkg-config} \
+      ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert} \
+      ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
+      ${pkgs.sqlite} ${pkgs.sqlite.dev}
+  ENV GIT_COMMIT_HASH = 29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+  COPY ${src}/Cargo.toml Cargo.toml
+  COPY ${src}/Cargo.lock Cargo.lock
+  FETCH cargo vendor --locked vendor > cargo-vendor-config.toml && rm -rf .cargo
+  RUN mkdir -p .cargo && cp cargo-vendor-config.toml .cargo/config.toml
+  COPY ${src}/build.rs build.rs
+  COPY ${src}/src/ src
+  RUN PKG_CONFIG_PATH=${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libgit2.dev}/lib/pkgconfig:${pkgs.sqlite.dev}/lib/pkgconfig cargo build --release --locked --offline
 
 ITEM gitsitter
-COPY ${build}/target/release/gitsitter /bin/gitsitter
+  COPY ${build}/target/release/gitsitter /bin/gitsitter
