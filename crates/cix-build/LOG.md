@@ -1,0 +1,63 @@
+# cix-build work log
+
+- 2026-08-01T00:00:00Z — Started track/underlay (D71). Reading the builder
+  chain and its persistent-workspace state to replace prefix-reset replay with
+  same-builder end-state underlaying, preserve `--cold` as empty/offline, add
+  coverage and documentation receipts, then run the full flake gate.
+
+- 2026-08-01T00:20:00Z — Implemented underlay-always: `--cold` is now the
+  only path that allocates an empty builder workspace. Warm rebuilds retain the
+  same project+builder workspace even when the changed suffix contains FETCH;
+  `--update-lock` replays its complete builder in that underlay. Focused real
+  Nix tests passed: `devenv shell -- cargo test -p cix-cixfile --test lock_nix
+  warm_rerun_starts_on_its_builder_end_state_while_cold_does_not -- --exact
+  --nocapture` and `devenv shell -- cargo test -p cix-cixfile --test lock_nix
+  changed_step_before_fetch_reuses_its_builder_underlay -- --exact --nocapture`.
+  The first proves a source-edit suffix sees its prior RUN append whereas cold
+  reports the consumed-output difference.
+
+- 2026-08-01T00:45:00Z — Re-ran
+  `examples/compare/gitsitter/measure-warm.sh` with the just-built cix binary.
+  `/tmp` was inode-starved during the first faithful attempt (`cargo vendor`
+  reported ENOSPC), so the unchanged harness was re-run with only its
+  disposable `mktemp` root relocated to ignored `target/`; its cleanup trap
+  removed it. Receipt: upstream 28.32 s, crane 13.95 s, Cix 7.46 s. Updated
+  only the Cix warm-edit matrix value and its dated receipt in `docs/nix-build.md`.
+  Next: run the full required verification sequence, ending with the full
+  flake check.
+
+- 2026-08-01T01:05:00Z — The first workspace-test gate exposed a pre-existing
+  torture-snapshot failure: `ParseError` rendered its excerpt separator as the
+  literal characters `\\n`, while all committed snapshots use a real newline.
+  Corrected the formatter (no diagnostic wording changed) and verified
+  `devenv shell -- cargo test -p cix-cixfile --test diagnostics -- --exact`;
+  the snapshots themselves remain byte-identical to HEAD. Re-running the full
+  gate from fmt/clippy/workspace tests now.
+
+- 2026-08-01T01:15:00Z — The second workspace gate reached `lock_nix` and
+  exposed two more D72 migration omissions: real-Nix assertions expected
+  manifest versions 4/5 while the current generated manifests are v0. Updated
+  only those stale test expectations to 0. The underlay tests and all other
+  `lock_nix` cases passed; restarting the workspace gate before cold-audit,
+  tour, VM, and full-flake checks.
+
+- 2026-08-01T01:30:00Z — The subsequent workspace test found the live
+  user-run fixture had also missed D11's role-root restriction. It now
+  declares `/var/lib/cix-run-integration-test` and verifies both the normal
+  bind-mapped path and the documented mount-namespace-degraded fallback. Exact
+  focused repro passed: `devenv shell -- cargo test -p cix-run --test user_run
+  -- --exact --nocapture`. Restarting workspace verification once more before
+  the required cold audit and remaining gates.
+
+- 2026-08-01T02:05:00Z — Full track gate green. Exact successful repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test cold_audit --
+  --ignored`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; `git diff --exit-code -- docs/tour`; `devenv shell -- cargo
+  test -p cix --test tour tour_matches_committed_document -- --exact`; two
+  runs of `devenv shell -- cargo test -p cix --test tour
+  generated_tour_is_deterministic -- --exact`; `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L`; and, as the final gate,
+  `devenv shell -- nix flake check -L`. Ready for final diff review and
+  commit.

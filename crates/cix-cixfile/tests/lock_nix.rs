@@ -35,7 +35,7 @@ fn with_spec_redis_builds_mounts_and_parses() {
 
     assert!(output.join("etc/redis/redis.conf").is_file());
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_manifest, 4);
+    assert_eq!(spec.cix_manifest, 0);
     assert_eq!(
         spec.select_service(None)
             .unwrap()
@@ -130,7 +130,7 @@ EXEC hello
         .ends_with("/bin/hello"));
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
-    assert_eq!(spec.cix_manifest, 5);
+    assert_eq!(spec.cix_manifest, 0);
     assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/hello"]);
     assert_eq!(
         spec.select_service(None).unwrap().1.env["PATH"]
@@ -879,7 +879,7 @@ EXEC /bin/true
 }
 
 #[test]
-fn changed_step_before_fetch_replays_command_prefix_in_clean_workspace() {
+fn changed_step_before_fetch_reuses_its_builder_underlay() {
     let directory = tempfile::tempdir().unwrap();
     let expected_tree = tempfile::tempdir().unwrap();
     fs::write(expected_tree.path().join("required"), "present\n").unwrap();
@@ -936,6 +936,73 @@ EXEC /bin/true
     assert_eq!(
         fs::read_to_string(PathBuf::from(&rebuilt[0].store_path).join("required")).unwrap(),
         "present\n"
+    );
+}
+
+#[test]
+fn warm_rerun_starts_on_its_builder_end_state_while_cold_does_not() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("source"), "v1\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+RUN printf 'before\n' >> history
+COPY ${src}/source source
+RUN cat source >> history && cp history output
+SERVICE result
+COPY ${build}/output /output
+EXEC /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+
+    let first = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&first[0].store_path).join("output")).unwrap(),
+        "before\nv1\n"
+    );
+
+    fs::write(directory.path().join("source"), "v2\n").unwrap();
+    let warm = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(PathBuf::from(&warm[0].store_path).join("output")).unwrap(),
+        "before\nv1\nv2\n"
+    );
+
+    let cold = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+    })
+    .unwrap_err()
+    .to_string();
+    assert!(
+        cold.contains("COPY ${build}/output") && cold.contains("differs between warm and cold"),
+        "{cold}"
     );
 }
 

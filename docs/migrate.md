@@ -262,7 +262,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | Cross-image `COPY --from=<image>` | `FROM family/member:v3 AS prebuilt`, then `COPY ${prebuilt}/path /destination` | The index ref must have an explicit tag. It is NAR-verified and lock-pinned; a moved tag takes effect only through `--update-lock prebuilt`. |
 | Context `COPY` | `COPY path /destination` or `COPY ${src}/path /destination` | Artifact destinations are absolute in the item's runtime world; BUILDER destinations stay relative. Read every copied script/config first. Directory COPY is preferred when contents move together. |
 | `ADD` URL or automatic tar extraction | `FETCH` the URL, then `RUN` an explicit extractor | There is no implicit URL fetch or archive extraction. |
-| `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default; workspace bytes never enter keys. Use `cix build --cold` to compare warm and clean outputs. |
+| `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default, including the builder's own last end-state on a re-run; workspace bytes never enter keys. Use `cix build --cold` as the clean-output audit. |
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `EXEC` argv; use quote-aware words | `EXEC` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound grant, not documentation. |
