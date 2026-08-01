@@ -10,7 +10,7 @@ A served index and a standard Nix binary cache are enough to move the same immut
 ## Serve
 
 ```sh
-publisher $ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":4,"exec":["message"]}' > my-app-v1/cix-manifest.json
+publisher $ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":0,"exec":["message"]}' > my-app-v1/cix-manifest.json
 ```
 
 ```sh
@@ -22,7 +22,7 @@ message
 ```sh
 publisher $ cat my-app-v1/message my-app-v1/cix-manifest.json
 hello from my app v1
-{"cixManifest":4,"exec":["message"]}
+{"cixManifest":0,"exec":["message"]}
 ```
 
 ```sh
@@ -35,7 +35,7 @@ publisher $ cix serve --with-store --listen 127.0.0.1:8420 &
 
 ```sh
 publisher $ curl -s -H 'Accept: application/vnd.cix+json;version=1' http://127.0.0.1:8420/my-app:v1
-{"outputs":{"x86_64-linux":{"storePath":"/nix/store/…-my-app-v1","narHash":"sha256-lJ1VB8NszwDs7+TWMXRFGrmuUAh2Mq5Bz4K3LWSyMwE="}},"substituters":["http://127.0.0.1:8420/store"],"createdAt":"1700000000"}
+{"outputs":{"x86_64-linux":{"storePath":"/nix/store/…-my-app-v1","narHash":"sha256-OGmEFNLf8zxGCBHwjTS7TjzMGtnc4jCu5ibamgVNd8I="}},"substituters":["http://127.0.0.1:8420/store"],"createdAt":"1700000000"}
 ```
 
 The same URL serves an informative HTML representation to a browser; content negotiation keeps one public name instead of a separate API URL.
@@ -65,7 +65,7 @@ my-app:v1  x86_64-linux  /nix/store/…-my-app-v1  127.0.0.1:8420  0s
 The publisher can move `my-app:v1` to a new immutable path. A bare `cix pull` refreshes every local tag that remembers an upstream.
 
 ```sh
-publisher $ mkdir my-app-v2 && printf '%s\n' 'hello from my app v2' > my-app-v2/message && printf '%s\n' '{"cixManifest":4,"exec":["message"]}' > my-app-v2/cix-manifest.json
+publisher $ mkdir my-app-v2 && printf '%s\n' 'hello from my app v2' > my-app-v2/message && printf '%s\n' '{"cixManifest":0,"exec":["message"]}' > my-app-v2/cix-manifest.json
 ```
 
 ```sh
@@ -77,7 +77,7 @@ message
 ```sh
 publisher $ cat my-app-v2/message my-app-v2/cix-manifest.json
 hello from my app v2
-{"cixManifest":4,"exec":["message"]}
+{"cixManifest":0,"exec":["message"]}
 ```
 
 ```sh

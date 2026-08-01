@@ -9,7 +9,7 @@ The basic chapters use ordinary port grants and single services. This chapter sh
 
 ## Socket activation
 
-The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a v3 manifest declaring the named `http` listener.
+The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a version-0 manifest declaring the named `http` listener.
 
 ```sh
 $ ls -R listener-fixture
@@ -45,19 +45,15 @@ while True:
             + b"Connection: close\r\n\r\n" + body
         )
 {
-  "cixManifest": 3,
-  "services": {
-    "listenfds": {
-      "exec": ["bin/listenfds"],
-      "listeners": {"http": {"type": "stream"}}
-    }
-  }
+  "cixManifest": 0,
+  "exec": ["bin/listenfds"],
+  "listeners": {"http": {"type": "stream"}}
 }
 ```
 
 ```sh
 $ cix run /nix/store/…-listener-fixture --user -p http=127.0.0.1:8420 --detach
-cix-run-listenfds-NONCE.service
+cix-run-listener-fixture-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
 
@@ -67,7 +63,7 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop cix-run-listenfds-NONCE.service
+$ systemctl --user stop cix-run-listener-fixture-NONCE.service
 ```
 
 Stopping the transient service also removes its companion `.socket` unit.
@@ -140,7 +136,7 @@ $ cat cix.lock
     "web": {
       "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",
-      "narHash": "sha256-wbMSvxufGxcOtBfxii4hYBMSo29q8VOhidF4RdImE3U="
+      "narHash": "sha256-mI+y9xDFP5T8gfZ9OGmwqzrqwl5cdI1khYQWCzjp2OY="
     }
   }
 }

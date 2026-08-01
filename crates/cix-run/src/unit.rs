@@ -644,13 +644,17 @@ fn unit_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::spec::Spec;
+    use crate::spec::{Service, Spec};
 
     use super::*;
 
+    fn service(spec: &Spec) -> &Service {
+        spec.select_service(None).unwrap().1
+    }
+
     fn fixture() -> (Spec, ResolvedConfig) {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/full-spec.json")).unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(
             service,
             &["DB_URL=postgres://db/a b".into(), "ENABLED=true".into()],
@@ -666,7 +670,7 @@ mod tests {
         let actual = generate_unit(
             Path::new("/nix/store/00000000000000000000000000000000-web"),
             "web",
-            &spec.services["web"],
+            service(&spec),
             &config,
             UnitMode::System,
         )
@@ -677,7 +681,7 @@ mod tests {
     #[test]
     fn no_declared_network_is_private() {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/minimal-spec.json")).unwrap();
-        let service = &spec.services["worker"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let actual = generate_unit(
             Path::new("/nix/store/00000000000000000000000000000000-worker"),
@@ -704,7 +708,7 @@ mod tests {
         let compiled = compile_unit_for_host(
             Path::new("/nix/store/00000000000000000000000000000000-web"),
             "web",
-            &spec.services["web"],
+            service(&spec),
             &config,
             UnitMode::System,
             &UnitCompileOptions::cix_run("web"),
@@ -728,7 +732,7 @@ mod tests {
         let compiled = compile_unit_for_host(
             Path::new("/nix/store/00000000000000000000000000000000-web"),
             "web",
-            &spec.services["web"],
+            service(&spec),
             &config,
             UnitMode::System,
             &UnitCompileOptions::cix_run("web"),
@@ -743,10 +747,10 @@ mod tests {
     #[test]
     fn runtime_directories_do_not_trigger_persistent_directory_fallback() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":2,"services":{"worker":{"exec":["bin/worker"],"dirs":{"run":["/run/worker"]}}}}"#,
+            br#"{"cixManifest":0,"exec":["bin/worker"],"dirs":{"run":["/run/worker"]}}"#,
         )
         .unwrap();
-        let service = &spec.services["worker"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let capabilities = HostCapabilities::private_pids_with_persistent_directories_unsupported(
             "synthetic realization failure",
@@ -773,10 +777,10 @@ mod tests {
         std::fs::write(output.path().join("etc/nginx/nginx.conf"), "events {}\n").unwrap();
         std::fs::write(output.path().join("cix-probe.conf"), "probe\n").unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixManifest":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}}}"#,
+            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}"#,
         )
         .unwrap();
-        let service = &spec.services["worker"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let definition =
             build_unit(output.path(), "worker", service, &config, UnitMode::System).unwrap();
@@ -833,10 +837,10 @@ mod tests {
     fn refuses_a_declared_mount_missing_from_the_store_item() {
         let output = tempfile::tempdir().unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixManifest":2,"services":{"worker":{"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}}}"#,
+            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}"#,
         )
         .unwrap();
-        let service = &spec.services["worker"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let error = build_unit(output.path(), "worker", service, &config, UnitMode::System)
             .unwrap_err()
@@ -850,7 +854,7 @@ mod tests {
     #[test]
     fn v2_system_unit_matches_golden_file() {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/v2-spec.json")).unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let actual = generate_unit(
             Path::new("/nix/store/00000000000000000000000000000000-web-v2"),
@@ -868,7 +872,7 @@ mod tests {
     #[test]
     fn v5_jit_grant_drops_memory_deny_write_execute() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":5,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"grants":["jit"]}"#,
+            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"grants":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
@@ -887,7 +891,7 @@ mod tests {
     #[test]
     fn item_bin_default_is_projected_into_the_run_unit_environment() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":5,"exec":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
+            br#"{"cixManifest":0,"exec":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
@@ -909,7 +913,7 @@ mod tests {
     fn v3_listener_unit_keeps_network_private_and_denies_binds() {
         let spec =
             Spec::from_slice(include_bytes!("../tests/fixtures/v3-listener-spec.json")).unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config =
             ResolvedConfig::resolve(service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
         let actual = generate_unit(
@@ -935,21 +939,17 @@ mod tests {
     fn ports_and_listeners_compile_independent_socket_capabilities() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 3,
-                "services": {
-                    "web": {
-                        "exec": ["bin/web"],
-                        "ports": {
-                            "http": {"value": 8080, "protocol": "tcp"},
-                            "dns": {"value": 5353, "protocol": "udp"}
-                        },
-                        "listeners": {"admin": {"type": "stream"}}
-                    }
-                }
+                "cixManifest": 0,
+                "exec": ["bin/web"],
+                "ports": {
+                    "http": {"value": 8080, "protocol": "tcp"},
+                    "dns": {"value": 5353, "protocol": "udp"}
+                },
+                "listeners": {"admin": {"type": "stream"}}
             }"#,
         )
         .unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config =
             ResolvedConfig::resolve(service, &[], &["admin=127.0.0.1:9090".into()]).unwrap();
         let actual = generate_unit(
@@ -969,10 +969,10 @@ mod tests {
     #[test]
     fn public_compiler_accepts_foreign_names_and_extra_properties() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":1,"services":{"web":{"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}}}"#,
+            br#"{"cixManifest":0,"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}"#,
         )
         .unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let compiled = compile_unit(
             Path::new("/nix/store/00000000000000000000000000000000-web"),
@@ -1002,18 +1002,14 @@ mod tests {
     fn env_default_and_override_low_ports_grant_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 2,
-                "services": {
-                    "web": {
-                        "exec": ["bin/web"],
-                        "env": {"PORT": {"default": "80"}},
-                        "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
-                    }
-                }
+                "cixManifest": 0,
+                "exec": ["bin/web"],
+                "env": {"PORT": {"default": "80"}},
+                "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
             }"#,
         )
         .unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         for config in [
             ResolvedConfig::resolve(service, &[], &[]).unwrap(),
             ResolvedConfig::resolve(service, &[], &["http=81".into()]).unwrap(),
@@ -1035,18 +1031,14 @@ mod tests {
     fn high_default_overridden_to_low_port_grants_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 2,
-                "services": {
-                    "web": {
-                        "exec": ["bin/web"],
-                        "env": {"PORT": {"default": "8080"}},
-                        "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
-                    }
-                }
+                "cixManifest": 0,
+                "exec": ["bin/web"],
+                "env": {"PORT": {"default": "8080"}},
+                "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
             }"#,
         )
         .unwrap();
-        let service = &spec.services["web"];
+        let service = service(&spec);
         let config =
             ResolvedConfig::resolve(service, &[], &["http=80".into()]).expect("valid override");
         let actual = generate_unit(
@@ -1063,9 +1055,8 @@ mod tests {
 
     #[test]
     fn refuses_an_executable_that_escapes_the_store_output() {
-        let spec = Spec::from_slice(br#"{"cixManifest":1,"services":{"x":{"exec":["../bin/x"]}}}"#)
-            .unwrap();
-        let service = &spec.services["x"];
+        let spec = Spec::from_slice(br#"{"cixManifest":0,"exec":["../bin/x"]}"#).unwrap();
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         assert!(generate_unit(
             Path::new("/nix/store/00000000000000000000000000000000-x"),
@@ -1081,21 +1072,17 @@ mod tests {
     fn system_role_paths_preserve_dynamic_user_id_mapping() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 1,
-                "services": {
-                    "database": {
-                        "exec": ["bin/database"],
-                        "dirs": {
-                            "state": ["/var/lib/database"],
-                            "cache": ["/var/cache/database"],
-                            "logs": ["/var/log/database"]
-                        }
-                    }
+                "cixManifest": 0,
+                "exec": ["bin/database"],
+                "dirs": {
+                    "state": ["/var/lib/database"],
+                    "cache": ["/var/cache/database"],
+                    "logs": ["/var/log/database"]
                 }
             }"#,
         )
         .unwrap();
-        let service = &spec.services["database"];
+        let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         let actual = generate_unit(
             Path::new("/nix/store/00000000000000000000000000000000-database"),

@@ -129,7 +129,7 @@ composix.withSpec {
   name = "cix-item-wallos";
   inherit mounts;
   manifest = {
-    cixManifest = 5;
+    cixManifest = 0;
     exec = [ start ];
     setup = [ setup ];
     mounts = builtins.attrNames mounts;

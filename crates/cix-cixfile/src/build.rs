@@ -3,10 +3,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::build_chain;
-use crate::codegen::generate_nix_with_snapshots;
-use crate::lock::save_lock;
 use crate::{ensure_lock, parse};
+use cix_build::{execute, generate_nix_with_snapshots, save_lock};
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
@@ -89,7 +87,7 @@ pub fn build_family(
     let lock_path = directory.join("Cixfile.lock");
     let mut lock = ensure_lock(&lock_path, &cixfile.inputs, input_update)?;
     let system = cix_common::current_system()?;
-    let snapshots = build_chain::execute(
+    let snapshots = execute(
         &cixfile,
         &directory,
         &mut lock,

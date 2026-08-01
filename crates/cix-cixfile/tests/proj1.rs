@@ -37,7 +37,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     assert_eq!(parsed.artifact_order, ["proj1-api", "proj1-worker"]);
 
     let first = run_build(temporary.path(), false);
-    assert_items_are_minimal_and_v4(&first);
+    assert_items_are_minimal_and_v0(&first);
     let first_lock = load_lock(temporary.path());
     assert_eq!(first_lock.memo.len(), 1);
     assert_consumed_binaries(&first_lock);
@@ -90,7 +90,7 @@ fn path<'a>(items: &'a [BuiltItem], name: &str) -> &'a str {
         .store_path
 }
 
-fn assert_items_are_minimal_and_v4(items: &[BuiltItem]) {
+fn assert_items_are_minimal_and_v0(items: &[BuiltItem]) {
     for item in items {
         let root = Path::new(&item.store_path);
         let mut listing = list_relative(root);
@@ -106,7 +106,7 @@ fn assert_items_are_minimal_and_v4(items: &[BuiltItem]) {
 
         let manifest: serde_json::Value =
             serde_json::from_slice(&fs::read(root.join("cix-manifest.json")).unwrap()).unwrap();
-        assert_eq!(manifest["cixManifest"], 5);
+        assert_eq!(manifest["cixManifest"], 0);
         assert!(manifest.get("services").is_none());
         if item.name == "proj1-worker" {
             assert_eq!(manifest["grants"], serde_json::json!(["egress"]));

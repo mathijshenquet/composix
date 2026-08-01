@@ -73,7 +73,7 @@ enum RunNetwork {
     SocketFilter,
 }
 
-pub(crate) fn execute(
+pub fn execute(
     cixfile: &Cixfile,
     directory: &Path,
     lock: &mut LockFile,

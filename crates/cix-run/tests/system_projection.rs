@@ -61,13 +61,9 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
     fs::set_permissions(&executable, permissions)?;
 
     let json = serde_json::json!({
-        "cixManifest": 2,
-        "services": {
-            "projection-test": {
-                "exec": ["bin/service"],
-                "mounts": mounts,
-            }
-        }
+        "cixManifest": 0,
+        "exec": ["bin/service"],
+        "mounts": mounts,
     });
     fs::write(
         fixture.join("cix-manifest.json"),
@@ -76,7 +72,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
 
     let store_path = add_to_store(&fixture)?;
     let spec = Spec::load(&store_path)?;
-    let service = &spec.services["projection-test"];
+    let service = spec.select_service(None)?.1;
     let config = ResolvedConfig::resolve(service, &[], &[])?;
     let slice_guard = SystemSliceGuard;
     let started = start_service(&store_path, "projection-test", service, &config, false)?;
@@ -159,18 +155,14 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
     fs::write(
         listener_fixture.join("cix-manifest.json"),
         br#"{
-            "cixManifest": 3,
-            "services": {
-                "listener-test": {
-                    "exec": ["bin/service"],
-                    "listeners": {"http": {"type": "stream"}}
-                }
-            }
+            "cixManifest": 0,
+            "exec": ["bin/service"],
+            "listeners": {"http": {"type": "stream"}}
         }"#,
     )?;
     let listener_store = add_to_store(&listener_fixture)?;
     let listener_spec = Spec::load(&listener_store)?;
-    let listener_service = &listener_spec.services["listener-test"];
+    let listener_service = listener_spec.select_service(None)?.1;
     let listener_config = ResolvedConfig::resolve(
         listener_service,
         &[],
@@ -225,19 +217,15 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
         ports_fixture.join("cix-manifest.json"),
         format!(
             r#"{{
-                "cixManifest": 3,
-                "services": {{
-                    "port-test": {{
-                        "exec": ["bin/service"],
-                        "ports": {{"declared": {{"value": {declared_port}, "protocol": "tcp"}}}}
-                    }}
-                }}
+                "cixManifest": 0,
+                "exec": ["bin/service"],
+                "ports": {{"declared": {{"value": {declared_port}, "protocol": "tcp"}}}}
             }}"#
         ),
     )?;
     let ports_store = add_to_store(&ports_fixture)?;
     let ports_spec = Spec::load(&ports_store)?;
-    let ports_service = &ports_spec.services["port-test"];
+    let ports_service = ports_spec.select_service(None)?.1;
     let ports_config = ResolvedConfig::resolve(ports_service, &[], &[])?;
     let ports_started = start_service(
         &ports_store,

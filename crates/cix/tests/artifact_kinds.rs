@@ -31,7 +31,7 @@ fn app_propagates_exit_status() -> Result<()> {
     write_manifest(
         &app,
         serde_json::json!({
-            "cixManifest": 4,
+            "cixManifest": 0,
             "kind": "app",
             "exec": [shell, "-c", "echo d47-app-output; exit 23"]
         }),

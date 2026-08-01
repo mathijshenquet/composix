@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn json_schema_has_stable_artifact_and_runtime_field_names() {
         let manifest = cix_run::spec::Spec::from_slice(
-            br#"{"cixManifest":3,"services":{"web":{"exec":["bin/web"],"listeners":{"http":{"type":"stream"}}}}}"#,
+            br#"{"cixManifest":0,"exec":["bin/web"],"listeners":{"http":{"type":"stream"}}}"#,
         )
         .unwrap();
         let artifact = ArtifactInspection {
@@ -520,7 +520,7 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_value(&artifact).unwrap()["manifest"]["cixManifest"],
-            3
+            0
         );
         assert_eq!(
             serde_json::to_value(&artifact).unwrap()["storePath"],

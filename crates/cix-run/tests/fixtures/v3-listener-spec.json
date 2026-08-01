@@ -1,11 +1,7 @@
 {
-  "cixManifest": 3,
-  "services": {
-    "web": {
-      "exec": ["bin/web"],
-      "listeners": {
-        "http": {"type": "stream"}
-      }
-    }
+  "cixManifest": 0,
+  "exec": ["bin/web"],
+  "listeners": {
+    "http": {"type": "stream"}
   }
 }

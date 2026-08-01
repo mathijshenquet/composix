@@ -272,7 +272,7 @@ mod tests {
     }
 
     fn item_spec(service: &str) -> String {
-        format!(r#"{{"cixManifest":3,"services":{{"app":{{{service}}}}}}}"#)
+        format!(r#"{{"cixManifest":0,{service}}}"#)
     }
 
     #[test]
@@ -355,11 +355,7 @@ mod tests {
                 r#""exec":["/nix/store/fake/bin/app"],"env":{"NEEDED":{"required":true}},"listeners":{"http":{"type":"stream"}},"dirs":{"run":["/run/app"]}"#,
             ),
         );
-        let invalid = write_item(
-            directory.path(),
-            "invalid",
-            r#"{"cixManifest":99,"services":{}}"#,
-        );
+        let invalid = write_item(directory.path(), "invalid", r#"{"cixManifest":99}"#);
         let resolver = |reference: &str| {
             Ok(if reference == "invalid:v1" {
                 output(&invalid, "invalid")

@@ -10,7 +10,7 @@ The index gives mutable, memorable names to immutable Nix store paths. This chap
 ## Tag
 
 ```sh
-$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":4,"exec":["message"]}' > my-app-v1/cix-manifest.json
+$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":0,"exec":["message"]}' > my-app-v1/cix-manifest.json
 ```
 
 ```sh
@@ -22,7 +22,7 @@ message
 ```sh
 $ cat my-app-v1/message my-app-v1/cix-manifest.json
 hello from my app v1
-{"cixManifest":4,"exec":["message"]}
+{"cixManifest":0,"exec":["message"]}
 ```
 
 ```sh
@@ -51,13 +51,13 @@ $ cat "$(readlink $CIX_STATE_DIR/roots/names/bXktYXBw/table)/table.json"
   "tags": {
     "v1": {
       "storePath": "/nix/store/…-my-app-v1",
-      "narHash": "sha256-lJ1VB8NszwDs7+TWMXRFGrmuUAh2Mq5Bz4K3LWSyMwE=",
+      "narHash": "sha256-OGmEFNLf8zxGCBHwjTS7TjzMGtnc4jCu5ibamgVNd8I=",
       "meta": {
         "reference": "my-app:v1",
         "outputs": {
           "x86_64-linux": {
             "storePath": "/nix/store/…-my-app-v1",
-            "narHash": "sha256-lJ1VB8NszwDs7+TWMXRFGrmuUAh2Mq5Bz4K3LWSyMwE="
+            "narHash": "sha256-OGmEFNLf8zxGCBHwjTS7TjzMGtnc4jCu5ibamgVNd8I="
           }
         },
         "createdAt": "1700000000"
@@ -77,15 +77,15 @@ $ cix inspect my-app:v1
   "kind": "artifact",
   "reference": "my-app:v1",
   "storePath": "/nix/store/…-my-app-v1",
-  "narHash": "sha256-lJ1VB8NszwDs7+TWMXRFGrmuUAh2Mq5Bz4K3LWSyMwE=",
+  "narHash": "sha256-OGmEFNLf8zxGCBHwjTS7TjzMGtnc4jCu5ibamgVNd8I=",
   "outputs": {
     "x86_64-linux": {
       "storePath": "/nix/store/…-my-app-v1",
-      "narHash": "sha256-lJ1VB8NszwDs7+TWMXRFGrmuUAh2Mq5Bz4K3LWSyMwE="
+      "narHash": "sha256-OGmEFNLf8zxGCBHwjTS7TjzMGtnc4jCu5ibamgVNd8I="
     }
   },
   "manifest": {
-    "cixManifest": 4,
+    "cixManifest": 0,
     "dirs": {
       "cache": [],
       "config": [],
@@ -118,7 +118,7 @@ $ cix inspect my-app:v1
 Retagging atomically moves the name to a newer immutable build. The old path does not change; this name simply stops pinning it.
 
 ```sh
-$ mkdir my-app-v2 && printf '%s\n' 'hello from my app v2' > my-app-v2/message && printf '%s\n' '{"cixManifest":4,"exec":["message"]}' > my-app-v2/cix-manifest.json
+$ mkdir my-app-v2 && printf '%s\n' 'hello from my app v2' > my-app-v2/message && printf '%s\n' '{"cixManifest":0,"exec":["message"]}' > my-app-v2/cix-manifest.json
 ```
 
 ```sh
@@ -130,7 +130,7 @@ message
 ```sh
 $ cat my-app-v2/message my-app-v2/cix-manifest.json
 hello from my app v2
-{"cixManifest":4,"exec":["message"]}
+{"cixManifest":0,"exec":["message"]}
 ```
 
 ```sh

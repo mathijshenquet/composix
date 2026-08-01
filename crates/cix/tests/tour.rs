@@ -304,7 +304,7 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         prompt,
         state_dir,
         &format!(
-            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":4,\"exec\":[\"message\"]}}' > {name}/cix-manifest.json"
+            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":0,\"exec\":[\"message\"]}}' > {name}/cix-manifest.json"
         ),
         true,
     );
@@ -385,13 +385,9 @@ while True:
     fs::write(
         fixture.join("cix-manifest.json"),
         r#"{
-  "cixManifest": 3,
-  "services": {
-    "listenfds": {
-      "exec": ["bin/listenfds"],
-      "listeners": {"http": {"type": "stream"}}
-    }
-  }
+  "cixManifest": 0,
+  "exec": ["bin/listenfds"],
+  "listeners": {"http": {"type": "stream"}}
 }
 "#,
     )
@@ -713,9 +709,9 @@ EXEC /bin/true
     assert!(consumer_lock.contains("\"artifacts\""));
     assert!(consumer_lock.contains("tour/tour-assets:v1"));
 
-    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one v5 service definition, its executable, and any capabilities or writable directories it declares.");
+    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one version-0 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
-    assert!(manifest.contains("\"cixManifest\":5"));
+    assert!(manifest.contains("\"cixManifest\":0"));
     assert!(!manifest.contains("\"services\""));
     assert!(manifest.contains("/bin/sh"));
 
@@ -862,7 +858,7 @@ fn chapter_advanced() -> String {
     doc.para("The basic chapters use ordinary port grants and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.");
     doc.para("## Socket activation");
     let listener_path = listener_fixture(&doc);
-    doc.para("The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a v3 manifest declaring the named `http` listener.");
+    doc.para("The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a version-0 manifest declaring the named `http` listener.");
     doc.sh("ls -R listener-fixture", true);
     let fixture = doc.sh(
         "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
@@ -878,7 +874,7 @@ fn chapter_advanced() -> String {
     );
     let unit_name = started
         .lines()
-        .find(|line| line.starts_with("cix-run-listenfds-") && line.ends_with(".service"))
+        .find(|line| line.starts_with("cix-run-") && line.ends_with(".service"))
         .expect("cix run printed a listener unit name")
         .to_owned();
     let _unit = UserUnit {

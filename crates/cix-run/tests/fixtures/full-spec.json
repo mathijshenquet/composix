@@ -1,7 +1,5 @@
 {
-  "cixManifest": 1,
-  "services": {
-    "web": {
+  "cixManifest": 0,
       "exec": [
         "bin/web",
         "--port",
@@ -33,17 +31,17 @@
       },
       "dirs": {
         "state": [
-          "/srv/web/state",
-          "/srv/web/uploads"
+          "/var/lib/state",
+          "/var/lib/uploads"
         ],
         "cache": [
-          "/srv/web/cache"
+          "/var/cache/cache"
         ],
         "logs": [
-          "/srv/web/log"
+          "/var/log/log"
         ],
         "config": [
-          "/srv/web/config"
+          "/etc/config"
         ]
       },
       "health": {
@@ -53,6 +51,4 @@
         ],
         "interval": "30s"
       }
-    }
-  }
 }

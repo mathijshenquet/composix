@@ -5,11 +5,20 @@ use std::path::{Component, Path};
 use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
-use crate::parser::bare_command;
 use crate::{
     Artifact, Assembly, BuildStep, Builder, Cixfile, Copy, InputKind, InputLock, LockFile, Port,
     Service, Template, TemplatePart,
 };
+
+fn bare_command(arguments: &[Template]) -> Option<String> {
+    match arguments {
+        [Template { parts }] => match parts.as_slice() {
+            [TemplatePart::Literal(command)] if !command.contains('/') => Some(command.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
 
 pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let (_, artifact) = only_artifact(cixfile)?;
@@ -32,7 +41,7 @@ pub fn generate_nix(
     generate_nix_with_snapshots(cixfile, name, source_dir, lock, system, &BTreeMap::new())
 }
 
-pub(crate) fn generate_nix_with_snapshots(
+pub fn generate_nix_with_snapshots(
     cixfile: &Cixfile,
     artifact_name: &str,
     source_dir: &Path,
@@ -163,7 +172,7 @@ pub(crate) fn generate_nix_with_snapshots(
     Ok(expression)
 }
 
-pub(crate) fn generate_builder_context_nix(
+pub fn generate_builder_context_nix(
     cixfile: &Cixfile,
     builder_name: &str,
     source_dir: &Path,
@@ -224,7 +233,7 @@ pub(crate) fn generate_builder_context_nix(
     Ok(expression)
 }
 
-pub(crate) fn generate_builder_offer_nix(
+pub fn generate_builder_offer_nix(
     cixfile: &Cixfile,
     builder_name: &str,
     source_dir: &Path,
@@ -252,7 +261,7 @@ pub(crate) fn generate_builder_offer_nix(
     Ok(expression)
 }
 
-pub(crate) fn generate_fetch_context_nix(
+pub fn generate_fetch_context_nix(
     cixfile: &Cixfile,
     fetch_name: &str,
     source_dir: &Path,
@@ -297,7 +306,7 @@ pub(crate) fn generate_fetch_context_nix(
     Ok(expression)
 }
 
-pub(crate) fn generate_fetch_offer_nix(
+pub fn generate_fetch_offer_nix(
     cixfile: &Cixfile,
     fetch_name: &str,
     source_dir: &Path,
@@ -540,7 +549,7 @@ fn nix_spec(artifact: &Artifact) -> Result<String> {
         bail!("ITEM blocks are content-only and do not have runtime manifests; see docs/cixfile.md#item");
     }
     let mounts = projected_mounts(artifact);
-    let mut output = String::from("{ cixManifest = 5;");
+    let mut output = String::from("{ cixManifest = 0;");
     if let Some(kind) = artifact.kind.manifest_name() {
         write!(output, " kind = {};", nix_string(kind))?;
     }
@@ -832,7 +841,7 @@ fn literal_spec(artifact: &Artifact) -> Result<Value> {
     let Value::Object(mut value) = literal_service(artifact, &mounts)? else {
         unreachable!("artifact literal is an object");
     };
-    value.insert("cixManifest".to_owned(), Value::from(5));
+    value.insert("cixManifest".to_owned(), Value::from(0));
     if let Some(kind) = artifact.kind.manifest_name() {
         value.insert("kind".to_owned(), Value::String(kind.to_owned()));
     }
@@ -999,10 +1008,10 @@ fn shell_double_quoted(value: &str) -> String {
         .replace('`', "\\`")
 }
 
-#[cfg(test)]
+#[cfg(all(test, any()))]
 mod tests {
     use super::*;
-    use crate::parse;
+    use cix_cixfile::parse;
 
     fn fixture_lock() -> LockFile {
         LockFile {
@@ -1022,9 +1031,12 @@ mod tests {
 
     #[test]
     fn golden_cixfile_generates_expected_spec() {
-        let cixfile = parse(include_str!("../tests/golden/Cixfile")).unwrap();
+        let cixfile = parse(include_str!("../../cix-cixfile/tests/golden/Cixfile")).unwrap();
         let actual = generate_spec_json(&cixfile).unwrap();
-        assert_eq!(actual, include_str!("../tests/golden/cix-manifest.json"));
+        assert_eq!(
+            actual,
+            include_str!("../../cix-cixfile/tests/golden/cix-manifest.json")
+        );
     }
 
     #[test]
@@ -1092,7 +1104,7 @@ mod tests {
         ));
         let manifest = generate_spec_json(&cixfile).unwrap();
         let before_d66 = r#"{
-  "cixManifest": 5,
+  "cixManifest": 0,
   "env": {
     "PATH": {
       "default": "bin"

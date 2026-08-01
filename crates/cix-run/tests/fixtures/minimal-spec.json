@@ -1,10 +1,6 @@
 {
-  "cixManifest": 1,
-  "services": {
-    "worker": {
-      "exec": [
-        "bin/worker"
-      ]
-    }
-  }
+  "cixManifest": 0,
+  "exec": [
+    "bin/worker"
+  ]
 }

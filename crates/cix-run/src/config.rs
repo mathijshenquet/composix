@@ -189,9 +189,7 @@ mod tests {
     fn service() -> Service {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 1,
-                "services": {
-                    "app": {
+                "cixManifest": 0,
                         "exec": ["bin/app"],
                         "env": {
                             "NAME": {"default": "default"},
@@ -201,12 +199,10 @@ mod tests {
                             "ROOT": {"default": "/srv/app"}
                         },
                         "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
-                    }
-                }
             }"#,
         )
         .unwrap();
-        spec.services["app"].clone()
+        spec.select_service(None).unwrap().1.clone()
     }
 
     #[test]
@@ -256,17 +252,13 @@ mod tests {
     fn resolves_fixed_ports_and_rejects_overrides() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 2,
-                "services": {
-                    "app": {
+                "cixManifest": 0,
                         "exec": ["bin/app"],
                         "ports": {"http": {"value": 8080, "protocol": "tcp"}}
-                    }
-                }
             }"#,
         )
         .unwrap();
-        let service = &spec.services["app"];
+        let service = spec.select_service(None).unwrap().1;
         let resolved = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         assert_eq!(resolved.ports["http"], 8080);
 
@@ -283,18 +275,14 @@ mod tests {
     fn resolves_listener_bindings_and_requires_all_listeners() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 3,
-                "services": {
-                    "app": {
+                "cixManifest": 0,
                         "exec": ["bin/app"],
                         "listeners": {"http": {"type": "stream"}},
                         "ports": {"metrics": {"value": 9090, "protocol": "tcp"}}
-                    }
-                }
             }"#,
         )
         .unwrap();
-        let service = &spec.services["app"];
+        let service = spec.select_service(None).unwrap().1;
         let resolved =
             ResolvedConfig::resolve(service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
         assert_eq!(resolved.listeners["http"].to_string(), "127.0.0.1:8080");

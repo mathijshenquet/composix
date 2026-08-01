@@ -36,13 +36,9 @@ chmod +x "$fixture/output/bin/service"
 
 cat >"$fixture/output/cix-manifest.json" <<EOF
 {
-  "cixManifest": 1,
-  "services": {
-    "demo": {
-      "exec": ["bin/service"],
-      "dirs": {"state": ["$app_state"]}
-    }
-  }
+  "cixManifest": 0,
+  "exec": ["bin/service"],
+  "dirs": {"state": ["$app_state"]}
 }
 EOF
 
@@ -50,7 +46,7 @@ store_path="$(nix store add-path "$fixture/output")"
 echo "fixture: $store_path"
 unit="$(
   cd "$repo_root"
-  cargo run --quiet -p cix -- run "$store_path#demo" --user --detach
+  cargo run --quiet -p cix -- run "$store_path" --user --detach
 )"
 echo "unit: $unit"
 
