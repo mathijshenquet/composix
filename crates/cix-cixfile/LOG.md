@@ -991,7 +991,7 @@
   timestamped `.npm/_logs` volatile probe facts, and `cmp -s` passed. Next:
   regenerate the tour with the new D74 fingerprint, then run the full gate.
 
-- 2026-08-01T05:47:00Z — Full track gate is green. Passed: `devenv shell --
+- 2026-08-01T05:40:00Z — Full track gate is green. Passed: `devenv shell --
   cargo fmt --all --check`; `devenv shell -- cargo clippy --workspace
   --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`;
   `devenv shell -- cargo run -- fmt --check examples`; tour regeneration,
@@ -1002,3 +1002,10 @@
   deliberate `d74-v1` namespace. `git diff --check` and cached diff checks
   pass. Next: remove generated scratch artifacts, stage this remaining scoped
   correction, review, and commit.
+
+- 2026-08-01T05:41:06Z — Committed the scoped COPY-key correction, regression,
+  CI formatter check, regenerated tour receipts, and journal as `862975b`
+  (`Preserve COPY memo keys across formatting`). Together with standalone
+  adoption `d9077bc` and formatter implementation `7f99aa7`, track/fmt is
+  complete. Worktree is clean; the temporary `/dev/shm/cixfmt-key.eCexDX`
+  acceptance workspace and generated `devenv.lock` have been removed.
