@@ -1,8 +1,13 @@
 # Secrets: build-time credentials and runtime delivery
 
-Status: draft, amended 2026-08-01 after Mathijs's review ("seems all
-very good") — open questions resolved below, ready to adopt. One
-invariant, two halves.
+Status: **CIP-81, adopted 2026-08-01** (Mathijs: "secrets is prima",
+after the r2 consent-store turn-over). One invariant, two halves.
+Decision = §3 as amended by §4's resolved answers: file-only runtime
+delivery via `SECRET name [AS VAR_FILE]` → `LoadCredential=`;
+build-time fetch credentials as host-level named tokens with a
+direnv-allow-shaped consent store keyed (project, token, URL-prefix) —
+locks and Cixfiles never mention tokens; salted-HMAC rotation
+fingerprint in composite state, never the store.
 
 ## 1. The problem
 
