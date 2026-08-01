@@ -59,3 +59,28 @@ Gate: fmt / `cix fmt --check examples` / warning-denied clippy /
 workspace tests / tour regen + drift / full
 `devenv shell -- nix flake check -L`. Exact repros in the LOG. Commit
 on this branch when green.
+
+## Addendum (2026-08-01): fix round — independent gate re-run FAILED
+
+The orchestrator's independent vm-dogfood re-run failed on your new
+LOGDIR test; the full evidence is in
+`nix log /nix/store/z2bnr7rjr78ygsnfp0j4f2inn1da0fbp-vm-test-run-vm-dogfood.drv`.
+Two distinct failures:
+
+1. Primary path: the unit dies at spawn with `status=226/NAMESPACE` —
+   the `/app/logs` BindPaths destination cannot be created inside the
+   read-only root (ProtectSystem=strict; PrivatePIDs implies
+   MountAPIVFS). Arbitrary paths outside the class roots need a mount
+   point: a `TemporaryFileSystem=/<top-component>:ro` (or equivalent)
+   per non-class top component, per the CIP-82 dialogue.
+2. After cix's D36 degraded retry (no PrivatePIDs), the bind mounts but
+   the service gets `Permission denied` writing
+   /app/logs/restart-marker — the LogsDirectory ownership machinery is
+   not reaching the mirrored path on that path.
+
+Requirements: reproduce BOTH failures first (record how in the LOG —
+note your earlier green was likely order/state-dependent, explain if
+you can), fix so the test passes on the primary path AND under a forced
+D36 degraded fallback (add a test or assertion exercising the degraded
+path if feasible), then the FULL gate again. Do not weaken the VM
+assertions.
