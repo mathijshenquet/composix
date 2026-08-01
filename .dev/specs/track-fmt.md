@@ -90,3 +90,31 @@ fmt / warning-denied clippy / workspace tests / tour regen + drift /
 `cix fmt --check examples` / full `devenv shell -- nix flake check -L`
 (the FULL tier — no cherry-picked subset, per AGENTS.md). Exact repro
 commands in crates/cix-cixfile/LOG.md. Commit on this branch when green.
+
+## Addendum (2026-08-01): fix the surfaced COPY keying leak, then finish
+
+The lock-stability stop was correct — thank you. Verdict: the leak is a
+bug against decided keying semantics (design.md D48a: memo keys derive
+from INPUTS; D69 consumed-set keying), not a design question. Fix it on
+this branch, then complete the halted adoption. Steps:
+
+1. `git fetch origin && git merge origin/main` first (main has moved:
+   vm-dogfood fix, possibly track/leaks which also edits build_chain.rs).
+2. Root-cause the exact changed key bytes: dump the step-key material for
+   original vs reformatted proj1 and record in the LOG which component
+   differed. (Your LOG's semantic-equality proof and the changed memo key
+   look contradictory if `copy.source` is the parsed field — pin down
+   what physical text actually reaches the key.)
+3. Fix so step keys derive ONLY from parsed semantics + content hashes:
+   for COPY that means the semantically-relevant parsed fields (dst, and
+   source only insofar as its meaning — content is already covered by the
+   declared-sources nar hash; physical spelling/whitespace must never
+   reach the key). Changed key derivation orphans old memo entries — one
+   cold rebuild — acceptable in alpha (D72), but say so in the LOG.
+4. Regression test: formatting a fixture Cixfile leaves its builder step
+   keys (and a clean update-lock's Cixfile.lock) byte-identical.
+5. Re-prove the D69 pinkeys acceptance still holds (byte-identical locks
+   across a workspace wipe between clean update-locks).
+6. Resume the halted plan: examples reformat as its own commit, tour
+   regen, `cix fmt --check examples` gate wiring, docs. Then the full
+   gate from the section above.

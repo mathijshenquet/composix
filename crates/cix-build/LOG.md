@@ -61,3 +61,42 @@
   .#checks.x86_64-linux.vm-dogfood --no-link -L`; and, as the final gate,
   `devenv shell -- nix flake check -L`. Ready for final diff review and
   commit.
+
+- 2026-08-01T02:25:00Z — Started track/leaks. Root cause confirmed from
+  `tempfile` 3.27: `TempDir::Drop` ignores `remove_dir_all` errors. Our
+  `copy_tree` deliberately preserves source directory modes, so a fetched
+  `r-x` subtree makes removal fail after the D69 probe snapshots it. The
+  snapshots are otherwise neither kept nor passed downstream; explicit
+  permission-aware close plus Drop-path cleanup is required for both probe
+  success and errors.
+
+- 2026-08-01T02:40:00Z — Implemented a `FetchProbe` owner: explicit close
+  recursively restores write bits and propagates removal failures; its Drop
+  path applies the same cleanup for `?` error returns. Builder probes now
+  explicitly close both snapshots after successful restoration. Added a CLI
+  integration test that runs `--update-lock` under an isolated TMPDIR and
+  asserts no probe directories remain after a read-only success fixture or a
+  deliberately failing FETCH; changed the comparison harness to use TMPDIR.
+
+- 2026-08-01T02:50:00Z — First focused test reached the fixture and correctly
+  exposed that sandbox-root cannot write an existing mode-0555 directory.
+  The success FETCH now temporarily restores its directory write bit, writes
+  the payload, and returns it to mode 0555; the probe snapshot remains
+  read-only for the cleanup assertion.
+
+- 2026-08-01T03:00:00Z — Focused verification passed:
+  `devenv shell -- cargo fmt --all --check` and `devenv shell -- cargo test
+  -p cix --test fetch_probe_cleanup -- --exact --nocapture`. The latter ran
+  the real CLI under TMPDIR and covered both requested outcomes. Diff review
+  found no remaining hard-coded `/tmp` in `examples/compare/`; removed the
+  untracked `devenv.lock` generated locally by devenv before starting the
+  full required gate.
+
+- 2026-08-01T03:15:00Z — Full gate green. Exact successful repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test
+  fetch_probe_cleanup -- --exact --nocapture`; and, as the final required
+  tier, `devenv shell -- nix flake check -L`. The latter built and ran the
+  complete scenario/VM suite successfully. devenv regenerates an untracked
+  lockfile in this worktree; remove that local byproduct before commit.
