@@ -80,13 +80,25 @@ downgraded accordingly rather than served by a leak.
    minimal synthetic `/etc/passwd`+`/etc/group` for exactly the
    service's identity (and D48d identities) and binds them in — the
    nss_wrapper trick, done by the platform once instead of by every
-   pack. Mechanism details in §4.2.
+   pack. Note (systemd.exec read-through): `PrivateUsers=` is
+   documented as "particularly useful in conjunction with
+   RootDirectory=, as the need to synchronize the user and group
+   databases is reduced" to root/nobody/the unit's own user — a userns
+   shrinks this edge to a three-line passwd. Mechanism details in §4.2.
 2. **DNS + trust roots** (egress services): the *claim* is the
    channel — `CLAIM egress` additionally binds a cix-managed
    resolv.conf (docker's engine-inject move, made declarative). CA
    trust is closure territory (`${pkgs.cacert}`), exactly as FETCH
    already teaches.
 3. **Timezone**: `TZ` env; `/etc/localtime` does not exist in the root.
+3b. **Logging + notify** (edge found in the systemd.exec read-through):
+   the man page warns RootDirectory services cannot reach journald
+   "unless the relevant sockets are mounted from the host" — and then
+   solves both halves itself: the sd_notify socket is auto-mounted into
+   the root when `NotifyAccess=` is set (CIP-79's prober keeps working),
+   and `BindLogSockets=` (v257, implied by `MountAPIVFS=yes`) binds the
+   journald sockets in. On ≥257 the whole edge dissolves; on older
+   systemd it is three explicit `BindReadOnlyPaths=` lines.
 4. **Adoption**: phased but without a permanent escape. Phase 1: closed
    root as an *audit gate* — a VM check running every example and
    corpus receipt under the closed root, red = a host dependence found.
@@ -113,7 +125,14 @@ coexist — nix makes closure-truth *available*, closed root makes it
    hundreds of paths). Proposal: closure-only, with a measurement in
    phase 1 (unit-file size, mount setup latency vs bwrap's identical
    pattern); fall back to whole-store + a *static* out-of-closure
-   reference lint only if the numbers genuinely hurt.
+   reference lint only if the numbers genuinely hurt. Third option from
+   the systemd.exec read-through: `RootImage=` — nix *builds* a
+   per-item erofs root image of the closure at generation time (one
+   loop mount, zero binds), optionally dm-verity-protected via
+   `RootHash=`/`RootHashSignature=` — content-addressed,
+   integrity-verified root filesystems as store artifacts. Heavier
+   machinery, but O(1) in mounts and kernel-enforced integrity;
+   evaluate in the same phase-1 measurement.
 2. NSS mechanism: generated passwd/group binds (proposed) vs
    `UserDB`/varlink plumbing vs pack-side nss_wrapper convention.
 3. Resolver shape under `CLAIM egress`: bind host resolv.conf verbatim,
