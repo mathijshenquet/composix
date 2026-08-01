@@ -1,5 +1,55 @@
 # compose track log
 
+- 2026-08-01 UTC — Committed the complete CIP-75 implementation as `2301094`
+  (`feat(compose): add systemd timer schedules`). The only remaining worktree change is
+  this required, intentionally unstaged task journal.
+
+- 2026-08-01 UTC — Final gate is green. `devenv shell -- bash -c 'cargo fmt --all
+  --check && cargo run -- fmt --check examples && cargo clippy --workspace --all-targets
+  -- -D warnings && cargo test --workspace && cargo test -p cix --test tour -- --ignored
+  generate_tour && git diff --exit-code -- docs/tour'` passed, followed by the two focused
+  VM repros and `devenv shell -- nix flake check -L`. The latter completed every workspace
+  check, including `scenario-lifecycle` and `vm-dogfood`. Ready to commit the CIP-75
+  implementation; this journal remains intentionally unstaged.
+
+- 2026-08-01 UTC — Started CIP-75 timers track. Read the authoritative CIP-75 and
+  CIP-77: `schedule` is raw systemd `OnCalendar`, deployment-side, app-only, with no
+  cix defaults. I will generate a persistent compose `.timer` paired with the existing
+  app `.service`; the composite target wants the timer (not the app), so updates must
+  restart changed timers without eagerly rerunning scheduled apps. For `cix run
+  --schedule`, the systemd-native route will be a transient generated service+timer
+  pair (rather than a timer-property DSL), retaining the normal app sandbox and giving
+  the operator a normal timer unit to inspect/stop. Next: wire model/check/generation,
+  then runtime, docs, VM coverage, and the full flake gate.
+
+- 2026-08-01 UTC — Implemented the compose schema/check/generation path: schedule is
+  app-only, blank and orphan timer fields are loud, and `systemd-analyze calendar` is
+  the validator (with the requested unavailable-tool note). The generation has a timer
+  kind and marks scheduled services so an update restarts a changed timer but does not
+  launch its app outside the calendar. Added default and explicit Persistent/jitter
+  golden timers, target-wants assertions, the lifecycle VM timer observation, and docs
+  including the no-cron-translation migration row. `cix run --schedule` now writes a
+  transient service/timer/root trio under the manager's runtime unit directory: the
+  root helper retains the item until the timer is stopped, then removes the root. Focused
+  compose/run tests pass; fixing one clippy-only duplicated branch before broader gates.
+
+- 2026-08-01 UTC — Focused fmt, denied-warning clippy, compose/run tests, tour generation and
+  drift all pass. The first full flake run caught a test portability issue only: systemd 261
+  starts the generated timer and lists it in the unfiltered table, but ignores the exact-unit
+  filter passed to `list-timers`. Changed both VM checks to `list-timers --all | grep -F`, which
+  proves the intended observability surface without relying on that filter. The direct dogfood
+  VM is now green end-to-end: `cix run --schedule` produced an active timer, `list-timers` showed
+  it, its GC root lived while active and disappeared after stop; the normal dogfood suite also
+  completed. Next: lifecycle VM with the same assertion, then a clean full flake pass and commit.
+
+- 2026-08-01 UTC — Lifecycle VM is green after correcting its APP fixture to use the normal
+  item-relative `bin/scenario-job` executable. It proves `cix up` starts only
+  `cix-timers-job.timer`, `list-timers --all` reports it, and `cix down` unloads it. Exact
+  focused repros now green: `devenv shell -- nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L` and `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-lifecycle --no-link -L`. Next: repeat the full flake gate,
+  review the diff, and commit.
+
 - 2026-07-29 00:38 UTC — Started `.dev/specs/track-compose.md`. Read D30/D28/D9, the
   live-proven dstyle Unix-edge proposal #1, and the cix-run spec-v3 generator API. Confirmed a
   clean `track/compose` worktree and that the new crate does not exist. The shell is not directly
