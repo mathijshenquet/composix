@@ -909,3 +909,25 @@
   under adversarial syntax`). No open items remain for this track; this final
   journal-only close records the completed commit and leaves the branch ready
   for independent verification.
+
+- 2026-08-01T03:00:00Z — Started `track/fmt` after reading `AGENTS.md`,
+  `.dev/specs/track-fmt.md`, the current journals, and D53/D74. Scope: a
+  separate lossless Cixfile formatter, parse-gated CLI/discovery/check mode,
+  golden+torture+CLI coverage, repo adoption, docs, gate wiring, lock-stability
+  proof, the complete prescribed gate, and a scoped commit. `devenv shell --
+  true` confirms the development environment is active. Next: map parser
+  lexical rules and implement the formatter without changing the semantic
+  parser.
+
+- 2026-08-01T03:25:00Z — Implemented the separate `cix_cixfile::fmt` lossless
+  physical-line scanner and the `cix fmt` command. It calls the real parser
+  before scanning, tracks parser-compatible continuations and RUN/FILE
+  heredocs, preserves comments and heredoc body/terminator text, and normalizes
+  the v1 layout outside them. CLI coverage proves unified `--check` diffs,
+  stdin, rejected-input no-write behavior, .gitignore discovery, explicit-file
+  behavior, and unchanged mtime; golden/CRLF tests plus the complete torture
+  sweep prove idempotence and semantic equivalence excluding diagnostic
+  provenance. Focused repros currently green: `devenv shell -- cargo test -p
+  cix-cixfile --test fmt` and `devenv shell -- cargo test -p cix --test fmt`.
+  Next: documentation/gate wiring review, commit the implementation, format
+  examples in its required separate commit, then lock proof and full gate.

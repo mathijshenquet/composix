@@ -156,6 +156,19 @@ The complete body is the command and therefore part of the same memo key as a on
 Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
 use `$${…}` when the shell itself must receive a braced expansion.
 
+<a id="formatting"></a>
+
+## Formatting
+
+`cix fmt [PATH…]` formats Cixfiles in place. With no path it searches the current directory
+recursively for files named `Cixfile`, respecting `.gitignore`; an explicit file is formatted even
+when it has another name. The formatter preserves comments, heredoc bodies, and author-chosen
+line breaks while normalizing the surrounding Cixfile syntax.
+
+Use `cix fmt --check [PATH…]` in automation to make no writes and print a unified diff for every
+file that needs formatting. `cix fmt -` reads one Cixfile from standard input and writes its
+formatted form to standard output.
+
 <a id="inputs"></a>
 
 ### Package universes, source binders, and cix-item binders
