@@ -253,17 +253,23 @@ It never hashes workspace bytes. The environment is cleared and rebuilt with `PA
 `LC_ALL=C`, `TMPDIR=/tmp`, and umask 022. The certificate path becomes readable only when an
 IMPORT supplies it; composix does not import a CA package implicitly.
 
-Declared COPY inputs are staged fresh on every execution, including deletions. Files written
-by build commands persist in the workspace, so ordinary `target/`, `node_modules/`, and
-similar incremental state are warm by default. Nothing is excluded from keys by a cache
-declaration because workspace bytes never enter keys. `CACHE` was removed; delete old CACHE
-lines. The workspace lives under the user cache directory and is disposable: removing it can
-cost time but cannot change an artifact.
+Declared COPY inputs are staged fresh on every execution, including deletions. A non-cold
+re-run starts from that builder's own last end-state, then executes the changed step and its
+successors over it. Files written by build commands therefore persist in the workspace, so
+ordinary `target/`, `node_modules/`, and similar incremental state are warm by default. Nothing
+is excluded from keys by a cache declaration because workspace bytes never enter keys. `CACHE`
+was removed; delete old CACHE lines. Workspaces are scoped to one project and builder name, with
+no cross-builder or cross-project reuse.
+
+Warm results are path-dependent: `build(A→B)` can differ from `build(B)` when deleted sources or
+dependencies survive as ghost files in the underlay. Removing a workspace with `rm -rf` is always
+safe: it drops that underlay and makes the next run clean. `cix build --cold` is the clean truth;
+it starts with an empty workspace and audits the consumed outputs against the warm result.
 
 The lock memo maps a final chain key to each path an artifact-bound COPY consumes, including
 that path's content hash and store object. A memo hit materializes only those paths. Adding a
-new consumed path forces the builder to run so it can be recorded. `cix build --cold` runs
-RUN steps with an empty workspace and compares every consumed path with the warm result; a
+new consumed path forces the builder to run so it can be recorded. `cix build --cold` compares
+every consumed path with the warm result; a
 mismatch names the exact COPY and Cixfile line. It replays already pinned FETCH snapshots and
 never contacts the network: cold proves builder reproducibility, while trust in fetched bytes
 is the FETCH pin. `--no-cache` remains a deprecated alias for `--cold`.

@@ -381,14 +381,13 @@ fn execute_builder(
         .as_ref()
         .filter(|keys| keys.as_slice() != prior_keys.as_slice())
         .map_or(0, |_| first_changed);
-    let clean_execution = cold
-        || update_fetch_pins
-        || builder.steps[warm_rerun_from..]
-            .iter()
-            .any(|step| matches!(step, BuildStep::Fetch { .. }));
-    let rerun_from = if clean_execution { 0 } else { warm_rerun_from };
+    let rerun_from = if cold || update_fetch_pins {
+        0
+    } else {
+        warm_rerun_from
+    };
     let temporary;
-    let (workdir, staging) = if clean_execution {
+    let (workdir, staging) = if cold {
         temporary = tempfile::Builder::new()
             .prefix("cix-build-cold-")
             .tempdir()
@@ -595,10 +594,6 @@ fn execute_builder(
     }
     lock.memo.insert(key.clone(), memo_entry(paths.clone()));
     if let Some(persistent) = &persistent {
-        if clean_execution {
-            replace_workspace_tree(&workdir, &persistent.0)?;
-            replace_workspace_tree(&staging, &persistent.1)?;
-        }
         save_workspace_state(
             &persistent.2,
             &WorkspaceState {

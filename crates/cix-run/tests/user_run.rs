@@ -29,15 +29,17 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     let temporary = std::env::temp_dir().join(format!("cix-run-integration-{nonce}"));
     let fixture = temporary.join("fixture");
     let host_timestamp = user_state_root()?.join("cix-run-integration-test/timestamp");
-    let app_state = host_timestamp.parent().unwrap().to_owned();
+    let host_state = host_timestamp.parent().unwrap().to_owned();
+    let app_state = PathBuf::from("/var/lib/cix-run-integration-test");
     fs::create_dir_all(fixture.join("bin"))?;
 
     let shell = find_program("sh")?;
     let date = find_program("date")?;
     let sleep = find_program("sleep")?;
     let script = format!(
-        "#!{shell}\nset -eu\n{date} --iso-8601=seconds > {}/timestamp\nexec {sleep} 300\n",
-        app_state.display()
+        "#!{shell}\nset -eu\n{date} --iso-8601=seconds > {}/timestamp || {date} --iso-8601=seconds > {}/timestamp\nexec {sleep} 300\n",
+        app_state.display(),
+        host_state.display(),
     );
     let executable = fixture.join("bin/service");
     fs::write(&executable, script)?;
@@ -75,7 +77,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     stop_service(&started.name, true)?;
     std::mem::forget(guard);
     fs::remove_file(&host_timestamp)?;
-    fs::remove_dir(&app_state)?;
+    fs::remove_dir(&host_state)?;
     fs::remove_dir_all(&temporary)?;
     Ok(())
 }

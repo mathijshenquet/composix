@@ -141,11 +141,12 @@ artifact. Its shorter file does not erase those concepts.
 
 ## Measurement environment and protocol
 
-All numbers in this document were measured on 2026-07-31 UTC on Linux
-6.17.0-40-generic, x86_64, an AMD Ryzen 9 9950X3D (16 cores, 32 threads), with
-Determinate Nix 3.21.0 / Nix 2.34.6 and Cix 0.1.0. The pre-existing Nix
-toolchain and native-library paths were retained for every route. These are
-wall-clock observations, not a statistical benchmark.
+The original rows were measured on 2026-07-31 UTC on Linux 6.17.0-40-generic,
+x86_64, an AMD Ryzen 9 9950X3D (16 cores, 32 threads), with Determinate Nix
+3.21.0 / Nix 2.34.6 and Cix 0.1.0. The Cix one-line-edit receipt was re-run on
+2026-08-01 with the same harness after the workshop-underlay change. The
+pre-existing Nix toolchain and native-library paths were retained for every
+route. These are wall-clock observations, not a statistical benchmark.
 
 First, all three pinned definitions built successfully:
 
@@ -162,7 +163,7 @@ The measured matrix was:
 | --- | ---: | ---: | ---: |
 | Upstream flake | 0.07 s | 28.82 s | 30.64 s |
 | crane | 0.64 s | 37.81 s | 16.46 s |
-| Cixfile | 1.13 s | 26.94 s | 20.28 s |
+| Cixfile | 1.13 s | 26.94 s | 7.46 s (2026-08-01) |
 
 ### No-op
 
@@ -231,7 +232,7 @@ patch, and times each rebuild:
 $ examples/compare/gitsitter/measure-warm.sh
 upstream_warm_change_seconds=30.64
 crane_warm_change_seconds=16.46
-cix_warm_change_seconds=20.28
+cix_warm_change_seconds=7.46
 ```
 
 The production Cixfile intentionally demonstrates a GitHub source binder.
@@ -246,9 +247,10 @@ binder is disguised as the shipped Cixfile.
 
 The result shows the intended boundaries. Upstream's one derivation rebuilds
 all crates. Crane reuses `cargoArtifacts`. Cix reuses the networked vendoring
-step and predecessor workspaces, and recompiles the affected final step. On
-this edit crane was fastest; Cix still shortened the upstream result by about
-a third. Neither result is a claim about arbitrary projects or clean builds.
+step and its own previous end-state, so Cargo retains the affected step's
+incremental compilation state. On the 2026-08-01 re-measurement, Cix was
+fastest for this edit. Neither result is a claim about arbitrary projects or
+clean builds.
 
 ## Output size and the missing-reference receipt
 
