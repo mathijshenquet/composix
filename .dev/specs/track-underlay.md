@@ -28,5 +28,5 @@ keying, offline --cold, and the codegen fingerprint).
    original dates).
 5. Gate: fmt / warning-denied clippy / workspace tests / cold_audit sweep /
    tour regen + drift + determinism twice / vm-dogfood / the re-measurement.
-   Exact repros in crates/cix-cixfile/LOG.md. Commit on this branch when
+   Exact repros in crates/cix-build/LOG.md (create if absent, tracked). Commit on this branch when
    green.
