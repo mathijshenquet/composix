@@ -1,8 +1,8 @@
 # Devices, GPU, and shared memory
 
-Status: proposal, 2026-08-01. Decision pending; deliberately dogfood-gated
-(the manifest v2 deferral said "needs a dogfood case" — this doc picks
-one).
+Status: draft, amended 2026-08-01 after Mathijs's review — narrowed to
+`GRANT gpu` + `SHM`, ready to adopt. Deliberately dogfood-gated (the
+manifest v2 deferral said "needs a dogfood case" — this doc picks one).
 
 ## 1. The problem
 
@@ -44,23 +44,29 @@ construction).
 
 ## 3. Recommendation
 
-Mint **two semantic grants** now, dogfood-gated on the Immich-shaped
-example (corpus §5 — GPU + shm in one realistic package):
+Mint **one semantic grant** now, in the existing grant vocabulary
+(`GRANT egress`, `GRANT jit` — review aligned the spelling), dogfood-gated
+on the Immich-shaped example (corpus §5 — GPU + shm in one package):
 
-- `DEVICE gpu` → the render case: `DeviceAllow=/dev/dri rwm` (char
+- `GRANT gpu` → the render case: `DeviceAllow=/dev/dri rwm` (char
   class), `SupplementaryGroups=video render`, `PrivateDevices` stays on
   otherwise. Vendor userspace is the item's problem via nixpkgs (the
   NixOS dissolution above); no toolkit, no CDI machinery until a
-  non-NixOS-host case forces it.
-- `DEVICE /dev/<node>` → the explicit-node case (Frigate's USB coral,
-  HA's zigbee stick): `DeviceAllow=` for the node + the owning group.
+  non-NixOS-host case forces it. Pareto per review: multi-GPU node
+  addressing (the 2×H100+2×A100 class) is real but breaks the
+  pack/compose boundary — deliberately out until the single-grant form
+  is bitten; expect node selection to arrive as a compose-side override
+  when it does.
 
-Polarity per D49(a): the manifest declares the need (`DEVICE gpu` — app
-knowledge); compose may tighten silently or loosen loudly. `--group-add`
-dissolves into the grants (groups are an implementation detail of device
-access, not a user-facing knob). `--privileged` stays ❌ even as a
-compose override — the diagnostic escape hatch is running the thing
-outside cix, honestly.
+The explicit-node case (`GRANT device /dev/ttyUSB0` — Frigate's coral,
+HA's zigbee stick) is sketched but **YAGNI'd until we run into it**
+(review): same mechanics, minted on first real need.
+
+Polarity per D49(a): the manifest declares the need (app knowledge);
+compose may tighten silently or loosen loudly. `--group-add` dissolves
+into grants (groups are an implementation detail of device access, not
+a user-facing knob). `--privileged` stays ❌ even as a compose override —
+the diagnostic escape hatch is running the thing outside cix, honestly.
 
 **`SHM <size>`** becomes a manifest field (app knowledge — postgres
 documents its needs) with compose override, compiled to
@@ -68,14 +74,15 @@ documents its needs) with compose override, compiled to
 tmpfs row: arbitrary tmpfs destinations keep waiting; `/dev/shm` is the
 demanded 90%.
 
-## 4. Open questions
+## 4. Open questions — resolved in review
 
-1. Grant vocabulary: is `gpu` one grant (any /dev/dri render node), or
-   do multi-GPU hosts force node addressing now? Proposal: one grant;
-   multi-GPU is a compose-override question for later.
-2. Frigate-class hardware (V4L2 cameras, sized `/tmp` tmpfs, coral TPU):
-   in-scope for the same round as explicit `DEVICE` nodes, or a second
-   dogfood after Immich lands?
-3. Does `DEVICE` imply anything for `cix run` (transient units) or is it
-   honored there directly? (No compose needed for HA-single-service
-   cases — I propose: honored directly, it is manifest-side.)
+1. One grant, no node addressing (pareto; multi-GPU waits for the bite).
+2. Frigate-class hardware YAGNI'd until we run into it.
+3. `cix run` honors `GRANT gpu` directly — manifest-side, and cix run is
+   degenerate unary compose anyway.
+
+## Changelog
+
+- 2026-08-01: drafted; amended after review — spelling aligned to
+  `GRANT gpu`, explicit-node grant and Frigate round YAGNI'd, run
+  behavior settled.

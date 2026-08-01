@@ -6,17 +6,22 @@ the deferral notes in docs/design.md. Decisions land in design.md as
 D-numbers; this doc routes each open item to either a design doc, a
 proposed one-line disposition (awaiting Mathijs), or an era.
 
-## Clustered into design docs (proposals ready to review)
+## Clustered into CIP drafts (docs/cips/draft/, reviewed 2026-08-01)
 
-| Doc | Covers | Ledger rows absorbed |
+| Draft | Covers | Ledger rows absorbed |
 | --- | --- | --- |
-| [health.md](health.md) | liveness/readiness, health-graph ban | `HEALTHCHECK` (docker.md, migrate.md), corpus demand #1 |
-| [binds.md](binds.md) | operator host-binds, volume-object refusal, mutable-data lifecycle | `-v/--mount`, named volumes, `volume create/ls/rm/prune/update`, bind mounts, corpus demand #2 |
-| [shared-rw.md](shared-rw.md) | shared writable surface as an edge kind | corpus demand #3 (Mastodon/Penpot) |
-| [timers.md](timers.md) | compose `schedule:` on raw OnCalendar | corpus demand #4, Renovate row |
-| [secrets.md](secrets.md) | runtime `SECRET`/LoadCredential + build-time fetch credentials | compose secrets ⏳, BuildKit secret/SSH mounts ❓, migrate.md build-secrets ❌, `docker pass` ❓ (host keychain: out of scope), CLI credential stores ❓ (the fetch-credential file), corpus demand #8 |
-| [devices.md](devices.md) | `DEVICE` grants, GPU, `SHM`, tmpfs sizing | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓ (dissolves into grants), tmpfs mounts ❓, compose-level `--privileged` override ❓ (stays ❌) |
-| [devloop.md](devloop.md) | watch = rebuild+restart; sync refused | compose `watch` ❓, live-reload dev binds |
+| [health](cips/draft/health.md) | liveness/readiness, health-graph ban | `HEALTHCHECK` (docker.md, migrate.md), corpus demand #1 |
+| [dirs](cips/draft/dirs.md) | dir declaration/materialization/lifecycle: operator host-binds, shared writable surfaces, volume-object refusal, down/clean/purge semantics (merges the earlier binds + shared-rw drafts) | `-v/--mount`, named volumes, `volume create/ls/rm/prune/update`, bind mounts, corpus demands #2+#3 |
+| [timers](cips/draft/timers.md) | compose `schedule:` on raw OnCalendar | corpus demand #4, Renovate row |
+| [secrets](cips/draft/secrets.md) | runtime `SECRET`/LoadCredential + build-time fetch credentials | compose secrets ⏳, BuildKit secret/SSH mounts ❓, migrate.md build-secrets ❌, `docker pass` ❓ (host keychain: out of scope), CLI credential stores ❓ (the fetch-credential file), corpus demand #8 |
+| [devices](cips/draft/devices.md) | `GRANT gpu`, `SHM`, tmpfs sizing | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓ (dissolves into grants), tmpfs mounts ❓, compose-level `--privileged` override ❓ (stays ❌) |
+| [devloop](cips/draft/devloop.md) | `cix watch` = rebuild+restart; sync refused | compose `watch` ❓, live-reload dev binds |
+| [run-unary-compose](cips/draft/run-unary-compose.md) | design invariant: `cix run` = compose with one anonymous member | the recurring "and what about cix run?" question |
+
+Bikeshed backlog (small, self-contained): `EXEC` naming — prior art
+docker `ENTRYPOINT`/`CMD`, k8s `command`/`args`, systemd `ExecStart=`,
+Procfile; current recommendation: keep `EXEC` (exec(2) honesty, D55).
+Probe directive spelling: `READINESS`/`LIVENESS` proposed (health §4.1).
 
 ## Already decided — propose recording the disposition in the ledger
 

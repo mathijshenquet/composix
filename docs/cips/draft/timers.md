@@ -1,7 +1,8 @@
 # Scheduled work: the timer surface
 
-Status: proposal, 2026-08-01. Mechanism already decided (D48e: raw
-`OnCalendar`, no translation layer); this doc is about the *surface*.
+Status: draft, amended 2026-08-01 after Mathijs's review ("yes good") —
+ready to adopt. Mechanism was already decided (D48e: raw `OnCalendar`,
+no translation layer); this doc is the *surface*.
 
 ## 1. The problem
 
@@ -44,9 +45,12 @@ The schedule is **deploy-side, in compose**, not in the manifest — when
 something runs is instance knowledge, like egress usage (D49a polarity)
 and env. Surface: a per-service compose field
 `schedule: "<OnCalendar expression>"`, valid only for oneshot-shaped
-services; generation emits the paired `.timer` (`Persistent=true`,
-`RandomizedDelaySec=0` unless set) into the composite like any other
-unit — `cix up` activates timers with the target, `list-timers` is the
+services; generation emits the paired `.timer` into the composite like
+any other unit. `persistent:` and `jitter:` are explicit sibling fields
+mapping to `Persistent=`/`RandomizedDelaySec=`, absent = systemd's
+defaults — no cix-invented defaults: compose.json is machine-written, so
+explicitness beats magic (review call; docs recommend
+`persistent: true` for the Renovate class) — `cix up` activates timers with the target, `list-timers` is the
 status surface. Raw OnCalendar syntax per D48(e), documented with a
 pointer to `systemd-analyze calendar`; no cron-syntax translation, ever
 (docker.md gets the migration row: cron expression → rewrite as
@@ -57,14 +61,23 @@ history limits beyond journald, and `suspend` (that's `systemctl disable
 --now` on the timer) are refused until a corpus case demands them.
 
 Manifest-side there is no timer field: an artifact does not know its
-schedule. A batch-shaped service is just a service whose exec exits.
+schedule — *when* something runs is instance knowledge without
+exception (reviewed: no pack-layer scheduling argument found; even an
+inherently periodic pack like a cert renewer only knows it is
+oneshot-shaped, not its cadence). A batch-shaped service is just a
+service whose exec exits.
+
+`cix run --schedule "<OnCalendar>"` exists from day one (cix run is
+degenerate unary compose — same field, flag spelling). A `schedule:` on
+a non-oneshot service is a hard `compose check` error.
 
 ## 4. Open questions
 
-1. `Persistent=true` as default (catch up after downtime) — right default
-   for the Renovate class, wrong for strict-window jobs. Per-field
-   `persistent: false` override enough?
-2. Does `cix run` grow `--schedule` for composeless ad-hoc timers, or is
-   scheduling compose-only? Proposal: compose-only until asked.
-3. A service with `schedule:` — does compose *require* it to be
-   oneshot-kind (check error otherwise), or warn? Proposal: hard error.
+None — all resolved in review (explicit `persistent:`, run flag yes,
+hard error yes).
+
+## Changelog
+
+- 2026-08-01: drafted; amended after review — no invented defaults
+  (`persistent:`/`jitter:` explicit), `cix run --schedule` in, hard
+  error on non-oneshot, pack-layer scheduling ruled out.

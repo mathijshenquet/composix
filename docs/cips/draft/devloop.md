@@ -1,7 +1,8 @@
 # The dev loop: watch without lying
 
-Status: proposal, 2026-08-01. Decision pending. Ledger row: compose
-`watch` "❓ interesting dev loop, unscoped".
+Status: draft, amended 2026-08-01 after Mathijs's review — sync killed,
+`cix watch` promoted to a real subcommand ("add it until we remove it").
+Ledger row: compose `watch` "❓ interesting dev loop, unscoped".
 
 ## 1. The problem
 
@@ -41,26 +42,27 @@ warm-rebuild on change, restart-changed. With a 7.5s warm edit that is a
 real inner loop, not a consolation prize — and the thing running is
 always a real, addressable artifact.
 
-Per D48(e) (build only at a real impedance mismatch), v0 is a
-**documented recipe, not a feature**:
-`watchexec -- cix up` (or `--restart` for the single-service case) in
-docs/cixfile.md's workshop section, with ignore-guidance (workspace
-dirs, `.git`). Ship the recipe with the wallos/D70 example, measure the
-loop feel, and only then decide whether `cix watch` sugar (debounce,
-context-derived ignores for free, unified output) earns existence.
-Framework-native hot reload (flask debug, vite HMR) is explicitly the
-inner-inner loop and belongs in `nix develop`, outside cix — document
-the split rather than compete with it.
+**`cix watch` is a real subcommand** (review overruled the
+recipe-first instinct: "seems like it will be popular, lets add it until
+we remove it" — and the recipe has a real papercut: an external watcher
+must hand-maintain ignores for the workspace/lock churn cix itself
+causes, where cix derives them for free). Scope v0: watch the Cixfile
+context with context-derived ignores, debounce, warm rebuild, restart
+exactly the changed services — compose-wide, single-service being the
+unary case. Framework-native hot reload (flask debug, vite HMR) is
+explicitly the inner-inner loop and belongs in `nix develop`, outside
+cix — document the split rather than compete with it.
 
 ## 4. Open questions
 
-1. Agree `sync` is a permanent ❌ (goes in docker.md as such), or keep
-   it ❓ pending a corpus case where 7.5s is genuinely too slow (huge
-   node_modules-class contexts)?
-2. Recipe-first vs `cix watch` now: the recipe has zero maintenance but
-   a real papercut (watchexec must ignore the workspace/lock churn cix
-   itself causes — wrong ignores = infinite rebuild loop). Is that
-   papercut alone enough to justify the subcommand early?
-3. Does `cix up` need a `--watch`-adjacent quality first: partial
-   restarts already work, but build output during iteration is noisy —
-   worth a quiet mode in the same round?
+1. ~~sync~~ — killed in review, permanent ❌ in docker.md.
+2. ~~recipe vs subcommand~~ — subcommand, per review.
+3. (still open) Output ergonomics: does the watch loop need a quiet
+   mode / unified single-line status in the same round, or ship noisy
+   first?
+
+## Changelog
+
+- 2026-08-01: drafted; amended after review — sync permanently refused,
+  `cix watch` promoted from recipe to subcommand, quiet-mode question
+  stays open.
