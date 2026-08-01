@@ -54,9 +54,9 @@ hardened module tradition proves services run fine in such worlds.
 The generated unit uses `RootDirectory=` on an empty per-unit root +
 `MountAPIVFS=yes`, then binds in exactly:
 
-- the store closure of the item (computed at generation time from the
-  lock-pinned item's references — `nix path-info -r` equivalent),
-  read-only, per path (see §4.1 for the whole-store alternative);
+- `/nix/store`, read-only, whole (decided in §5 — the reference
+  scanner already makes embedded paths closure members; closure-only
+  binds and `RootImage=` remain recorded tightenings);
 - the item's D22 projections at their declared absolute paths;
 - role dirs per the dirs CIP (state/cache/logs/run), claims-derived
   extras (shared surfaces, `CLAIM mount` paths, devices);
