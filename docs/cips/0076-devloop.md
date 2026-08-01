@@ -1,8 +1,8 @@
 # The dev loop: watch without lying
 
-Status: draft, amended 2026-08-01 after Mathijs's review — sync killed,
-`cix watch` promoted to a real subcommand ("add it until we remove it").
-Ledger row: compose `watch` "❓ interesting dev loop, unscoped".
+Status: **CIP-76, adopted 2026-08-01** (Mathijs: "Lets ship noisy
+first, signed off"). Ledger row was: compose `watch` "❓ interesting dev
+loop, unscoped". Decision in §5.
 
 ## 1. The problem
 
@@ -57,9 +57,17 @@ cix — document the split rather than compete with it.
 
 1. ~~sync~~ — killed in review, permanent ❌ in docker.md.
 2. ~~recipe vs subcommand~~ — subcommand, per review.
-3. (still open) Output ergonomics: does the watch loop need a quiet
-   mode / unified single-line status in the same round, or ship noisy
-   first?
+3. ~~output ergonomics~~ — ship noisy first (adoption call).
+
+## 5. Decision
+
+`sync` is a permanent refusal (docker.md ❌: copying edits into a
+running service recreates the bind-mount lie). `cix watch` is a real
+subcommand: watch the Cixfile context with context-derived ignores,
+debounce, warm rebuild, restart exactly the changed services;
+compose-wide with single-service as the unary case. Ships noisy; quiet
+mode when it annoys. Framework hot reload stays outside cix
+(`nix develop`), documented as the split.
 
 ## Changelog
 

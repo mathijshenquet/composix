@@ -1,7 +1,9 @@
 # `cix run` is degenerate unary compose
 
-Status: draft, 2026-08-01. Extracted from Mathijs's review of the
-binds/timers/devices drafts, where the principle recurred three times.
+Status: **CIP-77, adopted 2026-08-01** (Mathijs: "helemaal prima en de
+juiste vorm"), with the translation-quality guard in §5. Extracted from
+Mathijs's review of the binds/timers/devices drafts, where the principle
+recurred three times.
 
 ## 1. The problem
 
@@ -52,3 +54,22 @@ plumbing is the natural way to keep it true.
 2. Does the invariant eventually collapse `cix run` into
    `cix up --anonymous` internally? (No user-facing consequence; left to
    implementation.)
+
+## 5. Decision
+
+Adopted, with a **translation-quality guard** (adoption condition): the
+flag→field translation must stay *mechanical* — a flag is a flat
+spelling of one JSON field (`--dir state=host:/path`,
+`--schedule "..."`) with no flag-only grammar, no nesting DSL, no
+defaults the field doesn't have. The escape hatch is pre-agreed: if a
+field's translation turns contrived, that field gets **no flag** — the
+k8s route, where the user hands `cix run` an anonymous compose JSON
+(`cix run --compose <file|->`) instead. Contrivedness of the
+translation, not completeness of the flag set, is the review criterion.
+Grandfathering audit (§4.1) lands with the first compose field that
+touches run.
+
+## Changelog
+
+- 2026-08-01: drafted from review; adopted same day with the
+  translation-quality guard.

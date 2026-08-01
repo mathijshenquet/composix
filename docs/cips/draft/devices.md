@@ -1,8 +1,10 @@
 # Devices, GPU, and shared memory
 
-Status: draft, amended 2026-08-01 after Mathijs's review — narrowed to
-`GRANT gpu` + `SHM`, ready to adopt. Deliberately dogfood-gated (the
-manifest v2 deferral said "needs a dogfood case" — this doc picks one).
+Status: draft, amended 2026-08-01 (round 2) — the keyword question
+(CLAIM vs GRANT, §4.1) is now the one open item; Frigate's explicit-node
+claim is back in scope (it is corpus row 17 — the YAGNI was miscalled).
+Deliberately dogfood-gated (the manifest v2 deferral said "needs a
+dogfood case" — this doc picks one).
 
 ## 1. The problem
 
@@ -44,27 +46,26 @@ construction).
 
 ## 3. Recommendation
 
-Mint **one semantic grant** now, in the existing grant vocabulary
-(`GRANT egress`, `GRANT jit` — review aligned the spelling), dogfood-gated
-on the Immich-shaped example (corpus §5 — GPU + shm in one package):
+Mint **two claims** (keyword pending §4.1; CLAIM used here), dogfooded
+on the Immich-shaped example (corpus §5) with Frigate (corpus row 17) as
+the second consumer:
 
-- `GRANT gpu` → the render case: `DeviceAllow=/dev/dri rwm` (char
-  class), `SupplementaryGroups=video render`, `PrivateDevices` stays on
-  otherwise. Vendor userspace is the item's problem via nixpkgs (the
-  NixOS dissolution above); no toolkit, no CDI machinery until a
-  non-NixOS-host case forces it. Pareto per review: multi-GPU node
-  addressing (the 2×H100+2×A100 class) is real but breaks the
-  pack/compose boundary — deliberately out until the single-grant form
-  is bitten; expect node selection to arrive as a compose-side override
-  when it does.
+- `CLAIM gpu` — the semantic form. Mechanically today it IS sugar for
+  the render stack: `DeviceAllow=/dev/dri rwm` (char class) +
+  `SupplementaryGroups=video render`, `PrivateDevices` otherwise intact.
+  It stays a named *need* rather than a node spelling because (a) the
+  compiler owns the class→groups mapping, (b) it leaves room for node
+  addressing later without new vocabulary (multi-GPU — the
+  2×H100+2×A100 class — arrives as a compose-side override on the same
+  claim when it bites; pareto per review), and (c) it names what
+  migration tables can target.
+- `CLAIM device /dev/ttyUSB0` — the literal form (Frigate's coral, HA's
+  zigbee stick, V4L2 cameras): `DeviceAllow=` for the node + its owning
+  group (`dialout`, `video`, …) resolved at generation time.
 
-The explicit-node case (`GRANT device /dev/ttyUSB0` — Frigate's coral,
-HA's zigbee stick) is sketched but **YAGNI'd until we run into it**
-(review): same mechanics, minted on first real need.
-
-Polarity per D49(a): the manifest declares the need (app knowledge);
+Polarity per D49(a): the manifest *claims* the need (app knowledge);
 compose may tighten silently or loosen loudly. `--group-add` dissolves
-into grants (groups are an implementation detail of device access, not
+into claims (groups are an implementation detail of device access, not
 a user-facing knob). `--privileged` stays ❌ even as a compose override —
 the diagnostic escape hatch is running the thing outside cix, honestly.
 
@@ -74,15 +75,27 @@ documents its needs) with compose override, compiled to
 tmpfs row: arbitrary tmpfs destinations keep waiting; `/dev/shm` is the
 demanded 90%.
 
-## 4. Open questions — resolved in review
+## 4. Open questions
 
-1. One grant, no node addressing (pareto; multi-GPU waits for the bite).
-2. Frigate-class hardware YAGNI'd until we run into it.
-3. `cix run` honors `GRANT gpu` directly — manifest-side, and cix run is
-   degenerate unary compose anyway.
+1. **CLAIM vs GRANT** (Mathijs's question; analysis): manifest-side the
+   pack *requests* — it cannot grant itself anything, so `GRANT` in a
+   Cixfile has the polarity backwards (SQL `GRANT` is the DBA speaking;
+   k8s spells the workload side `resources.requests`, and for devices
+   literally **ResourceClaim** in DRA). Recommendation: **CLAIM**, and
+   rename the existing `GRANT egress`/`GRANT jit` in the same sweep
+   (alpha, D72, cheap famtags-style rename) so there is one vocabulary.
+   Bonus: the compose-side loosening field can then honestly be called
+   `grants:` — the manifest CLAIMs, the operator GRANTs; the vocabulary
+   teaches the D49(a) polarity by itself.
+2. ~~Frigate~~ — back in scope (it was already corpus row 17); the
+   literal `CLAIM device` form ships in the same round.
+3. ~~cix run~~ — honors claims directly (CIP-77).
+4. `SHM` confirmed in ("ook niet verkeerd om erin te hebben").
 
 ## Changelog
 
-- 2026-08-01: drafted; amended after review — spelling aligned to
-  `GRANT gpu`, explicit-node grant and Frigate round YAGNI'd, run
-  behavior settled.
+- 2026-08-01: drafted; r1 after review — spelling to grant vocabulary,
+  Frigate YAGNI'd. r2 same day — YAGNI reversed (Frigate is corpus row
+  17), `CLAIM` analysis added with rename-sweep recommendation,
+  `CLAIM gpu`-as-sugar clarified (mechanically /dev/dri+groups today,
+  semantically a named need).

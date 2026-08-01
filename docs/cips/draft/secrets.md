@@ -105,17 +105,51 @@ credential is not an input, it is access).
    state* (never the store), compares on up, and restarts services whose
    secrets changed. Restart-changed semantics without leaking a
    fingerprint.
-4. **FETCH credential scoping: named tokens + lock whitelist**
-   (Mathijs's mechanism). The host keeps a global credential map of
-   *named* tokens (name → URL pattern + credential). First use by a
-   Cixfile prompts "allow use of secret <name>? y/N" (`--allow-secret`
-   for CI) and the *name* is recorded in `Cixfile.lock` — the committed
-   lock declares intended access and travels with the repo, while values
-   stay host-side. Two tokens matching one URL: the prompt
-   disambiguates, the lock pins the chosen name.
+4. **FETCH credential scoping — turned over 4× (requested), and the
+   lock drops out.** The v1 mechanism (named tokens + whitelist recorded
+   in `Cixfile.lock`) fails three of four adversarial turns:
+
+   - *Turn 1 — committed consent is cloned consent.* The lock travels
+     with the repo; if it authorizes token use, cloning (or merging a
+     PR that edits the machine-written-but-plain-text lock) means a
+     malicious repo arrives **pre-consented** on any host holding a
+     matching token. Consent must be host-local; a committed file can
+     only ever carry *intent*.
+   - *Turn 2 — host-local names must not travel.* Token names are
+     per-host config (`gh-work` here, `github-main` there): a lock
+     pinning a name breaks on the next host, or silently matches a
+     *different* token that shares the name — the wrong secret, used
+     without error.
+   - *Turn 3 — the lock has no remaining job.* Its job is pinning
+     content (rev+narHash, D69), and `--cold` never fetches (D69e), so
+     credentialed fetching happens only at update-lock/first-fetch time
+     — exactly where a prompt can live. Intent is already public in the
+     Cixfile's FETCH URL. Drop lock involvement entirely: simpler
+     artifact, smaller attack surface.
+   - *Turn 4 — the residual risk is broad URL patterns.* A token scoped
+     `*.corp.internal` plus an attacker-edited FETCH URL inside that
+     pattern sends the credential to attacker-reachable infrastructure.
+     Mitigations: the consent prompt shows the **concrete URL**, not
+     just the token name; consent is stored per (project, token,
+     URL-prefix) so a new prefix re-prompts; docs push narrow patterns.
+
+   **Resulting design (direnv-allow prior art):** host credential map of
+   named tokens (name → URL pattern + credential) + a host-side consent
+   store keyed (project path, token name, URL prefix). First use
+   prompts "allow FETCH of <url> using <name>? y/N" (`--allow-secret`
+   for CI); revocation is a cix command editing host state; a removed
+   token fails the fetch loudly (never a silent anonymous retry). Locks
+   and Cixfiles never mention tokens. Two tokens matching one URL: the
+   prompt disambiguates and the *consent store* (host-side) remembers
+   the choice. Hygiene notes that ride along: the D69 probe and
+   consumed-set recording must never persist credential paths
+   (pinkeys-class volatile-fact discipline), and auth headers never
+   reach logs.
 
 ## Changelog
 
-- 2026-08-01: drafted; amended after review — agenix/systemd-creds prior
+- 2026-08-01: drafted; r1 after review — agenix/systemd-creds prior
   work deepened, `AS <var>` sugar spelled, salted-HMAC rotation
-  fingerprint, named-token lock whitelist adopted.
+  fingerprint, named-token lock whitelist. r2 same day — the requested
+  4× turn-over replaced the lock whitelist with host-side consent
+  (direnv-allow shaped); locks no longer participate.

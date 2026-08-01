@@ -1,8 +1,8 @@
 # Scheduled work: the timer surface
 
-Status: draft, amended 2026-08-01 after Mathijs's review ("yes good") —
-ready to adopt. Mechanism was already decided (D48e: raw `OnCalendar`,
-no translation layer); this doc is the *surface*.
+Status: **CIP-75, adopted 2026-08-01** (Mathijs: "Timers akkoord").
+Mechanism was already decided (D48e: raw `OnCalendar`, no translation
+layer); this CIP is the *surface*. Decision in §5.
 
 ## 1. The problem
 
@@ -75,6 +75,16 @@ a non-oneshot service is a hard `compose check` error.
 
 None — all resolved in review (explicit `persistent:`, run flag yes,
 hard error yes).
+
+## 5. Decision
+
+Adopted as recommended: compose-side `schedule:` (raw OnCalendar) on
+oneshot services, explicit `persistent:`/`jitter:` (systemd defaults
+when absent), paired `.timer` in the composite, `cix run --schedule`,
+hard `compose check` error on non-oneshot, no manifest timer field, no
+cron translation ever (docker.md migration row: rewrite to OnCalendar).
+Concurrency beyond native coalescing, history limits, and `suspend`
+refused until demanded.
 
 ## Changelog
 
