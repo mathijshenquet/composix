@@ -1,10 +1,11 @@
 # Observability: logs, exit causes, and stats without a daemon
 
-Status: draft, 2026-08-01. Source: the ledger's "operational verb set is
-thin" gap (docs/docker.md — no `cix logs`, no stable selector, no
-per-app retention contract, no status/exit-cause view) plus the
-systemd.exec read-through that showed the substrate already carries
-almost everything.
+Status: **CIP-83, adopted 2026-08-01** (Mathijs: "kan wat mij betreft
+verbatim"). Source: the ledger's "operational verb set is thin" gap
+(docs/docker.md — no `cix logs`, no stable selector, no per-app
+retention contract, no status/exit-cause view) plus the systemd.exec
+read-through that showed the substrate already carries almost
+everything. Decision in §5.
 
 ## 1. The problem
 
@@ -95,3 +96,16 @@ equivalent (D48e transparency).
    unit lifetime, like journalctl.
 3. Does `cix run` (unary compose, CIP-77) get `--log-namespace` from
    day one or is namespacing compose-only until asked?
+
+## 5. Decision
+
+Adopted verbatim (§3 in full): selector fields stamped on every unit,
+`cix logs` as a thin journalctl translation that teaches its raw
+equivalent, exit causes in ps/inspect with the 200–245 map and the
+CIP-79 watchdog rendering, opt-in `logNamespace:` per composite,
+one-shot `cix stats` from accounting properties. Open-question rulings:
+`CIX_ITEM` is stamped on services (yes, §4.1 as proposed); `cix logs`
+defaults to unit lifetime (§4.2 as proposed); **log namespacing is
+compose-only** — `cix run` does not grow `--log-namespace` (Mathijs:
+"laten zitten"), the one CIP-77 exception so far, recorded there when
+the flag audit happens.
