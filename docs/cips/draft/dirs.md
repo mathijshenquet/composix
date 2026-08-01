@@ -1,176 +1,184 @@
 # Dirs: declaration, materialization, and lifecycle
 
-Status: draft, r3, 2026-08-01 — after Mathijs's second review round
-(hermetic sharing, `DATADIR :ro`, reclassification, `.env`,
-`cix recreate`) and the requested 4× turn-over (§5). Supersedes the
-earlier binds.md and shared-rw.md drafts.
+Status: draft, **r4**, 2026-08-01 — approved direction after three
+dialogue rounds; ready for adoption review. Supersedes r3 (and the
+original binds/shared-rw pair). Amends D11.
 
 ## 1. The problem
 
 Three entangled gaps, one model. (a) *Operator host-binds*: 14 of 18
 corpus compose files bind host paths into services (Immich media,
 Paperless watch-dirs); composix has no spelling. (b) *Shared writable
-surfaces*: Mastodon's web+sidekiq share one rw uploads dir; our edges are
-sockets, role dirs are service-private — the one genuine edge-model gap
-in the corpus. (c) *Lifecycle*: composix already has a richer persistence
-ontology than docker — `STATEDIR`/`CACHEDIR`/`LOGDIR`/`RUNDIR` (D11)
-each imply different durability — but what `cix down` (vs stop, vs
-removal) does to each has never been spelled out, and "docker volume
-prune" has no analogue.
+surfaces*: Mastodon's web+sidekiq share one rw uploads dir; role dirs
+are service-private by construction. (c) *Lifecycle*: composix has a
+richer persistence ontology than docker (state/cache/logs/run), but
+what `cix down` vs stop vs removal does to each was never spelled out.
+Plus, from review: what does `STATEDIR /var/lib/postgresql` *mean*
+mechanically, does it collide across services, and is the dir-family a
+complexity monster?
 
 ## 2. Prior work
 
-**Docker**: bind mounts (any host path, rw default, no declaration of
-what the workload expects) and named volumes (objects with
-create/rm/prune lifecycle, copy-up). One flat concept — "a volume" —
-regardless of whether the data is cache, state, or logs; `volume prune`
-exists precisely because nothing records which data is expendable.
-`compose up --force-recreate` exists because containers accumulate
-writable-layer state that only recreation clears.
+**systemd's directory classes** (`RuntimeDirectory=`, `StateDirectory=`,
+`CacheDirectory=`, `LogsDirectory=`, `ConfigurationDirectory=`) are the
+substrate ontology, and they do far more than clean-behavior: creation
+(incl. parents; subpaths like `foo/bar` are documented), ownership —
+with `DynamicUser` via the `/var/lib/private` symlink dance, recursive
+re-chown on mismatch, and on current kernels **id-mapped mounts**
+(host-side "nobody", service-uid in-namespace); `$STATE_DIRECTORY`-class
+env vars; implied `BindPaths=` — *"when combined with RootDirectory=
+these paths always reside on the host and are mounted from there into
+the unit's namespace"* (free closed-root compatibility, systemd's own
+words); per-class disposal (`RuntimeDirectory` removed at stop,
+`systemctl clean --what=` for the rest); an optional `name:dest` symlink
+alias (with a `:ro` flag since v257). Two structural facts: **names are
+relative — arbitrary absolute locations are explicitly out of scope**
+(*"a different mechanism has to be used"*), and there are exactly five
+classes; systemd grows no sixth.
 
-**Kubernetes**: discourages `hostPath`; interposes PVC (the workload's
-*claim*) bound to a PV (the operator's *location*) — need and location
-split across the same seam as our manifest/compose. Sharing: `fsGroup`
-chowns the volume to a declared gid and adds every container to it.
-Ephemeral vs durable is per-volume-type (`emptyDir` vs PVC), chosen by
-the workload author.
+**Docker**: undifferentiated "volumes"; `volume prune` exists because
+nothing records which data is expendable. **k8s**: the polarity
+precedent — emptyDir/PVC (platform-provisioned) vs hostPath
+(operator-supplied), `fsGroup` for shared writers. **FHS** `/srv` is the
+nearest precedent for "operator-supplied data the service serves".
+Nobody has a named DATADIR concept.
 
-**systemd** natively encodes the lifecycle ontology docker lacks:
-`RuntimeDirectory=` is *removed when the service stops*;
-`StateDirectory=` persists; `CacheDirectory=` persists but is expendable
-(`systemctl clean --what=cache`); `LogsDirectory=` has its own clean
-class. `BindPaths=`/`BindReadOnlyPaths=` graft host paths into the
-unit's namespace; `RequiresMountsFor=` orders units after their mounts;
-idmapped mounts map a `DynamicUser` onto foreign ownership. Setgid dirs
-+ `SupplementaryGroups=` + `UMask=0002` give fsGroup semantics; stable
-identities/groups come from the D48(d) registry.
+**Composix today** (crates/cix-run/src/unit.rs `add_directories`):
+already unit-scopes the host side — `StateDirectory=<prefix>-<svc>` with
+the symlink-alias to the declared destination when it lies under the
+class root (the D11 restriction exists solely to enable that alias), a
+`BindPaths=` fallback otherwise, `TemporaryFileSystem=/var/lib:ro`
+masking, and `state-0/state-1` index names for multiple dirs.
 
 ## 3. Recommendation
 
-**The manifest declares dirs by role; compose decides materialization.**
-Write-ness and lifetime come from the role, never from the bind entry.
+### The model in one sentence
 
-Declaration: the existing D11 roles — `STATEDIR /var/lib/app`,
-`CACHEDIR`, `LOGDIR`, `RUNDIR` — plus one new role from review:
-**`DATADIR /media:ro`** — operator-supplied content the app reads (media
-libraries, corpora); `:ro` is part of the declaration (an rw DATADIR is
-the Paperless watch-dir case). A declared DATADIR makes `compose check`
-*demand* the operator supply a materialization — it has no private
-default (an empty private media dir is useless by construction).
+**Every dir declaration is a claim on the deployment; the dispositions
+cix can satisfy itself — exactly systemd's classes — are satisfied
+automatically and systemd-shaped; the one it cannot (operator-supplied
+data) is an explicit `CLAIM data`.**
 
-The **role definitions are contracts**, written into docs as promises
-("cix may delete CACHEDIR contents between runs at any time"): the
-lifecycle table below is only as honest as these contracts, so they are
-normative, not descriptive (see turn-over #1).
+### Declarations (manifest)
 
-Materialization (compose, per declared dir; private is the default for
-all roles except DATADIR):
+- The role directives are frozen to systemd's classes: `STATEDIR`,
+  `CACHEDIR`, `LOGDIR`, `RUNDIR` (+ config when configs land). A role
+  dir is the **only route to durable private state** — by design.
+  Declared paths are **arbitrary absolute in-namespace paths**
+  (`LOGDIR /app/logs` is legal; the D11 conventional-root restriction
+  is repealed — it only ever served the alias syntax). Multiple
+  declarations per role stay legal.
+- **`CLAIM data /media:ro`** (rw when writable, e.g. a Paperless
+  consume dir) declares operator-supplied content: pre-existing, not
+  service-owned, not cix-materializable, exempt from every deletion
+  verb. `compose check` *demands* a materialization for it — there is
+  no private default (an empty private media dir is useless by
+  construction).
+- **DATADIR is deliberately rejected**: dressing the operator-supplied
+  inverse in the *DIR family's clothes is the CIP-80 CMD-lesson —
+  borrowing a family's look without its contract teaches exactly the
+  wrong intuition (every *DIR is cix-created and service-owned; this
+  one is neither). The noun `data` lives on inside the claim. (`CLAIM
+  mount` was rejected for colliding with the existing manifest `mounts`
+  field, the D22 item projections.)
 
-- *(default)* **private**: the systemd directory, today's behavior.
-- **`host: /tank/media`**: `BindPaths=`/`BindReadOnlyPaths=` per the
-  role's write-ness. The host path must **pre-exist** — cix never
-  creates directories outside its own roots; a missing path is a
-  `compose check`/start error, and the unit gets `RequiresMountsFor=`
-  so mount-dependent services order and fail honestly. Ownership: rw
-  host dirs require a D48(d) identity; when existing data is owned
-  otherwise, an idmapped mount maps the service identity onto it
-  (turn-over #2). Compose env interpolation in paths
-  (`${UPLOAD_LOCATION}`) is allowed.
-- **`shared: <name>`**: a composite-owned surface joined by member
-  services. **Hermetic** (review): every member must have *declared*
-  the dir — an undeclared pack cannot meaningfully use a surface it
-  never named. All members' declared roles for a shared surface must
-  agree; disagreement is a check error (turn-over #3). v0 restricts
-  sharing to `STATEDIR` and `DATADIR` — shared RUNDIR/LOGDIR have no
-  corpus demand and RUNDIR's per-service stop-cleanup cannot ride a
-  shared surface (turn-over #3). Mechanics: stable group from the
-  registry, setgid dir, `SupplementaryGroups=` + `UMask=0002`.
-- **`as: <role>` — reclassification** (review): compose may override
-  the *treatment* of a declared dir. Escalating durability
-  (CACHEDIR treated as STATEDIR) is silent — the operator buys more
-  safety. Degrading durability (STATEDIR treated as CACHEDIR) is the
-  loosening polarity: LOUD in check, since the operator is opting into
-  data loss the pack did not sanction (D49a shape).
+### Backing (the overlay shape)
 
-Extra, *undeclared* operator binds remain possible compose-side (ro
-unless `write: true`) and are loud in check. `.env`: interpolation
-values resolve at `cix up` time from the compose file's own directory
-`.env` (that file only — no cwd ambiguity); resolved values enter the
-generation identity so a changed `.env` restarts affected services;
-secrets do NOT travel this road (env delivery is refused by the secrets
-CIP — `.env` is for paths and ports; turn-over #4).
+Private materialization uses one host root per unit per class, with the
+**full declared path mirrored beneath it**:
 
-**Lifecycle table** (role contracts × events):
+```
+LOGDIR /app/logs   →  LogsDirectory=cix-<comp>-<svc>/app/logs
+                      host: /var/log/cix-<comp>-<svc>/app/logs
+                      + BindPaths= to /app/logs in the namespace
+```
 
-| event | RUNDIR | CACHEDIR | LOGDIR | STATEDIR | DATADIR | host-bound | shared |
+systemd still does everything (creation, id-mapped ownership, clean
+classes — subpath directives are documented); collision-freedom comes
+from the unit-scoped root (two postgres services = two host roots, each
+privately seeing its own declared paths — what scenario-side-by-side
+proves). The alias branch, the D11 restriction, and the `state-N` index
+names are all deleted; host paths self-describe for operators. cix
+overrides the `$*_DIRECTORY` env vars to the declared in-namespace
+paths (systemd would name the host-side locations).
+
+### Materialization (compose, per declared dir)
+
+| | backing | machinery active | identity |
+| --- | --- | --- | --- |
+| *(default)* private | unit-scoped host root, path-mirrored | full systemd: creation, id-mapped/DynamicUser ownership, env, clean | dynamic OK |
+| `host: /tank/x` | operator path, `BindPaths=`/`BindReadOnlyPaths=` per role write-ness | none — bind + `RequiresMountsFor=`; path must pre-exist, cix never mkdirs outside its roots | **static (D48d) required** — nobody re-chowns operator data |
+| `shared: <name>` | composite-owned surface (v0: STATEDIR and CLAIM-data only) | stable group + setgid + `SupplementaryGroups=` + `UMask=0002` | registry group |
+| `as: <role>` | reclassification of treatment | target role's | — |
+
+Reclassification polarity: escalating durability (cache→state) is
+silent; degrading (state→cache) is LOUD in check (operator opts into
+data loss the pack did not sanction, D49a shape). Shared surfaces are
+hermetic: every member must have declared the dir, and members' roles
+must agree — disagreement is a check error. Undeclared extra operator
+binds stay possible (ro unless `write: true`), loud in check.
+
+`.env` containment: interpolation resolves from the compose file's own
+directory `.env` only, resolved values enter the generation identity
+(changed `.env` ⇒ restart-changed sees it), and secrets never travel
+this road (CIP-81 refuses env delivery).
+
+### Lifecycle table (role contracts × events)
+
+| event | RUNDIR | CACHEDIR | LOGDIR | STATEDIR | CLAIM data | host-backed | shared |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `systemctl stop` / crash | removed | kept | kept | kept | untouched | untouched | kept |
 | `cix down` | removed | kept | kept | kept | untouched | untouched | kept |
-| `cix clean <svc> --what=…` | — | removable | opt-in | refused | refused | untouched | refused |
+| `cix clean --what=…` | — | removable | opt-in | refused | refused | untouched | refused |
 | composite removal + `--purge` | removed | removed | removed | removed | **never** | **never** | removed |
 
-Purge confirms interactively with the exact path list (`--yes` for
-automation). Host-bound and DATADIR content is operator property: cix
-never deletes it, full stop. Nix GC is never involved.
+Purge confirms interactively with exact paths (`--yes` for automation).
+Role definitions are normative contracts in the docs ("cix may delete
+CACHEDIR contents between runs") — the table is only as honest as pack
+authors' classifications; reclassification is the operator remedy.
 
-**`cix recreate` dissolves** (review question): docker recreates
-containers to shed writable-layer state; composix services have no
-writable layer — restart already yields a pristine mount namespace, and
-role dirs are *meant* to survive. The migration row reads
-`compose up --force-recreate` → `cix up`/restart (nothing to recreate);
-an operator who wants expendable state gone says so explicitly:
-`cix clean <svc> --what=cache && systemctl restart …`. No recreate verb
-— a fresh-start verb that implicitly deletes data classes would
-contradict the table above (turn-over #4).
+**`cix recreate` dissolves**: docker recreates containers to shed
+writable-layer state; we have no writable layer — restart yields a
+pristine namespace and role dirs are *meant* to survive. Migration row:
+`compose up --force-recreate` → `cix up` (nothing to recreate);
+explicit expendable-state removal is `cix clean`. No implicit-deletion
+verbs, ever.
 
-`cix run` grows the same materialization flags per CIP-77.
+`cix run` grows the same materialization flags (CIP-77).
 
 ## 4. Open questions
 
-1. ~~DATADIR~~ — in, spelled `DATADIR /media:ro` (review).
-2. ~~hermetic sharing~~ — declared-only, plus role agreement (review).
-3. ~~purge UX~~ — confirmed.
-4. `.env` accepted with stated uncertainty — the resolution rules above
-   (own-dir only, generation-identity inclusion, no secrets) are the
-   proposed containment; flag anything that chafes.
-5. New from turn-over #2: for pre-existing host data under a foreign
-   uid, is the idmapped-mount mapping automatic, or does compose demand
-   an explicit `owner:`-style acknowledgment before cix maps identity
-   onto operator data? (Proposal: explicit acknowledgment — mapping
-   silently onto foreign data is spooky.)
+1. **Host-mirror spelling**: full mirror (`STATEDIR /var/lib/pg` →
+   host `/var/lib/<unit>/var/lib/pg`, ugly-but-uniform) vs stripping
+   the class prefix when the declared path happens to lie under it
+   (`/var/lib/<unit>/pg`, pretty-but-conditional). Proposal: full
+   mirror — host layout is cix-internal, uniformity wins.
+2. **Foreign-owned host data**: for `host:` backing over data owned by
+   another uid, is the idmapped-mount mapping automatic or does compose
+   demand an explicit acknowledgment field before cix maps the service
+   identity onto operator data? Proposal: explicit — silent mapping
+   onto foreign data is spooky.
+3. `.env`: accepted with stated uncertainty — flag anything that chafes
+   in the containment rules above.
 
-## 5. The 4× turn-over
+## 5. The 4× turn-overs (r3 + r4, recorded)
 
-1. **Role contracts vs lying packs.** The table's guarantees assume
-   packs classify honestly; a pack that stores uploads under CACHEDIR
-   turns `cix clean` into data loss *within contract*. Mitigations:
-   role definitions published as normative contracts; reclassification
-   (`as: state`) as the operator remedy; migration docs teach checking
-   what upstream images actually store where (the wordpress
-   entrypoint-surgery class).
-2. **Host materialization imports docker's uid hell unless ownership is
-   explicit.** BindPaths to a missing or foreign-owned path either
-   fails at runtime or silently creates wrong ownership. Resolved:
-   pre-existence required, `RequiresMountsFor=` ordering, D48(d)
-   identity for rw, idmapped mounts for foreign-owned data — with the
-   §4.5 question on how loud that mapping must be.
-3. **Composed features contradict.** Shared×roles (members disagreeing
-   on a surface's role), shared×RUNDIR (per-service stop-cleanup cannot
-   govern a shared dir), shared×host×reclassify stacking. Resolved by
-   restriction: role agreement enforced, sharing limited to
-   STATEDIR/DATADIR in v0, and reclassification applies before
-   sharing-legality is checked.
-4. **New verbs and channels must not bypass the table.** `cix recreate`
-   would be an implicit deleter — refused; deletion happens only
-   through the two explicit verbs (`clean`, `--purge`). `.env` would be
-   a side door for secrets into env — refused; and up-time resolution
-   without generation-identity inclusion would silently deliver stale
-   config — resolved by including resolved values in the identity.
+r3: lying packs (→ normative contracts + reclassification); docker's
+uid hell at the host seam (→ pre-existence + static identity + idmap);
+feature stacking (→ role agreement, sharing restricted, reclassify
+before legality); no verbs/channels bypass the table (→ recreate
+refused, .env contained). r4 (the overlay round): systemd machinery
+survives arbitrary paths via subpath directives; unit-scoped roots keep
+collision-freedom; the claim unification holds — and DATADIR's contract
+inversion (not private, not created, must pre-exist) is exactly what
+makes it a claim, not a dir.
 
 ## Changelog
 
-- 2026-08-01: v1 as two drafts (binds, shared-rw); v2 merged with
-  role/materialization split and lifecycle table; r3 — second review
-  round absorbed (DATADIR `:ro`, hermetic sharing + role agreement,
-  reclassification with polarity, `.env` containment, recreate
-  dissolved) and the 4× turn-over recorded.
+- 2026-08-01: v1 (binds + shared-rw), v2 (merged, role/materialization
+  split), r3 (review round: DATADIR:ro, hermetic sharing,
+  reclassification, .env, recreate; 4× turn-over). r4 (dialogue rounds
+  on mechanics + aesthetics): claim unification as the model, overlay
+  backing kills the D11 restriction/alias/indices, machinery table,
+  DATADIR rejected on the CMD-lesson → `CLAIM data`, id-mapped-mount
+  and closed-root notes from the systemd docs.
