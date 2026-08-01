@@ -240,7 +240,6 @@
   fingerprinting; docs and honest corpus receipts. Expected compatibility effect:
   the new fingerprint creates a one-time global memo miss. Next: map the lock and
   build-chain seams, implement with focused tests, then run the prescribed gate.
-||||||| fb7a023
 
 - 2026-07-31T22:17:34Z — Final nixcompare gate is green with the corrected,
   self-contained warm benchmark. Exact fixture repros passed in sequence:
