@@ -1,6 +1,6 @@
 # nats migration receipt
 
-Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `EXEC`).
+Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `START`).
 
 Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:f0f977e50ad69c0b9a041f145cce27df06166295792391f98f4ac415a067756c`.
 

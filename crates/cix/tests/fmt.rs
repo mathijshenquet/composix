@@ -7,9 +7,9 @@ fn cix() -> Command {
 }
 
 const MESSY: &str =
-    "FROM\tgithub:NixOS/nixpkgs/nixos-unstable\tAS\tpkgs\nSERVICE\tapp\nEXEC\t/bin/true\n";
+    "FROM\tgithub:NixOS/nixpkgs/nixos-unstable\tAS\tpkgs\nSERVICE\tapp\nSTART\t/bin/true\n";
 const CANONICAL: &str =
-    "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE app\n  EXEC /bin/true\n";
+    "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE app\n  START /bin/true\n";
 
 #[test]
 fn check_explains_changes_and_unchanged_files_are_not_rewritten() {
@@ -90,7 +90,7 @@ fn parse_failures_write_nothing_and_stdin_cannot_be_mixed() {
     assert!(!output.status.success());
     assert!(String::from_utf8(output.stderr)
         .unwrap()
-        .contains("has no EXEC"));
+        .contains("has no START"));
     assert_eq!(fs::read_to_string(&file).unwrap(), invalid);
 
     let output = cix().arg("fmt").arg("-").arg(&file).output().unwrap();

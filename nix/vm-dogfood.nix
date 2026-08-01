@@ -9,7 +9,7 @@ let
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-          "exec": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
+          "start": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
           "mounts": ["/etc/nginx", "/srv/www"],
           "ports": { "http": { "value": 8080, "protocol": "tcp" } },
           "dirs": {
@@ -29,8 +29,8 @@ let
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-          "setup": ["${pkgs.bash}/bin/sh", "/opt/postgres/setup"],
-          "exec": ["${pkgs.bash}/bin/sh", "/opt/postgres/start", "$PORT"],
+          "start_pre": ["${pkgs.bash}/bin/sh", "/opt/postgres/setup"],
+          "start": ["${pkgs.bash}/bin/sh", "/opt/postgres/start", "$PORT"],
           "env": {
             "PATH": { "default": "${pkgs.postgresql}/bin:${pkgs.coreutils}/bin" },
             "PORT": { "default": "5432" }
@@ -52,7 +52,7 @@ let
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-          "exec": ["bin/caddy", "file-server", "--root", "/srv/www", "--listen", ":80"],
+          "start": ["bin/caddy", "file-server", "--root", "/srv/www", "--listen", ":80"],
           "mounts": ["/srv/www"],
           "ports": { "http": { "value": 80, "protocol": "tcp" } }
     }
@@ -65,7 +65,7 @@ let
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-          "exec": ["bin/node", "/app/server.js"],
+          "start": ["bin/node", "/app/server.js"],
           "mounts": ["/app"],
           "ports": { "http": { "value": 8081, "protocol": "tcp" } },
           "claims": ["jit"]
@@ -83,7 +83,7 @@ let
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-      "exec": ["bin/pid-probe"]
+      "start": ["bin/pid-probe"]
     }
     EOF
   '';
@@ -94,7 +94,7 @@ let
     {
       "cixManifest": 0,
       "kind": "app",
-      "exec": ["bin/timer-app"]
+      "start": ["bin/timer-app"]
     }
     EOF
   '';

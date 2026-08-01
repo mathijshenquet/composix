@@ -1,2 +1,2 @@
-line 4: SCRIPT was removed; COPY a script and invoke it with EXEC ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy
+line 4: SCRIPT was removed; COPY a script and invoke it with START ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy
   | "SCRIPT /bin/start <<EOF"

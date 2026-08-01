@@ -485,7 +485,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                        "exec": ["/nix/store/00000000000000000000000000000000-app/bin/app"],
+                        "start": ["/nix/store/00000000000000000000000000000000-app/bin/app"],
                         "listeners": {"http": {"type": "stream"}},
                         "dirs": {"run": ["/run/app"]}
             }"#,

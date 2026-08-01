@@ -67,8 +67,8 @@ pub(super) enum CurrentBlock {
 
 #[derive(Default)]
 pub(super) struct ServiceMetadata {
-    pub(super) exec: Option<(usize, String)>,
-    pub(super) setup: Option<(usize, String)>,
+    pub(super) start: Option<(usize, String)>,
+    pub(super) start_pre: Option<(usize, String)>,
     pub(super) ports: BTreeMap<String, (usize, String)>,
 }
 
@@ -177,19 +177,20 @@ impl Parser<'_> {
                     return Err(ParseError::new(
                        line_number,
                        source,
-                       "SCRIPT was removed; COPY a script and invoke it with EXEC ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy",
+                       "SCRIPT was removed; COPY a script and invoke it with START ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy",
                    ));
                 }
                 "LINK" => self.link(line_number, source, arguments)?,
-                "EXEC" => self.exec(line_number, source, arguments, false)?,
-                "SETUP" => self.exec(line_number, source, arguments, true)?,
+                "START" => self.start(line_number, source, arguments, false)?,
+                "START_PRE" => self.start(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
                 "STATEDIR" | "CACHEDIR" | "LOGSDIR" | "CONFIGDIR" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
-                "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND" | "GRANT" => {
+                "EXEC" | "SETUP" | "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND"
+                | "GRANT" => {
                     return Err(ParseError::new(
                         line_number,
                         source,
@@ -237,7 +238,7 @@ impl Parser<'_> {
             ));
         }
         for (name, artifact) in &self.artifacts {
-            if artifact.kind.is_runnable() && artifact.service.exec.is_empty() {
+            if artifact.kind.is_runnable() && artifact.service.start.is_empty() {
                 return Err(ParseError::new(
                     artifact.line,
                     self.lines
@@ -245,7 +246,7 @@ impl Parser<'_> {
                         .copied()
                         .unwrap_or_default(),
                     format!(
-                        "{} {name:?} has no EXEC; add exactly one EXEC <command> inside this block",
+                        "{} {name:?} has no START; add exactly one START <command> inside this block",
                         artifact.kind.keyword()
                     ),
                 ));

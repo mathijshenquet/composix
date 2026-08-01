@@ -10,5 +10,5 @@ BUILDER build
 
 SERVICE watchtower
   COPY ${build}/watchtower /bin/watchtower
-  EXEC watchtower
+  START watchtower
   PORT http = 8080

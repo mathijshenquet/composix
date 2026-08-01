@@ -1,2 +1,2 @@
-line 5: EXEC is already declared for this artifact; remove one EXEC line
-  | "EXEC /bin/two"
+line 5: START is already declared for this artifact; remove one START line
+  | "START /bin/two"

@@ -22,10 +22,10 @@ fn golden_messy_input_has_the_v1_canon() {
 
 #[test]
 fn crlf_is_normalized_but_heredoc_and_comments_are_untouched() {
-    let input = "# comment  \r\nFROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\r\nSERVICE app\r\nFILE /etc/app.conf <<EOF\r\nbody  \r\nEOF\r\nEXEC /bin/true\r\n";
+    let input = "# comment  \r\nFROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\r\nSERVICE app\r\nFILE /etc/app.conf <<EOF\r\nbody  \r\nEOF\r\nSTART /bin/true\r\n";
     assert_eq!(
         fmt::format(input).unwrap(),
-        "# comment  \nFROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE app\n  FILE /etc/app.conf <<EOF\nbody  \nEOF\n  EXEC /bin/true\n"
+        "# comment  \nFROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE app\n  FILE /etc/app.conf <<EOF\nbody  \nEOF\n  START /bin/true\n"
     );
 }
 

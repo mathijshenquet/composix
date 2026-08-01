@@ -28,7 +28,7 @@ COPY ${src}/greeting.txt /share/greeting
 SERVICE tour-app
 COPY ${src}/greeting.txt /share/greeting
 COPY ${src}/tour-app /bin/tour-app
-EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
+START ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 hello from Cixfile
 exec "$@"
 ```
@@ -76,7 +76,7 @@ FROM tour/tour-assets:v1 AS prior
 
 APP copied-greeting
 COPY ${prior}/share/greeting /share/greeting
-EXEC /bin/true
+START /bin/true
 ```
 
 ```sh
@@ -114,7 +114,7 @@ Before running anything, inspect the generated manifest. It is the hash-covered 
 
 ```sh
 $ cat /nix/store/…-cix-item-tour-app/cix-manifest.json
-{"cixManifest":0,"env":{"PATH":{"default":"bin"}},"exec":["/nix/store/…-bash-interactive-5.3p15/bin/sh","/nix/store/…-cix-source/tour-app","/nix/store/…-coreutils-9.11/bin/sleep","300"],"mounts":["/bin/tour-app","/share/greeting"]}
+{"cixManifest":0,"env":{"PATH":{"default":"bin"}},"mounts":["/bin/tour-app","/share/greeting"],"start":["/nix/store/…-bash-interactive-5.3p15/bin/sh","/nix/store/…-cix-source/tour-app","/nix/store/…-coreutils-9.11/bin/sleep","300"]}
 ```
 
 ## Run

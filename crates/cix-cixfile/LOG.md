@@ -1,5 +1,43 @@
 # Cixfile track work log
 
+- 2026-08-01T22:15:00Z — Committed the complete CIP-80 sweep as `cd6cd99`
+  (`feat: rename exec to start`). The commit has 140 scoped files and leaves
+  this journal deliberately unstaged; `git status` contains no other worktree
+  changes. All required gates in the preceding entry apply to this commit.
+
+- 2026-08-01T22:10:00Z — Final corrected gate is green. Exact repros:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -- fmt
+  --check examples`; warning-denied workspace clippy; serial workspace tests;
+  ignored tour regeneration plus committed-doc drift; and the full `devenv
+  shell -- nix flake check -L` (89 checks, all VM/scenario checks green under
+  expected TCG fallback; final recorded exit status 0). `git diff --check` is
+  clean. Final `rg -iw 'exec|setup'` is confined to migration parser/fixtures,
+  `ExecStart*`/`Type=exec` and cix-exec implementation, health's independent
+  `health.exec`, shell command text, corpus Docker/source material, and
+  historical design/CIP/journal prose. The active Cixfile and v0-manifest
+  surfaces contain only START/START_PRE and start/start_pre. Next: remove the
+  generated devenv lock, stage all scoped changes except this task journal,
+  commit on track/start, and verify the commit.
+
+- 2026-08-01T21:25:00Z — Implemented the CIP-80 language and v0 schema
+  sweep. Parser accepts START/START_PRE, rejects EXEC/SETUP with standard
+  migration diagnostics, and has new torture fixtures for both legacy words
+  plus STRAT→START. The model, codegen, runner, compose, VM fixtures,
+  examples, corpus Cixfiles/receipts, and active docs now use start/start_pre;
+  systemd retains `ExecStart=`, `ExecStartPre=`, and `Type=exec`. Bumped the
+  fingerprint to d80-v1. Focused cargo check plus cixfile diagnostics/parser,
+  runner, build, and compose tests pass; the ignored tour regeneration passes.
+  Historical CIP prose was deliberately restored. Next: tour drift checks,
+  full prescribed gates, final case-insensitive inventory triage, and commit.
+
+- 2026-08-01T21:00:00Z — Started track/start (CIP-80) after confirming the
+  timer and watch sequencing precondition is present in this branch. Read
+  AGENTS.md, the current project/crate journals, D72, and CIP-80 §5. Scope is
+  the alpha-only EXEC→START / SETUP→START_PRE rename across the Cixfile,
+  manifest v0, all consumers and docs, with crunchy migration diagnostics and
+  d80-v1 cache invalidation. Next: map active consumers and implement the
+  parser/model/codegen seam before sweeping fixtures and documentation.
+
 - 2026-08-01T20:40:00Z — Committed the scoped rename as `b8e8e91` (`feat:
   rename grants to claims`). The worktree is clean apart from this intentionally
   uncommitted, ignored task log. All prescribed gates are recorded above.

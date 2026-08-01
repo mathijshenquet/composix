@@ -1,5 +1,5 @@
 # grade: problem=pass line=5 fix=pass docs=docs/migrate.md#docker-vocabulary
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE app
-EXEC /bin/true
+START /bin/true
 EXPOSE 8080

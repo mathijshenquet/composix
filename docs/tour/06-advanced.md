@@ -46,7 +46,7 @@ while True:
         )
 {
   "cixManifest": 0,
-  "exec": ["bin/listenfds"],
+  "start": ["bin/listenfds"],
   "listeners": {"http": {"type": "stream"}}
 }
 ```
@@ -86,7 +86,7 @@ FROM . AS src
 
 SERVICE web
 COPY ${src}/web /bin/web
-EXEC ${pkgs.bash}/bin/sh ${src}/web
+START ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v1
 ```
 
@@ -136,7 +136,7 @@ $ cat cix.lock
     "web": {
       "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",
-      "narHash": "sha256-mI+y9xDFP5T8gfZ9OGmwqzrqwl5cdI1khYQWCzjp2OY="
+      "narHash": "sha256-/4JgfdmN9An/Lpef3ZHTEjssY5w2hrtWs6BQcVgEqyA="
     }
   }
 }
@@ -159,7 +159,7 @@ FROM . AS src
 
 SERVICE web
 COPY ${src}/web /bin/web
-EXEC ${pkgs.bash}/bin/sh ${src}/web
+START ${pkgs.bash}/bin/sh ${src}/web
 echo compose fixture v2
 ```
 

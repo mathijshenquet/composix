@@ -33,7 +33,7 @@ fn app_propagates_exit_status() -> Result<()> {
         serde_json::json!({
             "cixManifest": 0,
             "kind": "app",
-            "exec": [shell, "-c", "echo d47-app-output; exit 23"]
+            "start": [shell, "-c", "echo d47-app-output; exit 23"]
         }),
     )?;
     let app_store_path = add_to_store(&app)?;

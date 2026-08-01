@@ -1,6 +1,6 @@
 {
   "cixManifest": 0,
-  "exec": [
+  "start": [
     "bin/worker"
   ]
 }

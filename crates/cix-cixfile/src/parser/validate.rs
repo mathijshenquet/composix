@@ -390,7 +390,7 @@ pub(super) fn reject_runtime_variable(
                 line,
                 source,
                 format!(
-                    "runtime $VAR interpolation is only allowed in EXEC and SETUP, not {label}"
+                    "runtime $VAR interpolation is only allowed in START and START_PRE, not {label}"
                 ),
             ));
         }
@@ -404,10 +404,10 @@ pub(super) fn validate_service_references(
     metadata: &ServiceMetadata,
 ) -> Result<(), ParseError> {
     let commands = [
-        (&service.exec[..], metadata.exec.as_ref()),
+        (&service.start[..], metadata.start.as_ref()),
         (
-            service.setup.as_deref().unwrap_or_default(),
-            metadata.setup.as_ref(),
+            service.start_pre.as_deref().unwrap_or_default(),
+            metadata.start_pre.as_ref(),
         ),
     ];
     for (arguments, location) in commands {
@@ -423,7 +423,7 @@ pub(super) fn validate_service_references(
                               *line,
                               source,
                               format!(
-                                  "EXEC/SETUP references undeclared environment variable ${variable}"
+                                  "START/START_PRE references undeclared environment variable ${variable}"
                               ),
                           ));
                         }

@@ -29,7 +29,7 @@
       "secret": true
     }
   },
-  "exec": [
+  "start": [
     "bin/app",
     "$PORT"
   ],
@@ -42,7 +42,7 @@
       "protocol": "tcp"
     }
   },
-  "setup": [
+  "start_pre": [
     "bin/setup"
   ]
 }

@@ -31,7 +31,7 @@ let
     PY
     chmod 0755 "$out/opt/scenario/db.py"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":0,"exec":["${python}/bin/python3","opt/scenario/db.py"],"mounts":["/opt/scenario"],"dirs":{"run":["/run/db"]}}
+    {"cixManifest":0,"start":["${python}/bin/python3","opt/scenario/db.py"],"mounts":["/opt/scenario"],"dirs":{"run":["/run/db"]}}
     EOF
   '';
 
@@ -75,7 +75,7 @@ let
     PY
     chmod 0755 "$out/opt/scenario/api.py"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":0,"exec":["${python}/bin/python3","opt/scenario/api.py"],"mounts":["/opt/scenario"],"env":{"MESSAGE":{"default":"${message}"}},"listeners":{"http":{"type":"stream"}},"dirs":{"state":["/var/lib/api"],"run":["/run/api"]}}
+    {"cixManifest":0,"start":["${python}/bin/python3","opt/scenario/api.py"],"mounts":["/opt/scenario"],"env":{"MESSAGE":{"default":"${message}"}},"listeners":{"http":{"type":"stream"}},"dirs":{"state":["/var/lib/api"],"run":["/run/api"]}}
     EOF
   '';
 
@@ -87,7 +87,7 @@ let
     SH
     chmod 0755 "$out/bin/scenario-job"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":0,"kind":"app","exec":["bin/scenario-job"]}
+    {"cixManifest":0,"kind":"app","start":["bin/scenario-job"]}
     EOF
   '';
 

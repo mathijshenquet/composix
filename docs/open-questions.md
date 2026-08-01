@@ -18,9 +18,9 @@ proposed one-line disposition (awaiting Mathijs), or an era.
 | [devloop](cips/draft/devloop.md) | `cix watch` = rebuild+restart; sync refused | compose `watch` ❓, live-reload dev binds |
 | [run-unary-compose](cips/draft/run-unary-compose.md) | design invariant: `cix run` = compose with one anonymous member | the recurring "and what about cix run?" question |
 
-Bikeshed backlog (small, self-contained): `EXEC` naming — prior art
+Bikeshed backlog (small, self-contained): `START` naming — prior art
 docker `ENTRYPOINT`/`CMD`, k8s `command`/`args`, systemd `ExecStart=`,
-Procfile; current recommendation: keep `EXEC` (exec(2) honesty, D55).
+Procfile; current recommendation: keep `START` (exec(2) honesty, D55).
 Probe directive spelling: `READINESS`/`LIVENESS` proposed (health §4.1).
 
 ## Already decided — propose recording the disposition in the ledger

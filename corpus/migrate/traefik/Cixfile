@@ -2,6 +2,6 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE traefik
   LINK ${pkgs.traefik}/bin/traefik /bin/traefik
-  EXEC traefik --ping=true
+  START traefik --ping=true
   PORT http = 80
   PORT monitor = 8080

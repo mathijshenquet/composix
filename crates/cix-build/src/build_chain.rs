@@ -63,7 +63,7 @@ enum TemplateKeyPart<'a> {
 const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
 // Bump this when codegen-relevant Cixfile semantics change without a package
 // version bump.  It keeps memo keys isolated across concurrently-built checkouts.
-const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d78-v1");
+const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d80-v1");
 
 #[derive(Clone, Debug, Default)]
 struct NeededPath {

@@ -4,4 +4,4 @@ BUILDER compile
 RUN true
 SERVICE app
 COPY ${comiple}/app /bin/app
-EXEC /bin/app
+START /bin/app

@@ -1,2 +1,2 @@
-line 4: SETUP is not allowed inside APP; move preparation into the APP executable; see docs/cixfile.md#artifact-kinds
-  | "SETUP /bin/prepare"
+line 4: START_PRE is not allowed inside APP; move preparation into the APP executable; see docs/cixfile.md#artifact-kinds
+  | "START_PRE /bin/prepare"

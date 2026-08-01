@@ -11,6 +11,6 @@ SERVICE echo-server
   COPY ${build}/src/global.json /global.json
   COPY ${build}/dist/webserver.js /webserver.js
   LINK ${pkgs.nodejs}/bin/node /bin/node
-  EXEC node webserver.js
+  START node webserver.js
   PORT http = 80
   CLAIM jit

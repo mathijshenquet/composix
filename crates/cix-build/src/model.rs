@@ -60,8 +60,8 @@ fn artifact_templates(artifact: &Artifact) -> Vec<&Template> {
         Assembly::Link { target, .. } => target,
     }));
     if artifact.kind.is_runnable() {
-        templates.extend(artifact.service.exec.iter());
-        templates.extend(artifact.service.setup.iter().flatten());
+        templates.extend(artifact.service.start.iter());
+        templates.extend(artifact.service.start_pre.iter().flatten());
         templates.extend(
             artifact
                 .service
@@ -227,10 +227,10 @@ impl Artifact {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Service {
-    pub exec: Vec<Template>,
-    pub exec_line: usize,
-    pub setup: Option<Vec<Template>>,
-    pub setup_line: Option<usize>,
+    pub start: Vec<Template>,
+    pub start_line: usize,
+    pub start_pre: Option<Vec<Template>>,
+    pub start_pre_line: Option<usize>,
     pub env: BTreeMap<String, Env>,
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
@@ -241,10 +241,10 @@ pub struct Service {
 impl Service {
     pub fn empty() -> Self {
         Self {
-            exec: Vec::new(),
-            exec_line: 0,
-            setup: None,
-            setup_line: None,
+            start: Vec::new(),
+            start_line: 0,
+            start_pre: None,
+            start_pre_line: None,
             env: BTreeMap::new(),
             ports: BTreeMap::new(),
             listeners: BTreeSet::new(),

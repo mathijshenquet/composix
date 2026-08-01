@@ -24,8 +24,8 @@ ASSEMBLE
 SERVICE directus
 COPY ${build}/dist /directus
 LINK ${pkgs.nodejs_22}/bin/node /bin/node
-SETUP node /directus/cli.js bootstrap
-EXEC node /directus/cli.js start
+START_PRE node /directus/cli.js bootstrap
+START node /directus/cli.js start
 ENV DB_CLIENT = sqlite3
 ENV DB_FILENAME = /directus/database/database.sqlite
 ENV NODE_ENV = production

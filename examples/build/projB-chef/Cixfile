@@ -15,5 +15,5 @@ BUILDER build
 
 SERVICE projb-chef
   COPY ${build}/target/release/projb-chef /bin/projb-chef
-  EXEC projb-chef
+  START projb-chef
   PORT http = 18083

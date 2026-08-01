@@ -4,5 +4,5 @@ SERVICE nginx
   LOGSDIR /var/log/nginx
   RUNDIR /run/nginx
   LINK ${pkgs.nginx}/bin/nginx /bin/nginx
-  EXEC nginx -g 'daemon off;'
+  START nginx -g 'daemon off;'
   PORT http = 80

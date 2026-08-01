@@ -1,2 +1,2 @@
-line 4: ENTRYPOINT, which is Docker vocabulary; use EXEC <command> inside SERVICE or APP; see docs/migrate.md#docker-vocabulary
+line 4: ENTRYPOINT, which is Docker vocabulary; use START <command> inside SERVICE or APP; see docs/migrate.md#docker-vocabulary
   | "ENTRYPOINT [\"/bin/server\"]"

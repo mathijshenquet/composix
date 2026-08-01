@@ -37,7 +37,7 @@ chmod +x "$fixture/output/bin/service"
 cat >"$fixture/output/cix-manifest.json" <<EOF
 {
   "cixManifest": 0,
-  "exec": ["bin/service"],
+  "start": ["bin/service"],
   "dirs": {"state": ["$app_state"]}
 }
 EOF

@@ -1,8 +1,8 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE app
 ENV PATH = /tools/first:/tools/second
-EXEC app $PORT
-SETUP setup
+START app $PORT
+START_PRE setup
 ENV PORT = 9000 required
 ENV TOKEN secret
 PORT http = $PORT

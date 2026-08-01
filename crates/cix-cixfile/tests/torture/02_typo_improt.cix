@@ -3,4 +3,4 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER build
 IMPROT ${pkgs.bash}
 SERVICE app
-EXEC /bin/true
+START /bin/true

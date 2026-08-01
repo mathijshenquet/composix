@@ -1,11 +1,11 @@
 {
   "cixManifest": 0,
-      "setup": [
+      "start_pre": [
         "bin/setup",
         "--admin-port",
         "$ADMIN_PORT"
       ],
-      "exec": [
+      "start": [
         "bin/web",
         "--admin-port",
         "$ADMIN_PORT"

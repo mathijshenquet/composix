@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT
 
 store_path=$(nix-build "$example_dir" --no-out-link)
-redis_server=$(sed -n 's/.*"exec":[[:space:]]*\["\([^"]*\)".*/\1/p' "$store_path/cix-manifest.json")
+redis_server=$(sed -n 's/.*"start":[[:space:]]*\["\([^"]*\)".*/\1/p' "$store_path/cix-manifest.json")
 redis_bin=$(dirname "$redis_server")
 [[ -n "$redis_bin" ]]
 unit=$(sudo "$cix_bin" run "$store_path" --detach)

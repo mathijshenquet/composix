@@ -39,8 +39,8 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` |
-| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
+| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` |
+| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
 | `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
 `SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
@@ -72,25 +72,25 @@ Tool-generated `#!/usr/bin/env ...` launchers also need an import that supplies 
 `${pkgs.coreutils}`): the fixed `/usr/bin/env` alias points only at `/bin/env`.
 
 The runtime toolset is the artifact's own `bin/`. Copy or link package binaries there, then use
-bare `EXEC`/`SETUP`: every SERVICE and APP gets `PATH=bin` by default, and a bare command is
+bare `START`/`START_PRE`: every SERVICE and APP gets `PATH=bin` by default, and a bare command is
 checked against that assembled tree at build time. An explicit `ENV PATH = …` replaces that
 default entirely. Interpolated absolute store paths remain valid at the shipping dock, where
-artifact `EXEC`, `LINK` targets, and `COPY` sources refer to immutable package assets:
+artifact `START`, `LINK` targets, and `COPY` sources refer to immutable package assets:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
-EXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;'
+START ${pkgs.nginx}/bin/nginx -g 'daemon off;'
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 ```
 
-`EXEC` and `SETUP` split single- and double-quoted words correctly, so `daemon off;` above is
+`START` and `START_PRE` split single- and double-quoted words correctly, so `daemon off;` above is
 one argument. They do not run a shell. Use a checked-in script only when shell behavior is
 actually part of the service, copy it as a real file, and invoke an explicit shell:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
 COPY start /bin/start
-EXEC ${pkgs.bash}/bin/sh /bin/start
+START ${pkgs.bash}/bin/sh /bin/start
 ```
 
 Use `FILE` only when generated file content must embed a resolved store path. Ordinary
@@ -186,7 +186,7 @@ comments are not Cixfile syntax; within `RUN` or `FETCH`, `#` belongs to the she
 
 ### 4. Assemble the runtime contract
 
-Use `SERVICE` for a daemon and `APP` for a command that completes. `EXEC` combines Docker's
+Use `SERVICE` for a daemon and `APP` for a command that completes. `START` combines Docker's
 entrypoint and command into one argv contract. Runtime environment declarations use
 `ENV NAME = value`, optionally followed by `required`, or `ENV NAME secret`. A service can
 connect a numeric default to an inbound capability declaration with:
@@ -264,7 +264,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `ADD` URL or automatic tar extraction | `FETCH` the URL, then `RUN` an explicit extractor | There is no implicit URL fetch or archive extraction. |
 | `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default, including the builder's own last end-state on a re-run; workspace bytes never enter keys. Use `cix build --cold` as the clean-output audit. |
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
-| `ENTRYPOINT` plus `CMD` | One `EXEC` argv; use quote-aware words | `EXEC` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
+| `ENTRYPOINT` plus `CMD` | One `START` argv; use quote-aware words | `START` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
 | `VOLUME /data` | Usually `STATEDIR /var/lib/app`; use the matching role-dir directive for other lifetimes | Role dirs are systemd-managed paths, not anonymous Docker volume objects. Host binds and shared ownership need separate compose/identity support. |
 | `USER`, `gosu`, `su-exec`, or `tini` | Delete them; DynamicUser and systemd provide identity, privilege drop, supervision, and reaping | A workload requiring a fixed uid/gid or startup `chown` has an identity/ownership requirement that must be reported, not hand-waved away. |
@@ -274,7 +274,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
 | build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |
 | `LABEL` | Drop provenance labels; record display metadata as an open gap | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed but unbuilt. |
-| startup `mkdir`, `chown`, or config rewriting | Prefer role dirs and immutable `COPY`/`FILE` assembly | Keep a `SETUP` hook only for genuinely idempotent service setup; do not preserve entrypoint ceremony blindly. |
+| startup `mkdir`, `chown`, or config rewriting | Prefer role dirs and immutable `COPY`/`FILE` assembly | Keep a `START_PRE` hook only for genuinely idempotent service setup; do not preserve entrypoint ceremony blindly. |
 | supervisor running several daemons | Split into multiple `SERVICE` members and compose them | If their coordination or shared identity cannot be represented, report that boundary. |
 
 ## Complete sample: dissolve an image into packages
@@ -289,7 +289,7 @@ SERVICE web
 COPY ${src}/index.html /srv/www/index.html
 COPY ${src}/nginx.conf /etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-EXEC ${pkgs.nginx}/bin/nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
+START ${pkgs.nginx}/bin/nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
@@ -321,7 +321,7 @@ BUILD
 
 SERVICE readme
 COPY ${payload}/output/README.md /share/nixpkgs-README.md
-EXEC ${pkgs.coreutils}/bin/sleep infinity
+START ${pkgs.coreutils}/bin/sleep infinity
 ```
 
 ## Verification is part of the conversion

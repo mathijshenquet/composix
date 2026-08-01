@@ -1,2 +1,2 @@
-line 4: EXEC is runtime vocabulary, but ITEM is content-only; use SERVICE or APP for a runnable contract; see docs/cixfile.md#item
-  | "EXEC /bin/true"
+line 4: START is runtime vocabulary, but ITEM is content-only; use SERVICE or APP for a runnable contract; see docs/cixfile.md#item
+  | "START /bin/true"

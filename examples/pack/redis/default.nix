@@ -7,7 +7,7 @@ composix.withSpec {
   name = "redis-cix";
   manifest = {
     cixManifest = 0;
-    exec = [ "${pkgs.redis}/bin/redis-server" "/etc/redis/redis.conf" ];
+    start = [ "${pkgs.redis}/bin/redis-server" "/etc/redis/redis.conf" ];
     mounts = [ "/etc/redis" ];
     ports.redis = {
       value = 6379;
