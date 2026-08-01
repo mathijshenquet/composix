@@ -16,5 +16,6 @@ serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+libc.workspace = true
 regex = "1"
 tempfile = "3"

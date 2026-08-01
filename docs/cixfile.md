@@ -371,6 +371,23 @@ $ cix build .
 `cix build .#api` builds only `api` and the backward FETCH/BUILDER slice it consumes, then
 prints that bare store path. It cannot be combined with `-t`: a tag names the complete family.
 
+## Workshop dev loop
+
+Use `cix watch [PATH]` for the artifact loop: it watches a Cixfile context, coalesces short
+edit bursts, warm-rebuilds, and prints each resulting item path. It deliberately leaves build
+output noisy. The watcher derives its own safety exclusions — `.git`, `target/`, Cixfile locks,
+builder workspaces, and `.gitignore`d paths — so its own warm workspace and lock writes never
+cause another build.
+
+At a directory containing `compose.json`, `cix watch` rebuilds the edited local Cixfile member,
+updates that member's local item tag, and runs the same selective activation path as `cix up`.
+Only services whose item changed restart. This is the honest outer loop: the running service is
+always a newly built artifact, never a source tree copied into a live process.
+
+Framework hot reload is a different, inner-inner loop. Run Flask debug mode, Vite HMR, and
+similar tooling in `nix develop`; they operate on development processes, not deployable cix
+artifacts. `cix watch` intentionally does not offer Docker-style file sync.
+
 `-t` takes a tag only, is repeatable, and applies to every member. A multi-member Cixfile must
 supply its operational family with `--namespace`; this name is CLI-only and never enters output
 bytes:

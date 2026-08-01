@@ -4,6 +4,7 @@ mod build;
 pub mod cli;
 pub mod fmt;
 mod parser;
+mod watch;
 
 pub use build::{build, build_family, BuildOptions, BuiltItem};
 pub use cix_build::{
@@ -15,3 +16,4 @@ pub use cix_build::{
     InputKind, Port, Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};
+pub use watch::watch;
