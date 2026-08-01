@@ -235,7 +235,7 @@ pub struct Service {
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
-    pub grants: BTreeSet<String>,
+    pub claims: BTreeSet<String>,
 }
 
 impl Service {
@@ -249,7 +249,7 @@ impl Service {
             ports: BTreeMap::new(),
             listeners: BTreeSet::new(),
             dirs: Dirs::default(),
-            grants: BTreeSet::new(),
+            claims: BTreeSet::new(),
         }
     }
 }

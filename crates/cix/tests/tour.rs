@@ -855,7 +855,7 @@ EXEC app
 fn chapter_advanced() -> String {
     let mut doc = Doc::new("advanced");
 
-    doc.para("The basic chapters use ordinary port grants and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.");
+    doc.para("The basic chapters use ordinary port declarations and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.");
     doc.para("## Socket activation");
     let listener_path = listener_fixture(&doc);
     doc.para("The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a version-0 manifest declaring the named `http` listener.");

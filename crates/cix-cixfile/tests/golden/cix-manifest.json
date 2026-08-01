@@ -33,7 +33,7 @@
     "bin/app",
     "$PORT"
   ],
-  "grants": [
+  "claims": [
     "jit"
   ],
   "ports": {

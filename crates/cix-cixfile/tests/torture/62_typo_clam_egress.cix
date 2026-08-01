@@ -1,5 +1,5 @@
-# grade: problem=pass line=5 fix=pass docs=docs/cixfile.md#claims
+# grade: problem=pass line=5 fix=pass docs=n/a
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE app
 EXEC /bin/true
-OUTBOUND
+CLAM egress

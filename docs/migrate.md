@@ -39,8 +39,8 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `GRANT` |
-| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `STATEDIR`, `CACHEDIR`, `GRANT` |
+| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` |
+| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
 | `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
 `SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
@@ -189,7 +189,7 @@ comments are not Cixfile syntax; within `RUN` or `FETCH`, `#` belongs to the she
 Use `SERVICE` for a daemon and `APP` for a command that completes. `EXEC` combines Docker's
 entrypoint and command into one argv contract. Runtime environment declarations use
 `ENV NAME = value`, optionally followed by `required`, or `ENV NAME secret`. A service can
-connect a numeric default to an inbound grant with:
+connect a numeric default to an inbound capability declaration with:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
@@ -209,9 +209,9 @@ Prefer stdout/stderr over a log directory when the application supports it. `APP
 only `STATEDIR` and `CACHEDIR`; it has no ports, listeners, setup hook, or log/config/run role
 directories.
 
-Capabilities are explicit and closed: `GRANT egress` declares outbound networking and
-`GRANT jit` relaxes systemd's memory-write/execute prohibition. Put one grant on each line.
-There is no `GRANT all` and no raw `CAP_*` escape disguised as portable syntax.
+Capabilities are explicit and closed: `CLAIM egress` declares outbound networking and
+`CLAIM jit` relaxes systemd's memory-write/execute prohibition. Put one claim on each line.
+There is no `CLAIM all` and no raw `CAP_*` escape disguised as portable syntax.
 
 ### 5. Name only after building
 
@@ -265,10 +265,10 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default, including the builder's own last end-state on a re-run; workspace bytes never enter keys. Use `cix build --cold` as the clean-output audit. |
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `EXEC` argv; use quote-aware words | `EXEC` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
-| `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound grant, not documentation. |
+| `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
 | `VOLUME /data` | Usually `STATEDIR /var/lib/app`; use the matching role-dir directive for other lifetimes | Role dirs are systemd-managed paths, not anonymous Docker volume objects. Host binds and shared ownership need separate compose/identity support. |
 | `USER`, `gosu`, `su-exec`, or `tini` | Delete them; DynamicUser and systemd provide identity, privilege drop, supervision, and reaping | A workload requiring a fixed uid/gid or startup `chown` has an identity/ownership requirement that must be reported, not hand-waved away. |
-| outbound access or JIT loosening | `GRANT egress` or `GRANT jit` | Those are the only current grants. Raw capabilities, devices, and privileged mode are not expressible. |
+| outbound access or JIT loosening | `CLAIM egress` or `CLAIM jit` | Those are the only current claims. Raw capabilities, devices, and privileged mode are not expressible. |
 | `HEALTHCHECK` | Preserve the probe semantics for the future D48 health edge | Health is designed as a probe plus explicit consumers (ordering/restart/convergence), not one container-status bit, and is not implemented yet. Mark the migration incomplete rather than dropping the check silently. |
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
 | build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |

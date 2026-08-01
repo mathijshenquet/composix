@@ -51,7 +51,7 @@ impl Default for UnitNaming {
 /// Caller-supplied additions to the generated systemd service unit.
 ///
 /// This deliberately accepts ordinary unit properties so generators can add narrowly-scoped
-/// composition grants such as `SupplementaryGroups=` or `BindPaths=` without forking cix-run's
+/// composition claims such as `SupplementaryGroups=` or `BindPaths=` without forking cix-run's
 /// sandbox compiler.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct UnitCompileOptions {
@@ -252,7 +252,7 @@ pub(crate) fn build_unit_with_options(
         ("ProtectControlGroups".into(), "yes".into()),
         ("LockPersonality".into(), "yes".into()),
     ]);
-    if !service.has_grant("jit") {
+    if !service.has_claim("jit") {
         properties.push(("MemoryDenyWriteExecute".into(), "yes".into()));
     }
     properties.push(("SystemCallFilter".into(), "@system-service".into()));
@@ -870,9 +870,9 @@ mod tests {
     }
 
     #[test]
-    fn v5_jit_grant_drops_memory_deny_write_execute() {
+    fn jit_claim_drops_memory_deny_write_execute() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"grants":["jit"]}"#,
+            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"claims":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
@@ -999,7 +999,7 @@ mod tests {
     }
 
     #[test]
-    fn env_default_and_override_low_ports_grant_bind_capability() {
+    fn env_default_and_override_low_ports_claim_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
@@ -1028,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn high_default_overridden_to_low_port_grants_bind_capability() {
+    fn high_default_overridden_to_low_port_claims_bind_capability() {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
