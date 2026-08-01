@@ -95,7 +95,6 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [layers / `image history`](https://docs.docker.com/reference/cli/docker/image/history/) | ❌ no layers; native items are sparse D22 fragments, provenance = `drvPath` + `nix log` | Layer-level transfer reuse, authoring history, and a ubiquitous debugging vocabulary; no representative native-item cold-transfer or shared-content comparison with compressed layers. |
 | [build-cache export/import](https://docs.docker.com/build/cache/backends/) | 🔁 Nix binary caches provide remote build results | — |
 | [`image prune` / dangling images](https://docs.docker.com/reference/cli/docker/image/prune/) | 🔁 `cix untag` + Nix GC; `cix prune` sugar ⏳ | — |
-| [registry mirrors / pull-through cache](https://docs.docker.com/docker-hub/image-library/mirror/) | 🔁 `substituters` list in entries (D6) | ❓ A list of content sources is not a pull-through mirror with upstream fill, freshness checks, and cache lifecycle. |
 | [registry HTTP API](https://docs.docker.com/reference/api/registry/latest/) | ✅ one negotiated URL space (D18) | The standard Docker Registry HTTP API. |
 | [`docker manifest`](https://docs.docker.com/reference/cli/docker/manifest/) | 🔁 no verb needed (D35): entries are natively per-system (D14), so create/annotate/push have no meaning; `cix ls -l` has a systems column and `cix inspect` exposes the output map. | — |
 

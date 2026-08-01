@@ -273,7 +273,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | cron, crontab, or Kubernetes `CronJob` | Build the work as an `APP`, then put `schedule: "<OnCalendar>"` on its compose member | Rewrite the schedule as systemd `OnCalendar=` and check it with `systemd-analyze calendar`; composix never translates cron syntax. Add explicit `persistent: true` or `jitter: "<duration>"` only when wanted. |
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
 | build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |
-| `LABEL` | Drop provenance labels; record display metadata as an open gap | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed but unbuilt. |
+| `LABEL` | Drop provenance labels | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed, deliberately unbuilt (D54). |
 | startup `mkdir`, `chown`, or config rewriting | Prefer role dirs and immutable `COPY`/`FILE` assembly | Keep a `START_PRE` hook only for genuinely idempotent service setup; do not preserve entrypoint ceremony blindly. |
 | supervisor running several daemons | Split into multiple `SERVICE` members and compose them | If their coordination or shared identity cannot be represented, report that boundary. |
 
