@@ -30,7 +30,7 @@ pkgs.runCommand "dstyle-nginx-unix" { } ''
   ln -s ${pkgs.nginx}/bin/nginx $out/bin/nginx
   cat > $out/cix-manifest.json <<'EOF'
   {
-    "cixManifest": 4,
+    "cixManifest": 0,
     "exec": ["bin/nginx", "-c", "${conf}", "-e", "stderr"],
     "dirs": {
       "cache": ["/var/cache/nginx"],

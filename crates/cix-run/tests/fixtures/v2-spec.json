@@ -1,7 +1,5 @@
 {
-  "cixManifest": 2,
-  "services": {
-    "web": {
+  "cixManifest": 0,
       "setup": [
         "bin/setup",
         "--admin-port",
@@ -32,7 +30,5 @@
           "/run/web"
         ]
       },
-      "jit": true
-    }
-  }
+      "grants": ["jit"]
 }

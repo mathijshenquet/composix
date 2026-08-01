@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::DeclaredName;
+use super::machine::DeclaredName;
 
 pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "FROM",

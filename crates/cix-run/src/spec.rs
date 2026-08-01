@@ -3,7 +3,6 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
@@ -19,14 +18,6 @@ pub enum ManifestKind {
     #[default]
     Service,
     App,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacySpec {
-    #[serde(rename = "cixManifest")]
-    cix_manifest: u32,
-    services: BTreeMap<String, Service>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -63,10 +54,6 @@ pub struct Service {
 #[serde(deny_unknown_fields)]
 pub struct Env {
     #[serde(rename = "type")]
-    /// Deprecated compatibility field. It is accepted and ignored; environment values are strings.
-    #[deprecated(
-        note = "the manifest's env `type` field is ignored and will be removed in cixManifest 3"
-    )]
     pub legacy_type: Option<String>,
     pub default: Option<String>,
     #[serde(default)]
@@ -137,34 +124,26 @@ impl Spec {
             .and_then(serde_json::Value::as_u64)
             .context("cix-manifest.json field \"cixManifest\" must be an integer")?;
         let version = u32::try_from(version).context("cixManifest version is too large")?;
-        reject_outbound_field(&value, version)?;
-        let spec = if matches!(version, 4 | 5) {
-            let mut body = value
-                .as_object()
-                .cloned()
-                .context("cix-manifest.json must be a JSON object")?;
-            body.remove("cixManifest");
-            let kind = body
-                .remove("kind")
-                .map(serde_json::from_value)
-                .transpose()
-                .context("cix-manifest.json v4/v5 field \"kind\" must be service or app")?
-                .unwrap_or_default();
-            let service: Service = serde_json::from_value(serde_json::Value::Object(body))
-                .context("failed to parse cix-manifest.json v4/v5 def-node")?;
-            Self {
-                cix_manifest: version,
-                kind,
-                services: BTreeMap::from([("artifact".to_owned(), service)]),
-            }
-        } else {
-            let legacy: LegacySpec =
-                serde_json::from_value(value).context("failed to parse cix-manifest.json")?;
-            Self {
-                cix_manifest: legacy.cix_manifest,
-                kind: ManifestKind::Service,
-                services: legacy.services,
-            }
+        if version != 0 {
+            bail!("unsupported cixManifest version {version}; rebuild with the current cix")
+        }
+        let mut body = value
+            .as_object()
+            .cloned()
+            .context("cix-manifest.json must be a JSON object")?;
+        body.remove("cixManifest");
+        let kind = body
+            .remove("kind")
+            .map(serde_json::from_value)
+            .transpose()
+            .context("cix-manifest.json field \"kind\" must be service or app")?
+            .unwrap_or_default();
+        let service: Service = serde_json::from_value(serde_json::Value::Object(body))
+            .context("failed to parse cix-manifest.json def-node")?;
+        let spec = Self {
+            cix_manifest: 0,
+            kind,
+            services: BTreeMap::from([("artifact".to_owned(), service)]),
         };
         spec.validate()?;
         Ok(spec)
@@ -181,56 +160,28 @@ impl Spec {
         let json = fs::read(&path)
             .with_context(|| format!("failed to read manifest at {}", path.display()))?;
         let mut spec = Self::from_slice(&json)?;
-        if matches!(spec.cix_manifest, 4 | 5) {
-            if let Some(name) = item_name_from_store_path(output) {
-                let service = spec
-                    .services
-                    .remove("artifact")
-                    .expect("parsed bare def-node");
-                spec.services.insert(name, service);
-            }
+        if let Some(name) = item_name_from_store_path(output) {
+            let service = spec
+                .services
+                .remove("artifact")
+                .expect("parsed bare def-node");
+            spec.services.insert(name, service);
         }
         Ok(spec)
     }
 
     pub fn select_service<'a>(&'a self, requested: Option<&str>) -> Result<(&'a str, &'a Service)> {
-        if matches!(self.cix_manifest, 4 | 5) {
-            if requested.is_some() {
-                bail!(
-                    "cixManifest {} is one bare def-node and has no #service selector (D41)",
-                    self.cix_manifest
-                );
-            }
-            let (name, service) = self
-                .services
-                .first_key_value()
-                .expect("validated bare item");
-            return Ok((name, service));
-        }
-        if let Some(name) = requested {
-            let service = self.services.get(name).with_context(|| {
-                let available = self.services.keys().cloned().collect::<Vec<_>>().join(", ");
-                format!("service {name:?} is not declared; available services: {available}")
-            })?;
-            return Ok((self.services.get_key_value(name).unwrap().0, service));
-        }
-
-        if self.services.len() != 1 {
-            let available = self.services.keys().cloned().collect::<Vec<_>>().join(", ");
-            bail!(
-                "deprecated multi-service cixManifest {} item declares {} services (available: {available}); D41 requires one item per service",
-                self.cix_manifest,
-                self.services.len(),
-            );
+        if requested.is_some() {
+            bail!("a version-0 manifest is one def-node and has no #service selector")
         }
         let (name, service) = self.services.first_key_value().unwrap();
         Ok((name, service))
     }
 
     fn validate(&self) -> Result<()> {
-        if !matches!(self.cix_manifest, 1..=5) {
+        if self.cix_manifest != 0 {
             bail!(
-                "unsupported cixManifest version {}; this cix supports versions 1, 2, 3, 4, and 5",
+                "unsupported cixManifest version {}; rebuild with the current cix",
                 self.cix_manifest
             );
         }
@@ -241,34 +192,11 @@ impl Spec {
         for (name, service) in &self.services {
             validate_name("service", name)?;
             service
-                .validate(self.cix_manifest, self.kind)
+                .validate(self.kind)
                 .with_context(|| format!("invalid service {name:?}"))?;
         }
         Ok(())
     }
-}
-
-fn reject_outbound_field(value: &serde_json::Value, version: u32) -> Result<()> {
-    let has_outbound = if version == 4 {
-        value.get("outbound").is_some()
-    } else {
-        value
-            .get("services")
-            .and_then(serde_json::Value::as_object)
-            .is_some_and(|services| {
-                services.values().any(|service| {
-                    service
-                        .as_object()
-                        .is_some_and(|service| service.contains_key("outbound"))
-                })
-            })
-    };
-    if has_outbound {
-        bail!(
-            "manifest field \"outbound\" was replaced by the \"grants\" list with \"egress\" (D60); update cix-manifest.json"
-        );
-    }
-    Ok(())
 }
 
 fn item_name_from_store_path(output: &Path) -> Option<String> {
@@ -280,8 +208,7 @@ fn item_name_from_store_path(output: &Path) -> Option<String> {
 }
 
 impl Service {
-    fn validate(&self, version: u32, kind: ManifestKind) -> Result<()> {
-        self.validate_version_fields(version)?;
+    fn validate(&self, kind: ManifestKind) -> Result<()> {
         validate_exec("exec", &self.exec, &self.env)?;
         if let Some(setup) = &self.setup {
             validate_exec("setup", setup, &self.env)?;
@@ -341,7 +268,7 @@ impl Service {
         let mut seen: Vec<&Path> = Vec::new();
         for (role, root, paths) in self.dirs.roles() {
             for path in paths {
-                validate_app_path(version, role, root, path)?;
+                validate_app_path(role, root, path)?;
                 for other in &seen {
                     if path.starts_with(other) || other.starts_with(path) {
                         bail!(
@@ -355,6 +282,7 @@ impl Service {
             }
         }
         validate_mounts(self.mounts.as_deref().unwrap_or_default(), &seen)?;
+        self.validate_capabilities()?;
         self.validate_kind(kind)?;
         Ok(())
     }
@@ -400,52 +328,17 @@ impl Service {
             || (grant == "egress" && self.egress)
     }
 
-    fn validate_version_fields(&self, version: u32) -> Result<()> {
-        if version == 1 {
-            if self.setup.is_some() {
-                bail!("field \"setup\" requires cixManifest 2");
-            }
-            if self.dirs.run.is_some() {
-                bail!("field \"dirs.run\" requires cixManifest 2");
-            }
-            if self.jit.is_some() {
-                bail!("field \"jit\" requires cixManifest 2");
-            }
-            if self.mounts.is_some() {
-                bail!("field \"mounts\" requires cixManifest 2");
-            }
-            for (name, port) in &self.ports {
-                if port.value.is_some() {
-                    bail!("field \"ports.{name}.value\" requires cixManifest 2");
-                }
-            }
+    fn validate_capabilities(&self) -> Result<()> {
+        if self.jit.is_some() || self.egress || self.network.is_some() {
+            bail!("legacy capability fields are not supported; use the \"grants\" list")
         }
-        if version < 3 && !self.listeners.is_empty() {
-            bail!("field \"listeners\" requires cixManifest 3");
-        }
-        if version < 4 && self.egress {
-            bail!("field \"egress\" requires cixManifest 4");
-        }
-        if version >= 4 && self.network.is_some() {
-            bail!("field \"network\" is retired in cixManifest 4; use \"egress\" per D48(b)");
-        }
-        if version < 5 && !self.grants.is_empty() {
-            bail!("field \"grants\" requires cixManifest 5");
-        }
-        if version == 5 {
-            if self.jit.is_some() || self.egress {
-                bail!(
-                    "cixManifest 5 replaces \"jit\" and \"egress\" with the \"grants\" list (D60)"
-                );
+        let mut seen = BTreeSet::new();
+        for grant in &self.grants {
+            if !matches!(grant.as_str(), "jit" | "egress") {
+                bail!("unknown grant {grant:?}; supported grants: jit, egress");
             }
-            let mut seen = BTreeSet::new();
-            for grant in &self.grants {
-                if !matches!(grant.as_str(), "jit" | "egress") {
-                    bail!("unknown grant {grant:?}; supported grants: jit, egress");
-                }
-                if !seen.insert(grant) {
-                    bail!("grant {grant:?} is declared more than once");
-                }
+            if !seen.insert(grant) {
+                bail!("grant {grant:?} is declared more than once");
             }
         }
         Ok(())
@@ -457,32 +350,23 @@ impl Serialize for Spec {
     where
         S: serde::Serializer,
     {
-        if matches!(self.cix_manifest, 4 | 5) {
-            let service = self
-                .services
-                .first_key_value()
-                .map(|(_, service)| service)
-                .ok_or_else(|| serde::ser::Error::custom("bare manifest has no def-node"))?;
-            let value = serde_json::to_value(service).map_err(serde::ser::Error::custom)?;
-            let body = value
-                .as_object()
-                .ok_or_else(|| serde::ser::Error::custom("bare def-node is not an object"))?;
-            let kind_fields = usize::from(self.kind != ManifestKind::Service);
-            let mut map = serializer.serialize_map(Some(body.len() + 1 + kind_fields))?;
-            map.serialize_entry("cixManifest", &self.cix_manifest)?;
-            if self.kind != ManifestKind::Service {
-                map.serialize_entry("kind", &self.kind)?;
-            }
-            for (name, value) in body {
-                map.serialize_entry(name, value)?;
-            }
-            map.end()
-        } else {
-            let mut map = serializer.serialize_map(Some(2))?;
-            map.serialize_entry("cixManifest", &self.cix_manifest)?;
-            map.serialize_entry("services", &self.services)?;
-            map.end()
+        let service = self
+            .services
+            .first_key_value()
+            .map(|(_, service)| service)
+            .ok_or_else(|| serde::ser::Error::custom("bare manifest has no def-node"))?;
+        let mut body = serde_json::to_value(service).map_err(serde::ser::Error::custom)?;
+        let object = body
+            .as_object_mut()
+            .ok_or_else(|| serde::ser::Error::custom("bare def-node is not an object"))?;
+        object.insert("cixManifest".to_owned(), serde_json::Value::from(0));
+        if self.kind != ManifestKind::Service {
+            object.insert(
+                "kind".to_owned(),
+                serde_json::to_value(self.kind).map_err(serde::ser::Error::custom)?,
+            );
         }
+        body.serialize(serializer)
     }
 }
 
@@ -659,26 +543,16 @@ fn is_env_continue(value: u8) -> bool {
     is_env_start(value) || value.is_ascii_digit()
 }
 
-fn validate_app_path(version: u32, role: &str, root: &str, path: &Path) -> Result<()> {
+fn validate_app_path(role: &str, root: &str, path: &Path) -> Result<()> {
     validate_absolute_clean_path(path, &format!("{role} directory"))?;
-    if version >= 2 {
-        let relative = path.strip_prefix(root).ok();
-        let is_one_component = relative.is_some_and(|relative| {
-            let mut components = relative.components();
-            matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
-        });
-        if !is_one_component {
-            bail!(
-                "{role} directory {} must be exactly one component under {root}, as required by DESIGN.md \"Spec v2\" point 6",
-                path.display()
-            );
-        }
-        return Ok(());
-    }
-    let nix = Path::new("/nix");
-    if path.starts_with(nix) || nix.starts_with(path) {
+    let relative = path.strip_prefix(root).ok();
+    let is_one_component = relative.is_some_and(|relative| {
+        let mut components = relative.components();
+        matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
+    });
+    if !is_one_component {
         bail!(
-            "{role} directory {} must be outside /nix and must not contain it",
+            "{role} directory {} must be exactly one component under {root}",
             path.display()
         );
     }
@@ -705,438 +579,54 @@ fn validate_absolute_clean_path(path: &Path, label: &str) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn parse(value: &str) -> Result<Spec> {
-        Spec::from_slice(value.as_bytes())
-    }
-
     #[test]
-    fn parses_the_complete_schema() {
-        let spec = parse(
-            r#"{
-                "cixManifest": 1,
-                "services": {
-                    "app": {
-                        "exec": ["bin/app", "--port", "$PORT"],
-                        "env": {
-                            "PORT": {"type": "port", "default": "8080"},
-                            "READY": {"required": true, "secret": false}
-                        },
-                        "ports": {"http": {"env": "PORT", "protocol": "tcp"}},
-                        "dirs": {
-                            "state": ["/var/lib/app"],
-                            "cache": ["/var/cache/app"],
-                            "logs": ["/var/log/app"],
-                            "config": ["/etc/app"]
-                        },
-                        "health": {"exec": ["bin/health", "$READY"], "interval": "30s"},
-                        "network": "host"
-                    }
-                }
-            }"#,
+    fn parses_and_serializes_the_v0_def_node() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"exec":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"grants":["jit"]}"#,
         )
         .unwrap();
-        #[allow(deprecated)]
-        let legacy_type = spec.services["app"].env["PORT"].legacy_type.as_deref();
-        assert_eq!(legacy_type, Some("port"));
-        assert_eq!(spec.services["app"].ports["http"].protocol, Protocol::Tcp);
-    }
-
-    #[test]
-    fn parses_v2_fields() {
-        let spec = parse(
-            r#"{
-                "cixManifest": 2,
-                "services": {
-                    "app": {
-                        "setup": ["bin/setup", "$PORT"],
-                        "exec": ["bin/app", "$PORT"],
-                        "env": {"PORT": {"default": "8080"}},
-                        "ports": {
-                            "http": {"value": 8080, "protocol": "tcp"},
-                            "admin": {"env": "PORT", "protocol": "tcp"}
-                        },
-                        "dirs": {"run": ["/run/app"]},
-                        "jit": true
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-        let service = &spec.services["app"];
-        assert_eq!(service.setup.as_ref().unwrap()[0], "bin/setup");
-        assert_eq!(service.ports["http"].value, Some(8080));
-        assert_eq!(
-            service.dirs.run.as_deref().unwrap(),
-            [PathBuf::from("/run/app")]
-        );
-        assert_eq!(service.jit, Some(true));
-    }
-
-    #[test]
-    fn parses_v3_stream_listeners() {
-        let spec = parse(
-            r#"{
-                "cixManifest": 3,
-                "services": {
-                    "app": {
-                        "exec": ["bin/app"],
-                        "listeners": {"http": {"type": "stream"}}
-                    }
-                }
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(
-            spec.services["app"].listeners["http"].listener_type,
-            "stream"
-        );
-    }
-
-    #[test]
-    fn parses_and_serializes_a_bare_v4_def_node() {
-        let spec = parse(
-            r#"{
-                "cixManifest": 4,
-                "exec": ["bin/worker"],
-                "env": {"MODE": {"default": "once"}},
-                "egress": true
-            }"#,
-        )
-        .unwrap();
-        assert_eq!(spec.cix_manifest, 4);
-        assert_eq!(spec.services.len(), 1);
-        assert!(spec.services["artifact"].egress);
-        let (_, service) = spec.select_service(None).unwrap();
-        assert_eq!(service.exec, ["bin/worker"]);
-        let serialized = serde_json::to_value(&spec).unwrap();
-        assert_eq!(serialized["cixManifest"], 4);
-        assert_eq!(serialized["exec"][0], "bin/worker");
-        assert!(serialized.get("services").is_none());
-
-        let defaulted = parse(r#"{"cixManifest":4,"exec":["bin/app"]}"#).unwrap();
-        assert!(!defaulted.services["artifact"].egress);
-        let error = defaulted
-            .select_service(Some("app"))
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("D41"), "{error}");
-    }
-
-    #[test]
-    fn v5_grants_replace_legacy_capability_fields() {
-        let spec =
-            parse(r#"{"cixManifest":5,"kind":"app","exec":["bin/job"],"grants":["jit","egress"]}"#)
-                .unwrap();
         let service = spec.select_service(None).unwrap().1;
+        assert_eq!(service.exec, ["bin/app", "$PORT"]);
         assert!(service.has_grant("jit"));
-        assert!(service.has_grant("egress"));
-        assert_eq!(
-            serde_json::to_value(&spec).unwrap()["grants"],
-            serde_json::json!(["jit", "egress"])
-        );
+        assert_eq!(serde_json::to_value(&spec).unwrap()["cixManifest"], 0);
+    }
+
+    #[test]
+    fn rejects_every_nonzero_version_with_the_rebuild_hint() {
+        for version in [1, 2, 3, 4, 5, 99] {
+            let error = Spec::from_slice(format!(r#"{{"cixManifest":{version}}}"#).as_bytes())
+                .unwrap_err()
+                .to_string();
+            assert_eq!(
+                error,
+                format!("unsupported cixManifest version {version}; rebuild with the current cix")
+            );
+        }
+    }
+
+    #[test]
+    fn validates_current_schema_fields() {
         for json in [
-            r#"{"cixManifest":5,"exec":["bin/app"],"jit":true}"#,
-            r#"{"cixManifest":5,"exec":["bin/app"],"egress":true}"#,
-            r#"{"cixManifest":5,"exec":["bin/app"],"grants":["all"]}"#,
-            r#"{"cixManifest":5,"exec":["bin/app"],"grants":["jit","jit"]}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"jit":true}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"grants":["all"]}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
+            r#"{"cixManifest":0,"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
+            r#"{"cixManifest":0,"services":{}}"#,
         ] {
             assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
         }
     }
 
     #[test]
-    fn outbound_manifest_field_has_a_d48_migration_error_and_is_not_an_alias() {
-        for json in [
-            r#"{"cixManifest":4,"exec":["bin/app"],"outbound":true}"#,
-            r#"{"cixManifest":3,"services":{"app":{"exec":["bin/app"],"outbound":true}}}"#,
-        ] {
-            let error = Spec::from_slice(json.as_bytes()).unwrap_err().to_string();
-            assert!(error.contains("\"grants\" list"), "{error}");
-            assert!(error.contains("D60"), "{error}");
-        }
-    }
-
-    #[test]
-    fn legacy_multi_service_items_emit_the_d41_deprecation() {
-        let spec = parse(
-            r#"{"cixManifest":3,"services":{
-                "api":{"exec":["bin/api"]},
-                "worker":{"exec":["bin/worker"]}
-            }}"#,
-        )
-        .unwrap();
-        let error = spec.select_service(None).unwrap_err().to_string();
-        assert!(error.contains("deprecated"), "{error}");
-        assert!(error.contains("D41"), "{error}");
-        assert_eq!(
-            spec.select_service(Some("api")).unwrap().1.exec,
-            ["bin/api"]
-        );
-    }
-
-    #[test]
-    fn listener_requires_v3_and_only_stream_is_supported() {
-        for version in [1, 2] {
-            let error = format!(
-                "{:#}",
-                parse(&format!(
-                    r#"{{"cixManifest":{version},"services":{{"app":{{"exec":["bin/app"],"listeners":{{"http":{{"type":"stream"}}}}}}}}}}"#
-                ))
-                .unwrap_err()
-            );
-            assert!(
-                error.contains("field \"listeners\" requires cixManifest 3"),
-                "{error}"
-            );
-        }
-        let error = format!(
-            "{:#}",
-            parse(r#"{"cixManifest":3,"services":{"app":{"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}}}"#)
-                .unwrap_err()
-        );
-        assert!(error.contains("not yet supported"), "{error}");
-    }
-
-    #[test]
-    fn rejects_every_v2_field_under_v1() {
-        for (field, json) in [
-            (
-                "setup",
-                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"setup":["bin/setup"]}}}"#,
-            ),
-            (
-                "dirs.run",
-                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"run":[]}}}}"#,
-            ),
-            (
-                "jit",
-                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"jit":false}}}"#,
-            ),
-            (
-                "ports.http.value",
-                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}}}"#,
-            ),
-            (
-                "mounts",
-                r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app"]}}}"#,
-            ),
-        ] {
-            let error = format!("{:#}", parse(json).unwrap_err());
-            assert!(error.contains(field), "{error}");
-            assert!(error.contains("requires cixManifest 2"), "{error}");
-        }
-    }
-
-    #[test]
-    fn rejects_ports_with_both_or_neither_source() {
-        for json in [
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"env":{"PORT":{}},"ports":{"http":{"env":"PORT","value":8080,"protocol":"tcp"}}}}}"#,
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}}}"#,
-        ] {
-            let error = format!("{:#}", parse(json).unwrap_err());
-            assert!(
-                error.contains("exactly one of \"env\" or \"value\""),
-                "{error}"
-            );
-        }
-    }
-
-    #[test]
-    fn v2_paths_must_be_one_component_under_the_role_root() {
-        for json in [
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/data"]}}}}"#,
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/cache/app"]}}}}"#,
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"run":["/run/app/socket"]}}}}"#,
-        ] {
-            let error = format!("{:#}", parse(json).unwrap_err());
-            assert!(error.contains("exactly one component"), "{error}");
-            assert!(error.contains("DESIGN.md \"Spec v2\" point 6"), "{error}");
-        }
-    }
-
-    #[test]
-    fn rejects_unknown_fields_at_every_level() {
-        for json in [
-            r#"{"cixManifest":1,"services":{},"future":true}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"future":true}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"env":{"X":{"type":"string","future":true}}}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"x":{"env":"P","protocol":"tcp","future":true}}}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"future":[]}}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"health":{"exec":["bin/h"],"interval":"1s","future":true}}}}}"#,
-        ] {
-            assert!(parse(json).is_err(), "{json}");
-        }
-    }
-
-    #[test]
-    fn validates_interpolation_ports_and_directories() {
-        let undeclared = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app","$NOPE"]}}}"#;
-        assert!(parse(undeclared)
-            .unwrap_err()
-            .to_string()
-            .contains("invalid service"));
-
-        let undeclared_port = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
-        assert!(format!("{:#}", parse(undeclared_port).unwrap_err())
-            .contains("refers to undeclared environment variable \"P\""));
-
-        let invalid_port_default = r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"env":{"P":{"default":"nope"}},"ports":{"http":{"env":"P","protocol":"tcp"}}}}}"#;
-        assert!(format!("{:#}", parse(invalid_port_default).unwrap_err())
-            .contains("default for ports-referenced environment variable \"P\" must be a port"));
-
-        for json in [
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/nix/data"]}}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app/../other"]}}}}"#,
-            r#"{"cixManifest":1,"services":{"app":{"exec":["bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/var/lib/app/nested"]}}}}"#,
-        ] {
-            assert!(parse(json).is_err(), "{json}");
-        }
-    }
-
-    #[test]
-    fn validates_mounts_adversarially() {
-        let error = format!("{:#}", parse(
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"dirs":{"config":["/etc/app"]},"mounts":["/etc/app/config"]}}}"#,
+    fn app_constraints_and_manifestless_items_remain_explicit() {
+        let error = format!("{:#}", Spec::from_slice(
+            br#"{"cixManifest":0,"kind":"app","exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}"#,
         )
         .unwrap_err());
-        assert!(
-            error.contains("overlaps declared role directory"),
-            "{error}"
-        );
+        assert!(error.contains("app must not declare ports"), "{error}");
 
-        let reverse_error = format!("{:#}", parse(
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/app/config"],"dirs":{"config":["/etc/app"]}}}}"#,
-        )
-        .unwrap_err());
-        assert!(
-            reverse_error.contains("overlaps declared role directory"),
-            "{reverse_error}"
-        );
-
-        let nested = format!("{:#}", parse(
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/etc/nginx","/etc/nginx/conf.d"]}}}"#,
-        )
-        .unwrap_err());
-        assert!(nested.contains("must not be nested"), "{nested}");
-
-        for denied in [
-            "/nix",
-            "/proc",
-            "/sys",
-            "/dev",
-            "/run",
-            "/var/lib",
-            "/var/cache",
-            "/var/log",
-            "/etc/passwd",
-            "/etc/group",
-            "/etc/nsswitch.conf",
-            "/",
-            "/etc",
-            "/usr",
-            "/bin",
-            "/lib",
-            "/lib64",
-        ] {
-            let error = parse(&format!(
-                r#"{{"cixManifest":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{denied}"]}}}}}}"#
-            ))
-            .unwrap_err()
-            .chain()
-            .map(|cause| cause.to_string())
-            .collect::<Vec<_>>()
-            .join(": ");
-            assert!(error.contains("D22 v3"), "{denied}: {error}");
-        }
-
-        parse(
-            r#"{"cixManifest":2,"services":{"app":{"exec":["bin/app"],"mounts":["/cix-probe.conf","/opt/a/b/c/d","/etc/nginx"]}}}"#,
-        )
-        .unwrap();
-    }
-
-    #[test]
-    fn rejects_non_normalized_mounts() {
-        for mount in [
-            "relative",
-            "/etc/",
-            "/etc/./nginx",
-            "/etc/nginx/../ssl",
-            "/etc//nginx",
-        ] {
-            let error = parse(&format!(
-                r#"{{"cixManifest":2,"services":{{"app":{{"exec":["bin/app"],"mounts":["{mount}"]}}}}}}"#
-            ))
-            .unwrap_err()
-            .chain()
-            .map(|cause| cause.to_string())
-            .collect::<Vec<_>>()
-            .join(": ");
-            assert!(error.contains("mount path"), "{mount}: {error}");
-        }
-    }
-}
-
-#[cfg(test)]
-mod d47_kind_tests {
-    use super::*;
-
-    #[test]
-    fn v4_kind_defaults_to_service_and_round_trips_app() {
-        let service =
-            Spec::from_slice(br#"{"cixManifest":4,"exec":["/nix/store/x/bin/service"]}"#).unwrap();
-        assert_eq!(service.kind, ManifestKind::Service);
-        assert!(!serde_json::to_string(&service)
-            .unwrap()
-            .contains("\"kind\""));
-
-        let app = Spec::from_slice(
-            br#"{"cixManifest":4,"kind":"app","exec":["/nix/store/x/bin/job"],"dirs":{"state":["/var/lib/job"],"cache":["/var/cache/job"]},"egress":true}"#,
-        )
-        .unwrap();
-        assert_eq!(app.kind, ManifestKind::App);
-        let encoded = serde_json::to_string(&app).unwrap();
-        assert!(encoded.contains("\"kind\":\"app\""), "{encoded}");
-    }
-
-    #[test]
-    fn removed_and_unknown_kinds_are_rejected() {
-        let removed =
-            Spec::from_slice(br#"{"cixManifest":4,"kind":"item","mounts":["/srv/data"]}"#)
-                .unwrap_err()
-                .to_string();
-        assert!(removed.contains("service or app"), "{removed}");
-        let error = Spec::from_slice(br#"{"cixManifest":4,"kind":"timer","exec":["/bin/true"]}"#)
-            .unwrap_err()
-            .to_string();
-        assert!(error.contains("service or app"), "{error}");
-    }
-
-    #[test]
-    fn kind_specific_fields_are_validated_for_external_manifests() {
-        for (json, message) in [
-            (
-                r#"{"cixManifest":4,"kind":"app","exec":["/bin/true"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}"#,
-                "app must not declare ports",
-            ),
-            (
-                r#"{"cixManifest":4,"kind":"app","exec":["/bin/true"],"setup":["/bin/true"]}"#,
-                "app must not declare setup",
-            ),
-        ] {
-            let error = format!("{:#}", Spec::from_slice(json.as_bytes()).unwrap_err());
-            assert!(error.contains(message), "{error}");
-        }
-    }
-
-    #[test]
-    fn manifest_less_item_names_the_d68_seam() {
         let item = tempfile::tempdir().unwrap();
         let error = Spec::load(item.path()).unwrap_err().to_string();
         assert!(error.contains("manifest-less ITEM (D68)"), "{error}");
-        assert!(
-            error.contains("items are build products, so use SERVICE/APP"),
-            "{error}"
-        );
     }
 }

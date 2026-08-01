@@ -222,18 +222,14 @@ mod tests {
     fn debug_overrides_only_the_generated_entrypoint() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 2,
-                "services": {
-                    "web": {
-                        "exec": ["/nix/store/00000000000000000000000000000000-web/bin/server", "--serve"],
-                        "env": {"PATH": {"default": "/nix/store/11111111111111111111111111111111-shell/bin"}},
-                        "dirs": {"state": ["/var/lib/web"]}
-                    }
-                }
+                "cixManifest": 0,
+                "exec": ["/nix/store/00000000000000000000000000000000-web/bin/server", "--serve"],
+                "env": {"PATH": {"default": "/nix/store/11111111111111111111111111111111-shell/bin"}},
+                "dirs": {"state": ["/var/lib/web"]}
             }"#,
         )
         .unwrap();
-        let service = &spec.services["web"];
+        let service = spec.select_service(None).unwrap().1;
         let config = ResolvedConfig::resolve_debug(service, &[]).unwrap();
         let output = Path::new("/nix/store/00000000000000000000000000000000-web");
         let normal = build_unit(output, "web", service, &config, UnitMode::System).unwrap();
@@ -264,7 +260,7 @@ mod tests {
     fn debug_projects_the_item_bin_default() {
         let spec = Spec::from_slice(
             br#"{
-                "cixManifest": 5,
+                "cixManifest": 0,
                 "exec": ["bin/app"],
                 "env": {"PATH": {"default": "bin"}}
             }"#,

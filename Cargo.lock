@@ -140,10 +140,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "cix-build"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cix-common",
+ "cix-index",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+]
+
+[[package]]
 name = "cix-cixfile"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cix-build",
  "cix-common",
  "cix-index",
  "cix-run",

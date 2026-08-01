@@ -8,9 +8,7 @@ let
     install -m 0644 ${../examples/pack/nginx/nginx.conf} $out/etc/nginx/nginx.conf
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 2,
-      "services": {
-        "nginx": {
+      "cixManifest": 0,
           "exec": ["${pkgs.nginx}/bin/nginx", "-c", "/etc/nginx/nginx.conf", "-e", "stderr"],
           "mounts": ["/etc/nginx", "/srv/www"],
           "ports": { "http": { "value": 8080, "protocol": "tcp" } },
@@ -18,8 +16,6 @@ let
             "cache": ["/var/cache/nginx"],
             "run": ["/run/nginx"]
           }
-        }
-      }
     }
     EOF
   '';
@@ -32,9 +28,7 @@ let
     install -m 0755 ${../examples/pack/postgres/start} $out/opt/postgres/start
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 2,
-      "services": {
-        "postgres": {
+      "cixManifest": 0,
           "setup": ["${pkgs.bash}/bin/sh", "/opt/postgres/setup"],
           "exec": ["${pkgs.bash}/bin/sh", "/opt/postgres/start", "$PORT"],
           "env": {
@@ -47,8 +41,6 @@ let
             "state": ["/var/lib/postgresql"],
             "run": ["/run/postgresql"]
           }
-        }
-      }
     }
     EOF
   '';
@@ -59,14 +51,10 @@ let
     install -m 0644 ${../examples/pack/caddy/index.html} $out/srv/www/index.html
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 2,
-      "services": {
-        "caddy": {
+      "cixManifest": 0,
           "exec": ["bin/caddy", "file-server", "--root", "/srv/www", "--listen", ":80"],
           "mounts": ["/srv/www"],
           "ports": { "http": { "value": 80, "protocol": "tcp" } }
-        }
-      }
     }
     EOF
   '';
@@ -76,15 +64,11 @@ let
     install -m 0644 ${../examples/pack/node-app/server.js} $out/app/server.js
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 2,
-      "services": {
-        "node-app": {
+      "cixManifest": 0,
           "exec": ["bin/node", "/app/server.js"],
           "mounts": ["/app"],
           "ports": { "http": { "value": 8081, "protocol": "tcp" } },
-          "jit": true
-        }
-      }
+          "grants": ["jit"]
     }
     EOF
   '';
@@ -98,10 +82,8 @@ let
     chmod +x $out/bin/pid-probe
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 2,
-      "services": {
-        "pid-probe": { "exec": ["bin/pid-probe"] }
-      }
+      "cixManifest": 0,
+      "exec": ["bin/pid-probe"]
     }
     EOF
   '';

@@ -44,13 +44,9 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     make_executable(&executable)?;
 
     let json = serde_json::json!({
-        "cixManifest": 1,
-        "services": {
-            "integration-test": {
-                "exec": ["bin/service"],
-                "dirs": {"state": [app_state]}
-            }
-        }
+        "cixManifest": 0,
+        "exec": ["bin/service"],
+        "dirs": {"state": [app_state]}
     });
     fs::write(
         fixture.join("cix-manifest.json"),
@@ -59,7 +55,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
 
     let store_path = add_to_store(&fixture)?;
     let spec = Spec::load(&store_path)?;
-    let service = &spec.services["integration-test"];
+    let service = spec.select_service(None)?.1;
     let config = ResolvedConfig::resolve(service, &[], &[])?;
     if host_timestamp.exists() {
         fs::remove_file(&host_timestamp)?;

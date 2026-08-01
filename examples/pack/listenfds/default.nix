@@ -41,7 +41,7 @@ in
 composix.withSpec {
   name = "listenfds-cix";
   manifest = {
-    cixManifest = 4;
+    cixManifest = 0;
     exec = [ "opt/listenfds/bin/listenfds" ];
     mounts = [ "/opt/listenfds" ];
     listeners.http.type = "stream";

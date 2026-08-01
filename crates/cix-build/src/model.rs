@@ -15,7 +15,7 @@ pub struct Cixfile {
 
 impl Cixfile {
     /// Keeps one artifact and only the FETCH/BUILDER binders it can reach.
-    pub(crate) fn backward_slice(&self, artifact_name: &str) -> Result<Self> {
+    pub fn backward_slice(&self, artifact_name: &str) -> Result<Self> {
         let artifact = self
             .artifacts
             .get(artifact_name)
@@ -130,7 +130,7 @@ pub struct Builder {
 }
 
 impl Builder {
-    pub(crate) fn empty(line: usize) -> Self {
+    pub fn empty(line: usize) -> Self {
         Self {
             imports: Vec::new(),
             steps: Vec::new(),
@@ -214,7 +214,7 @@ pub struct Artifact {
 }
 
 impl Artifact {
-    pub(crate) fn empty(kind: ArtifactKind, line: usize) -> Self {
+    pub fn empty(kind: ArtifactKind, line: usize) -> Self {
         Self {
             kind,
             copies: Vec::new(),
@@ -239,7 +239,7 @@ pub struct Service {
 }
 
 impl Service {
-    pub(crate) fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             exec: Vec::new(),
             exec_line: 0,

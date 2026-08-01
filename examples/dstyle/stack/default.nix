@@ -62,7 +62,7 @@ in
     chmod +x $out/bin/backend
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 4,
+      "cixManifest": 0,
       "exec": ["bin/backend"],
       "dirs": {
         "run": ["/run/backend"]
@@ -77,7 +77,7 @@ in
     ln -s ${nginxConf} $out/nginx.conf
     cat > $out/cix-manifest.json <<'EOF'
     {
-      "cixManifest": 4,
+      "cixManifest": 0,
       "exec": ["bin/nginx", "-c", "nginx.conf", "-e", "stderr"],
       "dirs": {
         "cache": ["/var/cache/nginx"],

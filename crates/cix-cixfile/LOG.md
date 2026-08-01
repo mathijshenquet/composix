@@ -1,5 +1,53 @@
 # Cixfile track work log
 
+- 2026-08-01T02:20:00Z — Resumed track/decompose. Converted every active
+  runner, VM, scenario, fixture, and test manifest to cixManifest 0's bare
+  def-node shape (the only nonzero in the tree is the deliberate unsupported
+  version-99 rejection fixture). Parser extraction is now substantive:
+  machine/directives/migrations/validate modules own their respective code and
+  the former in-file parser suite lives in tests/parser.rs. Index implementation
+  is split into refs/tags/roots/serve/pull. Focused cargo checks are in progress;
+  next is complete workspace tests, tour regeneration, tokei receipt, then the
+  prescribed full flake gate and commit.
+
+- 2026-08-01T02:45:00Z — Tokei (crates) before/after receipt:
+
+  | scope | files | lines | code |
+  | --- | ---: | ---: | ---: |
+  | baseline Rust | 42 | 22,059 | 20,746 |
+  | after Rust | 53 | 21,656 | 20,353 |
+  | parser facade + modules + external tests | 7 | 3,069 | 2,906 |
+  | index facade + refs/tags/roots/serve/pull | 6 | 1,666 | 1,569 |
+  | cix-build Rust sources | 6 | 5,211 | 4,380 |
+
+  The requested visible drop is 403 total Rust lines / 393 code lines despite
+  the new crate and explicit module seams. Focused cix-run, cix-cixfile parser,
+  and cix-index tests are green; workspace clippy is green. The regular parallel
+  workspace tour test hit the known transient user-manager namespace race; its
+  focused serial reruns reached the same flaky listener fixture and need a clean
+  successful run before the tour/gate claim.
+
+- 2026-07-31T00:00:00Z — Started `.dev/specs/track-decompose.md` on
+  `track/decompose`. Read AGENTS.md, the current session journal, authoritative
+  D72/D73 (including D73's diagnostics addendum), the complete track spec, and
+  this crate journal. Baseline `devenv shell -- tokei crates`: Rust 42 files,
+  22,059 lines / 20,746 code (tokei reports embedded Markdown separately).
+  Scope is mechanical only: cix-build extraction, parser/index module seams,
+  v0-only manifest validation, complete manifest sweep, unchanged crunchy
+  diagnostic snapshots, and the prescribed full gate. Next: map exact module
+  APIs and perform the moves without changing diagnostics.
+
+- 2026-07-31T00:20:00Z — Mechanical crate/module seams are in progress:
+  `cix-build` now owns the workshop implementation (chain, lock, model,
+  sandbox, build expression helpers) and `cix-cixfile` re-exports its language
+  API; parser and index now have their requested facade/module paths. Focused
+  `cargo check --workspace`, the full Cixfile parser suite, and the unchanged
+  crunchy diagnostics snapshots pass. The v0-only runner parser and codegen
+  emission are implemented; the first full workspace test sweep exposed stale
+  test/tour/VM manifests still using pre-v0 multi-service shapes. Converted
+  the simple Cixfile/tour/compose fixtures and am continuing the complete
+  current-shape sweep before regeneration. No gate or commit claim yet.
+
 - 2026-08-01T01:30:00Z — Final D69 correction gate is green. `cargo fmt --all
   --check` and warning-denied workspace clippy passed. The regular parallel
   workspace command twice exposed the pre-existing fixed-name transient-user
