@@ -36,6 +36,11 @@ pub enum Command {
         #[arg(long)]
         check: bool,
     },
+    /// Rebuild Cixfile artifacts when their context changes.
+    Watch {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
 }
 
 impl Command {
@@ -73,6 +78,7 @@ impl Command {
                 Ok(())
             }
             Self::Fmt { paths, check } => format_paths(paths, check),
+            Self::Watch { path } => crate::watch(&path),
         }
     }
 }

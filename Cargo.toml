@@ -36,3 +36,5 @@ ureq = { version = "2", features = ["json"] }
 libc = "0.2"
 ignore = "0.4"
 similar = "2"
+notify = "8"
+ctrlc = "3"
