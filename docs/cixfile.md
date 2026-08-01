@@ -58,8 +58,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `GRANT` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `GRANT`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -309,12 +309,12 @@ declared hash.
 
 ## Artifact kinds
 
-Each `SERVICE` or `APP` produces its own store item and bare v5 manifest. An `ITEM` produces a
+Each `SERVICE` or `APP` produces its own store item and bare v0 manifest. An `ITEM` produces a
 pure store tree with no `cix-manifest.json`; it is suitable for `FROM` consumption and tagging,
 not for `cix run` or `cix debug`.
 
 `SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
-idempotent pre-start hook. `PORT` and `LISTENER` grant inbound networking. `STATEDIR`,
+idempotent pre-start hook. `PORT` and `LISTENER` declare inbound networking. `STATEDIR`,
 `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
 `*Directory=` roles.
 
@@ -324,11 +324,11 @@ Each role directory is exactly one component below its conventional root: state 
 `/var/lib`, cache below `/var/cache`, logs below `/var/log`, configuration below `/etc`, and
 runtime data below `/run`.
 
-<a id="grants"></a>
+<a id="claims"></a>
 
-`GRANT jit` drops `MemoryDenyWriteExecute=`; `GRANT egress` declares
-outward network access and retains compose's usage-override semantics. The grant vocabulary is
-closed to `jit` and `egress`, one grant per line.
+`CLAIM jit` drops `MemoryDenyWriteExecute=`; `CLAIM egress` declares
+outward network access and retains compose's usage-override semantics. The claim vocabulary is
+closed to `jit` and `egress`, one claim per line.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
@@ -353,7 +353,7 @@ package-owned assets such as nginx's `mime.types`.
 <a id="item"></a>
 
 `ITEM` is the content-only block. It accepts only `COPY`, `FILE`, and `LINK`: runtime directives
-such as `EXEC`, `ENV`, ports, grants, or role directories are rejected.
+such as `EXEC`, `ENV`, ports, claims, or role directories are rejected.
 Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family
@@ -395,7 +395,7 @@ must spell its tag.
   explicit `COPY`.
 - Artifacts are sparse roots plus exact Nix store references. There is no `ADD`, URL/tar
   auto-extraction, `.dockerignore`, arbitrary `USER`, or secret mount syntax.
-- `ENV` declares an operator-facing contract. `PORT` is an enforced grant, not documentation.
+- `ENV` declares an operator-facing contract. `PORT` is an enforced capability declaration, not documentation.
 - `SERVICE` and `APP` distinguish daemons from one-shot commands in the manifest, so invalid
   combinations fail while parsing rather than at runtime.
 

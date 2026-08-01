@@ -68,7 +68,7 @@ let
           "exec": ["bin/node", "/app/server.js"],
           "mounts": ["/app"],
           "ports": { "http": { "value": 8081, "protocol": "tcp" } },
-          "grants": ["jit"]
+          "claims": ["jit"]
     }
     EOF
   '';

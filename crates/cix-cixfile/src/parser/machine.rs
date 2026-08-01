@@ -189,14 +189,14 @@ impl Parser<'_> {
                 "STATEDIR" | "CACHEDIR" | "LOGSDIR" | "CONFIGDIR" | "RUNDIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
-                "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND" => {
+                "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND" | "GRANT" => {
                     return Err(ParseError::new(
                         line_number,
                         source,
                         diagnostics::migration(directive).expect("migration is declared"),
                     ));
                 }
-                "GRANT" => self.grant(line_number, source, arguments)?,
+                "CLAIM" => self.claim(line_number, source, arguments)?,
                 "TAKE" => return Err(take_removed_error(line_number, source, arguments)),
                 "PKG" => return Err(pkg_removed_error(line_number, source, arguments)),
                 _ => {

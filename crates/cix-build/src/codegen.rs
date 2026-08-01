@@ -619,14 +619,14 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     if let Some(dirs) = nix_dirs(service) {
         write!(output, " dirs = {dirs};")?;
     }
-    if !service.grants.is_empty() {
+    if !service.claims.is_empty() {
         write!(
             output,
-            " grants = [ {} ];",
+            " claims = [ {} ];",
             service
-                .grants
+                .claims
                 .iter()
-                .map(|grant| nix_string(grant))
+                .map(|claim| nix_string(claim))
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
@@ -928,10 +928,10 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     if !dirs.is_empty() {
         value.insert("dirs".into(), Value::Object(dirs));
     }
-    if !service.grants.is_empty() {
+    if !service.claims.is_empty() {
         value.insert(
-            "grants".into(),
-            Value::Array(service.grants.iter().cloned().map(Value::String).collect()),
+            "claims".into(),
+            Value::Array(service.claims.iter().cloned().map(Value::String).collect()),
         );
     }
     Ok(Value::Object(value))

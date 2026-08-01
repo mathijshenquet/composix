@@ -1,6 +1,6 @@
 # verdaccio migration receipt
 
-Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, `STATEDIR`, explicit Node `bin/`, and `GRANT jit`/`egress`).
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, `STATEDIR`, explicit Node `bin/`, and `CLAIM jit`/`egress`).
 
 Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
 

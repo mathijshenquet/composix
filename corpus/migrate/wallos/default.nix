@@ -143,7 +143,7 @@ composix.withSpec {
       logs = [ "/var/log/wallos" ];
       run = [ "/run/wallos" ];
     };
-    grants = [
+    claims = [
       "egress"
       "jit"
     ];

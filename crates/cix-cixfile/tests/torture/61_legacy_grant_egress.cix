@@ -2,4 +2,4 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE app
 EXEC /bin/true
-OUTBOUND
+GRANT egress

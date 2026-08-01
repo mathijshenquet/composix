@@ -123,7 +123,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
     let prefix = format!("cix-{composite}");
     let mut units = BTreeMap::new();
     let mut manifest_units = BTreeMap::new();
-    let mut service_edges: BTreeMap<&str, Vec<EdgeGrant>> = BTreeMap::new();
+    let mut service_edges: BTreeMap<&str, Vec<EdgeClaim>> = BTreeMap::new();
     let mut sysusers = String::new();
     let mut target_wants = BTreeSet::new();
     let mut target_after = BTreeSet::new();
@@ -157,14 +157,14 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         service_edges
             .entry(&edge.producer.service)
             .or_default()
-            .push(EdgeGrant {
+            .push(EdgeClaim {
                 unit: edge_unit.clone(),
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: edge.producer.path.display().to_string(),
             });
         for (consumer, config) in &edge.consumers {
-            service_edges.entry(consumer).or_default().push(EdgeGrant {
+            service_edges.entry(consumer).or_default().push(EdgeClaim {
                 unit: edge_unit.clone(),
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
@@ -181,27 +181,27 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
     let mut manifest_services = BTreeMap::new();
     for (service_name, checked_service) in &checked.services {
         let service_unit = format!("{prefix}-{service_name}.service");
-        let grants = service_edges
+        let claims = service_edges
             .get(service_name.as_str())
             .cloned()
             .unwrap_or_default();
         let mut extra_properties = Vec::new();
-        if !grants.is_empty() {
+        if !claims.is_empty() {
             extra_properties.push((
                 "SupplementaryGroups".into(),
-                grants
+                claims
                     .iter()
-                    .map(|grant| grant.group.as_str())
+                    .map(|claim| claim.group.as_str())
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>()
                     .join(" "),
             ));
             extra_properties.push(("UMask".into(), "0007".into()));
-            for grant in &grants {
+            for claim in &claims {
                 extra_properties.push((
                     "BindPaths".into(),
-                    format!("{}:{}:rbind", grant.source, grant.destination),
+                    format!("{}:{}:rbind", claim.source, claim.destination),
                 ));
             }
         }
@@ -217,9 +217,9 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         let mut compiled_service = checked_service.spec.clone();
         if let Some(run_paths) = &mut compiled_service.dirs.run {
             run_paths.retain(|path| {
-                !grants
+                !claims
                     .iter()
-                    .any(|grant| Path::new(&grant.destination) == path)
+                    .any(|claim| Path::new(&claim.destination) == path)
             });
         }
         let compiled = compile_unit_for_host(
@@ -250,9 +250,9 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                     reason: degradation.reason.clone(),
                 }),
         );
-        let requires = grants
+        let requires = claims
             .iter()
-            .map(|grant| grant.unit.clone())
+            .map(|claim| claim.unit.clone())
             .chain(sockets.iter().cloned())
             .collect::<BTreeSet<_>>();
         let text = add_unit_dependencies(&compiled.text, &target, &requires);
@@ -328,7 +328,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
 }
 
 #[derive(Clone)]
-struct EdgeGrant {
+struct EdgeClaim {
     unit: String,
     group: String,
     source: String,

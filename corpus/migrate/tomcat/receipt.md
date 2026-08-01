@@ -1,7 +1,7 @@
 # tomcat migration receipt
 
 Cix refresh: 2026-07-31. Language generation: D56–D64 (`STATEDIR`, `LOGSDIR`,
-explicit artifacts, setup, and grants).
+explicit artifacts, setup, and claims).
 
 Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
 

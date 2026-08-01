@@ -33,15 +33,15 @@ STATEDIR /var/lib/web
 LOGSDIR /var/log/web
 CONFIGDIR /etc/web
 RUNDIR /run/web
-GRANT jit
-GRANT egress
+CLAIM jit
+CLAIM egress
 APP migrate
 COPY ${ingredient} /payload
 EXEC /bin/true
 ENV MODE = once
 STATEDIR /var/lib/migrate
 	CACHEDIR /var/cache/migrate
-	GRANT egress
+	CLAIM egress
 	"#,
         )
         .unwrap();
@@ -203,8 +203,8 @@ STATEDIR /var/lib/migrate
         let error =
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nEXEC /bin/true\nOUTBOUND\n").unwrap_err();
         assert_eq!(error.line, 4);
-        assert!(error.message.contains("GRANT egress"), "{error}");
-        assert!(error.message.contains("docs/cixfile.md#grants"), "{error}");
+        assert!(error.message.contains("CLAIM egress"), "{error}");
+        assert!(error.message.contains("docs/cixfile.md#claims"), "{error}");
     }
 
     #[test]
@@ -383,9 +383,9 @@ EXEC /bin/true \
     }
 
     #[test]
-    fn role_directory_directives_and_grant_are_hard_migrations() {
+    fn role_directory_directives_and_claim_are_hard_migrations() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nGRANT jit\nGRANT egress\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nCLAIM jit\nCLAIM egress\n",
         )
         .unwrap();
         let dirs = &parsed.artifacts["web"].service.dirs;
@@ -395,15 +395,15 @@ EXEC /bin/true \
         assert!(dirs.config.contains("/etc/web"));
         assert!(dirs.run.contains("/run/web"));
         assert_eq!(
-            parsed.artifacts["web"].service.grants,
+            parsed.artifacts["web"].service.claims,
             BTreeSet::from(["egress".into(), "jit".into()])
         );
         for (directive, replacement, anchor) in [
             ("STATE /var/lib/web", "STATEDIR", "#role-dirs"),
             ("LOGS /var/log/web", "LOGSDIR", "#role-dirs"),
             ("CONFIG /etc/web", "CONFIGDIR", "#role-dirs"),
-            ("JIT", "GRANT jit", "#grants"),
-            ("EGRESS", "GRANT egress", "#grants"),
+            ("JIT", "CLAIM jit", "#claims"),
+            ("EGRESS", "CLAIM egress", "#claims"),
         ] {
             let error = parse(&format!(
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\n{directive}\n"
@@ -414,7 +414,7 @@ EXEC /bin/true \
             assert!(error.message.contains(anchor), "{error}");
         }
         let unknown =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nGRANT all\n").unwrap_err();
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\nCLAIM all\n").unwrap_err();
         assert!(unknown.message.contains("jit, egress"), "{unknown}");
     }
 
@@ -423,7 +423,7 @@ EXEC /bin/true \
         for (directive, message) in [
             ("PORT http = 8080", "PORT is not allowed inside APP"),
             ("LISTENER http", "LISTENER is not allowed inside APP"),
-            ("JIT", "replace it with GRANT jit"),
+            ("JIT", "replace it with CLAIM jit"),
             ("SETUP /bin/true", "SETUP is not allowed inside APP"),
             ("LOGSDIR /var/log/job", "LOGSDIR is not allowed inside APP"),
             ("CONFIGDIR /etc/job", "CONFIGDIR is not allowed inside APP"),
@@ -458,7 +458,7 @@ EXEC /bin/true \
             "LOGSDIR /var/log/data",
             "CONFIGDIR /etc/data",
             "RUNDIR /run/data",
-            "GRANT egress",
+            "CLAIM egress",
             "HEALTH /bin/hello",
         ] {
             let input = format!(

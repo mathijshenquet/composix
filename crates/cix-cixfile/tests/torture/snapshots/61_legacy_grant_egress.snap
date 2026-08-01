@@ -1,0 +1,2 @@
+line 5: GRANT is obsolete; replace it with CLAIM <jit|egress>; see docs/cixfile.md#claims
+  | "GRANT egress"
