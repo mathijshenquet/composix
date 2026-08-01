@@ -1,6 +1,6 @@
 # Dirs: declaration, materialization, and lifecycle
 
-Status: draft, **r4**, 2026-08-01 — approved direction after three
+Status: draft, **r4.2**, 2026-08-01 — approved direction after four
 dialogue rounds; ready for adoption review. Supersedes r3 (and the
 original binds/shared-rw pair). Amends D11.
 
@@ -57,7 +57,7 @@ masking, and `state-0/state-1` index names for multiple dirs.
 **Every dir declaration is a claim on the deployment; the dispositions
 cix can satisfy itself — exactly systemd's classes — are satisfied
 automatically and systemd-shaped; the one it cannot (operator-supplied
-data) is an explicit `CLAIM data`.**
+data) is the undecorated `DIR`.**
 
 ### Declarations (manifest)
 
@@ -68,19 +68,27 @@ data) is an explicit `CLAIM data`.**
   (`LOGDIR /app/logs` is legal; the D11 conventional-root restriction
   is repealed — it only ever served the alias syntax). Multiple
   declarations per role stay legal.
-- **`CLAIM data /media:ro`** (rw when writable, e.g. a Paperless
-  consume dir) declares operator-supplied content: pre-existing, not
-  service-owned, not cix-materializable, exempt from every deletion
-  verb. `compose check` *demands* a materialization for it — there is
-  no private default (an empty private media dir is useless by
-  construction).
-- **DATADIR is deliberately rejected**: dressing the operator-supplied
-  inverse in the *DIR family's clothes is the CIP-80 CMD-lesson —
-  borrowing a family's look without its contract teaches exactly the
-  wrong intuition (every *DIR is cix-created and service-owned; this
-  one is neither). The noun `data` lives on inside the claim. (`CLAIM
-  mount` was rejected for colliding with the existing manifest `mounts`
-  field, the D22 item projections.)
+- **`DIR /media:ro`** — the *undecorated* dir (rw when writable, e.g. a
+  Paperless consume dir) declares operator-supplied content:
+  pre-existing, not service-owned, not cix-materializable, exempt from
+  every deletion verb. `compose check` *demands* a materialization for
+  it — there is no private default (an empty private media dir is
+  useless by construction). The spelling is load-bearing: under this
+  CIP's model *every* dir declaration is a claim and the decorated ones
+  (STATEDIR, …) don't carry a CLAIM keyword either — so **decoration =
+  the disposition cix can satisfy itself; no decoration = the operator
+  must satisfy**. The naive misreading ("just make me a dir") is caught
+  by a teaching check error: "DIR declares operator-supplied data; for
+  a cix-managed dir pick a role: STATEDIR/CACHEDIR/LOGDIR/RUNDIR".
+- Spelling history: **DATADIR rejected** (CIP-80 CMD-lesson: the
+  decorated family's look with the inverse contract), **`CLAIM mount`
+  rejected** (collides with the manifest `mounts` field, D22),
+  **`CLAIM data` superseded** — once all dir declarations are claims,
+  singling out the operator-supplied one for the CLAIM keyword is the
+  inconsistency, not the fix; `CLAIM` stays the vocabulary for
+  non-filesystem capabilities (egress, jit, gpu, device). Docker's
+  `VOLUME` migration row splits honestly: usually `STATEDIR`, `DIR`
+  when the content is operator-supplied.
 
 ### Backing (the overlay shape)
 
@@ -108,7 +116,7 @@ paths (systemd would name the host-side locations).
 | --- | --- | --- | --- |
 | *(default)* private | unit-scoped host root, path-mirrored | full systemd: creation, id-mapped/DynamicUser ownership, env, clean | dynamic OK |
 | `host: /tank/x` | operator path, `BindPaths=`/`BindReadOnlyPaths=` per role write-ness | none — bind + `RequiresMountsFor=`; path must pre-exist, cix never mkdirs outside its roots | **static (D48d) required** — see below: so that a chown is never needed |
-| `shared: <name>` | composite-owned surface (v0: STATEDIR and CLAIM-data only) | stable group + setgid + `SupplementaryGroups=` + `UMask=0002` | registry group |
+| `shared: <name>` | composite-owned surface (v0: STATEDIR and DIR only) | stable group + setgid + `SupplementaryGroups=` + `UMask=0002` | registry group |
 | `as: <role>` | reclassification of treatment | target role's | — |
 
 **Ownership at the host seam, spelled out** (review question): cix
@@ -139,7 +147,7 @@ this road (CIP-81 refuses env delivery).
 
 ### Lifecycle table (role contracts × events)
 
-| event | RUNDIR | CACHEDIR | LOGDIR | STATEDIR | CLAIM data | host-backed | shared |
+| event | RUNDIR | CACHEDIR | LOGDIR | STATEDIR | DIR | host-backed | shared |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `systemctl stop` / crash | removed | kept | kept | kept | untouched | untouched | kept |
 | `cix down` | removed | kept | kept | kept | untouched | untouched | kept |
@@ -197,4 +205,10 @@ makes it a claim, not a dir.
   on mechanics + aesthetics): claim unification as the model, overlay
   backing kills the D11 restriction/alias/indices, machinery table,
   DATADIR rejected on the CMD-lesson → `CLAIM data`, id-mapped-mount
-  and closed-root notes from the systemd docs.
+  and closed-root notes from the systemd docs. r4.1: host-mirror
+  decided (full, alternatives dismissed), host-seam ownership spelled
+  out (no chown ever; idmap ≠ `as:`). r4.2: `CLAIM data` → undecorated
+  **`DIR`** (Mathijs's variant, which exposed that the decorated roles
+  are keyword-less claims already — the CLAIM keyword on one dir was
+  the real inconsistency); teaching check error required for the naive
+  misreading; VOLUME migration row splits STATEDIR/DIR.
