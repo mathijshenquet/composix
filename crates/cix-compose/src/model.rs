@@ -27,6 +27,12 @@ pub struct ComposeService {
     pub env: BTreeMap<String, String>,
     #[serde(default)]
     pub bind: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedule: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persistent: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jitter: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -103,6 +109,18 @@ impl Compose {
             validate_name(&format!("services.{name}"), name)?;
             if service.item.is_empty() {
                 bail!("services.{name}.item: item must not be empty");
+            }
+            if service
+                .schedule
+                .as_deref()
+                .is_some_and(|schedule| schedule.trim().is_empty())
+            {
+                bail!("services.{name}.schedule: schedule must not be empty");
+            }
+            if service.schedule.is_none()
+                && (service.persistent.is_some() || service.jitter.is_some())
+            {
+                bail!("services.{name}: persistent and jitter require schedule");
             }
         }
         for (name, edge) in &self.edges {
@@ -211,5 +229,29 @@ mod tests {
         .unwrap();
         let error = Lock::load_optional(&path).unwrap_err().to_string();
         assert!(error.contains("services.web.extra"), "{error}");
+    }
+
+    #[test]
+    fn rejects_empty_or_orphan_timer_fields() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"job":{"item":"x:v1","schedule":"  "}}}"#,
+        )
+        .unwrap();
+        let error = Compose::load(&path).unwrap_err().to_string();
+        assert!(error.contains("services.job.schedule"), "{error}");
+
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"job":{"item":"x:v1","persistent":true}}}"#,
+        )
+        .unwrap();
+        let error = Compose::load(&path).unwrap_err().to_string();
+        assert!(
+            error.contains("persistent and jitter require schedule"),
+            "{error}"
+        );
     }
 }

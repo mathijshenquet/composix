@@ -37,16 +37,23 @@ pub struct ManifestUnit {
     pub kind: UnitKind,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<String>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub scheduled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum UnitKind {
     Service,
+    Timer,
     Edge,
     Socket,
     Slice,
     Target,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -149,6 +156,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             ManifestUnit {
                 kind: UnitKind::Edge,
                 service: None,
+                scheduled: false,
             },
         );
         target_wants.insert(edge_unit.clone());
@@ -181,6 +189,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
     let mut manifest_services = BTreeMap::new();
     for (service_name, checked_service) in &checked.services {
         let service_unit = format!("{prefix}-{service_name}.service");
+        let declaration = &checked.compose.services[service_name];
         let claims = service_edges
             .get(service_name.as_str())
             .cloned()
@@ -262,9 +271,34 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             ManifestUnit {
                 kind: UnitKind::Service,
                 service: Some(service_name.clone()),
+                scheduled: declaration.schedule.is_some(),
             },
         );
-        target_wants.insert(service_unit.clone());
+        if let Some(schedule) = declaration.schedule.as_deref() {
+            let timer = format!("{prefix}-{service_name}.timer");
+            units.insert(
+                timer.clone(),
+                render_timer_unit(
+                    service_name,
+                    &service_unit,
+                    &target,
+                    schedule,
+                    declaration.persistent,
+                    declaration.jitter.as_deref(),
+                ),
+            );
+            manifest_units.insert(
+                timer.clone(),
+                ManifestUnit {
+                    kind: UnitKind::Timer,
+                    service: Some(service_name.clone()),
+                    scheduled: false,
+                },
+            );
+            target_wants.insert(timer);
+        } else {
+            target_wants.insert(service_unit.clone());
+        }
 
         for (listener, address) in &checked_service.config.listeners {
             let socket = format!("{prefix}-{service_name}-{listener}.socket");
@@ -277,6 +311,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                 ManifestUnit {
                     kind: UnitKind::Socket,
                     service: Some(service_name.clone()),
+                    scheduled: false,
                 },
             );
             target_wants.insert(socket);
@@ -301,6 +336,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         ManifestUnit {
             kind: UnitKind::Slice,
             service: None,
+            scheduled: false,
         },
     );
     units.insert(
@@ -312,6 +348,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         ManifestUnit {
             kind: UnitKind::Target,
             service: None,
+            scheduled: false,
         },
     );
 
@@ -371,6 +408,26 @@ fn render_socket_unit(
     format!(
         "[Unit]\nDescription=cix compose listener: {listener} for {service}\nPartOf={target}\nBefore={service}\n\n[Socket]\nListenStream={address}\nFileDescriptorName={listener}\nService={service}\n"
     )
+}
+
+fn render_timer_unit(
+    service_name: &str,
+    service: &str,
+    target: &str,
+    schedule: &str,
+    persistent: Option<bool>,
+    jitter: Option<&str>,
+) -> String {
+    let mut text = format!(
+        "[Unit]\nDescription=cix compose schedule: {service_name}\nPartOf={target}\n\n[Timer]\nOnCalendar={schedule}\nUnit={service}\n"
+    );
+    if let Some(persistent) = persistent {
+        text.push_str(&format!("Persistent={persistent}\n"));
+    }
+    if let Some(jitter) = jitter {
+        text.push_str(&format!("RandomizedDelaySec={jitter}\n"));
+    }
+    text
 }
 
 fn add_unit_dependencies(text: &str, target: &str, requires: &BTreeSet<String>) -> String {
@@ -452,6 +509,9 @@ mod tests {
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),
+                        schedule: None,
+                        persistent: None,
+                        jitter: None,
                     },
                 ),
                 (
@@ -461,6 +521,9 @@ mod tests {
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),
+                        schedule: None,
+                        persistent: None,
+                        jitter: None,
                     },
                 ),
             ]),
@@ -547,6 +610,53 @@ mod tests {
         }
         let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
         assert!(!web.contains("RuntimeDirectory="));
+    }
+
+    #[test]
+    fn scheduled_apps_render_timer_snapshots_and_are_wanted_instead_of_services() {
+        let (directory, mut checked, compose_path) = fixture();
+        let worker = checked.compose.services.get_mut("worker").unwrap();
+        worker.schedule = Some("Mon *-*-* 12:00:00".into());
+        let generation = directory.path().join("generation");
+        render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let timer = fs::read_to_string(generation.join("units/cix-stack-worker.timer")).unwrap();
+        let expected = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cix-stack-worker.timer"),
+        )
+        .unwrap();
+        assert_eq!(timer, expected);
+        let target = fs::read_to_string(generation.join("units/cix-stack.target")).unwrap();
+        assert!(target.contains("cix-stack-worker.timer"), "{target}");
+        assert!(!target.contains("cix-stack-worker.service"), "{target}");
+
+        checked
+            .compose
+            .services
+            .get_mut("worker")
+            .unwrap()
+            .persistent = Some(true);
+        checked.compose.services.get_mut("worker").unwrap().jitter = Some("5m".into());
+        let configured = directory.path().join("configured");
+        render_generation(
+            &checked,
+            &compose_path,
+            &configured,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let timer = fs::read_to_string(configured.join("units/cix-stack-worker.timer")).unwrap();
+        let expected = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/cix-stack-worker-persistent.timer"),
+        )
+        .unwrap();
+        assert_eq!(timer, expected);
     }
 
     #[test]

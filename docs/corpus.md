@@ -63,7 +63,7 @@ we deferred *with intent to build* (health wiring, operator binds).
 | 8 | [node-exporter DaemonSet](https://raw.githubusercontent.com/prometheus-community/helm-charts/main/charts/prometheus-node-exporter/templates/daemonset.yaml) | one observer per node reading /proc,/sys | 🔶 host mounts = `mounts` + rawdog; per-node = per-host root; DaemonSet-as-concept n/a (single host) | S |
 | 9 | [ingress-nginx](https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/charts/ingress-nginx/templates/controller-deployment.yaml) | control loop watching cluster API | ❌ different world — our host edge is binds/publishes, not an API-watching proxy; HPA/PDB n/a | — |
 | 10 | [Istio Bookinfo](https://raw.githubusercontent.com/istio/istio/master/samples/bookinfo/platform/kube/bookinfo.yaml) | 4 microservices with identities; mesh by injection | services ✅; explicit sidecars = pod members ✅ (tree); mesh policy ⏳ D27; injection-as-mechanism ❌ (we declare) | M |
-| 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | **gap: no cix timer story** — systemd timers are the natural fit; ❓ candidate (below) | S once designed |
+| 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | ✅ APP compose `schedule` maps raw `OnCalendar` to a paired systemd timer; use explicit persistent catch-up where wanted | S |
 | 12 | [Airflow scheduler](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/scheduler/scheduler-deployment.yaml) | don't start before DB schema; synced DAG dir | wait-init → SETUP/ordering 🔶; git-sync sidecar vs our repin model = interesting mismatch (content should be an item) | M |
 | 13 | [Airflow migrate Job](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/jobs/migrate-database-job.yaml) | run migration once per upgrade | 🔶 SETUP covers cold start; **migrate-on-upgrade hook** is a real design question ❓ (below) | M |
 | 14 | [cert-manager](https://raw.githubusercontent.com/cert-manager/cert-manager/master/deploy/charts/cert-manager/templates/deployment.yaml) | three control loops + CRDs, no "app" at all | ❌ different world; the *need* (cert provisioning) returns later via credentials story | — |
@@ -116,9 +116,8 @@ Ranked by frequency × how squarely it hits us:
    a genuine edge-model gap: today's edges are producer→consumers sockets/paths, not a
    shared writable surface. Design candidate: an edge variant exposing a common
    writable dir (per-edge group + idmapped ownership, the dstyle mechanism extended).
-4. **Timers/CronJob** — Renovate row + every app's internal schedulers. systemd timers
-   are sitting right there; no cix surface. ❓ candidate: a `timer` service kind or a
-   compose-level schedule field.
+4. **Timers/CronJob** — ✅ CIP-75: an APP's compose `schedule` is raw systemd `OnCalendar`,
+   backed by a paired timer. No cron translation layer or timer service kind.
 5. **Migrate-on-upgrade hook** — helm hook-Jobs, Airflow. Our generation switch has a
    natural slot (between build and restart-changed). ❓ candidate; SETUP covers cold
    start today.

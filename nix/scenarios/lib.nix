@@ -79,6 +79,18 @@ let
     EOF
   '';
 
+  job = pkgs.runCommand "scenario-job" { } ''
+    mkdir -p "$out/bin"
+    cat > "$out/bin/scenario-job" <<'SH'
+    #!${pkgs.runtimeShell}
+    echo scheduled-job
+    SH
+    chmod 0755 "$out/bin/scenario-job"
+    cat > "$out/cix-manifest.json" <<EOF
+    {"cixManifest":0,"kind":"app","exec":["bin/scenario-job"]}
+    EOF
+  '';
+
   composeWithUpdate = name: bind: apiRef: message: update:
     let
       env = if message == null then "" else '', "env": { "MESSAGE": "${message}" }'';
@@ -109,6 +121,21 @@ let
   trackedComposeFile = name: bind: apiRef: message:
     pkgs.writeText "scenario-${name}.json" (composeWithUpdate name bind apiRef message "track");
 
+  timerComposeFile = pkgs.writeText "scenario-timers.json" ''
+    {
+      "composeVersion": 1,
+      "name": "timers",
+      "services": {
+        "job": {
+          "item": "scenario-job:v1",
+          "schedule": "Mon *-*-* 12:00:00",
+          "persistent": true,
+          "jitter": "5m"
+        }
+      }
+    }
+  '';
+
   node = script: pkgs.testers.runNixOSTest {
     name = "scenario";
     nodes.machine = { ... }: {
@@ -128,5 +155,5 @@ let
   };
 in
 {
-  inherit api compose composeFile db node trackedComposeFile;
+  inherit api compose composeFile db job node timerComposeFile trackedComposeFile;
 }

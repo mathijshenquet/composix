@@ -195,9 +195,34 @@ Nix profile, and `cix up`/`down`/`rollback`; see `crates/cix-compose/` and the e
 `rollback` operate the system manager and require root. Netns, scale, health, secrets, limits,
 and a reconciler remain deferred.
 
+### Scheduled apps
+
+An `APP` member can be scheduled at deployment time. `schedule` is raw systemd
+[`OnCalendar=`](https://www.freedesktop.org/software/systemd/man/latest/systemd.time.html)
+syntax; write and test it with `systemd-analyze calendar`, rather than translating cron.
+`persistent` and `jitter` are optional direct spellings of `Persistent=` and
+`RandomizedDelaySec=`. Omit either field to retain systemd's own default — cix supplies none.
+
+```json
+{
+  "item": "renovate:stable",
+  "schedule": "Mon *-*-* 03:00:00",
+  "persistent": true,
+  "jitter": "30m"
+}
+```
+
+`schedule` is a hard error on a long-running `SERVICE`; scheduled app units are triggered by
+their paired `cix-<compose>-<member>.timer`, while the composite target wants only that timer.
+`cix up` activates it and `cix down` stops it. Inspect the next and last runs with
+`systemctl list-timers 'cix-<compose>-*'`. The unary spelling is
+`cix run <item> --schedule '<OnCalendar>'`; it creates the same systemd-native transient timer
+shape for an APP.
+
 | docker | disposition | still missing |
 | --- | --- | --- |
 | [Compose services](https://docs.docker.com/reference/compose-file/services/) | ✅ strict machine-format `compose.json` services resolve local tags/store paths, select item services, and apply declared env/listener bindings (`crates/cix-compose/src/{model,resolve,generation}.rs`; `examples/compose/stack/compose.json`) | Docker Compose YAML compatibility, multi-file merging/includes, `extends`, and broad Compose-field coverage. |
+| host cron / scheduler sidecar | 🔁 an APP member's compose `schedule` is raw systemd `OnCalendar=` with optional `persistent`/`jitter`; `systemctl list-timers` is the observation surface | No cron expression translation, overlap-policy vocabulary beyond systemd's native coalescing, history limits, or suspend field. |
 | [`depends_on` / ordering](https://docs.docker.com/reference/compose-file/services/#depends_on) | 🔁 v0 Unix `edges` create setup units and consumer `Requires=`/`After=` ordering while exposing only declared runtime paths (`crates/cix-compose/src/generation.rs`; stack `database`/`http` edges) | Docker's health/completion conditions and restart propagation; network dependency/discovery waits for the networking work. |
 | [scale / replicas](https://docs.docker.com/reference/cli/docker/compose/scale/) | ⏳ no replica field or template units in v0 | Scaling, stable replica identities, placement, and lifecycle semantics. |
 | [`env_file` / secrets](https://docs.docker.com/reference/compose-file/services/#env_file) | 🔁 v0 has explicit string `env` overrides (`crates/cix-compose/src/model.rs`); `env_file` and credential delivery are deferred | File-based environment loading, secrets, and `LoadCredential=` integration. |

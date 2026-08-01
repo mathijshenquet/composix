@@ -1,0 +1,9 @@
+[Unit]
+Description=cix compose schedule: worker
+PartOf=cix-stack.target
+
+[Timer]
+OnCalendar=Mon *-*-* 12:00:00
+Unit=cix-stack-worker.service
+Persistent=true
+RandomizedDelaySec=5m

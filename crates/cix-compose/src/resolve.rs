@@ -6,7 +6,10 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use cix_index::Output;
-use cix_run::{config::ResolvedConfig, spec::Service};
+use cix_run::{
+    config::ResolvedConfig,
+    spec::{ManifestKind, Service},
+};
 
 use crate::model::{Compose, Lock, LockedService, UpdatePolicy};
 
@@ -37,14 +40,31 @@ pub struct CheckResult {
 pub fn load_and_check(compose_path: &Path, update: UpdateRequest) -> Result<CheckResult> {
     let compose = Compose::load(compose_path)?;
     let existing = Lock::load_optional(&Compose::lock_path(compose_path))?.unwrap_or_default();
-    check_with(&compose, &existing, &update, &cix_index::resolve)
+    check_with_calendar(
+        &compose,
+        &existing,
+        &update,
+        &cix_index::resolve,
+        &validate_calendar,
+    )
 }
 
+#[cfg(test)]
 pub(crate) fn check_with(
     compose: &Compose,
     existing: &Lock,
     update: &UpdateRequest,
     resolver: &dyn Fn(&str) -> Result<Output>,
+) -> Result<CheckResult> {
+    check_with_calendar(compose, existing, update, resolver, &|_| Ok(()))
+}
+
+fn check_with_calendar(
+    compose: &Compose,
+    existing: &Lock,
+    update: &UpdateRequest,
+    resolver: &dyn Fn(&str) -> Result<Output>,
+    calendar_validator: &dyn Fn(&str) -> Result<()>,
 ) -> Result<CheckResult> {
     match update {
         UpdateRequest::Service(name) => validate_updated_service(compose, name)?,
@@ -63,6 +83,7 @@ pub(crate) fn check_with(
         let store_path = PathBuf::from(&locked.store_path);
         let spec = cix_run::spec::Spec::load(&store_path)
             .with_context(|| format!("services.{name}.item: invalid item {}", declaration.item))?;
+        validate_schedule(name, declaration, spec.kind, calendar_validator)?;
         let (item_service, service) = spec.select_service(None).with_context(|| {
             format!("services.{name}.item: D41 requires the resolved item to contain one service")
         })?;
@@ -95,6 +116,44 @@ pub(crate) fn check_with(
         lock,
         services,
     })
+}
+
+fn validate_schedule(
+    service_name: &str,
+    declaration: &crate::model::ComposeService,
+    kind: ManifestKind,
+    calendar_validator: &dyn Fn(&str) -> Result<()>,
+) -> Result<()> {
+    let Some(schedule) = declaration.schedule.as_deref() else {
+        return Ok(());
+    };
+    if kind != ManifestKind::App {
+        bail!("services.{service_name}.schedule: schedule is only valid for manifest kind app");
+    }
+    calendar_validator(schedule).with_context(|| {
+        format!("services.{service_name}.schedule: invalid OnCalendar expression {schedule:?}")
+    })
+}
+
+fn validate_calendar(schedule: &str) -> Result<()> {
+    let output = match std::process::Command::new("systemd-analyze")
+        .args(["calendar", schedule])
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!(
+                "note: systemd-analyze is unavailable; skipping OnCalendar validation and leaving it to activation"
+            );
+            return Ok(());
+        }
+        Err(error) => return Err(error).context("invoking systemd-analyze calendar"),
+    };
+    if output.status.success() {
+        return Ok(());
+    }
+    let message = String::from_utf8_lossy(&output.stderr);
+    bail!("{}", message.trim());
 }
 
 fn resolve_lock(
@@ -460,6 +519,61 @@ mod tests {
             .unwrap_err()
         )
         .contains("unsupported cixManifest"));
+    }
+
+    #[test]
+    fn schedules_require_apps_and_a_valid_calendar() {
+        let directory = tempfile::tempdir().unwrap();
+        let service = write_item(
+            directory.path(),
+            "service",
+            &item_spec(r#""exec":["/nix/store/fake/bin/service"]"#),
+        );
+        let app = write_item(
+            directory.path(),
+            "app",
+            &item_spec(r#""kind":"app","exec":["/nix/store/fake/bin/app"]"#),
+        );
+        let resolver = |reference: &str| {
+            Ok(if reference == "service:v1" {
+                output(&service, "service")
+            } else {
+                output(&app, "app")
+            })
+        };
+
+        let service_schedule = compose(
+            r#"{"worker":{"item":"service:v1","schedule":"daily"}}"#,
+            "{}",
+        );
+        let error = check_with_calendar(
+            &service_schedule,
+            &Lock::default(),
+            &UpdateRequest::None,
+            &resolver,
+            &|_| Ok(()),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("only valid for manifest kind app"),
+            "{error}"
+        );
+
+        let app_schedule = compose(r#"{"worker":{"item":"app:v1","schedule":"daily"}}"#, "{}");
+        let error = format!(
+            "{:#}",
+            check_with_calendar(
+                &app_schedule,
+                &Lock::default(),
+                &UpdateRequest::None,
+                &resolver,
+                &|schedule| anyhow::bail!("{schedule} is not a calendar"),
+            )
+            .unwrap_err()
+        );
+        assert!(error.contains("services.worker.schedule"), "{error}");
+        assert!(error.contains("not a calendar"), "{error}");
     }
 
     #[test]

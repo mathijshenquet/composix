@@ -30,6 +30,7 @@ pub struct RunOptions {
     pub env: Vec<String>,
     pub port: Vec<String>,
     pub detach: bool,
+    pub schedule: Option<String>,
     pub user: bool,
 }
 
@@ -74,9 +75,15 @@ pub fn run(options: RunOptions) -> Result<()> {
 
     match target.kind {
         ManifestKind::Service => {
+            if options.schedule.is_some() {
+                bail!("cix run --schedule is only valid for manifest kind app");
+            }
             run_resolved(target.output, &target.name, &target.service, &options)
         }
-        ManifestKind::App => run_app(target, &options),
+        ManifestKind::App => match options.schedule.as_deref() {
+            Some(schedule) => schedule_app(target, &options, schedule),
+            None => run_app(target, &options),
+        },
     }
 }
 
@@ -156,6 +163,91 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
         return run_app_degraded(&target, &config, error);
     }
     finish_app(status)
+}
+
+fn schedule_app(target: ResolvedService, options: &RunOptions, schedule: &str) -> Result<()> {
+    if schedule.trim().is_empty() {
+        bail!("cix run --schedule must not be empty");
+    }
+    if options.detach {
+        bail!("cix run --detach is not valid with --schedule; the timer is already asynchronous");
+    }
+    if !options.port.is_empty() {
+        bail!("cix run -p/--port is not valid for manifest kind app (D47)");
+    }
+    let config = ResolvedConfig::resolve(&target.service, &options.env, &[])?;
+    let mode = if options.user {
+        UnitMode::UserFull
+    } else {
+        UnitMode::System
+    };
+    let definition = build_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    start_scheduled_app(
+        &target.output,
+        &target.name,
+        options.user,
+        schedule,
+        &definition,
+    )
+}
+
+fn start_scheduled_app(
+    output: &Path,
+    app_name: &str,
+    user: bool,
+    schedule: &str,
+    definition: &UnitDefinition,
+) -> Result<()> {
+    let stem = format!("cix-run-{app_name}-{}", nonce());
+    let service = format!("{stem}.service");
+    let timer = format!("{stem}.timer");
+    let root_service = format!("{stem}-root.service");
+    let root = gc_root_link(&timer, user)?;
+    register_gc_root(&root, output)?;
+
+    let directory = socket_unit_directory(user)?;
+    fs::create_dir_all(&directory).with_context(|| {
+        format!(
+            "creating runtime unit directory {} for scheduled app",
+            directory.display()
+        )
+    })?;
+    let cleanup = gc_root_cleanup_command(&root, user)?;
+    let root_text = format!(
+        "[Unit]\nDescription=cix scheduled app GC root: {app_name}\nPartOf={timer}\nBefore={timer}\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/sh -c true\nExecStopPost={cleanup}\n"
+    );
+    let timer_text = format!(
+        "[Unit]\nDescription=cix scheduled app: {app_name}\nRequires={root_service}\nAfter={root_service}\n\n[Timer]\nOnCalendar={schedule}\nUnit={service}\n"
+    );
+    let service_text = definition.text.replacen(
+        "\n\n[Service]\n",
+        &format!("\nPartOf={timer}\n\n[Service]\n"),
+        1,
+    );
+    let paths = [
+        (directory.join(&service), service_text),
+        (directory.join(&timer), timer_text),
+        (directory.join(&root_service), root_text),
+    ];
+    for (path, text) in &paths {
+        if let Err(error) = fs::write(path, text)
+            .with_context(|| format!("writing scheduled app unit {}", path.display()))
+        {
+            remove_gc_root(Some(&root));
+            return Err(error);
+        }
+    }
+    if let Err(error) = daemon_reload(user).and_then(|()| systemctl_action(user, "start", &timer)) {
+        let _ = systemctl_action(user, "stop", &timer);
+        for (path, _) in &paths {
+            let _ = fs::remove_file(path);
+        }
+        let _ = daemon_reload(user);
+        remove_gc_root(Some(&root));
+        return Err(error);
+    }
+    println!("{timer}");
+    Ok(())
 }
 
 fn failed_app_attempt(
