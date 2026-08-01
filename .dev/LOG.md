@@ -1,5 +1,44 @@
 # composix work log
 
+## 2026-08-01 midday (fmt + leaks landed; CI-red root-caused; health design open)
+
+- **CI red on main root-caused and fixed** (`547662b`, orchestrator
+  micro-fix): vm-dogfood's in-VM `nix-store --gc --max-freed 1` (from
+  `21a2fdc`) collects an arbitrary unrooted path; on CI's store-image VM the
+  additionalPaths items are valid-but-unrooted until their `nix-store --add`,
+  so the GC ate node-app-cix. Latent since the gc-root feature; armed by
+  D72's item-hash reshuffle. Local 9p host-store mode hides it — which is
+  why local full tiers stayed green against a red CI. GC exercise moved
+  after the last add; CI confirmed green.
+- **Merged**: track/leaks (`490b90d`, terra — FETCH probe snapshots
+  chmod+close self-clean incl. failure paths, root cause read-only npm
+  trees breaking TempDir Drop; measure-warm.sh honors TMPDIR); track/fmt
+  (`cef6499`, terra ×2 — D74 complete: trivia-preserving fmt module,
+  `--check` diffs, stdin, .gitignore discovery, golden+torture sweeps,
+  examples reformatted as own commit, `cargo run -- fmt --check examples`
+  in CI. Terra made an exemplary honest STOP at the lock-stability gate,
+  surfacing a real D48a keying leak: COPY step keys contained physical
+  `copy.source` text. Fixed by keying on parsed template parts + dst,
+  CODEGEN_FINGERPRINT bumped d69-v1→d74-v1 to orphan old memos honestly;
+  D69 wipe-proof re-held). Both gates independently re-run green (full
+  tier).
+- Canon nit for Mathijs: fmt also strips blank lines INSIDE blocks
+  (defensible: blank line = block separator, but it was a silent choice).
+- **Standing directive (Mathijs, recorded in memory): fill gaps
+  autonomously; big design decisions stay joint; surface thin specs
+  immediately. Until revoked.**
+- **Open with Mathijs — health design (D48c amendment)**: ban the health
+  graph (no `condition: service_healthy`, edges stay structural) in favor
+  of k8s liveness/readiness hung on systemd natively: readiness =
+  `Type=notify`/`READY=1` or ExecStartPost probe-await (rollout-status for
+  free), liveness = `WatchdogSec` fed by app or by a cgroup-resident cix
+  pinger (`NotifyAccess=all`), startup probe dissolves into
+  `TimeoutStartSec`. Three questions pending: READY/LIVE vocabulary,
+  parameter canon (EVERY/FAILURES defaults), graph-ban as explicit ❌ in
+  docker.md.
+- **Queue next**: D70 overlay universes implementation (+ wallos rewrite),
+  tourvm, wave-two feature tracks; health after Mathijs's taste calls.
+
 ## 2026-08-01 morning (decompose + underlay landed — the warm loop is won)
 
 - **Merged**: track/pinkeys (`5201d52`, terra ×3 — D69 complete; acceptance:
