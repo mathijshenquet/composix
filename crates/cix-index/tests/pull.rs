@@ -169,7 +169,9 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
 }
 
 fn wait_for_listen(port: u16) {
-    const TIMEOUT: Duration = Duration::from_secs(5);
+    // Generous budgets: loaded CI runners have answered readiness in >5s
+    // total with >100ms first-byte latency (flaked 2026-08-01).
+    const TIMEOUT: Duration = Duration::from_secs(30);
     let address = SocketAddr::from(([127, 0, 0, 1], port));
     let deadline = Instant::now() + TIMEOUT;
 
@@ -197,7 +199,7 @@ fn wait_for_listen(port: u16) {
 }
 
 fn readiness_request(stream: &mut TcpStream) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_millis(100)))?;
+    stream.set_read_timeout(Some(Duration::from_secs(1)))?;
     stream.write_all(b"GET / HTTP/1.1\r\nHost: readiness.cix.test\r\nConnection: close\r\n\r\n")?;
     let mut response = [0; 1];
     stream.read_exact(&mut response)?;
