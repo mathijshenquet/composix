@@ -6,7 +6,7 @@ example_root="$repo_root/examples/compare/gitsitter"
 cix_bin=${CIX_BIN:-"$repo_root/target/debug/cix"}
 upstream_ref=github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
 upstream_src=$(nix flake archive --json "$upstream_ref" | jq -r .path)
-bench_root=$(mktemp -d /tmp/composix-nixcompare.XXXXXX)
+bench_root=$(mktemp -d "${TMPDIR:-/tmp}/composix-nixcompare.XXXXXX")
 trap 'rm -rf -- "$bench_root"' EXIT
 
 cp -R "$upstream_src" "$bench_root/gitsitter"

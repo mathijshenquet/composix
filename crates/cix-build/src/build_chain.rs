@@ -67,6 +67,34 @@ struct WorkspaceState {
     step_keys: Vec<String>,
 }
 
+struct FetchProbe {
+    temporary: Option<tempfile::TempDir>,
+}
+
+impl FetchProbe {
+    fn path(&self) -> &Path {
+        self.temporary
+            .as_ref()
+            .expect("FETCH probe snapshot is open")
+            .path()
+    }
+
+    fn close(mut self) -> Result<()> {
+        cleanup_fetch_probe(self.temporary.take().expect("FETCH probe snapshot is open"))
+    }
+}
+
+impl Drop for FetchProbe {
+    fn drop(&mut self) {
+        let Some(temporary) = self.temporary.take() else {
+            return;
+        };
+        if let Err(error) = cleanup_fetch_probe(temporary) {
+            eprintln!("warning: failed to clean FETCH probe snapshot: {error:#}");
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunNetwork {
     Namespace,
@@ -233,7 +261,9 @@ fn execute_top_fetch(
         let observed_volatile = volatile_paths(first.path(), work.path())?;
         report_volatile(name, &observed_volatile);
         replace_workspace_tree(first.path(), work.path())?;
-        consumed_volatile_paths(observed_volatile, &needed)
+        let volatile = consumed_volatile_paths(observed_volatile, &needed);
+        first.close()?;
+        volatile
     } else {
         BTreeMap::new()
     };
@@ -527,7 +557,10 @@ fn execute_builder(
                         let observed_volatile = volatile_paths(first.path(), &workdir)?;
                         report_volatile(&id, &observed_volatile);
                         replace_workspace_tree(first.path(), &workdir)?;
-                        consumed_volatile_paths(observed_volatile, &needed)
+                        before.close()?;
+                        let volatile = consumed_volatile_paths(observed_volatile, &needed);
+                        first.close()?;
+                        volatile
                     } else {
                         BTreeMap::new()
                     };
@@ -1053,13 +1086,28 @@ fn fetch_snapshot_receipt(directory: &Path, name: &str, pin: &FetchPin) -> Resul
     Ok(base.join("cix/fetch-snapshots").join(key))
 }
 
-fn copied_snapshot(source: &Path) -> Result<tempfile::TempDir> {
+fn copied_snapshot(source: &Path) -> Result<FetchProbe> {
     let snapshot = tempfile::Builder::new()
         .prefix("cix-fetch-probe-")
         .tempdir()
         .context("creating FETCH probe snapshot")?;
     copy_tree(source, snapshot.path())?;
-    Ok(snapshot)
+    Ok(FetchProbe {
+        temporary: Some(snapshot),
+    })
+}
+
+fn cleanup_fetch_probe(snapshot: tempfile::TempDir) -> Result<()> {
+    let writable = make_writable(snapshot.path())
+        .context("making FETCH probe snapshot writable before removal");
+    let removed = snapshot.close().context("removing FETCH probe snapshot");
+    match (writable, removed) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+        (Err(writable), Err(removed)) => Err(writable.context(format!(
+            "also failed to remove FETCH probe snapshot: {removed:#}"
+        ))),
+    }
 }
 
 fn volatile_paths(first: &Path, second: &Path) -> Result<BTreeMap<String, VolatilePath>> {
