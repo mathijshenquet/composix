@@ -206,6 +206,11 @@ pub(crate) fn build_unit_with_options(
     if !output.is_absolute() {
         bail!("store output path {} is not absolute", output.display());
     }
+    if !service.dirs.data.is_empty() {
+        bail!(
+            "DIR declares operator-supplied data; materialization arrives with compose (docs/cixfile.md#role-dirs); for a cix-managed dir pick a role: STATEDIR/CACHEDIR/LOGDIR/RUNDIR"
+        );
+    }
 
     let item_env = config.item_environment(output)?;
     let argv = resolved_argv(output, "start", &service.start, &item_env)?;
@@ -286,6 +291,7 @@ pub(crate) fn build_unit_with_options(
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
+    add_directory_environment(&mut environment, &service.dirs);
     if mode != UnitMode::System {
         environment.push((
             "CIX_APP".into(),
@@ -523,34 +529,25 @@ fn add_directories(
         if paths.is_empty() {
             continue;
         }
-        let managed = managed_names(managed_base, role, paths.len());
-        let use_directory_aliases = !user && bind && role != "config";
         let mut directory_values = Vec::with_capacity(paths.len());
         let mut bind_values = Vec::new();
-        let mut needs_private_role_root = false;
-        for (source, destination) in managed.iter().zip(paths) {
-            let relative_destination = use_directory_aliases
-                .then(|| destination.strip_prefix(system_root).ok())
-                .flatten()
-                .filter(|path| !path.as_os_str().is_empty());
-            if let Some(relative_destination) = relative_destination {
-                needs_private_role_root = true;
-                directory_values.push(format!(
-                    "{source}:{}",
-                    relative_destination.to_string_lossy().replace('%', "%%")
+        for destination in paths {
+            let mirror = destination
+                .strip_prefix("/")
+                .expect("validated absolute directory path")
+                .to_string_lossy()
+                .replace('%', "%%");
+            let source = format!("{managed_base}/{mirror}");
+            directory_values.push(source.clone());
+            if bind {
+                let root = if user { user_root } else { system_root };
+                bind_values.push(format!(
+                    "{root}/{source}:{}",
+                    destination.to_string_lossy().replace('%', "%%")
                 ));
-            } else {
-                directory_values.push(source.clone());
-                if bind {
-                    let root = if user { user_root } else { system_root };
-                    bind_values.push(format!(
-                        "{root}/{source}:{}",
-                        destination.to_string_lossy().replace('%', "%%")
-                    ));
-                }
             }
         }
-        if needs_private_role_root && role != "run" {
+        if bind && !user && role != "run" {
             properties.push(("TemporaryFileSystem".into(), format!("{system_root}:ro")));
         }
         properties.push((directive.into(), directory_values.join(" ")));
@@ -561,13 +558,23 @@ fn add_directories(
     }
 }
 
-fn managed_names(base: &str, role: &str, count: usize) -> Vec<String> {
-    if count == 1 {
-        vec![base.to_owned()]
-    } else {
-        (0..count)
-            .map(|index| format!("{base}/{role}-{index}"))
-            .collect()
+fn add_directory_environment(environment: &mut Vec<(String, String)>, dirs: &Dirs) {
+    for (name, paths) in [
+        ("STATE_DIRECTORY", dirs.state.as_slice()),
+        ("CACHE_DIRECTORY", dirs.cache.as_slice()),
+        ("LOGS_DIRECTORY", dirs.logs.as_slice()),
+        ("RUNTIME_DIRECTORY", dirs.run.as_deref().unwrap_or_default()),
+    ] {
+        if !paths.is_empty() {
+            environment.push((
+                name.into(),
+                paths
+                    .iter()
+                    .map(|path| path.to_string_lossy())
+                    .collect::<Vec<_>>()
+                    .join(":"),
+            ));
+        }
     }
 }
 
@@ -994,7 +1001,9 @@ mod tests {
         assert_eq!(compiled.name, "cix-mycomp-web.service");
         assert_eq!(compiled.target, "cix-mycomp.target");
         assert!(compiled.text.contains("Slice=cix-mycomp.slice"));
-        assert!(compiled.text.contains("StateDirectory=cix-mycomp-web:web"));
+        assert!(compiled
+            .text
+            .contains("StateDirectory=cix-mycomp-web/var/lib/web"));
         assert!(compiled.text.contains("SupplementaryGroups=cix-edge"));
     }
 
@@ -1069,7 +1078,7 @@ mod tests {
     }
 
     #[test]
-    fn system_role_paths_preserve_dynamic_user_id_mapping() {
+    fn system_role_paths_use_full_mirror_binds_and_in_namespace_environment() {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
@@ -1094,17 +1103,103 @@ mod tests {
         .unwrap();
         for expected in [
             "TemporaryFileSystem=/var/lib:ro",
-            "StateDirectory=cix-run-database:database",
+            "StateDirectory=cix-run-database/var/lib/database",
+            "BindPaths=/var/lib/cix-run-database/var/lib/database:/var/lib/database",
             "TemporaryFileSystem=/var/cache:ro",
-            "CacheDirectory=cix-run-database:database",
+            "CacheDirectory=cix-run-database/var/cache/database",
+            "BindPaths=/var/cache/cix-run-database/var/cache/database:/var/cache/database",
             "TemporaryFileSystem=/var/log:ro",
-            "LogsDirectory=cix-run-database:database",
+            "LogsDirectory=cix-run-database/var/log/database",
+            "BindPaths=/var/log/cix-run-database/var/log/database:/var/log/database",
+            "Environment=\"STATE_DIRECTORY=/var/lib/database\"",
+            "Environment=\"CACHE_DIRECTORY=/var/cache/database\"",
+            "Environment=\"LOGS_DIRECTORY=/var/log/database\"",
         ] {
             assert!(
                 actual.contains(expected),
                 "missing {expected:?} in:\n{actual}"
             );
         }
-        assert!(!actual.contains("BindPaths="));
+    }
+
+    #[test]
+    fn arbitrary_and_multiple_role_paths_are_fully_mirrored() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["bin/app"],
+                "dirs": {
+                    "state": ["/srv/app/state", "/var/lib/app-extra"],
+                    "cache": ["/app/cache"],
+                    "logs": ["/app/logs", "/var/log/app-extra"],
+                    "run": ["/tmp/app/run"]
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "app",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        for expected in [
+            "StateDirectory=cix-run-app/srv/app/state cix-run-app/var/lib/app-extra",
+            "BindPaths=/var/lib/cix-run-app/srv/app/state:/srv/app/state",
+            "BindPaths=/var/lib/cix-run-app/var/lib/app-extra:/var/lib/app-extra",
+            "CacheDirectory=cix-run-app/app/cache",
+            "BindPaths=/var/cache/cix-run-app/app/cache:/app/cache",
+            "LogsDirectory=cix-run-app/app/logs cix-run-app/var/log/app-extra",
+            "BindPaths=/var/log/cix-run-app/app/logs:/app/logs",
+            "RuntimeDirectory=cix-run-app/tmp/app/run",
+            "BindPaths=/run/cix-run-app/tmp/app/run:/tmp/app/run",
+            "Environment=\"STATE_DIRECTORY=/srv/app/state:/var/lib/app-extra\"",
+            "Environment=\"LOGS_DIRECTORY=/app/logs:/var/log/app-extra\"",
+            "Environment=\"RUNTIME_DIRECTORY=/tmp/app/run\"",
+        ] {
+            assert!(
+                actual.contains(expected),
+                "missing {expected:?} in:\n{actual}"
+            );
+        }
+        assert!(
+            !actual.contains(":app-extra"),
+            "legacy aliases leaked into:\n{actual}"
+        );
+        assert!(
+            !actual.contains("state-0"),
+            "legacy indexes leaked into:\n{actual}"
+        );
+    }
+
+    #[test]
+    fn dir_without_compose_materialization_has_the_teaching_error() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["bin/app"],
+                "dirs": {"data": [{"path": "/media", "ro": true}]}
+            }"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let error = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "app",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap_err()
+        .to_string();
+        assert_eq!(
+            error,
+            "DIR declares operator-supplied data; materialization arrives with compose (docs/cixfile.md#role-dirs); for a cix-managed dir pick a role: STATEDIR/CACHEDIR/LOGDIR/RUNDIR"
+        );
     }
 }

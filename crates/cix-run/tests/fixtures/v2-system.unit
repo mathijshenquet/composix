@@ -4,8 +4,9 @@ Description=cix run: web
 [Service]
 Type=exec
 Slice=cix-run.slice
-RuntimeDirectory=cix-run-web:web
+RuntimeDirectory=cix-run-web/run/web
 RuntimeDirectoryMode=0700
+BindPaths=/run/cix-run-web/run/web:/run/web
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -28,3 +29,4 @@ SocketBindDeny=any
 ExecStartPre="/nix/store/00000000000000000000000000000000-web-v2/bin/setup" "--admin-port" "9000"
 ExecStart="/nix/store/00000000000000000000000000000000-web-v2/bin/web" "--admin-port" "9000"
 Environment="ADMIN_PORT=9000"
+Environment="RUNTIME_DIRECTORY=/run/web"

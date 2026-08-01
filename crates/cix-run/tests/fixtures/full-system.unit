@@ -5,17 +5,22 @@ Description=cix run: web
 Type=exec
 Slice=cix-run.slice
 TemporaryFileSystem=/var/lib:ro
-StateDirectory=cix-run-web/state-0:state cix-run-web/state-1:uploads
+StateDirectory=cix-run-web/var/lib/state cix-run-web/var/lib/uploads
 StateDirectoryMode=0700
+BindPaths=/var/lib/cix-run-web/var/lib/state:/var/lib/state
+BindPaths=/var/lib/cix-run-web/var/lib/uploads:/var/lib/uploads
 TemporaryFileSystem=/var/cache:ro
-CacheDirectory=cix-run-web:cache
+CacheDirectory=cix-run-web/var/cache/cache
 CacheDirectoryMode=0700
+BindPaths=/var/cache/cix-run-web/var/cache/cache:/var/cache/cache
 TemporaryFileSystem=/var/log:ro
-LogsDirectory=cix-run-web:log
+LogsDirectory=cix-run-web/var/log/log
 LogsDirectoryMode=0700
-ConfigurationDirectory=cix-run-web
+BindPaths=/var/log/cix-run-web/var/log/log:/var/log/log
+TemporaryFileSystem=/etc:ro
+ConfigurationDirectory=cix-run-web/etc/config
 ConfigurationDirectoryMode=0700
-BindPaths=/etc/cix-run-web:/etc/config
+BindPaths=/etc/cix-run-web/etc/config:/etc/config
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -39,3 +44,6 @@ Environment="DB_URL=postgres://db/a b"
 Environment="ENABLED=true"
 Environment="PORT=9090"
 Environment="ROOT=/srv/web"
+Environment="STATE_DIRECTORY=/var/lib/state:/var/lib/uploads"
+Environment="CACHE_DIRECTORY=/var/cache/cache"
+Environment="LOGS_DIRECTORY=/var/log/log"
