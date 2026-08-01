@@ -33,6 +33,7 @@ jobs:
           done
           XDG_RUNTIME_DIR=/run/user/$(id -u) systemctl --user is-system-running || true
       - run: cargo fmt --check
+      - run: cargo run -- fmt --check examples
       - run: cargo clippy --workspace -- -D warnings
       - run: cargo test --workspace
 
