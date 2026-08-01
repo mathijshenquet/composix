@@ -132,7 +132,9 @@ pkgs.testers.runNixOSTest {
     machine.succeed("test -L " + timer_root)
     machine.succeed("systemctl list-timers --all | grep -F " + timer_unit)
     machine.succeed("systemctl stop " + timer_unit)
-    machine.succeed("test ! -L " + timer_root)
+    # Root removal rides the PartOf-propagated stop of the companion
+    # gc-root unit — asynchronous relative to the timer's own stop job.
+    machine.wait_until_succeeds("test ! -L " + timer_root)
 
     nginx_item = machine.succeed("nix-store --add ${nginx}").strip()
     nginx_unit = machine.succeed("cix run " + nginx_item + " --detach").strip()
