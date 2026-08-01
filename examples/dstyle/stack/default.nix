@@ -63,7 +63,7 @@ in
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-      "exec": ["bin/backend"],
+      "start": ["bin/backend"],
       "dirs": {
         "run": ["/run/backend"]
       }
@@ -78,7 +78,7 @@ in
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,
-      "exec": ["bin/nginx", "-c", "nginx.conf", "-e", "stderr"],
+      "start": ["bin/nginx", "-c", "nginx.conf", "-e", "stderr"],
       "dirs": {
         "cache": ["/var/cache/nginx"],
         "run": ["/run/nginx"]

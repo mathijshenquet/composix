@@ -223,7 +223,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["/nix/store/00000000000000000000000000000000-web/bin/server", "--serve"],
+                "start": ["/nix/store/00000000000000000000000000000000-web/bin/server", "--serve"],
                 "env": {"PATH": {"default": "/nix/store/11111111111111111111111111111111-shell/bin"}},
                 "dirs": {"state": ["/var/lib/web"]}
             }"#,
@@ -261,7 +261,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["bin/app"],
+                "start": ["bin/app"],
                 "env": {"PATH": {"default": "bin"}}
             }"#,
         )

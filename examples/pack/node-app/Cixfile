@@ -4,6 +4,6 @@ FROM . AS src
 SERVICE node-app
   COPY ${src}/server.js /app/server.js
   LINK ${pkgs.nodejs}/bin/node /bin/node
-  EXEC node /app/server.js
+  START node /app/server.js
   PORT http = 8081
   CLAIM jit

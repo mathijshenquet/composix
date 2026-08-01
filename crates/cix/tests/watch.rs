@@ -12,7 +12,7 @@ fn scripted_edit_rebuilds_once_and_ignores_its_own_outputs() {
     let root = temporary.path();
     fs::write(
         root.join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE app\n  COPY ${src}/start /bin/start\n  EXEC /bin/start\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE app\n  COPY ${src}/start /bin/start\n  START /bin/start\n",
     )
     .unwrap();
     fs::write(

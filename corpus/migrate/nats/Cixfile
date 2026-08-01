@@ -2,6 +2,6 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nats
   LINK ${pkgs.nats-server}/bin/nats-server /bin/nats-server
-  EXEC nats-server -m 8222
+  START nats-server -m 8222
   PORT client = 4222
   PORT monitor = 8222

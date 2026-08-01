@@ -304,7 +304,7 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         prompt,
         state_dir,
         &format!(
-            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":0,\"exec\":[\"message\"]}}' > {name}/cix-manifest.json"
+            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":0,\"start\":[\"message\"]}}' > {name}/cix-manifest.json"
         ),
         true,
     );
@@ -386,7 +386,7 @@ while True:
         fixture.join("cix-manifest.json"),
         r#"{
   "cixManifest": 0,
-  "exec": ["bin/listenfds"],
+  "start": ["bin/listenfds"],
   "listeners": {"http": {"type": "stream"}}
 }
 "#,
@@ -650,7 +650,7 @@ COPY ${src}/greeting.txt /share/greeting
 SERVICE tour-app
 COPY ${src}/greeting.txt /share/greeting
 COPY ${src}/tour-app /bin/tour-app
-EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
+START ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
 "#,
     )
     .expect("writing Cixfile fixture");
@@ -664,7 +664,7 @@ EXEC ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     assert!(cixfile.contains("ITEM tour-assets"));
     assert!(cixfile.contains("SERVICE tour-app"));
     assert!(cixfile.contains("COPY ${src}/tour-app /bin/tour-app"));
-    assert!(cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
+    assert!(cixfile.contains("START ${pkgs.bash}/bin/sh"));
     let lock = doc.sh("cat Cixfile.lock", true);
     assert!(lock.contains("\"narHash\""));
 
@@ -691,7 +691,7 @@ FROM tour/tour-assets:v1 AS prior
 
 APP copied-greeting
 COPY ${prior}/share/greeting /share/greeting
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .expect("writing tagged-item consumer Cixfile");
@@ -785,7 +785,7 @@ BUILD
 SERVICE run-tour
 COPY ${build}/app /bin/app
 COPY ${build}/result/upper /result/upper
-EXEC app
+START app
 "#,
     )
     .expect("writing RUN Cixfile fixture");
@@ -896,7 +896,7 @@ fn chapter_advanced() -> String {
     doc.sh("ls -1 compose-app", true);
     let first_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
     assert!(first_cixfile.contains("COPY ${src}/web /bin/web"));
-    assert!(first_cixfile.contains("EXEC ${pkgs.bash}/bin/sh"));
+    assert!(first_cixfile.contains("START ${pkgs.bash}/bin/sh"));
     assert!(first_cixfile.contains("compose fixture v1"));
     doc.sh("cat compose-app/Cixfile.lock", true);
     let first_build = doc.sh("cix build compose-app -t current", true);
@@ -955,7 +955,7 @@ fn write_compose_cixfile(directory: &Path, version: &str) {
     .expect("writing compose script");
     fs::write(
         directory.join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web /bin/web\nEXEC ${pkgs.bash}/bin/sh ${src}/web\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web /bin/web\nSTART ${pkgs.bash}/bin/sh ${src}/web\n",
     )
     .expect("writing compose Cixfile");
 }

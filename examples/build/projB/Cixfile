@@ -13,5 +13,5 @@ BUILDER build
 
 SERVICE projb
   COPY ${build}/target/release/projb /bin/projb
-  EXEC projb
+  START projb
   PORT http = 18082

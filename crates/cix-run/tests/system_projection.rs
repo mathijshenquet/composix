@@ -62,7 +62,7 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
 
     let json = serde_json::json!({
         "cixManifest": 0,
-        "exec": ["bin/service"],
+        "start": ["bin/service"],
         "mounts": mounts,
     });
     fs::write(
@@ -156,7 +156,7 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
         listener_fixture.join("cix-manifest.json"),
         br#"{
             "cixManifest": 0,
-            "exec": ["bin/service"],
+            "start": ["bin/service"],
             "listeners": {"http": {"type": "stream"}}
         }"#,
     )?;
@@ -218,7 +218,7 @@ fn system_v3_listeners_inherit_fds_and_socket_bind_rules_are_kernel_enforced() -
         format!(
             r#"{{
                 "cixManifest": 0,
-                "exec": ["bin/service"],
+                "start": ["bin/service"],
                 "ports": {{"declared": {{"value": {declared_port}, "protocol": "tcp"}}}}
             }}"#
         ),

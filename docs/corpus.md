@@ -33,7 +33,7 @@ Ribbons:
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | watch-dir ⏳ operator-binds; variants ≈ D46 parametric | M |
 | 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | egress polarity ✅ designed (D43/D48b, ⏳ built); **shared-rw edge = real gap** (below); binds ✅ | M |
 | 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | anchors ✅ moot (JSON canonical, D28); shared-rw same gap as #9 | M |
-| 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | ✅ (`LimitNOFILE` easier; SETUP/ExecStartPre) | S |
+| 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | ✅ (`LimitNOFILE` easier; START_PRE/ExecStartPre) | S |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M |
 | 13 | [Pi-hole](https://raw.githubusercontent.com/pi-hole/docker-pi-hole/master/README.md) | cap NET_ADMIN/SYS_TIME/SYS_NICE, port 53, DHCP/NTP | caps ✅ AmbientCapabilities; port-53-vs-resolved = operator; DHCP/NTP host mutation 🔶 honest | M |
 | 14 | [Supabase](https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml) | 12-svc health-conditioned DAG, 20+ binds, :z flags | ✅ by mechanism, L by volume; :z = SELinux, n/a-noted | L |
@@ -64,8 +64,8 @@ we deferred *with intent to build* (health wiring, operator binds).
 | 9 | [ingress-nginx](https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/charts/ingress-nginx/templates/controller-deployment.yaml) | control loop watching cluster API | ❌ different world — our host edge is binds/publishes, not an API-watching proxy; HPA/PDB n/a | — |
 | 10 | [Istio Bookinfo](https://raw.githubusercontent.com/istio/istio/master/samples/bookinfo/platform/kube/bookinfo.yaml) | 4 microservices with identities; mesh by injection | services ✅; explicit sidecars = pod members ✅ (tree); mesh policy ⏳ D27; injection-as-mechanism ❌ (we declare) | M |
 | 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | ✅ APP compose `schedule` maps raw `OnCalendar` to a paired systemd timer; use explicit persistent catch-up where wanted | S |
-| 12 | [Airflow scheduler](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/scheduler/scheduler-deployment.yaml) | don't start before DB schema; synced DAG dir | wait-init → SETUP/ordering 🔶; git-sync sidecar vs our repin model = interesting mismatch (content should be an item) | M |
-| 13 | [Airflow migrate Job](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/jobs/migrate-database-job.yaml) | run migration once per upgrade | 🔶 SETUP covers cold start; **migrate-on-upgrade hook** is a real design question ❓ (below) | M |
+| 12 | [Airflow scheduler](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/scheduler/scheduler-deployment.yaml) | don't start before DB schema; synced DAG dir | wait-init → START_PRE/ordering 🔶; git-sync sidecar vs our repin model = interesting mismatch (content should be an item) | M |
+| 13 | [Airflow migrate Job](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/jobs/migrate-database-job.yaml) | run migration once per upgrade | 🔶 START_PRE covers cold start; **migrate-on-upgrade hook** is a real design question ❓ (below) | M |
 | 14 | [cert-manager](https://raw.githubusercontent.com/cert-manager/cert-manager/master/deploy/charts/cert-manager/templates/deployment.yaml) | three control loops + CRDs, no "app" at all | ❌ different world; the *need* (cert provisioning) returns later via credentials story | — |
 | 15 | [CloudNativePG Cluster CR](https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/main/docs/src/samples/cluster-example-full.yaml) | "HA postgres, size X, these params, backup to S3" | the operator absorbs 100% of row-4's ceremony — rows 4 vs 15 are the same app at opposite mechanism extremes; composix's pitch is that interface *without* a cluster | — |
 
@@ -119,7 +119,7 @@ Ranked by frequency × how squarely it hits us:
 4. **Timers/CronJob** — ✅ CIP-75: an APP's compose `schedule` is raw systemd `OnCalendar`,
    backed by a paired timer. No cron translation layer or timer service kind.
 5. **Migrate-on-upgrade hook** — helm hook-Jobs, Airflow. Our generation switch has a
-   natural slot (between build and restart-changed). ❓ candidate; SETUP covers cold
+   natural slot (between build and restart-changed). ❓ candidate; START_PRE covers cold
    start today.
 6. **Network segmentation & talks-to** — 6/18 named networks, internal:true, k8s
    NetworkPolicy. All lands on D26/D27 — already designed, sequenced after D43 pods.

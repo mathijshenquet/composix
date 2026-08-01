@@ -47,7 +47,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
 
     let json = serde_json::json!({
         "cixManifest": 0,
-        "exec": ["bin/service"],
+        "start": ["bin/service"],
         "dirs": {"state": [app_state]}
     });
     fs::write(

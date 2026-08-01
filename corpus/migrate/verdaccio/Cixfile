@@ -19,7 +19,7 @@ SERVICE verdaccio
   COPY ${build}/config.cix.yaml /etc/verdaccio/config.yaml
   STATEDIR /var/lib/verdaccio
   LINK ${pkgs.nodejs_24}/bin/node /bin/node
-  EXEC node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
+  START node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
   PORT http = 4873
   CLAIM jit
   CLAIM egress

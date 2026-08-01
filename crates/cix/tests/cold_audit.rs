@@ -299,7 +299,7 @@ IMPORT ${pkgs.bash} ${pkgs.coreutils}
 RUN ${pkgs.coreutils}/bin/date +%s%N > x
 SERVICE fixture
 COPY ${build}/x /share/x
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .expect("writing nondeterministic Cixfile");

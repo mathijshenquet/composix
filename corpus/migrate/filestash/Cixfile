@@ -29,8 +29,8 @@ LINK ${pkgs.ffmpeg}/bin/ffmpeg /bin/ffmpeg
 LINK ${pkgs.ffmpeg}/bin/ffprobe /bin/ffprobe
 LINK ${pkgs.poppler-utils}/bin/pdftotext /bin/pdftotext
 LINK ${pkgs.poppler-utils}/bin/pdfinfo /bin/pdfinfo
-SETUP filestash-setup
-EXEC filestash
+START_PRE filestash-setup
+START filestash
 ENV FILESTASH_PATH = /var/lib/filestash
 ENV FILESTASH_PORT = 18094
 PORT http = $FILESTASH_PORT

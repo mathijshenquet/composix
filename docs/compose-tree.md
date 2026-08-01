@@ -16,7 +16,7 @@ diffable, owned mutable cells, and everything else immutable and content-address
 
 - A **pack item** is a store item: filesystem + `cix-manifest.json`, where the manifest
   is a single bare **def-node** — *one item = exactly one service* (D41). No services
-  map. The def-node carries what the software needs: `exec`, `setup`, typed `env`
+  map. The def-node carries what the software needs: `start`, `start_pre`, typed `env`
   declarations, `ports`, `listeners`, `dirs`, `health`, `jit`, `egress`.
 - A **compose artifact** is a store item: `cix.json` (+ advisory lock snapshot), a
   **group-node**: children (ref-nodes), `edges`, `publish`, `network`, nested groups.

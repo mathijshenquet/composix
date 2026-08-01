@@ -63,7 +63,7 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nEXEC /bin/fixture\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nSTART /bin/fixture\n",
     )
     .unwrap();
     let mut lock = committed_lock();
@@ -81,7 +81,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nEXEC /bin/missing\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nSTART /bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -108,7 +108,7 @@ escaped=$${literal}
 runtime=$VALUE
 EOF
 LINK ${pkgs.hello}/bin/hello /bin/hello
-EXEC hello
+START hello
 "#,
     )
     .unwrap();
@@ -131,7 +131,7 @@ EXEC hello
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     assert_eq!(spec.cix_manifest, 0);
-    assert_eq!(spec.select_service(None).unwrap().1.exec, ["bin/hello"]);
+    assert_eq!(spec.select_service(None).unwrap().1.start, ["bin/hello"]);
     assert_eq!(
         spec.select_service(None).unwrap().1.env["PATH"]
             .default
@@ -148,8 +148,8 @@ fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
 SERVICE fixture
 LINK ${pkgs.coreutils}/bin/true /bin/true
 ENV PATH = ${pkgs.bash}/bin
-SETUP true
-EXEC true
+START_PRE true
+START true
 "#,
     )
     .unwrap();
@@ -163,8 +163,8 @@ EXEC true
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     let service = spec.select_service(None).unwrap().1;
-    assert_eq!(service.exec, ["bin/true"]);
-    assert_eq!(service.setup.as_ref().unwrap(), &service.exec);
+    assert_eq!(service.start, ["bin/true"]);
+    assert_eq!(service.start_pre.as_ref().unwrap(), &service.start);
     assert!(service.env["PATH"]
         .default
         .as_deref()
@@ -179,7 +179,7 @@ fn bare_commands_ignore_explicit_path_when_resolving() {
 SERVICE fixture
 LINK ${pkgs.bash}/bin/bash /bin/bash
 ENV PATH = ${pkgs.coreutils}/bin
-EXEC bash
+START bash
 "#,
     )
     .unwrap();
@@ -193,7 +193,7 @@ EXEC bash
     let output = build_expression(&expression).unwrap();
     let spec = cix_run::spec::Spec::load(&output).unwrap();
     let service = spec.select_service(None).unwrap().1;
-    assert_eq!(service.exec, ["bin/bash"]);
+    assert_eq!(service.start, ["bin/bash"]);
     assert!(service.env["PATH"]
         .default
         .as_deref()
@@ -207,7 +207,7 @@ fn bare_command_failure_lists_the_item_bin_entries() {
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.coreutils}/bin/true /bin/true
-EXEC definitely-not-in-bin
+START definitely-not-in-bin
 "#,
     )
     .unwrap();
@@ -242,7 +242,7 @@ cp input "$OUTPUT"
 BUILD
 SERVICE fixture
 COPY ${build}/output /bin/output
-EXEC /bin/output
+START /bin/output
 "#,
     )
     .unwrap();
@@ -268,7 +268,7 @@ EXEC /bin/output
         "sandboxed\n"
     );
     let spec = cix_run::spec::Spec::load(&PathBuf::from(&output)).unwrap();
-    assert_eq!(spec.select_service(None).unwrap().1.exec[0], "/bin/output");
+    assert_eq!(spec.select_service(None).unwrap().1.start[0], "/bin/output");
 
     let lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
@@ -298,10 +298,10 @@ IMPORT ${pkgs.bash}
 RUN exit 42
 SERVICE api
 COPY ${wanted}/wanted /payload
-EXEC /bin/true
+START /bin/true
 SERVICE worker
 COPY ${unrelated}/missing /missing
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -359,10 +359,10 @@ IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 FETCH EXPECT {expected} printf 'fixed\n' > payload
 SERVICE top
 COPY ${{ingredient}}/payload /payload
-EXEC /bin/true
+START /bin/true
 SERVICE nested
 COPY ${{build}}/payload /payload
-EXEC /bin/true
+START /bin/true
 "#,
         ),
     )
@@ -397,7 +397,7 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nSTART /bin/true\n",
     )
     .unwrap();
     fs::write(
@@ -440,7 +440,7 @@ IMPORT ${{pkgs.bash}} ${{pkgs.gitMinimal}}{cacert}
 FETCH git ls-remote https://github.com/NixOS/nixpkgs.git HEAD > head
 SERVICE result
 COPY ${{fetch}}/head /head
-EXEC /bin/true
+START /bin/true
 "#
         )
     };
@@ -497,7 +497,7 @@ COPY ${{src}}/script script
 RUN ./script > output
 SERVICE result
 COPY ${{build}}/output /output
-EXEC /bin/true
+START /bin/true
 "#
         )
     };
@@ -553,7 +553,7 @@ RUN printf x >> runs; printf one > one; printf two > two
 SERVICE result
 COPY ${{build}}/runs /runs
 COPY ${{build}}/one /one
-{extra_copy}EXEC /bin/true
+{extra_copy}START /bin/true
 "#
         )
     };
@@ -614,7 +614,7 @@ FETCH test ! -e fetch-ran; touch fetch-ran; printf payload > wanted; printf inci
 RUN printf suffix >> wanted; cp wanted result
 SERVICE result
 COPY ${build}/result /result
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -667,7 +667,7 @@ fn cold_replays_a_top_level_fetch_snapshot_without_executing_fetch() {
 FETCH ingredient test ! -e fetch-ran; printf ran > fetch-ran; printf payload > payload
 SERVICE result
 COPY ${ingredient}/payload /payload
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -712,7 +712,7 @@ FETCH printf one > one; printf two > two
 RUN cp one result
 SERVICE result
 COPY ${{build}}/result /result
-{extra_copy}EXEC /bin/true
+{extra_copy}START /bin/true
 "#
         )
     };
@@ -765,7 +765,7 @@ IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils}
 FETCH mkdir -p .npm/_logs; date +%s%N > .npm/_logs/$(date +%s%N)-debug.log; find .npm/_logs -type f -print >/dev/null; printf payload > result
 SERVICE result
 COPY ${build}/result /result
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -838,7 +838,7 @@ COPY ${{src}}/source source
 RUN cp source output
 SERVICE result
 COPY ${{build}}/output /output
-EXEC /bin/true
+START /bin/true
 "#
         ),
     )
@@ -903,7 +903,7 @@ RUN {middle}
 FETCH EXPECT {expected} test -f required
 SERVICE result
 COPY ${{build}}/required /required
-EXEC /bin/true
+START /bin/true
 "#
         )
     };
@@ -954,7 +954,7 @@ COPY ${src}/source source
 RUN cat source >> history && cp history output
 SERVICE result
 COPY ${build}/output /output
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -1011,11 +1011,11 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("payload"), "same context\n").unwrap();
     let bare = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nSTART /bin/true\n",
     )
     .unwrap();
     let explicit = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload /share/payload\nEXEC /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nSERVICE fixture\nCOPY ${src}/payload /share/payload\nSTART /bin/true\n",
     )
     .unwrap();
     let bare = build_expression(
@@ -1053,7 +1053,7 @@ fn cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash() {
 FROM family/missing:v1 AS missing
 SERVICE consumer
 COPY ${missing}/payload /payload
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();
@@ -1126,7 +1126,7 @@ EOF
 FROM family/source:v1 AS source
 SERVICE consumer
 COPY ${source}/payload /payload
-EXEC /bin/true
+START /bin/true
 "#,
     )
     .unwrap();

@@ -10,5 +10,5 @@ BUILDER build
 
 SERVICE whoami
   COPY ${build}/whoami /bin/whoami
-  EXEC whoami
+  START whoami
   PORT http = 80

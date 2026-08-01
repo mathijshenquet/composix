@@ -3,4 +3,4 @@ FROM my-nginx:v1 AS nginx
 
 APP inspect-nginx
   COPY ${nginx}/etc/nginx/nginx.conf /share/upstream-nginx.conf
-  EXEC /bin/true
+  START /bin/true

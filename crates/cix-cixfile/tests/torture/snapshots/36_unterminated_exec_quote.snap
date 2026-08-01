@@ -1,2 +1,2 @@
-line 4: unterminated quote in EXEC arguments; add the matching quote
-  | "EXEC /bin/echo 'hello"
+line 4: unterminated quote in START arguments; add the matching quote
+  | "START /bin/echo 'hello"

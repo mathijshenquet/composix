@@ -353,12 +353,12 @@ mod tests {
         let pin = write_item(
             directory.path(),
             "pin",
-            &item_spec(r#""exec":["/nix/store/fake/bin/app"]"#),
+            &item_spec(r#""start":["/nix/store/fake/bin/app"]"#),
         );
         let track = write_item(
             directory.path(),
             "track",
-            &item_spec(r#""exec":["/nix/store/fake/bin/app"]"#),
+            &item_spec(r#""start":["/nix/store/fake/bin/app"]"#),
         );
         let compose = compose(
             r#"{
@@ -438,7 +438,7 @@ mod tests {
             directory.path(),
             "valid",
             &item_spec(
-                r#""exec":["/nix/store/fake/bin/app"],"env":{"NEEDED":{"required":true}},"listeners":{"http":{"type":"stream"}},"dirs":{"run":["/run/app"]}"#,
+                r#""start":["/nix/store/fake/bin/app"],"env":{"NEEDED":{"required":true}},"listeners":{"http":{"type":"stream"}},"dirs":{"run":["/run/app"]}"#,
             ),
         );
         let invalid = write_item(directory.path(), "invalid", r#"{"cixManifest":99}"#);
@@ -527,12 +527,12 @@ mod tests {
         let service = write_item(
             directory.path(),
             "service",
-            &item_spec(r#""exec":["/nix/store/fake/bin/service"]"#),
+            &item_spec(r#""start":["/nix/store/fake/bin/service"]"#),
         );
         let app = write_item(
             directory.path(),
             "app",
-            &item_spec(r#""kind":"app","exec":["/nix/store/fake/bin/app"]"#),
+            &item_spec(r#""kind":"app","start":["/nix/store/fake/bin/app"]"#),
         );
         let resolver = |reference: &str| {
             Ok(if reference == "service:v1" {
@@ -583,14 +583,14 @@ mod tests {
             directory.path(),
             "port",
             &item_spec(
-                r#""exec":["/nix/store/fake/bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}"#,
+                r#""start":["/nix/store/fake/bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}"#,
             ),
         );
         let listener = write_item(
             directory.path(),
             "listener",
             &item_spec(
-                r#""exec":["/nix/store/fake/bin/app"],"listeners":{"http":{"type":"stream"}}"#,
+                r#""start":["/nix/store/fake/bin/app"],"listeners":{"http":{"type":"stream"}}"#,
             ),
         );
         let resolver = |reference: &str| {

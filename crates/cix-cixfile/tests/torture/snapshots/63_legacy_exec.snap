@@ -1,0 +1,2 @@
+line 4: EXEC is obsolete; replace it with START; see docs/cixfile.md#blocks-and-directives
+  | "EXEC /bin/true"

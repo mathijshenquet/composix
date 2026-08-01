@@ -130,8 +130,8 @@ composix.withSpec {
   inherit mounts;
   manifest = {
     cixManifest = 0;
-    exec = [ start ];
-    setup = [ setup ];
+    start = [ start ];
+    start_pre = [ setup ];
     mounts = builtins.attrNames mounts;
     ports.http = {
       protocol = "tcp";

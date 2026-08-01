@@ -158,13 +158,13 @@ fn same_copy(left: &Copy, right: &Copy) -> bool {
 }
 
 fn same_service(left: &Service, right: &Service) -> bool {
-    left.exec.len() == right.exec.len()
+    left.start.len() == right.start.len()
         && left
-            .exec
+            .start
             .iter()
-            .zip(&right.exec)
+            .zip(&right.start)
             .all(|(left, right)| same_template(left, right))
-        && match (&left.setup, &right.setup) {
+        && match (&left.start_pre, &right.start_pre) {
             (Some(left), Some(right)) => {
                 left.len() == right.len()
                     && left

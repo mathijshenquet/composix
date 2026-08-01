@@ -100,17 +100,17 @@ BUILD pnpm frontend/ --script=build --export=dist
 OUTPUT api
 COPY --from=api-build bin/api bin/api
 SERVICE api
-EXEC bin/api
+START bin/api
 
 OUTPUT worker
 COPY --from=worker-build bin/worker bin/worker
 SERVICE worker
-EXEC bin/worker
+START bin/worker
 
 OUTPUT dashboard
 COPY --from=dashboard-build bin/dashboard bin/dashboard
 SERVICE dashboard
-EXEC bin/dashboard
+START bin/dashboard
 
 OUTPUT frontend
 COPY --from=frontend-build dist/ www/
@@ -207,17 +207,17 @@ BUILD frontend-build = frontend-source | pnpm script=build export=dist
 OUTPUT api
 COPY --from=api-build bin/api bin/api
 SERVICE api
-EXEC bin/api
+START bin/api
 
 OUTPUT worker
 COPY --from=worker-build bin/worker bin/worker
 SERVICE worker
-EXEC bin/worker
+START bin/worker
 
 OUTPUT dashboard
 COPY --from=dashboard-build bin/dashboard bin/dashboard
 SERVICE dashboard
-EXEC bin/dashboard
+START bin/dashboard
 
 OUTPUT frontend
 COPY --from=frontend-build dist/ www/

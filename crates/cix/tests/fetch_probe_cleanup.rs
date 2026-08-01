@@ -22,7 +22,7 @@ RUN mkdir readonly; chmod 0555 readonly
 FETCH chmod 0755 readonly; printf payload > readonly/payload; chmod 0555 readonly
 SERVICE result
 COPY ${build}/readonly/payload /payload
-EXEC /bin/true
+START /bin/true
 "#,
     )?;
     let output = cix(&success, &temp_root, &["build", "--update-lock", "build"])?;
@@ -39,7 +39,7 @@ RUN mkdir readonly; chmod 0555 readonly
 FETCH false
 SERVICE result
 COPY ${build}/readonly /readonly
-EXEC /bin/true
+START /bin/true
 "#,
     )?;
     let output = cix(&failure, &temp_root, &["build", "--update-lock", "build"])?;

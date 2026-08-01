@@ -39,7 +39,7 @@ pkgs.runCommand "dstyle-listenfds" { } ''
   cat > $out/cix-manifest.json <<'EOF'
   {
     "cixManifest": 0,
-    "exec": ["bin/listenfds"]
+    "start": ["bin/listenfds"]
   }
   EOF
 ''

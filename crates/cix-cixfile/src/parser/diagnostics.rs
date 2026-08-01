@@ -14,8 +14,8 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "IMPORT",
     "FILE",
     "LINK",
-    "EXEC",
-    "SETUP",
+    "START",
+    "START_PRE",
     "ENV",
     "PORT",
     "LISTENER",
@@ -36,6 +36,18 @@ struct Migration {
 }
 
 const MIGRATIONS: &[Migration] = &[
+    Migration {
+        directive: "EXEC",
+        replacement: "START",
+        doc: "docs/cixfile.md#blocks-and-directives",
+        decision: "CIP-80",
+    },
+    Migration {
+        directive: "SETUP",
+        replacement: "START_PRE",
+        doc: "docs/cixfile.md#blocks-and-directives",
+        decision: "CIP-80",
+    },
     Migration {
         directive: "STATE",
         replacement: "STATEDIR",
@@ -92,11 +104,11 @@ const DOCKER_DIRECTIVES: &[DockerDirective] = &[
     },
     DockerDirective {
         directive: "CMD",
-        fix: "use EXEC <command> inside SERVICE or APP",
+        fix: "use START <command> inside SERVICE or APP",
     },
     DockerDirective {
         directive: "ENTRYPOINT",
-        fix: "use EXEC <command> inside SERVICE or APP",
+        fix: "use START <command> inside SERVICE or APP",
     },
     DockerDirective {
         directive: "EXPOSE",

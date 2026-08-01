@@ -22,5 +22,5 @@ BUILDER build
 SERVICE dozzle
   COPY ${build}/dozzle /bin/dozzle
   STATEDIR /var/lib/dozzle
-  EXEC dozzle
+  START dozzle
   PORT http = 8080

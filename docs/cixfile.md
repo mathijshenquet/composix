@@ -29,7 +29,7 @@ SERVICE my-nginx
 COPY ${src}/index.html /srv/www/index.html
 COPY ${src}/nginx.conf /etc/nginx/nginx.conf
 LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-EXEC ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
@@ -58,8 +58,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `SETUP`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `EXEC`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -116,7 +116,7 @@ with `COPY`. Invoke a copied script through an explicit package shell:
 
 ```dockerfile
 COPY start /bin/start
-EXEC ${pkgs.bash}/bin/sh /bin/start
+START ${pkgs.bash}/bin/sh /bin/start
 ```
 
 `SCRIPT` was removed; the parser reports the `COPY` plus explicit-shell migration instead of
@@ -196,7 +196,7 @@ FROM cix.my-org.com/acme/web-vault:v3 AS webvault
 
 SERVICE web
 COPY ${webvault}/share/web-vault /share/web-vault
-EXEC /bin/true
+START /bin/true
 ```
 
 It resolves through the cix index (qualified refs fetch when needed), verifies its NAR hash,
@@ -213,8 +213,8 @@ the rest of the index surface.
 
 The lock records remote revisions/NAR hashes and cix-item store paths/NAR hashes. `FROM .` and
 the implicit local context are not pinned: the content of each declared COPY source enters its
-builder's chain key. `$VAR` remains runtime environment syntax and is valid in `EXEC` and
-`SETUP`; `${…}` is resolved while building. Copied file content is always verbatim.
+builder's chain key. `$VAR` remains runtime environment syntax and is valid in `START` and
+`START_PRE`; `${…}` is resolved while building. Copied file content is always verbatim.
 
 <a id="builders"></a>
 
@@ -238,13 +238,13 @@ BUILD
 
 APP app
 COPY ${compile}/target/release/app /bin/app
-EXEC app
+START app
 ```
 
 Builder `ENV NAME = value` is plain text, applies only to later builder steps, and is part of
 the chain key as declared. It is exported through each step shell, so `ENV CACHE = $PWD/.cache`
-expands `$PWD` in that step's `/work` directory. `EXEC` and `SETUP` accept single- and
-double-quoted argv words; for example, `EXEC nginx -g 'daemon off;'` passes `daemon off;` as one
+expands `$PWD` in that step's `/work` directory. `START` and `START_PRE` accept single- and
+double-quoted argv words; for example, `START nginx -g 'daemon off;'` passes `daemon off;` as one
 argument. Unterminated quotes are line-numbered errors.
 
 `IMPORT` takes whole package references, is repeatable, and unions each package's `bin`,
@@ -313,7 +313,7 @@ Each `SERVICE` or `APP` produces its own store item and bare v0 manifest. An `IT
 pure store tree with no `cix-manifest.json`; it is suitable for `FROM` consumption and tagging,
 not for `cix run` or `cix debug`.
 
-`SERVICE` is the full long-running contract. `EXEC` is its main process; `SETUP` is an
+`SERVICE` is the full long-running contract. `START` is its main process; `START_PRE` is an
 idempotent pre-start hook. `PORT` and `LISTENER` declare inbound networking. `STATEDIR`,
 `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
 `*Directory=` roles.
@@ -342,9 +342,9 @@ and GC-root mechanism; an untagged item becomes collectable again after its run 
 
 Artifact destinations name their native runtime paths and are stored item-relatively. Every
 SERVICE and APP gets `PATH=bin` unless it explicitly declares
-`ENV PATH = …`, which replaces that default entirely. A one-word `EXEC app` or `SETUP app`
+`ENV PATH = …`, which replaces that default entirely. A one-word `START app` or `START_PRE app`
 therefore resolves at build time to that item's `bin/app`; use it as the preferred spelling
-after copying or linking a runtime binary there. `EXEC /bin/app` and package binaries as direct
+after copying or linking a runtime binary there. `START /bin/app` and package binaries as direct
 store references remain valid. Add external runtime tools visibly with lines such as
 `LINK ${pkgs.postgresql}/bin/postgres /bin/postgres`, rather than making them ambient PATH
 entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
@@ -353,7 +353,7 @@ package-owned assets such as nginx's `mime.types`.
 <a id="item"></a>
 
 `ITEM` is the content-only block. It accepts only `COPY`, `FILE`, and `LINK`: runtime directives
-such as `EXEC`, `ENV`, ports, claims, or role directories are rejected.
+such as `START`, `ENV`, ports, claims, or role directories are rejected.
 Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family

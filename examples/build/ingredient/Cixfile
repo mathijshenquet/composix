@@ -9,4 +9,4 @@ BUILDER payload
 
 SERVICE ingredient
   COPY ${payload}/README.md /share/nixpkgs-README.md
-  EXEC ${pkgs.coreutils}/bin/sleep infinity
+  START ${pkgs.coreutils}/bin/sleep infinity

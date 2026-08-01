@@ -190,7 +190,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                        "exec": ["bin/app"],
+                        "start": ["bin/app"],
                         "env": {
                             "NAME": {"default": "default"},
                             "COUNT": {"required": true},
@@ -253,7 +253,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                        "exec": ["bin/app"],
+                        "start": ["bin/app"],
                         "ports": {"http": {"value": 8080, "protocol": "tcp"}}
             }"#,
         )
@@ -276,7 +276,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                        "exec": ["bin/app"],
+                        "start": ["bin/app"],
                         "listeners": {"http": {"type": "stream"}},
                         "ports": {"metrics": {"value": 9090, "protocol": "tcp"}}
             }"#,

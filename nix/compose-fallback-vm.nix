@@ -3,7 +3,7 @@
 let
   producer = pkgs.writeTextDir "cix-manifest.json" (builtins.toJSON {
     cixManifest = 0;
-    exec = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
+    start = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
     dirs = {
       state = [ "/var/lib/fallback-producer" ];
       run = [ "/run/fallback-edge" ];
@@ -12,7 +12,7 @@ let
 
   consumer = pkgs.writeTextDir "cix-manifest.json" (builtins.toJSON {
     cixManifest = 0;
-    exec = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
+    start = [ "${pkgs.coreutils}/bin/sleep" "infinity" ];
   });
 
   compose = pkgs.writeText "compose-fallback.json" (builtins.toJSON {

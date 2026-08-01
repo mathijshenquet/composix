@@ -208,7 +208,7 @@ pub(crate) fn build_unit_with_options(
     }
 
     let item_env = config.item_environment(output)?;
-    let argv = resolved_argv(output, "exec", &service.exec, &item_env)?;
+    let argv = resolved_argv(output, "start", &service.start, &item_env)?;
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), options.naming.slice.clone()));
@@ -277,9 +277,9 @@ pub(crate) fn build_unit_with_options(
         properties.push(("PrivateNetwork".into(), "yes".into()));
     }
     add_socket_bind_restrictions(&mut properties, service, config);
-    if let Some(setup) = &service.setup {
-        let setup = resolved_argv(output, "setup", setup, &item_env)?;
-        properties.push(("ExecStartPre".into(), exec_command(&setup)));
+    if let Some(start_pre) = &service.start_pre {
+        let start_pre = resolved_argv(output, "start_pre", start_pre, &item_env)?;
+        properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
     }
 
     let mut environment = item_env
@@ -396,10 +396,10 @@ fn add_mounts(
 fn resolved_argv(
     output: &Path,
     field: &str,
-    exec: &[String],
+    command: &[String],
     env: &BTreeMap<String, String>,
 ) -> Result<Vec<String>> {
-    let mut argv = exec
+    let mut argv = command
         .iter()
         .map(|argument| interpolate(field, argument, env))
         .collect::<Result<Vec<_>>>()?;
@@ -747,7 +747,7 @@ mod tests {
     #[test]
     fn runtime_directories_do_not_trigger_persistent_directory_fallback() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["bin/worker"],"dirs":{"run":["/run/worker"]}}"#,
+            br#"{"cixManifest":0,"start":["bin/worker"],"dirs":{"run":["/run/worker"]}}"#,
         )
         .unwrap();
         let service = service(&spec);
@@ -777,7 +777,7 @@ mod tests {
         std::fs::write(output.path().join("etc/nginx/nginx.conf"), "events {}\n").unwrap();
         std::fs::write(output.path().join("cix-probe.conf"), "probe\n").unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}"#,
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/etc/nginx","/cix-probe.conf"]}"#,
         )
         .unwrap();
         let service = service(&spec);
@@ -837,7 +837,7 @@ mod tests {
     fn refuses_a_declared_mount_missing_from_the_store_item() {
         let output = tempfile::tempdir().unwrap();
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}"#,
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"mounts":["/opt/a/b/c/d"]}"#,
         )
         .unwrap();
         let service = service(&spec);
@@ -872,7 +872,7 @@ mod tests {
     #[test]
     fn jit_claim_drops_memory_deny_write_execute() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"claims":["jit"]}"#,
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"claims":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
@@ -891,7 +891,7 @@ mod tests {
     #[test]
     fn item_bin_default_is_projected_into_the_run_unit_environment() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
+            br#"{"cixManifest":0,"start":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
@@ -940,7 +940,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["bin/web"],
+                "start": ["bin/web"],
                 "ports": {
                     "http": {"value": 8080, "protocol": "tcp"},
                     "dns": {"value": 5353, "protocol": "udp"}
@@ -969,7 +969,7 @@ mod tests {
     #[test]
     fn public_compiler_accepts_foreign_names_and_extra_properties() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["bin/web"],"dirs":{"state":["/var/lib/web"]}}"#,
+            br#"{"cixManifest":0,"start":["bin/web"],"dirs":{"state":["/var/lib/web"]}}"#,
         )
         .unwrap();
         let service = service(&spec);
@@ -1003,7 +1003,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["bin/web"],
+                "start": ["bin/web"],
                 "env": {"PORT": {"default": "80"}},
                 "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
             }"#,
@@ -1032,7 +1032,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["bin/web"],
+                "start": ["bin/web"],
                 "env": {"PORT": {"default": "8080"}},
                 "ports": {"http": {"env": "PORT", "protocol": "tcp"}}
             }"#,
@@ -1055,7 +1055,7 @@ mod tests {
 
     #[test]
     fn refuses_an_executable_that_escapes_the_store_output() {
-        let spec = Spec::from_slice(br#"{"cixManifest":0,"exec":["../bin/x"]}"#).unwrap();
+        let spec = Spec::from_slice(br#"{"cixManifest":0,"start":["../bin/x"]}"#).unwrap();
         let service = service(&spec);
         let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
         assert!(generate_unit(
@@ -1073,7 +1073,7 @@ mod tests {
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
-                "exec": ["bin/database"],
+                "start": ["bin/database"],
                 "dirs": {
                     "state": ["/var/lib/database"],
                     "cache": ["/var/cache/database"],

@@ -21,7 +21,7 @@ COPY ${build}/package-lock.json /parse-server/package-lock.json
 COPY ${build}/public /parse-server/public
 COPY ${build}/views /parse-server/views
 LINK ${pkgs.nodejs_22}/bin/node /bin/node
-EXEC node /parse-server/bin/parse-server
+START node /parse-server/bin/parse-server
 ENV PORT = 18091
 ENV PARSE_SERVER_APPLICATION_ID required
 ENV PARSE_SERVER_MASTER_KEY secret

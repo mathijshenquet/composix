@@ -18,6 +18,6 @@ RUN printf 'still   shell text' \
  FILE	/etc/app.conf	<<EOF  
 body=${pkgs.bash}  
 EOF
- EXEC	/bin/bash	-c	'echo  hi'   
+ START	/bin/bash	-c	'echo  hi'   
  ENV	MODE	=	production   
  PORT	http	=	8080  

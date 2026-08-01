@@ -1,6 +1,6 @@
 {
   "cixManifest": 0,
-  "exec": ["bin/web"],
+  "start": ["bin/web"],
   "listeners": {
     "http": {"type": "stream"}
   }

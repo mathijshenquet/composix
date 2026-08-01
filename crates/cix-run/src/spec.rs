@@ -24,14 +24,14 @@ pub enum ManifestKind {
 #[serde(deny_unknown_fields)]
 pub struct Service {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub exec: Vec<String>,
+    pub start: Vec<String>,
     /// Read-only sparse-rootfs paths projected from the store item in system mode.
     pub mounts: Option<Vec<PathBuf>>,
     /// Pre-start argv run in the service sandbox on every start.
     ///
     /// It follows the same output-relative executable and environment interpolation rules as
-    /// `exec` and must be idempotent.
-    pub setup: Option<Vec<String>>,
+    /// `start` and must be idempotent.
+    pub start_pre: Option<Vec<String>>,
     #[serde(default)]
     pub env: BTreeMap<String, Env>,
     #[serde(default)]
@@ -210,12 +210,12 @@ fn item_name_from_store_path(output: &Path) -> Option<String> {
 
 impl Service {
     fn validate(&self, kind: ManifestKind) -> Result<()> {
-        validate_exec("exec", &self.exec, &self.env)?;
-        if let Some(setup) = &self.setup {
-            validate_exec("setup", setup, &self.env)?;
+        validate_command("start", &self.start, &self.env)?;
+        if let Some(start_pre) = &self.start_pre {
+            validate_command("start_pre", start_pre, &self.env)?;
         }
         if let Some(health) = &self.health {
-            validate_exec("health.exec", &health.exec, &self.env)?;
+            validate_command("health.exec", &health.exec, &self.env)?;
             if health.interval.is_empty() {
                 bail!("health.interval must not be empty");
             }
@@ -292,8 +292,8 @@ impl Service {
         match kind {
             ManifestKind::Service => Ok(()),
             ManifestKind::App => {
-                if self.setup.is_some() {
-                    bail!("kind app must not declare setup (D47)");
+                if self.start_pre.is_some() {
+                    bail!("kind app must not declare start_pre (D47)");
                 }
                 if !self.ports.is_empty() {
                     bail!("kind app must not declare ports (D47)");
@@ -470,15 +470,19 @@ pub fn parse_port(value: &str) -> Result<u16> {
     Ok(port)
 }
 
-fn validate_exec(field: &str, exec: &[String], declarations: &BTreeMap<String, Env>) -> Result<()> {
-    if exec.is_empty() {
+fn validate_command(
+    field: &str,
+    command: &[String],
+    declarations: &BTreeMap<String, Env>,
+) -> Result<()> {
+    if command.is_empty() {
         bail!("{field} must contain at least one argument");
     }
-    if exec.iter().any(|arg| arg.contains(['\0', '\n', '\r'])) {
+    if command.iter().any(|arg| arg.contains(['\0', '\n', '\r'])) {
         bail!("{field} arguments must not contain NUL or newlines");
     }
 
-    for arg in exec {
+    for arg in command {
         for variable in referenced_variables(arg)
             .with_context(|| format!("invalid interpolation in {field} argument {arg:?}"))?
         {
@@ -583,11 +587,11 @@ mod tests {
     #[test]
     fn parses_and_serializes_the_v0_def_node() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"exec":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"claims":["jit"]}"#,
+            br#"{"cixManifest":0,"start":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"claims":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
-        assert_eq!(service.exec, ["bin/app", "$PORT"]);
+        assert_eq!(service.start, ["bin/app", "$PORT"]);
         assert!(service.has_claim("jit"));
         assert_eq!(serde_json::to_value(&spec).unwrap()["cixManifest"], 0);
     }
@@ -608,11 +612,11 @@ mod tests {
     #[test]
     fn validates_current_schema_fields() {
         for json in [
-            r#"{"cixManifest":0,"exec":["bin/app"],"jit":true}"#,
-            r#"{"cixManifest":0,"exec":["bin/app"],"grants":["jit"]}"#,
-            r#"{"cixManifest":0,"exec":["bin/app"],"claims":["all"]}"#,
-            r#"{"cixManifest":0,"exec":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
-            r#"{"cixManifest":0,"exec":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"jit":true}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"grants":["jit"]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":["all"]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
             r#"{"cixManifest":0,"services":{}}"#,
         ] {
             assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
@@ -622,7 +626,7 @@ mod tests {
     #[test]
     fn app_constraints_and_manifestless_items_remain_explicit() {
         let error = format!("{:#}", Spec::from_slice(
-            br#"{"cixManifest":0,"kind":"app","exec":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}"#,
+            br#"{"cixManifest":0,"kind":"app","start":["bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}}"#,
         )
         .unwrap_err());
         assert!(error.contains("app must not declare ports"), "{error}");

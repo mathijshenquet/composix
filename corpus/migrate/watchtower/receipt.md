@@ -1,6 +1,6 @@
 # watchtower migration receipt
 
-Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and bare `EXEC` from artifact `bin/`).
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and bare `START` from artifact `bin/`).
 
 Docker side: historical 2026-07-30 receipt, not rerun. The historical Docker build lacked the CI-provided `./watchtower` binary; its runtime contract also requires `/var/run/docker.sock`.
 

@@ -484,14 +484,14 @@ impl Parser<'_> {
         Ok(())
     }
 
-    pub(super) fn exec(
+    pub(super) fn start(
         &mut self,
         line: usize,
         source: &str,
         arguments: &str,
-        setup: bool,
+        start_pre: bool,
     ) -> Result<(), ParseError> {
-        let directive = if setup { "SETUP" } else { "EXEC" };
+        let directive = if start_pre { "START_PRE" } else { "START" };
         let fields = argv_fields(arguments, line, source, directive)?;
         validate_artifact_command_path(&fields[0], directive, line, source)?;
         let artifact_name = self
@@ -501,11 +501,11 @@ impl Parser<'_> {
         if !kind.is_runnable() {
             return Err(self.item_seam_parse_error(directive, line, source));
         }
-        if kind == ArtifactKind::App && setup {
+        if kind == ArtifactKind::App && start_pre {
             return Err(ParseError::new(
               line,
               source,
-              "SETUP is not allowed inside APP; move preparation into the APP executable; see docs/cixfile.md#artifact-kinds",
+              "START_PRE is not allowed inside APP; move preparation into the APP executable; see docs/cixfile.md#artifact-kinds",
           ));
         }
         let templates = fields
@@ -517,34 +517,34 @@ impl Parser<'_> {
             .get_mut(&artifact_name)
             .expect("artifact exists")
             .service;
-        if setup {
-            if service.setup.is_some() {
+        if start_pre {
+            if service.start_pre.is_some() {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "SETUP is already declared for this service",
+                    "START_PRE is already declared for this service",
                 ));
             }
-            service.setup = Some(templates);
-            service.setup_line = Some(line);
+            service.start_pre = Some(templates);
+            service.start_pre_line = Some(line);
             self.metadata
                 .get_mut(&artifact_name)
                 .expect("artifact metadata exists")
-                .setup = Some((line, source.to_owned()));
+                .start_pre = Some((line, source.to_owned()));
         } else {
-            if !service.exec.is_empty() {
+            if !service.start.is_empty() {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "EXEC is already declared for this artifact; remove one EXEC line",
+                    "START is already declared for this artifact; remove one START line",
                 ));
             }
-            service.exec = templates;
-            service.exec_line = line;
+            service.start = templates;
+            service.start_line = line;
             self.metadata
                 .get_mut(&artifact_name)
                 .expect("artifact metadata exists")
-                .exec = Some((line, source.to_owned()));
+                .start = Some((line, source.to_owned()));
         }
         Ok(())
     }
@@ -939,8 +939,8 @@ impl Parser<'_> {
         source: &str,
     ) -> Option<ParseError> {
         const RUNTIME_DIRECTIVES: &[&str] = &[
-            "EXEC",
-            "SETUP",
+            "START",
+            "START_PRE",
             "ENV",
             "PORT",
             "LISTENER",

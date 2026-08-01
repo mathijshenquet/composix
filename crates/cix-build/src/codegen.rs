@@ -130,11 +130,11 @@ pub fn generate_nix_with_snapshots(
     if artifact.kind.is_runnable() {
         let service = &artifact.service;
         for (arguments, line, directive) in [
-            (&service.exec[..], service.exec_line, "EXEC"),
+            (&service.start[..], service.start_line, "START"),
             (
-                service.setup.as_deref().unwrap_or_default(),
-                service.setup_line.unwrap_or_default(),
-                "SETUP",
+                service.start_pre.as_deref().unwrap_or_default(),
+                service.start_pre_line.unwrap_or_default(),
+                "START_PRE",
             ),
         ]
         .into_iter()
@@ -562,7 +562,7 @@ fn nix_spec(artifact: &Artifact) -> Result<String> {
 fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String> {
     let service = &artifact.service;
     let mut output = String::from("{");
-    write!(output, " exec = {};", nix_command(&service.exec))?;
+    write!(output, " start = {};", nix_command(&service.start))?;
     if !mounts.is_empty() {
         write!(
             output,
@@ -574,8 +574,8 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
                 .join(" ")
         )?;
     }
-    if let Some(setup) = &service.setup {
-        write!(output, " setup = {};", nix_command(setup))?;
+    if let Some(start_pre) = &service.start_pre {
+        write!(output, " start_pre = {};", nix_command(start_pre))?;
     }
     {
         output.push_str(" env = {");
@@ -851,15 +851,15 @@ fn literal_spec(artifact: &Artifact) -> Result<Value> {
 fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Value> {
     let service = &artifact.service;
     let mut value = Map::new();
-    value.insert("exec".into(), literal_command(&service.exec)?);
+    value.insert("start".into(), literal_command(&service.start)?);
     if !mounts.is_empty() {
         value.insert(
             "mounts".into(),
             Value::Array(mounts.iter().cloned().map(Value::String).collect()),
         );
     }
-    if let Some(setup) = &service.setup {
-        value.insert("setup".into(), literal_command(setup)?);
+    if let Some(start_pre) = &service.start_pre {
+        value.insert("start_pre".into(), literal_command(start_pre)?);
     }
     {
         let mut envs = Map::new();
@@ -1043,7 +1043,7 @@ mod tests {
     fn emits_kind_and_unified_copy_sources() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nSTART /bin/true\n",
         )
         .unwrap();
         let nix =
@@ -1058,7 +1058,7 @@ mod tests {
     #[test]
     fn service_manifest_omits_kind_and_app_emits_it() {
         let service = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n",
         )
         .unwrap();
         let spec = generate_spec_json(&service).unwrap();
@@ -1069,18 +1069,18 @@ mod tests {
         );
 
         let app =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nSTART /bin/true\n")
                 .unwrap();
         let manifest = generate_spec_json(&app).unwrap();
         assert!(manifest.contains("\"kind\": \"app\""), "{manifest}");
-        assert!(manifest.contains("\"exec\""), "{manifest}");
+        assert!(manifest.contains("\"start\""), "{manifest}");
         assert!(
             manifest.contains("\"PATH\": {\n      \"default\": \"bin\""),
             "{manifest}"
         );
 
         let explicit =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nEXEC /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nSTART /bin/true\n")
                 .unwrap();
         let explicit_spec = generate_spec_json(&explicit).unwrap();
         assert!(
@@ -1093,7 +1093,7 @@ mod tests {
     #[test]
     fn absolute_artifact_destinations_keep_the_pre_d66_manifest_shape() {
         let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nEXEC /bin/tool\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nSTART /bin/tool\n",
         )
         .unwrap();
         assert_eq!(cixfile.artifacts["fixture"].copies[0].dst, "share/payload");
@@ -1110,7 +1110,7 @@ mod tests {
       "default": "bin"
     }
   },
-  "exec": [
+  "start": [
     "/bin/tool"
   ],
   "mounts": [
@@ -1127,7 +1127,7 @@ mod tests {
     fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
         let directory = tempfile::tempdir().unwrap();
         let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nEXEC /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nSTART /bin/true\n",
         )
         .unwrap();
         let mut lock = fixture_lock();

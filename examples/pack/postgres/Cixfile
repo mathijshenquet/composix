@@ -7,8 +7,8 @@ SERVICE postgres
   COPY ${src}/setup /opt/postgres/setup
   COPY ${src}/start /opt/postgres/start
   LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
-  SETUP ${pkgs.bash}/bin/sh /opt/postgres/setup
-  EXEC ${pkgs.bash}/bin/sh /opt/postgres/start $PORT
+  START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup
+  START ${pkgs.bash}/bin/sh /opt/postgres/start $PORT
   ENV PORT = 5432
   PORT postgres = $PORT
   STATEDIR /var/lib/postgresql
