@@ -41,4 +41,13 @@ scenario.node ''
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down lifecycle")
   machine.succeed("systemctl reset-failed 'cix-lifecycle*' || true")
   machine.succeed("test -z \"$(systemctl list-units --all --no-legend 'cix-lifecycle*' | awk 'NF { print $1 }')\"")
+
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${scenario.job}) scenario-job:v1")
+  machine.succeed("cp ${scenario.timerComposeFile} /tmp/scenario/timers.json")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/timers.json")
+  machine.succeed("systemctl is-active cix-timers-job.timer")
+  machine.succeed("systemctl list-timers --all | grep -F cix-timers-job.timer")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down timers")
+  machine.succeed("systemctl reset-failed 'cix-timers*' || true")
+  machine.succeed("test -z \"$(systemctl list-units --all --no-legend 'cix-timers*' | awk 'NF { print $1 }')\"")
 ''

@@ -37,7 +37,10 @@
         "bind": {
           "type": "object",
           "additionalProperties": {"type": "string"}
-        }
+        },
+        "schedule": {"type": "string", "minLength": 1},
+        "persistent": {"type": "boolean"},
+        "jitter": {"type": "string", "minLength": 1}
       }
     },
     "endpoint": {

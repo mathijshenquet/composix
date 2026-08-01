@@ -87,6 +87,17 @@ let
     }
     EOF
   '';
+  timerApp = pkgs.runCommand "timer-app-cix" { } ''
+    mkdir -p "$out/bin"
+    ln -s ${pkgs.coreutils}/bin/true "$out/bin/timer-app"
+    cat > "$out/cix-manifest.json" <<'EOF'
+    {
+      "cixManifest": 0,
+      "kind": "app",
+      "exec": ["bin/timer-app"]
+    }
+    EOF
+  '';
 in
 pkgs.testers.runNixOSTest {
   name = "vm-dogfood";
@@ -113,6 +124,15 @@ pkgs.testers.runNixOSTest {
     machine.succeed("cix exec " + pid_unit + " --root -- /bin/sh -c 'read -r comm < /proc/1/comm; test \"$comm\" = pid-probe'")
     machine.succeed("systemctl stop " + pid_unit)
     machine.succeed("test ! -L " + pid_root)
+
+    timer_app = machine.succeed("nix-store --add ${timerApp}").strip()
+    timer_unit = machine.succeed("cix run " + timer_app + " --schedule 'Mon *-*-* 12:00:00'").strip()
+    timer_root = "/run/cix/gcroots/" + timer_unit + ".root"
+    machine.succeed("systemctl is-active " + timer_unit)
+    machine.succeed("test -L " + timer_root)
+    machine.succeed("systemctl list-timers --all | grep -F " + timer_unit)
+    machine.succeed("systemctl stop " + timer_unit)
+    machine.succeed("test ! -L " + timer_root)
 
     nginx_item = machine.succeed("nix-store --add ${nginx}").strip()
     nginx_unit = machine.succeed("cix run " + nginx_item + " --detach").strip()

@@ -15,6 +15,9 @@ pub enum Command {
         /// Print the transient unit name and return without following logs.
         #[arg(long)]
         detach: bool,
+        /// Schedule an app with systemd's raw OnCalendar syntax.
+        #[arg(long, value_name = "ON_CALENDAR")]
+        schedule: Option<String>,
         /// Degraded dev mode against the user manager (no DynamicUser).
         #[arg(long)]
         user: bool,
@@ -59,12 +62,14 @@ impl Command {
                 env,
                 port,
                 detach,
+                schedule,
                 user,
             } => crate::runtime::run(crate::runtime::RunOptions {
                 installable,
                 env,
                 port,
                 detach,
+                schedule,
                 user,
             }),
             Self::Debug {

@@ -168,8 +168,13 @@ fn activate_generation(name: &str, old: Option<&Path>, new: &Path) -> Result<()>
         let mut services = Vec::new();
         for unit in &changes.changed {
             match new_manifest.units[unit].kind {
-                UnitKind::Edge | UnitKind::Socket => infrastructure.push(unit.as_str()),
-                UnitKind::Service => services.push(unit.as_str()),
+                UnitKind::Edge | UnitKind::Socket | UnitKind::Timer => {
+                    infrastructure.push(unit.as_str())
+                }
+                UnitKind::Service if !new_manifest.units[unit].scheduled => {
+                    services.push(unit.as_str())
+                }
+                UnitKind::Service => {}
                 UnitKind::Slice | UnitKind::Target => {}
             }
         }
@@ -471,7 +476,7 @@ fn validate_composite_name(name: &str) -> Result<()> {
 fn stop_order(unit: &str) -> u8 {
     if unit.ends_with(".target") {
         0
-    } else if unit.ends_with(".socket") {
+    } else if unit.ends_with(".socket") || unit.ends_with(".timer") {
         1
     } else if unit.contains("-edge-") {
         3
@@ -534,6 +539,7 @@ mod tests {
             ManifestUnit {
                 kind: UnitKind::Service,
                 service: Some("web".into()),
+                scheduled: false,
             },
         )]);
         fs::write(path.join("units/cix-stack-web.service"), service_text).unwrap();
@@ -543,6 +549,7 @@ mod tests {
                 ManifestUnit {
                     kind: UnitKind::Socket,
                     service: Some("web".into()),
+                    scheduled: false,
                 },
             );
             fs::write(path.join("units").join(name), "socket").unwrap();
