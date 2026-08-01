@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::{Component, Path};
 
 use anyhow::{bail, Context, Result};
@@ -349,6 +350,16 @@ fn apply_host_capabilities(
         return Vec::new();
     };
     properties.retain(|(name, _)| name != "PrivatePIDs");
+    for (name, value) in properties.iter_mut() {
+        if matches!(
+            name.as_str(),
+            "StateDirectoryMode" | "CacheDirectoryMode" | "LogsDirectoryMode"
+        ) {
+            // Without PrivatePIDs, systemd cannot retain the managed directory's
+            // ID-mapped view. The private host backing still confines this view.
+            *value = "0733".into();
+        }
+    }
     vec![UnitDegradation {
         property: "PrivatePIDs=yes".into(),
         reason: reason.into(),
@@ -484,6 +495,7 @@ fn add_directories(
     user: bool,
     bind: bool,
 ) {
+    let mut additional_mount_points = BTreeSet::new();
     for (role, paths, directive, mode_directive, system_root, user_root) in [
         (
             "state",
@@ -529,8 +541,13 @@ fn add_directories(
         if paths.is_empty() {
             continue;
         }
-        let mut directory_values = Vec::with_capacity(paths.len());
+        let mut directory_values = Vec::with_capacity(paths.len() + 1);
         let mut bind_values = Vec::new();
+        // The managed root is an ownership anchor. Its id-mapped view must
+        // exist before the explicit per-path binds project its subpaths.
+        if bind && !user && role != "config" && role != "run" {
+            directory_values.push(managed_base.to_owned());
+        }
         for destination in paths {
             let mirror = destination
                 .strip_prefix("/")
@@ -546,6 +563,14 @@ fn add_directories(
                     destination.to_string_lossy().replace('%', "%%")
                 ));
             }
+            if bind && !user && !destination.starts_with(system_root) {
+                if let Some(top_component) = destination.components().nth(1) {
+                    additional_mount_points.insert(format!(
+                        "/{}:ro",
+                        top_component.as_os_str().to_string_lossy()
+                    ));
+                }
+            }
         }
         if bind && !user && role != "run" {
             properties.push(("TemporaryFileSystem".into(), format!("{system_root}:ro")));
@@ -555,6 +580,9 @@ fn add_directories(
         for value in bind_values {
             properties.push(("BindPaths".into(), value));
         }
+    }
+    for mount_point in additional_mount_points {
+        properties.push(("TemporaryFileSystem".into(), mount_point));
     }
 }
 
@@ -724,6 +752,7 @@ mod tests {
         .unwrap();
 
         assert!(!compiled.text.contains("PrivatePIDs="));
+        assert!(compiled.text.contains("StateDirectoryMode=0733"));
         assert_eq!(
             compiled.degradations,
             vec![UnitDegradation {
@@ -748,6 +777,7 @@ mod tests {
         .unwrap();
 
         assert!(compiled.text.contains("PrivatePIDs=yes"));
+        assert!(compiled.text.contains("StateDirectoryMode=0700"));
         assert!(compiled.degradations.is_empty());
     }
 
@@ -1003,7 +1033,7 @@ mod tests {
         assert!(compiled.text.contains("Slice=cix-mycomp.slice"));
         assert!(compiled
             .text
-            .contains("StateDirectory=cix-mycomp-web/var/lib/web"));
+            .contains("StateDirectory=cix-mycomp-web cix-mycomp-web/var/lib/web"));
         assert!(compiled.text.contains("SupplementaryGroups=cix-edge"));
     }
 
@@ -1103,13 +1133,13 @@ mod tests {
         .unwrap();
         for expected in [
             "TemporaryFileSystem=/var/lib:ro",
-            "StateDirectory=cix-run-database/var/lib/database",
+            "StateDirectory=cix-run-database cix-run-database/var/lib/database",
             "BindPaths=/var/lib/cix-run-database/var/lib/database:/var/lib/database",
             "TemporaryFileSystem=/var/cache:ro",
-            "CacheDirectory=cix-run-database/var/cache/database",
+            "CacheDirectory=cix-run-database cix-run-database/var/cache/database",
             "BindPaths=/var/cache/cix-run-database/var/cache/database:/var/cache/database",
             "TemporaryFileSystem=/var/log:ro",
-            "LogsDirectory=cix-run-database/var/log/database",
+            "LogsDirectory=cix-run-database cix-run-database/var/log/database",
             "BindPaths=/var/log/cix-run-database/var/log/database:/var/log/database",
             "Environment=\"STATE_DIRECTORY=/var/lib/database\"",
             "Environment=\"CACHE_DIRECTORY=/var/cache/database\"",
@@ -1148,15 +1178,18 @@ mod tests {
         )
         .unwrap();
         for expected in [
-            "StateDirectory=cix-run-app/srv/app/state cix-run-app/var/lib/app-extra",
+            "StateDirectory=cix-run-app cix-run-app/srv/app/state cix-run-app/var/lib/app-extra",
             "BindPaths=/var/lib/cix-run-app/srv/app/state:/srv/app/state",
             "BindPaths=/var/lib/cix-run-app/var/lib/app-extra:/var/lib/app-extra",
-            "CacheDirectory=cix-run-app/app/cache",
+            "CacheDirectory=cix-run-app cix-run-app/app/cache",
             "BindPaths=/var/cache/cix-run-app/app/cache:/app/cache",
-            "LogsDirectory=cix-run-app/app/logs cix-run-app/var/log/app-extra",
+            "LogsDirectory=cix-run-app cix-run-app/app/logs cix-run-app/var/log/app-extra",
             "BindPaths=/var/log/cix-run-app/app/logs:/app/logs",
             "RuntimeDirectory=cix-run-app/tmp/app/run",
             "BindPaths=/run/cix-run-app/tmp/app/run:/tmp/app/run",
+            "TemporaryFileSystem=/app:ro",
+            "TemporaryFileSystem=/srv:ro",
+            "TemporaryFileSystem=/tmp:ro",
             "Environment=\"STATE_DIRECTORY=/srv/app/state:/var/lib/app-extra\"",
             "Environment=\"LOGS_DIRECTORY=/app/logs:/var/log/app-extra\"",
             "Environment=\"RUNTIME_DIRECTORY=/tmp/app/run\"",

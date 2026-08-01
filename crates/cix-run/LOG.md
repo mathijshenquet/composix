@@ -284,7 +284,71 @@
 
 ## track/dirs
 
+- 2026-08-02 00:10 UTC — Reproduced both addendum failures with `devenv shell
+  -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`: the original
+  hardened service stopped at `226/NAMESPACE`, then its D36 retry mounted the
+  full-mirror LogsDirectory but could not write `/app/logs/restart-marker`.
+  The log showed that the fallback host backing was `65534:65534 0700`; the
+  explicit bind has no ID-mapped view after `PrivatePIDs` is removed. The fix
+  adds a managed-root ownership anchor, read-only tmpfs mount points for every
+  non-class top-level destination, and D36's private-backed persistent mode
+  `0733` so the dynamic process can write its only projected view. `cix run`
+  now realizes the existing host-capability probe before compiling the system
+  unit; the VM forces `CIX_PRIVATE_PIDS_PROBE=unsupported` and proves the
+  resulting `PrivatePIDs=no`, `0733` backing, restart persistence, and marker
+  readback. A first fixed VM rerun also exposed two stale fixture assumptions:
+  the probe used an unqualified `cat` although the service PATH is intentionally
+  empty, and the old host-side Redis socket assertion named the legacy alias.
+  The probe now uses coreutils by absolute path and the Redis assertion verifies
+  its full-mirror host socket instead. Next: rerun vm-dogfood, then the complete
+  specified gate.
+
+- 2026-08-01 23:30 UTC — Started the addendum fix round after the independent
+  vm-dogfood failure. The required evidence-first reproduction is next: first
+  rerun the unmodified check to capture the primary `226/NAMESPACE` path, then
+  force the D36 unsupported capability path to capture the post-retry
+  `/app/logs` write denial. The earlier claimed green result was against the
+  prior test run and is now treated as insufficient/order-dependent evidence
+  until both paths have been reproduced in the current worktree.
+
 - 2026-08-01 23:00 UTC — Started CIP-82 leg 1 from `.dev/specs/track-dirs.md` on `track/dirs`. Read AGENTS.md, the current session and cix-run logs, adopted CIP-82 (§3/§5), and the Part 2 design context. Scope is parser/manifest plus unit generation, Cixfile/docs/tour, fixtures, and the prescribed VM regression only; compose materialization, cleanup verbs, and `.env` are explicitly deferred. The worktree is clean and its direnv/devenv environment is allowed. Next: map the existing schema/parser/unit/test surfaces, then implement the arbitrary-role-path, full-mirror backing, explicit directory environments, and teaching-error DIR contract.
 - 2026-08-01 23:18 UTC — Implemented the leg-1 manifest/parser and generator contract. The Cixfile model now emits `dirs.data: [{path, ro}]` for `DIR` (`:ro`, `:rw`, bare rw), checks duplicate paths across roles/data, and accepts clean arbitrary role paths; `LOGDIR` is the canonical directive. The runner uses full path mirrors beneath each unit/class root, masks class roots, bind-mounts every declared destination, and overrides the four systemd directory environment variables with colon-joined in-namespace paths. Unmaterialized `DIR` fails with the required compose teaching message. Focused `devenv shell -- cargo test -p cix-cixfile -p cix-run` is green after adapting the user-manager integration cleanup to its new nested host backing. Added the required NixOS VM log persistence/restart assertion; next: run it, regenerate the tour, review docs, and execute the complete gate.
 - 2026-08-01 23:06 UTC — Complete leg-1 gate is green. Exact repros: `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`; and `devenv shell -- nix flake check -L`. The first workspace-suite attempt found only a stale `cix-run-decoy-x.service` left by an interrupted tour test; stopping that exact transient test unit and rerunning made the suite green. The dedicated `nix build .#checks.x86_64-linux.vm-dogfood --no-link -L` also passed, proving `/app/logs` host mirroring, restart persistence, and the environment override. Tour regeneration added the expected empty `dirs.data` projection. Next: final staged diff/status audit and commit.
 - 2026-08-01 23:08 UTC — Committed the complete CIP-82 leg-1 implementation as `ebcad82` (`Implement CIP-82 directory backing`). Post-commit `git diff HEAD --check` and worktree status are clean. No compose materialization or lifecycle verb work was included; those remain explicitly deferred to later CIP-82 legs.
+
+- 2026-08-02 00:18 UTC — The corrected dedicated VM regression is green:
+  `devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`
+  completed its test script in 163.47 seconds. It passed the addendum's normal
+  hardening assertions, forced `CIX_PRIVATE_PIDS_PROBE=unsupported` fallback
+  assertions (`PrivatePIDs=no`, private backing mode `0733`, write and restart
+  persistence), and the Redis Unix-socket assertion at its full-mirror host
+  path. Next: run the complete track gate, ending with `nix flake check -L`,
+  then review and commit only the intended sources (leaving pre-existing
+  generated `devenv.lock` unstaged).
+
+- 2026-08-02 00:24 UTC — The first full `devenv shell -- nix flake check -L`
+  rerun reached all 63 checks but exposed a further stale CIP-82 host-backing
+  assertion in `nix/scenarios/lifecycle.nix`: it looked for the state sentinel
+  at the old `/var/lib/private/cix-lifecycle-api/sentinel` alias. The service
+  writes `/var/lib/api/sentinel`, whose full-mirror host backing is
+  `/var/lib/cix-lifecycle-api/var/lib/api/sentinel`; the API was active and its
+  HTTP assertion had already passed. Updated all three lifecycle persistence
+  checks to that exact full-mirror path. Next: focused scenario-lifecycle VM,
+  then restart the complete full-flake gate.
+
+- 2026-08-02 00:35 UTC — Focused `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-lifecycle --no-link -L` passed (159.10s),
+  proving the corrected sentinel assertion through activation, update, and
+  rollback. The restarted, required full gate then passed: `devenv shell --
+  nix flake check -L` completed all 63 checks, including vm-dogfood,
+  scenario-lifecycle, the other scenario VMs, and compose fallback. Earlier
+  in the same gate, formatting, example-formatting, Clippy, the workspace
+  suite, and explicit tour regeneration also passed; the tour output was
+  unchanged. Next: final diff audit and commit, with the pre-existing generated
+  `devenv.lock` excluded.
+
+- 2026-08-02 00:38 UTC — Final audit found no whitespace errors. Committed the
+  completed addendum fix round (`Fix directory backing fallback`) after staging
+  only cix-run source/tests/log and the two VM assertions;
+  pre-existing generated `devenv.lock` remains intentionally unstaged. The
+  commit is the handoff point for track/dirs.
