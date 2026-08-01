@@ -792,36 +792,36 @@ impl Parser<'_> {
         Ok(())
     }
 
-    pub(super) fn grant(
+    pub(super) fn claim(
         &mut self,
         line: usize,
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
         self.require_artifact_kind(
-            "GRANT",
+            "CLAIM",
             line,
             source,
             &[ArtifactKind::Service, ArtifactKind::App],
         )?;
-        let fields = exact_fields(arguments, 1, line, source, "GRANT <jit|egress>")?;
+        let fields = exact_fields(arguments, 1, line, source, "CLAIM <jit|egress>")?;
         if !matches!(fields[0], "jit" | "egress") {
             return Err(ParseError::new(
                 line,
                 source,
                 format!(
-                    "unknown GRANT capability {:?}; supported capabilities: jit, egress",
+                    "unknown CLAIM capability {:?}; supported capabilities: jit, egress",
                     fields[0]
                 ),
             ));
         }
-        let service = self.current_service_mut("GRANT", line, source)?;
-        if !service.grants.insert(fields[0].to_owned()) {
+        let service = self.current_service_mut("CLAIM", line, source)?;
+        if !service.claims.insert(fields[0].to_owned()) {
             return Err(ParseError::new(
                 line,
                 source,
                 format!(
-                    "GRANT {:?} is already declared for this artifact",
+                    "CLAIM {:?} is already declared for this artifact",
                     fields[0]
                 ),
             ));
@@ -952,7 +952,7 @@ impl Parser<'_> {
             "STATE",
             "LOGS",
             "CONFIG",
-            "GRANT",
+            "CLAIM",
             "JIT",
             "EGRESS",
             "OUTBOUND",

@@ -1,8 +1,10 @@
 # Bikeshed: the `EXEC` keyword
 
-Status: draft, 2026-08-01. Spun off from the CIP-79 (health) review,
-where Mathijs flagged: "I'm also not sold on EXEC, docker calls it CMD
-or ENTRYPOINT iirc? what is the prior art here?"
+Status: **CIP-80, adopted 2026-08-01** — decided AGAINST §3's
+keep-`EXEC` recommendation: the directive becomes **`START`** (see §5).
+Spun off from the CIP-79 (health) review, where Mathijs flagged: "I'm
+also not sold on EXEC, docker calls it CMD or ENTRYPOINT iirc? what is
+the prior art here?"
 
 ## 1. The problem
 
@@ -48,3 +50,33 @@ docs/docker.md already teach exactly this).
 
 None — single yes/no: keep `EXEC` as recommended, or rename (the only
 serious challenger raised is `CMD`).
+
+## 5. Decision
+
+**`START`**, overriding §3. The dialogue exposed the flaw in §3(b):
+systemd's `Exec*` is a *family prefix* — the distinguishing information
+lives in the suffix (`Start`/`StartPre`/`Stop`/`Reload`), and composix
+already names lifecycle moments (`SETUP` ≈ `ExecStartPre`). The
+consistent, extensible family is lifecycle verbs; the no-shell/argv
+property is uniform across all command directives and should not name
+just one. `CMD`/`ENTRYPOINT` are avoided on the confusion argument
+alone.
+
+- `EXEC` → **`START`** (compiles to `ExecStart=`, unchanged semantics:
+  quote-aware words, no shell, D55).
+- `SETUP` → **`START_PRE`** (verified a pure pass-through to
+  `ExecStartPre=`, crates/cix-run/src/unit.rs:280 — nothing special was
+  lost). Future `STOP`/`RELOAD` slot into the same family if demanded.
+- Shell form stays explicit and always available:
+  `START ${pkgs.bash}/bin/sh -c '…'` — the shell is a named dependency
+  (it must be, to exist in the sparse projection at all), which is
+  exactly D55's provenance point. A bare `/bin/sh` does not exist in a
+  service's namespace by construction.
+- Old spellings `EXEC`/`SETUP` get the standard migration suggestion
+  (crunchy boundary); manifest field `exec` renames to `start`, `setup`
+  to `start_pre` (v0, D72).
+
+## Changelog
+
+- 2026-08-01: drafted (recommendation: keep EXEC); adopted same day as
+  CIP-80 with the opposite decision (START/START_PRE) after dialogue.

@@ -30,5 +30,5 @@
           "/run/web"
         ]
       },
-      "grants": ["jit"]
+      "claims": ["jit"]
 }

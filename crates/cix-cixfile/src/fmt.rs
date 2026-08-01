@@ -190,7 +190,7 @@ fn same_service(left: &Service, right: &Service) -> bool {
         && left.ports == right.ports
         && left.listeners == right.listeners
         && left.dirs == right.dirs
-        && left.grants == right.grants
+        && left.claims == right.claims
 }
 
 fn same_template(left: &Template, right: &Template) -> bool {

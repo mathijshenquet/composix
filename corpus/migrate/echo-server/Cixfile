@@ -13,4 +13,4 @@ SERVICE echo-server
   LINK ${pkgs.nodejs}/bin/node /bin/node
   EXEC node webserver.js
   PORT http = 80
-  GRANT jit
+  CLAIM jit

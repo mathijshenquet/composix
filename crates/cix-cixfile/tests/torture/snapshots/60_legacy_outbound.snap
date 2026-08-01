@@ -1,2 +1,2 @@
-line 5: OUTBOUND is obsolete; replace it with GRANT egress; see docs/cixfile.md#grants
+line 5: OUTBOUND is obsolete; replace it with CLAIM egress; see docs/cixfile.md#claims
   | "OUTBOUND"

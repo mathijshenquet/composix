@@ -1,4 +1,4 @@
-# grade: problem=pass line=5 fix=pass docs=docs/cixfile.md#grants
+# grade: problem=pass line=5 fix=pass docs=docs/cixfile.md#claims
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE app
 EXEC /bin/true

@@ -114,7 +114,7 @@ Ranked by frequency × how squarely it hits us:
    Mastodon. Already ⏳ in the ledger; second-most demanded.
 3. **Shared-rw directory between services** (Mastodon web+sidekiq, Penpot assets) —
    a genuine edge-model gap: today's edges are producer→consumers sockets/paths, not a
-   shared writable surface. Design candidate: an edge variant granting a common
+   shared writable surface. Design candidate: an edge variant exposing a common
    writable dir (per-edge group + idmapped ownership, the dstyle mechanism extended).
 4. **Timers/CronJob** — Renovate row + every app's internal schedulers. systemd timers
    are sitting right there; no cix surface. ❓ candidate: a `timer` service kind or a

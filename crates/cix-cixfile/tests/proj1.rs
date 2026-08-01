@@ -109,9 +109,9 @@ fn assert_items_are_minimal_and_v0(items: &[BuiltItem]) {
         assert_eq!(manifest["cixManifest"], 0);
         assert!(manifest.get("services").is_none());
         if item.name == "proj1-worker" {
-            assert_eq!(manifest["grants"], serde_json::json!(["egress"]));
+            assert_eq!(manifest["claims"], serde_json::json!(["egress"]));
         } else {
-            assert!(manifest.get("grants").is_none());
+            assert!(manifest.get("claims").is_none());
         }
     }
 }

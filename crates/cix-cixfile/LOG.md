@@ -1,11 +1,50 @@
 # Cixfile track work log
 
+- 2026-08-01T20:40:00Z — Committed the scoped rename as `b8e8e91` (`feat:
+  rename grants to claims`). The worktree is clean apart from this intentionally
+  uncommitted, ignored task log. All prescribed gates are recorded above.
+
 - 2026-08-01T13:45:00Z — Final gates green after staging new source files before the Nix source snapshot: `cargo fmt --all --check`; `devenv shell -- cargo run -- fmt --check examples`; warning-denied workspace clippy; serial workspace tests; tour regeneration and deterministic drift check; and the full `devenv shell -- nix flake check -L` (61 checks, including VM dogfood/compose/scenarios). `devenv` generated an untracked lock during gates and it was removed. `git diff --check` is clean. Next: commit staged implementation; keep this ignored journal unstaged.
 
 - 2026-08-01T13:20:00Z — Implemented CIP-76 watch loop. `cix watch [PATH]` now uses notify recursively with 300ms coalescing (`CIX_WATCH_DEBOUNCE_MS` is the hidden test override), polling fallback on notify setup failure, and a Ctrl-C handler returning success. Bare contexts warm-build and print item paths. Compose contexts map changed local Cixfiles to their service members, retag only rebuilt local items, and call a new internal multi-service `UpdateRequest::Services` so activation resolves/restarts only those services. Ignore matcher covers `.git`, all target dirs, Cixfile/compose locks including atomic temp writes, configured/default builder workspaces, and nested `.gitignore` rules. A CLI fixture edits a real context, sees exactly one build, then proves lock/workspace writes do not self-trigger; ignore and selective-resolve unit coverage also pass. The initial notifier test exposed access-event debounce starvation and a ready-message race; both were corrected. Docs now state the artifact-loop vs `nix develop` split and sync refusal. Next: full prescribed gate, tour regeneration/drift, flake check, review, commit.
 
 - 2026-08-01T12:00:00Z — Started track/watch (CIP-76). Read AGENTS.md, the current project journal, authoritative `docs/cips/0076-devloop.md`, and the current Cixfile/compose CLI and activation paths. Scope: a noisy `cix watch [PATH]` with a debounced, context-aware notify watcher; bare Cixfile rebuild reports its item; compose delegates to the existing `cix up` restart-changed activation path. Ignore rules must cover `.git`, builder workspaces (configured/default), `Cixfile.lock`, `target`, and `.gitignore`; tests will prove scripted one-round rebuild and no self-trigger. Next: design the small reusable watcher surface and determine the compose source-to-member rebuild mapping.
 
+- 2026-08-01T20:35:00Z — Full gate green: `devenv shell -- nix flake check
+  -L` completed all 63 checks, including VM dogfood, compose fallback, and the
+  scenario fleet under expected TCG fallback. Final diff check is clean.
+  Exact successful repros: `devenv shell -- cargo run -- fmt --check examples`;
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test
+  --workspace`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; and the committed-doc and determinism tour tests serially.
+  The one generated `devenv.lock` was moved to Trash. Next: stage all scoped
+  changes except this ignored task log, commit on track/claim, and verify.
+
+- 2026-08-01T20:25:00Z — Implementation and focused checks are green. Parser
+  now accepts CLAIM, treats the old directive as a migration error, and the
+  new 61/62 torture fixtures cover that error plus the CLAM typo suggestion.
+  Model/codegen/runner use `claims`; the runner field carries the required
+  reserved-name comment, and the codegen fingerprint is d78-v1 so cached old
+  outputs cannot survive. Focused parser/diagnostics/proj1, runner, and
+  compose tests passed; `cargo run -- fmt --check examples`, fmt, and
+  warning-denied clippy passed; workspace tests and tour regeneration passed.
+  The first committed-tour assertion hit the known shared tour-workspace
+  deletion race, then passed serially; serial determinism passed too. The
+  remaining case-insensitive inventory is confined to historical journals,
+  CIP/design history, the reservation comment, migration implementation and
+  regression fixture/test literals, plus LICENSE boilerplate. Next: full
+  flake gate, final scope/inventory review, then commit.
+
+- 2026-08-01T20:05:56Z — Started track/claim. Read AGENTS.md, the session
+  journal, CIP-78 §5, D72, the complete track spec, and this crate journal.
+  Scope is the alpha rename only: Cixfile `CLAIM egress`/`CLAIM jit`, manifest
+  `claims`, migration diagnostics for the old spelling, all active
+  consumers/docs/tour/fixtures, and the prescribed full gate. The initial
+  case-insensitive inventory has 191 matches, including historical journals,
+  CIP/design history, and LICENSE boilerplate; active implementation is still
+  to be mapped and converted. Next: update the language and manifest seams,
+  then sweep tests, examples, documentation, and generated tour output.
 - 2026-08-01T02:20:00Z — Resumed track/decompose. Converted every active
   runner, VM, scenario, fixture, and test manifest to cixManifest 0's bare
   def-node shape (the only nonzero in the tree is the deliberate unsupported
@@ -206,7 +245,6 @@
   fingerprinting; docs and honest corpus receipts. Expected compatibility effect:
   the new fingerprint creates a one-time global memo miss. Next: map the lock and
   build-chain seams, implement with focused tests, then run the prescribed gate.
-||||||| fb7a023
 
 - 2026-07-31T22:17:34Z — Final nixcompare gate is green with the corrected,
   self-contained warm benchmark. Exact fixture repros passed in sequence:

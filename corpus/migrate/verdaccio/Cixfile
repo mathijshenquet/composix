@@ -21,5 +21,5 @@ SERVICE verdaccio
   LINK ${pkgs.nodejs_24}/bin/node /bin/node
   EXEC node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
   PORT http = 4873
-  GRANT jit
-  GRANT egress
+  CLAIM jit
+  CLAIM egress

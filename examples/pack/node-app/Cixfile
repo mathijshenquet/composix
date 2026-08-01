@@ -6,4 +6,4 @@ SERVICE node-app
   LINK ${pkgs.nodejs}/bin/node /bin/node
   EXEC node /app/server.js
   PORT http = 8081
-  GRANT jit
+  CLAIM jit
