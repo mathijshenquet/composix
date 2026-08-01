@@ -107,9 +107,23 @@ paths (systemd would name the host-side locations).
 | | backing | machinery active | identity |
 | --- | --- | --- | --- |
 | *(default)* private | unit-scoped host root, path-mirrored | full systemd: creation, id-mapped/DynamicUser ownership, env, clean | dynamic OK |
-| `host: /tank/x` | operator path, `BindPaths=`/`BindReadOnlyPaths=` per role write-ness | none — bind + `RequiresMountsFor=`; path must pre-exist, cix never mkdirs outside its roots | **static (D48d) required** — nobody re-chowns operator data |
+| `host: /tank/x` | operator path, `BindPaths=`/`BindReadOnlyPaths=` per role write-ness | none — bind + `RequiresMountsFor=`; path must pre-exist, cix never mkdirs outside its roots | **static (D48d) required** — see below: so that a chown is never needed |
 | `shared: <name>` | composite-owned surface (v0: STATEDIR and CLAIM-data only) | stable group + setgid + `SupplementaryGroups=` + `UMask=0002` | registry group |
 | `as: <role>` | reclassification of treatment | target role's | — |
+
+**Ownership at the host seam, spelled out** (review question): cix
+never chowns an operator path — not to the service user, not to
+"nobody" (the "nobody" in the systemd docs belongs to the *private*
+id-mapped world only). The static-identity requirement exists precisely
+so no chown is ever needed: the operator aligns `/tank/x` ownership
+with the stable service identity once, and it stays valid. DynamicUser
+would need a re-chown of operator data every uid reassignment — that is
+the refused operation. For pre-existing data owned by some other uid,
+the optional remedy is an **idmapped bind mount**: a kernel-level view
+translation (outer uid ↔ service uid) that mutates no ownership bytes —
+distinct from `as:` (which reclassifies lifecycle *treatment*, nothing
+to do with ownership). Whether the idmap requires an explicit
+acknowledgment field stays open (§4.2).
 
 Reclassification polarity: escalating durability (cache→state) is
 silent; degrading (state→cache) is LOUD in check (operator opts into
@@ -148,11 +162,13 @@ verbs, ever.
 
 ## 4. Open questions
 
-1. **Host-mirror spelling**: full mirror (`STATEDIR /var/lib/pg` →
-   host `/var/lib/<unit>/var/lib/pg`, ugly-but-uniform) vs stripping
-   the class prefix when the declared path happens to lie under it
-   (`/var/lib/<unit>/pg`, pretty-but-conditional). Proposal: full
-   mirror — host layout is cix-internal, uniformity wins.
+1. ~~Host-mirror spelling~~ — **decided (review): full mirror**,
+   ugly-but-uniform; host layout is cix-internal. Considered and
+   dismissed as "redelijk academisch": strip-class-prefix-when-under-it
+   with a `-/` marker for the non-prefixed case
+   (`/var/lib/<unit>/-/${path}`), and computing a common root across
+   all of a service's declarations and prefix-stripping that. Both buy
+   prettiness with a conditional rule; uniformity wins.
 2. **Foreign-owned host data**: for `host:` backing over data owned by
    another uid, is the idmapped-mount mapping automatic or does compose
    demand an explicit acknowledgment field before cix maps the service
