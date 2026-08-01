@@ -91,6 +91,11 @@ fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume(
         "missing auto root for {}",
         gc_root.display()
     );
+    assert_property(
+        &started.name,
+        "LogExtraFields",
+        &format!("CIX_RUN={} CIX_ITEM={}", started.name, store_path.display()),
+    )?;
     let unit = unit_file(&started.name)?;
     assert!(unit.contains("ExecStopPost=+"), "{unit}");
     assert!(unit.contains(gc_root.to_string_lossy().as_ref()), "{unit}");

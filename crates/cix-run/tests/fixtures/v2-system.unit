@@ -4,6 +4,7 @@ Description=cix run: web
 [Service]
 Type=exec
 Slice=cix-run.slice
+LogExtraFields=CIX_RUN=cix-run-web.service CIX_ITEM=/nix/store/00000000000000000000000000000000-web-v2
 RuntimeDirectory=cix-run-web:web
 RuntimeDirectoryMode=0700
 DynamicUser=yes

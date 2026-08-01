@@ -204,24 +204,31 @@ fn filter_unit_listing(raw: &str, unit_names: &[String]) -> String {
                 manager,
                 unit,
                 fields.next()?,
+                fields.next()?,
                 fields.collect::<Vec<_>>().join(" "),
             ))
         })
         .collect::<Vec<_>>();
     let unit_width = rows
         .iter()
-        .map(|(_, unit, _, _)| unit.len())
+        .map(|(_, unit, _, _, _)| unit.len())
         .max()
         .unwrap_or(4)
         .max(4);
+    let result_width = rows
+        .iter()
+        .map(|(_, _, _, result, _)| result.len())
+        .max()
+        .unwrap_or(6)
+        .max(6);
     let mut listing = format!(
-        "{:<7}  {:<unit_width$}  {:<10}  DESCRIPTION",
-        "MANAGER", "UNIT", "STATE"
+        "{:<7}  {:<unit_width$}  {:<10}  {:<result_width$}  DESCRIPTION",
+        "MANAGER", "UNIT", "STATE", "RESULT"
     );
-    for (manager, unit, state, description) in rows {
+    for (manager, unit, state, result, description) in rows {
         write!(
             listing,
-            "\n{manager:<7}  {unit:<unit_width$}  {state:<10}  {description}"
+            "\n{manager:<7}  {unit:<unit_width$}  {state:<10}  {result:<result_width$}  {description}"
         )
         .expect("writing filtered unit listing");
     }

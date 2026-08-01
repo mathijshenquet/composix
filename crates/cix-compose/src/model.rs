@@ -14,6 +14,8 @@ pub struct Compose {
     pub name: String,
     pub services: BTreeMap<String, ComposeService>,
     #[serde(default)]
+    pub log_namespace: bool,
+    #[serde(default)]
     pub edges: BTreeMap<String, Edge>,
 }
 
@@ -253,5 +255,17 @@ mod tests {
             error.contains("persistent and jitter require schedule"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn accepts_a_compose_level_log_namespace() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","logNamespace":true,"services":{"api":{"item":"x:v1"}}}"#,
+        )
+        .unwrap();
+        assert!(Compose::load(&path).unwrap().log_namespace);
     }
 }

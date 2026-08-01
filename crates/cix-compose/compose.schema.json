@@ -8,6 +8,7 @@
   "properties": {
     "composeVersion": {"const": 1},
     "name": {"$ref": "#/$defs/name"},
+    "logNamespace": {"type": "boolean", "default": false},
     "services": {
       "type": "object",
       "minProperties": 1,

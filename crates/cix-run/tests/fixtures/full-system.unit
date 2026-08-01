@@ -4,6 +4,7 @@ Description=cix run: web
 [Service]
 Type=exec
 Slice=cix-run.slice
+LogExtraFields=CIX_RUN=cix-run-web.service CIX_ITEM=/nix/store/00000000000000000000000000000000-web
 TemporaryFileSystem=/var/lib:ro
 StateDirectory=cix-run-web/state-0:state cix-run-web/state-1:uploads
 StateDirectoryMode=0700

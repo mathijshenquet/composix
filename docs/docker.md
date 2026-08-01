@@ -44,11 +44,10 @@ schedule:
   listener can bind an address through `cix run -p name=addr`, but ordinary declared ports still
   have no policy-level bind-address control. This is *the* design debt the compose era must pay first
   (part 3/part 5); until then the ledger's networking rows are honest IOUs.
-- **The operational verb set is thin.** `cix exec` and `cix debug` now cover live operator
-  surgery and pre-start sandbox diagnosis (D34), but there is no `cix logs`, `inspect`, `stats`,
-  or `wait`; no status/exit-cause view; stop/restart go through raw `systemctl`. Each is small and
-  systemd-backed — this is roadmap material, listed per-row below as ❓, not a structural
-  problem, but today an operator lives in two vocabularies.
+- **The operational verb set is deliberately a projection.** `cix logs`, `ps`, `inspect`, and
+  `stats` read journald/systemd state; they hold no parallel database or daemon. Each prints or
+  documents its raw equivalent, so operators can move freely between the cix and systemd
+  vocabularies.
 - **Security posture is asserted, not published.** The sandbox is real, but "stricter than
   docker" needs receipts: publish the effective syscall/mount policy and grow a compatibility
   corpus as cixpkgs grows. Tracked in "Evidence we owe."
@@ -109,13 +108,14 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`-v` / `--mount`](https://docs.docker.com/engine/storage/bind-mounts/) | 🔁 role dirs (state/cache/logs/config/run, D11 narrowed); D22 sparse item paths are read-only projections, while operator host-binds are ⏳ compose | Arbitrary mutable host mounts; D11 deliberately narrows mount compatibility. |
 | [`--restart` policies](https://docs.docker.com/engine/containers/start-containers-automatically/) | ⏳ compose (systemd `Restart=` natively) | — |
 | [`HEALTHCHECK` / health status](https://docs.docker.com/reference/dockerfile/#healthcheck) | ⏳ parsed today, wired in compose era | Health state today. |
-| [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 journald; foreground `cix run` streams and `journalctl -u cix-*` works | ❓ No `cix logs`, stable selector, per-app retention contract, or logging-driver integration. |
+| [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 `cix logs <compose>[/<service>]` is an indexed `journalctl CIX_COMPOSITE=… CIX_SERVICE=…` projection; `-f`, `--since`, `-n`, and `--invocation` translate directly. `cix logs --explain` prints the raw command. | No stdin/TTY attachment or separate cix log store. |
 | [`exec` (command in container)](https://docs.docker.com/reference/cli/docker/container/exec/) | ✅ `cix exec` joins whichever of a running unit's mount/PID/network/IPC/UTS namespaces are private and reconstructs its recorded environment; system-mode services have a private PID namespace by default, while network remains host-shared for network-enabled services (D34, D36) | Defaults to the service UID/GID, with explicit `--root`. `PrivatePIDs` is dropped loudly on unsupported systemd/user-manager degraded paths, so the exec banner remains the source of truth. Deliberately no synthetic service seccomp/capability/cgroup confinement: this is operator surgery, not another service process (D34). |
 | [`attach`](https://docs.docker.com/reference/cli/docker/container/attach/) | 🔁 journal streaming | stdin/TTY attachment. |
 | [`stop`](https://docs.docker.com/reference/cli/docker/container/stop/) / [`kill`](https://docs.docker.com/reference/cli/docker/container/kill/) / signals | ✅ `systemctl stop`; custom stop signal/timeouts ⏳ (future manifest field) | — |
 | [`rm` / `--rm`](https://docs.docker.com/reference/cli/docker/container/rm/) | 🔁 transient units self-collect | — |
-| [`ps`](https://docs.docker.com/reference/cli/docker/container/ls/) | ✅ `cix ps` | — |
-| [`stats`](https://docs.docker.com/reference/cli/docker/container/stats/) / [`top`](https://docs.docker.com/reference/cli/docker/container/top/) | 🔁 cgroup accounting is available through `systemd-cgtop`; `cix stats` sugar ⏳ | — |
+| [`ps`](https://docs.docker.com/reference/cli/docker/container/ls/) | ✅ `cix ps` includes the native systemd RESULT (including the watchdog diagnosis) | Docker's container IDs and separate health status. |
+| [`stats`](https://docs.docker.com/reference/cli/docker/container/stats/) / [`top`](https://docs.docker.com/reference/cli/docker/container/top/) | 🔁 `cix stats` provides one accounting snapshot (memory, CPU, tasks, IO/IP); live observation is `systemd-cgtop`. | Docker's streaming interactive table and process `top` view. |
+| per-app log retention | 🔁 compose `logNamespace: true` gives `cix-<compose>` its own journald namespace and retention configuration | Per-service policy fields; namespace creation is an opt-in operational shift, not cix-managed retention. |
 | [`update` (live resource limits)](https://docs.docker.com/reference/cli/docker/container/update/) | ⏳ compose era (limits are operator config) | Live resource updates. |
 | [`cp`](https://docs.docker.com/reference/cli/docker/container/cp/) | ❓ role dirs are plain host paths | ❓ Would path documentation replace copying to/from the immutable item and private namespaces? |
 | [`commit` (container → image)](https://docs.docker.com/reference/cli/docker/container/commit/) | ❌ fundamental: artifacts come from builds, never snapshots (purity) | Capturing a debugged or manually modified runtime as a distributable artifact; mutable root filesystem. |
@@ -219,6 +219,29 @@ their paired `cix-<compose>-<member>.timer`, while the composite target wants on
 `cix run <item> --schedule '<OnCalendar>'`; it creates the same systemd-native transient timer
 shape for an APP.
 
+### Observability and retention
+
+Every generated service stamps indexed journald fields: compose members carry
+`CIX_COMPOSITE`, `CIX_SERVICE`, and `CIX_ITEM`; transient runs carry `CIX_RUN` and
+`CIX_ITEM`. `cix ps` reports the native systemd result, while `cix inspect --runtime` also
+reports its invocation ID and exit status. Systemd spawn failures 200–245 are diagnosed by their
+sandbox setup step; `watchdog` reads as “liveness watchdog missed”.
+
+Set the compose-level field below when the composite needs a separate journald retention policy:
+
+```json
+{
+  "logNamespace": true,
+  "services": { "api": { "item": "api:v1" } }
+}
+```
+
+This adds `LogNamespace=cix-<compose>` to every member. It is deliberately compose-only: the
+operational consequence is real—read those records with `journalctl --namespace=cix-<compose>`
+and configure that namespace's own journald retention/size policy. `cix logs` detects the field
+and supplies the namespace automatically. Journald remains the logging driver and forwarding
+owner; cix has no logging-driver fields.
+
 | docker | disposition | still missing |
 | --- | --- | --- |
 | [Compose services](https://docs.docker.com/reference/compose-file/services/) | ✅ strict machine-format `compose.json` services resolve local tags/store paths, select item services, and apply declared env/listener bindings (`crates/cix-compose/src/{model,resolve,generation}.rs`; `examples/compose/stack/compose.json`) | Docker Compose YAML compatibility, multi-file merging/includes, `extends`, and broad Compose-field coverage. |
@@ -243,7 +266,7 @@ shape for an APP.
 | [`dockerd` (the daemon)](https://docs.docker.com/reference/cli/dockerd/) | ❌ systemd is the runtime; `cix` is a CLI + later a small reconciler (D9) | One versioned engine API owning lifecycle, images, networks, volumes, events, metrics, and remote automation; a unifying platform surface. |
 | [`docker context` / remote hosts](https://docs.docker.com/reference/cli/docker/context/) | ❓ ssh is the transport today; `cix --host` sugar maybe ⏳ | ❓ Remote contexts. |
 | [events API](https://docs.docker.com/reference/cli/docker/system/events/) | 🔁 journald/systemd events | Typed events API. |
-| [logging drivers](https://docs.docker.com/engine/logging/configure/) | ❌ journald; forwarding is journald's job | Per-workload selection and portable Compose configuration for JSON, syslog, Fluentd, GELF, cloud, and plugin drivers. |
+| [logging drivers](https://docs.docker.com/engine/logging/configure/) | ❌ journald; forwarding is journald's job. Compose `logNamespace: true` is an opt-in per-composite retention boundary, not a cix driver. | Per-workload selection and portable Compose configuration for JSON, syslog, Fluentd, GELF, cloud, and plugin drivers. |
 | [storage drivers](https://docs.docker.com/engine/storage/drivers/select-storage-driver/) | ❌ the Nix store | Platform/filesystem-specific runtime-layer choices and compatibility with Docker's mutable container filesystems. |
 | [plugins](https://docs.docker.com/engine/extend/) | ❌ no plugin interface | Third-party volume, network, authorization, logging, and other daemon extensions. |
 | [rootless mode](https://docs.docker.com/engine/security/rootless/) | 🔁 `--user` degraded dev mode exists (D13); full rootless is not a goal | A materially complete rootless mode. |

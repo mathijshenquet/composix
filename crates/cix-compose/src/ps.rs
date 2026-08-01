@@ -16,6 +16,7 @@ struct Row {
     composite: String,
     service: String,
     unit: ListedUnit,
+    result: String,
 }
 
 pub fn ps() -> Result<()> {
@@ -27,11 +28,15 @@ pub fn ps() -> Result<()> {
                 for unit in units {
                     let (composite, service) =
                         grouping(user, &unit.unit).unwrap_or_else(|_| ("-".into(), "-".into()));
+                    let result = systemctl_value(user, &unit.unit, "Result")
+                        .map(|result| crate::result_label(&result).to_owned())
+                        .unwrap_or_else(|_| "-".into());
                     rows.push(Row {
                         manager,
                         composite,
                         service,
                         unit,
+                        result,
                     });
                 }
             }
@@ -62,18 +67,20 @@ pub fn ps() -> Result<()> {
     let composite_width = width(&rows, 9, |row| row.composite.len());
     let service_width = width(&rows, 7, |row| row.service.len());
     let unit_width = width(&rows, 4, |row| row.unit.unit.len());
+    let result_width = width(&rows, 6, |row| row.result.len());
     println!(
-        "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  DESCRIPTION",
-        "MANAGER", "COMPOSITE", "SERVICE", "UNIT", "STATE"
+        "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  DESCRIPTION",
+        "MANAGER", "COMPOSITE", "SERVICE", "UNIT", "STATE", "RESULT"
     );
     for row in rows {
         println!(
-            "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {}",
+            "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  {}",
             row.manager,
             row.composite,
             row.service,
             row.unit.unit,
             format!("{}/{}", row.unit.active, row.unit.sub),
+            row.result,
             row.unit.description,
         );
     }

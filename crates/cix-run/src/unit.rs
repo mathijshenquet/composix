@@ -59,6 +59,8 @@ pub struct UnitCompileOptions {
     pub naming: UnitNaming,
     /// Additional systemd service properties appended after cix-run's own properties.
     pub extra_properties: Vec<(String, String)>,
+    /// Indexed journald fields identifying the cix owner of this unit.
+    pub log_fields: Vec<(String, String)>,
 }
 
 impl UnitCompileOptions {
@@ -67,6 +69,7 @@ impl UnitCompileOptions {
         Self {
             naming: UnitNaming::cix_run(service_name),
             extra_properties: Vec::new(),
+            log_fields: vec![("CIX_RUN".into(), format!("cix-run-{service_name}.service"))],
         }
     }
 }
@@ -212,6 +215,14 @@ pub(crate) fn build_unit_with_options(
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), options.naming.slice.clone()));
+    let log_fields = options
+        .log_fields
+        .iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .chain(std::iter::once(format!("CIX_ITEM={}", output.display())))
+        .collect::<Vec<_>>()
+        .join(" ");
+    properties.push(("LogExtraFields".into(), log_fields));
 
     add_directories(
         &mut properties,
@@ -988,11 +999,18 @@ mod tests {
                     directory_prefix: "cix-mycomp".into(),
                 },
                 extra_properties: vec![("SupplementaryGroups".into(), "cix-edge".into())],
+                log_fields: vec![
+                    ("CIX_COMPOSITE".into(), "mycomp".into()),
+                    ("CIX_SERVICE".into(), "web".into()),
+                ],
             },
         )
         .unwrap();
         assert_eq!(compiled.name, "cix-mycomp-web.service");
         assert_eq!(compiled.target, "cix-mycomp.target");
+        assert!(compiled.text.contains(
+            "LogExtraFields=CIX_COMPOSITE=mycomp CIX_SERVICE=web CIX_ITEM=/nix/store/00000000000000000000000000000000-web"
+        ));
         assert!(compiled.text.contains("Slice=cix-mycomp.slice"));
         assert!(compiled.text.contains("StateDirectory=cix-mycomp-web:web"));
         assert!(compiled.text.contains("SupplementaryGroups=cix-edge"));

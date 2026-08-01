@@ -7,6 +7,7 @@ After=cix-stack-edge-shared.service cix-stack-web-http.socket
 [Service]
 Type=exec
 Slice=cix-stack.slice
+LogExtraFields=CIX_COMPOSITE=stack CIX_SERVICE=web CIX_ITEM=/nix/store/00000000000000000000000000000000-web
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes
