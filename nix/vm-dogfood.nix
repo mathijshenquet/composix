@@ -113,8 +113,6 @@ pkgs.testers.runNixOSTest {
     machine.succeed("cix exec " + pid_unit + " --root -- /bin/sh -c 'read -r comm < /proc/1/comm; test \"$comm\" = pid-probe'")
     machine.succeed("systemctl stop " + pid_unit)
     machine.succeed("test ! -L " + pid_root)
-    machine.succeed("nix-store --gc --max-freed 1 >/dev/null")
-    machine.succeed("test -z \"$(find /nix/var/nix/gcroots/auto -type l -lname " + pid_root + ")\"")
 
     nginx_item = machine.succeed("nix-store --add ${nginx}").strip()
     nginx_unit = machine.succeed("cix run " + nginx_item + " --detach").strip()
@@ -153,5 +151,11 @@ pkgs.testers.runNixOSTest {
 
     machine.succeed("systemctl stop cix-run.slice")
     machine.succeed("test -z \"$(systemctl list-units --no-legend 'cix-*' | awk 'NF { print $1 }')\"")
+
+    # Global GC may collect any not-yet-added additionalPaths item (they are
+    # valid but unrooted in the VM store image), so it must run after the
+    # last nix-store --add. The host-store 9p mode used locally hides this.
+    machine.succeed("nix-store --gc --max-freed 1 >/dev/null")
+    machine.succeed("test -z \"$(find /nix/var/nix/gcroots/auto -type l -lname " + pid_root + ")\"")
   '';
 }
