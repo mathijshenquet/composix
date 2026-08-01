@@ -1,5 +1,31 @@
 # composix work log
 
+## 2026-08-01 morning (decompose + underlay landed — the warm loop is won)
+
+- **Merged**: track/pinkeys (`5201d52`, terra ×3 — D69 complete; acceptance:
+  byte-identical locks across a workspace WIPE between clean update-locks,
+  independently proven; parse-server pins 7 consumed paths, volatile facts
+  recorded not persisted); track/decompose (`f48bd7f`, terra ×2 +
+  orchestrator gate-completion — cix-build crate exists, parser.rs
+  2,741→thin mod over directives/machine/migrations/validate, index in five
+  modules, spec.rs −690 via the v0 collapse; net −348 lines while adding a
+  crate; torture snapshots byte-identical throughout); track/underlay
+  (`aa682a1`, terra — D71 underlay semantics, warm-vs-cold fixture, docs).
+- **The headline measurement, independently re-run on a clean harness:
+  warm edit upstream 28.3s / crane 14.3s / cix 7.5s.** The scorecard now
+  reads: authoring 17 vs 30 vs 38 LOC, cold 26.9s (best), warm 7.5s (best,
+  2× over crane), no-op 1.13s (nix eval-cache keeps that one). Receipt
+  dated in docs/nix-build.md.
+- Ops finds during verification (queued nits): the D69 probe leaks its
+  /tmp/cix-fetch-probe-* dirs (must self-clean, also on failure);
+  measure-warm.sh hardcodes /tmp (should honor TMPDIR); tmpfs inode
+  exhaustion twice root-caused (node_modules-class trees).
+- **Queue next**: D74 fmt implementation (spec to write; after crunchy's
+  parser landscape), D70 overlay universes implementation (+ wallos
+  rewrite), probe-leak + harness nits, tourvm, wave-two feature tracks.
+- Open with Mathijs: nothing blocking; the parser D-number question was
+  resolved (banned), fmt CLI resolved (check subsumes diff).
+
 ## 2026-08-01 late (CI GREEN + D70–D74; crunchy landed; pinkeys in leg 3)
 
 - **CI on main is fully green** (`fb0d7c5`) — first since 2026-07-30. The
