@@ -2,17 +2,16 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
-    ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert}
-
-COPY ${src}/Cargo.toml Cargo.toml
-COPY ${src}/Cargo.lock Cargo.lock
-COPY ${src}/fetch.rs fetch.rs
-FETCH cargo fetch --locked
-COPY ${src}/src/ src
-RUN cargo build --release --locked --offline --bin projb
+  IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} \
+      ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert}
+  COPY ${src}/Cargo.toml Cargo.toml
+  COPY ${src}/Cargo.lock Cargo.lock
+  COPY ${src}/fetch.rs fetch.rs
+  FETCH cargo fetch --locked
+  COPY ${src}/src/ src
+  RUN cargo build --release --locked --offline --bin projb
 
 SERVICE projb
-COPY ${build}/target/release/projb /bin/projb
-EXEC projb
-PORT http = 18082
+  COPY ${build}/target/release/projb /bin/projb
+  EXEC projb
+  PORT http = 18082

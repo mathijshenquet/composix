@@ -2,6 +2,6 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE caddy
-COPY ${src}/index.html /srv/www/index.html
-EXEC ${pkgs.caddy}/bin/caddy file-server --root /srv/www --listen :80
-PORT http = 80
+  COPY ${src}/index.html /srv/www/index.html
+  EXEC ${pkgs.caddy}/bin/caddy file-server --root /srv/www --listen :80
+  PORT http = 80
