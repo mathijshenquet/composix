@@ -1,0 +1,19 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE postgres
+  COPY ${src}/runtime-env.sh /opt/postgres/runtime-env.sh
+  COPY ${src}/setup.sh /opt/postgres/setup.sh
+  COPY ${src}/start.sh /opt/postgres/start.sh
+  LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
+  LINK ${pkgs.bash}/bin/sh /bin/sh
+  START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup.sh
+  START ${pkgs.bash}/bin/sh /opt/postgres/start.sh ${pkgs.postgresql}/bin/postgres
+  ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
+  ENV LANG = C
+  ENV LC_ALL = C
+  SECRET db-password
+  PORT postgres = 35432
+  STATEDIR /var/lib/postgresql
+  RUNDIR /run/postgresql
+  READINESS tcp :35432 IN 30s

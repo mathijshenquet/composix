@@ -1,0 +1,8 @@
+Upstream compose: https://raw.githubusercontent.com/mastodon/mastodon/ad245adf510cf56953ebb8a7dfc5db16c0f58403/docker-compose.yml
+Repository: https://github.com/mastodon/mastodon.git
+Revision: ad245adf510cf56953ebb8a7dfc5db16c0f58403 (main on 2026-08-02)
+
+The checked-in upstream-compose.yml is verbatim at that revision. The executable
+conversion preserves the five-role composition shape and adds a separate
+oneshot maintenance member to exercise native scheduling. It deliberately uses
+the approved lightweight fallback instead of building Mastodon and its assets.

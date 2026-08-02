@@ -1,0 +1,12 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE sidekiq
+  COPY ${src}/worker.py /opt/mastodon/worker.py
+  START ${pkgs.python3}/bin/python3 /opt/mastodon/worker.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  SECRET db-password
+  PORT control = 33001
+  STATEDIR /mastodon/public/system
+  READINESS tcp :33001 IN 30s
+  LIVENESS notify EVERY 2s
+  CLAIM egress
