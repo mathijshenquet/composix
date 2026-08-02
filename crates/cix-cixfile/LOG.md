@@ -1,5 +1,109 @@
 # Cixfile track work log
 
+- 2026-08-02T19:28:36Z — Committed the complete green track as `800c87a`
+  (`docs: add Mastodon integration receipt`): 29 scoped corpus/docs files,
+  including six locked member artifacts, executable receipt, two ledger
+  regrades, and regenerated browser pages. Cached whitespace and product-fence
+  checks passed immediately before commit. Post-commit status contains only this
+  required, deliberately unstaged journal; `origin/track/mastodon` does not yet
+  exist, and the specification requested a branch commit rather than a push.
+  Open product finding: systemd-257 does not retain the forked adapter liveness
+  pinger; it is documented in the receipt and above, with no product-code change.
+  The requested Mastodon track is complete and ready for orchestrator full-matrix
+  verification.
+
+- 2026-08-02T19:27:30Z — Final strengthened focused receipt is green with
+  synchronous exit 0 and cleanup: `./check.sh cix` activated generation
+  `xl5xsizh…`, reproduced the three delayed readiness failures then success,
+  observed three cleanup-timer firings, and kept both native-notify services
+  active for seven seconds—past their six-second watchdog window. Final item
+  paths remain those recorded in the receipt. This closes the only late audit
+  improvement; no Cixfile, lock, docs generator input, Rust source, or broad-gate
+  input changed after its prior green result. Next: refresh the two staged files,
+  repeat cached whitespace/fence audit, and commit.
+
+- 2026-08-02T19:26:15Z — Prescribed agent gate is fully green with synchronous
+  terminal statuses: `cargo fmt --all --check`; `cargo run -p cix -- fmt
+  --check examples`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  serial `cargo test --workspace -- --test-threads=1` (including committed
+  corpus/tour drift, real-Nix builds, and all crate suites); fresh ignored tour
+  regeneration followed by zero `docs/tour` diff; and the exact deterministic
+  tour test. Focused Mastodon and corpus-generator receipts are recorded above.
+  Final unstaged audit has no whitespace errors, no ephemeral `.env`/`cix.lock`,
+  and no product source paths: only this required journal, docs/corpus regrade +
+  generated pages, and the new corpus case differ. Next: stage exactly the
+  corpus/docs deliverables, verify the fence and cached diff, commit on
+  `track/mastodon`, then leave a final journal-only close.
+
+- 2026-08-02T19:22:35Z — Corpus browser regeneration and focused drift test are
+  green. The house generator required the verbatim upstream file to use its
+  recognized `upstream-compose.yml` name; renamed it without byte changes and
+  updated SOURCE. `generate_corpus_browser` added only Mastodon's index row and
+  page, and `generated_corpus_browser_is_deterministic --exact` passed. Reviewed
+  the generated upstream/compose comparison and ledger text; row 9 retains a
+  partial ribbon because segmentation is honestly absent, while row 10 points
+  only to the empirically shared-rw mechanism rather than claiming Penpot ran.
+  Next: execute fmt, examples fmt, warning-denied clippy, workspace tests, and
+  tour regeneration/drift; then audit and commit the green track.
+
+- 2026-08-02T19:21:16Z — Focused Mastodon receipt is synchronously green:
+  `corpus/migrate/mastodon/check.sh cix` exited 0 after its EXIT cleanup. It
+  built six locked items, validated six services/two Unix edges, activated
+  generation `4ihz6a…`, showed three refused web probes before the delayed
+  readiness success, verified independent web+sidekiq shared writes and the
+  `CREDENTIALS_DIRECTORY` marker, observed two timer firings, and proved
+  `cix logs corpus-mastodon/web` excluded the sidekiq marker. Native-notify
+  watchdogs remained healthy through the receipt. Exact final item paths are in
+  `receipt.md`. Re-graded compose rows 9/10 and retired Mastodon from §5's
+  candidate list while keeping D26/D27 segmentation visibly unclaimed. Next:
+  regenerate and drift-check the corpus browser, then run the prescribed broad
+  formatter/clippy/workspace/tour gate.
+
+- 2026-08-02T19:18:00Z — Second focused run found a real product compatibility
+  boundary and was interrupted after synchronous journal diagnosis rather than
+  counted: on this host's systemd 257, the HTTP/TCP liveness `ExecStartPost`
+  parent exits 0 but its forked resident pinger is not retained; healthy Redis
+  then dies at the six-second watchdog window. The newer-systemd health VM is
+  known green, so this is recorded as a host-version product finding and product
+  code remains untouched per the track fence. Switched the two controllable
+  stubs to CIP-79 native-notify liveness, retained cix-owned readiness adapters
+  on all five long-running members, and removed adapter liveness from packaged
+  daemons. Also corrected nginx's invalid `/dev/stdout` open under its sandbox.
+  Next: rebuild and rerun the focused receipt, confirming watchdog notifications
+  remain live past multiple windows.
+
+- 2026-08-02T19:15:49Z — First focused `./check.sh cix` reached a valid
+  six-service/two-edge compose and failed activation. Retained journal evidence
+  identified three fixture errors, not product defects: probe adapters embedded
+  the worktree binary path hidden by service `ProtectHome` (the check now adds
+  non-store cix binaries to the store first); every psql client omitted the
+  server's non-default port; and two minimal shell closures assumed ambient
+  `cat`. PostgreSQL and Redis themselves had become ready before the adapter
+  path killed them. Corrected the check boundary, explicit port, and shell-builtin
+  credential reads without widening any artifact or crossing the product fence.
+  Next: rebuild the content-changed items and rerun the complete focused receipt.
+
+- 2026-08-02T19:14:10Z — Authored the complete executable corpus shape without
+  crossing the product-code fence: verbatim pinned upstream compose; five
+  long-running member Cixfiles plus a scheduled maintenance APP; real PostgreSQL,
+  Redis, and nginx; Puma/Sidekiq-shaped Python stubs; DB/Redis Unix edges; the
+  public-system shared surface; native probes; file credential delivery; and
+  egress claims only on web/sidekiq. `check.sh` proves each required behavior and
+  uses the approved host-network fallback. Static bash syntax, Cix formatting,
+  whitespace, and upstream byte comparison are clean after correcting three
+  verbatim comment-indentation bytes. Next: generate each locked nixpkgs input,
+  then run the focused stack and fix only corpus artifacts if it exposes a bug.
+
+- 2026-08-02T19:04:53Z — Started `track/mastodon` from `40d44f1`. Read the
+  complete track spec, current project journal, authoritative D26/D27 boundary,
+  and this crate journal; direnv/devenv is active. Scope is corpus/example/doc
+  files only: a five-service Mastodon-shaped integration using shared-rw dirs,
+  health, secrets, unix edges, a timer, exact egress claims, and member-selective
+  logs. Product-code changes are fenced to concurrent tracks. The assigned log
+  is tracked rather than ignored, so it will remain deliberately unstaged as
+  required. Next: inspect the adopted CIP syntax and existing executable receipt
+  patterns, then author the stack and focused check.
+
 - 2026-08-02T17:05:00Z — Track implementation and agent gate complete on
   `track/thin1`: commits `52adf3e` (unit pure move), `a7f3b25` (FETCH
   consent move), `961d626` (tripwire + compat audit), and `62ea95d`
