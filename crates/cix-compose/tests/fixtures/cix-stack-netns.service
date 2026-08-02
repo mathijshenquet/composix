@@ -1,0 +1,13 @@
+[Unit]
+Description=cix compose network namespace: root
+PartOf=cix-stack.target
+Before=cix-stack-web.service cix-stack-worker.service
+Requires=systemd-networkd.service
+After=systemd-networkd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Slice=cix-stack.slice
+ExecStart=/bin/sh -ec '/run/current-system/sw/bin/mkdir -p /run/netns; if ! /run/current-system/sw/bin/ip netns list | /run/current-system/sw/bin/grep -q "^cix-stack-netns "; then /run/current-system/sw/bin/ip netns add cix-stack-netns; fi; /run/current-system/sw/bin/ip -n cix-stack-netns link set lo up; n=0; while ! /run/current-system/sw/bin/ip link show cix0 >/dev/null 2>&1; do n=$((n + 1)); test $n -lt 100; /run/current-system/sw/bin/sleep 0.1; done; /run/current-system/sw/bin/ip link delete cxaed6a92dh 2>/dev/null || true; /run/current-system/sw/bin/ip link add cxaed6a92dh type veth peer name cxaed6a92dp; /run/current-system/sw/bin/ip link set cxaed6a92dp netns cix-stack-netns; /run/current-system/sw/bin/ip -n cix-stack-netns link set cxaed6a92dp addrgenmode none; /run/current-system/sw/bin/ip -n cix-stack-netns address replace 10.231.0.2/16 dev cxaed6a92dp; /run/current-system/sw/bin/ip -n cix-stack-netns link set cxaed6a92dp up; /run/current-system/sw/bin/ip link set cxaed6a92dh master cix0; /run/current-system/sw/bin/ip link set cxaed6a92dh up; /run/current-system/sw/bin/ip -n cix-stack-netns route replace default via 10.231.0.1'
+ExecStop=/bin/sh -ec '/run/current-system/sw/bin/ip link delete cxaed6a92dh 2>/dev/null || true; /run/current-system/sw/bin/ip netns delete cix-stack-netns'

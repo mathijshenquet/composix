@@ -9,8 +9,8 @@ has content-addressed, reproducible artifacts with a real closure model, and **s
 hardened, capable service runtime. composix is the thin layer that gives that stack docker's
 ergonomics.
 
-**Status: early and moving fast.** Three of the four parts work end-to-end; compose is being
-built now. Everything may change.
+**Status: early and moving fast.** All four parts work end-to-end in the current alpha. Everything
+may change.
 
 ## The four parts
 
@@ -19,7 +19,7 @@ built now. Everything may change.
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
 | **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (alpha manifest v0 only; rebuild non-zero manifests) |
 | **Cixfile** | dockerfile-shaped authoring without writing nix; builders for build work and explicit service/app artifacts | working (v1) |
-| **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
+| **compose** | recursive `compose.json` trees: tracked tags, pods/netns, health, secrets, directory materializations, journald observability, and atomic rollback | working (alpha; named networks, replicas, and reconciliation remain) |
 
 ## A taste
 

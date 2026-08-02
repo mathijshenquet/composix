@@ -32,12 +32,12 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, store: &crate::Store) -> anyhow::Result<()> {
         match self {
-            Self::Tag { installable, r#ref } => crate::tag(&installable, &r#ref, None),
-            Self::Untag { r#ref } => crate::untag(&r#ref),
+            Self::Tag { installable, r#ref } => crate::tag(store, &installable, &r#ref, None),
+            Self::Untag { r#ref } => crate::untag(store, &r#ref),
             Self::Ls { prefix, long } => {
-                let listing = crate::list(prefix.as_deref(), long)?;
+                let listing = crate::list(store, prefix.as_deref(), long)?;
                 if !listing.is_empty() {
                     println!("{listing}");
                 }
@@ -48,14 +48,14 @@ impl Command {
                 substituter,
                 with_store,
                 sign_key,
-            } => crate::serve(&listen, substituter, with_store, sign_key.as_deref()),
+            } => crate::serve(store, &listen, substituter, with_store, sign_key.as_deref()),
             Self::Pull { r#ref, r#as } => {
-                let updated = crate::pull(r#ref.as_deref(), r#as.as_deref())?;
+                let updated = crate::pull(store, r#ref.as_deref(), r#as.as_deref())?;
                 println!("updated {updated} tag(s)");
                 Ok(())
             }
             Self::History { name } => {
-                for entry in crate::history(&name)? {
+                for entry in crate::history(store, &name)? {
                     println!("{} {}", entry.nar_hash, entry.tags.join(","));
                 }
                 Ok(())

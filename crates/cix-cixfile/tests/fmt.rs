@@ -5,6 +5,10 @@ use cix_cixfile::{build, fmt, parse, BuildOptions, LockFile};
 
 const COPY_KEYING_FIXTURE: &str = "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nBUILDER build\nCOPY ${src}/input.txt .\n\nITEM result\nCOPY ${build}/input.txt /input.txt\n";
 
+fn test_state_directory() -> PathBuf {
+    tempfile::tempdir().unwrap().keep()
+}
+
 #[test]
 fn golden_messy_input_has_the_v1_canon() {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fmt");
@@ -93,7 +97,6 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
     let clean_lock = format!("{}\n", serde_json::to_string_pretty(&lock).unwrap());
 
     let original_workspace = tempfile::tempdir().unwrap();
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", original_workspace.path());
     fs::write(directory.path().join("Cixfile.lock"), &clean_lock).unwrap();
     build(&BuildOptions {
         directory: directory.path().to_owned(),
@@ -101,6 +104,8 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: original_workspace.path().to_owned(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let original_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
@@ -108,7 +113,6 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
     let formatted = fmt::format(COPY_KEYING_FIXTURE).unwrap();
     fs::write(directory.path().join("Cixfile"), formatted).unwrap();
     let formatted_workspace = tempfile::tempdir().unwrap();
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", formatted_workspace.path());
     fs::write(directory.path().join("Cixfile.lock"), clean_lock).unwrap();
     build(&BuildOptions {
         directory: directory.path().to_owned(),
@@ -116,6 +120,8 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: formatted_workspace.path().to_owned(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
 

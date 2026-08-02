@@ -269,11 +269,14 @@ struct PathInfo {
 /// Reads, migrates, or resolves lock entries for the Cixfile's explicit FROM inputs.
 /// `update` is None for reuse, Some(name) for one input, and Some("") for all inputs.
 pub fn ensure_lock(
+    store: &cix_index::Store,
     path: &Path,
     inputs: &BTreeMap<String, Input>,
     update: Option<&str>,
 ) -> Result<LockFile> {
-    let lock = ensure_lock_with(path, inputs, update, resolve_input, resolve_artifact)?;
+    let lock = ensure_lock_with(path, inputs, update, resolve_input, |reference| {
+        resolve_artifact(store, reference)
+    })?;
     for input in inputs
         .values()
         .filter(|input| input.kind == InputKind::Artifact)
@@ -373,8 +376,8 @@ fn read_lock(contents: &[u8]) -> Result<LockFile> {
     )
 }
 
-fn resolve_artifact(reference: &str) -> Result<ArtifactPin> {
-    let output = cix_index::resolve(reference).with_context(|| {
+fn resolve_artifact(store: &cix_index::Store, reference: &str) -> Result<ArtifactPin> {
+    let output = cix_index::resolve_with(store, reference).with_context(|| {
         format!("resolving cix-item FROM ref {reference:?}; pull it or tag it first")
     })?;
     Ok(ArtifactPin {

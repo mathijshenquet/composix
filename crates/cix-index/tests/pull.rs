@@ -45,10 +45,18 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     drop(listener);
     let root_url = format!("localhost:{port}");
 
-    env::set_var("CIX_STATE_DIR", &server_state);
-    tag(&store_path, "family/member:v1", None).unwrap();
+    let server_store = Store::open(server_state.clone()).unwrap();
+    tag(&server_store, &store_path, "family/member:v1", None).unwrap();
+    let server_for_thread = server_store.clone();
     thread::spawn(move || {
-        serve(&format!("127.0.0.1:{port}"), Vec::new(), true, None).unwrap();
+        serve(
+            &server_for_thread,
+            &format!("127.0.0.1:{port}"),
+            Vec::new(),
+            true,
+            None,
+        )
+        .unwrap();
     });
     wait_for_listen(port);
 
@@ -109,6 +117,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     .starts_with("application/vnd.cix+json;version=1"));
 
     let error = tag(
+        &server_store,
         "/not/a/store/path",
         &format!("{root_url}/family/member:v1"),
         None,
@@ -118,9 +127,10 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
         .to_string()
         .contains("qualified names denote remote state; tags are bare"));
 
-    env::set_var("CIX_STATE_DIR", &client_state);
+    let client_store = Store::open(client_state.clone()).unwrap();
     assert_eq!(
         pull(
+            &client_store,
             Some(&format!("{root_url}/family/member:v1")),
             Some("local/member:v1"),
         )
@@ -128,7 +138,7 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
         1
     );
     let local = Ref::parse("local/member:v1").unwrap();
-    let metadata = Store::open().unwrap().load(&local).unwrap().unwrap();
+    let metadata = client_store.load(&local).unwrap().unwrap();
     assert_eq!(metadata.upstream.as_deref(), Some(root_url.as_str()));
     assert_eq!(
         metadata
@@ -141,16 +151,29 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
     );
 
     let mirror_state = temporary_dir("mirror");
-    env::set_var("CIX_STATE_DIR", &mirror_state);
+    let mirror_store = Store::open(mirror_state.clone()).unwrap();
     assert_eq!(
-        pull(Some(&format!("{root_url}/family/member:v1")), None).unwrap(),
+        pull(
+            &mirror_store,
+            Some(&format!("{root_url}/family/member:v1")),
+            None
+        )
+        .unwrap(),
         1
     );
     let mirror_listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mirror_port = mirror_listener.local_addr().unwrap().port();
     drop(mirror_listener);
+    let mirror_for_thread = mirror_store.clone();
     thread::spawn(move || {
-        serve(&format!("127.0.0.1:{mirror_port}"), Vec::new(), false, None).unwrap();
+        serve(
+            &mirror_for_thread,
+            &format!("127.0.0.1:{mirror_port}"),
+            Vec::new(),
+            false,
+            None,
+        )
+        .unwrap();
     });
     wait_for_listen(mirror_port);
     let mirror_names = get(

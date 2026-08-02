@@ -3,7 +3,7 @@ use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{self, Child, Command, ExitStatus, Output, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -19,9 +19,6 @@ use crate::unit::{
     build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitDegradation,
     UnitMode, UnitNaming,
 };
-
-static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
-static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 const SIGINT: i32 = 2;
 const SIG_ERR: usize = usize::MAX;
@@ -40,6 +37,7 @@ pub struct RunOptions {
     pub schedule: Option<String>,
     pub closed_root: bool,
     pub user: bool,
+    pub state_directory: PathBuf,
 }
 
 #[derive(Debug)]
@@ -69,7 +67,7 @@ pub(crate) struct ForegroundResult {
 }
 
 pub fn run(options: RunOptions) -> Result<()> {
-    let mut target = resolve_service(&options.installable)?;
+    let mut target = resolve_service(&options.state_directory, &options.installable)?;
     if !options.user && current_uid()? != 0 {
         bail!(
             "cix run targets the system manager and must run as root; use sudo, or pass --user for explicitly degraded dev mode"
@@ -1424,7 +1422,7 @@ fn expand_user_directory_specifiers(value: &str) -> Result<String> {
 
 fn follow(unit: &StartedUnit) -> Result<()> {
     let mut journal = journal_child(&unit.name, unit.user)?;
-    INTERRUPTED.store(false, Ordering::Relaxed);
+    cix_common::INTERRUPTED.store(false, Ordering::Relaxed);
     let previous = unsafe { signal(SIGINT, handle_interrupt as *const () as usize) };
     if previous == SIG_ERR {
         terminate_child(&mut journal);
@@ -1432,7 +1430,7 @@ fn follow(unit: &StartedUnit) -> Result<()> {
     }
 
     loop {
-        if INTERRUPTED.swap(false, Ordering::Relaxed) {
+        if cix_common::INTERRUPTED.swap(false, Ordering::Relaxed) {
             let stop_result = stop_service(&unit.name, unit.user);
             terminate_child(&mut journal);
             stop_result?;
@@ -1447,7 +1445,7 @@ fn follow(unit: &StartedUnit) -> Result<()> {
 }
 
 extern "C" fn handle_interrupt(_signal: i32) {
-    INTERRUPTED.store(true, Ordering::Relaxed);
+    cix_common::INTERRUPTED.store(true, Ordering::Relaxed);
 }
 
 fn journal_child(name: &str, user: bool) -> Result<Child> {
@@ -1506,8 +1504,8 @@ fn systemctl_value(user: bool, name: &str, property: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
 }
 
-pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
-    let target = resolve_target(input)?;
+pub(crate) fn resolve_service(state_directory: &Path, input: &str) -> Result<ResolvedService> {
+    let target = resolve_target(state_directory, input)?;
     let spec = Spec::load(&target.output)?;
     match spec.select_service(target.requested_service.as_deref()) {
         Ok((name, service)) => Ok(ResolvedService {
@@ -1520,7 +1518,7 @@ pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
             let Some((installable, service_name)) = split_single_hash(input) else {
                 return Err(original_error);
             };
-            let output = resolve_installable(installable)?;
+            let output = resolve_installable(state_directory, installable)?;
             let fallback_spec = Spec::load(&output)?;
             let (name, service) = fallback_spec.select_service(Some(service_name))?;
             Ok(ResolvedService {
@@ -1534,17 +1532,17 @@ pub(crate) fn resolve_service(input: &str) -> Result<ResolvedService> {
     }
 }
 
-fn resolve_target(input: &str) -> Result<Target> {
+fn resolve_target(state_directory: &Path, input: &str) -> Result<Target> {
     if input.starts_with("/nix/store/") || input.matches('#').count() >= 2 {
         if let Some((installable, service)) = input.rsplit_once('#') {
             return Ok(Target {
-                output: resolve_installable(installable)?,
+                output: resolve_installable(state_directory, installable)?,
                 requested_service: Some(service.to_owned()),
             });
         }
     }
     Ok(Target {
-        output: resolve_installable(input)?,
+        output: resolve_installable(state_directory, input)?,
         requested_service: None,
     })
 }
@@ -1557,7 +1555,7 @@ fn split_single_hash(input: &str) -> Option<(&str, &str)> {
     }
 }
 
-pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
+pub fn resolve_installable(state_directory: &Path, installable: &str) -> Result<PathBuf> {
     if installable.is_empty() {
         bail!("installable must not be empty");
     }
@@ -1567,7 +1565,10 @@ pub fn resolve_installable(installable: &str) -> Result<PathBuf> {
     }
 
     match Ref::parse(installable) {
-        Ok(reference) => match cix_index::resolve(installable) {
+        Ok(reference) => match cix_index::resolve_with(
+            &cix_index::Store::open(state_directory.to_owned())?,
+            installable,
+        ) {
             Ok(output) => return Ok(PathBuf::from(output.store_path)),
             Err(error) if reference.root_url.is_some() => {
                 return Err(error).with_context(|| {
@@ -1656,8 +1657,10 @@ pub(crate) fn nonce() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    let counter = NONCE_COUNTER.fetch_add(1, Ordering::Relaxed);
-    format!("{nanos:x}{counter:x}")
+    // Fixed width: unit-name length must be host-independent, or every
+    // rendered table column (and the drift-checked tour) varies with pid
+    // digit count.
+    format!("{nanos:016x}{:08x}", std::process::id())
 }
 
 pub(crate) fn namespace_failure(error: &anyhow::Error) -> bool {
@@ -1894,7 +1897,7 @@ mod tests {
             .find(|path| path.is_dir())
             .unwrap();
         assert_eq!(
-            resolve_installable(store_path.to_str().unwrap()).unwrap(),
+            resolve_installable(std::path::Path::new("/"), store_path.to_str().unwrap()).unwrap(),
             store_path
         );
     }
@@ -1948,6 +1951,7 @@ mod tests {
             schedule: None,
             closed_root: false,
             user: false,
+            state_directory: directory.path().join("state"),
         };
         let compiled = materialize_run_directories(&mut service, &options).unwrap();
         assert!(service

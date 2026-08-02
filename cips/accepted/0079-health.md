@@ -135,3 +135,4 @@ raised during review is spun off to its own draft CIP
   probe dropped (YAGNI), IN/EVERY spelling, ordering-follows-readiness
   clarified (§3), pull model for continuous readiness decided,
   vocabulary narrowed to §4.1. Adopted same day as CIP-79.
+- 2026-08-02: implemented READINESS/LIVENESS probes, rollout gating, bounded watchdog restarts, and structural readiness ordering.

@@ -19,7 +19,9 @@ use sha2::Sha256;
 use crate::{
     build_generation_with_closed_root,
     cli::CleanWhat,
-    generation::{DirectoryBackingKind, Manifest, UnitKind},
+    generation::{
+        build_generation_with_leases, DirectoryBackingKind, Manifest, PodLease, UnitKind,
+    },
     load_and_check, unit_path, Compose, UpdateRequest,
 };
 
@@ -27,6 +29,8 @@ const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
 const GC_ROOT_DIRECTORY: &str = "/var/lib/cix-compose/gcroots";
 const UNIT_DIRECTORY: &str = "/etc/systemd/system";
 const SECRET_STATE_DIRECTORY: &str = "/var/lib/cix-compose";
+const NETWORK_DIRECTORY: &str = "/run/systemd/network";
+const IPAM_STATE_PATH: &str = "/var/lib/cix-compose/ipam.json";
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -36,8 +40,15 @@ struct SecretState {
     fingerprints: BTreeMap<String, String>,
 }
 
-pub fn check(compose_path: &Path) -> Result<()> {
-    let checked = load_and_check(compose_path, UpdateRequest::None)?;
+#[derive(Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct IpamState {
+    #[serde(default)]
+    leases: BTreeMap<String, PodLease>,
+}
+
+pub fn check(store: &cix_index::Store, compose_path: &Path) -> Result<()> {
+    let checked = load_and_check(store, compose_path, UpdateRequest::None)?;
     warn_check_warnings(&checked);
     println!(
         "compose {}: {} services, {} edges, valid",
@@ -48,8 +59,8 @@ pub fn check(compose_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn diff(compose_path: &Path, closed_root: bool) -> Result<()> {
-    let checked = load_and_check(compose_path, UpdateRequest::None)?;
+pub fn diff(store: &cix_index::Store, compose_path: &Path, closed_root: bool) -> Result<()> {
+    let checked = load_and_check(store, compose_path, UpdateRequest::None)?;
     warn_check_warnings(&checked);
     let old = current_generation(&checked.compose.name)?;
     let old_manifest = old.as_deref().map(load_manifest).transpose()?;
@@ -67,17 +78,30 @@ pub fn diff(compose_path: &Path, closed_root: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn up(compose_path: &Path, update: UpdateRequest, closed_root: bool) -> Result<()> {
+pub fn up(
+    store: &cix_index::Store,
+    compose_path: &Path,
+    update: UpdateRequest,
+    closed_root: bool,
+) -> Result<()> {
     require_root("cix up")?;
-    let checked = load_and_check(compose_path, update)?;
+    let checked = load_and_check(store, compose_path, update)?;
     warn_check_warnings(&checked);
     validate_host_backing_exists(&checked)?;
     let (secret_state, rotated) = secret_state(&checked)?;
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
     let capabilities = HostCapabilities::probe()?;
-    let built =
-        build_generation_with_closed_root(&checked, compose_path, &capabilities, closed_root)?;
+    let leases = allocate_ipam(&checked)?;
+    let resolver_source = pod_resolver_source();
+    let built = build_generation_with_leases(
+        &checked,
+        compose_path,
+        &capabilities,
+        closed_root,
+        &leases,
+        &resolver_source,
+    )?;
     warn_degradations(&built.manifest);
     let old = current_generation(&checked.compose.name)?;
     register_generation_gc_roots(&checked.compose.name, &built.store_path, &built.manifest)?;
@@ -205,6 +229,58 @@ fn secret_state_path(name: &str) -> PathBuf {
         .join("secrets.json")
 }
 
+fn allocate_ipam(checked: &crate::CheckResult) -> Result<BTreeMap<String, PodLease>> {
+    let path = Path::new(IPAM_STATE_PATH);
+    let mut state = match fs::read(path) {
+        Ok(contents) => serde_json::from_slice(&contents).context("parsing compose IPAM state")?,
+        Err(error) if error.kind() == ErrorKind::NotFound => IpamState::default(),
+        Err(error) => return Err(error).context("reading compose IPAM state"),
+    };
+    let mut used = state
+        .leases
+        .values()
+        .map(|lease| lease.host)
+        .collect::<BTreeSet<_>>();
+    let mut selected = BTreeMap::new();
+    for pod in checked.pods.values().filter(|pod| pod.egress) {
+        let key = if pod.path.is_empty() {
+            checked.compose.name.clone()
+        } else {
+            format!("{}/{}", checked.compose.name, pod.path)
+        };
+        let lease = if let Some(lease) = state.leases.get(&key).copied() {
+            lease
+        } else {
+            let host = (2..u16::MAX)
+                .find(|candidate| !used.contains(candidate))
+                .context("cix-owned 10.231.0.0/16 IPAM range is exhausted")?;
+            let lease = PodLease { host };
+            state.leases.insert(key, lease);
+            used.insert(host);
+            lease
+        };
+        selected.insert(pod.path.clone(), lease);
+    }
+    if !selected.is_empty() {
+        let parent = path.parent().expect("IPAM path has parent");
+        fs::create_dir_all(parent).context("creating compose IPAM state directory")?;
+        let temporary = tempfile::NamedTempFile::new_in(parent)
+            .context("creating temporary compose IPAM state")?;
+        serde_json::to_writer_pretty(temporary.reopen()?, &state)?;
+        fs::rename(temporary.path(), path).context("saving compose IPAM state")?;
+    }
+    Ok(selected)
+}
+
+fn pod_resolver_source() -> PathBuf {
+    let uplink = PathBuf::from("/run/systemd/resolve/resolv.conf");
+    if uplink.is_file() {
+        uplink
+    } else {
+        PathBuf::from("/etc/resolv.conf")
+    }
+}
+
 fn random_salt() -> Result<Vec<u8>> {
     let mut bytes = vec![0_u8; 32];
     std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
@@ -278,7 +354,13 @@ pub fn down(name: &str, purge: bool, yes: bool) -> Result<()> {
     for unit in manifest.units.keys() {
         unlink_managed_unit(unit, Some(&generation))?;
     }
+    for fragment in &manifest.network_files {
+        unlink_managed_network(fragment, Some(&generation))?;
+    }
     systemctl(&["daemon-reload"])?;
+    if !manifest.network_files.is_empty() {
+        let _ = command("networkctl", &["reload"]);
+    }
     cleanup_edge_destinations(&generation)?;
     remove_manifest_closed_roots(&manifest)?;
     if purge {
@@ -419,19 +501,63 @@ fn activate_generation(
     for unit in new_manifest.units.keys() {
         link_managed_unit(unit, old, new)?;
     }
+    if let Some(old_manifest) = &old_manifest {
+        for fragment in old_manifest
+            .network_files
+            .difference(&new_manifest.network_files)
+        {
+            unlink_managed_network(fragment, old)?;
+        }
+    }
+    for fragment in &new_manifest.network_files {
+        link_managed_network(fragment, old, new)?;
+    }
     systemctl(&["daemon-reload"])?;
+    if !new_manifest.network_files.is_empty() {
+        systemctl(&["start", "systemd-networkd.service"])?;
+    }
+    if !new_manifest.network_files.is_empty()
+        || old_manifest
+            .as_ref()
+            .is_some_and(|manifest| !manifest.network_files.is_empty())
+    {
+        command("networkctl", &["reload"])?;
+    }
     systemctl(&["start", &target])?;
 
     if was_active {
-        let mut infrastructure = Vec::new();
-        let mut services = Vec::new();
+        let mut infrastructure = BTreeSet::new();
+        let mut services = BTreeSet::new();
         for unit in &changes.changed {
-            match new_manifest.units[unit].kind {
-                UnitKind::Edge | UnitKind::Socket | UnitKind::Timer => {
-                    infrastructure.push(unit.clone())
+            let entry = &new_manifest.units[unit];
+            match entry.kind {
+                UnitKind::Edge | UnitKind::Timer | UnitKind::Proxy => {
+                    infrastructure.insert(unit.clone());
+                }
+                UnitKind::Socket => {
+                    infrastructure.insert(unit.clone());
+                    if let Some(service) = &entry.service {
+                        services.insert(service_unit_name(name, service));
+                        infrastructure.extend(
+                            new_manifest
+                                .units
+                                .iter()
+                                .filter(|(_, candidate)| {
+                                    candidate.kind == UnitKind::Proxy
+                                        && candidate.service.as_ref() == Some(service)
+                                })
+                                .map(|(proxy, _)| proxy.clone()),
+                        );
+                    }
+                }
+                UnitKind::Netns => {
+                    infrastructure.insert(unit.clone());
+                    if let Some(pod) = new_manifest.pods.values().find(|pod| pod.unit == *unit) {
+                        services.extend(pod.members.iter().cloned());
+                    }
                 }
                 UnitKind::Service if !new_manifest.units[unit].scheduled => {
-                    services.push(unit.clone())
+                    services.insert(unit.clone());
                 }
                 UnitKind::Service => {}
                 UnitKind::Slice | UnitKind::Target => {}
@@ -443,9 +569,8 @@ fn activate_generation(
                 .units
                 .get(&unit)
                 .is_some_and(|entry| entry.kind == UnitKind::Service && !entry.scheduled)
-                && !services.contains(&unit)
             {
-                services.push(unit);
+                services.insert(unit);
             }
         }
         if !infrastructure.is_empty() {
@@ -709,6 +834,57 @@ fn unlink_managed_unit(unit: &str, generation: Option<&Path>) -> Result<()> {
     }
 }
 
+fn link_managed_network(fragment: &str, old: Option<&Path>, new: &Path) -> Result<()> {
+    fs::create_dir_all(NETWORK_DIRECTORY).context("creating systemd-networkd runtime directory")?;
+    let destination = Path::new(NETWORK_DIRECTORY).join(fragment);
+    if fs::symlink_metadata(&destination).is_ok()
+        && !managed_network_link_matches(&destination, old)?
+    {
+        bail!(
+            "refusing to replace unmanaged networkd fragment {}",
+            destination.display()
+        );
+    }
+    let source = new.join("network").join(fragment);
+    let temporary = Path::new(NETWORK_DIRECTORY).join(format!(".{fragment}.cix-tmp"));
+    match fs::remove_file(&temporary) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {}
+        Err(error) => return Err(error).context("removing stale temporary network link"),
+    }
+    symlink(&source, &temporary)
+        .with_context(|| format!("linking generated network fragment {}", source.display()))?;
+    fs::rename(&temporary, &destination).with_context(|| {
+        format!(
+            "installing generated network fragment {}",
+            destination.display()
+        )
+    })
+}
+
+fn unlink_managed_network(fragment: &str, generation: Option<&Path>) -> Result<()> {
+    let path = Path::new(NETWORK_DIRECTORY).join(fragment);
+    match fs::symlink_metadata(&path) {
+        Ok(_) if managed_network_link_matches(&path, generation)? => fs::remove_file(&path)
+            .with_context(|| format!("unlinking generated network fragment {}", path.display())),
+        Ok(_) => bail!(
+            "refusing to unlink unmanaged networkd fragment {}",
+            path.display()
+        ),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error).with_context(|| format!("inspecting {}", path.display())),
+    }
+}
+
+fn managed_network_link_matches(link: &Path, generation: Option<&Path>) -> Result<bool> {
+    let metadata = fs::symlink_metadata(link)?;
+    if !metadata.file_type().is_symlink() {
+        return Ok(false);
+    }
+    let target = fs::read_link(link)?;
+    Ok(generation.is_some_and(|generation| target.starts_with(generation.join("network"))))
+}
+
 fn managed_link_matches(link: &Path, generation: Option<&Path>) -> Result<bool> {
     let metadata = fs::symlink_metadata(link)?;
     if !metadata.file_type().is_symlink() {
@@ -919,6 +1095,8 @@ mod tests {
                     directories: Vec::new(),
                 },
             )]),
+            pods: BTreeMap::new(),
+            network_files: BTreeSet::new(),
             closed_root: false,
             degradations: Vec::new(),
         };

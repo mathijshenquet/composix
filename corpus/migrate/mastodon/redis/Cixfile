@@ -1,0 +1,11 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE redis
+  COPY ${src}/redis.conf /etc/redis/redis.conf
+  START ${pkgs.redis}/bin/redis-server /etc/redis/redis.conf
+  ENV LANG = C
+  ENV LC_ALL = C
+  PORT redis = 36379
+  RUNDIR /run/redis
+  READINESS tcp :36379 IN 20s

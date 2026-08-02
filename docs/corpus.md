@@ -21,7 +21,7 @@ Ribbons:
 - ❌ outside the thesis (with the honest why)
 - Effort = S/M/L/XL: Cixfile+compose lines plus thinking, for a competent adopter.
 
-## The living migration corpus (20)
+## The living migration corpus (21)
 
 These are the checked-in conversions under `corpus/migrate/`, not a second
 historical grade set. The ribbon describes the whole conversion represented by
@@ -50,13 +50,15 @@ case in the [side-by-side browser](corpus/index.html).
 | 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative readiness remains untranslated and the consumed app tree is not yet reproducible for the closed-root audit | 🔶 runtime passes; READINESS undeclared; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
 | 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
 | 20 | Whoami | Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/whoami/receipt.md) |
+| 21 | Mastodon | Six-member compose passes ordinary and closed-root integration: credential, Unix edges, shared-rw state, readiness/liveness, timer, scoped logs, and purge | 🔶 integration passes; D26/D27 network segmentation remains an explicit loss | M | [receipt](../corpus/migrate/mastodon/receipt.md) |
 
 ### CIP-84 closed-root audit
 
 The phase-1 sealed-root VM reproduces and probes every pack member, plus the
 Adminer, Caddy, Memcached, NATS, nginx, phpMyAdmin, Redis, Renovate, Tomcat,
-and Traefik corpus contracts. The check has an exhaustive directory roster, so
-a newly added pack or migration cannot silently escape classification.
+and Traefik unary corpus contracts and the complete six-member Mastodon compose
+contract. The check has an exhaustive directory roster, so a newly added pack
+or migration cannot silently escape classification.
 
 Ten migrations are deliberately outside the green closed-root set. Directus,
 Filestash, and Verdaccio still fail before producing a runnable item; Dozzle
@@ -76,13 +78,13 @@ claim that sealed root broke them.
 | 1 | [wordpress-mysql](https://raw.githubusercontent.com/docker/awesome-compose/master/wordpress-mysql/compose.yaml) | 2 svcs, named volume, ports, env | 🔶 MySQL maps to private state + ports; WordPress's mutable `/var/www/html` volume still needs the immutable-app/state restructure from Dockerfile row 16 | S | desk |
 | 2 | [prometheus-grafana](https://raw.githubusercontent.com/docker/awesome-compose/master/prometheus-grafana/compose.yaml) | named vol + relative config binds | 🔶 private roles plus compose `host:`/`.env` containment cover the storage shape; relative source/config conversion remains a migration exercise | S | desk |
 | 3 | [flask-redis](https://raw.githubusercontent.com/docker/awesome-compose/master/flask-redis/compose.yaml) | build: + live source bind (dev loop) | 🔶 D47 build + `cix watch` warm rebuild/restart are built; source sync is deliberately refused, so framework hot reload stays in `nix develop` | M | desk |
-| 4 | [react-express-mongodb](https://raw.githubusercontent.com/docker/awesome-compose/master/react-express-mongodb/compose.yaml) | 2 networks (frontend can't see db), anon-volume masking node_modules | segmentation ⏳ D26/D27; volume-masking ❌ idiom (restructure honestly) | M | desk |
+| 4 | [react-express-mongodb](https://raw.githubusercontent.com/docker/awesome-compose/master/react-express-mongodb/compose.yaml) | 2 networks (frontend can't see db), anon-volume masking node_modules | 🔶 CIP-86 pod boundaries and no-egress enforcement are built, but this topology needs D26/D27 multi-network membership or `talks-to`; volume-masking remains a ❌ idiom (restructure honestly) | M | desk |
 | 5 | [Gitea](https://docs.gitea.com/installation/install-with-docker) | 1 svc, data dir, ports incl. SSH 222:22 | ✅ private state dir + declared ports | S | desk |
 | 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | 🔁 HTTP/TCP `READINESS`/`LIVENESS` and structural readiness ordering are built; the separate condition graph is deliberately ❌; init ceremony dissolves under systemd | S | desk |
 | 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | 🔶 own-directory `.env`, static-identity `host:`, probes, and `SHM` are built; `CLAIM gpu` still proves unit properties only—not Immich/NVIDIA integration | M | desk |
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | 🔶 `DIR /consume` plus static-identity read-write `host:` materialization cover the watch-dir; tagged/inline subtrees are built, while computed D46 variants remain publish-time work | M | desk |
-| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 hermetic `shared:` covers the rw surface; `CLAIM egress` and readiness/liveness are built, but the health DAG and D26/D27 segmentation remain | M | desk |
-| 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | 🔶 anchors are moot (JSON canonical, D28) and `shared:` now covers the asset surface; full migration remains a desk claim | M | desk |
+| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 executable six-member stack proves shared-rw, structural readiness, native liveness, a DB credential, Unix edges, maintenance timer, and selected logs; pod-local 127.0.0.1 and per-member egress suppression are built (CIP-86); the health-condition DAG stays refused and exact named-network segmentation still needs D26/D27 | M | [receipt](../corpus/migrate/mastodon/receipt.md) |
+| 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | 🔶 anchors are moot (JSON canonical, D28); the shared-rw mechanism is now empirically closed by the Mastodon stack, while a Penpot application migration remains unrun | M | [shared-rw receipt](../corpus/migrate/mastodon/receipt.md) |
 | 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | 🔶 `START_PRE` maps the setup chain; `LimitNOFILE` is native systemd operator policy but has no compose field | S | desk |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M | desk |
 | 13 | [Pi-hole](https://raw.githubusercontent.com/pi-hole/docker-pi-hole/master/README.md) | cap NET_ADMIN/SYS_TIME/SYS_NICE, port 53, DHCP/NTP | 🔶 port declaration works, but those raw capabilities and host mutations require explicit operator policy; no native semantic claim yet | M | desk |
@@ -97,8 +99,8 @@ healthchecks 10 + condition-gated depends_on 6, .env/interpolation ~6, named net
 (multi-net 2, internal:true 1), shm_size 5, docker.sock 3, privileged 2, compose
 `secrets:` **0**, `deploy/replicas` **0**. The wild ignores the features docker-compose
 has on paper (secrets, replicas — validating D30's deferrals) and leans hard on the ones
-whose design now has implementation behind it (CIP-79 health), plus the still-unfinished
-CIP-82 operator materialization.
+whose design now has implementation behind it (CIP-79 health and CIP-82 directory
+materialization), including the multi-member Mastodon receipt below.
 
 ## 2. Kubernetes shapes in the wild (15)
 
@@ -113,7 +115,7 @@ CIP-82 operator materialization.
 | 7 | [Prometheus operator CR](https://raw.githubusercontent.com/prometheus-community/helm-charts/main/charts/kube-prometheus-stack/templates/prometheus/prometheus.yaml) | scrape-what-selectors-say, N days on disk | ⏳ far — operator model ≈ reconciler + D46 parametric; the CR *interface style* is the lesson | L | desk |
 | 8 | [node-exporter DaemonSet](https://raw.githubusercontent.com/prometheus-community/helm-charts/main/charts/prometheus-node-exporter/templates/daemonset.yaml) | one observer per node reading /proc,/sys | 🔶 operator `DIR :ro` and mutable per-host root files are built; automatic one-per-node reconciliation remains absent | S | desk |
 | 9 | [ingress-nginx](https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/charts/ingress-nginx/templates/controller-deployment.yaml) | control loop watching cluster API | ❌ different world — our host edge is binds/publishes, not an API-watching proxy; HPA/PDB n/a | — | desk |
-| 10 | [Istio Bookinfo](https://raw.githubusercontent.com/istio/istio/master/samples/bookinfo/platform/kube/bookinfo.yaml) | 4 microservices with identities; mesh by injection | path-identity tree ✅; pod colocation ⏳ CIP-86; mesh policy ⏳ D27; injection-as-mechanism ❌ (we declare) | M | desk |
+| 10 | [Istio Bookinfo](https://raw.githubusercontent.com/istio/istio/master/samples/bookinfo/platform/kube/bookinfo.yaml) | 4 microservices with identities; mesh by injection | path-identity tree + pod colocation ✅; mesh policy ⏳ D27; injection-as-mechanism ❌ (we declare) | M | desk |
 | 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | 🔶 APP `schedule`/persistent timer and indexed logs pass; token/config delivery was not converted | S | [receipt (timer/log only)](../corpus/migrate/renovate/receipt.md) |
 | 12 | [Airflow scheduler](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/scheduler/scheduler-deployment.yaml) | don't start before DB schema; synced DAG dir | wait-init → built `START_PRE`/ordering 🔶; git-sync sidecar vs repin remains a content-model mismatch | M | desk |
 | 13 | [Airflow migrate Job](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/jobs/migrate-database-job.yaml) | run migration once per upgrade | 🔶 built `START_PRE` covers cold start; migrate-on-upgrade hook remains a design question | M | desk |
@@ -165,12 +167,12 @@ corpus rows still lack the implementation.
 |---:|---|---|---|
 | 1 | Health wiring | **Met ([CIP-79](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0079-health.md))** | Compose 6, 7, 9, 14; Kubernetes 2, 10 — the health VM scenario proves rollout gating, structural readiness ordering, and watchdog restart/recovery |
 | 2 | Operator host-binds | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 2, 7, 8, 14; dirs2 VM proves static-identity pre-existing host data survives purge |
-| 3 | Shared-rw directories | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 9, 10; dirs2 VM proves setgid group sharing |
+| 3 | Shared-rw directories | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 9, 10; dirs2 VM proves setgid group sharing and the [Mastodon receipt](../corpus/migrate/mastodon/receipt.md) proves two application members write one surface |
 | 4 | Timers / CronJob | **Met ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md))** | Kubernetes 11; [Renovate receipt](../corpus/migrate/renovate/receipt.md) |
 | 5 | Operational logs | **Met ([CIP-83](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0083-observability.md))** | Dockerfile 3; Kubernetes 11 |
 | 6 | Artifact dev loop | **Met; source sync refused ([CIP-76](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0076-devloop.md))** | Compose 3 |
 | 7 | Migrate-on-upgrade hook | **Designed—unbuilt ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md), event-driven D48f leg)** | Compose 11; Kubernetes 12, 13 |
-| 8 | Network segmentation and talks-to | **Designed—unbuilt ([CIP-86](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0086-netns.md))** | Compose 4, 9; Kubernetes 2, 5, 10 |
+| 8 | Network segmentation and talks-to | **Pod realization built; named segmentation/talks-to designed—unbuilt ([CIP-86](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0086-netns.md))** | Compose 4, 9; Kubernetes 2, 5, 10 — `scenario-netns` proves pod isolation, egress polarity, publish tiers, and stable IPAM; D26/D27 still block the listed multi-network policies |
 | 9 | Profiles and variants | **Designed—unbuilt ([CIP-85](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0085-compose-tree.md), D46 family surface)** | Compose 8, 15; Dockerfile 7, 12, 13, 15 |
 | 10 | Build and runtime secrets | **Built (CIP-81; desk re-grade)** — host-consented FETCH credential files and compose `LoadCredential=` sources | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
 | 11 | Competing control planes and mutable overlay roots | **Refused** | Compose 12, 16; Kubernetes 9, 14; Dockerfile 16 |
@@ -184,9 +186,11 @@ webroots are other control planes or filesystem models, not missing emulation.
 
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
-- **Mastodon-shaped stack** remains the top integration candidate after CIP-79/82:
-  readiness is now built, so it would validate queued `shared:` materialization plus
-  network segmentation instead of forcing an unsettled health design.
+- **Mastodon-shaped stack** is adopted into the executable corpus: its
+  [receipt](../corpus/migrate/mastodon/receipt.md) composes shared state, readiness,
+  liveness, secrets, Unix edges, a timer, and selected logs. D26/D27 network
+  segmentation remains explicitly unclaimed, so a future netns rerun strengthens the
+  same case rather than inventing another example.
 - **Paperless-shaped ingest** is the smallest clean CIP-82 leg-2 gate: one writable
   operator watch-dir, one private state dir, and an observable import result.
 - **Immich-shaped** is deferred to the in-flight CIP-78 devices track; it remains the

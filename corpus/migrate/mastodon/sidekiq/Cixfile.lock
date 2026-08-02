@@ -1,0 +1,16 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "148bab9c1c3c53136ecb44a6ea356a0ed5b39b06",
+      "narHash": "sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=",
+      "lastModified": 1785571196
+    }
+  },
+  "outputs": {
+    "sidekiq": {
+      "sourceHash": "94c18d3433ac66a974a624c6d3b756124ed6e724f2bc60a8bb2202455215e83d",
+      "storePath": "/nix/store/p0aafmd6j6mvrx409avj5xpahrnykw6m-cix-item-sidekiq"
+    }
+  }
+}

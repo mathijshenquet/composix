@@ -7,8 +7,13 @@ persisted per-composite IPAM; naming kept). Together with D43 (pod-ness as
 scoped property, `network: host` escape dropped) and D48b (the word is
 `egress`), the mechanics below are the realization plan, applied at
 pod-claiming nodes. The D-entries in docs/design.md win on any remaining
-conflict. **Not implemented as of adoption** — compose v0 is host networking
-(D30); this CIP is the build plan when the networking era opens.
+conflict.
+
+Implementation changelog: **2026-08-02 — landed.** Pod claims, nearest-ancestor attachment,
+fd-first publishing with the proxyd fallback, one-veth egress, address-keyed member filtering,
+fixed persisted IPAM, closed-root resolver projection, rollback, and teardown are VM-proven in
+`scenario-netns`. Podless composites preserve the prior host-networking generation exactly.
+Named networks and `talks-to` remain the explicit D26/D27 non-goals below.
 
 > **Amended by the 2026-07-30 tree round (D42–D44, [CIP-85](0085-compose-tree.md)):** egress is
 > a per-service **`egress`** field (opt-in capability polarity kept — the

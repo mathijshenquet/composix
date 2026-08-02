@@ -51,8 +51,19 @@ struct Logs {
 #[derive(Parser)]
 #[command(name = "cix", version)]
 struct Cli {
+    /// Directory containing local index state.
+    #[arg(long, global = true, env = "CIX_STATE_DIR", default_value_os_t = default_state_directory())]
+    state_directory: PathBuf,
     #[command(subcommand)]
     command: Command,
+}
+
+fn default_state_directory() -> PathBuf {
+    std::env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state")))
+        .unwrap_or_else(|| PathBuf::from(".local/state"))
+        .join("cix")
 }
 
 #[derive(clap::Subcommand)]
@@ -91,8 +102,10 @@ enum CredentialsCommand {
 }
 
 fn main() -> anyhow::Result<()> {
-    match Cli::parse().command {
-        Command::Inspect(options) => inspect(options),
+    let cli = Cli::parse();
+    let state_directory = cli.state_directory;
+    match cli.command {
+        Command::Inspect(options) => inspect(&state_directory, options),
         Command::Logs(options) => cix_compose::logs(cix_compose::LogsOptions {
             target: options.target,
             follow: options.follow,
@@ -109,10 +122,12 @@ fn main() -> anyhow::Result<()> {
             println!("revoked {removed} FETCH consent grant(s) for {token}");
             Ok(())
         }
-        Command::Cixfile(cmd) => cmd.run(),
-        Command::Compose(cmd) => cmd.run(),
-        Command::Index(cmd) => cmd.run(),
-        Command::IndexGroup { command } => command.run(),
+        Command::Cixfile(cmd) => cmd.run(&state_directory),
+        Command::Compose(cmd) => cmd.run(&cix_index::Store::open(state_directory.clone())?),
+        Command::Index(cmd) => cmd.run(&cix_index::Store::open(state_directory.clone())?),
+        Command::IndexGroup { command } => {
+            command.run(&cix_index::Store::open(state_directory.clone())?)
+        }
         Command::Run(cix_run::cli::Command::Ps) => cix_compose::ps(),
         Command::Run(
             command @ cix_run::cli::Command::Run {
@@ -120,12 +135,15 @@ fn main() -> anyhow::Result<()> {
                 installable: None,
                 ..
             },
-        ) => run_compose(command),
-        Command::Run(cmd) => cmd.run(),
+        ) => run_compose(&state_directory, command),
+        Command::Run(cmd) => cmd.run(&state_directory),
     }
 }
 
-fn run_compose(command: cix_run::cli::Command) -> anyhow::Result<()> {
+fn run_compose(
+    state_directory: &std::path::Path,
+    command: cix_run::cli::Command,
+) -> anyhow::Result<()> {
     let cix_run::cli::Command::Run {
         compose: Some(compose),
         installable: None,
@@ -152,13 +170,23 @@ fn run_compose(command: cix_run::cli::Command) -> anyhow::Result<()> {
         bail!("cix run --compose accepts the compose document as the complete operator surface; put service fields in that JSON")
     }
     if compose.as_os_str() != "-" {
-        return cix_compose::up(&compose, cix_compose::UpdateRequest::None, closed_root);
+        return cix_compose::up(
+            &cix_index::Store::open(state_directory.to_owned())?,
+            &compose,
+            cix_compose::UpdateRequest::None,
+            closed_root,
+        );
     }
     let mut input = Vec::new();
     std::io::stdin().read_to_end(&mut input)?;
     let file = tempfile::NamedTempFile::new().context("creating anonymous compose input")?;
     fs::write(file.path(), input).context("writing anonymous compose input")?;
-    cix_compose::up(file.path(), cix_compose::UpdateRequest::None, closed_root)
+    cix_compose::up(
+        &cix_index::Store::open(state_directory.to_owned())?,
+        file.path(),
+        cix_compose::UpdateRequest::None,
+        closed_root,
+    )
 }
 
 #[derive(Serialize)]
@@ -215,12 +243,12 @@ enum InspectionWorld {
     Runtime,
 }
 
-fn inspect(options: Inspect) -> anyhow::Result<()> {
+fn inspect(state_directory: &std::path::Path, options: Inspect) -> anyhow::Result<()> {
     if options.user && !options.runtime {
         bail!("--user only applies to runtime inspection; add --runtime");
     }
 
-    let artifact_exists = local_artifact_exists(&options.target)?;
+    let artifact_exists = local_artifact_exists(state_directory, &options.target)?;
     let runtime = if options.artifact {
         None
     } else {
@@ -239,7 +267,7 @@ fn inspect(options: Inspect) -> anyhow::Result<()> {
             render_runtime(&inspection, options.human)
         }
         InspectionWorld::Artifact => {
-            let inspection = inspect_artifact(&options.target)?;
+            let inspection = inspect_artifact(state_directory, &options.target)?;
             render_artifact(&inspection, options.human)
         }
     }
@@ -269,18 +297,24 @@ fn select_world(
     }
 }
 
-fn local_artifact_exists(target: &str) -> anyhow::Result<bool> {
+fn local_artifact_exists(state_directory: &std::path::Path, target: &str) -> anyhow::Result<bool> {
     let Ok(reference) = cix_common::Ref::parse(target) else {
         return Ok(false);
     };
     if reference.root_url.is_some() {
         return Ok(false);
     }
-    Ok(cix_index::Store::open()?.load(&reference)?.is_some())
+    Ok(cix_index::Store::open(state_directory.to_owned())?
+        .load(&reference)?
+        .is_some())
 }
 
-fn inspect_artifact(target: &str) -> anyhow::Result<ArtifactInspection> {
-    let artifact = cix_index::inspect_artifact(target)?;
+fn inspect_artifact(
+    state_directory: &std::path::Path,
+    target: &str,
+) -> anyhow::Result<ArtifactInspection> {
+    let artifact =
+        cix_index::inspect_artifact(&cix_index::Store::open(state_directory.to_owned())?, target)?;
     let manifest = cix_run::spec::Spec::load(&PathBuf::from(&artifact.output.store_path))?;
     let system = current_system()?;
     let metadata = artifact.metadata;

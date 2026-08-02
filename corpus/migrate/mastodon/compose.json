@@ -1,0 +1,66 @@
+{
+  "cixCompose": 1,
+  "name": "corpus-mastodon",
+  "children": {
+    "postgres": {
+      "item": "corpus-mastodon-postgres:checked"
+    },
+    "redis": {
+      "item": "corpus-mastodon-redis:checked"
+    },
+    "web": {
+      "item": "corpus-mastodon-web:checked",
+      "dirs": {
+        "/mastodon/public/system": {
+          "shared": "public-system"
+        }
+      }
+    },
+    "sidekiq": {
+      "item": "corpus-mastodon-sidekiq:checked",
+      "dirs": {
+        "/mastodon/public/system": {
+          "shared": "public-system"
+        }
+      }
+    },
+    "streaming": {
+      "item": "corpus-mastodon-streaming:checked"
+    },
+    "cleanup": {
+      "item": "corpus-mastodon-cleanup:checked",
+      "schedule": "*-*-* *:*:00/5",
+      "persistent": true
+    }
+  },
+  "edges": {
+    "database": {
+      "producer": {
+        "child": "postgres",
+        "path": "/run/postgresql"
+      },
+      "consumers": {
+        "web": {},
+        "sidekiq": {},
+        "streaming": {},
+        "cleanup": {}
+      }
+    },
+    "redis": {
+      "producer": {
+        "child": "redis",
+        "path": "/run/redis"
+      },
+      "consumers": {
+        "web": {},
+        "sidekiq": {},
+        "streaming": {}
+      }
+    }
+  },
+  "secrets": {
+    "db-password": {
+      "file": "${MASTODON_DB_PASSWORD_FILE}"
+    }
+  }
+}

@@ -17,5 +17,6 @@ to hardened systemd units, Cixfile builds, and tracked compose deployments with 
 - **[The Cixfile](cixfile.html)** — Dockerfile-shaped authoring without writing nix, and an
   honest account of where the model differs underneath.
 
-Status: early and moving fast. The index, runner, Cixfile, and first compose tier work
-end-to-end today; networking and the broader compose tree are still being built.
+Status: early and moving fast. All four parts work end-to-end today, including recursive compose
+trees, pods/netns, health, secrets, directory materializations, and observability. Named networks,
+the publish era, and reconciliation are the next frontier.

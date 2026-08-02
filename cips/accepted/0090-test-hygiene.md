@@ -85,3 +85,4 @@ clap boundary become a denied pattern in the gate.
   boundary-config work must make REDUNDANT and delete, not keep.
   Standing review rule recorded in AGENTS.md: shared ownership /
   interior mutability requires a stated justification at the site.
+- 2026-08-02: leg A implemented clap-derived boundary configuration, env-free tests, the unified interrupt flag, and the boundary lint.

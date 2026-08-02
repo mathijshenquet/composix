@@ -424,13 +424,13 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
 
-## Building now (decided 2026-07-29, Mathijs: "bouw maar naar eigen inzicht")
+## Building now (updated 2026-08-02)
 
-Implementation note (2026-08-02): CIP-85 leg 1 is built. Compose now uses the recursive
-`cixCompose: 1` group-node grammar, path-derived instance identity and nested slices, a root lock
-entry for every item/compose ref path, tagged compose subtrees, mutable host-root edits, and
-selective subtree repins. `network: "pod"` and publish climbing remain schema-refused until the
-CIP-86 netns/publish leg; replicas and D46 publish-time family expansion remain deferred.
+The adopted implementation board is built and CI-confirmed, including D70 overlay package
+universes, recursive compose trees, pods/netns, health, secrets, directory materializations,
+observability, and closed-root phase 1.
+The honest frontier is the phase-2 closed-root flip, D26/D27 named networks and `talks-to`, the
+publish era, and the reconciler.
 
 - ✅ D29 — **spec v3**: (a) `listeners` field per the dstyle proposal — an activated-listener
   contract *distinct from* `ports` (fd-inherit means NO IP-socket grant; `FileDescriptorName=`

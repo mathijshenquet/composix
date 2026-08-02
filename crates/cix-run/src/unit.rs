@@ -429,9 +429,13 @@ fn add_closed_root(
         properties.push(("PrivateUsers".into(), "yes".into()));
     }
     if service.has_claim("egress") {
+        let resolver = closed_root
+            .resolver_source()
+            .to_str()
+            .context("closed-root resolver source is not valid UTF-8")?;
         properties.push((
             "BindReadOnlyPaths".into(),
-            "/etc/resolv.conf:/etc/resolv.conf".into(),
+            format!("{resolver}:/etc/resolv.conf"),
         ));
     }
     if systemd_version < 257 {

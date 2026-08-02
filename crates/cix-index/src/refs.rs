@@ -3,7 +3,7 @@
 
 use std::{
     collections::BTreeMap,
-    env, fs,
+    fs,
     os::fd::AsRawFd,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
@@ -94,12 +94,7 @@ pub struct Store {
 }
 
 impl Store {
-    pub fn open() -> Result<Self> {
-        let root = match env::var_os("CIX_STATE_DIR") {
-            Some(path) => PathBuf::from(path),
-            None => PathBuf::from(env::var_os("HOME").context("HOME is unset; set CIX_STATE_DIR")?)
-                .join(".local/state/cix"),
-        };
+    pub fn open(root: PathBuf) -> Result<Self> {
         Self::open_at(root)
     }
 

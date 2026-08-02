@@ -1,0 +1,12 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE web
+  COPY ${src}/web.py /opt/mastodon/web.py
+  START ${pkgs.python3}/bin/python3 /opt/mastodon/web.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  SECRET db-password
+  PORT http = 33000
+  STATEDIR /mastodon/public/system
+  READINESS http :33000/health IN 30s
+  LIVENESS notify EVERY 2s
+  CLAIM egress

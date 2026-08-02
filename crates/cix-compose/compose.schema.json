@@ -11,12 +11,15 @@
     "logNamespace": {"type": "boolean", "default": false},
     "children": {"$ref": "#/$defs/children"},
     "edges": {"$ref": "#/$defs/edges"},
-    "secrets": {"$ref": "#/$defs/secrets"}
+    "secrets": {"$ref": "#/$defs/secrets"},
+    "network": {"enum": ["pod"]},
+    "publish": {"$ref": "#/$defs/publishes"}
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
     "ref": {"type": "string", "pattern": "^.+:[^/:]+$"},
     "absolutePath": {"type": "string", "pattern": "^/"},
+    "treePath": {"type": "string", "pattern": "^[a-z0-9._-]+(?:/[a-z0-9._-]+)*$"},
     "children": {
       "type": "object",
       "minProperties": 1,
@@ -37,7 +40,10 @@
       "properties": {
         "children": {"$ref": "#/$defs/children"},
         "edges": {"$ref": "#/$defs/edges"},
-        "secrets": {"$ref": "#/$defs/secrets"}
+        "secrets": {"$ref": "#/$defs/secrets"},
+        "network": {"enum": ["pod"]},
+        "publish": {"$ref": "#/$defs/publishes"},
+        "bind": {"$ref": "#/$defs/bindings"}
       }
     },
     "item": {
@@ -58,7 +64,8 @@
         "schedule": {"type": "string", "minLength": 1},
         "persistent": {"type": "boolean"},
         "jitter": {"type": "string", "minLength": 1},
-        "shm": {"type": "string", "minLength": 1}
+        "shm": {"type": "string", "minLength": 1},
+        "egress": {"type": "boolean"}
       }
     },
     "composeRef": {
@@ -67,7 +74,27 @@
       "required": ["compose"],
       "properties": {
         "compose": {"$ref": "#/$defs/ref"},
-        "update": {"enum": ["pin", "track"], "default": "pin"}
+        "update": {"enum": ["pin", "track"], "default": "pin"},
+        "bind": {"$ref": "#/$defs/bindings"}
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"type": "string"}
+    },
+    "publishes": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/publish"}
+    },
+    "publish": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["child", "port"],
+      "properties": {
+        "child": {"$ref": "#/$defs/name"},
+        "port": {"$ref": "#/$defs/name"}
       }
     },
     "directoryMaterialization": {
@@ -124,7 +151,7 @@
         "consumers": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": {"$ref": "#/$defs/name"},
+          "propertyNames": {"$ref": "#/$defs/treePath"},
           "additionalProperties": {"$ref": "#/$defs/consumer"}
         }
       }

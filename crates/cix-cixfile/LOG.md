@@ -1,5 +1,139 @@
 # Cixfile track work log
 
+- 2026-08-02T21:43:00Z — Committed the complete green docs track as
+  `158df29` (`docs: align status with implemented board`): nine fenced prose
+  files, 44 insertions and 22 deletions. Post-commit status contains only this
+  required, deliberately unstaged journal. No product source or generated
+  corpus/tour page changed. The requested docstruth track is complete and ready
+  for independent verification.
+
+- 2026-08-02T21:42:30Z — Completed the fenced documentation reconciliation.
+  Design/index/README now state that the adopted board and all four strata work;
+  the frontier is closed-root phase 2, D26/D27, publish, and reconciliation.
+  Open questions now separates built D49 from named-network work and records the
+  systemd-257 adapter-liveness finding with the Mastodon receipt. Added missing
+  implementation bullets for CIPs 79, 81, 82 leg 2, 84 phase 1, and 90 leg A;
+  CIPs 85, 86, and 89 already had dated implementation entries and were not
+  duplicated. Synchronous receipts are green: both exact corpus deterministic/
+  committed-page tests and both exact tour deterministic/committed-document
+  tests passed; `git diff --check` passed, local links and the receipt anchor were
+  inspected, no generated docs changed, and the diff-stat is docs plus this
+  required journal only. Next: stage the fenced docs without this journal,
+  recheck the cached diff/scope, and commit.
+
+- 2026-08-02T21:37:44Z — Started `track/docstruth` from a clean branch.
+  Read the complete track specification and the prescribed project/design/crate
+  truth sources; direnv confirms the devenv is loaded. Scope is pure prose:
+  current-status corrections in design/index/README/open questions plus one
+  implementation changelog line for each named CIP, with no product or
+  generated-doc changes. This tracked journal will remain outside the docs
+  commit. Next: reconcile every stale open-question/status claim against the
+  landed CIPs and the Mastodon systemd-257 receipt, then make the fenced edits.
+
+- 2026-08-02T19:28:36Z — Committed the complete green track as `800c87a`
+  (`docs: add Mastodon integration receipt`): 29 scoped corpus/docs files,
+  including six locked member artifacts, executable receipt, two ledger
+  regrades, and regenerated browser pages. Cached whitespace and product-fence
+  checks passed immediately before commit. Post-commit status contains only this
+  required, deliberately unstaged journal; `origin/track/mastodon` does not yet
+  exist, and the specification requested a branch commit rather than a push.
+  Open product finding: systemd-257 does not retain the forked adapter liveness
+  pinger; it is documented in the receipt and above, with no product-code change.
+  The requested Mastodon track is complete and ready for orchestrator full-matrix
+  verification.
+
+- 2026-08-02T19:27:30Z — Final strengthened focused receipt is green with
+  synchronous exit 0 and cleanup: `./check.sh cix` activated generation
+  `xl5xsizh…`, reproduced the three delayed readiness failures then success,
+  observed three cleanup-timer firings, and kept both native-notify services
+  active for seven seconds—past their six-second watchdog window. Final item
+  paths remain those recorded in the receipt. This closes the only late audit
+  improvement; no Cixfile, lock, docs generator input, Rust source, or broad-gate
+  input changed after its prior green result. Next: refresh the two staged files,
+  repeat cached whitespace/fence audit, and commit.
+
+- 2026-08-02T19:26:15Z — Prescribed agent gate is fully green with synchronous
+  terminal statuses: `cargo fmt --all --check`; `cargo run -p cix -- fmt
+  --check examples`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  serial `cargo test --workspace -- --test-threads=1` (including committed
+  corpus/tour drift, real-Nix builds, and all crate suites); fresh ignored tour
+  regeneration followed by zero `docs/tour` diff; and the exact deterministic
+  tour test. Focused Mastodon and corpus-generator receipts are recorded above.
+  Final unstaged audit has no whitespace errors, no ephemeral `.env`/`cix.lock`,
+  and no product source paths: only this required journal, docs/corpus regrade +
+  generated pages, and the new corpus case differ. Next: stage exactly the
+  corpus/docs deliverables, verify the fence and cached diff, commit on
+  `track/mastodon`, then leave a final journal-only close.
+
+- 2026-08-02T19:22:35Z — Corpus browser regeneration and focused drift test are
+  green. The house generator required the verbatim upstream file to use its
+  recognized `upstream-compose.yml` name; renamed it without byte changes and
+  updated SOURCE. `generate_corpus_browser` added only Mastodon's index row and
+  page, and `generated_corpus_browser_is_deterministic --exact` passed. Reviewed
+  the generated upstream/compose comparison and ledger text; row 9 retains a
+  partial ribbon because segmentation is honestly absent, while row 10 points
+  only to the empirically shared-rw mechanism rather than claiming Penpot ran.
+  Next: execute fmt, examples fmt, warning-denied clippy, workspace tests, and
+  tour regeneration/drift; then audit and commit the green track.
+
+- 2026-08-02T19:21:16Z — Focused Mastodon receipt is synchronously green:
+  `corpus/migrate/mastodon/check.sh cix` exited 0 after its EXIT cleanup. It
+  built six locked items, validated six services/two Unix edges, activated
+  generation `4ihz6a…`, showed three refused web probes before the delayed
+  readiness success, verified independent web+sidekiq shared writes and the
+  `CREDENTIALS_DIRECTORY` marker, observed two timer firings, and proved
+  `cix logs corpus-mastodon/web` excluded the sidekiq marker. Native-notify
+  watchdogs remained healthy through the receipt. Exact final item paths are in
+  `receipt.md`. Re-graded compose rows 9/10 and retired Mastodon from §5's
+  candidate list while keeping D26/D27 segmentation visibly unclaimed. Next:
+  regenerate and drift-check the corpus browser, then run the prescribed broad
+  formatter/clippy/workspace/tour gate.
+
+- 2026-08-02T19:18:00Z — Second focused run found a real product compatibility
+  boundary and was interrupted after synchronous journal diagnosis rather than
+  counted: on this host's systemd 257, the HTTP/TCP liveness `ExecStartPost`
+  parent exits 0 but its forked resident pinger is not retained; healthy Redis
+  then dies at the six-second watchdog window. The newer-systemd health VM is
+  known green, so this is recorded as a host-version product finding and product
+  code remains untouched per the track fence. Switched the two controllable
+  stubs to CIP-79 native-notify liveness, retained cix-owned readiness adapters
+  on all five long-running members, and removed adapter liveness from packaged
+  daemons. Also corrected nginx's invalid `/dev/stdout` open under its sandbox.
+  Next: rebuild and rerun the focused receipt, confirming watchdog notifications
+  remain live past multiple windows.
+
+- 2026-08-02T19:15:49Z — First focused `./check.sh cix` reached a valid
+  six-service/two-edge compose and failed activation. Retained journal evidence
+  identified three fixture errors, not product defects: probe adapters embedded
+  the worktree binary path hidden by service `ProtectHome` (the check now adds
+  non-store cix binaries to the store first); every psql client omitted the
+  server's non-default port; and two minimal shell closures assumed ambient
+  `cat`. PostgreSQL and Redis themselves had become ready before the adapter
+  path killed them. Corrected the check boundary, explicit port, and shell-builtin
+  credential reads without widening any artifact or crossing the product fence.
+  Next: rebuild the content-changed items and rerun the complete focused receipt.
+
+- 2026-08-02T19:14:10Z — Authored the complete executable corpus shape without
+  crossing the product-code fence: verbatim pinned upstream compose; five
+  long-running member Cixfiles plus a scheduled maintenance APP; real PostgreSQL,
+  Redis, and nginx; Puma/Sidekiq-shaped Python stubs; DB/Redis Unix edges; the
+  public-system shared surface; native probes; file credential delivery; and
+  egress claims only on web/sidekiq. `check.sh` proves each required behavior and
+  uses the approved host-network fallback. Static bash syntax, Cix formatting,
+  whitespace, and upstream byte comparison are clean after correcting three
+  verbatim comment-indentation bytes. Next: generate each locked nixpkgs input,
+  then run the focused stack and fix only corpus artifacts if it exposes a bug.
+
+- 2026-08-02T19:04:53Z — Started `track/mastodon` from `40d44f1`. Read the
+  complete track spec, current project journal, authoritative D26/D27 boundary,
+  and this crate journal; direnv/devenv is active. Scope is corpus/example/doc
+  files only: a five-service Mastodon-shaped integration using shared-rw dirs,
+  health, secrets, unix edges, a timer, exact egress claims, and member-selective
+  logs. Product-code changes are fenced to concurrent tracks. The assigned log
+  is tracked rather than ignored, so it will remain deliberately unstaged as
+  required. Next: inspect the adopted CIP syntax and existing executable receipt
+  patterns, then author the stack and focused check.
+
 - 2026-08-02T22:05:00Z — Tracefast round 3 GREEN: the measured warm one-line
   edit is 8.31 s (repeats on the same quiet host: 8.54 s, 8.73 s), under the
   ~9 s bar and crane's 16.46 s, with capture completeness untouched — file
@@ -2006,3 +2140,122 @@
   pushed; `git ls-remote origin refs/heads/track/corpusstyle` was empty at the
   audit instant. No implementation, documentation, generation, focused receipt,
   or agent-side gate work remains.
+
+- 2026-08-02T19:34:42Z — Fix round started after the orchestrator's closed-root
+  inventory assertion exposed Mastodon as the 21st unclassified corpus case.
+  The audit's current Renovate treatment proves that its corpus contracts are
+  reproducibly reconstructed rather than rebuilt through Cixfile, but it does
+  not exercise compose. `cix up --closed-root` is already phase-1 behavior, so
+  claiming compose support is pending would be false; auditing only Mastodon's
+  Redis member would also duplicate existing coverage without proving this
+  migration. Chose the stronger honest classification: reconstruct all six
+  checked-in item manifests and mounts, activate the actual compose topology
+  under closed root, and probe Unix edges, shared-rw state, credential delivery,
+  readiness, native watchdogs, and the scheduled cleanup member. Next: add that
+  focused VM contract, run it synchronously, then rerun the migration check.
+
+- 2026-08-02T19:46:05Z — First synchronous focused VM run correctly failed
+  (`nix build .#checks.x86_64-linux.scenario-closedroot-audit -L`, exit 1)
+  after all pre-existing unary audits passed. The full Mastodon activation
+  exposed two real hidden host-root dependencies: Redis inherited the NixOS
+  host locale and could not configure it inside the sealed root; PostgreSQL's
+  ELF `initdb` internally invokes `postgres -V` through `/bin/sh`, which the
+  closed root intentionally omits, so first-run initialization failed before
+  the consumers. This was not a missing Nix closure: both executables use the
+  same store dynamic loader, the item references the PostgreSQL closure, and an
+  equivalent host-root init succeeded. Fixing the migration contract itself:
+  declare Redis's C locale, and explicitly item-mount nixpkgs bash at `/bin/sh`
+  for PostgreSQL's otherwise-hidden initdb requirement. The audit will retain
+  the no-shell assertion for every other member and require PostgreSQL's shell
+  to be a declared read-only item mount. Next: rebuild locks, rerun the VM, then
+  run the ordinary-root migration check required by the fix round.
+
+- 2026-08-02T19:48:33Z — The first rerun stopped early (exit 1) because a
+  mechanical scenario edit accidentally added Mastodon's `/bin/sh` declaration
+  to the pre-existing PostgreSQL pack manifest while placing its source only in
+  the Mastodon item. This was a test-fixture wiring error, not a behavior
+  result: cix correctly rejected the pack's declared-but-absent mount before
+  reaching Mastodon. Restored the pack manifest and moved the mount declaration
+  to the intended Mastodon manifest; next: re-evaluate and rerun synchronously.
+
+- 2026-08-02T19:53:29Z — Third synchronous focused VM run reached the complete
+  Mastodon stack: explicit `/bin/sh` made first-run PostgreSQL initialization
+  succeed, the C locale made Redis ready, and the Python web/sidekiq consumers
+  both authenticated over the projected Unix edges. Streaming alone failed in
+  START_PRE, with the same scheduled cleanup shell command failing transiently.
+  Root cause was the test fixture's secret writer: it omitted a final newline,
+  while both shell consumers intentionally use `IFS= read -r` under `set -e`;
+  the ordinary check writes a newline and the Python consumers tolerate either
+  form. Corrected the VM fixture to reproduce the real secret byte shape. Next:
+  rerun the full focused scenario synchronously and require exit 0.
+
+- 2026-08-02T19:59:45Z — Fourth synchronous focused VM run brought the entire
+  six-member Mastodon compose up successfully under closed roots: PostgreSQL
+  initialized, Redis became ready, web and sidekiq authenticated over both
+  projected Unix-socket edges, streaming served through nginx, and the cleanup
+  timer fired. The test then failed only because it looked for the declared
+  `/bin/sh` mount in the host-visible staging directory. Item mounts are
+  systemd namespace bind mounts, so their targets need not exist in that host
+  view. Retaining the real contract assertion on the unit's
+  `BindReadOnlyPaths=...:/bin/sh`; the service's successful `initdb` execution
+  is the behavioral proof that the mount was usable inside the namespace.
+  Next: rerun the focused scenario synchronously and require exit 0.
+
+- 2026-08-02T20:05:45Z — Fifth synchronous focused VM run again brought all six
+  members up and passed every closed-root boundary assertion, including the
+  PostgreSQL unit's declared `/bin/sh` bind. It then failed on an assertion that
+  expected `systemctl show --property=LoadCredential` to expose the directive;
+  systemd does not publish that setting as a runtime show property here. The
+  web process had already authenticated with the credential, but to retain
+  structural coverage as well, changed the assertion to inspect the installed
+  unit with `systemctl cat` for the exact `LoadCredential=` directive. Next:
+  rerun the focused scenario synchronously and require exit 0.
+
+- 2026-08-02T20:12:29Z — Sixth synchronous focused VM run passed (exit 0):
+  `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit -L`. Mastodon is honestly in
+  `auditedCorpus`: the VM ran all six members in sealed roots and verified the
+  declared PostgreSQL shell bind, absence of an ambient shell elsewhere,
+  credential directive plus behavioral use, both Unix edges, shared state,
+  readiness and watchdog survival, scheduled cleanup, member-scoped logs,
+  purge, and removal of every root. The required ordinary `check.sh cix` then
+  failed synchronously (exit 1) because the locked streaming item still
+  existed but its manifest's external nginx store path had been collected;
+  systemd reported `203/EXEC`. This is the already-recorded zero-reference/
+  distribution gap, and the cached build did not re-realize the missing
+  dependency. Changed the integration harness to explicitly `--update-lock`
+  every member build so its runtime paths are realized before activation.
+  Next: rerun `check.sh cix` synchronously and require exit 0.
+
+- 2026-08-02T20:13:37Z — The immediate harness rerun failed before building
+  (exit 1): clap interpreted the positional member path as the optional value
+  of a bare `--update-lock`, leaving the repository root as the default build
+  directory. Made the intended pin refresh unambiguous with
+  `--update-lock=pkgs`; next: rerun `check.sh cix` synchronously.
+
+- 2026-08-02T20:14:52Z — Final ordinary-root receipt passed synchronously
+  (exit 0): `devenv shell -- ./corpus/migrate/mastodon/check.sh cix`, including
+  its EXIT teardown. All six members built, the two-edge compose activated,
+  readiness delay, credential, shared-rw markers, watchdog survival, timer,
+  scoped logs, and purge passed. Explicit stability follow-up refreshed all six
+  members again with `cix build --update-lock=pkgs`; exit 0 and checksum diff
+  showed no byte change in any lock. Updated the receipt and corpus ledger to
+  record Mastodon as the 21st migration and as a full-compose CIP-84 audited
+  contract. Next: regenerate/drift-check corpus docs, inspect changes, and
+  commit every task artifact except this LOG.
+
+- 2026-08-02T20:18:38Z — Final verification/commit audit complete. Corpus
+  browser regeneration passed and the non-ignored corpus suite passed 4/4,
+  including deterministic generation and committed-page drift. `cargo fmt
+  --all -- --check`, focused `cix fmt --check`, `bash -n check.sh`,
+  `git diff --check`, and evaluation of the final closed-root check derivation
+  all exited 0. The available pinned nixfmt wanted to reformat hundreds of
+  pre-existing scenario lines; discarded that unrelated churn and retained the
+  exact green-tested source snapshot, whose existing style is unchanged outside
+  the new audit. Next: stage the ten task artifacts explicitly without this
+  LOG, inspect the index, and commit on `track/mastodon`.
+
+- 2026-08-02T20:19:08Z — Committed the fix round as `cd4f9b1` (`test: audit
+  Mastodon under closed roots`). The commit contains exactly ten task
+  artifacts; this append-only LOG remains the only unstaged worktree change as
+  required. No open implementation items remain for this fix round.

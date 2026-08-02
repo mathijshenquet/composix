@@ -125,6 +125,15 @@ Adopted as recommended. The open-question dispositions (Mathijs,
 ## Changelog
 
 - 2026-08-02: drafted and adopted same day.
+- 2026-08-02 (tracefast landing; Mathijs steered in-session): the warm
+  gitsitter edit descended 84.83s → 8.31s WITH complete capture —
+  green under the bar. Semantics amendment sanctioned live by Mathijs:
+  RUN memos are VERIFYING-ONLY (a RUN that would have replayed
+  re-executes — cheap in a warm workspace); FETCH memos stay
+  constructive (pins and --cold replay require them). Also landed:
+  mtime-preserving staging, trace-side hash reuse, per-tracee tracer
+  parallelism, subprocess diet (9 calls, 0.28s — the measured libnix
+  ROI is now marginal).
 - 2026-08-02 (performance criterion, Mathijs): a warm one-line edit on
   the gitsitter compare must land around ~8–9s; above that the feature
   is ORANGE, and if it cannot beat crane's 16.46s the CIP itself is in
