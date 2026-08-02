@@ -675,6 +675,7 @@ mod tests {
                 Input {
                     url: DEFAULT_NIXPKGS_URL.into(),
                     kind: crate::InputKind::PackageUniverse,
+                    overlays: Vec::new(),
                     line: 1,
                 },
             ),
@@ -683,6 +684,7 @@ mod tests {
                 Input {
                     url: "github:NixOS/nixpkgs/nixos-25.05".into(),
                     kind: crate::InputKind::PackageUniverse,
+                    overlays: Vec::new(),
                     line: 2,
                 },
             ),
@@ -751,6 +753,7 @@ mod tests {
             Input {
                 url: DEFAULT_NIXPKGS_URL.into(),
                 kind: crate::InputKind::PackageUniverse,
+                overlays: Vec::new(),
                 line: 1,
             },
         )]);
@@ -776,6 +779,7 @@ mod tests {
             Input {
                 url: ".".into(),
                 kind: crate::InputKind::Source,
+                overlays: Vec::new(),
                 line: 3,
             },
         );

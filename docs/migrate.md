@@ -31,7 +31,7 @@ Prelude declarations bind inputs:
 - `FROM family/member:v3 AS prebuilt` binds a tagged cix item as a lock-pinned source tree.
 - `FROM . AS src` optionally names the local Cixfile directory. Bare relative `COPY`
   sources use that same local context without a binder.
-- `FETCH <name> [EXPECT <sri-hash>] <command...>` performs an independent network fetch in
+- `FETCH <name> <command...> [EXPECT <sri-hash>]` performs an independent network fetch in
   an empty work directory and binds its pinned output.
 
 Blocks have distinct jobs:
@@ -147,9 +147,10 @@ declare that output's SRI hash with `EXPECT`:
 ```dockerfile
 # Fragment — directives inside a BUILDER with curl, TLS roots, and bash imported.
 IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.cacert}
-FETCH EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+FETCH \
     curl --fail --location https://example.invalid/archive.tar.gz \
-    --output archive.tar.gz
+    --output archive.tar.gz \
+    EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 ```
 
 Replace the placeholder with the real SRI hash; never guess one. The value hashes the complete
@@ -318,10 +319,11 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER payload
 IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.coreutils} ${pkgs.cacert}
 ENV OUTPUT = $PWD/output
-FETCH EXPECT sha256-XhP7EsnseO1i7z6hXTRfJ17kuLWNtxv0r2fWrgOpz58= \
+FETCH \
     curl --fail --location \
     https://raw.githubusercontent.com/NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e/README.md \
-    --output README.md
+    --output README.md \
+    EXPECT sha256-XhP7EsnseO1i7z6hXTRfJ17kuLWNtxv0r2fWrgOpz58=
 RUN <<BUILD
 mkdir -p "$OUTPUT"
 cp README.md "$OUTPUT/README.md"

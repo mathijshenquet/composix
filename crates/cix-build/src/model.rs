@@ -100,6 +100,8 @@ fn binder_names<'a>(templates: impl IntoIterator<Item = &'a Template>) -> BTreeS
 pub struct Input {
     pub url: String,
     pub kind: InputKind,
+    /// Ordered project-local overlay paths for a package universe.
+    pub overlays: Vec<String>,
     pub line: usize,
 }
 

@@ -25,7 +25,7 @@
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / wallos</nav>
   <h1>wallos</h1>
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime passes; health awaits CIP-79 implementation · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Docker and Cix health probes pass through the .nix escape hatch; declarative health is absent · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>Receipt status:</strong> Docker and Cix health probes pass through the Cixfile overlay universe; declarative health is absent · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/SOURCE">Pinned upstream source notes</a></p>
   <main class="artifacts">
     <section class="column">
@@ -87,158 +87,111 @@ CMD [&quot;/var/www/html/startup.sh&quot;]
     <section class="column">
       <h2>composix</h2>
       <section class="file">
-        <h3>default.nix</h3>
-        <pre><code>{
-  system ? builtins.currentSystem,
-  pkgs ? import (builtins.fetchTree {
-    type = &quot;github&quot;;
-    owner = &quot;NixOS&quot;;
-    repo = &quot;nixpkgs&quot;;
-    rev = &quot;1559d3daa3ecc813a650b79375ea61b6741b8746&quot;;
-    narHash = &quot;sha256-LQy14TZp77TwbQf40gg1V3jo8FwJG0jGDkAH+zRHqg8=&quot;;
-  }) { inherit system; },
-  composix ? import ../../../nix/lib.nix { inherit pkgs; },
-}:
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
+FROM . AS src
 
-let
-  php = pkgs.php83.withExtensions (
-    { enabled, all }:
-    enabled
-    ++ (with all; [
-      calendar
-      gd
-      intl
-      pdo_sqlite
-      zip
-    ])
-  );
+BUILDER app
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
+  COPY ${src}/context/ app
+  RUN cd app &amp;&amp; rm -rf Dockerfile nginx.conf nginx.default.conf startup.sh db images/uploads/logos &amp;&amp; mkdir -p images/uploads &amp;&amp; ln -s /var/lib/wallos/db db &amp;&amp; ln -s /var/lib/wallos/logos images/uploads/logos &amp;&amp; sed &#39;s#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g&#39; cronjobs &gt; cronjobs.cix &amp;&amp; mv cronjobs.cix cronjobs
 
-  app = pkgs.runCommand &quot;wallos-app&quot; { } &#39;&#39;
-    cp -R ${./context}/. &quot;$out&quot;
-    chmod -R u+w &quot;$out&quot;
-    rm -rf &quot;$out/db&quot; &quot;$out/images/uploads/logos&quot;
-    ln -s /var/lib/wallos/db &quot;$out/db&quot;
-    mkdir -p &quot;$out/images/uploads&quot;
-    ln -s /var/lib/wallos/logos &quot;$out/images/uploads/logos&quot;
-    rm -f &quot;$out/Dockerfile&quot; &quot;$out/nginx.conf&quot; &quot;$out/nginx.default.conf&quot; &quot;$out/startup.sh&quot;
-  &#39;&#39;;
+SERVICE wallos
+  COPY ${app}/app /var/www/html
+  LINK ${pkgs.bash}/bin/bash /bin/bash
+  LINK ${pkgs.coreutils}/bin/mkdir /bin/mkdir
+  LINK ${pkgs.php}/bin/php /bin/php
+  LINK ${pkgs.php}/bin/php-fpm /bin/php-fpm
+  LINK ${pkgs.nginx}/bin/nginx /bin/nginx
+  LINK ${pkgs.supercronic}/bin/supercronic /bin/supercronic
+  FILE /etc/php-fpm.conf &lt;&lt;PHP
+[global]
+error_log = /var/log/wallos/php-fpm.log
+daemonize = no
 
-  cronjobs = pkgs.runCommand &quot;wallos-cronjobs&quot; { } &#39;&#39;
-    tr -d &#39;\r&#39; &lt; ${./context/cronjobs} \
-      | sed &#39;s#/usr/local/bin/php#${php}/bin/php#g; s#/var/log/cron#/var/log/wallos#g&#39; \
-      &gt; &quot;$out&quot;
-  &#39;&#39;;
-
-  phpFpmConfig = pkgs.writeText &quot;wallos-php-fpm.conf&quot; &#39;&#39;
-    [global]
-    error_log = /var/log/wallos/php-fpm.log
-    daemonize = no
-
-    [www]
-    listen = /run/wallos/php-fpm.sock
-    listen.mode = 0660
-    pm = dynamic
-    pm.max_children = 15
-    pm.start_servers = 2
-    pm.min_spare_servers = 1
-    pm.max_spare_servers = 3
-    pm.max_requests = 500
-    catch_workers_output = yes
-    clear_env = no
-  &#39;&#39;;
-
-  nginxConfig = pkgs.writeText &quot;wallos-nginx.conf&quot; &#39;&#39;
-    daemon off;
-    pid /run/wallos/nginx.pid;
-    error_log stderr info;
-    events { worker_connections 1024; }
-    http {
-      include ${pkgs.nginx}/conf/mime.types;
-      default_type application/octet-stream;
-      access_log /var/log/wallos/nginx-access.log;
-      client_body_temp_path /var/cache/wallos/body;
-      proxy_temp_path /var/cache/wallos/proxy;
-      fastcgi_temp_path /var/cache/wallos/fastcgi;
-      uwsgi_temp_path /var/cache/wallos/uwsgi;
-      scgi_temp_path /var/cache/wallos/scgi;
-      server {
-        listen 18092;
-        root /var/www/html;
-        index index.php;
-        location / { try_files $uri $uri/ /index.php?$args; }
-        location ~ \.php$ {
-          include ${pkgs.nginx}/conf/fastcgi_params;
-          fastcgi_pass unix:/run/wallos/php-fpm.sock;
-          fastcgi_index index.php;
-          fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        }
-        location ~ \.db$ { deny all; return 403; }
-        location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }
-        location ~* \.tmp/.*\.php$ { deny all; return 403; }
-        location ~* ^/includes/.*\.php$ { deny all; return 403; }
-      }
+[www]
+listen = /run/wallos/php-fpm.sock
+listen.mode = 0660
+pm = dynamic
+pm.max_children = 15
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+catch_workers_output = yes
+clear_env = no
+PHP
+  FILE /etc/nginx.conf &lt;&lt;NGINX
+daemon off;
+pid /run/wallos/nginx.pid;
+error_log stderr info;
+events { worker_connections 1024; }
+http {
+  include ${pkgs.nginx}/conf/mime.types;
+  default_type application/octet-stream;
+  access_log /var/log/wallos/nginx-access.log;
+  client_body_temp_path /var/cache/wallos/body;
+  proxy_temp_path /var/cache/wallos/proxy;
+  fastcgi_temp_path /var/cache/wallos/fastcgi;
+  uwsgi_temp_path /var/cache/wallos/uwsgi;
+  scgi_temp_path /var/cache/wallos/scgi;
+  server {
+    listen 18092;
+    root /var/www/html;
+    index index.php;
+    location / { try_files $uri $uri/ /index.php?$args; }
+    location ~ \.php$ {
+      include ${pkgs.nginx}/conf/fastcgi_params;
+      fastcgi_pass unix:/run/wallos/php-fpm.sock;
+      fastcgi_index index.php;
+      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     }
-  &#39;&#39;;
-
-  setup = pkgs.writeShellScript &quot;wallos-setup&quot; &#39;&#39;
-    set -eu
-    ${pkgs.coreutils}/bin/mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
-    cd /var/www/html
-    ${php}/bin/php endpoints/cronjobs/createdatabase.php
-    ${php}/bin/php endpoints/db/migrate.php
-    ${php}/bin/php endpoints/cronjobs/updatenextpayment.php
-    ${php}/bin/php endpoints/cronjobs/updateexchange.php
-    ${php}/bin/php endpoints/cronjobs/checkforupdates.php
-  &#39;&#39;;
-
-  start = pkgs.writeShellScript &quot;wallos-start&quot; &#39;&#39;
-    set -eu
-    php_pid=
-    cron_pid=
-    nginx_pid=
-    cleanup() {
-      test -z &quot;$nginx_pid&quot; || ${pkgs.coreutils}/bin/kill -QUIT &quot;$nginx_pid&quot; 2&gt;/dev/null || true
-      test -z &quot;$php_pid&quot; || ${pkgs.coreutils}/bin/kill -QUIT &quot;$php_pid&quot; 2&gt;/dev/null || true
-      test -z &quot;$cron_pid&quot; || ${pkgs.coreutils}/bin/kill -TERM &quot;$cron_pid&quot; 2&gt;/dev/null || true
-    }
-    trap cleanup EXIT INT TERM QUIT
-    ${php}/bin/php-fpm -y ${phpFpmConfig} -F &amp;
-    php_pid=$!
-    ${pkgs.supercronic}/bin/supercronic ${cronjobs} &amp;
-    cron_pid=$!
-    ${pkgs.nginx}/bin/nginx -c ${nginxConfig} -e stderr &amp;
-    nginx_pid=$!
-    wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
-  &#39;&#39;;
-
-  mounts = {
-    &quot;/var/www/html&quot; = app;
-  };
-in
-composix.withSpec {
-  name = &quot;cix-item-wallos&quot;;
-  inherit mounts;
-  manifest = {
-    cixManifest = 0;
-    start = [ start ];
-    start_pre = [ setup ];
-    mounts = builtins.attrNames mounts;
-    ports.http = {
-      protocol = &quot;tcp&quot;;
-      value = 18092;
-    };
-    dirs = {
-      state = [ &quot;/var/lib/wallos&quot; ];
-      cache = [ &quot;/var/cache/wallos&quot; ];
-      logs = [ &quot;/var/log/wallos&quot; ];
-      run = [ &quot;/run/wallos&quot; ];
-    };
-    claims = [
-      &quot;egress&quot;
-      &quot;jit&quot;
-    ];
-  };
+    location ~ \.db$ { deny all; return 403; }
+    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }
+    location ~* \.tmp/.*\.php$ { deny all; return 403; }
+    location ~* ^/includes/.*\.php$ { deny all; return 403; }
+  }
 }
+NGINX
+  FILE /bin/setup &lt;&lt;SETUP
+set -eu
+mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
+cd /var/www/html
+php endpoints/cronjobs/createdatabase.php
+php endpoints/db/migrate.php
+php endpoints/cronjobs/updatenextpayment.php
+php endpoints/cronjobs/updateexchange.php
+php endpoints/cronjobs/checkforupdates.php
+SETUP
+  FILE /bin/start &lt;&lt;START
+set -eu
+php_pid=
+cron_pid=
+nginx_pid=
+cleanup() {
+  test -z &quot;$nginx_pid&quot; || kill -QUIT &quot;$nginx_pid&quot; 2&gt;/dev/null || true
+  test -z &quot;$php_pid&quot; || kill -QUIT &quot;$php_pid&quot; 2&gt;/dev/null || true
+  test -z &quot;$cron_pid&quot; || kill -TERM &quot;$cron_pid&quot; 2&gt;/dev/null || true
+}
+trap cleanup EXIT INT TERM QUIT
+php-fpm -y /etc/php-fpm.conf -F &amp;
+php_pid=$!
+supercronic /var/www/html/cronjobs &amp;
+cron_pid=$!
+nginx -c /etc/nginx.conf -e stderr &amp;
+nginx_pid=$!
+wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
+START
+  START ${pkgs.bash}/bin/bash /bin/start
+  START_PRE ${pkgs.bash}/bin/bash /bin/setup
+  STATEDIR /var/lib/wallos/db
+  STATEDIR /var/lib/wallos/logos
+  CACHEDIR /var/cache/wallos
+  LOGDIR /var/log/wallos
+  RUNDIR /run/wallos
+  CLAIM egress
+  CLAIM jit
+  PORT http = 18092
 </code></pre>
       </section>
     </section>

@@ -1,0 +1,104 @@
+FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
+FROM . AS src
+
+BUILDER app
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
+  COPY ${src}/context/ app
+  RUN cd app && rm -rf Dockerfile nginx.conf nginx.default.conf startup.sh db images/uploads/logos && mkdir -p images/uploads && ln -s /var/lib/wallos/db db && ln -s /var/lib/wallos/logos images/uploads/logos && sed 's#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g' cronjobs > cronjobs.cix && mv cronjobs.cix cronjobs
+
+SERVICE wallos
+  COPY ${app}/app /var/www/html
+  LINK ${pkgs.bash}/bin/bash /bin/bash
+  LINK ${pkgs.coreutils}/bin/mkdir /bin/mkdir
+  LINK ${pkgs.php}/bin/php /bin/php
+  LINK ${pkgs.php}/bin/php-fpm /bin/php-fpm
+  LINK ${pkgs.nginx}/bin/nginx /bin/nginx
+  LINK ${pkgs.supercronic}/bin/supercronic /bin/supercronic
+  FILE /etc/php-fpm.conf <<PHP
+[global]
+error_log = /var/log/wallos/php-fpm.log
+daemonize = no
+
+[www]
+listen = /run/wallos/php-fpm.sock
+listen.mode = 0660
+pm = dynamic
+pm.max_children = 15
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+catch_workers_output = yes
+clear_env = no
+PHP
+  FILE /etc/nginx.conf <<NGINX
+daemon off;
+pid /run/wallos/nginx.pid;
+error_log stderr info;
+events { worker_connections 1024; }
+http {
+  include ${pkgs.nginx}/conf/mime.types;
+  default_type application/octet-stream;
+  access_log /var/log/wallos/nginx-access.log;
+  client_body_temp_path /var/cache/wallos/body;
+  proxy_temp_path /var/cache/wallos/proxy;
+  fastcgi_temp_path /var/cache/wallos/fastcgi;
+  uwsgi_temp_path /var/cache/wallos/uwsgi;
+  scgi_temp_path /var/cache/wallos/scgi;
+  server {
+    listen 18092;
+    root /var/www/html;
+    index index.php;
+    location / { try_files $uri $uri/ /index.php?$args; }
+    location ~ \.php$ {
+      include ${pkgs.nginx}/conf/fastcgi_params;
+      fastcgi_pass unix:/run/wallos/php-fpm.sock;
+      fastcgi_index index.php;
+      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+    location ~ \.db$ { deny all; return 403; }
+    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }
+    location ~* \.tmp/.*\.php$ { deny all; return 403; }
+    location ~* ^/includes/.*\.php$ { deny all; return 403; }
+  }
+}
+NGINX
+  FILE /bin/setup <<SETUP
+set -eu
+mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
+cd /var/www/html
+php endpoints/cronjobs/createdatabase.php
+php endpoints/db/migrate.php
+php endpoints/cronjobs/updatenextpayment.php
+php endpoints/cronjobs/updateexchange.php
+php endpoints/cronjobs/checkforupdates.php
+SETUP
+  FILE /bin/start <<START
+set -eu
+php_pid=
+cron_pid=
+nginx_pid=
+cleanup() {
+  test -z "$nginx_pid" || kill -QUIT "$nginx_pid" 2>/dev/null || true
+  test -z "$php_pid" || kill -QUIT "$php_pid" 2>/dev/null || true
+  test -z "$cron_pid" || kill -TERM "$cron_pid" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM QUIT
+php-fpm -y /etc/php-fpm.conf -F &
+php_pid=$!
+supercronic /var/www/html/cronjobs &
+cron_pid=$!
+nginx -c /etc/nginx.conf -e stderr &
+nginx_pid=$!
+wait -n "$php_pid" "$cron_pid" "$nginx_pid"
+START
+  START ${pkgs.bash}/bin/bash /bin/start
+  START_PRE ${pkgs.bash}/bin/bash /bin/setup
+  STATEDIR /var/lib/wallos/db
+  STATEDIR /var/lib/wallos/logos
+  CACHEDIR /var/cache/wallos
+  LOGDIR /var/log/wallos
+  RUNDIR /run/wallos
+  CLAIM egress
+  CLAIM jit
+  PORT http = 18092

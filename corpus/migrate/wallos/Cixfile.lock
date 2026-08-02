@@ -1,0 +1,41 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "148bab9c1c3c53136ecb44a6ea356a0ed5b39b06",
+      "narHash": "sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=",
+      "lastModified": 1785571196
+    }
+  },
+  "memo": {
+    "17839cf20ab2a32b90bc25b5624c547a997e1dd46f08b1224d18b976d5c75696": {
+      "paths": {
+        "app": {
+          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
+          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        }
+      }
+    },
+    "59d894dd0ad6f332936192c9f7381e441e782b845da997feccdbe9721a09478c": {
+      "paths": {
+        "app": {
+          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
+          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "0323a3c59391e994460672c325fb1bdba7d925376992900d404d629de7293e27:21b08f30f7a4b14cf66d1a298d37f67294c769afdaed94ce941c02d9a430e880": {
+      "environment": {
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/7mfsmbhsd3arnypipwm251rcd0b45riy-gnused-4.10/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "outputs": {
+    "wallos": {
+      "sourceHash": "7276fecd17c248b7ba2532e155b59be44c83aa1f62e7aa6810f4a155d1e7d1c0",
+      "storePath": "/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos"
+    }
+  }
+}

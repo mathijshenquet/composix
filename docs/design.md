@@ -1022,7 +1022,8 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
 
 - ✅ D56 (2026-07-30) — **`EXPECT` on FETCH: declared output hash beats TOFU**
   (from Mathijs's adminer giga-FETCH review). Optional
-  `FETCH <name> EXPECT sha256-…= <cmd>` (both FETCH forms): when present there is
+  `FETCH <name> <cmd> EXPECT sha256-…=` (both FETCH forms; trailing spelling
+  adopted 2026-08-02): when present there is
   NO trust-on-first-use window — the lock entry must match the declared hash or
   the build fails. Safer (declared beats first-fetch trust), shorter (the manual
   `curl … && sha256sum -c` ceremony and its `bash -c` wrapper die), and it
