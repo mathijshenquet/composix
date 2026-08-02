@@ -6,6 +6,7 @@ SERVICE postgres
   COPY ${src}/setup.sh /opt/postgres/setup.sh
   COPY ${src}/start.sh /opt/postgres/start.sh
   LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
+  LINK ${pkgs.bash}/bin/sh /bin/sh
   START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup.sh
   START ${pkgs.bash}/bin/sh /opt/postgres/start.sh ${pkgs.postgresql}/bin/postgres
   ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin

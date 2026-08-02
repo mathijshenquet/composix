@@ -9,8 +9,8 @@
   },
   "outputs": {
     "redis": {
-      "sourceHash": "337cab2888bd0359e96fb4e3024acd21fd6bcde46833d4ef52004443ad7a7da8",
-      "storePath": "/nix/store/qpjx6b3vy6mp41bfzm0qfjhciwr39fxb-cix-item-redis"
+      "sourceHash": "1e29e2b77b5eeb80001e65ebb8b5050586d7f0354d689e78bbeba84491d8eaeb",
+      "storePath": "/nix/store/94pyzpkfryrjbxm92mrp8qa2h3dbhdsa-cix-item-redis"
     }
   }
 }

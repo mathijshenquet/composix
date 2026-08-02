@@ -50,7 +50,7 @@ chmod 0600 "$secret_file"
 printf 'MASTODON_DB_PASSWORD_FILE=%s\n' "$secret_file" >"$compose_dir/.env"
 
 for member in postgres redis web sidekiq streaming cleanup; do
-  item=$(timeout 1200 "$cix" build "$root/$member#$member")
+  item=$(timeout 1200 "$cix" build --update-lock=pkgs "$root/$member#$member")
   printf '%s item %s\n' "$member" "$item"
   root_cix tag "$item" "corpus-mastodon-$member:checked"
 done

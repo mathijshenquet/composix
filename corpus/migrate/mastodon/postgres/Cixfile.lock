@@ -9,8 +9,8 @@
   },
   "outputs": {
     "postgres": {
-      "sourceHash": "0b765c0cee693365ed7bf1550febff91267c9f8c6d19afab3fd322767713534b",
-      "storePath": "/nix/store/s8r326a6jifzkmblqxzlxlvd3ifv3nmp-cix-item-postgres"
+      "sourceHash": "af43381b1059d439deb3bf59d1efd204eca0f662139088492d1f8ec440b1fc57",
+      "storePath": "/nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres"
     }
   }
 }

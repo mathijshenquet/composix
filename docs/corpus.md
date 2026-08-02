@@ -21,7 +21,7 @@ Ribbons:
 - ❌ outside the thesis (with the honest why)
 - Effort = S/M/L/XL: Cixfile+compose lines plus thinking, for a competent adopter.
 
-## The living migration corpus (20)
+## The living migration corpus (21)
 
 These are the checked-in conversions under `corpus/migrate/`, not a second
 historical grade set. The ribbon describes the whole conversion represented by
@@ -50,13 +50,15 @@ case in the [side-by-side browser](corpus/index.html).
 | 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative readiness remains untranslated and the consumed app tree is not yet reproducible for the closed-root audit | 🔶 runtime passes; READINESS undeclared; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
 | 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
 | 20 | Whoami | Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/whoami/receipt.md) |
+| 21 | Mastodon | Six-member compose passes ordinary and closed-root integration: credential, Unix edges, shared-rw state, readiness/liveness, timer, scoped logs, and purge | 🔶 integration passes; D26/D27 network segmentation remains an explicit loss | M | [receipt](../corpus/migrate/mastodon/receipt.md) |
 
 ### CIP-84 closed-root audit
 
 The phase-1 sealed-root VM reproduces and probes every pack member, plus the
 Adminer, Caddy, Memcached, NATS, nginx, phpMyAdmin, Redis, Renovate, Tomcat,
-and Traefik corpus contracts. The check has an exhaustive directory roster, so
-a newly added pack or migration cannot silently escape classification.
+and Traefik unary corpus contracts and the complete six-member Mastodon compose
+contract. The check has an exhaustive directory roster, so a newly added pack
+or migration cannot silently escape classification.
 
 Ten migrations are deliberately outside the green closed-root set. Directus,
 Filestash, and Verdaccio still fail before producing a runnable item; Dozzle

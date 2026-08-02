@@ -3,7 +3,7 @@
 Source revision: `ad245adf510cf56953ebb8a7dfc5db16c0f58403`
 (Mastodon main on 2026-08-02).
 
-This conversion uses the pre-agreed faithfully-shaped fallback. PostgreSQL  and
+This conversion uses the pre-agreed faithfully-shaped fallback. PostgreSQL and
 Redis are the real nixpkgs services. `web` and `sidekiq` are small
 Puma/worker-shaped Python processes, while `streaming` uses real nginx to retain
 the long-running HTTP and health behavior without compiling Mastodon's Rails,
@@ -53,8 +53,8 @@ long-running members.
 `./check.sh cix` exited 0 on 2026-08-02. Its final items were:
 
 ```text
-postgres  /nix/store/s8r326a6jifzkmblqxzlxlvd3ifv3nmp-cix-item-postgres
-redis     /nix/store/qpjx6b3vy6mp41bfzm0qfjhciwr39fxb-cix-item-redis
+postgres  /nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres
+redis     /nix/store/94pyzpkfryrjbxm92mrp8qa2h3dbhdsa-cix-item-redis
 web       /nix/store/afc7xdw294x7vhk6q6rripry1xiys3vk-cix-item-web
 sidekiq   /nix/store/p0aafmd6j6mvrx409avj5xpahrnykw6m-cix-item-sidekiq
 streaming /nix/store/lpwp6923950n3rkv32flld7wdmqlnqw0-cix-item-streaming
@@ -72,3 +72,24 @@ services remained active after a seven-second wait, exceeding their six-second
 watchdog window. The check printed
 `PASS cix: shared-rw, readiness, credential, timer, and member logs` and its
 EXIT cleanup completed with status 0, including `cix down --purge --yes`.
+
+The final rerun used `devenv shell -- ./corpus/migrate/mastodon/check.sh cix`
+and exited 0 synchronously. It refreshes the `pkgs` lock before every member
+build so a locally cached item cannot hide a garbage-collected external runtime
+path. A second refresh of all six `Cixfile.lock` files produced no byte changes.
+
+## Closed-root receipt
+
+`devenv shell -- nix build
+.#checks.x86_64-linux.scenario-closedroot-audit -L` exited 0 synchronously on
+2026-08-02. The exhaustive audit classifies Mastodon as audited and reproduces
+the complete six-member compose rather than reducing it to unary items. It
+verifies sealed roots for every member, with no ambient `/bin/sh`; PostgreSQL's
+`initdb` shell dependency is the sole exception and is an explicit read-only
+item mount. Redis declares the C locale instead of inheriting host locale data.
+
+The VM also proves the exact `LoadCredential=` unit contract and behavioral
+credential use, PostgreSQL and Redis Unix-edge ordering, both HTTP endpoints,
+the shared-rw markers from web and sidekiq, watchdog survival, repeated cleanup
+timer execution, member-scoped logs, and removal of shared state and all six
+closed-root directories after `down --purge`.
