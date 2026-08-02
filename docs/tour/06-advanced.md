@@ -111,9 +111,9 @@ $ cix build compose-app -t current
 ```sh
 $ cat compose.json
 {
-  "composeVersion": 1,
+  "cixCompose": 1,
   "name": "tour-compose",
-  "services": {
+  "children": {
     "web": {
       "item": "web:current",
       "update": "track"
@@ -132,7 +132,7 @@ compose tour-compose: 1 services, 0 edges, valid
 ```sh
 $ cat cix.lock
 {
-  "services": {
+  "paths": {
     "web": {
       "ref": "web:current",
       "storePath": "/nix/store/…-cix-item-web",

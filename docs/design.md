@@ -426,6 +426,12 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
 
 ## Building now (decided 2026-07-29, Mathijs: "bouw maar naar eigen inzicht")
 
+Implementation note (2026-08-02): CIP-85 leg 1 is built. Compose now uses the recursive
+`cixCompose: 1` group-node grammar, path-derived instance identity and nested slices, a root lock
+entry for every item/compose ref path, tagged compose subtrees, mutable host-root edits, and
+selective subtree repins. `network: "pod"` and publish climbing remain schema-refused until the
+CIP-86 netns/publish leg; replicas and D46 publish-time family expansion remain deferred.
+
 - ✅ D29 — **spec v3**: (a) `listeners` field per the dstyle proposal — an activated-listener
   contract *distinct from* `ports` (fd-inherit means NO IP-socket grant; `FileDescriptorName=`
   from the listener name; `cix run -p name=addr` binds it via a transient `.socket` unit with

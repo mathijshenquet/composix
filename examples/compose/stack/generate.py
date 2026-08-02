@@ -2,9 +2,9 @@
 import json
 
 compose = {
-    "composeVersion": 1,
+    "cixCompose": 1,
     "name": "stack",
-    "services": {
+    "children": {
         "web": {
             "item": "stack-web:v1",
             "bind": {"http": "127.0.0.1:8080"},
@@ -19,14 +19,14 @@ compose = {
     "edges": {
         "database": {
             "producer": {
-                "service": "db",
+                "child": "db",
                 "path": "/run/redis",
             },
             "consumers": {"backend": {}},
         },
         "http": {
             "producer": {
-                "service": "backend",
+                "child": "backend",
                 "path": "/run/backend",
             },
             "consumers": {"web": {}},

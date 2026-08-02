@@ -1,49 +1,54 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://composix.dev/schema/compose-v1.json",
-  "title": "composix compose v1",
+  "$id": "https://composix.dev/schema/compose-tree-v1.json",
+  "title": "composix compose tree v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["composeVersion", "name", "services"],
+  "required": ["cixCompose", "name", "children"],
   "properties": {
-    "composeVersion": {"const": 1},
+    "cixCompose": {"const": 1},
     "name": {"$ref": "#/$defs/name"},
     "logNamespace": {"type": "boolean", "default": false},
-    "services": {
-      "type": "object",
-      "minProperties": 1,
-      "propertyNames": {"$ref": "#/$defs/name"},
-      "additionalProperties": {"$ref": "#/$defs/service"}
-    },
-    "edges": {
-      "type": "object",
-      "propertyNames": {"$ref": "#/$defs/name"},
-      "additionalProperties": {"$ref": "#/$defs/edge"}
-    },
-    "secrets": {
-      "type": "object",
-      "propertyNames": {"$ref": "#/$defs/name"},
-      "additionalProperties": {"$ref": "#/$defs/secret"}
-    }
+    "children": {"$ref": "#/$defs/children"},
+    "edges": {"$ref": "#/$defs/edges"},
+    "secrets": {"$ref": "#/$defs/secrets"}
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z0-9._-]+$"},
+    "ref": {"type": "string", "pattern": "^.+:[^/:]+$"},
     "absolutePath": {"type": "string", "pattern": "^/"},
-    "service": {
+    "children": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/child"}
+    },
+    "child": {
+      "oneOf": [
+        {"$ref": "#/$defs/item"},
+        {"$ref": "#/$defs/composeRef"},
+        {"$ref": "#/$defs/group"}
+      ]
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children"],
+      "properties": {
+        "children": {"$ref": "#/$defs/children"},
+        "edges": {"$ref": "#/$defs/edges"},
+        "secrets": {"$ref": "#/$defs/secrets"}
+      }
+    },
+    "item": {
       "type": "object",
       "additionalProperties": false,
       "required": ["item"],
       "properties": {
-        "item": {"type": "string", "minLength": 1},
+        "item": {"$ref": "#/$defs/ref"},
         "update": {"enum": ["pin", "track"], "default": "pin"},
-        "env": {
-          "type": "object",
-          "additionalProperties": {"type": "string"}
-        },
-        "bind": {
-          "type": "object",
-          "additionalProperties": {"type": "string"}
-        },
+        "env": {"type": "object", "additionalProperties": {"type": "string"}},
+        "bind": {"type": "object", "additionalProperties": {"type": "string"}},
         "dirs": {
           "type": "object",
           "propertyNames": {"$ref": "#/$defs/absolutePath"},
@@ -52,7 +57,17 @@
         "identity": {"$ref": "#/$defs/name"},
         "schedule": {"type": "string", "minLength": 1},
         "persistent": {"type": "boolean"},
-        "jitter": {"type": "string", "minLength": 1}
+        "jitter": {"type": "string", "minLength": 1},
+        "shm": {"type": "string", "minLength": 1}
+      }
+    },
+    "composeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compose"],
+      "properties": {
+        "compose": {"$ref": "#/$defs/ref"},
+        "update": {"enum": ["pin", "track"], "default": "pin"}
       }
     },
     "directoryMaterialization": {
@@ -65,11 +80,12 @@
         "idmap": {"type": "boolean", "default": false},
         "write": {"type": "boolean", "default": false}
       },
-      "anyOf": [
-        {"required": ["host"]},
-        {"required": ["shared"]},
-        {"required": ["as"]}
-      ]
+      "anyOf": [{"required": ["host"]}, {"required": ["shared"]}, {"required": ["as"]}]
+    },
+    "secrets": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/secret"}
     },
     "secret": {
       "type": "object",
@@ -78,26 +94,26 @@
         "file": {"$ref": "#/$defs/absolutePath"},
         "encrypted": {"$ref": "#/$defs/absolutePath"}
       },
-      "oneOf": [
-        {"required": ["file"]},
-        {"required": ["encrypted"]}
-      ]
+      "oneOf": [{"required": ["file"]}, {"required": ["encrypted"]}]
     },
     "endpoint": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["service", "path"],
+      "required": ["child", "path"],
       "properties": {
-        "service": {"$ref": "#/$defs/name"},
+        "child": {"$ref": "#/$defs/name"},
         "path": {"$ref": "#/$defs/absolutePath"}
       }
     },
     "consumer": {
       "type": "object",
       "additionalProperties": false,
-      "properties": {
-        "path": {"$ref": "#/$defs/absolutePath"}
-      }
+      "properties": {"path": {"$ref": "#/$defs/absolutePath"}}
+    },
+    "edges": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/edge"}
     },
     "edge": {
       "type": "object",

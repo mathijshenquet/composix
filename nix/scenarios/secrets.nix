@@ -23,13 +23,13 @@ let
     echo '{"cixManifest":0,"start":["bin/helper"]}' > "$out/cix-manifest.json"
   '';
   compose = pkgs.writeText "scenario-secrets.json" ''
-    {"composeVersion":1,"name":"secrets","services":{"consumer":{"item":"scenario-secrets-consumer:v1"},"helper":{"item":"scenario-secrets-helper:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"}}}
+    {"cixCompose":1,"name":"secrets","children":{"consumer":{"item":"scenario-secrets-consumer:v1"},"helper":{"item":"scenario-secrets-helper:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"}}}
   '';
   runCompose = pkgs.writeText "scenario-secrets-run.json" ''
-    {"composeVersion":1,"name":"secretsrun","services":{"consumer":{"item":"scenario-secrets-consumer:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"}}}
+    {"cixCompose":1,"name":"secretsrun","children":{"consumer":{"item":"scenario-secrets-consumer:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"}}}
   '';
   strayCompose = pkgs.writeText "scenario-secrets-stray.json" ''
-    {"composeVersion":1,"name":"secrets","services":{"consumer":{"item":"scenario-secrets-consumer:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"},"stray":{"file":"/run/cix-test-secret"}}}
+    {"cixCompose":1,"name":"secrets","children":{"consumer":{"item":"scenario-secrets-consumer:v1"}},"secrets":{"db-password":{"file":"/run/cix-test-secret"},"stray":{"file":"/run/cix-test-secret"}}}
   '';
 in
 scenario.node ''

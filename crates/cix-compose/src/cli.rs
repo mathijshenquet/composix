@@ -9,14 +9,19 @@ pub enum Command {
         #[command(subcommand)]
         command: ComposeCommand,
     },
+    /// Edit the mutable host-root tree without rewriting JSON by hand.
+    Root {
+        #[command(subcommand)]
+        command: RootCommand,
+    },
     /// Resolve, build, profile, and activate a composite.
     Up {
         /// Path to compose.json.
         #[arg(default_value = "compose.json")]
         file: PathBuf,
-        /// Re-resolve all pinned services, or one named service.
-        #[arg(long, num_args = 0..=1, default_missing_value = "*", value_name = "SERVICE")]
-        update: Option<String>,
+        /// Re-resolve every ref, or one path and its subtree.
+        #[arg(long = "update-lock", alias = "update", num_args = 0..=1, default_missing_value = "*", value_name = "PATH")]
+        update_lock: Option<String>,
         /// Audit generated services in sealed filesystem roots (CIP-84 phase 1).
         #[arg(long)]
         closed_root: bool,
@@ -49,6 +54,25 @@ pub enum Command {
     Rollback {
         /// Composite name.
         name: String,
+    },
+}
+
+#[derive(clap::Subcommand)]
+pub enum RootCommand {
+    /// Add an item ref at a slash-separated child path.
+    Add {
+        path: String,
+        reference: String,
+        /// Host-root file to edit.
+        #[arg(long, default_value = "/etc/cix/cix.json")]
+        file: PathBuf,
+    },
+    /// Remove a child ref or inline subtree at a slash-separated path.
+    Remove {
+        path: String,
+        /// Host-root file to edit.
+        #[arg(long, default_value = "/etc/cix/cix.json")]
+        file: PathBuf,
     },
 }
 
@@ -89,15 +113,37 @@ impl Command {
             Self::Compose {
                 command: ComposeCommand::Diff { file, closed_root },
             } => crate::diff(&file, closed_root),
+            Self::Root {
+                command: RootCommand::Add {
+                    path,
+                    reference,
+                    file,
+                },
+            } => {
+                let mut root = crate::Compose::load(&file)?;
+                root.root_add(&path, reference)?;
+                root.write(&file)?;
+                println!("added {path} to {}", file.display());
+                Ok(())
+            }
+            Self::Root {
+                command: RootCommand::Remove { path, file },
+            } => {
+                let mut root = crate::Compose::load(&file)?;
+                root.root_remove(&path)?;
+                root.write(&file)?;
+                println!("removed {path} from {}", file.display());
+                Ok(())
+            }
             Self::Up {
                 file,
-                update,
+                update_lock,
                 closed_root,
             } => {
-                let update = match update.as_deref() {
+                let update = match update_lock.as_deref() {
                     None => UpdateRequest::None,
                     Some("*") => UpdateRequest::All,
-                    Some(service) => UpdateRequest::Service(service.to_owned()),
+                    Some(path) => UpdateRequest::Path(path.to_owned()),
                 };
                 crate::up(&file, update, closed_root)
             }

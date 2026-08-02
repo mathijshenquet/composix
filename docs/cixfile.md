@@ -191,7 +191,7 @@ systemd-encrypted credential file:
 ```json
 {
   "secrets": { "db-password": { "file": "/etc/cix/db-password" } },
-  "services": { "database": { "item": "example/db:v1" } }
+  "children": { "database": { "item": "example/db:v1" } }
 }
 ```
 

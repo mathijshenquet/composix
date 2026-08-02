@@ -20,7 +20,7 @@ use crate::{
     build_generation_with_closed_root,
     cli::CleanWhat,
     generation::{DirectoryBackingKind, Manifest, UnitKind},
-    load_and_check, Compose, UpdateRequest,
+    load_and_check, unit_path, Compose, UpdateRequest,
 };
 
 const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
@@ -42,8 +42,8 @@ pub fn check(compose_path: &Path) -> Result<()> {
     println!(
         "compose {}: {} services, {} edges, valid",
         checked.compose.name,
-        checked.compose.services.len(),
-        checked.compose.edges.len()
+        checked.services.len(),
+        checked.edges.len()
     );
     Ok(())
 }
@@ -323,7 +323,7 @@ pub fn clean(name: &str, what: CleanWhat) -> Result<()> {
                 directory.role == role && directory.backing == DirectoryBackingKind::Private
             })
         })
-        .map(|(service, _)| format!("cix-{name}-{service}.service"))
+        .map(|(service, _)| service_unit_name(name, service))
         .collect::<Vec<_>>();
     if !units.is_empty() {
         let mut stop_arguments = vec!["stop"];
@@ -438,7 +438,7 @@ fn activate_generation(
             }
         }
         for service in rotated_secrets {
-            let unit = format!("cix-{name}-{service}.service");
+            let unit = service_unit_name(name, service);
             if new_manifest
                 .units
                 .get(&unit)
@@ -641,7 +641,7 @@ fn register_generation_gc_roots(name: &str, generation: &Path, manifest: &Manife
     register_gc_root(&directory.join("generation.root"), generation)?;
     for (service, entry) in &manifest.services {
         register_gc_root(
-            &directory.join(format!("{service}.root")),
+            &directory.join(format!("{}.root", unit_path(service))),
             Path::new(&entry.store_path),
         )?;
     }
@@ -807,6 +807,10 @@ fn validate_composite_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn service_unit_name(composite: &str, path: &str) -> String {
+    format!("cix-{composite}-{}.service", unit_path(path))
+}
+
 fn stop_order(unit: &str) -> u8 {
     if unit.ends_with(".target") {
         0
@@ -823,16 +827,10 @@ fn stop_order(unit: &str) -> u8 {
 
 fn cleanup_edge_destinations(generation: &Path) -> Result<()> {
     let compose = Compose::load(&generation.join("compose.json"))?;
-    let paths = compose
-        .edges
-        .values()
-        .flat_map(|edge| {
-            std::iter::once(edge.producer.path.as_path()).chain(
-                edge.consumers
-                    .values()
-                    .filter_map(|consumer| consumer.path.as_deref()),
-            )
-        })
+    let mut edge_paths = Vec::new();
+    collect_edge_paths(&compose.children, &compose.edges, &mut edge_paths);
+    let paths = edge_paths
+        .into_iter()
         .filter(|path| path.parent() == Some(Path::new("/run")))
         .collect::<BTreeSet<_>>();
     for path in paths {
@@ -850,6 +848,26 @@ fn cleanup_edge_destinations(generation: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn collect_edge_paths<'a>(
+    children: &'a BTreeMap<String, crate::Child>,
+    edges: &'a BTreeMap<String, crate::model::Edge>,
+    paths: &mut Vec<&'a Path>,
+) {
+    for edge in edges.values() {
+        paths.push(&edge.producer.path);
+        paths.extend(
+            edge.consumers
+                .values()
+                .filter_map(|consumer| consumer.path.as_deref()),
+        );
+    }
+    for child in children.values() {
+        if let crate::Child::Group(group) = child {
+            collect_edge_paths(&group.children, &group.edges, paths);
+        }
+    }
 }
 
 #[cfg(test)]

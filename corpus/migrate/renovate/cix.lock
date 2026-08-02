@@ -1,5 +1,5 @@
 {
-  "services": {
+  "paths": {
     "renovate": {
       "ref": "renovate:regrade",
       "storePath": "/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate",
