@@ -1038,6 +1038,87 @@ START /bin/true
 }
 
 #[test]
+fn fetch_self_observation_reverts_partial_state_and_preserves_cold_and_pin_checks() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("value"), "one\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+COPY ${src}/value value
+FETCH test ! -e foo && test ! -e bar && cat value > foo && printf side > bar
+RUN cat foo > result
+SERVICE result
+COPY ${build}/result /result
+START /bin/true
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: workspace.path().to_owned(),
+        state_directory: test_state_directory(),
+    };
+
+    build(&options).unwrap();
+    let builder_workspace = fs::read_dir(workspace.path())
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path()
+        .join("work");
+    fs::remove_file(builder_workspace.join("bar")).unwrap();
+    fs::write(directory.path().join("value"), "two\n").unwrap();
+
+    let mismatch = build(&options).unwrap_err().to_string();
+    assert!(
+        mismatch.contains("FETCH consumed-path mismatch") && mismatch.contains("--update-lock"),
+        "{mismatch}"
+    );
+
+    let updated = build(&BuildOptions {
+        update_lock: Some("build".into()),
+        ..options.clone()
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read_to_string(Path::new(&updated[0].store_path).join("result")).unwrap(),
+        "two\n"
+    );
+    let warm_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
+    let cold = build(&BuildOptions {
+        cold: true,
+        ..options
+    })
+    .unwrap();
+    assert_eq!(
+        updated, cold,
+        "warm and cold must materialize identical items"
+    );
+    assert_eq!(
+        warm_lock,
+        fs::read(directory.path().join("Cixfile.lock")).unwrap(),
+        "warm and cold must record byte-identical traces"
+    );
+}
+
+#[test]
 fn changed_step_before_fetch_reuses_its_builder_underlay() {
     let directory = tempfile::tempdir().unwrap();
     let expected_tree = tempfile::tempdir().unwrap();
