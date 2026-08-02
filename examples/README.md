@@ -6,7 +6,8 @@
 - `compose/` holds composites that consume pack items through tags.
 - `build/` holds build-story projects. `build/ingredient` proves a small EXPECT-pinned HTTPS
   fetch with imported curl and CA roots. `build/projB` proves the Rust FETCH/RUN path;
-  `build/projB-chef` proves the same manifest-first dependency workflow. `build/proj1` is
+  `build/projB-chef` retains a manifest-first dependency split as an optional optimization.
+  `build/proj1` is
   D57's two-service Rust workspace: one persistent named builder feeds independent API and
   worker artifacts through narrow consumed-path records. `build/from-item` is the small D65
   cross-item COPY demonstration: tag the nginx example, then consume its configuration through

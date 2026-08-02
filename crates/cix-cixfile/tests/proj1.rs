@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::thread;
 
-use cix_cixfile::{build, build_with_stats, parse, BuildOptions, BuiltItem, LockFile};
+use cix_cixfile::{build, build_with_stats, parse, BuildOptions, BuildStats, BuiltItem, LockFile};
 
 const PROJECT_FILES: &[&str] = &[
     "Cixfile",
@@ -91,8 +91,16 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     assert_eq!(edited_lock.memo.len(), 2);
     assert_consumed_binaries(&edited_lock);
 
-    let clean = run_build(temporary.path(), true);
-    assert_eq!(clean, edited);
+    let cold_error = build(&BuildOptions {
+        directory: temporary.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+        allow_secret: false,
+    })
+    .expect_err("the cold audit must reject the warm-only workspace read");
+    let cold_error = format!("{cold_error:#}");
+    assert!(cold_error.contains("line 8: recorded read set differs between warm and cold"));
     assert_consumed_binaries(&load_lock(temporary.path()));
 
     fs::remove_dir_all(&workspace).unwrap();
@@ -102,27 +110,35 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
 }
 
 #[test]
-fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
+fn local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence() {
     let _workspace_directory_lock = WORKSPACE_DIRECTORY.lock().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
-        let mut request = [0; 1024];
-        let _ = stream.read(&mut request).unwrap();
-        stream
-            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello\n")
-            .unwrap();
+        for _ in 0..2 {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0; 1024];
+            let _ = stream.read(&mut request).unwrap();
+            stream
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello\n",
+                )
+                .unwrap();
+        }
     });
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let temporary = tempfile::tempdir().unwrap();
     fs::write(
         temporary.path().join("Cixfile"),
         format!(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH web ${{pkgs.curl}}/bin/curl -fsS http://{address} > payload\nBUILDER build\nIMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}\nCOPY ${{web}}/payload payload\nRUN cp payload out\nITEM app\nCOPY ${{build}}/out /out\n"
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nBUILDER build\nIMPORT ${{pkgs.bash}} ${{pkgs.coreutils}} ${{pkgs.curl}}\nCOPY ${{src}}/project/ .\nFETCH cat manifest >/dev/null && curl -fsS http://{address} > vendor\nRUN cat source vendor > out; if test -e optional; then cat optional >> out; fi; ls listed >/dev/null\nITEM app\nCOPY ${{build}}/out /out\n"
         ),
     )
     .unwrap();
+    fs::create_dir_all(temporary.path().join("project/listed")).unwrap();
+    fs::write(temporary.path().join("project/manifest"), "manifest-one\n").unwrap();
+    fs::write(temporary.path().join("project/source"), "source-one\n").unwrap();
+    fs::write(temporary.path().join("project/listed/one"), "one\n").unwrap();
     let lock = root.join("examples/pack/nginx/Cixfile.lock");
     fs::copy(lock, temporary.path().join("Cixfile.lock")).unwrap();
     let workspace = tempfile::tempdir().unwrap();
@@ -135,26 +151,37 @@ fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
         allow_secret: false,
     };
     let (first, _) = build_with_stats(&options).unwrap();
-    server.join().unwrap();
     let (repeat, stats) = build_with_stats(&options).unwrap();
     assert_eq!(repeat, first);
     assert_eq!(stats.nix_subprocesses, 0);
     assert!(stats.steps.iter().all(|step| step.status == "memo-hit"));
 
-    let cixfile = temporary.path().join("Cixfile");
-    fs::write(
-        &cixfile,
-        fs::read_to_string(&cixfile).unwrap().replace(
-            "RUN cp payload out",
-            "RUN test -f payload && cp payload out",
-        ),
-    )
-    .unwrap();
-    let (_, edited) = build_with_stats(&options).unwrap();
-    assert!(edited
+    fs::write(temporary.path().join("project/manifest"), "manifest-two\n").unwrap();
+    let (_, manifest_stats) = build_with_stats(&options).unwrap();
+    assert_eq!(status(&manifest_stats, "FETCH"), "executed");
+    server.join().unwrap();
+
+    fs::write(temporary.path().join("project/source"), "source-two\n").unwrap();
+    let (source_edited, source_stats) = build_with_stats(&options).unwrap();
+    assert_ne!(source_edited, first);
+    assert_eq!(status(&source_stats, "FETCH"), "memo-hit");
+    assert_eq!(status(&source_stats, "RUN"), "executed");
+
+    fs::write(temporary.path().join("project/optional"), "optional\n").unwrap();
+    let (_, negative_stats) = build_with_stats(&options).unwrap();
+    assert_eq!(status(&negative_stats, "RUN"), "executed");
+
+    fs::write(temporary.path().join("project/listed/two"), "two\n").unwrap();
+    let (latest, readdir_stats) = build_with_stats(&options).unwrap();
+    assert_eq!(status(&readdir_stats, "RUN"), "executed");
+
+    let (noop, noop_stats) = build_with_stats(&options).unwrap();
+    assert_eq!(noop, latest);
+    assert_eq!(noop_stats.nix_subprocesses, 0);
+    assert!(noop_stats
         .steps
         .iter()
-        .any(|step| step.kind == "RUN" && step.status == "executed"));
+        .all(|step| step.status == "memo-hit"));
 
     let cold = build(&BuildOptions {
         cold: true,
@@ -162,7 +189,16 @@ fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
         ..options
     })
     .unwrap();
-    assert_eq!(cold, first);
+    assert_eq!(cold, latest);
+}
+
+fn status<'a>(stats: &'a BuildStats, kind: &str) -> &'a str {
+    stats
+        .steps
+        .iter()
+        .find(|step| step.kind == kind)
+        .unwrap()
+        .status
 }
 
 fn run_build(directory: &Path, cold: bool) -> Vec<BuiltItem> {

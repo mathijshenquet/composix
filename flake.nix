@@ -66,7 +66,7 @@
         nativeBuildInputs = [ pkgs.makeWrapper ];
         postInstall = ''
           wrapProgram "$out/bin/cix" \
-            --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix ]}
+            --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix pkgs.strace ]}
         '';
       };
       composixLib = import ./nix/lib.nix { inherit pkgs; };

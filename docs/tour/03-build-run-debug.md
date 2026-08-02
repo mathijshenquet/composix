@@ -109,7 +109,7 @@ $ cat prebuilt/Cixfile.lock
   },
   "outputs": {
     "copied-greeting": {
-      "sourceHash": "bec8433f28845bd49a9b9d09cdbb9bf4de29a8d35c31b230bbbebfad13e95e7b",
+      "sourceHash": "a83cdbecbebff0c89b55a61b51cd67e16a9e65f5c63dcde6f8c9f427dec7986b",
       "storePath": "/nix/store/…-cix-item-copied-greeting"
     }
   }

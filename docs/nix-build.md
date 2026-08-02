@@ -108,11 +108,8 @@ IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.pkg-config} \
     ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
     ${pkgs.sqlite} ${pkgs.sqlite.dev}
 ENV GIT_COMMIT_HASH = ${src.rev}
-COPY ${src}/Cargo.toml Cargo.toml
-COPY ${src}/Cargo.lock Cargo.lock
-FETCH mkdir -p .cargo && cargo vendor --locked vendor > .cargo/config.toml
-COPY ${src}/build.rs build.rs
-COPY ${src}/src/ src
+COPY ${src}/ .
+FETCH mkdir -p .cargo && CARGO_TARGET_DIR=/tmp/cix-vendor-target cargo vendor --locked vendor > .cargo/config.toml
 RUN cargo build --release --locked --offline
 
 ITEM gitsitter
@@ -126,14 +123,14 @@ for its explanatory comment:
 $ for f in "$upstream/flake.nix" examples/compare/gitsitter/crane/flake.nix examples/compare/gitsitter/cix/Cixfile; do awk 'NF && $1 !~ /^#/' "$f" | wc -l; done
 38
 30
-16
+13
 ```
 
 LOC is only an authoring-weight proxy. The upstream author must understand a
 flake, `buildRustPackage`, Cargo lock vendoring, and native versus build inputs.
 The crane author adds source filtering and the dependency-artifact boundary,
 but gets an explicit reusable dependency derivation. The Cixfile author works
-with Docker-shaped binders and ordered `COPY`/`FETCH`/`RUN` steps, while still
+with Docker-shaped binders and traced `COPY`/`FETCH`/`RUN` steps, while still
 needing to understand package outputs such as `.dev`, `PKG_CONFIG_PATH`, the
 network/offline split, and the difference between an `ITEM` and a runnable
 artifact. Its shorter file does not erase those concepts.
@@ -142,8 +139,8 @@ artifact. Its shorter file does not erase those concepts.
 
 The original rows were measured on 2026-07-31 UTC on Linux 6.17.0-40-generic,
 x86_64, an AMD Ryzen 9 9950X3D (16 cores, 32 threads), with Determinate Nix
-3.21.0 / Nix 2.34.6 and Cix 0.1.0. The Cix one-line-edit receipt was re-run on
-2026-08-01 with the same harness after the workshop-underlay change. The
+3.21.0 / Nix 2.34.6 and Cix 0.1.0. The Cix no-op and one-line-edit receipts
+were re-run on 2026-08-02 with the copy-everything Cixfile and CIP-87 read-set engine. The
 pre-existing Nix toolchain and native-library paths were retained for every
 route. These are wall-clock observations, not a statistical benchmark.
 
@@ -162,7 +159,7 @@ The measured matrix was:
 | --- | ---: | ---: | ---: |
 | Upstream flake | 0.07 s | 28.82 s | 30.64 s |
 | crane | 0.64 s | 37.81 s | 16.46 s |
-| Cixfile | 0.00 s (2026-08-02) | 26.94 s | 7.46 s (2026-08-01) |
+| Cixfile | 0.34 s (2026-08-02) | 26.94 s | 84.83 s (2026-08-02) |
 
 ### No-op
 
@@ -173,13 +170,13 @@ redirected to `/dev/null`.
 ```console
 upstream_noop_seconds=0.07
 crane_noop_seconds=0.64
-cix_noop_seconds=0.00
+cix_readset_noop_seconds=0.34
 ```
 
-This Cix receipt was re-measured on 2026-08-02 on the same host and binary with
-the full memo hit already present; `/usr/bin/time` rounded below one hundredth
-of a second. Its `--stats` result also reported zero Nix subprocesses and no
-executed steps. The upstream and crane measurements retain their original dates.
+This Cix receipt was re-measured on 2026-08-02 on the same host with the full
+memo hit already present. Its `--stats` result reported zero Nix subprocesses
+and all four builder directives as `memo-hit`. The upstream and crane
+measurements retain their original dates.
 
 ### Subject-cold
 
@@ -233,25 +230,35 @@ patch, and times each rebuild:
 $ examples/compare/gitsitter/measure-warm.sh
 upstream_warm_change_seconds=30.64
 crane_warm_change_seconds=16.46
-cix_warm_change_seconds=7.46
+cix_readset_warm_change_seconds=84.83
+```
+
+The Cix invocation also emitted this work receipt (abridged only to the two
+command steps):
+
+```console
+BUILDER build step 3 FETCH memo hit b44d21f4bfdc
+BUILDER build step 4 RUN executed (32419 ms)
+{"stats":{"nixSubprocesses":11,"steps":[{"kind":"FETCH","name":"build:3","status":"memo-hit"},{"kind":"RUN","name":"build:4","status":"executed"}]}}
 ```
 
 The production Cixfile intentionally demonstrates a GitHub source binder.
 For a controlled editable-source measurement, the script copies that Cixfile
 to a temporary directory and changes only its source binder to `FROM . AS
 src`. It removes the copied final-build memo, while retaining input and FETCH
-pins, so the untimed local prime must establish its own predecessor
-workspaces before patching. The upstream route
+pins, so two untimed local primes establish both the output workspace and its
+single latest warm trace before patching. The upstream route
 uses `overrideAttrs` for the patched `src`, and crane uses `--override-input`.
 Thus all three see the same committed patch, while no benchmark-only local
 binder is disguised as the shipped Cixfile.
 
 The result shows the intended boundaries. Upstream's one derivation rebuilds
-all crates. Crane reuses `cargoArtifacts`. Cix reuses the networked vendoring
-step and its own previous end-state, so Cargo retains the affected step's
-incremental compilation state. On the 2026-08-01 re-measurement, Cix was
-fastest for this edit. Neither result is a claim about arbitrary projects or
-clean builds.
+all crates. Crane reuses `cargoArtifacts`. The copy-everything Cixfile reuses
+the networked vendoring step because its trace contains manifest and lock
+content but only existence probes for Rust sources; RUN then uses its previous
+end-state. Complete ptrace capture plus read hashing and delta storage made
+this measured edit substantially slower than the pre-CIP receipt. Neither
+result is a claim about arbitrary projects or clean builds.
 
 ## Output size and the missing-reference receipt
 
@@ -359,11 +366,12 @@ relative to upstream. The price here was more Nix authoring, the slowest cold
 run, and a non-reproducible internal artifact archive despite a reproducible
 final package.
 
-Use a Cixfile when Docker-shaped ordered build steps, an explicit networked
-`FETCH`, and a fast stateful edit loop are more valuable than exposing a
-derivation. It is 16 logical lines and shortened this measured warm edit
-relative to upstream, while normal versus `--cold` output identity held after
-vendoring was normalized.
+Use a Cixfile when Docker-shaped build steps, an explicit networked
+`FETCH`, and a stateful edit loop are more valuable than exposing a
+derivation. It is 13 logical lines and keeps the networked FETCH warm across
+this measured source edit, while normal versus `--cold` output identity held
+after vendoring was normalized. The current completeness-first tracing path
+made the measured edit slower than both derivation routes on this host.
 The price is the D67 boundary: distribution uses the Cix index rather than
 flake dependency edges. For this dynamically linked gitsitter build there is
 also a concrete blocker, not merely a philosophical trade-off: final store
