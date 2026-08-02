@@ -79,12 +79,13 @@ scenario.node ''
   assert "LOUD durability degradation" in warning
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2.json")
   machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-left.service cix-dirs2-right.service")
-  machine.succeed("${pkgs.coreutils}/bin/sleep 2")
+  machine.wait_until_succeeds("test -f /tmp/dirs2/host-state/host-state", timeout=60)
+  machine.wait_until_succeeds("test -f /tmp/dirs2/host-media/host-media", timeout=60)
+  machine.wait_until_succeeds("test -f /var/lib/cix-compose/dirs2/shared/uploads/left", timeout=60)
+  machine.wait_until_succeeds("test -f /var/lib/cix-compose/dirs2/shared/uploads/right", timeout=60)
   machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-left.service cix-dirs2-right.service")
-  machine.succeed("test -f /tmp/dirs2/host-state/host-state")
-  machine.succeed("test -f /tmp/dirs2/host-media/host-media")
-  machine.succeed("test -f /var/lib/cix-compose/dirs2/shared/uploads/left")
-  machine.succeed("test -f /var/lib/cix-compose/dirs2/shared/uploads/right")
+  for unit in ["cix-dirs2-host", "cix-dirs2-private", "cix-dirs2-left", "cix-dirs2-right"]:
+      machine.succeed("test $(systemctl show " + unit + ".service -p NRestarts --value) = 0")
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=cache")
   machine.succeed("test ! -e /var/cache/cix-dirs2-private/var/cache/private/expendable")
