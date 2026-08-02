@@ -5,5 +5,11 @@
       "rev": "624af665418d3c65d544145b4d34ad696439570e",
       "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
     }
+  },
+  "outputs": {
+    "postgres": {
+      "sourceHash": "b5fcb7d3d536c68d77389f1c3080043e9ca0a47c5fb699254112852837b4fb59",
+      "storePath": "/nix/store/vns507g9jyjw23x37jah3x1y519qixwf-cix-item-postgres"
+    }
   }
 }

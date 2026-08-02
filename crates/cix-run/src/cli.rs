@@ -33,6 +33,9 @@ pub enum Command {
         /// Schedule an app with systemd's raw OnCalendar syntax.
         #[arg(long, value_name = "ON_CALENDAR")]
         schedule: Option<String>,
+        /// Audit the service in a sealed filesystem root (CIP-84 phase 1).
+        #[arg(long)]
+        closed_root: bool,
         /// Degraded dev mode against the user manager (no DynamicUser).
         #[arg(long)]
         user: bool,
@@ -67,6 +70,11 @@ pub enum Command {
     },
     /// List running cix-* units.
     Ps,
+    #[command(hide = true)]
+    ClosedRootNss {
+        identity: String,
+        directory: std::path::PathBuf,
+    },
 }
 
 impl Command {
@@ -82,6 +90,7 @@ impl Command {
                 identity,
                 detach,
                 schedule,
+                closed_root,
                 user,
             } => {
                 if compose.is_some() {
@@ -95,6 +104,7 @@ impl Command {
                     identity,
                     detach,
                     schedule,
+                    closed_root,
                     user,
                 })
             }
@@ -121,6 +131,10 @@ impl Command {
                 command,
             }),
             Self::Ps => crate::runtime::ps(),
+            Self::ClosedRootNss {
+                identity,
+                directory,
+            } => crate::closed_root::write_nss_for_directory(&identity, &directory),
         }
     }
 }

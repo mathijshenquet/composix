@@ -12,6 +12,7 @@ use cix_common::Ref;
 use serde::Deserialize;
 
 use crate::capabilities::HostCapabilities;
+use crate::closed_root::{options_for_unit, prepare};
 use crate::config::ResolvedConfig;
 use crate::spec::{DataDir, ManifestKind, Service, Spec};
 use crate::unit::{
@@ -37,6 +38,7 @@ pub struct RunOptions {
     pub identity: Option<String>,
     pub detach: bool,
     pub schedule: Option<String>,
+    pub closed_root: bool,
     pub user: bool,
 }
 
@@ -74,9 +76,15 @@ pub fn run(options: RunOptions) -> Result<()> {
         );
     }
     if options.user {
-        eprintln!(
-            "warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path"
-        );
+        if options.closed_root {
+            eprintln!(
+                "warning: --user is degraded development mode; CIP-84 keeps the sealed root for dev/prod parity, but the user manager may still reject individual namespace controls through the D13 fallback"
+            );
+        } else {
+            eprintln!(
+                "warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path"
+            );
+        }
     }
     match target.kind {
         ManifestKind::Service => {
@@ -200,6 +208,7 @@ fn materialize_run_directories(
         unit_properties,
         log_fields: vec![("CIX_RUN".into(), "cix-run.service".into())],
         probe_binary: None,
+        closed_root: None,
     })
 }
 
@@ -335,8 +344,15 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
     } else {
         UnitMode::System
     };
-    let definition =
-        build_runtime_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    let definition = build_runtime_unit(
+        &target.output,
+        &target.name,
+        &target.service,
+        &config,
+        mode,
+        options.closed_root,
+        &format!("cix-run-{}-app.service", target.name),
+    )?;
     warn_degradations(&definition.degradations);
     if !options.user {
         let name = format!("cix-run-{}-{}.service", target.name, nonce());
@@ -410,8 +426,15 @@ fn schedule_app(target: ResolvedService, options: &RunOptions, schedule: &str) -
     } else {
         UnitMode::System
     };
-    let definition =
-        build_runtime_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    let definition = build_runtime_unit(
+        &target.output,
+        &target.name,
+        &target.service,
+        &config,
+        mode,
+        options.closed_root,
+        &format!("cix-run-{}-scheduled.service", target.name),
+    )?;
     warn_degradations(&definition.degradations);
     start_scheduled_app(
         &target.output,
@@ -443,7 +466,7 @@ fn start_scheduled_app(
             directory.display()
         )
     })?;
-    let cleanup = gc_root_cleanup_command(&root, user)?;
+    let cleanup = gc_root_cleanup_command(&root, user, false)?;
     let root_text = format!(
         "[Unit]\nDescription=cix scheduled app GC root: {app_name}\nPartOf={timer}\nBefore={timer}\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/sh -c true\nExecStopPost={cleanup}\n"
     );
@@ -540,6 +563,7 @@ fn run_resolved(
         &config,
         options.user,
         &unit_options,
+        options.closed_root,
     )?;
     if options.detach {
         println!("{}", started.name);
@@ -562,6 +586,7 @@ pub fn start_service(
         config,
         user,
         &UnitCompileOptions::cix_run(service_name),
+        false,
     )
 }
 
@@ -572,8 +597,15 @@ fn start_service_with_options(
     config: &ResolvedConfig,
     user: bool,
     unit_options: &UnitCompileOptions,
+    closed_root: bool,
 ) -> Result<StartedUnit> {
     let name = format!("cix-run-{service_name}-{}.service", nonce());
+    let mut unit_options = unit_options.clone();
+    if closed_root {
+        let root = options_for_unit(&name, user)?;
+        prepare(&root)?;
+        unit_options.closed_root = Some(root);
+    }
     if !user {
         let capabilities = HostCapabilities::probe()?;
         let definition = build_unit_with_options(
@@ -582,7 +614,7 @@ fn start_service_with_options(
             service,
             config,
             UnitMode::System,
-            unit_options,
+            &unit_options,
             &capabilities,
         )?;
         warn_degradations(&definition.degradations);
@@ -607,7 +639,7 @@ fn start_service_with_options(
         service,
         config,
         UnitMode::UserFull,
-        unit_options,
+        &unit_options,
         &capabilities,
     )?;
     warn_degradations(&definition.degradations);
@@ -733,19 +765,27 @@ fn build_runtime_unit(
     service: &Service,
     config: &ResolvedConfig,
     mode: UnitMode,
+    closed_root: bool,
+    unit_name: &str,
 ) -> Result<UnitDefinition> {
     let capabilities = if mode == UnitMode::UserFull {
         user_capabilities(service)?
     } else {
         HostCapabilities::all_supported()
     };
+    let mut options = UnitCompileOptions::cix_run(service_name);
+    if closed_root {
+        let root = options_for_unit(unit_name, mode != UnitMode::System)?;
+        prepare(&root)?;
+        options.closed_root = Some(root);
+    }
     build_unit_with_options(
         output,
         service_name,
         service,
         config,
         mode,
-        &UnitCompileOptions::cix_run(service_name),
+        &options,
         &capabilities,
     )
 }
@@ -871,7 +911,11 @@ fn definition_with_gc_root(
         }
         Err(error) => return Err(error),
     };
-    let cleanup = match gc_root_cleanup_command(&link, user) {
+    let closed_root = definition
+        .properties
+        .iter()
+        .any(|(name, _)| name == "RootDirectory");
+    let cleanup = match gc_root_cleanup_command(&link, user, closed_root) {
         Ok(cleanup) => cleanup,
         Err(error) if user => {
             eprintln!(
@@ -950,8 +994,8 @@ fn register_gc_root(link: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn gc_root_cleanup_command(link: &Path, user: bool) -> Result<String> {
-    let rm = find_path_program("rm")?;
+fn gc_root_cleanup_command(link: &Path, user: bool, store_only: bool) -> Result<String> {
+    let rm = find_path_program("rm", store_only)?;
     let rm = rm
         .to_str()
         .context("rm path is not valid UTF-8")?
@@ -964,15 +1008,24 @@ fn gc_root_cleanup_command(link: &Path, user: bool) -> Result<String> {
     Ok(format!("{prefix}{rm} -f {link}"))
 }
 
-fn find_path_program(name: &str) -> Result<PathBuf> {
+fn find_path_program(name: &str, store_only: bool) -> Result<PathBuf> {
     let path = std::env::var_os("PATH").context("PATH is not set")?;
     for directory in std::env::split_paths(&path) {
         let candidate = directory.join(name);
         if candidate.is_file() {
-            return Ok(candidate);
+            if !store_only {
+                return Ok(candidate);
+            }
+            let resolved_directory = fs::canonicalize(&directory)
+                .with_context(|| format!("resolving {}", directory.display()))?;
+            let resolved = resolved_directory.join(name);
+            if resolved.starts_with("/nix/store") && resolved.is_file() {
+                return Ok(resolved);
+            }
         }
     }
-    bail!("could not find {name} on PATH for GC-root cleanup")
+    let location = if store_only { " in /nix/store" } else { "" };
+    bail!("could not find {name}{location} on PATH for GC-root cleanup")
 }
 
 fn remove_gc_root(link: Option<&PathBuf>) {
@@ -1832,6 +1885,13 @@ mod tests {
     }
 
     #[test]
+    fn resolves_store_cleanup_tools_for_closed_roots() {
+        let rm = find_path_program("rm", true).unwrap();
+        assert!(rm.starts_with("/nix/store"), "{}", rm.display());
+        assert_eq!(rm.file_name().unwrap(), "rm");
+    }
+
+    #[test]
     fn captures_old_systemd_unknown_property_diagnostics_without_streaming_them() {
         assert!(!should_stream_systemd_diagnostic(
             b"Unknown assignment: PrivatePIDs=yes\n"
@@ -1864,6 +1924,7 @@ mod tests {
             identity: Some("operator".into()),
             detach: true,
             schedule: None,
+            closed_root: false,
             user: false,
         };
         let compiled = materialize_run_directories(&mut service, &options).unwrap();

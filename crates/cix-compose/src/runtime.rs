@@ -9,12 +9,15 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use cix_run::capabilities::HostCapabilities;
+use cix_run::closed_root::{
+    options_for_unit, prepare as prepare_closed_root, remove as remove_closed_root,
+};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 
 use crate::{
-    build_generation,
+    build_generation_with_closed_root,
     cli::CleanWhat,
     generation::{DirectoryBackingKind, Manifest, UnitKind},
     load_and_check, Compose, UpdateRequest,
@@ -45,13 +48,14 @@ pub fn check(compose_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn diff(compose_path: &Path) -> Result<()> {
+pub fn diff(compose_path: &Path, closed_root: bool) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
     warn_check_warnings(&checked);
     let old = current_generation(&checked.compose.name)?;
     let old_manifest = old.as_deref().map(load_manifest).transpose()?;
     let capabilities = capabilities_for_diff(old_manifest.as_ref());
-    let built = build_generation(&checked, compose_path, &capabilities)?;
+    let built =
+        build_generation_with_closed_root(&checked, compose_path, &capabilities, closed_root)?;
     let report = compare_generations(old.as_deref(), &built.store_path)?;
     if report.is_empty() {
         println!("no changes");
@@ -63,7 +67,7 @@ pub fn diff(compose_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
+pub fn up(compose_path: &Path, update: UpdateRequest, closed_root: bool) -> Result<()> {
     require_root("cix up")?;
     let checked = load_and_check(compose_path, update)?;
     warn_check_warnings(&checked);
@@ -72,7 +76,8 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
     let capabilities = HostCapabilities::probe()?;
-    let built = build_generation(&checked, compose_path, &capabilities)?;
+    let built =
+        build_generation_with_closed_root(&checked, compose_path, &capabilities, closed_root)?;
     warn_degradations(&built.manifest);
     let old = current_generation(&checked.compose.name)?;
     register_generation_gc_roots(&checked.compose.name, &built.store_path, &built.manifest)?;
@@ -275,6 +280,7 @@ pub fn down(name: &str, purge: bool, yes: bool) -> Result<()> {
     }
     systemctl(&["daemon-reload"])?;
     cleanup_edge_destinations(&generation)?;
+    remove_manifest_closed_roots(&manifest)?;
     if purge {
         remove_owned_paths(&purge_paths(&manifest))?;
         println!("stopped {name}; purged cix-owned private and shared role data; profile retained");
@@ -397,6 +403,7 @@ fn activate_generation(
     let old_manifest = old.map(load_manifest).transpose()?;
     let changes = generation_changes(old, old_manifest.as_ref(), new, &new_manifest)?;
     apply_sysusers(name, new)?;
+    prepare_manifest_closed_roots(&new_manifest)?;
     let target = format!("cix-{name}.target");
     let was_active = systemctl_is_active(&target)?;
 
@@ -469,6 +476,30 @@ fn activate_generation(
             "cix up failed because these units failed during activation: {}",
             failed.into_iter().cloned().collect::<Vec<_>>().join(" ")
         );
+    }
+    Ok(())
+}
+
+fn prepare_manifest_closed_roots(manifest: &Manifest) -> Result<()> {
+    if !manifest.closed_root {
+        return Ok(());
+    }
+    for (unit, entry) in &manifest.units {
+        if entry.kind == UnitKind::Service {
+            prepare_closed_root(&options_for_unit(unit, false)?)?;
+        }
+    }
+    Ok(())
+}
+
+fn remove_manifest_closed_roots(manifest: &Manifest) -> Result<()> {
+    if !manifest.closed_root {
+        return Ok(());
+    }
+    for (unit, entry) in &manifest.units {
+        if entry.kind == UnitKind::Service {
+            remove_closed_root(&options_for_unit(unit, false)?)?;
+        }
     }
     Ok(())
 }
@@ -870,6 +901,7 @@ mod tests {
                     directories: Vec::new(),
                 },
             )]),
+            closed_root: false,
             degradations: Vec::new(),
         };
         fs::write(

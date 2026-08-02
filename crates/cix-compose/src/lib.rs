@@ -9,7 +9,8 @@ mod resolve;
 mod runtime;
 
 pub use generation::{
-    build_generation, render_generation, BuiltGeneration, Manifest, ManifestDegradation,
+    build_generation, build_generation_with_closed_root, render_generation,
+    render_generation_with_closed_root, BuiltGeneration, Manifest, ManifestDegradation,
 };
 pub use model::{Compose, Lock};
 pub use resolve::{load_and_check, CheckResult, UpdateRequest};

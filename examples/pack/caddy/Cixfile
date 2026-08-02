@@ -3,5 +3,5 @@ FROM . AS src
 
 SERVICE caddy
   COPY ${src}/index.html /srv/www/index.html
-  START ${pkgs.caddy}/bin/caddy file-server --root /srv/www --listen :80
-  PORT http = 80
+  START ${pkgs.caddy}/bin/caddy file-server --root /srv/www --listen :8080
+  PORT http = 8080

@@ -4,6 +4,8 @@ FROM . AS src
 SERVICE redis
   COPY ${src}/redis.conf /etc/redis/redis.conf
   LINK ${pkgs.redis}/bin/redis-server /bin/redis-server
+  ENV LANG = C
+  ENV LC_ALL = C
   START redis-server /etc/redis/redis.conf
   PORT redis = 6379
   RUNDIR /run/redis

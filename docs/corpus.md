@@ -34,8 +34,8 @@ case in the [side-by-side browser](corpus/index.html).
 | 2 | Caddy | Cix build and HTTP probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/caddy/receipt.md) |
 | 3 | Directus | Docker passes; Cix reaches an FHS-loader-dependent native binary and fails the build | 🔶 blocked on the native-binary/FHS loader gap | M | [receipt](../corpus/migrate/directus/receipt.md) |
 | 4 | Dozzle | Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API | ❌ Docker-control-plane workload; build receipt is non-green | M | [receipt](../corpus/migrate/dozzle/receipt.md) |
-| 5 | Echo Server | Cix offline build and bounded HTTP probe pass | ✅ named builders + pinned package-manager fetch | M | [receipt](../corpus/migrate/echo-server/receipt.md) |
-| 6 | Excalidraw | Docker and Cix HTTP probes pass; declarative health remains absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/excalidraw/receipt.md) |
+| 5 | Echo Server | Historical Cix offline build and bounded HTTP probe pass; consumed build tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/echo-server/receipt.md) |
+| 6 | Excalidraw | Historical Docker and Cix HTTP probes pass; consumed build tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/excalidraw/receipt.md) |
 | 7 | Filestash | Docker passes; Cix stops at unavailable static-library linkage | 🔶 package/static-link composition gap | L | [receipt](../corpus/migrate/filestash/receipt.md) |
 | 8 | Memcached | Cix build and protocol version probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/memcached/receipt.md) |
 | 9 | NATS | Cix build and monitoring health probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/nats/receipt.md) |
@@ -47,9 +47,27 @@ case in the [side-by-side browser](corpus/index.html).
 | 15 | Tomcat | Cix build and bounded HTTP reachability probe pass | ✅ complete package tree + idempotent setup | S | [receipt](../corpus/migrate/tomcat/receipt.md) |
 | 16 | Traefik | Cix build and ping endpoint pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/traefik/receipt.md) |
 | 17 | Verdaccio | Cix Corepack/pnpm build sequence fails before producing an item | 🔶 package-manager build remains non-green | M | [receipt](../corpus/migrate/verdaccio/receipt.md) |
-| 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative health is absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/wallos/receipt.md) |
+| 18 | Wallos | Historical Docker and Cix health probes pass; consumed app tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
 | 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
-| 20 | Whoami | Cix build and bounded HTTP probe pass | ✅ named Go builder + direct service contract | M | [receipt](../corpus/migrate/whoami/receipt.md) |
+| 20 | Whoami | Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/whoami/receipt.md) |
+
+### CIP-84 closed-root audit
+
+The phase-1 sealed-root VM reproduces and probes every pack member, plus the
+Adminer, Caddy, Memcached, NATS, nginx, phpMyAdmin, Redis, Renovate, Tomcat,
+and Traefik corpus contracts. The check has an exhaustive directory roster, so
+a newly added pack or migration cannot silently escape classification.
+
+Ten migrations are deliberately outside the green closed-root set. Directus,
+Filestash, and Verdaccio still fail before producing a runnable item; Dozzle
+and Watchtower are refused Docker-control-plane workloads; Parse Server has no
+runtime receipt. Echo Server, Excalidraw, Wallos, and Whoami have historical
+one-off runtime receipts, but their consumed source/build trees are not
+checked in and their recorded store paths have no reproducible derivation.
+Those four therefore remain evidence for the behavior named in their receipt,
+but are **not closed-root verified** and must be rerun from reproducible inputs
+before they can join the phase-2 gate. This is an evidence downgrade, not a
+claim that sealed root broke them.
 
 ## 1. Compose files in the wild (18)
 
@@ -72,7 +90,7 @@ case in the [side-by-side browser](corpus/index.html).
 | 15 | [Sentry self-hosted](https://raw.githubusercontent.com/getsentry/self-hosted/master/docker-compose.yml) | ~60 svcs, profiles, external volumes, installer-driven | profiles ≈ D46 parametric ⏳; compose-as-installer-backend ❌-leaning honest | XL | desk |
 | 16 | [Nextcloud AIO](https://raw.githubusercontent.com/nextcloud/all-in-one/main/compose.yaml) | mastercontainer spawns ~10 siblings via docker.sock | ❌ — the file describes 10% of the deployment; competing orchestration model | — | desk |
 | 17 | [Frigate](https://docs.frigate.video/frigate/installation) | privileged, 5 device passthroughs, sized tmpfs, shm | devices 🔶 `CLAIM device` + closed `DevicePolicy=` dogfooded on a VM node, no privileged widening; `SHM` ✅; not a full Frigate app verification | L | desk |
-| 18 | [Home Assistant](https://www.home-assistant.io/installation/linux) | host network, privileged, dbus, USB | 🔶 host networking is possible, but broad privilege, D-Bus, and USB access remain operator/device-policy work | M | desk |
+| 18 | [Home Assistant](https://www.home-assistant.io/installation/linux) | host network, privileged, dbus, USB | ❌ as a broad host-appliance workload: CIP-84 deliberately has no raw-host filesystem view; individual device and data needs can be declared, but ambient D-Bus/host reach is outside cix until it has narrow claims | M | desk |
 
 **Frequency signals (18 files):** restart policy 17, named volumes 13, bind mounts 14,
 healthchecks 10 + condition-gated depends_on 6, .env/interpolation ~6, named networks 6

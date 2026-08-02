@@ -165,10 +165,21 @@ CMD [&quot;nginx&quot;, &quot;-g&quot;, &quot;daemon off;&quot;]
         <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nginx
+  FILE /etc/nginx/nginx.conf &lt;&lt;NGINX
+daemon off;
+events { }
+http {
+  access_log off;
+  server {
+    listen 8080;
+    location / { return 200 &quot;nginx\n&quot;; }
+  }
+}
+NGINX
   LOGDIR /var/log/nginx
   RUNDIR /run/nginx
-  START ${pkgs.nginx}/bin/nginx -g &#39;daemon off; error_log stderr info;&#39;
-  PORT http = 80
+  START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+  PORT http = 8080
 </code></pre>
       </section>
     </section>

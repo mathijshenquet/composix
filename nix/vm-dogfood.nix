@@ -1,6 +1,8 @@
 { pkgs, cix }:
 
 let
+  postgresTemplate =
+    (pkgs.extend (import ../examples/pack/postgres/postgres.nix)).composixPostgresTemplate;
   nginx = pkgs.runCommand "nginx-cix" { } ''
     mkdir -p $out/etc/nginx $out/srv/www
     ln -s ${pkgs.nginx}/conf/mime.types $out/etc/nginx/mime.types
@@ -26,6 +28,7 @@ let
     install -m 0644 ${../examples/pack/postgres/runtime-env.sh} $out/opt/postgres/runtime-env.sh
     install -m 0755 ${../examples/pack/postgres/setup} $out/opt/postgres/setup
     install -m 0755 ${../examples/pack/postgres/start} $out/opt/postgres/start
+    cp -R ${postgresTemplate} $out/opt/postgres/template
     cat > $out/cix-manifest.json <<'EOF'
     {
       "cixManifest": 0,

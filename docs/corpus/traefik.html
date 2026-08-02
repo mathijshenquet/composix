@@ -73,8 +73,8 @@ LABEL org.opencontainers.image.vendor=&quot;Traefik Labs&quot; \
 
 SERVICE traefik
   LINK ${pkgs.traefik}/bin/traefik /bin/traefik
-  START traefik --ping=true
-  PORT http = 80
+  START traefik --ping=true --entryPoints.web.address=:8081
+  PORT http = 8081
   PORT monitor = 8080
 </code></pre>
       </section>

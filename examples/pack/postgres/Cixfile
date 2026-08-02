@@ -1,4 +1,4 @@
-FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./postgres.nix AS pkgs
 FROM . AS src
 
 SERVICE postgres
@@ -6,6 +6,7 @@ SERVICE postgres
   COPY ${src}/runtime-env.sh /opt/postgres/runtime-env.sh
   COPY ${src}/setup /opt/postgres/setup
   COPY ${src}/start /opt/postgres/start
+  COPY ${pkgs.composixPostgresTemplate} /opt/postgres/template
   LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
   START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup
   START ${pkgs.bash}/bin/sh /opt/postgres/start $PORT

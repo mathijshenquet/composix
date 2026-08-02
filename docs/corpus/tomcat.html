@@ -99,10 +99,10 @@ SERVICE tomcat
   ENV CATALINA_TMPDIR = /run/tomcat
   ENV JRE_HOME = /jre
   ENV PATH = /coreutils/bin:/gnused/bin:/bin
-  START_PRE tomcat-setup
-  START catalina.sh run
+  START_PRE ${pkgs.bash}/bin/sh /bin/tomcat-setup
+  START ${pkgs.bash}/bin/sh /tomcat/bin/catalina.sh run
   PORT http = 8080
-CLAIM jit
+  CLAIM jit
 </code></pre>
       </section>
     </section>

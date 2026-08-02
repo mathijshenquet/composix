@@ -135,6 +135,7 @@ fn run_compose(command: cix_run::cli::Command) -> anyhow::Result<()> {
         identity,
         detach,
         schedule,
+        closed_root,
         user,
     } = command
     else {
@@ -151,13 +152,13 @@ fn run_compose(command: cix_run::cli::Command) -> anyhow::Result<()> {
         bail!("cix run --compose accepts the compose document as the complete operator surface; put service fields in that JSON")
     }
     if compose.as_os_str() != "-" {
-        return cix_compose::up(&compose, cix_compose::UpdateRequest::None);
+        return cix_compose::up(&compose, cix_compose::UpdateRequest::None, closed_root);
     }
     let mut input = Vec::new();
     std::io::stdin().read_to_end(&mut input)?;
     let file = tempfile::NamedTempFile::new().context("creating anonymous compose input")?;
     fs::write(file.path(), input).context("writing anonymous compose input")?;
-    cix_compose::up(file.path(), cix_compose::UpdateRequest::None)
+    cix_compose::up(file.path(), cix_compose::UpdateRequest::None, closed_root)
 }
 
 #[derive(Serialize)]
@@ -309,6 +310,8 @@ const GENERATED_PROPERTIES: &[&str] = &[
     "Slice",
     "DynamicUser",
     "PrivateUsers",
+    "RootDirectory",
+    "MountAPIVFS",
     "ProtectSystem",
     "ProtectHome",
     "PrivateTmp",

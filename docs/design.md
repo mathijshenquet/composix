@@ -274,7 +274,10 @@ v2 fields/changes (`"cixManifest": 2`; runner accepts 1 and 2; new fields reject
 3. Fixed-value ports: `{"value": 8080}` alongside the env form, for env-blind apps (nginx);
    `-p` override of a value port is a clear error.
 4. Declared port < 1024 ⇒ generator grants exactly `CAP_NET_BIND_SERVICE` (Ambient +
-   BoundingSet). No new field: the declaration is the grant. (Socket activation: compose era.)
+   BoundingSet). No new field: the declaration is the grant. Under CIP-84 closed roots,
+   `PrivateUsers=` makes that capability ineffective against the host network namespace, so
+   compilation instead rejects the direct bind and teaches an unprivileged port or named
+   `LISTENER`; systemd socket activation owns privileged binds.
 5. `jit: true` ⇒ drop `MemoryDenyWriteExecute`. Semantic name, per D20a.
 6. **D11 narrowed**: a role's app path MUST live under that role's conventional root
    (state→`/var/lib`, cache→`/var/cache`, logs→`/var/log`, config→`/etc`, run→`/run`), one
