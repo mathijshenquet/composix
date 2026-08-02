@@ -219,8 +219,10 @@ scenario.nodeWith {
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down netns")
   machine.succeed("systemctl stop scenario-dns.service")
   machine.succeed("systemctl stop scenario-egress-target.service")
-  machine.succeed("test ! -e /run/netns/cix-netns-a-netns")
-  machine.succeed("test ! -e /run/netns/cix-netns-b-netns")
+  # Netns teardown is asynchronous (StopWhenUnneeded); under parallel VM
+  # load the unlink can lag a fixed-point assert (timer-gc lesson).
+  machine.wait_until_succeeds("test ! -e /run/netns/cix-netns-a-netns", timeout=60)
+  machine.wait_until_succeeds("test ! -e /run/netns/cix-netns-b-netns", timeout=60)
   machine.succeed("test -n $(jq -r '.leases[\"netns/a\"].host' /var/lib/cix-compose/ipam.json)")
   machine.succeed("systemctl reset-failed 'cix-netns*' || true")
   machine.succeed("test -z \"$(systemctl list-units --all --no-legend 'cix-netns*' | awk 'NF { print $1 }')\"")
