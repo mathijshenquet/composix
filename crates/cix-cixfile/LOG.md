@@ -1,5 +1,35 @@
 # Cixfile track work log
 
+- 2026-08-02T21:43:00Z — Committed the complete green docs track as
+  `158df29` (`docs: align status with implemented board`): nine fenced prose
+  files, 44 insertions and 22 deletions. Post-commit status contains only this
+  required, deliberately unstaged journal. No product source or generated
+  corpus/tour page changed. The requested docstruth track is complete and ready
+  for independent verification.
+
+- 2026-08-02T21:42:30Z — Completed the fenced documentation reconciliation.
+  Design/index/README now state that the adopted board and all four strata work;
+  the frontier is closed-root phase 2, D26/D27, publish, and reconciliation.
+  Open questions now separates built D49 from named-network work and records the
+  systemd-257 adapter-liveness finding with the Mastodon receipt. Added missing
+  implementation bullets for CIPs 79, 81, 82 leg 2, 84 phase 1, and 90 leg A;
+  CIPs 85, 86, and 89 already had dated implementation entries and were not
+  duplicated. Synchronous receipts are green: both exact corpus deterministic/
+  committed-page tests and both exact tour deterministic/committed-document
+  tests passed; `git diff --check` passed, local links and the receipt anchor were
+  inspected, no generated docs changed, and the diff-stat is docs plus this
+  required journal only. Next: stage the fenced docs without this journal,
+  recheck the cached diff/scope, and commit.
+
+- 2026-08-02T21:37:44Z — Started `track/docstruth` from a clean branch.
+  Read the complete track specification and the prescribed project/design/crate
+  truth sources; direnv confirms the devenv is loaded. Scope is pure prose:
+  current-status corrections in design/index/README/open questions plus one
+  implementation changelog line for each named CIP, with no product or
+  generated-doc changes. This tracked journal will remain outside the docs
+  commit. Next: reconcile every stale open-question/status claim against the
+  landed CIPs and the Mastodon systemd-257 receipt, then make the fenced edits.
+
 - 2026-08-02T19:28:36Z — Committed the complete green track as `800c87a`
   (`docs: add Mastodon integration receipt`): 29 scoped corpus/docs files,
   including six locked member artifacts, executable receipt, two ledger
