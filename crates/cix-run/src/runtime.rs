@@ -114,14 +114,16 @@ fn materialize_run_directories(
             format!("--dir {argument:?}: expected PATH=host:/path or PATH=as:role")
         })?;
         let path = select_run_directory(selector, &declarations)?;
+        if value.starts_with("host-idmap:") {
+            bail!(
+                "--dir PATH=host-idmap:... was retired by CIP-81; write the same directory materialization in an anonymous compose JSON and run `cix run --compose <file|->`"
+            );
+        }
         let (_role, writable) = declarations
             .remove(&path)
             .expect("selected declaration exists");
-        if let Some(host) = value
-            .strip_prefix("host-idmap:")
-            .or_else(|| value.strip_prefix("host:"))
-        {
-            let idmap = value.starts_with("host-idmap:");
+        if let Some(host) = value.strip_prefix("host:") {
+            let idmap = false;
             let host = PathBuf::from(host);
             if !host.is_absolute() {
                 bail!("--dir {argument:?}: host backing path must be absolute");

@@ -22,7 +22,7 @@ impl Parser<'_> {
             ));
         }
         let fields = arguments.split_whitespace().collect::<Vec<_>>();
-        if fields.len() != 3 || fields.get(1) != Some(&"AS") {
+        let Some(as_index) = fields.iter().position(|field| *field == "AS") else {
             if fields.len() == 2 {
                 return Err(ParseError::new(
                     line,
@@ -38,13 +38,54 @@ impl Parser<'_> {
                 source,
                 "FROM requires an explicit binder: FROM <flakeref|index-ref:tag> AS <name>",
             ));
+        };
+        if as_index + 2 != fields.len() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "FROM requires one binder after AS: FROM <flakeref> [OVERLAY <./file.nix>…] AS <name>",
+            ));
         }
         let (url, kind) = normalize_input(fields[0], line, source)?;
-        let name = fields[2];
+        let overlay_fields = &fields[1..as_index];
+        let mut overlays = Vec::new();
+        for pair in overlay_fields.chunks(2) {
+            if pair.len() != 2 || pair[0] != "OVERLAY" {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "FROM overlays use repeatable OVERLAY <./file.nix> before AS",
+                ));
+            }
+            let path = pair[1];
+            if !path.starts_with("./") || path.len() <= 2 || path.contains("${") {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "FROM OVERLAY must name a project-local ./file.nix path; overlays cannot reference Cixfile binders",
+                ));
+            }
+            overlays.push(path.to_owned());
+        }
+        if !overlays.is_empty() && kind != InputKind::PackageUniverse {
+            return Err(ParseError::new(
+                line,
+                source,
+                "FROM OVERLAY applies only to a package universe; wrap the base or use a full universe tree",
+            ));
+        }
+        let name = fields[as_index + 1];
         validate_namespace(name, line, source)?;
         self.declare_name(name, "FROM binder", line, source)?;
-        self.inputs
-            .insert(name.to_owned(), Input { url, kind, line });
+        self.inputs.insert(
+            name.to_owned(),
+            Input {
+                url,
+                kind,
+                overlays,
+                line,
+            },
+        );
         Ok(())
     }
 
@@ -71,7 +112,7 @@ impl Parser<'_> {
           ParseError::new(
               line,
               source,
-              "top-level FETCH requires a binder and command: FETCH <name> [EXPECT <sri-hash>] <command…>",
+              "top-level FETCH requires a binder and command: FETCH <name> <command…> [EXPECT <sri-hash>]",
           )
       })?;
         validate_namespace(name, line, source)?;
@@ -646,6 +687,60 @@ impl Parser<'_> {
                 secret,
             },
         );
+        Ok(())
+    }
+
+    pub(super) fn secret(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "SECRET",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
+        let fields = arguments.split_whitespace().collect::<Vec<_>>();
+        let (name, as_env) = match fields.as_slice() {
+            [name] => (*name, None),
+            [name, "AS", environment] => {
+                validate_env_name(environment, line, source)?;
+                if !environment.ends_with("_FILE") {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "SECRET AS variable must end in _FILE; it receives a credential path, never a secret value",
+                    ));
+                }
+                (*name, Some((*environment).to_owned()))
+            }
+            _ => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "SECRET syntax is SECRET <name> [AS <VAR_FILE>]",
+                ));
+            }
+        };
+        validate_name("secret", name, line, source)?;
+        let artifact_name = self
+            .current_artifact_name("SECRET", line, source)?
+            .to_owned();
+        let service = &mut self
+            .artifacts
+            .get_mut(&artifact_name)
+            .expect("current artifact exists")
+            .service;
+        if service.secrets.contains_key(name) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("SECRET {name:?} is already declared"),
+            ));
+        }
+        service.secrets.insert(name.to_owned(), Secret { as_env });
         Ok(())
     }
 

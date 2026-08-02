@@ -12,7 +12,8 @@ use cix_run::{
 };
 
 use crate::model::{
-    Compose, DirectoryMaterialization, DirectoryRole, Lock, LockedService, UpdatePolicy,
+    Compose, DirectoryMaterialization, DirectoryRole, Lock, LockedService, SecretSource,
+    UpdatePolicy,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -31,6 +32,7 @@ pub struct CheckedService {
     pub spec: Service,
     pub config: ResolvedConfig,
     pub directories: Vec<DirectoryClaim>,
+    pub secrets: BTreeMap<String, SecretSource>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -110,6 +112,7 @@ fn check_with_calendar(
             format!("services.{name}.item: D41 requires the resolved item to contain one service")
         })?;
         reject_secret_env_delivery(name, declaration)?;
+        let secrets = resolve_secrets(name, service, &compose.secrets)?;
         let env = declaration
             .env
             .iter()
@@ -131,8 +134,22 @@ fn check_with_calendar(
                 spec: service.clone(),
                 config,
                 directories,
+                secrets,
             },
         );
+    }
+    let declared_secrets = services
+        .values()
+        .flat_map(|service| service.spec.secrets.keys().cloned())
+        .collect::<BTreeSet<_>>();
+    for name in compose
+        .secrets
+        .keys()
+        .filter(|name| !declared_secrets.contains(*name))
+    {
+        warnings.push(format!(
+            "secrets.{name}: supplied but no resolved service declares it; CIP-81 treats this as a LOUD loosening"
+        ));
     }
     validate_edges(compose, &services)?;
     validate_collisions(&services)?;
@@ -143,6 +160,21 @@ fn check_with_calendar(
         services,
         warnings,
     })
+}
+
+fn resolve_secrets(
+    service_name: &str,
+    service: &Service,
+    supplied: &BTreeMap<String, SecretSource>,
+) -> Result<BTreeMap<String, SecretSource>> {
+    let mut resolved = BTreeMap::new();
+    for name in service.secrets.keys() {
+        let source = supplied.get(name).with_context(|| {
+            format!("services.{service_name}.secrets.{name}: declared by item but not supplied by compose")
+        })?;
+        resolved.insert(name.clone(), source.clone());
+    }
+    Ok(resolved)
 }
 
 fn reject_secret_env_delivery(
@@ -779,6 +811,40 @@ mod tests {
             .unwrap_err()
         )
         .contains("unsupported cixManifest"));
+    }
+
+    #[test]
+    fn secrets_require_declaration_and_make_undeclared_supply_loud() {
+        let directory = tempfile::tempdir().unwrap();
+        let item = write_item(
+            directory.path(),
+            "item",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"secrets":{"db-password":{"as":"DB_PASSWORD_FILE"}}"#,
+            ),
+        );
+        let resolver = |_reference: &str| Ok(output(&item, "item"));
+        let missing = compose(r#"{"app":{"item":"app:v1"}}"#, "{}");
+        let error = check_with(&missing, &Lock::default(), &UpdateRequest::None, &resolver)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("declared by item but not supplied"),
+            "{error}"
+        );
+
+        let supplied: Compose = serde_json::from_str(r#"{
+            "composeVersion":1,"name":"stack",
+            "services":{"app":{"item":"app:v1"}},
+            "secrets":{"db-password":{"file":"/run/keys/db"},"stray":{"encrypted":"/run/keys/stray"}}
+        }"#).unwrap();
+        let checked =
+            check_with(&supplied, &Lock::default(), &UpdateRequest::None, &resolver).unwrap();
+        assert_eq!(checked.services["app"].secrets.len(), 1);
+        assert!(checked
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("stray") && warning.contains("LOUD")));
     }
 
     #[test]

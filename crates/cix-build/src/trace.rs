@@ -562,6 +562,7 @@ mod tests {
 100 openat(AT_FDCWD</work/sub>, "output", O_WRONLY|O_CREAT, 0666) = 4</work/sub/output>
 100 getdents64(5</work/listed>, 0x1, 32768) = 48
 100 newfstatat(AT_FDCWD</work/sub>, "/nix/store/example", 0x1, 0) = 0
+100 openat(AT_FDCWD</work/sub>, "/run/cix-credentials/private", O_RDONLY|O_CLOEXEC) = 6</run/cix-credentials/private>
 "#;
         assert_eq!(
             parse(trace).observations,

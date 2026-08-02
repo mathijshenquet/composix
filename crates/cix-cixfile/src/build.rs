@@ -17,6 +17,7 @@ pub struct BuildOptions {
     pub update_lock: Option<String>,
     pub tag: Option<String>,
     pub cold: bool,
+    pub allow_secret: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,6 +161,7 @@ pub fn build_family_with_stats(
         &system,
         requested_update,
         options.cold,
+        options.allow_secret,
     );
     save_lock(&lock_path, &lock)?;
     let (snapshots, executed_steps) = execution?;
@@ -493,7 +495,7 @@ mod tests {
     #[test]
     fn update_lock_refuses_expected_fetches_in_both_forms() {
         let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-one printf one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-two printf two\nSERVICE app\nSTART /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient printf one EXPECT sha256-one\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH printf two EXPECT sha256-two\nSERVICE app\nSTART /bin/true\n",
         )
         .unwrap();
         let top = reject_expected_fetch_update(&cixfile, "ingredient")

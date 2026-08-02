@@ -247,6 +247,21 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         if checked.compose.log_namespace {
             extra_properties.push(("LogNamespace".into(), format!("cix-{composite}")));
         }
+        for (secret_name, source) in &checked_service.secrets {
+            let path = source
+                .file
+                .as_ref()
+                .or(source.encrypted.as_ref())
+                .expect("validated source");
+            extra_properties.push((
+                if source.encrypted.is_some() {
+                    "LoadCredentialEncrypted".into()
+                } else {
+                    "LoadCredential".into()
+                },
+                format!("{secret_name}:{}", path.display()),
+            ));
+        }
         let directory_groups = checked_service
             .directories
             .iter()
@@ -837,6 +852,7 @@ mod tests {
                 ),
             ]),
             log_namespace: false,
+            secrets: BTreeMap::new(),
             edges: BTreeMap::from([(
                 "shared".into(),
                 Edge {
@@ -887,6 +903,7 @@ mod tests {
                             writable: true,
                             backing: DirectoryBacking::Private,
                         }],
+                        secrets: BTreeMap::new(),
                     },
                 ),
                 (
@@ -912,6 +929,7 @@ mod tests {
                                 backing: DirectoryBacking::Private,
                             },
                         ],
+                        secrets: BTreeMap::new(),
                     },
                 ),
             ]),

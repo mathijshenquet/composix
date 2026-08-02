@@ -2,11 +2,14 @@
 
 Read AGENTS.md first (note the new synchronous-receipts convention).
 Authoritative: docs/design.md D70 (a)–(d) verbatim; plus one adopted
-grammar nit from Mathijs's 2026-08-02 review, item 3 below. Work in
-`.worktrees/overlay` on branch `track/overlay`. Keep
+grammar nit from Mathijs's 2026-08-02 review, item 3 below. Work in `/home/mathijs/worktrees/composix/track-overlay` (herdr worktree) on branch `track/overlay`. Keep
 `crates/cix-cixfile/LOG.md` current. The ergo track just landed in this
 crate (FROM lock-metadata attributes `${src.rev}`…, vendored dev-env
 snapshots in Cixfile.lock, `--stats`) — build on its landed form.
+PARALLEL FENCE: track/readset runs concurrently and owns the builder
+engine/memo/--stats internals; you own parser/FROM/universe
+resolution/lock inputs. Keep lock-schema changes additive; expect a
+merge seam.
 
 1. **`FROM <flakeref> OVERLAY <./file.nix>… AS <name>`** (D70a/b):
    evaluate the base with nixpkgs' own overlay mechanism

@@ -24,6 +24,9 @@ pub enum Command {
         /// Re-run builders with empty persistent workspaces and verify consumed outputs.
         #[arg(long)]
         cold: bool,
+        /// Permit host-configured FETCH credentials without an interactive consent prompt (CI only).
+        #[arg(long)]
+        allow_secret: bool,
         /// Deprecated alias for --cold.
         #[arg(long)]
         no_cache: bool,
@@ -55,6 +58,7 @@ impl Command {
                 namespace,
                 update_lock,
                 cold,
+                allow_secret,
                 no_cache,
                 stats,
             } => {
@@ -67,6 +71,7 @@ impl Command {
                     update_lock,
                     tag: None,
                     cold: cold || no_cache,
+                    allow_secret,
                 };
                 let (items, build_stats) = crate::build_family_with_stats(
                     &options,

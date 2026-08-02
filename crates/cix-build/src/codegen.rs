@@ -229,6 +229,11 @@ pub fn generate_builder_context_nix(
             .join(" ")
     )?;
     writeln!(expression, "  environment = {{}};")?;
+    writeln!(
+        expression,
+        "  universeIdentities = {};",
+        universe_identities(cixfile, lock)
+    )?;
     writeln!(expression, "}}")?;
     Ok(expression)
 }
@@ -331,6 +336,11 @@ pub fn generate_fetch_context_nix(
     )?;
     writeln!(expression, "  copies = [];")?;
     writeln!(expression, "  environment = {{}};")?;
+    writeln!(
+        expression,
+        "  universeIdentities = {};",
+        universe_identities(cixfile, lock)
+    )?;
     writeln!(expression, "}}")?;
     Ok(expression)
 }
@@ -404,13 +414,27 @@ fn nix_prelude(
         .filter(|(_, input)| !input.is_local() && input.kind != InputKind::Artifact)
         .enumerate()
     {
-        if input.kind == InputKind::PackageUniverse {
+        if input.kind == InputKind::PackageUniverse && input.overlays.is_empty() {
             writeln!(
                 expression,
                 "    {} = import input{index}Source {{ system = {}; }};",
                 nix_attr(name),
                 nix_string(system)
             )?;
+        } else if input.kind == InputKind::PackageUniverse {
+            writeln!(expression, "    {} =", nix_attr(name))?;
+            writeln!(expression, "      let base = import input{index}Source;")?;
+            writeln!(expression, "          args = if builtins.isFunction base then builtins.functionArgs base else throw {};", nix_string(&format!("FROM {name} with OVERLAY must import a function accepting overlays; wrap the base or use a full universe tree")))?;
+            writeln!(
+                expression,
+                "      in if args ? overlays then base {{ system = {}; overlays = [",
+                nix_string(system)
+            )?;
+            for overlay in &input.overlays {
+                let error = nix_string(&format!("FROM {name} OVERLAY {overlay} must be a final: prev: function returning an attrset"));
+                writeln!(expression, "        (final: prev: let overlay = import (sourceRoot + {}); in if builtins.isFunction overlay then let result = overlay final prev; in if builtins.isAttrs result then result else throw {} else throw {})", nix_string(overlay.trim_start_matches('.')), error, error)?;
+            }
+            writeln!(expression, "      ]; }} else throw {};", nix_string(&format!("FROM {name} with OVERLAY requires a base accepting an overlays argument; wrap the base or use a full universe tree")))?;
         }
     }
     writeln!(expression, "  }};")?;
@@ -659,6 +683,22 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
             nix_probe(&liveness.probe, "interval", &liveness.interval)
         )?;
     }
+    if !service.secrets.is_empty() {
+        write!(
+            output,
+            " secrets = {{ {} }};",
+            service
+                .secrets
+                .iter()
+                .map(|(name, secret)| match &secret.as_env {
+                    Some(as_env) =>
+                        format!("{} = {{ as = {}; }};", nix_attr(name), nix_string(as_env)),
+                    None => format!("{} = {{}};", nix_attr(name)),
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
+    }
     if let Some(dirs) = nix_dirs(service) {
         write!(output, " dirs = {dirs};")?;
     }
@@ -847,6 +887,38 @@ fn fetch_tree(input: &InputLock) -> Result<String> {
     bail!("unsupported FROM URL {:?}", input.url)
 }
 
+fn universe_identities(cixfile: &Cixfile, lock: &LockFile) -> String {
+    let identities = cixfile
+        .inputs
+        .iter()
+        .filter(|(_, input)| input.kind == InputKind::PackageUniverse)
+        .map(|(name, input)| {
+            let locked = &lock.inputs[name];
+            let overlays = input
+                .overlays
+                .iter()
+                .map(|overlay| {
+                    format!(
+                        "(builtins.hashFile \"sha256\" (sourceRoot + {}))",
+                        nix_string(overlay.trim_start_matches('.'))
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!(
+                "{} = builtins.hashString \"sha256\" (builtins.toJSON {{ url = {}; rev = {}; narHash = {}; overlays = [ {} ]; }});",
+                nix_attr(name),
+                nix_string(&locked.url),
+                nix_string(&locked.rev),
+                nix_string(&locked.nar_hash),
+                overlays,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("{{ {identities} }}")
+}
+
 fn primary_namespace(cixfile: &Cixfile) -> Result<&str> {
     cixfile
         .inputs
@@ -1021,6 +1093,24 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         value.insert(
             "liveness".into(),
             literal_probe(&liveness.probe, "interval", &liveness.interval),
+        );
+    }
+    if !service.secrets.is_empty() {
+        value.insert(
+            "secrets".into(),
+            Value::Object(
+                service
+                    .secrets
+                    .iter()
+                    .map(|(name, secret)| {
+                        let mut declaration = Map::new();
+                        if let Some(as_env) = &secret.as_env {
+                            declaration.insert("as".into(), Value::String(as_env.clone()));
+                        }
+                        (name.clone(), Value::Object(declaration))
+                    })
+                    .collect(),
+            ),
         );
     }
     let dirs = literal_dirs(service);

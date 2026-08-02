@@ -47,7 +47,7 @@ case in the [side-by-side browser](corpus/index.html).
 | 15 | Tomcat | Cix build and bounded HTTP reachability probe pass | ✅ complete package tree + idempotent setup | S | [receipt](../corpus/migrate/tomcat/receipt.md) |
 | 16 | Traefik | Cix build and ping endpoint pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/traefik/receipt.md) |
 | 17 | Verdaccio | Cix Corepack/pnpm build sequence fails before producing an item | 🔶 package-manager build remains non-green | M | [receipt](../corpus/migrate/verdaccio/receipt.md) |
-| 18 | Wallos | Docker and Cix health probes pass through the `.nix` escape hatch; declarative health is absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/wallos/receipt.md) |
+| 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative health is absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/wallos/receipt.md) |
 | 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
 | 20 | Whoami | Cix build and bounded HTTP probe pass | ✅ named Go builder + direct service contract | M | [receipt](../corpus/migrate/whoami/receipt.md) |
 
@@ -154,7 +154,7 @@ corpus rows still lack the implementation.
 | 7 | Migrate-on-upgrade hook | **Designed—unbuilt ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md), event-driven D48f leg)** | Compose 11; Kubernetes 12, 13 |
 | 8 | Network segmentation and talks-to | **Designed—unbuilt ([CIP-86](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0086-netns.md))** | Compose 4, 9; Kubernetes 2, 5, 10 |
 | 9 | Profiles and variants | **Designed—unbuilt ([CIP-85](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0085-compose-tree.md), D46 family surface)** | Compose 8, 15; Dockerfile 7, 12, 13, 15 |
-| 10 | Build and runtime secrets | **Designed—unbuilt ([CIP-81](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0081-secrets.md))** | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
+| 10 | Build and runtime secrets | **Built (CIP-81; desk re-grade)** — host-consented FETCH credential files and compose `LoadCredential=` sources | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
 | 11 | Competing control planes and mutable overlay roots | **Refused** | Compose 12, 16; Kubernetes 9, 14; Dockerfile 16 |
 
 The met rows have deliberate boundaries: timers accept native `OnCalendar`

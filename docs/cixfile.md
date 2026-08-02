@@ -49,18 +49,18 @@ Prelude declarations come first:
 
 | declaration | meaning |
 | --- | --- |
-| `FROM <flakeref> AS <name>` | bind a locked package universe or source tree |
+| `FROM <flakeref> [OVERLAY <./file.nix>…] AS <name>` | bind a locked package universe or source tree |
 | `FROM <index-ref:tag> AS <name>` | bind a lock-pinned cix item as a source tree |
 | `FROM . AS <name>` | optionally name the Cixfile directory; it is local input and is not lock-pinned |
-| `FETCH <name> [EXPECT <sri-hash>] <command…>` | run a networked command in an empty workdir and bind its pinned output |
+| `FETCH <name> <command…> [EXPECT <sri-hash>]` | run a networked command in an empty workdir and bind its pinned output |
 
 Blocks then declare work and outputs:
 
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -160,6 +160,41 @@ use `$${…}` when the shell itself must receive a braced expansion.
 
 <a id="formatting"></a>
 
+### Runtime credentials
+
+`SECRET <name> [AS <VAR_FILE>]` declares a runtime credential need on a SERVICE or APP.
+It names no value and is delivered only when compose supplies that name. The process reads
+`$CREDENTIALS_DIRECTORY/<name>`; `AS` sets the given `_FILE` variable to that same path, for
+images that already support the conventional `PASSWORD_FILE` shape. Raw secret environment
+variables are deliberately refused.
+
+FETCH credentials are host-local too: `~/.config/cix/credentials` (or
+`$CREDENTIALS_DIRECTORY/credentials` for a cix unit) maps a token name to a narrow URL pattern
+and credential file. On a matching concrete FETCH URL cix asks for per-project, per-token,
+per-prefix consent; `cix build --allow-secret` is the non-interactive CI form and
+`cix credentials revoke <token>` removes remembered consent. Neither Cixfiles nor locks name
+tokens, and credential files never enter the store.
+
+### Compose credentials
+
+The compose document owns values, while item manifests own credential needs. Supply each
+declared name exactly once at top level, using either an absolute plaintext file or an absolute
+systemd-encrypted credential file:
+
+```json
+{
+  "secrets": { "db-password": { "file": "/etc/cix/db-password" } },
+  "services": { "database": { "item": "example/db:v1" } }
+}
+```
+
+Only services that declare `SECRET db-password` receive `LoadCredential=db-password:…`; an
+`encrypted` source uses `LoadCredentialEncrypted=`. `cix compose check` rejects a missing
+declared source and warns loudly about a supplied source that no item consumes. On `cix up`, a
+salted HMAC fingerprint detects a changed source and restarts only its consumers. Use
+`cix run --compose FILE` (or `-` for stdin) for the same complete compose path; direct run
+options cannot inject credentials.
+
 ## Formatting
 
 `cix fmt [PATH…]` formats Cixfiles in place. With no path it searches the current directory
@@ -190,6 +225,25 @@ Other remote trees are source binders:
 ```dockerfile
 FROM github:owner/project/v1.2.3 AS upstream
 ```
+
+For a project-local package customization, attach one or more ordered overlays to a package
+universe:
+
+```dockerfile
+FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
+```
+
+Each overlay is a checked-in `final: prev: { ... }` Nix function. cix imports the locked base
+with nixpkgs' native `overlays` argument, so every `${pkgs.*}` reference observes the same
+fixpoint. The base must accept that argument; an error suggests wrapping it or using a full
+universe tree. Overlay files cannot reference Cixfile binders. Their ordered content hashes join
+the base pin in builder keys and vendored development-environment snapshots; editing an overlay
+is therefore an ordinary source edit, while `--update-lock pkgs` moves only the base pin.
+
+Multiple universes remain legal, but putting packages from differently overlaid worlds into one
+item deliberately reopens world skew. Keep one project world where practical. `OVERLAY` is the
+local convenience form; an organisation-owned full universe tree remains the general D65 form,
+and composed items remain the distribution form.
 
 The third FROM input is an explicit-tag index ref:
 
@@ -322,10 +376,10 @@ the lock, lets `--cold` replay FETCH outputs without
 making volatile cache bytes part of `Cixfile.lock`. First use of an additional top-level consumed
 path is reported and recorded as a fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately fetches twice, reports
 differing file names and sizes, and records those volatile-file facts in the lock; it never
-silently removes them. Add `EXPECT <sri-hash>` before the command to keep a whole-workdir author
+silently removes them. Add trailing `EXPECT <sri-hash>` after the command to keep a whole-workdir author
 integrity assertion instead: this removes the first-use trust window and reports declared versus
 actual on a mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the
-declared hash.
+declared hash. The former leading form is rejected with this migration.
 
 When a FETCH leaves at least 16 MiB outside the downstream-consumed paths, cix prints an
 informational size note. It never changes the build result or turns into a failure; it is a prompt

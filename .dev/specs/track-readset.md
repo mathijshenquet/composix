@@ -1,12 +1,12 @@
 # track/readset — CIP-87: read-set step keying (early cutoff)
 
-Read AGENTS.md first. Authoritative: docs/cips/0087-read-set-keying.md
+Read AGENTS.md first. Authoritative: cips/accepted/0087-read-set-keying.md
 (§3 recommendation + §5 Decision + regression surface). Prerequisite:
 track/ergo landed the `--stats` channel and the hermetic mini-fixture —
 extend both, do not fork them. This is the memo-core rework; you own
-crates/cix-cixfile's builder engine for the duration. Work in
-`.worktrees/readset` on branch `track/readset`. Keep
+crates/cix-cixfile's builder engine for the duration. Work in `/home/mathijs/worktrees/composix/track-readset` (herdr worktree) on branch `track/readset`. Keep
 `crates/cix-cixfile/LOG.md` current.
+PARALLEL FENCE: track/overlay runs concurrently and owns parser/FROM/universe resolution/lock inputs; you own the builder engine, memo model, and --stats. Keep lock-schema changes additive; expect a merge seam.
 
 1. **Trace capture**: record the read set of every FETCH and RUN step
    inside the existing sandbox. Mechanism is your choice (§5.1 —

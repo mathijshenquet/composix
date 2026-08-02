@@ -30,6 +30,16 @@ fn crlf_is_normalized_but_heredoc_and_comments_are_untouched() {
 }
 
 #[test]
+fn formatter_migrates_leading_fetch_expect_to_trailing() {
+    let formatted = fmt::format(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-example printf payload\nSERVICE app\nSTART /bin/true\n",
+    )
+    .unwrap();
+    assert!(formatted.contains("FETCH printf payload EXPECT sha256-example"));
+    assert!(parse(&formatted).is_ok());
+}
+
+#[test]
 fn torture_sweep_is_parse_gated_idempotent_and_semantic_preserving() {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/torture");
     let mut fixtures = fs::read_dir(directory)
@@ -90,6 +100,7 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let original_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
@@ -104,6 +115,7 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
 

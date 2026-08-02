@@ -54,9 +54,9 @@ STATEDIR /var/lib/migrate
     }
 
     #[test]
-    fn fetch_expect_parses_in_both_forms_and_validates_the_hash() {
+    fn fetch_expect_is_trailing_and_rejects_the_removed_leading_form() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-top ${pkgs.coreutils}/bin/printf top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH EXPECT sha256-step printf step\nSERVICE app\nSTART /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf top EXPECT sha256-top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH printf step EXPECT sha256-step\nSERVICE app\nSTART /bin/true\n",
         )
         .unwrap();
         assert_eq!(
@@ -69,11 +69,39 @@ STATEDIR /var/lib/migrate
         assert_eq!(expected.as_deref(), Some("sha256-step"));
 
         let error = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT not-sri printf payload\nSERVICE app\nSTART /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf payload EXPECT not-sri\nSERVICE app\nSTART /bin/true\n",
         )
         .unwrap_err();
         assert_eq!(error.line, 2);
         assert!(error.message.contains("SRI sha256"), "{error}");
+
+        let old = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-old printf payload\nSERVICE app\nSTART /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(
+            old.message.contains("leading FETCH EXPECT was removed"),
+            "{old}"
+        );
+    }
+
+    #[test]
+    fn from_overlays_are_ordered_package_universe_inputs() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./first.nix OVERLAY ./second.nix AS pkgs\nFROM github:NixOS/nixpkgs/nixos-25.05 AS stable\nSERVICE app\nSTART /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.inputs["pkgs"].overlays,
+            ["./first.nix", "./second.nix"]
+        );
+        assert!(parsed.inputs["stable"].overlays.is_empty());
+
+        let error = parse(
+            "FROM github:owner/source OVERLAY ./overlay.nix AS src\nSERVICE app\nSTART /bin/true\n",
+        )
+        .unwrap_err();
+        assert!(error.message.contains("package universe"), "{error}");
     }
 
     #[test]
@@ -735,4 +763,27 @@ fn from_lock_metadata_is_a_builder_env_template() {
         BuildStep::Env { value, .. }
             if matches!(value.parts.as_slice(), [TemplatePart::InputMetadata { namespace, attribute, .. }] if namespace == "src" && attribute == "rev")
     ));
+}
+
+#[test]
+fn secret_declares_a_credential_name_and_optional_file_environment() {
+    let parsed = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSECRET db-password AS DB_PASSWORD_FILE\nSECRET api-key\nSTART /bin/true\n",
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.artifacts["app"].service.secrets["db-password"]
+            .as_env
+            .as_deref(),
+        Some("DB_PASSWORD_FILE")
+    );
+    assert_eq!(
+        parsed.artifacts["app"].service.secrets["api-key"].as_env,
+        None
+    );
+    let error = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSECRET db AS DB_PASSWORD\nSTART /bin/true\n",
+    )
+    .unwrap_err();
+    assert!(error.message.contains("_FILE"), "{error}");
 }
