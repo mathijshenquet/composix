@@ -69,7 +69,11 @@ pub enum Command {
         command: Vec<String>,
     },
     /// List running cix-* units.
-    Ps,
+    Ps {
+        /// Render stable machine-readable JSON.
+        #[arg(long)]
+        json: bool,
+    },
     #[command(hide = true)]
     ClosedRootNss {
         identity: String,
@@ -132,7 +136,12 @@ impl Command {
                 user,
                 command,
             }),
-            Self::Ps => crate::runtime::ps(),
+            Self::Ps { json } => {
+                if json {
+                    anyhow::bail!("cix ps --json is handled by the top-level cix command")
+                }
+                crate::runtime::ps()
+            }
             Self::ClosedRootNss {
                 identity,
                 directory,

@@ -135,8 +135,8 @@ warning: --user is degraded development mode; the system manager with DynamicUse
 
 ```sh
 $ cix ps
-MANAGER  UNIT                                               STATE       RESULT   DESCRIPTION
-user     cix-run-tour-app-NONCE.service  active/running  success  /nix/store/…-bash-interactive-5.3p15/bin/sh /nix/store/…-cix-source/tour-app /nix/store/…-coreutils-9.11/bin/sleep 300
+MANAGER  COMPOSITE  SERVICE   UNIT                                               STATE       RESULT   DESCRIPTION
+user     -          tour-app  cix-run-tour-app-NONCE.service  active/running  success  /nix/store/…-bash-interactive-5.3p15/bin/sh /nix/store/…-cix-source/tour-app /nix/store/…-coreutils-9.11/bin/sleep 300
 ```
 
 ## Debug
@@ -156,7 +156,7 @@ $ systemctl --user stop cix-run-tour-app-NONCE.service
 
 ```sh
 $ cix ps
-MANAGER  UNIT  STATE       RESULT  DESCRIPTION
+MANAGER  COMPOSITE  SERVICE  UNIT  STATE       RESULT  DESCRIPTION
 ```
 
 
