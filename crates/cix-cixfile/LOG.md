@@ -1450,3 +1450,119 @@
   generator and 21 generated pages, and documentation entry points. This
   append-only task journal is the sole remaining worktree modification and is
   intentionally uncommitted per the track instructions.
+
+- 2026-08-02T12:31:29Z — Began `track/readset` at `81586c5`. Read the track
+  spec, adopted CIP-87, current project journal, design registry, assigned
+  journal, builder executor/lock schema, hermetic ergo fixture, and affected
+  docs/example. The prerequisite `--stats`, output receipts, persistent warm
+  underlay, COPY staging, and cold FETCH replay are present. Chosen trace
+  mechanism: host `strace -f` around the existing bubblewrap boundary, limited
+  to filesystem/process syscalls and decoded into workspace-relative reads.
+  This captures regular reads, readdir calls, and failed lookups across child
+  processes without weakening the sandbox; fanotify was rejected because it
+  cannot meet the negative-lookup requirement. Inputs will be hashed from a
+  pre-step workspace snapshot so later writes cannot corrupt the observed
+  input value. A step memo must also retain and replay its filesystem delta;
+  merely skipping a hit would be unsound when an earlier executed step touched
+  the same output. Known failure modes to guard and document: strace must be on
+  the runtime PATH; path decoding and cwd/dirfd tracking must cover child
+  processes; tracing only `/work` deliberately relies on the static key for the
+  immutable offered closure and fixed skeleton; ptrace-denying hosts must fail
+  closed rather than run untraced; snapshot/diff cost favors completeness over
+  speed. Next: add the trace/delta lock model and executor plumbing with unit
+  coverage, then extend the hermetic acceptance fixture.
+
+- 2026-08-02T12:52:19Z — Implemented the constructive-trace engine and passed
+  its first acceptance round. `strace -f -yy` now wraps bubblewrap without
+  weakening its namespaces/seccomp; the parser follows child/cwd/dirfd paths,
+  records `/work` regular reads, true `getdents64` listings, positive directory
+  existence, and ENOENT probes, while filtering write-only destination probes.
+  Each static step identity excludes the predecessor/COPY bytes and owns one
+  latest `stepMemo` read set plus a replayable precise filesystem delta. Traced
+  writes (including atomic rename destinations) keep deltas reconstructive even
+  when a repeated command writes byte-identical output. COPY staging and the
+  old chain remain the persistent-workspace lineage; the builder fingerprint is
+  now `d87-v1` and also participates in completed-output receipts, honestly
+  orphaning old memos. Cold RUN executes and compares the actually observed
+  read set; cold FETCH validates its recorded inputs and replays only its delta,
+  preserving fresh copy-everything inputs and never refetching. Cold no longer
+  mutates/revalidates FETCH pins against later RUN output. `--stats` now reports
+  actual per-step outcomes from the executor rather than labeling the whole
+  invocation uniformly. Extended the local-HTTP fixture: manifest edit executes
+  FETCH; source-only edit hits FETCH and executes RUN; creating a probed absent
+  file and adding a listed-directory entry each execute RUN; repeat is zero-Nix
+  all-hit; cold byte-converges. Exact focused test and trace unit tests pass;
+  workspace all-target check, Rust fmt, examples fmt, and diff check pass.
+  Flake/devenv runtime PATH now includes strace. Docs teach copy-everything and
+  the Docker/corpus ledgers are regraded. Next: exercise the full existing
+  builder suite, regenerate the gitsitter lock, then obtain dated no-op/edit
+  receipts and update docs/nix-build.md.
+
+- 2026-08-02T13:01:55Z — The full cix-build/cix-cixfile test pass exposed the
+  intended new cold-audit boundary in the older proj1 fixture. Its RUN
+  deliberately probes warm-only Cargo state and `target/.cix-warm`; outputs
+  happen to converge, but CIP-87 requires cold to reject the differing actual
+  read set at the RUN source line. Updated the integration assertion and the
+  executable tour source to teach that diagnostic, while the new hermetic
+  read-set fixture remains the acceptance proof for normal/repeat/cold byte
+  convergence. Earlier broad failures in delta permissions, newly consumed
+  outputs, append tracing, and update-pin volatile paths were repaired; their
+  focused regressions all pass. Next: rerun the broad suite, regenerate and
+  drift-check the tour, then remeasure gitsitter and finish the prescribed
+  gates.
+
+- 2026-08-02T13:35:24Z — The required gitsitter receipt found and closed two
+  completeness issues hidden by the tiny fixture. Successful `stat` probes
+  were initially promoted to content reads, so Cargo metadata invalidated
+  FETCH on source bytes it only tested for existence; the lock model now has
+  explicit file/directory existence markers while opened files remain content
+  hashes. Cargo also inspected its warm `target/` during `cargo vendor`; the
+  copy-everything fixture now points that command's target directory at the
+  sandbox's ephemeral `/tmp`, preserving the intended manifest/lock boundary.
+  The measurement harness copies the complete upstream tree, substitutes the
+  pinned revision for the local binder's unavailable `${src.rev}`, and forces
+  two untimed primes so the single latest trace represents the warm underlay.
+  Synchronous 2026-08-02 receipts: no-op 0.34 s, zero Nix subprocesses, every
+  directive `memo-hit`; patched `src/main.rs` 84.83 s, FETCH `memo-hit`, RUN
+  executed, 11 Nix subprocesses. The completeness-first trace is honestly much
+  slower than the pre-CIP receipt. Added repeated-delta root retention so later
+  traces preserve replayable roots instead of enumerating every touched child;
+  focused FETCH/cold and complete proj1 tests pass. The generated real-world
+  step memo was deliberately not committed into the fixture lock because it is
+  host-local memo state and made the example lock hundreds of thousands of
+  lines; the committed input/fetch pin ledger remains unchanged. Next: update
+  and drift-check the executable tour, run all prescribed Rust gates, then the
+  full flake check.
+
+- 2026-08-02T13:49:21Z — Final semantic audit corrected the memo index from a
+  key-derived collection to one stable owner slot per FETCH/RUN, with the
+  static key stored in that slot. A changed directive now replaces its prior
+  trace instead of retaining stale alternatives, satisfying CIP-87's exactly
+  one-latest invariant. Trace paths now use reversible hex encoding when they
+  are not UTF-8, and the syscall filter/parser also covers `getdents` and
+  `creat`. Formatting, cix-build unit tests (20/20), the hermetic read-set
+  acceptance fixture, example formatting, and diff hygiene pass from this
+  final code state. Next: rerun clippy, all workspace tests, tour drift and
+  determinism, then the full flake gate.
+
+- 2026-08-02T13:58:40Z — Track gate is green from the final staged source
+  set. Exact synchronous repros: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -- fmt --check examples`; `devenv shell -- cargo
+  clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo
+  test --workspace`; `devenv shell -- cargo test -p cix --test tour
+  generate_tour -- --ignored --exact`; the exact
+  `tour_matches_committed_document` and `generated_tour_is_deterministic`
+  tests; and `devenv shell -- nix flake check -L`. All exited 0, with the
+  flake runner reporting all 70 checks and every VM scenario green. The first
+  flake attempt correctly failed because the new trace module was untracked
+  and therefore absent from Nix's Git source; staging the implementation
+  while leaving this LOG unstaged made the second run test the actual commit
+  source and pass. `git diff --cached --check` also exits 0. All CIP-87 scope,
+  acceptance coverage, ledgers, tour output, and the dated gitsitter no-op and
+  one-line-edit receipts are complete. Next: commit `track/readset`.
+
+- 2026-08-02T13:59:11Z — Committed the completed track as
+  `7e7aadf28273885506029782c9ba357123940f9f` (`build: key steps by traced read
+  sets`). The worktree now differs from the commit only by this intentionally
+  unstaged LOG. No implementation or documentation work remains for the
+  track.
