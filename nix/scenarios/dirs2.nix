@@ -19,21 +19,21 @@ let
   '' ''
     mkdir -p /var/lib/host /media
     touch /var/lib/host/host-state /media/host-media
-    while true; do sleep 1; done
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   private = item "scenario-dirs2-private" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/var/lib/private"],"cache":["/var/cache/private"]}}
   '' ''
     mkdir -p /var/lib/private /var/cache/private
     touch /var/lib/private/survives /var/cache/private/expendable
-    while true; do sleep 1; done
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   shared = side: item "scenario-dirs2-shared-${side}" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/var/lib/shared"]}}
   '' ''
     mkdir -p /var/lib/shared
     touch /var/lib/shared/${side}
-    while true; do sleep 1; done
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   compose = pkgs.writeText "scenario-dirs2.json" ''
     {
@@ -79,8 +79,12 @@ scenario.node ''
   assert "LOUD durability degradation" in warning
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2.json")
   machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-left.service cix-dirs2-right.service")
-  machine.succeed("test -f /tmp/dirs2/host-state/host-state /tmp/dirs2/host-media/host-media")
-  machine.succeed("test -f /var/lib/cix-compose/dirs2/shared/uploads/left /var/lib/cix-compose/dirs2/shared/uploads/right")
+  machine.succeed("${pkgs.coreutils}/bin/sleep 2")
+  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-left.service cix-dirs2-right.service")
+  machine.succeed("test -f /tmp/dirs2/host-state/host-state")
+  machine.succeed("test -f /tmp/dirs2/host-media/host-media")
+  machine.succeed("test -f /var/lib/cix-compose/dirs2/shared/uploads/left")
+  machine.succeed("test -f /var/lib/cix-compose/dirs2/shared/uploads/right")
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=cache")
   machine.succeed("test ! -e /var/cache/cix-dirs2-private/var/cache/private/expendable")
@@ -92,7 +96,8 @@ scenario.node ''
   assert status == 0
   assert "/var/lib/cix-dirs2-private/var/lib/private" in purge
   assert "/var/lib/cix-compose/dirs2/shared/uploads" in purge
-  machine.succeed("test -f /tmp/dirs2/host-state/host-state /tmp/dirs2/host-media/host-media")
+  machine.succeed("test -f /tmp/dirs2/host-state/host-state")
+  machine.succeed("test -f /tmp/dirs2/host-media/host-media")
   machine.succeed("test ! -e /var/lib/cix-dirs2-private/var/lib/private")
   machine.succeed("test ! -e /var/lib/cix-compose/dirs2/shared/uploads")
 ''

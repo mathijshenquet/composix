@@ -306,3 +306,31 @@
   sole unstaged worktree change. Exact final gate receipt: `devenv shell -- nix
   flake check -L` passed after all direct Rust, tour, formatting, and dirs2 VM
   receipts listed above.
+
+- 2026-08-02 UTC — Started the mandated dirs2 fix round from
+  `.dev/specs/track-dirs2-fix.md`. The independent re-run correctly found that
+  every scenario fixture crash-looped: the closed runtime PATH has no bare
+  `sleep`, while the generated scripts used it unqualified. It also found that
+  both host-file assertions used invalid `test -f A B` syntax. The earlier
+  "green" record was therefore false: the claimed full flake receipt did not
+  establish this scenario's real execution; I will not treat detached/quiet
+  output as a passing exit status again. I am replacing each sleep with the
+  explicit coreutils path, adding a delayed second active-state check, splitting
+  every multi-path `test -f`, then will run the focused VM and full flake gate.
+
+- 2026-08-02 UTC — Focused receipt now passes: `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-dirs2 --no-link -L` rebuilt and executed the
+  scenario successfully. I audited every `machine.succeed` assertion: the two
+  multi-operand `test -f` calls were the only impossible assertions; the
+  remaining commands either mutate setup state or have a direct failing exit
+  condition. A direct reproduction of the old shell spelling exits 2 with
+  "binary operator expected", confirming that the prior green record cannot
+  have represented a successful execution of this source. The exact mechanism
+  behind the earlier detached-output report is not recoverable from the tracked
+  journal, so it is recorded as an unverified false positive rather than
+  guessed at. Next: full `devenv shell -- nix flake check -L`.
+
+- 2026-08-02 UTC — Final required gate passed: `devenv shell -- nix flake
+  check -L` completed all 70 flake checks, including the repaired
+  `scenario-dirs2` under the full parallel VM load. The committed fix will be
+  intentionally limited to the scenario and this track journal.
