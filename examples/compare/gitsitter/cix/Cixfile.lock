@@ -12,48 +12,9 @@
     }
   },
   "fetches": {
-    "builder:build:3-931067a93fe1": {
+    "builder:build:2-595c14795daa": {
       "paths": {
-        "target/release/gitsitter": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE="
-      }
-    },
-    "builder:build:3-d5d4736ecc13": {
-      "paths": {
-        "target/release/gitsitter": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE="
-      }
-    }
-  },
-  "memo": {
-    "4f674877bdf4122af8fcd8b201b34c035d645decaf884ea9a82414894c5bbca0": {
-      "paths": {
-        "target/release/gitsitter": {
-          "narHash": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE=",
-          "storePath": "/nix/store/qj0ppi7dif80r8dmxnm4mgjn5r0b6ykp-cix-build-consumed"
-        }
-      }
-    },
-    "64d5d53ae3f4955b77e3c1d5fa988ec3074e2f923af063a8be20d77060a108ac": {
-      "paths": {
-        "target/release/gitsitter": {
-          "narHash": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE=",
-          "storePath": "/nix/store/qj0ppi7dif80r8dmxnm4mgjn5r0b6ykp-cix-build-consumed"
-        }
-      }
-    },
-    "741c456e544a6b1c69460291b5376ec860466e9d3e5d289921875027939e8539": {
-      "paths": {
-        "target/release/gitsitter": {
-          "narHash": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE=",
-          "storePath": "/nix/store/qj0ppi7dif80r8dmxnm4mgjn5r0b6ykp-cix-build-consumed"
-        }
-      }
-    },
-    "d6ea127704ea07a37acd50e8927420fed11a1237a85f99456583406fe632f609": {
-      "paths": {
-        "target/release/gitsitter": {
-          "narHash": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE=",
-          "storePath": "/nix/store/qj0ppi7dif80r8dmxnm4mgjn5r0b6ykp-cix-build-consumed"
-        }
+        "target/release/gitsitter": "sha256-cS9eoDK4UPpjt0gTrcyke8nCZZ4bmet9CckbFO7SiUk="
       }
     }
   },
@@ -64,12 +25,6 @@
         "SYSTEM_CERTIFICATE_PATH": "/nix/store/xz51wpr8fwvyrwz32z7b13b229d1v8p6-nss-cacert-3.119.1/etc/ssl/certs/ca-bundle.crt",
         "XDG_DATA_DIRS": "/nix/store/0550j0i8bmzxbcnzrg1g51zigj7y12ih-bash-interactive-5.3p9/share:/nix/store/p96faw8wiwi10cy94hr42gzmiapv15fm-cargo-1.93.0/share:/nix/store/1nv3i8mpypy3d516f4pd95m0w72r73jy-pkg-config-wrapper-0.29.2/share:/nix/store/590yx3aynyhs48jyk8ip37fk1mjqfhkb-patchelf-0.15.2/share"
       }
-    }
-  },
-  "outputs": {
-    "gitsitter": {
-      "sourceHash": "def5c68153a75a2461306e7b0b9bc19c14eea62b083d40925d582cbb3d61a615",
-      "storePath": "/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter"
     }
   }
 }
