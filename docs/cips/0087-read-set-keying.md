@@ -1,7 +1,7 @@
 # Read-set step keying — early cutoff for builders
 
-Status: **draft** (2026-08-02, prompted by the gitsitter compare Cixfile
-review with Mathijs).
+Status: **CIP-87, adopted 2026-08-02** (Mathijs; drafted the same day out
+of the gitsitter compare Cixfile review). Decision in §5.
 
 ## 1. The problem
 
@@ -102,6 +102,29 @@ pathological read sets.
 5. **Hash cost**: a RUN like `cargo build` reads the whole tree — its
    lookup rehashes everything it read. Acceptable (it's what the key
    means), or does the mtime fast path need a per-builder stat cache?
+
+## 5. Decision
+
+Adopted as recommended. The open-question dispositions (Mathijs,
+2026-08-02):
+
+1. **Trace mechanism** — implementation detail, implementer's choice
+   ("overweeg naar eigen inzicht"); pick for completeness first
+   (negative lookups must be captured), speed second.
+2. **Readdir granularity** — start with entry-list hashing;
+   glob/prefix refinement is evidence-gated.
+3. **Trace multiplicity** — start with a single latest trace (or
+   unbounded if it falls out naturally); no fixed-N tuning.
+4. **Doc idiom** — flips to copy-everything default; ordering demoted
+   to an optimization note.
+5. **Migration** — none; alpha. Old chain-keyed memos are orphaned via
+   an honest fingerprint bump (D48a precedent).
+6. **Hash cost** — mtime+size fast path is fine; further caching is an
+   optimization detail, not design.
+
+## Changelog
+
+- 2026-08-02: drafted and adopted same day.
 
 ## Regression surface (design, for the eventual track)
 

@@ -1,8 +1,9 @@
 # Builder ergonomics — import env, lock metadata, and the no-op floor
 
-Status: **draft** (2026-08-02, prompted by the gitsitter compare Cixfile
-review with Mathijs). Three small taste calls plus one measured
-mechanical fix; batch-decidable.
+Status: **CIP-88, adopted 2026-08-02** (recommendations blessed by
+Mathijs in the same review round, "ja eens met alles"; the §4 fills are
+orchestrator-autonomous per the standing gap-filling directive and are
+in-place amendable). Decision in §5.
 
 ## 1. The problem
 
@@ -70,8 +71,8 @@ upstream flake's 0.07 s (d).
   change); stat/validity-check the memoized item instead of re-adding;
   batch whatever remains. Target: ≤0.15 s, and structurally **zero
   subprocesses and zero steps executed on a no-op** — that, not
-  wall-clock, is the CI assertion (via the `--stats` channel from the
-  read-set-keying draft).
+  wall-clock, is the CI assertion (via the `--stats` channel from
+  CIP-87).
 
 ## 4. Open questions
 
@@ -82,6 +83,23 @@ upstream flake's 0.07 s (d).
 3. (c) Is a lint warranted when a FETCH leaves more than N MiB of
    unconsumed junk in the workspace, or does the consumed-set model
    make junk fully free forever?
+
+## 5. Decision
+
+§3 (a)–(d) adopted as written. Open-question fills (orchestrator,
+2026-08-02, amendable):
+
+1. Mint `rev`/`shortRev`/`narHash` only; `lastModified` waits for a
+   real consumer.
+2. Refused env-var candidates are recorded in this CIP plus a code
+   comment at the refusal site — no docker.md rows (they are not
+   docker features).
+3. No junk lint until a real case bites; the consumed-set model makes
+   junk semantically free, so a lint would police aesthetics.
+
+## Changelog
+
+- 2026-08-02: drafted and adopted same day.
 
 ## Placement of fixture and assertions (shared with read-set draft)
 
