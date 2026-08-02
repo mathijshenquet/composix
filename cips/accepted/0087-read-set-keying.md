@@ -125,6 +125,22 @@ Adopted as recommended. The open-question dispositions (Mathijs,
 ## Changelog
 
 - 2026-08-02: drafted and adopted same day.
+- 2026-08-02 (FETCH self-observation rule adopted, Mathijs, after the
+  a/b adversarial walk): warm/cold trace divergence was FETCH observing
+  its own prior outputs as pre-state. Rule, two halves: (1) a FETCH
+  about to execute first reverts the paths its superseded memo recorded
+  as its own writes; (2) memo validation treats a read of a path in the
+  memo's OWN write set as satisfied when the workspace holds the memo's
+  recorded output for that path. Four load-bearing conditions: per-path
+  content-hash equality (never existence, never any-of); a hit's
+  constructive apply guarantees the FULL write set (without this, half
+  2 is unsafe); cold replay takes precedence and never reasons through
+  half 2; the self-read exception is SAME-MEMO scope only — a
+  downstream step's read of another step's output always validates
+  against its own recorded fingerprint (cross-step extension would let
+  a consumer hit on content its memo never saw). Consequences: warm and
+  cold traces identical by construction, the cold control goes green,
+  the harness two-prime workaround dies.
 - 2026-08-02 (tracefast landing; Mathijs steered in-session): the warm
   gitsitter edit descended 84.83s → 8.31s WITH complete capture —
   green under the bar. Semantics amendment sanctioned live by Mathijs:
