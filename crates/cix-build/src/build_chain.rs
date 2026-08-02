@@ -15,6 +15,10 @@ use crate::codegen::{
     generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
     generate_fetch_context_nix, generate_fetch_offer_nix,
 };
+use crate::fetch::{
+    concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
+    CredentialMount, CredentialToken, HostCredentials,
+};
 use crate::seccomp;
 use crate::trace;
 use crate::{
@@ -142,8 +146,8 @@ enum RunNetwork {
     SocketFilter,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+/* FETCH credential and consent types live in fetch.rs. */
+/*
 struct CredentialsFile {
     #[serde(default)]
     tokens: BTreeMap<String, CredentialToken>,
@@ -391,6 +395,7 @@ fn choose_token(url: &str, matches: &[String], allow_secret: bool) -> Result<Str
         bail!("no matching FETCH credential was selected")
     }
 }
+*/
 
 pub fn execute(
     cixfile: &Cixfile,
