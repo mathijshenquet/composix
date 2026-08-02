@@ -4,10 +4,12 @@ use std::io;
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 
+use crate::lock::FileFingerprint;
 use crate::{ReadDependency, StepChange};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -22,6 +24,20 @@ pub(crate) struct Observation {
 pub(crate) struct Capture {
     observations: BTreeMap<String, Observation>,
     pub(crate) writes: BTreeSet<String>,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct ValidationMetrics {
+    pub(crate) rehashed_files: usize,
+    pub(crate) rehashed_bytes: u64,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct RecordingMetrics {
+    pub(crate) reused: usize,
+    pub(crate) hashed_files: usize,
+    pub(crate) hashed_bytes: u64,
+    pub(crate) hashed_directories: usize,
 }
 
 pub(crate) fn parse(trace: &str) -> Capture {
@@ -199,32 +215,146 @@ pub(crate) fn read_dependencies(
     snapshot: &Path,
     capture: &Capture,
 ) -> Result<BTreeMap<String, ReadDependency>> {
-    capture
+    Ok(read_dependencies_with_known(snapshot, capture, &BTreeMap::new())?.0)
+}
+
+pub(crate) fn read_dependencies_with_known(
+    snapshot: &Path,
+    capture: &Capture,
+    known: &BTreeMap<String, ReadDependency>,
+) -> Result<(BTreeMap<String, ReadDependency>, RecordingMetrics)> {
+    let mut metrics = RecordingMetrics::default();
+    let dependencies = capture
         .observations
         .iter()
         .map(|(relative, observation)| {
+            if let Some(dependency) = known
+                .get(relative)
+                .and_then(|dependency| reuse_dependency(dependency, observation))
+            {
+                metrics.reused += 1;
+                return Ok((relative.clone(), dependency));
+            }
             let path = relative_path(snapshot, relative);
+            match fs::symlink_metadata(&path) {
+                Ok(metadata)
+                    if metadata.is_dir()
+                        && !metadata.file_type().is_symlink()
+                        && observation.listed =>
+                {
+                    metrics.hashed_directories += 1;
+                }
+                Ok(metadata)
+                    if !metadata.is_dir()
+                        && !metadata.file_type().is_symlink()
+                        && observation.content =>
+                {
+                    metrics.hashed_files += 1;
+                    metrics.hashed_bytes += metadata.len();
+                }
+                Ok(metadata) if metadata.file_type().is_symlink() && observation.content => {
+                    metrics.hashed_files += 1;
+                    metrics.hashed_bytes += metadata.len();
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            }
             Ok((
                 relative.clone(),
                 dependency(&path, observation.listed, observation.content)?,
             ))
         })
-        .collect()
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    Ok((dependencies, metrics))
+}
+
+fn reuse_dependency(known: &ReadDependency, observation: &Observation) -> Option<ReadDependency> {
+    match known {
+        ReadDependency::File { .. } if observation.content => Some(known.clone()),
+        ReadDependency::File { .. } | ReadDependency::FileExists
+            if !observation.listed && !observation.content =>
+        {
+            Some(ReadDependency::FileExists)
+        }
+        ReadDependency::Directory { .. } if observation.listed => Some(known.clone()),
+        ReadDependency::Directory { .. } | ReadDependency::DirectoryExists
+            if !observation.listed =>
+        {
+            Some(ReadDependency::DirectoryExists)
+        }
+        ReadDependency::Absent => Some(ReadDependency::Absent),
+        _ => None,
+    }
 }
 
 pub(crate) fn current_dependencies(
     workspace: &Path,
     recorded: &BTreeMap<String, ReadDependency>,
 ) -> Result<BTreeMap<String, ReadDependency>> {
-    recorded
+    Ok(current_dependencies_with_metrics(workspace, recorded)?.0)
+}
+
+pub(crate) fn current_dependencies_with_metrics(
+    workspace: &Path,
+    recorded: &BTreeMap<String, ReadDependency>,
+) -> Result<(BTreeMap<String, ReadDependency>, ValidationMetrics)> {
+    let started = Instant::now();
+    let mut metrics = ValidationMetrics::default();
+    let dependencies = recorded
         .iter()
         .map(|(relative, recorded)| {
             let path = relative_path(workspace, relative);
             let listed = matches!(recorded, ReadDependency::Directory { .. });
             let content = matches!(recorded, ReadDependency::File { .. });
+            if content {
+                match fs::symlink_metadata(&path) {
+                    Ok(metadata) => {
+                        if let ReadDependency::File {
+                            fingerprint: Some(fingerprint),
+                            ..
+                        } = recorded
+                        {
+                            if file_fingerprint(&metadata) == *fingerprint {
+                                return Ok((relative.clone(), recorded.clone()));
+                            }
+                        }
+                        metrics.rehashed_files += 1;
+                        metrics.rehashed_bytes += metadata.len();
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(error.into()),
+                }
+            }
             Ok((relative.clone(), dependency(&path, listed, content)?))
         })
-        .collect()
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    crate::cix_timing!(
+        "CIX timing read-validation files={} bytes={} wall_ms={}",
+        metrics.rehashed_files,
+        metrics.rehashed_bytes,
+        started.elapsed().as_millis()
+    );
+    Ok((dependencies, metrics))
+}
+
+pub(crate) fn record_workspace_fingerprints(
+    workspace: &Path,
+    dependencies: &mut BTreeMap<String, ReadDependency>,
+    writes: &BTreeSet<String>,
+) -> Result<()> {
+    for (relative, dependency) in dependencies {
+        let ReadDependency::File { fingerprint, .. } = dependency else {
+            continue;
+        };
+        if writes.contains(relative) {
+            continue;
+        }
+        *fingerprint = Some(file_fingerprint(&fs::symlink_metadata(relative_path(
+            workspace, relative,
+        ))?));
+    }
+    Ok(())
 }
 
 pub(crate) fn filesystem_changes(
@@ -233,91 +363,25 @@ pub(crate) fn filesystem_changes(
     written: &BTreeSet<String>,
 ) -> Result<BTreeMap<String, StepChange>> {
     let mut changes = BTreeMap::new();
-    diff_directory(before, after, Path::new(""), &mut changes)?;
-    let before_mode = fs::symlink_metadata(before)?.permissions().mode();
-    let after_mode = fs::symlink_metadata(after)?.permissions().mode();
-    if before_mode != after_mode {
-        changes.insert(".".into(), StepChange::Directory { mode: after_mode });
-    }
     for relative in written {
-        let path = relative_path(after, relative);
-        let change = match fs::symlink_metadata(&path) {
-            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+        let old = fs::symlink_metadata(relative_path(before, relative)).ok();
+        let new = fs::symlink_metadata(relative_path(after, relative)).ok();
+        let change = match (old, new) {
+            (None, Some(_)) => StepChange::Present,
+            (Some(_), None) => StepChange::Absent,
+            (Some(old), Some(new))
+                if old.is_dir() && new.is_dir() && !new.file_type().is_symlink() =>
+            {
                 StepChange::Directory {
-                    mode: metadata.permissions().mode(),
+                    mode: new.permissions().mode(),
                 }
             }
-            Ok(_) => StepChange::Present,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => StepChange::Absent,
-            Err(error) => return Err(error.into()),
+            (Some(_), Some(_)) => StepChange::Present,
+            (None, None) => continue,
         };
-        changes.entry(relative.clone()).or_insert(change);
+        changes.insert(relative.clone(), change);
     }
     Ok(changes)
-}
-
-fn diff_directory(
-    before: &Path,
-    after: &Path,
-    relative: &Path,
-    changes: &mut BTreeMap<String, StepChange>,
-) -> Result<()> {
-    let before_directory = before.join(relative);
-    let after_directory = after.join(relative);
-    let mut names = BTreeSet::new();
-    for entry in fs::read_dir(&before_directory)? {
-        names.insert(entry?.file_name());
-    }
-    for entry in fs::read_dir(&after_directory)? {
-        names.insert(entry?.file_name());
-    }
-    for name in names {
-        let child = relative.join(name);
-        diff_node(before, after, &child, changes)?;
-    }
-    Ok(())
-}
-
-fn diff_node(
-    before: &Path,
-    after: &Path,
-    relative: &Path,
-    changes: &mut BTreeMap<String, StepChange>,
-) -> Result<()> {
-    let old = fs::symlink_metadata(before.join(relative)).ok();
-    let new = fs::symlink_metadata(after.join(relative)).ok();
-    let key = relative.to_string_lossy().into_owned();
-    match (old, new) {
-        (None, Some(_)) => {
-            changes.insert(key, StepChange::Present);
-        }
-        (Some(_), None) => {
-            changes.insert(key, StepChange::Absent);
-        }
-        (Some(old), Some(new)) if node_kind(&old) != node_kind(&new) => {
-            changes.insert(key, StepChange::Present);
-        }
-        (Some(old), Some(new)) if old.is_dir() => {
-            if old.permissions().mode() != new.permissions().mode() {
-                changes.insert(
-                    key,
-                    StepChange::Directory {
-                        mode: new.permissions().mode(),
-                    },
-                );
-            }
-            diff_directory(before, after, relative, changes)?;
-        }
-        (Some(old), Some(new)) => {
-            let old_path = before.join(relative);
-            let new_path = after.join(relative);
-            if node_fingerprint(&old_path, &old)? != node_fingerprint(&new_path, &new)? {
-                changes.insert(key, StepChange::Present);
-            }
-        }
-        (None, None) => {}
-    }
-    Ok(())
 }
 
 fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency> {
@@ -340,9 +404,21 @@ fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency
     if content {
         Ok(ReadDependency::File {
             hash: read_hash(path, &metadata)?,
+            fingerprint: None,
         })
     } else {
         Ok(ReadDependency::FileExists)
+    }
+}
+
+fn file_fingerprint(metadata: &fs::Metadata) -> FileFingerprint {
+    FileFingerprint {
+        dev: metadata.dev(),
+        inode: metadata.ino(),
+        mtime_ns: metadata.mtime_nsec(),
+        size: metadata.size(),
+        len: metadata.len(),
+        mode: metadata.mode(),
     }
 }
 
@@ -385,22 +461,6 @@ fn directory_hash(path: &Path) -> Result<String> {
         digest.update([0]);
     }
     Ok(hex(digest.finalize()))
-}
-
-fn node_fingerprint(path: &Path, metadata: &fs::Metadata) -> Result<String> {
-    read_hash(path, metadata)
-}
-
-fn node_kind(metadata: &fs::Metadata) -> u8 {
-    if metadata.file_type().is_symlink() {
-        0
-    } else if metadata.is_dir() {
-        1
-    } else if metadata.is_file() {
-        2
-    } else {
-        3
-    }
 }
 
 fn split_pid(line: &str) -> Option<(u32, &str)> {
@@ -661,6 +721,121 @@ mod tests {
     }
 
     #[test]
+    fn unchanged_workspace_files_reuse_the_recorded_content_hash() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("file"), "one").unwrap();
+        let capture = Capture {
+            observations: BTreeMap::from([(
+                "file".into(),
+                Observation {
+                    content: true,
+                    ..Observation::default()
+                },
+            )]),
+            writes: BTreeSet::new(),
+        };
+        let mut dependencies = read_dependencies(root.path(), &capture).unwrap();
+        record_workspace_fingerprints(root.path(), &mut dependencies, &capture.writes).unwrap();
+
+        let (current, metrics) =
+            current_dependencies_with_metrics(root.path(), &dependencies).unwrap();
+        assert_eq!(current, dependencies);
+        assert_eq!(metrics.rehashed_files, 0);
+        assert_eq!(metrics.rehashed_bytes, 0);
+    }
+
+    #[test]
+    fn file_fingerprints_are_nonsemantic_validation_hints() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("file");
+        fs::write(&path, "one").unwrap();
+        let capture = Capture {
+            observations: BTreeMap::from([(
+                "file".into(),
+                Observation {
+                    content: true,
+                    ..Observation::default()
+                },
+            )]),
+            writes: BTreeSet::new(),
+        };
+        let mut dependencies = read_dependencies(root.path(), &capture).unwrap();
+        record_workspace_fingerprints(root.path(), &mut dependencies, &capture.writes).unwrap();
+
+        let replacement = root.path().join("replacement");
+        fs::write(&replacement, "one").unwrap();
+        fs::rename(&replacement, &path).unwrap();
+        let (current, metrics) =
+            current_dependencies_with_metrics(root.path(), &dependencies).unwrap();
+        assert_eq!(current, dependencies);
+        assert_eq!(metrics.rehashed_files, 1);
+        assert_eq!(metrics.rehashed_bytes, 3);
+
+        fs::write(&path, "two").unwrap();
+        assert_ne!(
+            current_dependencies(root.path(), &dependencies).unwrap(),
+            dependencies
+        );
+
+        fs::remove_file(&path).unwrap();
+        assert_eq!(
+            current_dependencies(root.path(), &dependencies).unwrap()["file"],
+            ReadDependency::Absent
+        );
+    }
+
+    #[test]
+    fn recorder_reuses_only_known_dependencies_with_sufficient_strength() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("content"), "same bytes").unwrap();
+        fs::write(root.path().join("promoted"), "needs hashing").unwrap();
+        fs::create_dir(root.path().join("listing")).unwrap();
+        fs::write(root.path().join("listing/entry"), "entry").unwrap();
+        let capture = Capture {
+            observations: BTreeMap::from([
+                (
+                    "content".into(),
+                    Observation {
+                        content: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "promoted".into(),
+                    Observation {
+                        content: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "listing".into(),
+                    Observation {
+                        listed: true,
+                        ..Observation::default()
+                    },
+                ),
+                ("missing".into(), Observation::default()),
+            ]),
+            writes: BTreeSet::new(),
+        };
+        let expected = read_dependencies(root.path(), &capture).unwrap();
+        let known = BTreeMap::from([
+            ("content".into(), expected["content"].clone()),
+            ("promoted".into(), ReadDependency::FileExists),
+            ("listing".into(), expected["listing"].clone()),
+            ("missing".into(), ReadDependency::Absent),
+        ]);
+
+        let (actual, metrics) =
+            read_dependencies_with_known(root.path(), &capture, &known).unwrap();
+        assert_eq!(actual, expected);
+        assert_eq!(metrics.reused, 3);
+        assert_eq!(metrics.hashed_files, 1);
+        assert_eq!(metrics.hashed_bytes, 13);
+        assert_eq!(metrics.hashed_directories, 0);
+    }
+
+    #[test]
     fn records_precise_filesystem_delta_roots() {
         let before = tempfile::tempdir().unwrap();
         let after = tempfile::tempdir().unwrap();
@@ -671,8 +846,9 @@ mod tests {
         fs::write(before.path().join("removed"), "old").unwrap();
         fs::create_dir(after.path().join("added")).unwrap();
         fs::write(after.path().join("added/child"), "new").unwrap();
+        let writes = BTreeSet::from(["added".into(), "kept/changed".into(), "removed".into()]);
         assert_eq!(
-            filesystem_changes(before.path(), after.path(), &BTreeSet::new()).unwrap(),
+            filesystem_changes(before.path(), after.path(), &writes).unwrap(),
             BTreeMap::from([
                 ("added".into(), StepChange::Present),
                 ("kept/changed".into(), StepChange::Present),
