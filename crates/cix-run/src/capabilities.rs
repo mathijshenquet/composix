@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{bail, Context, Result};
 
 pub const PRIVATE_PIDS_PROBE_OVERRIDE: &str = "CIX_PRIVATE_PIDS_PROBE";
+pub const PRIVATE_DEVICES_PROBE_OVERRIDE: &str = "CIX_PRIVATE_DEVICES_PROBE";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Capability {
@@ -24,18 +25,30 @@ impl Capability {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostCapabilities {
     pub private_pids_with_persistent_directories: Capability,
+    pub user_private_devices: Capability,
 }
 
 impl HostCapabilities {
     pub fn all_supported() -> Self {
         Self {
             private_pids_with_persistent_directories: Capability::Supported,
+            user_private_devices: Capability::Supported,
         }
     }
 
     pub fn private_pids_with_persistent_directories_unsupported(reason: impl Into<String>) -> Self {
         Self {
             private_pids_with_persistent_directories: Capability::Unsupported {
+                reason: reason.into(),
+            },
+            user_private_devices: Capability::Supported,
+        }
+    }
+
+    pub fn user_private_devices_unsupported(reason: impl Into<String>) -> Self {
+        Self {
+            private_pids_with_persistent_directories: Capability::Supported,
+            user_private_devices: Capability::Unsupported {
                 reason: reason.into(),
             },
         }
@@ -71,6 +84,16 @@ impl HostCapabilities {
 
         realize_private_pids_probe(version)
     }
+
+    pub fn probe_user() -> Result<Self> {
+        if let Some(capabilities) = user_capabilities_from_override(
+            env::var(PRIVATE_DEVICES_PROBE_OVERRIDE).ok().as_deref(),
+        )? {
+            return Ok(capabilities);
+        }
+
+        realize_user_private_devices_probe()
+    }
 }
 
 fn capabilities_from_override(value: Option<&str>) -> Result<Option<HostCapabilities>> {
@@ -84,6 +107,19 @@ fn capabilities_from_override(value: Option<&str>) -> Result<Option<HostCapabili
         )),
         Some(value) => bail!(
             "{PRIVATE_PIDS_PROBE_OVERRIDE} must be auto, supported, or unsupported, not {value:?}"
+        ),
+    }
+}
+
+fn user_capabilities_from_override(value: Option<&str>) -> Result<Option<HostCapabilities>> {
+    match value {
+        None | Some("") | Some("auto") => Ok(None),
+        Some("supported") => Ok(Some(HostCapabilities::all_supported())),
+        Some("unsupported") => Ok(Some(HostCapabilities::user_private_devices_unsupported(
+            format!("forced unsupported by {PRIVATE_DEVICES_PROBE_OVERRIDE}"),
+        ))),
+        Some(value) => bail!(
+            "{PRIVATE_DEVICES_PROBE_OVERRIDE} must be auto, supported, or unsupported, not {value:?}"
         ),
     }
 }
@@ -103,10 +139,7 @@ fn parse_systemd_version(output: &str) -> Result<u32> {
 }
 
 fn realize_private_pids_probe(version: u32) -> Result<HostCapabilities> {
-    let shell = ["/bin/sh", "/run/current-system/sw/bin/sh"]
-        .into_iter()
-        .find(|path| std::path::Path::new(path).is_file())
-        .context("could not find /bin/sh for the PrivatePIDs capability probe")?;
+    let shell = probe_shell("PrivatePIDs")?;
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .context("system clock is before the Unix epoch")?
@@ -164,6 +197,71 @@ fn realize_private_pids_probe(version: u32) -> Result<HostCapabilities> {
     )
 }
 
+fn realize_user_private_devices_probe() -> Result<HostCapabilities> {
+    let shell = probe_shell("user-manager PrivateDevices")?;
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .context("system clock is before the Unix epoch")?
+        .as_nanos();
+    let unit = format!(
+        "cix-private-devices-probe-{}-{nonce}.service",
+        std::process::id()
+    );
+    let output = Command::new("systemd-run")
+        .args([
+            "--user",
+            "--quiet",
+            "--collect",
+            "--wait",
+            "--pipe",
+            "--service-type=exec",
+            "--unit",
+            &unit,
+            "--property",
+            "PrivateDevices=yes",
+            "--",
+            shell,
+            "-c",
+            "true",
+        ])
+        .output()
+        .context(
+            "failed to realize the user-manager PrivateDevices capability probe with systemd-run",
+        )?;
+
+    if output.status.success() {
+        return Ok(HostCapabilities::all_supported());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let probe_failure = format!("{stdout}\n{stderr}");
+    let lowered = probe_failure.to_ascii_lowercase();
+    if output.status.code() == Some(218)
+        || lowered.contains("privatedevices")
+        || lowered.contains("capabilities")
+        || lowered.contains("operation not permitted")
+        || lowered.contains("not supported")
+    {
+        return Ok(HostCapabilities::user_private_devices_unsupported(
+            "user manager failed the PrivateDevices=yes realization probe".to_owned(),
+        ));
+    }
+
+    bail!(
+        "user-manager PrivateDevices capability probe unit {unit} failed unexpectedly (status {}): {}",
+        output.status,
+        probe_failure.trim()
+    )
+}
+
+fn probe_shell(probe: &str) -> Result<&'static str> {
+    ["/bin/sh", "/run/current-system/sw/bin/sh"]
+        .into_iter()
+        .find(|path| std::path::Path::new(path).is_file())
+        .with_context(|| format!("could not find /bin/sh for the {probe} capability probe"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -182,6 +280,13 @@ mod tests {
             capabilities_from_override(Some("supported")).unwrap(),
             Some(HostCapabilities::all_supported())
         );
+        let unsupported = user_capabilities_from_override(Some("unsupported"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            unsupported.user_private_devices.unsupported_reason(),
+            Some("forced unsupported by CIX_PRIVATE_DEVICES_PROBE")
+        );
         let unsupported = capabilities_from_override(Some("unsupported"))
             .unwrap()
             .unwrap();
@@ -196,6 +301,10 @@ mod tests {
     #[test]
     fn probe_override_rejects_unknown_values() {
         assert!(capabilities_from_override(Some("maybe"))
+            .unwrap_err()
+            .to_string()
+            .contains("must be auto, supported, or unsupported"));
+        assert!(user_capabilities_from_override(Some("maybe"))
             .unwrap_err()
             .to_string()
             .contains("must be auto, supported, or unsupported"));

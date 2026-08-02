@@ -499,41 +499,56 @@ fn apply_host_capabilities(
         "ConfigurationDirectory",
     ];
 
-    if mode != UnitMode::System
-        || !properties
+    let mut degradations = Vec::new();
+
+    if mode == UnitMode::System
+        && properties
             .iter()
             .any(|(name, value)| name == "DynamicUser" && value == "yes")
-        || !properties
+        && properties
             .iter()
             .any(|(name, value)| name == "PrivatePIDs" && value == "yes")
-        || !properties
+        && properties
             .iter()
             .any(|(name, _)| PERSISTENT_DIRECTORIES.contains(&name.as_str()))
     {
-        return Vec::new();
-    }
-
-    let Some(reason) = capabilities
-        .private_pids_with_persistent_directories
-        .unsupported_reason()
-    else {
-        return Vec::new();
-    };
-    properties.retain(|(name, _)| name != "PrivatePIDs");
-    for (name, value) in properties.iter_mut() {
-        if matches!(
-            name.as_str(),
-            "StateDirectoryMode" | "CacheDirectoryMode" | "LogsDirectoryMode"
-        ) {
-            // Without PrivatePIDs, systemd cannot retain the managed directory's
-            // ID-mapped view. The private host backing still confines this view.
-            *value = "0733".into();
+        if let Some(reason) = capabilities
+            .private_pids_with_persistent_directories
+            .unsupported_reason()
+        {
+            properties.retain(|(name, _)| name != "PrivatePIDs");
+            for (name, value) in properties.iter_mut() {
+                if matches!(
+                    name.as_str(),
+                    "StateDirectoryMode" | "CacheDirectoryMode" | "LogsDirectoryMode"
+                ) {
+                    // Without PrivatePIDs, systemd cannot retain the managed directory's
+                    // ID-mapped view. The private host backing still confines this view.
+                    *value = "0733".into();
+                }
+            }
+            degradations.push(UnitDegradation {
+                property: "PrivatePIDs=yes".into(),
+                reason: reason.into(),
+            });
         }
     }
-    vec![UnitDegradation {
-        property: "PrivatePIDs=yes".into(),
-        reason: reason.into(),
-    }]
+
+    if mode == UnitMode::UserFull
+        && properties
+            .iter()
+            .any(|(name, value)| name == "PrivateDevices" && value == "yes")
+    {
+        if let Some(reason) = capabilities.user_private_devices.unsupported_reason() {
+            properties.retain(|(name, _)| name != "PrivateDevices");
+            degradations.push(UnitDegradation {
+                property: "PrivateDevices=yes".into(),
+                reason: reason.into(),
+            });
+        }
+    }
+
+    degradations
 }
 
 fn add_socket_bind_restrictions(
@@ -1107,6 +1122,33 @@ mod tests {
         assert!(compiled.text.contains("PrivatePIDs=yes"));
         assert!(compiled.text.contains("StateDirectoryMode=0700"));
         assert!(compiled.degradations.is_empty());
+    }
+
+    #[test]
+    fn unsupported_user_host_drops_private_devices_once() {
+        let (spec, config) = fixture();
+        let capabilities = HostCapabilities::user_private_devices_unsupported(
+            "synthetic user-manager realization failure",
+        );
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service(&spec),
+            &config,
+            UnitMode::UserFull,
+            &UnitCompileOptions::cix_run("web"),
+            &capabilities,
+        )
+        .unwrap();
+
+        assert!(!compiled.text.contains("PrivateDevices="));
+        assert_eq!(
+            compiled.degradations,
+            vec![UnitDegradation {
+                property: "PrivateDevices=yes".into(),
+                reason: "synthetic user-manager realization failure".into(),
+            }]
+        );
     }
 
     #[test]

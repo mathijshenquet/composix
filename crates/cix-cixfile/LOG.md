@@ -1195,3 +1195,64 @@
   adoption `d9077bc` and formatter implementation `7f99aa7`, track/fmt is
   complete. Worktree is clean; the temporary `/dev/shm/cixfmt-key.eCexDX`
   acceptance workspace and generated `devenv.lock` have been removed.
+- 2026-08-02T08:17:41Z — Started `.dev/specs/track-corpusweb.md` on
+  `track/corpusweb`. Read the current project journal, authoritative design
+  registry, complete track spec, and this crate journal. Scope is the corpus
+  fold, a sharpened open-gaps ledger, and a deterministic self-contained HTML
+  corpus browser generated beside (but independent of) the tour harness. The
+  concurrency fence excludes `docs/tour/` and `crates/cix-run`; both will stay
+  untouched. `crates/cix-cixfile/LOG.md` is tracked in this worktree despite
+  the shared ignored-log convention, so this task journal will remain
+  uncommitted. Next: inventory the corpus/ledger shape and existing generator
+  test conventions, then implement the fold and browser model.
+
+- 2026-08-02T08:43:00Z — Folded the isolated Renovate regrade into the
+  living `corpus/migrate/renovate` layout and removed `corpus/regrade/`.
+  Added SOURCE notes pinned to renovatebot/helm-charts revision
+  `f953571cd7d10fd301799192dbaf18c55bd1dad0`, the verbatim upstream CronJob
+  template, and a bounded check that covers the cix build, native calendar
+  parse, and compose validation without host activation; the existing timer,
+  run, and indexed-log receipt remains the stronger runtime proof. Added the
+  independent `crates/cix/tests/corpus.rs` generator and generated 21
+  self-contained pages (index + 20 cases), including Wallos's D4 `default.nix`
+  escape-hatch case. The first run caught an ambiguous receipt link in the new
+  four-column gap table; restricting ribbon extraction to the six-column
+  survey evidence cell fixed it. Exact focused pass: `devenv shell -- cargo
+  test -p cix --test corpus -- --ignored generate_corpus_browser --nocapture`.
+  Next: inspect the rendered artifacts and link/ribbon projections, run normal
+  drift/determinism plus the Renovate static check, then begin the full gate.
+
+- 2026-08-02T09:02:00Z — Focused review and all pre-flake gates are green.
+  Added a six-column living-corpus ledger for all 20 cases after the first HTML
+  review showed that 17 receipt-bearing migrations had no explicit wild-survey
+  ribbon; the generator now hard-fails when any cix-bearing case lacks a ledger
+  ribbon/evidence row. Case pages project that row's empirical summary as the
+  requested receipt-status line. Exact passes: Renovate `check.sh` (same locked
+  item, calendar parse, compose validation); `devenv shell -- cargo fmt --all
+  --check`; `devenv shell -- cargo run -- fmt --check examples`; warning-denied
+  workspace/all-target clippy after correcting one `write!` newline lint;
+  `devenv shell -- cargo test --workspace`; corpus regeneration plus normal
+  drift/determinism; tour regeneration, zero `docs/tour` diff, committed-tour
+  match, and deterministic-tour test. The staged fence contains neither
+  `docs/tour/` nor `crates/cix-run/`; only this LOG remains unstaged. Next: run
+  the required full `devenv shell -- nix flake check -L`, then final audit and
+  commit.
+
+- 2026-08-02T08:38:05Z — Required final gate and scope audit are green.
+  `devenv shell -- nix flake check -L` exited 0 across its complete 64-check
+  matrix, including `scenario-update-repin`, `scenario-observability`,
+  `scenario-devices`, `scenario-gc-survival`, `scenario-side-by-side`,
+  `compose-fallback-vm`, `scenario-lifecycle`, and `vm-dogfood`. Expected TCG
+  fallback and D36 PrivatePIDs probe messages did not fail the checks. Final
+  `git diff --cached --check`, `git diff --check`, and the committed-tour diff
+  are clean; no live `corpus/regrade` reference remains outside historical
+  logs/specs, and the staged fence still excludes `docs/tour/` and
+  `crates/cix-run/`. Next: commit the staged track deliverables while leaving
+  this required task journal unstaged.
+
+- 2026-08-02T08:38:30Z — Committed the complete corpusweb track as `2d1794e`
+  (`docs: add migration corpus browser`): Renovate's migration fold and proof,
+  the complete status/gap ledger, the independent deterministic corpus browser
+  generator and 21 generated pages, and documentation entry points. This
+  append-only task journal is the sole remaining worktree modification and is
+  intentionally uncommitted per the track instructions.

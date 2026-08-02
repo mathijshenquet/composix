@@ -2,13 +2,15 @@ use std::process::{self, ExitStatus};
 
 use anyhow::{anyhow, bail, Result};
 
+use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
 use crate::runtime::{
     capability_failure, current_uid, namespace_failure, nonce, resolve_service,
-    run_transient_foreground, with_unit_diagnostics, without_properties, ForegroundResult,
+    run_transient_foreground, warn_degradations, with_unit_diagnostics, without_properties,
+    without_user_capability_controls, ForegroundResult,
 };
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
-use crate::unit::{build_unit, UnitDefinition, UnitMode};
+use crate::unit::{build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode};
 
 pub struct DebugOptions {
     pub installable: String,
@@ -70,6 +72,11 @@ pub fn debug(options: DebugOptions) -> Result<()> {
     } else {
         UnitMode::System
     };
+    let capabilities = if options.user && !target.service.has_device_claim() {
+        HostCapabilities::probe_user()?
+    } else {
+        HostCapabilities::all_supported()
+    };
     let definition = debug_definition(
         &target.output,
         &target.name,
@@ -77,7 +84,9 @@ pub fn debug(options: DebugOptions) -> Result<()> {
         &config,
         mode,
         argv.clone(),
+        &capabilities,
     )?;
+    warn_degradations(&definition.degradations);
     if !options.user {
         let name = debug_name(&target.name);
         let result = run_attempt(name.clone(), false, &definition, interactive)?;
@@ -109,17 +118,9 @@ pub fn debug(options: DebugOptions) -> Result<()> {
     if capability_failure(&error) {
         eprintln!("warning: user manager rejected capability controls ({error:#})");
         eprintln!(
-            "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
+            "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, ProtectKernelLogs, and PrivateDevices"
         );
-        let without_capabilities = without_properties(
-            &definition,
-            &[
-                "AmbientCapabilities",
-                "CapabilityBoundingSet",
-                "ProtectKernelModules",
-                "ProtectKernelLogs",
-            ],
-        );
+        let without_capabilities = without_user_capability_controls(&definition);
         let (retry_status, retry_error) = failed_attempt(
             debug_name(&target.name),
             true,
@@ -158,6 +159,7 @@ fn run_degraded(
         config,
         UnitMode::UserDegraded,
         argv,
+        &HostCapabilities::all_supported(),
     )?;
     finish(run_attempt(debug_name(&target.name), true, &degraded, interactive)?.status)
 }
@@ -169,8 +171,17 @@ fn debug_definition(
     config: &ResolvedConfig,
     mode: UnitMode,
     argv: Vec<String>,
+    capabilities: &HostCapabilities,
 ) -> Result<UnitDefinition> {
-    let mut definition = build_unit(output, service_name, service, config, mode)?;
+    let mut definition = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &UnitCompileOptions::cix_run(service_name),
+        capabilities,
+    )?;
     definition.override_argv(argv);
     Ok(definition)
 }
@@ -215,6 +226,7 @@ mod tests {
     use std::path::Path;
 
     use crate::spec::Spec;
+    use crate::unit::build_unit;
 
     use super::*;
 
@@ -240,6 +252,7 @@ mod tests {
             &config,
             UnitMode::System,
             vec!["/bin/sh".into(), "-c".into(), "id".into()],
+            &HostCapabilities::all_supported(),
         )
         .unwrap();
 
@@ -277,6 +290,7 @@ mod tests {
             &config,
             UnitMode::System,
             vec![output.join("bin/app").to_string_lossy().into_owned()],
+            &HostCapabilities::all_supported(),
         )
         .unwrap();
 

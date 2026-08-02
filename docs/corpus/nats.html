@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nats — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / nats</nav>
+  <h1>nats</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build and monitoring health probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>FROM alpine:3.22
+
+ENV NATS_SERVER 2.12.14
+
+LABEL org.opencontainers.image.title=&quot;NATS Server&quot; \
+      org.opencontainers.image.description=&quot;NATS is an open-source, high-performance, cloud native messaging system.&quot; \
+      org.opencontainers.image.url=&quot;https://nats.io&quot; \
+      org.opencontainers.image.documentation=&quot;https://docs.nats.io&quot; \
+      org.opencontainers.image.source=&quot;https://github.com/nats-io/nats-docker&quot; \
+      org.opencontainers.image.vendor=&quot;NATS.io&quot; \
+      org.opencontainers.image.licenses=&quot;Apache-2.0&quot; \
+      org.opencontainers.image.version=&quot;${NATS_SERVER}&quot;
+
+RUN set -eux; \
+    apkArch=&quot;$(apk --print-arch)&quot;; \
+    case &quot;$apkArch&quot; in \
+    aarch64) natsArch=&#39;arm64&#39;; sha256=&#39;5c7f50a6c14883a04475c6e6ed54b2091b0fa00c7022c10e21d395fdfc5a211d&#39; ;; \
+    armhf) natsArch=&#39;arm6&#39;; sha256=&#39;48860fe19256e926b7e2f68ad0e151ab2131c0fcd4b94acdca76485f4e6a99b7&#39; ;; \
+    armv7) natsArch=&#39;arm7&#39;; sha256=&#39;acbb66deccb4df5ac4a8c7503cd81335452c8265946d05b0ad47fd6991a81698&#39; ;; \
+    x86_64) natsArch=&#39;amd64&#39;; sha256=&#39;84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa&#39; ;; \
+    x86) natsArch=&#39;386&#39;; sha256=&#39;e1bd6e8df589757c0822f2668e8da29ce9a3deabc7d1c1c9cafdfe283192e6e7&#39; ;; \
+    s390x) natsArch=&#39;s390x&#39;; sha256=&#39;65bbbd07a96b7cc5b51ee2263025f02c5d4e37c7a0d714e16b00042cb14e2966&#39; ;; \
+    ppc64le) natsArch=&#39;ppc64le&#39;; sha256=&#39;404fed33fb94dc6b29b8212434e547c54b501b94541977596c87b8a47cdad890&#39; ;; \
+    loong64) natsArch=&#39;loong64&#39;; sha256=&#39;97f70d8d6ce99fdd8ed26738bf109dd8d7cf2dd16a9745ac5f78d5ae80d32aea&#39; ;; \
+    *) echo &gt;&amp;2 &quot;error: $apkArch is not supported!&quot;; exit 1 ;; \
+    esac; \
+    \
+    wget -O nats-server.tar.gz &quot;https://github.com/nats-io/nats-server/releases/download/v${NATS_SERVER}/nats-server-v${NATS_SERVER}-linux-${natsArch}.tar.gz&quot;; \
+    echo &quot;${sha256} *nats-server.tar.gz&quot; | sha256sum -c -; \
+    \
+    apk add --no-cache ca-certificates tzdata; \
+    \
+    tar -xf nats-server.tar.gz; \
+    rm nats-server.tar.gz; \
+    mv &quot;nats-server-v${NATS_SERVER}-linux-${natsArch}/nats-server&quot; /usr/local/bin; \
+    rm -rf &quot;nats-server-v${NATS_SERVER}-linux-${natsArch}&quot;;
+
+COPY nats-server.conf /etc/nats/nats-server.conf
+COPY docker-entrypoint.sh /usr/local/bin
+
+EXPOSE 4222 8222 6222
+ENTRYPOINT [&quot;docker-entrypoint.sh&quot;]
+CMD [&quot;nats-server&quot;, &quot;--config&quot;, &quot;/etc/nats/nats-server.conf&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nats
+  LINK ${pkgs.nats-server}/bin/nats-server /bin/nats-server
+  START nats-server -m 8222
+  PORT client = 4222
+  PORT monitor = 8222
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/nats</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

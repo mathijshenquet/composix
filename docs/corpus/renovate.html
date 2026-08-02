@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>renovate — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / renovate</nav>
+  <h1>renovate</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 schedule/logging pass; credentials await CIP-81 implementation · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix timer activation, execution, and indexed logs pass; token/config delivery is unconverted · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>upstream-cronjob.yaml</h3>
+        <pre><code>{{- $configFileName := &quot;config.json&quot; }}
+{{- if .Values.renovate.configIsJavaScript }}
+  {{- $configFileName = &quot;config.js&quot; }}
+{{- else if .Values.renovate.configIsJson5 }}
+  {{- $configFileName = &quot;config.json5&quot; }}
+{{- end }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include &quot;renovate.fullname&quot; . }}
+  namespace: {{ include &quot;renovate.namespace&quot; . }}
+  labels:
+    {{- include &quot;renovate.labels&quot; . | nindent 4 }}
+  {{- with .Values.cronjob.labels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- if .Values.cronjob.annotations }}
+  annotations:
+    {{- toYaml .Values.cronjob.annotations | nindent 4 }}
+{{- end }}
+spec:
+  schedule: &quot;{{ .Values.cronjob.schedule }}&quot;
+  {{- with .Values.cronjob.timeZone }}
+  timeZone: {{ . }}
+  {{- end }}
+  {{- with .Values.cronjob.suspend }}
+  suspend: {{ . }}
+  {{- end }}
+  {{- with .Values.cronjob.concurrencyPolicy }}
+  concurrencyPolicy: {{ . }}
+  {{- end }}
+  {{- with .Values.cronjob.failedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with .Values.cronjob.successfulJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with .Values.cronjob.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
+  jobTemplate:
+    metadata:
+      labels:
+        {{- include &quot;renovate.selectorLabels&quot; . | nindent 8 }}
+    spec:
+      {{- with .Values.cronjob.completions }}
+      completions: {{ . }}
+      {{- end }}
+      {{- with .Values.cronjob.completionMode }}
+      completionMode: {{ . }}
+      {{- end }}
+      {{- with .Values.cronjob.parallelism}}
+      parallelism: {{ . }}
+      {{- end }}
+      {{- if .Values.cronjob.ttlSecondsAfterFinished }}
+      ttlSecondsAfterFinished: {{ .Values.cronjob.ttlSecondsAfterFinished }}
+      {{- end }}
+      {{- if .Values.cronjob.activeDeadlineSeconds }}
+      activeDeadlineSeconds: {{ .Values.cronjob.activeDeadlineSeconds }}
+      {{- end }}
+      {{- if .Values.cronjob.jobBackoffLimit }}
+      backoffLimit: {{ .Values.cronjob.jobBackoffLimit }}
+      {{- end }}
+      {{- with .Values.cronjob.backoffLimitPerIndex }}
+      backoffLimitPerIndex: {{ . }}
+      {{- end }}
+      {{- with .Values.cronjob.maxFailedIndexes }}
+      maxFailedIndexes: {{ . }}
+      {{- end }}
+      template:
+        metadata:
+          labels:
+            {{- include &quot;renovate.selectorLabels&quot; . | nindent 12 }}
+          {{- with .Values.pod.labels }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.pod.annotations }}
+          annotations:
+            {{- toYaml .Values.pod.annotations | nindent 12 }}
+        {{- end }}
+        spec:
+          serviceAccountName: {{ include &quot;renovate.serviceAccountName&quot; . }}
+          restartPolicy: {{ .Values.cronjob.jobRestartPolicy }}
+        {{- with .Values.hostAliases }}
+          hostAliases:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.dnsPolicy }}
+          dnsPolicy: {{ . }}
+        {{- end }}
+        {{- with .Values.dnsConfig }}
+          dnsConfig:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          {{- if or .Values.cronjob.initContainers .Values.ssh_config.enabled }}
+          initContainers:
+            {{- if .Values.ssh_config.enabled }}
+            # Setting ownership on files from mounted secrets is not supported by K8s.
+            # See https://github.com/kubernetes/kubernetes/issues/81089.
+            # So we need to copy the files to an empty-dir mount and change the ownership of those files afterwards.
+            - name: ssh-init
+              image: &quot;{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.useFull | ternary (printf &quot;%s-full&quot; .Values.image.tag) .Values.image.tag }}&quot;
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: [&quot;/bin/bash&quot;, &quot;-c&quot;]
+              args:
+                - |
+                  cp /ssh-secret-volume/* /home/ubuntu/.ssh
+                  chown -R ubuntu:ubuntu /home/ubuntu/.ssh/*
+                  chmod 600 /home/ubuntu/.ssh/*
+              volumeMounts:
+                - name: ssh-config-volume
+                  mountPath: /home/ubuntu/.ssh
+                - name: ssh-secret-volume
+                  mountPath: /ssh-secret-volume
+                  readOnly: true
+              {{- if .Values.renovate.securityContext }}
+              securityContext:
+                {{- include &quot;common.compatibility.renderSecurityContext&quot; (dict &quot;secContext&quot; .Values.renovate.securityContext &quot;context&quot; $) | nindent 16 }}
+              {{- end }}
+            {{- end }}
+            {{- if .Values.cronjob.initContainers }}
+            {{- toYaml .Values.cronjob.initContainers | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          containers:
+            - name: {{ .Chart.Name }}
+              image: &quot;{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.useFull | ternary (printf &quot;%s-full&quot; .Values.image.tag) .Values.image.tag }}&quot;
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              {{- if or .Values.cronjob.commandOverride .Values.cronjob.argsOverride }}
+              {{- if .Values.cronjob.commandOverride }}
+              command:
+                {{- toYaml .Values.cronjob.commandOverride | nindent 16 }}
+              {{- end }}
+              {{- if .Values.cronjob.argsOverride }}
+              args:
+                {{- toYaml .Values.cronjob.argsOverride | nindent 16 }}
+              {{- end }}
+              {{- else if or .Values.cronjob.preCommand .Values.cronjob.postCommand }}
+              command: [&quot;/bin/bash&quot;, &quot;-c&quot;]
+              args:
+                - |
+                  set -e;
+                {{- if .Values.cronjob.preCommand }}
+                  {{- .Values.cronjob.preCommand | nindent 18 }}
+                {{- end }}
+                  renovate
+                {{- if .Values.cronjob.postCommand }}
+                  {{- .Values.cronjob.postCommand | nindent 18 }}
+                {{- end }}
+              {{- end }}
+              {{- if or .Values.renovate.config .Values.ssh_config.enabled .Values.renovate.persistence.cache.enabled .Values.extraVolumeMounts }}
+              volumeMounts:
+              {{- if .Values.renovate.config }}
+                - name: config-volume
+                  mountPath: /usr/src/app/{{ $configFileName }}
+                  subPath: {{ $configFileName }}
+              {{- end }}
+              {{- if .Values.ssh_config.enabled }}
+                - name: ssh-config-volume
+                  mountPath: /home/ubuntu/.ssh
+                  readOnly: true
+              {{- end }}
+              {{- if .Values.extraVolumeMounts }}
+                {{- toYaml .Values.extraVolumeMounts | nindent 16 }}
+              {{- end }}
+              {{- if .Values.renovate.persistence.cache.enabled }}
+                - name: {{ include &quot;renovate.fullname&quot; . }}-cache
+                  mountPath: /tmp/renovate
+              {{- end }}
+              {{- end }}
+              env:
+                {{- if .Values.renovate.existingConfigFile }}
+                - name: RENOVATE_CONFIG_FILE
+                  value: {{ .Values.renovate.existingConfigFile }}
+                {{- else if .Values.renovate.config }}
+                - name: RENOVATE_CONFIG_FILE
+                  value: /usr/src/app/{{ $configFileName }}
+                {{- end }}
+                {{- range $k, $v := .Values.env }}
+                - name: {{ $k | quote }}
+                  value: {{ $v | quote }}
+                {{- end }}
+                {{- with .Values.envList }}
+                  {{- toYaml . | nindent 16 }}
+                {{- end }}
+              envFrom:
+                {{- if or .Values.secrets .Values.existingSecret }}
+                - secretRef:
+                    name: {{ template &quot;renovate.secretName&quot; . }}
+                {{- end }}
+                {{- with .Values.envFrom }}
+                  {{- toYaml . | nindent 16 }}
+                {{- end }}
+            {{- if .Values.renovate.securityContext }}
+              securityContext:
+                {{- include &quot;common.compatibility.renderSecurityContext&quot; (dict &quot;secContext&quot; .Values.renovate.securityContext &quot;context&quot; $) | nindent 16 }}
+            {{- end }}
+            {{- with .Values.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+            {{- end }}
+          {{- with .Values.extraContainers }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
+          {{- end }}
+          volumes:
+            {{- if .Values.renovate.config }}
+              {{- if .Values.renovate.configIsSecret }}
+            - name: config-volume
+              secret:
+                secretName: {{ include &quot;renovate.fullname&quot; . }}-config
+              {{- else }}
+            - name: config-volume
+              configMap:
+                name: {{ include &quot;renovate.fullname&quot; . }}-config
+              {{- end }}
+            {{- end }}
+            {{- if .Values.renovate.persistence.cache.enabled }}
+            - name: {{ include &quot;renovate.fullname&quot; . }}-cache
+              persistentVolumeClaim:
+                claimName: {{ include &quot;renovate.fullname&quot; . }}-cache
+            {{- end }}
+            {{- if .Values.ssh_config.enabled }}
+            - name: ssh-config-volume
+              emptyDir:
+                medium: Memory
+            - name: ssh-secret-volume
+              secret:
+                secretName: {{ include &quot;renovate.sshSecretName&quot; .}}
+            {{- end }}
+            {{- if .Values.extraVolumes }}
+              {{- toYaml .Values.extraVolumes | nindent 12 }}
+            {{- end }}
+        {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- if or .Values.securityContext .Values.renovate.persistence.cache.enabled }}
+          {{- $securityDict := .Values.securityContext }}
+
+          {{- if and .Values.renovate.persistence.cache.enabled (not .Values.securityContext.fsGroup) }}
+            {{- $securityDict = merge $securityDict (dict &quot;fsGroup&quot; 1000) }}
+          {{- end }}
+          securityContext:
+            {{- if not (empty $securityDict) }}
+              {{- include &quot;common.compatibility.renderSecurityContext&quot; (dict &quot;secContext&quot; $securityDict &quot;context&quot; $) | nindent 12 }}
+            {{ end }}
+        {{- end }}
+        {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+APP renovate
+  START ${pkgs.renovate}/bin/renovate --version
+  CLAIM jit
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>compose.json</h3>
+        <pre><code>{
+  &quot;composeVersion&quot;: 1,
+  &quot;name&quot;: &quot;corpus-renovate&quot;,
+  &quot;services&quot;: {
+    &quot;renovate&quot;: {
+      &quot;item&quot;: &quot;renovate:regrade&quot;,
+      &quot;schedule&quot;: &quot;daily&quot;,
+      &quot;persistent&quot;: true
+    }
+  }
+}
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/renovate</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

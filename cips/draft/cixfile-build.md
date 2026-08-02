@@ -3,14 +3,14 @@
 > **Superseded by D39–D41, D47, and D50.** `BUILD rust`, `STAGE`, `OUTPUT`, and the
 > engine-specific multi-output/service model below were not implemented. Cixfile now uses
 > named `BUILDER` blocks and explicit `SERVICE`/`APP` artifacts connected by binders,
-> documented in [The Cixfile](../../cixfile.md). This page remains as decision-record context.
+> documented in [The Cixfile](../../docs/cixfile.md). This page remains as decision-record context.
 
 *Status: superseded draft (pre-CIP exploration, filed here per the CIP README's
 rule that refused/superseded drafts are records). Syntax on this page was
 proposed Cixfile v2 syntax; none of it shipped.*
 
 The useful test is not whether a BUILD syntax can compile one hello world. It is whether one
-file can preserve the build shape in [`examples/build/proj1`](../../../examples/build/proj1/):
+file can preserve the build shape in [`examples/build/proj1`](../../examples/build/proj1/):
 
 - one Cargo workspace with a shared internal library and three binary outputs;
 - one dependency build reused by all three binary builds;

@@ -416,7 +416,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   config is program output, not a document). The k8s lesson re-read: machine-format manifests
   were right, leaving generation to text templating (Helm) was the mistake — we bless
   generation-as-code from day one and the data format never grows a template feature.
-  `docs/cips/draft/compose-syntax.md` stands as the encoding archive: TOML (its recommendation) and the
+  `cips/draft/compose-syntax.md` stands as the encoding archive: TOML (its recommendation) and the
   Cixfile-DSL become *candidate sugar encodings*, evidence-gated on people actually
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
@@ -718,7 +718,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   fully disjoint. The **host root is the same format in a mutable file** (+ lock), and
   day-two CLI verbs are structured edits of that file (the D28 machine-format payoff);
   only the root must live on the host, every subtree may be a ref. Full story:
-  CIP-85 (docs/cips/0085-compose-tree.md; consolidates D40–D46).
+  CIP-85 (cips/accepted/0085-compose-tree.md; consolidates D40–D46).
 - ✅ D43 (2026-07-30) — **pod-ness is a scoped property, not a stratum.** `network: "pod"`
   on any composite claims one netns for its subtree; **nearest-pod-ancestor** decides
   each service's namespace (pod-in-pod legal; embedding never strips a sealed artifact's
@@ -841,7 +841,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   serving on hook failure), is deferred until the native shape proves insufficient.
 
 - ✅ D49 (2026-07-30) — **netns-round resolutions** (Mathijs's read of
-  the netns paper, now CIP-86 at docs/cips/0086-netns.md; closes that
+  the netns paper, now CIP-86 at cips/accepted/0086-netns.md; closes that
   paper's open decisions):
   (a) **Egress is a leaf/manifest property with a compose-level per-child override**
   (`egress: true|false`), because capability need is app knowledge but *usage* is

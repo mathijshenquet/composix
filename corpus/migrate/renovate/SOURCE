@@ -1,0 +1,7 @@
+Upstream CronJob template: https://raw.githubusercontent.com/renovatebot/helm-charts/f953571cd7d10fd301799192dbaf18c55bd1dad0/charts/renovate/templates/cronjob.yaml
+Repository: https://github.com/renovatebot/helm-charts.git
+Revision: f953571cd7d10fd301799192dbaf18c55bd1dad0 (main on 2026-08-02)
+
+The checked-in upstream-cronjob.yaml is the verbatim Helm template at that revision.
+This is deliberately a narrow schedule/logging migration; Renovate repository
+configuration and credential delivery remain outside the receipt's claim.
