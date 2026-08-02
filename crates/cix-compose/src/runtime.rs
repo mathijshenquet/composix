@@ -189,6 +189,24 @@ fn activate_generation(name: &str, old: Option<&Path>, new: &Path) -> Result<()>
             systemctl(&arguments)?;
         }
     }
+
+    let statuses = new_manifest
+        .units
+        .iter()
+        .filter(|(_, manifest)| manifest.kind == UnitKind::Service && !manifest.scheduled)
+        .map(|(unit, _)| unit)
+        .map(|unit| systemctl_is_failed(unit).map(|failed| (unit, failed)))
+        .collect::<Result<Vec<_>>>()?;
+    let failed = statuses
+        .into_iter()
+        .filter_map(|(unit, failed)| failed.then_some(unit))
+        .collect::<Vec<_>>();
+    if !failed.is_empty() {
+        bail!(
+            "cix up failed because these units failed during activation: {}",
+            failed.into_iter().cloned().collect::<Vec<_>>().join(" ")
+        );
+    }
     Ok(())
 }
 
@@ -411,6 +429,14 @@ fn systemctl_is_active(unit: &str) -> Result<bool> {
         .args(["is-active", "--quiet", unit])
         .output()
         .context("invoking systemctl is-active")?;
+    Ok(output.status.success())
+}
+
+fn systemctl_is_failed(unit: &str) -> Result<bool> {
+    let output = Command::new("systemctl")
+        .args(["is-failed", "--quiet", unit])
+        .output()
+        .context("invoking systemctl is-failed")?;
     Ok(output.status.success())
 }
 

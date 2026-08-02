@@ -234,6 +234,8 @@ pub struct Service {
     pub env: BTreeMap<String, Env>,
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
+    pub readiness: Option<Readiness>,
+    pub liveness: Option<Liveness>,
     pub dirs: Dirs,
     pub claims: BTreeSet<Claim>,
     pub shm: Option<String>,
@@ -243,6 +245,25 @@ pub struct Service {
 pub enum Claim {
     Named(String),
     Device(String),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Readiness {
+    pub probe: Probe,
+    pub timeout: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Liveness {
+    pub probe: Probe,
+    pub interval: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Probe {
+    Http(String),
+    Tcp(String),
+    Notify,
 }
 
 impl Service {
@@ -255,6 +276,8 @@ impl Service {
             env: BTreeMap::new(),
             ports: BTreeMap::new(),
             listeners: BTreeSet::new(),
+            readiness: None,
+            liveness: None,
             dirs: Dirs::default(),
             claims: BTreeSet::new(),
             shm: None,

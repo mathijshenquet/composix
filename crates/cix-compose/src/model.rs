@@ -227,6 +227,37 @@ mod tests {
     }
 
     #[test]
+    fn health_condition_vocabulary_is_rejected_everywhere_on_edges() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        for (fragment, expected_path) in [
+            (
+                r#""condition":"service_healthy","producer":{"service":"db","path":"/run/db"},"consumers":{"web":{}}"#,
+                "edges.database.condition",
+            ),
+            (
+                r#""producer":{"service":"db","path":"/run/db","health":"ready"},"consumers":{"web":{}}"#,
+                "edges.database.producer.health",
+            ),
+            (
+                r#""producer":{"service":"db","path":"/run/db"},"consumers":{"web":{"condition":"service_healthy"}}"#,
+                "edges.database.consumers.web.condition",
+            ),
+        ] {
+            fs::write(
+                &path,
+                format!(
+                    r#"{{"composeVersion":1,"name":"x","services":{{"db":{{"item":"db:v1"}},"web":{{"item":"web:v1"}}}},"edges":{{"database":{{{fragment}}}}}}}"#
+                ),
+            )
+            .unwrap();
+            let error = Compose::load(&path).unwrap_err().to_string();
+            assert!(error.contains(expected_path), "{fragment}: {error}");
+            assert!(error.contains("unknown field"), "{fragment}: {error}");
+        }
+    }
+
+    #[test]
     fn rejects_unknown_lock_fields_with_a_path() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("cix.lock");

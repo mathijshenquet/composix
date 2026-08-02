@@ -21,5 +21,5 @@ pub use lock::{
 };
 pub use model::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
-    Input, InputKind, Port, Service, Template, TemplatePart,
+    Input, InputKind, Liveness, Port, Probe, Readiness, Service, Template, TemplatePart,
 };

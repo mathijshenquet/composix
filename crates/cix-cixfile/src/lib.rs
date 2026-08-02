@@ -13,7 +13,7 @@ pub use cix_build::{
 };
 pub use cix_build::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
-    Input, InputKind, Port, Service, Template, TemplatePart,
+    Input, InputKind, Liveness, Port, Probe, Readiness, Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};
 pub use watch::watch;

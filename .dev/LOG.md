@@ -1,5 +1,23 @@
 # composix work log
 
+## 2026-08-02 health track complete (CIP-79)
+
+- **Completed on `track/health`**: strict READINESS/LIVENESS manifest and
+  Cixfile vocabulary; native notify/http/tcp readiness adapters and watchdog
+  liveness pinger; bounded rollout failures; opt-in restart limits; structural
+  compose ordering without health-conditioned graph semantics; and explicit
+  rejection of removed v0 `health { exec, interval }` input.
+- **Proof**: focused Rust, formatter, clippy, tour, and health-VM gates passed;
+  the required final `devenv shell -- nix flake check -L` passed all 67 checks,
+  including `scenario-health` under the full parallel VM load.
+- **Ledgers**: updated cixfile, Docker-gap, corpus, migration, open-question,
+  and generated-tour documentation to reflect the delivered CIP-79 boundary.
+- **Decisions**: implemented adopted CIP-79 without a design amendment; health
+  remains service-local, while compose health-condition edges stay refused.
+- **Open with Mathijs**: none for this track.
+- **Open for agents**: independently re-run the full gate, then merge
+  `track/health`.
+
 ## 2026-08-02 night (CIPs 82–84 adopted; dirs leg 1 landed after a caught fix round)
 
 - **Adopted**: CIP-82 dirs (claims model — every dir declaration is a

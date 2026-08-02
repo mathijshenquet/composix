@@ -43,6 +43,16 @@
     "bin/app",
     "$PORT"
   ],
+  "readiness": {
+    "target": ":9000/healthz",
+    "timeout": "90s",
+    "type": "http"
+  },
+  "liveness": {
+    "interval": "10s",
+    "target": ":9000",
+    "type": "tcp"
+  },
   "claims": [
     "jit"
   ],

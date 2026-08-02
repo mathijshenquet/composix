@@ -60,15 +60,15 @@ case in the [side-by-side browser](corpus/index.html).
 | 3 | [flask-redis](https://raw.githubusercontent.com/docker/awesome-compose/master/flask-redis/compose.yaml) | build: + live source bind (dev loop) | 🔶 D47 build + `cix watch` warm rebuild/restart are built; source sync is deliberately refused, so framework hot reload stays in `nix develop` | M | desk |
 | 4 | [react-express-mongodb](https://raw.githubusercontent.com/docker/awesome-compose/master/react-express-mongodb/compose.yaml) | 2 networks (frontend can't see db), anon-volume masking node_modules | segmentation ⏳ D26/D27; volume-masking ❌ idiom (restructure honestly) | M | desk |
 | 5 | [Gitea](https://docs.gitea.com/installation/install-with-docker) | 1 svc, data dir, ports incl. SSH 222:22 | ✅ private state dir + declared ports | S | desk |
-| 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | ordering ✅; READINESS/LIVENESS ⏳ CIP-79 implementation; init ceremony dissolves under systemd | S | desk |
-| 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | binds ⏳ compose operator-binds; `SHM` ✅; GPU 🔶 `CLAIM gpu` proves unit properties only, not Immich/NVIDIA app integration | M | desk |
+| 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | 🔁 HTTP/TCP `READINESS`/`LIVENESS` and structural readiness ordering are built; the separate condition graph is deliberately ❌; init ceremony dissolves under systemd | S | desk |
+| 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | 🔶 native HTTP/TCP probes and `SHM` are built; binds await compose operator materialization, and `CLAIM gpu` proves unit properties only—not Immich/NVIDIA integration | M | desk |
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | ⏳ `DIR /consume` is declarable; compose `host:` materialization remains queued; variants ≈ D46 parametric | M | desk |
-| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 `CLAIM egress` is built; CIP-82 `shared:` and CIP-79 readiness are decided but queued; segmentation remains D26/D27 | M | desk |
+| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 `CLAIM egress` and readiness/liveness probes are built; the health DAG is deliberately ❌, while CIP-82 `shared:` materialization and D26/D27 segmentation remain | M | desk |
 | 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | anchors ✅ moot (JSON canonical, D28); CIP-82 `shared:` is decided but compose materialization is queued | M | desk |
 | 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | 🔶 `START_PRE` maps the setup chain; `LimitNOFILE` is native systemd operator policy but has no compose field | S | desk |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M | desk |
 | 13 | [Pi-hole](https://raw.githubusercontent.com/pi-hole/docker-pi-hole/master/README.md) | cap NET_ADMIN/SYS_TIME/SYS_NICE, port 53, DHCP/NTP | 🔶 port declaration works, but those raw capabilities and host mutations require explicit operator policy; no native semantic claim yet | M | desk |
-| 14 | [Supabase](https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml) | 12-svc health-conditioned DAG, 20+ binds, :z flags | ⏳ structural stack exists; CIP-79 probes and CIP-82 host materializations are queued; `:z` is SELinux/operator policy | L | desk |
+| 14 | [Supabase](https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml) | 12-svc health-conditioned DAG, 20+ binds, :z flags | 🔶 native probes and structural readiness ordering are built, while the condition graph is deliberately ❌; CIP-82 host materialization remains queued and `:z` is SELinux/operator policy | L | desk |
 | 15 | [Sentry self-hosted](https://raw.githubusercontent.com/getsentry/self-hosted/master/docker-compose.yml) | ~60 svcs, profiles, external volumes, installer-driven | profiles ≈ D46 parametric ⏳; compose-as-installer-backend ❌-leaning honest | XL | desk |
 | 16 | [Nextcloud AIO](https://raw.githubusercontent.com/nextcloud/all-in-one/main/compose.yaml) | mastercontainer spawns ~10 siblings via docker.sock | ❌ — the file describes 10% of the deployment; competing orchestration model | — | desk |
 | 17 | [Frigate](https://docs.frigate.video/frigate/installation) | privileged, 5 device passthroughs, sized tmpfs, shm | devices 🔶 `CLAIM device` + closed `DevicePolicy=` dogfooded on a VM node, no privileged widening; `SHM` ✅; not a full Frigate app verification | L | desk |
@@ -79,8 +79,8 @@ healthchecks 10 + condition-gated depends_on 6, .env/interpolation ~6, named net
 (multi-net 2, internal:true 1), shm_size 5, docker.sock 3, privileged 2, compose
 `secrets:` **0**, `deploy/replicas` **0**. The wild ignores the features docker-compose
 has on paper (secrets, replicas — validating D30's deferrals) and leans hard on the ones
-now explicitly designed but have not finished implementing (CIP-79 health and
-CIP-82 operator materialization).
+whose design now has implementation behind it (CIP-79 health), plus the still-unfinished
+CIP-82 operator materialization.
 
 ## 2. Kubernetes shapes in the wild (15)
 
@@ -145,29 +145,30 @@ corpus rows still lack the implementation.
 
 | Rank | Demand | Status | Rows blocked or proving it |
 |---:|---|---|---|
-| 1 | Health wiring | **Designed—unbuilt ([CIP-79](cips/0079-health.html))** | Compose 6, 7, 9, 14; Kubernetes 2, 10 |
-| 2 | Operator host-binds | **Designed—unbuilt ([CIP-82](cips/0082-dirs.html), compose materialization)** | Compose 2, 7, 8, 14; Kubernetes 8 |
-| 3 | Shared-rw directories | **Designed—unbuilt ([CIP-82](cips/0082-dirs.html), compose materialization)** | Compose 9, 10 |
-| 4 | Timers / CronJob | **Met ([CIP-75](cips/0075-timers.html))** | Kubernetes 11; [Renovate receipt](../corpus/migrate/renovate/receipt.md) |
-| 5 | Operational logs | **Met ([CIP-83](cips/0083-observability.html))** | Dockerfile 3; Kubernetes 11 |
-| 6 | Artifact dev loop | **Met; source sync refused ([CIP-76](cips/0076-devloop.html))** | Compose 3 |
-| 7 | Migrate-on-upgrade hook | **Designed—unbuilt ([CIP-75](cips/0075-timers.html), event-driven D48f leg)** | Compose 11; Kubernetes 12, 13 |
-| 8 | Network segmentation and talks-to | **Designed—unbuilt ([CIP-86](cips/0086-netns.html))** | Compose 4, 9; Kubernetes 2, 5, 10 |
-| 9 | Profiles and variants | **Designed—unbuilt ([CIP-85](cips/0085-compose-tree.html), D46 family surface)** | Compose 8, 15; Dockerfile 7, 12, 13, 15 |
-| 10 | Build and runtime secrets | **Designed—unbuilt ([CIP-81](cips/0081-secrets.html))** | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
+| 1 | Health wiring | **Met ([CIP-79](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0079-health.md))** | Compose 6, 7, 9, 14; Kubernetes 2, 10 — the health VM scenario proves rollout gating, structural readiness ordering, and watchdog restart/recovery |
+| 2 | Operator host-binds | **Designed—unbuilt ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md), compose materialization)** | Compose 2, 7, 8, 14; Kubernetes 8 |
+| 3 | Shared-rw directories | **Designed—unbuilt ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md), compose materialization)** | Compose 9, 10 |
+| 4 | Timers / CronJob | **Met ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md))** | Kubernetes 11; [Renovate receipt](../corpus/migrate/renovate/receipt.md) |
+| 5 | Operational logs | **Met ([CIP-83](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0083-observability.md))** | Dockerfile 3; Kubernetes 11 |
+| 6 | Artifact dev loop | **Met; source sync refused ([CIP-76](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0076-devloop.md))** | Compose 3 |
+| 7 | Migrate-on-upgrade hook | **Designed—unbuilt ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md), event-driven D48f leg)** | Compose 11; Kubernetes 12, 13 |
+| 8 | Network segmentation and talks-to | **Designed—unbuilt ([CIP-86](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0086-netns.md))** | Compose 4, 9; Kubernetes 2, 5, 10 |
+| 9 | Profiles and variants | **Designed—unbuilt ([CIP-85](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0085-compose-tree.md), D46 family surface)** | Compose 8, 15; Dockerfile 7, 12, 13, 15 |
+| 10 | Build and runtime secrets | **Designed—unbuilt ([CIP-81](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0081-secrets.md))** | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
 | 11 | Competing control planes and mutable overlay roots | **Refused** | Compose 12, 16; Kubernetes 9, 14; Dockerfile 16 |
 
 The met rows have deliberate boundaries: timers accept native `OnCalendar`
 rather than translating cron; logs stay in journald; `cix watch` always runs a
-real rebuilt artifact. The refused class is equally deliberate: Docker-socket
+real rebuilt artifact; health probes are native notify/watchdog wiring and the
+condition graph stays deliberately refused. The refused class is equally deliberate: Docker-socket
 orchestration, API-watching controllers, injection meshes, and runtime-mutating
 webroots are other control planes or filesystem models, not missing emulation.
 
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
 - **Mastodon-shaped stack** remains the top integration candidate after CIP-79/82:
-  it now validates two queued implementations (`READINESS` and `shared:`) plus
-  network segmentation instead of forcing an unsettled directory design.
+  readiness is now built, so it would validate queued `shared:` materialization plus
+  network segmentation instead of forcing an unsettled health design.
 - **Paperless-shaped ingest** is the smallest clean CIP-82 leg-2 gate: one writable
   operator watch-dir, one private state dir, and an observable import result.
 - **Immich-shaped** is deferred to the in-flight CIP-78 devices track; it remains the

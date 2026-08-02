@@ -96,12 +96,13 @@ $ cix inspect my-app:v1
     },
     "egress": false,
     "env": {},
-    "health": null,
     "jit": null,
     "listeners": {},
+    "liveness": null,
     "mounts": null,
     "network": null,
     "ports": {},
+    "readiness": null,
     "shm": null,
     "start": [
       "message"

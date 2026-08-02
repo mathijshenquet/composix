@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, InputKind, InputLock, LockFile,
-    Port, Service, Template, TemplatePart,
+    Port, Probe, Service, Template, TemplatePart,
 };
 
 fn bare_command(arguments: &[Template]) -> Option<String> {
@@ -616,6 +616,20 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
         }
         output.push_str(" };");
     }
+    if let Some(readiness) = &service.readiness {
+        write!(
+            output,
+            " readiness = {};",
+            nix_probe(&readiness.probe, "timeout", &readiness.timeout)
+        )?;
+    }
+    if let Some(liveness) = &service.liveness {
+        write!(
+            output,
+            " liveness = {};",
+            nix_probe(&liveness.probe, "interval", &liveness.interval)
+        )?;
+    }
     if let Some(dirs) = nix_dirs(service) {
         write!(output, " dirs = {dirs};")?;
     }
@@ -636,6 +650,22 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     }
     output.push_str(" }");
     Ok(output)
+}
+
+fn nix_probe(probe: &Probe, duration_name: &str, duration: &str) -> String {
+    let (probe_type, target) = match probe {
+        Probe::Http(target) => ("http", Some(target)),
+        Probe::Tcp(target) => ("tcp", Some(target)),
+        Probe::Notify => ("notify", None),
+    };
+    let target = target
+        .map(|target| format!(" target = {};", nix_string(target)))
+        .unwrap_or_default();
+    format!(
+        "{{ type = {};{target} {duration_name} = {}; }}",
+        nix_string(probe_type),
+        nix_string(duration)
+    )
 }
 
 fn nix_dirs(service: &Service) -> Option<String> {
@@ -941,6 +971,18 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
             ),
         );
     }
+    if let Some(readiness) = &service.readiness {
+        value.insert(
+            "readiness".into(),
+            literal_probe(&readiness.probe, "timeout", &readiness.timeout),
+        );
+    }
+    if let Some(liveness) = &service.liveness {
+        value.insert(
+            "liveness".into(),
+            literal_probe(&liveness.probe, "interval", &liveness.interval),
+        );
+    }
     let dirs = literal_dirs(service);
     if !dirs.is_empty() {
         value.insert("dirs".into(), Value::Object(dirs));
@@ -955,6 +997,22 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         value.insert("shm".into(), Value::String(shm.clone()));
     }
     Ok(Value::Object(value))
+}
+
+fn literal_probe(probe: &Probe, duration_name: &str, duration: &str) -> Value {
+    let (probe_type, target) = match probe {
+        Probe::Http(target) => ("http", Some(target)),
+        Probe::Tcp(target) => ("tcp", Some(target)),
+        Probe::Notify => ("notify", None),
+    };
+    let mut fields = Map::from_iter([
+        ("type".into(), Value::String(probe_type.into())),
+        (duration_name.into(), Value::String(duration.into())),
+    ]);
+    if let Some(target) = target {
+        fields.insert("target".into(), Value::String(target.clone()));
+    }
+    Value::Object(fields)
 }
 
 fn nix_claim(claim: &Claim) -> String {

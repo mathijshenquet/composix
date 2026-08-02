@@ -44,11 +44,12 @@
           "/etc/config"
         ]
       },
-      "health": {
-        "exec": [
-          "bin/healthcheck",
-          "$PORT"
-        ],
-        "interval": "30s"
+      "readiness": {
+        "type": "notify",
+        "timeout": "90s"
+      },
+      "liveness": {
+        "type": "notify",
+        "interval": "10s"
       }
 }
