@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nginx — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / nginx</nav>
+  <h1>nginx</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + native logging projection · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build, HTTP request, and indexed journald query pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;update.sh&quot;
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
+FROM alpine:3.24
+
+LABEL maintainer=&quot;NGINX Docker Maintainers &lt;docker-maint@nginx.com&gt;&quot;
+
+ENV NGINX_VERSION  1.31.3
+ENV PKG_RELEASE    1
+ENV DYNPKG_RELEASE 1
+
+RUN set -x \
+# create nginx user/group first, to be consistent throughout docker variants
+    &amp;&amp; addgroup -g 101 -S nginx \
+    &amp;&amp; adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx \
+    &amp;&amp; apkArch=&quot;$(cat /etc/apk/arch)&quot; \
+    &amp;&amp; nginxPackages=&quot; \
+        nginx=${NGINX_VERSION}-r${PKG_RELEASE} \
+    &quot; \
+# install prerequisites for public key and pkg-oss checks
+    &amp;&amp; apk add --no-cache --virtual .checksum-deps \
+        openssl \
+    &amp;&amp; case &quot;$apkArch&quot; in \
+        x86_64|aarch64) \
+# arches officially built by upstream
+            set -x \
+            &amp;&amp; KEY_SHA512=&quot;e09fa32f0a0eab2b879ccbbc4d0e4fb9751486eedda75e35fac65802cc9faa266425edf83e261137a2f4d16281ce2c1a5f4502930fe75154723da014214f0655&quot; \
+            &amp;&amp; wget -O /tmp/nginx_signing.rsa.pub https://nginx.org/keys/nginx_signing.rsa.pub \
+            &amp;&amp; if echo &quot;$KEY_SHA512 */tmp/nginx_signing.rsa.pub&quot; | sha512sum -c -; then \
+                echo &quot;key verification succeeded!&quot;; \
+                mv /tmp/nginx_signing.rsa.pub /etc/apk/keys/; \
+            else \
+                echo &quot;key verification failed!&quot;; \
+                exit 1; \
+            fi \
+# we need to make sure nginx.org packages are pulled in, which isnt guaranteed
+# as Alpine repos might have the same version in the repos.
+# query nginx.org binaries for the dependencies
+            &amp;&amp; DEPS=$(apk query --summarize depends --recursive --no-cache \
+                       --repository &quot;@nginxorg https://nginx.org/packages/mainline/alpine/v$(egrep -o &#39;^[0-9]+\.[0-9]+&#39; /etc/alpine-release)/main&quot; \
+                       ${nginxPackages/=/@nginxorg=}) \
+# install those dependencies from Alpine repos
+            &amp;&amp; apk add --no-cache $DEPS \
+# limit apk to nginx.org repos only to install the requested packages
+            &amp;&amp; apk add --repositories-file /dev/null -X &quot;https://nginx.org/packages/mainline/alpine/v$(egrep -o &#39;^[0-9]+\.[0-9]+&#39; /etc/alpine-release)/main&quot; --no-cache $nginxPackages \
+            ;; \
+        *) \
+# we&#39;re on an architecture upstream doesn&#39;t officially build for
+# let&#39;s build binaries from the published packaging sources
+            set -x \
+            &amp;&amp; tempDir=&quot;$(mktemp -d)&quot; \
+            &amp;&amp; chown nobody:nobody $tempDir \
+            &amp;&amp; apk add --no-cache --virtual .build-deps \
+                gcc \
+                libc-dev \
+                make \
+                openssl-dev \
+                pcre2-dev \
+                zlib-dev \
+                linux-headers \
+                bash \
+                alpine-sdk \
+                findutils \
+                curl \
+            &amp;&amp; su nobody -s /bin/sh -c &quot; \
+                export HOME=${tempDir} \
+                &amp;&amp; cd ${tempDir} \
+                &amp;&amp; curl -f -L -O https://github.com/nginx/pkg-oss/archive/${NGINX_VERSION}-${PKG_RELEASE}.tar.gz \
+                &amp;&amp; PKGOSSCHECKSUM=\&quot;524b75cc72657ce77d90cd25c305aba0a19a7f8a3e5dec8e1cc585cd7985663a444c7873e9040b4576285b49ac117c1ea4bb4077dc592eca52316935e1f75adf *${NGINX_VERSION}-${PKG_RELEASE}.tar.gz\&quot; \
+                &amp;&amp; if [ \&quot;\$(openssl sha512 -r ${NGINX_VERSION}-${PKG_RELEASE}.tar.gz)\&quot; = \&quot;\$PKGOSSCHECKSUM\&quot; ]; then \
+                    echo \&quot;pkg-oss tarball checksum verification succeeded!\&quot;; \
+                else \
+                    echo \&quot;pkg-oss tarball checksum verification failed!\&quot;; \
+                    exit 1; \
+                fi \
+                &amp;&amp; tar xzvf ${NGINX_VERSION}-${PKG_RELEASE}.tar.gz \
+                &amp;&amp; cd pkg-oss-${NGINX_VERSION}-${PKG_RELEASE} \
+                &amp;&amp; cd alpine \
+                &amp;&amp; make base \
+                &amp;&amp; apk index --allow-untrusted -o ${tempDir}/packages/alpine/${apkArch}/APKINDEX.tar.gz ${tempDir}/packages/alpine/${apkArch}/*.apk \
+                &amp;&amp; abuild-sign -k ${tempDir}/.abuild/abuild-key.rsa ${tempDir}/packages/alpine/${apkArch}/APKINDEX.tar.gz \
+                &quot; \
+            &amp;&amp; cp ${tempDir}/.abuild/abuild-key.rsa.pub /etc/apk/keys/ \
+            &amp;&amp; apk del --no-network .build-deps \
+# same as in the &quot;arches officially built by upstream&quot; block, we want to make
+# sure the packages we&#39;ve just built will get installed
+            &amp;&amp; DEPS=$(apk query --summarize depends --recursive --no-cache \
+                       --repository &quot;@nginxorg ${tempDir}/packages/alpine/&quot; \
+                       ${nginxPackages/=/@nginxorg=}) \
+            &amp;&amp; apk add --no-cache $DEPS \
+            &amp;&amp; apk add --repositories-file /dev/null -X ${tempDir}/packages/alpine/ --no-cache $nginxPackages \
+            ;; \
+    esac \
+# remove checksum deps
+    &amp;&amp; apk del --no-network .checksum-deps \
+# if we have leftovers from building, let&#39;s purge them (including extra, unnecessary build deps)
+    &amp;&amp; if [ -n &quot;$tempDir&quot; ]; then rm -rf &quot;$tempDir&quot;; fi \
+    &amp;&amp; if [ -f &quot;/etc/apk/keys/abuild-key.rsa.pub&quot; ]; then rm -f /etc/apk/keys/abuild-key.rsa.pub; fi \
+# Add `envsubst` for templating environment variables
+    &amp;&amp; apk add --no-cache gettext-envsubst \
+# Bring in tzdata so users could set the timezones through the environment
+# variables
+    &amp;&amp; apk add --no-cache tzdata \
+# forward request and error logs to docker log collector
+    &amp;&amp; ln -sf /dev/stdout /var/log/nginx/access.log \
+    &amp;&amp; ln -sf /dev/stderr /var/log/nginx/error.log \
+# create a docker-entrypoint.d directory
+    &amp;&amp; mkdir /docker-entrypoint.d
+
+COPY docker-entrypoint.sh /
+COPY 10-listen-on-ipv6-by-default.sh /docker-entrypoint.d
+COPY 15-local-resolvers.envsh /docker-entrypoint.d
+COPY 20-envsubst-on-templates.sh /docker-entrypoint.d
+COPY 30-tune-worker-processes.sh /docker-entrypoint.d
+ENTRYPOINT [&quot;/docker-entrypoint.sh&quot;]
+
+EXPOSE 80
+
+STOPSIGNAL SIGQUIT
+
+CMD [&quot;nginx&quot;, &quot;-g&quot;, &quot;daemon off;&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nginx
+  LOGDIR /var/log/nginx
+  RUNDIR /run/nginx
+  START ${pkgs.nginx}/bin/nginx -g &#39;daemon off; error_log stderr info;&#39;
+  PORT http = 80
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/nginx</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

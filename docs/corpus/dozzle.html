@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dozzle — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / dozzle</nav>
+  <h1>dozzle</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ Docker-control-plane workload; build receipt is non-green · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code># Build assets
+FROM --platform=$BUILDPLATFORM node:25.9.0-alpine AS node
+
+RUN npm install -g --force corepack &amp;&amp; corepack enable
+
+ENV CI=true
+
+WORKDIR /build
+
+# Install dependencies from lock file
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm fetch --ignore-scripts
+
+# Copy package.json and install dependencies
+COPY package.json ./
+RUN pnpm install --offline --ignore-scripts
+
+# Copy assets and translations to build
+COPY vite.config.ts tsconfig.json .prettierrc.cjs .npmrc ./
+COPY assets ./assets
+COPY locales ./locales
+COPY public ./public
+
+ARG CLOUD_URL
+ENV CLOUD_URL=$CLOUD_URL
+
+# Build assets
+RUN pnpm build
+
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+
+RUN apk add --no-cache ca-certificates &amp;&amp; mkdir /dozzle
+
+WORKDIR /dozzle
+
+# Copy go mod files
+COPY go.* ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# Copy all other files
+COPY internal ./internal
+COPY proto ./proto
+COPY types ./types
+COPY main.go ./
+COPY protos ./protos
+COPY shared_key.pem shared_cert.pem ./
+
+# Copy assets built with node
+COPY --from=node /build/dist ./dist
+
+# Args
+ARG TAG=dev
+ARG TARGETOS TARGETARCH
+
+# Build binary
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags &quot;-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG&quot; -o dozzle
+
+RUN mkdir /data
+
+FROM scratch
+
+COPY --from=builder /data /data
+COPY --from=builder /tmp /tmp
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /dozzle/dozzle /dozzle
+
+EXPOSE 8080
+
+ENTRYPOINT [&quot;/dozzle&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER ui
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
+  ENV COREPACK_HOME = $PWD/.corepack
+  COPY ${src}/context/ .
+  FETCH corepack install
+  RUN pnpm config set store-dir $PWD/.pnpm-store
+  FETCH pnpm fetch --ignore-scripts
+  RUN pnpm install --offline --ignore-scripts
+  RUN pnpm build
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.gcc} ${pkgs.cacert}
+  ENV GOMODCACHE = $PWD/.gomodcache
+  COPY ${src}/context/ .
+  COPY ${ui}/dist dist
+  FETCH go mod download
+  RUN CGO_ENABLED=0 go build -o dozzle
+
+SERVICE dozzle
+  COPY ${build}/dozzle /bin/dozzle
+  STATEDIR /var/lib/dozzle
+  START dozzle
+  PORT http = 8080
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/dozzle</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

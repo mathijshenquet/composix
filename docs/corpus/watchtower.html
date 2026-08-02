@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>watchtower — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / watchtower</nav>
+  <h1>watchtower</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ competing Docker control plane · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Go build succeeds, but faithful runtime requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>FROM --platform=$BUILDPLATFORM alpine:3.19.0 as alpine
+
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata
+
+FROM scratch
+LABEL &quot;com.centurylinklabs.watchtower&quot;=&quot;true&quot;
+
+COPY --from=alpine \
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/ssl/certs/ca-certificates.crt
+COPY --from=alpine \
+    /usr/share/zoneinfo \
+    /usr/share/zoneinfo
+
+EXPOSE 8080
+
+COPY watchtower /
+
+HEALTHCHECK CMD [ &quot;/watchtower&quot;, &quot;--health-check&quot;]
+
+ENTRYPOINT [&quot;/watchtower&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.gcc} ${pkgs.cacert}
+  ENV GOMODCACHE = $PWD/.gomodcache
+  COPY ${src}/context/ .
+  FETCH go mod download
+  RUN go build -o watchtower .
+
+SERVICE watchtower
+  COPY ${build}/watchtower /bin/watchtower
+  START watchtower
+  PORT http = 8080
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/watchtower</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

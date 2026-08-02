@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>directus — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / directus</nav>
+  <h1>directus</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 blocked on the native-binary/FHS loader gap · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Docker passes; Cix reaches an FHS-loader-dependent native binary and fails the build · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code># syntax=docker/dockerfile:1.4
+
+ARG NODE_VERSION=22
+
+####################################################################################################
+## Build Packages
+
+FROM node:${NODE_VERSION}-alpine AS builder
+
+RUN apk --no-cache add python3 py3-setuptools build-base
+
+WORKDIR /directus
+
+COPY package.json .
+RUN corepack enable &amp;&amp; corepack prepare
+
+# Deploy as &#39;node&#39; user to match pnpm setups in production image
+# (see https://github.com/directus/directus/issues/23822)
+RUN chown node:node .
+USER node
+
+ENV NODE_OPTIONS=--max-old-space-size=8192
+
+COPY pnpm-lock.yaml .
+RUN pnpm fetch
+
+COPY --chown=node:node . .
+RUN &lt;&lt;EOF
+	set -ex
+	pnpm install --recursive --offline --frozen-lockfile
+	npm_config_workspace_concurrency=2 pnpm run build
+	pnpm --filter directus deploy --legacy --prod dist
+	cd dist
+	# Regenerate package.json file with essential fields only
+	# (see https://github.com/directus/directus/issues/20338)
+	node -e &#39;
+		const f = &quot;package.json&quot;, {name, version, type, exports, bin} = require(`./${f}`), {packageManager} = require(`../${f}`);
+		fs.writeFileSync(f, JSON.stringify({name, version, type, exports, bin, packageManager}, null, 2));
+	&#39;
+	mkdir -p database extensions uploads
+EOF
+
+####################################################################################################
+## Create Production Image
+
+FROM node:${NODE_VERSION}-alpine AS runtime
+
+# Apply outstanding OS-level security patches (openssl, zlib, busybox, ...).
+# Install pm2, then purge npm, npx, corepack, and the npm cache from the
+# final image.
+RUN apk --no-cache upgrade \
+	&amp;&amp; npm install --global pm2@6 \
+	&amp;&amp; rm -rf \
+		/usr/local/lib/node_modules/npm \
+		/usr/local/lib/node_modules/corepack \
+		/usr/local/bin/npm \
+		/usr/local/bin/npx \
+		/usr/local/bin/corepack \
+		/root/.npm
+
+USER node
+
+WORKDIR /directus
+
+ENV \
+	DB_CLIENT=&quot;sqlite3&quot; \
+	DB_FILENAME=&quot;/directus/database/database.sqlite&quot; \
+	NODE_ENV=&quot;production&quot; \
+	NPM_CONFIG_UPDATE_NOTIFIER=&quot;false&quot;
+
+COPY --from=builder --chown=node:node /directus/ecosystem.config.cjs .
+COPY --from=builder --chown=node:node /directus/dist .
+
+EXPOSE 8055
+
+CMD : \
+	&amp;&amp; node cli.js bootstrap \
+	&amp;&amp; pm2-runtime start ecosystem.config.cjs \
+	;
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.pnpm} \
+    ${pkgs.gnused} ${pkgs.python311} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.cacert}
+ENV NODE_OPTIONS = --max-old-space-size=8192
+ENV npm_config_workspace_concurrency = 2
+COPY ${src}/context/ .
+FETCH pnpm fetch
+RUN pnpm install --recursive --offline --frozen-lockfile
+RUN pnpm run build
+RUN pnpm --filter directus deploy --legacy --prod dist
+RUN &lt;&lt;ASSEMBLE
+cd dist
+node -e &#39;const f=&quot;package.json&quot;,{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))&#39;
+mkdir -p database extensions uploads
+rm -rf database extensions uploads
+ln -s /var/lib/directus/database database
+ln -s /var/lib/directus/extensions extensions
+ln -s /var/lib/directus/uploads uploads
+ASSEMBLE
+
+SERVICE directus
+COPY ${build}/dist /directus
+LINK ${pkgs.nodejs_22}/bin/node /bin/node
+START_PRE node /directus/cli.js bootstrap
+START node /directus/cli.js start
+ENV DB_CLIENT = sqlite3
+ENV DB_FILENAME = /directus/database/database.sqlite
+ENV NODE_ENV = production
+ENV PORT = 18093
+PORT http = $PORT
+STATEDIR /var/lib/directus
+CLAIM egress
+CLAIM jit
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/directus</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

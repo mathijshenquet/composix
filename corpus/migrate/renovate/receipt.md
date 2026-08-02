@@ -1,4 +1,4 @@
-# Renovate schedule regrade receipt
+# Renovate schedule migration receipt
 
 Regrade: 2026-08-02. This is a deliberately narrow conversion of the wild
 Kubernetes CronJob row: it uses the real Nix-packaged Renovate executable and
@@ -10,15 +10,15 @@ unverified, and native secret delivery is not part of this feature wave.
 
 ```text
 devenv shell -- cargo build -p cix
-target/debug/cix build -t regrade corpus/regrade/renovate
+target/debug/cix build -t regrade corpus/migrate/renovate
 /nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate
 sudo env PATH="$PATH" target/debug/cix tag <item> renovate:regrade
 systemd-analyze calendar daily
 Normalized form: *-*-* 00:00:00
-target/debug/cix compose check corpus/regrade/renovate/compose.json
+target/debug/cix compose check corpus/migrate/renovate/compose.json
 compose corpus-renovate: 1 services, 0 edges, valid
 sudo env PATH="$PATH" target/debug/cix up \
-  corpus/regrade/renovate/compose.json --update='*'
+  corpus/migrate/renovate/compose.json --update='*'
 activated corpus-renovate from \
   /nix/store/gcr7gdk2l2w0pqryxgx4i3krdb2d5nlf-cix-compose-corpus-renovate-generation
 systemctl is-active cix-corpus-renovate-renovate.timer
