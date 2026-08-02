@@ -15,10 +15,7 @@ use crate::codegen::{
     generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
     generate_fetch_context_nix, generate_fetch_offer_nix,
 };
-use crate::fetch::{
-    concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
-    CredentialMount, CredentialToken, HostCredentials,
-};
+use crate::fetch::{CredentialMount, HostCredentials};
 use crate::seccomp;
 use crate::trace;
 use crate::{
@@ -2895,6 +2892,10 @@ fn short_key(key: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fetch::{
+        concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
+        CredentialToken,
+    };
 
     fn closure(paths: &[&str]) -> BTreeSet<String> {
         paths.iter().map(|path| (*path).to_owned()).collect()
