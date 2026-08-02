@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>parse-server — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,62 +46,62 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>############################################################
-# Build stage
-############################################################
-FROM node:20.19.0-alpine3.20 AS build
+        <pre><code><span class="tok-comment">############################################################</span>
+<span class="tok-comment"># Build stage</span>
+<span class="tok-comment">############################################################</span>
+<span class="tok-directive">FROM</span> node:20.19.0-alpine3.20 AS build
 
-RUN apk --no-cache add \
+<span class="tok-directive">RUN</span> apk --no-cache add \
    build-base \
    git \
    python3
 
-WORKDIR /tmp
+<span class="tok-directive">WORKDIR</span> /tmp
 
-# Copy package.json first to benefit from layer caching
-COPY package*.json ./
+<span class="tok-comment"># Copy package.json first to benefit from layer caching</span>
+<span class="tok-directive">COPY</span> package*.json ./
 
-# Copy src to have config files for install
-COPY . .
+<span class="tok-comment"># Copy src to have config files for install</span>
+<span class="tok-directive">COPY</span> . .
 
-# Increase npm network timeout and retries for slow platforms (e.g. arm64 via QEMU)
-ENV npm_config_fetch_retries=5
-ENV npm_config_fetch_retry_mintimeout=60000
-ENV npm_config_fetch_retry_maxtimeout=300000
+<span class="tok-comment"># Increase npm network timeout and retries for slow platforms (e.g. arm64 via QEMU)</span>
+<span class="tok-directive">ENV</span> npm_config_fetch_retries=5
+<span class="tok-directive">ENV</span> npm_config_fetch_retry_mintimeout=60000
+<span class="tok-directive">ENV</span> npm_config_fetch_retry_maxtimeout=300000
 
-# Install without scripts
-RUN npm ci --omit=dev --ignore-scripts \
-    # Copy production node_modules aside for later
- &amp;&amp; cp -R node_modules prod_node_modules \
-    # Install all dependencies
- &amp;&amp; npm ci \
-    # Run build steps
- &amp;&amp; npm run build
+<span class="tok-comment"># Install without scripts</span>
+<span class="tok-directive">RUN</span> npm ci --omit=dev --ignore-scripts \
+    <span class="tok-comment"># Copy production node_modules aside for later</span>
+ <span class="tok-directive">&amp;&amp;</span> cp -R node_modules prod_node_modules \
+    <span class="tok-comment"># Install all dependencies</span>
+ <span class="tok-directive">&amp;&amp;</span> npm ci \
+    <span class="tok-comment"># Run build steps</span>
+ <span class="tok-directive">&amp;&amp;</span> npm run build
 
-############################################################
-# Release stage
-############################################################
-FROM node:20.19.0-alpine3.20 AS release
+<span class="tok-comment">############################################################</span>
+<span class="tok-comment"># Release stage</span>
+<span class="tok-comment">############################################################</span>
+<span class="tok-directive">FROM</span> node:20.19.0-alpine3.20 AS release
 
-VOLUME /parse-server/cloud /parse-server/config
+<span class="tok-directive">VOLUME</span> /parse-server/cloud /parse-server/config
 
-WORKDIR /parse-server
+<span class="tok-directive">WORKDIR</span> /parse-server
 
-# Copy build stage folders
-COPY --from=build /tmp/prod_node_modules /parse-server/node_modules
-COPY --from=build /tmp/lib lib
+<span class="tok-comment"># Copy build stage folders</span>
+<span class="tok-directive">COPY</span> --from=build /tmp/prod_node_modules /parse-server/node_modules
+<span class="tok-directive">COPY</span> --from=build /tmp/lib lib
 
-COPY package*.json ./
-COPY bin bin
-COPY public public
-COPY views views
-RUN mkdir -p logs &amp;&amp; chown -R node: logs
+<span class="tok-directive">COPY</span> package*.json ./
+<span class="tok-directive">COPY</span> bin bin
+<span class="tok-directive">COPY</span> public public
+<span class="tok-directive">COPY</span> views views
+<span class="tok-directive">RUN</span> mkdir -p logs &amp;&amp; chown -R node: logs
 
-ENV PORT=1337
-USER node
-EXPOSE $PORT
+<span class="tok-directive">ENV</span> PORT=1337
+<span class="tok-directive">USER</span> node
+<span class="tok-directive">EXPOSE</span> $PORT
 
-ENTRYPOINT [&quot;node&quot;, &quot;./bin/parse-server&quot;]
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;node&quot;</span>, <span class="tok-string">&quot;./bin/parse-server&quot;</span>]
 </code></pre>
       </section>
     </section>
@@ -95,40 +109,40 @@ ENTRYPOINT [&quot;node&quot;, &quot;./bin/parse-server&quot;]
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.python3} \
-    ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.git} ${pkgs.cacert}
-ENV npm_config_fetch_retries = 5
-ENV npm_config_fetch_retry_mintimeout = 60000
-ENV npm_config_fetch_retry_maxtimeout = 300000
-COPY ${src}/context/ .
-FETCH npm ci --ignore-scripts --no-audit --no-fund
-RUN npm run build
-RUN npm prune --omit=dev --ignore-scripts --offline --no-audit --no-fund
+<span class="tok-directive">BUILDER</span> build
+<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.python3}</span> \
+    <span class="tok-directive">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+<span class="tok-directive">ENV</span> npm_config_fetch_retries = 5
+<span class="tok-directive">ENV</span> npm_config_fetch_retry_mintimeout = 60000
+<span class="tok-directive">ENV</span> npm_config_fetch_retry_maxtimeout = 300000
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+<span class="tok-directive">FETCH</span> npm ci --ignore-scripts --no-audit --no-fund
+<span class="tok-directive">RUN</span> npm run build
+<span class="tok-directive">RUN</span> npm prune --omit=dev --ignore-scripts --offline --no-audit --no-fund
 
-SERVICE parse-server
-COPY ${build}/node_modules /parse-server/node_modules
-COPY ${build}/lib /parse-server/lib
-COPY ${build}/bin/parse-server /parse-server/bin/parse-server
-COPY ${build}/package.json /parse-server/package.json
-COPY ${build}/package-lock.json /parse-server/package-lock.json
-COPY ${build}/public /parse-server/public
-COPY ${build}/views /parse-server/views
-LINK ${pkgs.nodejs_22}/bin/node /bin/node
-START node /parse-server/bin/parse-server
-ENV PORT = 18091
-ENV PARSE_SERVER_APPLICATION_ID required
-ENV PARSE_SERVER_MASTER_KEY secret
-ENV PARSE_SERVER_DATABASE_URI required
-ENV PARSE_SERVER_URL required
-ENV PARSE_SERVER_LOGS_FOLDER = /var/log/parse-server
-PORT http = $PORT
-LOGDIR /var/log/parse-server
-CLAIM egress
-CLAIM jit
+<span class="tok-directive">SERVICE</span> parse-server
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/node_modules /parse-server/node_modules
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/lib /parse-server/lib
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/bin/parse-server /parse-server/bin/parse-server
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/package.json /parse-server/package.json
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/package-lock.json /parse-server/package-lock.json
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/public /parse-server/public
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/views /parse-server/views
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>/bin/node /bin/node
+<span class="tok-directive">START</span> node /parse-server/bin/parse-server
+<span class="tok-directive">ENV</span> PORT = 18091
+<span class="tok-directive">ENV</span> PARSE_SERVER_APPLICATION_ID required
+<span class="tok-directive">ENV</span> PARSE_SERVER_MASTER_KEY secret
+<span class="tok-directive">ENV</span> PARSE_SERVER_DATABASE_URI required
+<span class="tok-directive">ENV</span> PARSE_SERVER_URL required
+<span class="tok-directive">ENV</span> PARSE_SERVER_LOGS_FOLDER = /var/log/parse-server
+<span class="tok-directive">PORT</span> http = $PORT
+<span class="tok-directive">LOGDIR</span> /var/log/parse-server
+<span class="tok-directive">CLAIM</span> egress
+<span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
     </section>
