@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::{IpAddr, SocketAddr},
+    net::SocketAddr,
     path::{Path, PathBuf},
 };
 
@@ -19,7 +19,9 @@ use crate::{
         Child, Compose, ComposeService, Edge, Lock, LockedService, Network, Publish, SecretSource,
         UpdatePolicy,
     },
-    network::{CheckedPod, CheckedPublish, PublishKind},
+    network::{
+        parse_publish_binding, validate_collisions, CheckedPod, CheckedPublish, PublishKind,
+    },
 };
 
 #[derive(Clone, Debug, Default)]
@@ -526,14 +528,6 @@ impl TreeBuilder<'_> {
     }
 }
 
-fn parse_publish_binding(path: &str, name: &str, value: &str) -> Result<SocketAddr> {
-    value.parse::<SocketAddr>().with_context(|| {
-        format!(
-            "children.{path}.bind.{name}: published binding must be an IP address and port such as 127.0.0.1:8080"
-        )
-    })
-}
-
 fn apply_bindings(
     path: &str,
     surfaces: &mut BTreeMap<String, Surface>,
@@ -706,75 +700,6 @@ fn record_destination<'a>(
         );
     }
     Ok(())
-}
-
-fn validate_collisions(
-    services: &BTreeMap<String, CheckedService>,
-    publishes: &[CheckedPublish],
-) -> Result<()> {
-    let mut ports: BTreeMap<(Option<&str>, u16), (&str, &str)> = BTreeMap::new();
-    for (service_name, checked) in services {
-        for (port_name, port) in &checked.config.ports {
-            if let Some((other_service, other_port)) =
-                ports.insert((checked.pod.as_deref(), *port), (service_name, port_name))
-            {
-                if other_service != service_name {
-                    bail!(
-                        "services.{service_name}: host port {port} for {port_name:?} collides with services.{other_service} port {other_port:?}"
-                    );
-                }
-            }
-        }
-    }
-
-    let mut bindings: Vec<(&str, &str, SocketAddr)> = Vec::new();
-    for (service_name, checked) in services {
-        for (listener, address) in &checked.config.listeners {
-            for (other_service, other_listener, other_address) in &bindings {
-                if service_name != other_service && addresses_collide(*address, *other_address) {
-                    bail!(
-                        "services.{service_name}.bind.{listener}: {address} collides with services.{other_service}.bind.{other_listener} ({other_address})"
-                    );
-                }
-            }
-            if let Some((other_service, other_port)) = ports.get(&(None, address.port())) {
-                if *other_service != service_name {
-                    bail!(
-                        "services.{service_name}.bind.{listener}: {address} collides with services.{other_service} port {other_port:?}"
-                    );
-                }
-            }
-            bindings.push((service_name, listener, *address));
-        }
-    }
-    for published in publishes {
-        for (other_service, other_listener, other_address) in &bindings {
-            if addresses_collide(published.address, *other_address) {
-                bail!(
-                    "publish.{}: {} collides with services.{other_service}.bind.{other_listener} ({other_address})",
-                    published.name,
-                    published.address
-                );
-            }
-        }
-        bindings.push((&published.service, &published.surface, published.address));
-    }
-    Ok(())
-}
-
-fn addresses_collide(left: SocketAddr, right: SocketAddr) -> bool {
-    if left.port() != right.port() {
-        return false;
-    }
-    match (left.ip(), right.ip()) {
-        (IpAddr::V4(left), IpAddr::V4(right)) => {
-            left == right || left.is_unspecified() || right.is_unspecified()
-        }
-        (IpAddr::V6(left), IpAddr::V6(right)) => {
-            left == right || left.is_unspecified() || right.is_unspecified()
-        }
-        (left, right) => left.is_unspecified() || right.is_unspecified(),
-    }
 }
 
 #[cfg(test)]
