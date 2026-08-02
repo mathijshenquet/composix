@@ -1,5 +1,228 @@
 # Cixfile track work log
 
+- 2026-08-02T22:05:00Z — Tracefast round 3 GREEN: the measured warm one-line
+  edit is 8.31 s (repeats on the same quiet host: 8.54 s, 8.73 s), under the
+  ~9 s bar and crane's 16.46 s, with capture completeness untouched — file
+  contents, directory listings, negative lookups, and writes all recorded via
+  seccomp-BPF-filtered ptrace. Work receipt: FETCH memo-hit, RUN executed,
+  `cix_run_compiled_units=1`, 9 Nix subprocesses totaling 0.28 s.
+
+  Q1 (is incremental compilation active): NO, by three receipts —
+  `cargo build --release` uses the release profile whose default is
+  `incremental = false`; gitsitter's Cargo.toml declares no profile section
+  and CARGO_INCREMENTAL is absent from the sandbox env; the warm workspace
+  has no `target/release/incremental/`. Lever measurement in a no-Cix bwrap
+  replica of the sandbox (same store toolchain, cleared env, /work mount):
+  CARGO_INCREMENTAL=1 turns the warm edit into 1.65 s after a 5.93 s priming
+  build, versus 5.97 s non-incremental. It is env-only but NOT taken:
+  incremental output is not guaranteed byte-identical to a from-scratch
+  build, so the fixture pin and normal/repeat/--cold byte-identity would be
+  at risk, and neither comparator uses it. Mathijs's lever if wanted.
+
+  Q2 (why raw cargo was 15.54 s where the pre-readset total was 7.46 s):
+  fully attributed with CARGO_LOG=cargo::core::compiler::fingerprint=info in
+  the same replica. (a) Fixture floor: gitsitter's build.rs declares
+  `cargo:rerun-if-changed=.git/HEAD`; the staged source has no .git and
+  cargo treats a missing rerun-if-changed file as permanently stale
+  (`FsStatusOutdated(StaleItem(MissingFile ".git/HEAD"))`), so build.rs +
+  lib + bin rebuild on EVERY build — 5.9 s even for a no-op. The old 7.46 s
+  was this floor plus ~1.5 s of chain-keyed Cix overhead; the floor is
+  symmetric across upstream/crane. (b) The rest was mtime/inode churn: a
+  cp -a copy of the warm workspace rebuilds the edit in 5.97 s, while the
+  same workspace with vendor/ rewritten byte-identically but with fresh
+  inodes+mtimes — which warm replay did every build — takes 15.65 s and
+  recompiles exactly 100 units, matching the measured run's 100 `Compiling`
+  lines. Receipt: `ChangedFile { reference:
+  target/release/build/anyhow-*/output, stale: vendor/anyhow/src/nightly.rs
+  }` — vendored build scripts go stale and StaleDepFingerprint cascades.
+
+  Landed, verify-then-implement, biggest first:
+  1. Mtime-preserving staging (H3, the Q2 suspect, confirmed): `sync_node`
+     short-circuits when old and new staged inputs are byte-equal;
+     `apply_step_memo` replays through a per-node reconciling
+     `sync_replay_node` (same end state as remove-and-recopy, touches only
+     differing nodes); and memo application is skipped entirely when
+     workspace state.json's new `materialized_memos` (owner → memo key)
+     records the outputs as already present — the same trust model as the
+     existing `rerun_from` prefix. Result: FETCH validation rehashes 0
+     bytes, the recorder reuses all 3217 validated reads (1 ms, was 1659 ms
+     over 123 MiB), and cargo compiles 1 unit.
+  2. Trace-side reuse (H1) was wired by round 2; mtime stability is what
+     makes it bite — fingerprints now hit instead of rehashing.
+  3. Tracer parallelism (H2): measure-gated DEAD. Traced cargo is 6.44 s
+     against the 5.9 s untraced floor — ~0.55 s total ptrace cost on the
+     small rebuild with seccomp-BPF already filtering. No FUSE/eBPF
+     mechanism switch is warranted for ≤0.55 s; that is the frontier of
+     this lever, recorded for the CIP.
+  4. Fixture repair: the FETCH now also sets CARGO_HOME=/tmp/cix-vendor-home
+     (mirroring the existing CARGO_TARGET_DIR redirect), so the 619 MiB /
+     24k-file cargo registry cache no longer lands in the workspace, the
+     FETCH write set, snapshots, or warm replay; FETCH changes shrink to
+     vendor/ + .cargo/config.toml. Re-pin double-probe: two pristine
+     --update-lock runs produced the identical consumed pin
+     sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE= (fixture change
+     proven byte-identical); committed pin id builder:build:2-6c46b57a1539.
+  5. RUN output snapshots dropped (Mathijs's in-chat coarse-grain/exclude
+     prompt, 2026-08-02): the RUN memo's constructive snapshot was the whole
+     warm target/ tree — measured 512 MiB / 1913 files nar-added to the
+     store on EVERY one-line edit (~1.0-1.2 s plus 512 MiB store growth per
+     edit). FETCH memos stay constructive (pins and --cold replay need
+     them); RUN memos are verifying-only — a RUN that would have replayed
+     re-executes, which in a warm workspace is exactly the cheap path. Read
+     capture is unaffected. Layered/overlay snapshots remain the
+     constructive alternative if RUN replay-without-execution is wanted.
+  6. Nix subprocess diet (doubles as the libnix ROI table): warm-edit calls
+     went from 11 (~2.15 s) to 9 (0.28 s: source add 0.02, requisites 0.01,
+     2× hash path 0.01, consumed add 0.01, view add 0.01, item build 0.19,
+     item add 0.01). Offer realization is skipped when every offered store
+     path exists (store-completeness invariant, the ensure_store_path
+     assumption); the builder context eval is cached keyed on the generated
+     expression (byte-stable across edits) with source-rooted copies
+     re-rooted via `nix store add --mode nar --name cix-source` (verified
+     path-identical to builtins.path) and validated by path existence;
+     content-dependent expressions (hashFile, project-local overlays) never
+     take the fastpath. Timing instrumentation is now gated behind
+     CIX_TIMING=1 (set by measure-warm.sh) so ordinary output and the
+     generated tour stay clean.
+  7. The pre-command probe snapshot cleanup (~0.18 s) overlaps the post-RUN
+     store add in a scoped thread (disjoint trees, joined before the memo
+     lands).
+
+  Descent (complete capture throughout): 94.17 baseline → 34.08 / 28.53
+  (round 2) → 27.66 (round-2 candidate re-measured) → 12.28 (mtime
+  staging + fixture CARGO_HOME) → 9.90 (memo-apply skip) → 9.36
+  (realize-skip + cleanup overlap) → 9.31 (RUN snapshots dropped) → 8.31 /
+  8.54 / 8.73 (context cache; quiet host). Final component receipt:
+  chain-keys 16+19 ms, COPY 68 ms, FETCH validation 41 ms (0 rehashed),
+  RUN validation 241 ms (20 files / 16.8 MiB — honest pre-state of target
+  reads), workspace snapshot 398 ms, traced RUN ≈6.5 s (cargo floor 5.9 +
+  ptrace 0.55), read-set recording 1 ms, delta 0 ms, probe cleanup 184 ms
+  (overlapped), Nix 0.28 s. Concurrent-agent load (LA>9) inflates totals to
+  ~9.8 s; the dated receipts are quiet-host.
+
+  Guardrails: no-op 0.07 s, zero Nix subprocesses, zero executed steps
+  (--stats receipt). Full agent gate green synchronously: fmt, examples
+  fmt, warning-denied workspace clippy, serial workspace tests
+  (/tmp/tracefast-workspace-tests.log), tour regen + zero drift
+  (/tmp/tracefast-tour-regen.log), vm-dogfood
+  (/tmp/tracefast-vm-dogfood.log). Byte-identity: the hermetic CIP-87
+  acceptance suite passes and the fixture re-pin double-probe above is the
+  compare-side byte-identity receipt.
+
+  FINDING for Mathijs (cold/.cargo pre-state divergence — memo-matching
+  semantics, so not taken unilaterally; gitsitter cold control still exits 1
+  at 0.21 s, before any build work): the entire warm/cold divergence is
+  FETCH self-observation. A FETCH re-executed in a warm workspace observes
+  its own prior outputs as pre-state (warm memo records `.cargo`
+  DirectoryExists plus 2939 vendor pre-state reads; a virgin-workspace FETCH
+  memo differs from a warm workspace at exactly ONE meaningful entry,
+  `vendor: absent`; receipt: `recorded read set differs between warm and
+  cold at ".cargo" (warm DirectoryExists, cold Absent)`). Proposed rule, two
+  halves: (1) a FETCH about to execute first reverts the paths its
+  superseded memo recorded as its own writes, making FETCH results
+  workspace-history-independent (pin-contract hygiene, same intent as the
+  double probe); (2) memo validation treats a read of a path in the memo's
+  own write set as satisfied when the workspace currently holds the memo's
+  recorded output for that path (the memo itself proves re-execution from
+  the recorded pre-state yields exactly that output). Together these make
+  warm and cold traces identical by construction, the cold control green,
+  and the harness's two-prime workaround unnecessary. Half (2) extends
+  §3's definition of "matches" — that is the amendment needing sign-off.
+  Also recorded: cargo vendor's random `vendor/.vendor-stagingXXXX` temp
+  dirs leave ~25k absent-markers in a virgin FETCH trace (harmless — random
+  names stay absent — but ~3.4 MiB of lock noise; CIP-87 open-question-2
+  territory).
+
+- 2026-08-02T20:40:00Z — New tracefast engineering round started with the
+  completeness decision explicitly parked: trace-side reuse, tracer
+  parallelism, and mtime-preserving staging will be implemented and measured
+  independently, in that order, without relaxing files, listings, negative
+  lookups, or writes. The cold `.cargo` mismatch will be repaired only if it
+  is ownership of prior-run pre-state; any semantic carve-out stops for a CIP
+  amendment. Current complete floor remains 28.53–34.08 s; next: make the
+  executed-step recorder reuse dependencies already validated against its
+  exact pre-command workspace and count reused versus hashed inputs.
+
+- 2026-08-02T20:36:00Z — Tracefast STOP on the mandated complete-capture
+  frontier. Fixed the handoff candidate's second blocker: file fingerprints
+  had accidentally become semantic equality, so an inode/mtime miss rehashed
+  identical bytes into `fingerprint: null` and falsely invalidated every
+  restaged file. Fingerprints now remain validation-only; replacement,
+  changed-content, and deletion tests pass (27 cix-build tests total).
+  A fresh synchronous Cix-only harness then exited 0 with the required work
+  split (FETCH memo-hit, RUN executed, 11 Nix subprocesses) but took 34.08 s;
+  a second complete warm edit from another valid trace took 28.53 s. Both are
+  above the ~9 s green bar and crane's fixed 16.46 s floor.
+
+  Complete 34.08 s attribution: COPY 0.135 s; memo validation 0.368 s
+  (4/177,385 B plus 655/21,253,716 B rehashed); pre-command snapshot 0.707 s;
+  traced RUN plus read materialization 25.731 s (Cargo reported 18.39 s,
+  read-set hashing 6.092 s); output snapshot 1.046 s; chain hashing 0.045 s.
+  The 11 individually timed Nix calls — also the libnix ROI input — were
+  0.39, 0.42, 0.01, 0.01, 0.87, 0.01, 0.01, 0.01, 0.01, 0.20, and 0.01 s
+  (1.95 s total). Descent: complete baseline 94.17 s → write-set deltas,
+  fingerprint validation, and seccomp-BPF-filtered ptrace 34.08 s → observed
+  complete repeat 28.53 s; still red.
+
+  Relaxation frontier, measured rather than proposed as behavior: dropping
+  content read-set materialization can save at most the observed 6.09 s
+  (34.08 → 27.99 s) but loses CIP-87 content dependencies; dropping all
+  tracing/read capture in an otherwise identical sandbox produced 28.96 s
+  (FETCH hit/RUN executed) and an untraced RUN of 15.574 s, versus the
+  complete RUN's 25.731 s, but loses reads, negative lookups, and new write
+  discovery; deleting every Cix cost down to that raw Cargo command still
+  leaves 15.54 s, above green and only 0.92 s under crane. Eliminating all 11
+  Nix calls alone buys only 1.95 s; skipping output or input snapshots buys
+  1.05 or 0.71 s while making replay/input capture incomplete. No measured
+  relaxation reaches 9 s.
+
+  Guardrails: no-op is green at 0.16 s, zero Nix subprocesses, all four steps
+  memo-hit. The gitsitter cold control exits 1 at 1.15 s before RUN because
+  the latest warm FETCH trace observes `.cargo` present while the empty cold
+  workspace observes it absent (`mkdir -p .cargo`); this is an exact negative
+  lookup frontier, not a green cold receipt. Per the track instruction, did
+  not update docs, run the CIP/full agent gates, or commit after the complete
+  floor remained above the bar. The complete tracer is restored and rebuilt;
+  fmt, diff check, and all 27 cix-build tests pass synchronously. Mathijs must
+  choose the completeness trade or reject/rework CIP-87.
+
+- 2026-08-02T20:20:00Z — Tracefast handoff prime failure root-caused
+  synchronously. The preserved harness exited 1 only after pristine FETCH and
+  RUN completed: the committed fixture pinned `cS9…`, while a fresh
+  `--update-lock build` double-probe reported identical pristine outputs and
+  produced `Nywk…`. FETCH pins are checked only when FETCH executes; the
+  measured source edit must instead memo-hit FETCH and may replace the final
+  binary in RUN. `cS9…` is therefore the edited RUN output and cannot prime the
+  pristine fixture. Restored the pristine `Nywk…` pin; next: replay the exact
+  two-prime harness and measured edit, then complete the descent/guardrails.
+
+- 2026-08-02T20:10:00Z — Diagnosed the benchmark mismatch as replay-cache loss:
+  a fresh FETCH reports only `.cargo/.global-cache` as volatile and the
+  consumed pin remains only `target/release/gitsitter`. Committed the honest,
+  isolated fixture re-pin as `f7542fa` (`bench: repin gitsitter fetch fixture`),
+  with obsolete split-chain keys and memo/output receipts removed. Next: build
+  the optimized binary, obtain a successful warm receipt, then run CIP-87 and
+  the prescribed agent gate before committing implementation.
+
+- 2026-08-02T20:05:00Z — Tracefast STOP: baseline attribution showed full-tree delta scans at 49–51 s per executed step, so I replaced them with exact traced-write comparisons; added mtime/inode validation fingerprints and kernel seccomp-BPF syscall filtering. Focused cix-build tests (26) pass. The required end-to-end receipt is still blocked by the gitsitter harness: its regenerated FETCH output differs from the checked lock pin (`sha256-cS9…` vs `sha256-Nywk…`) even before a valid warm RUN receipt can complete. Do not commit: broader gates, byte-identical CIP suite, no-op/cold receipts, docs, and the ≤9 s measurement remain outstanding.
+
+- 2026-08-02T19:45:00Z — Baseline `examples/compare/gitsitter/measure-warm.sh`
+  completed alone in an attached terminal (exit 0): upstream 34.92 s, crane
+  16.25 s, and Cix CIP-87 94.17 s. Cix work receipt remained correct:
+  FETCH memo-hit, RUN executed, 11 Nix subprocesses. This is well above the
+  ≤9 s green bar, so no behavior change has landed. Next: obtain the mandated
+  component table (including no-trace RUN control, validation files/bytes,
+  COPY/staging, chain hashing, and each Nix invocation) before optimizing.
+
+- 2026-08-02T19:30:00Z — Started `track/tracefast` for CIP-87's post-landing
+  warm-edit performance bar. Read the complete track spec, CIP-87 (including
+  the performance-criterion changelog), project journal, current Cixfile
+  journal, and active dev environment. Scope is `cix-build` trace/build-chain
+  memo-validation paths and the gitsitter measurement harness only; hygiene
+  owns env/config intake and netns owns cix-compose. Next: record the required
+  unoptimized gitsitter cost table (trace, validation rehash, staging,
+  chain-hash, and every Nix subprocess) before changing behavior.
+
 - 2026-08-02T17:05:00Z — Track implementation and agent gate complete on
   `track/thin1`: commits `52adf3e` (unit pure move), `a7f3b25` (FETCH
   consent move), `961d626` (tripwire + compat audit), and `62ea95d`
