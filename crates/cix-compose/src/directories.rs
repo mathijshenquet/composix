@@ -373,7 +373,7 @@ pub(crate) fn render_shared_directory_unit(
         .expect("shared path is below /var/lib")
         .display();
     format!(
-        "[Unit]\\nDescription=cix compose shared directory: {name}\\nPartOf={target}\\nBefore={}\\n\\n[Service]\\nType=oneshot\\nSlice={}.slice\\nExecStart=/bin/sh -c true\\nRemainAfterExit=yes\\nGroup={group}\\nStateDirectory={relative}\\nStateDirectoryMode=2770\\nUMask=0002\\n",
+        "[Unit]\nDescription=cix compose shared directory: {name}\nPartOf={target}\nBefore={}\n\n[Service]\nType=oneshot\nSlice={}.slice\nExecStart=/bin/sh -c true\nRemainAfterExit=yes\nGroup={group}\nStateDirectory={relative}\nStateDirectoryMode=2770\nUMask=0002\n",
         members.join(" "),
         target.trim_end_matches(".target")
     )

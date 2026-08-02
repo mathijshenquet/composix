@@ -1414,6 +1414,7 @@ mod tests {
             "{shared}"
         );
         assert!(shared.contains("StateDirectoryMode=2770"), "{shared}");
+        assert!(!shared.contains(r"\n"), "{shared}");
         assert!(manifest.services["web"]
             .directories
             .iter()
