@@ -132,6 +132,7 @@ fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     };
     let (first, _) = build_with_stats(&options).unwrap();
     server.join().unwrap();
@@ -157,6 +158,7 @@ fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
 
     let cold = build(&BuildOptions {
         cold: true,
+        allow_secret: false,
         ..options
     })
     .unwrap();
@@ -169,6 +171,7 @@ fn run_build(directory: &Path, cold: bool) -> Vec<BuiltItem> {
         update_lock: None,
         tag: None,
         cold,
+        allow_secret: false,
     })
     .unwrap()
 }

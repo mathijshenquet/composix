@@ -39,8 +39,8 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` |
-| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
+| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` |
+| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `SECRET`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
 | `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
 `SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
@@ -281,7 +281,8 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | cron, crontab, or Kubernetes `CronJob` | Build the work as an `APP`, then put `schedule: "<OnCalendar>"` on its compose member | Rewrite the schedule as systemd `OnCalendar=` and check it with `systemd-analyze calendar`; composix never translates cron syntax. Add explicit `persistent: true` or `jitter: "<duration>"` only when wanted. |
 | stdout/stderr, log symlinks, or a logging driver | Write stdout/stderr and read it with `cix logs <compose>[/<service>]`; use `LOGDIR` only when the process truly writes files | CIP-83 stamps indexed journald selectors and provides `cix logs`/`stats`. Logging drivers remain deliberately refused; forwarding and retention belong to journald (optionally a compose `logNamespace`). |
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
-| build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |
+| build secrets, SSH mounts, or private registry credentials | Host-local FETCH credentials | Map a narrow URL pattern to a credential file in `~/.config/cix/credentials`; the first concrete URL needs host-local consent (or CI's `--allow-secret`). Cixfiles and locks never mention tokens, and RUN remains networkless. |
+| runtime password/API-key environment | `SECRET name AS PASSWORD_FILE` plus compose `secrets` | cix emits `LoadCredential=` and the process receives only `$PASSWORD_FILE=$CREDENTIALS_DIRECTORY/name`; do not put a secret value in `ENV` or compose `env`. |
 | `LABEL` | Drop provenance labels | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed, deliberately unbuilt (D54). |
 | startup `mkdir`, `chown`, or config rewriting | Prefer role dirs and immutable `COPY`/`FILE` assembly | Keep a `START_PRE` hook only for genuinely idempotent service setup; do not preserve entrypoint ceremony blindly. |
 | supervisor running several daemons | Split into multiple `SERVICE` members and compose them | If their coordination or shared identity cannot be represented, report that boundary. |

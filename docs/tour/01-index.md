@@ -103,6 +103,7 @@ $ cix inspect my-app:v1
     "network": null,
     "ports": {},
     "readiness": null,
+    "secrets": {},
     "shm": null,
     "start": [
       "message"

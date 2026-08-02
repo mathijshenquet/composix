@@ -120,6 +120,256 @@ enum RunNetwork {
     SocketFilter,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CredentialsFile {
+    #[serde(default)]
+    tokens: BTreeMap<String, CredentialToken>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CredentialToken {
+    url: String,
+    credential: PathBuf,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Consent {
+    project: PathBuf,
+    token: String,
+    prefix: String,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ConsentStore {
+    #[serde(default)]
+    grants: BTreeSet<Consent>,
+}
+
+struct CredentialMount {
+    name: String,
+    source: PathBuf,
+}
+
+struct HostCredentials {
+    project: PathBuf,
+    tokens: BTreeMap<String, CredentialToken>,
+    consent_path: PathBuf,
+    consent: ConsentStore,
+    allow_secret: bool,
+}
+
+impl HostCredentials {
+    fn load(project: &Path, allow_secret: bool) -> Result<Self> {
+        let project = project
+            .canonicalize()
+            .context("canonicalizing FETCH credential project")?;
+        let config_path = credential_config_path()?;
+        let tokens = match fs::read(&config_path) {
+            Ok(bytes) => {
+                serde_json::from_slice::<CredentialsFile>(&bytes)
+                    .with_context(|| {
+                        format!("parsing FETCH credentials file {}", config_path.display())
+                    })?
+                    .tokens
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
+            Err(error) => return Err(error).context("reading FETCH credentials file"),
+        };
+        let consent_path = consent_store_path()?;
+        let consent = match fs::read(&consent_path) {
+            Ok(bytes) => serde_json::from_slice(&bytes).context("parsing FETCH consent store")?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => ConsentStore::default(),
+            Err(error) => return Err(error).context("reading FETCH consent store"),
+        };
+        Ok(Self {
+            project,
+            tokens,
+            consent_path,
+            consent,
+            allow_secret,
+        })
+    }
+
+    fn for_command(&mut self, command: &str) -> Result<Option<CredentialMount>> {
+        let Some(url) = concrete_fetch_url(command) else {
+            return Ok(None);
+        };
+        let prefix = url_prefix(&url)?;
+        let matches = self
+            .tokens
+            .iter()
+            .filter(|(_, token)| token_matches(&token.url, &url))
+            .map(|(name, _)| name.clone())
+            .collect::<Vec<_>>();
+        let existing = self
+            .consent
+            .grants
+            .iter()
+            .find(|grant| grant.project == self.project && grant.prefix == prefix)
+            .cloned();
+        if matches.is_empty() {
+            if let Some(grant) = existing {
+                bail!("FETCH of {url} needs previously approved token {}; that token is no longer configured (refusing anonymous retry)", grant.token);
+            }
+            return Ok(None);
+        }
+        let name = if let Some(grant) = existing {
+            if !matches.contains(&grant.token) {
+                bail!("FETCH of {url} needs previously approved token {}; that token is no longer configured for this URL (refusing anonymous retry)", grant.token);
+            }
+            grant.token
+        } else if matches.len() == 1 {
+            matches[0].clone()
+        } else {
+            choose_token(&url, &matches, self.allow_secret)?
+        };
+        let grant = Consent {
+            project: self.project.clone(),
+            token: name.clone(),
+            prefix,
+        };
+        if !self.consent.grants.contains(&grant) && !self.allow_secret {
+            eprint!("allow FETCH of {url} using {name}? y/N ");
+            io::stderr().flush()?;
+            let mut answer = String::new();
+            io::stdin().read_line(&mut answer)?;
+            if !matches!(answer.trim(), "y" | "Y" | "yes" | "YES") {
+                bail!("FETCH credential use was not approved");
+            }
+            self.consent.grants.insert(grant);
+            self.save()?;
+        }
+        let token = &self.tokens[&name];
+        if !token.credential.is_file() {
+            bail!("FETCH token {name} has no readable credential file (refusing anonymous retry)");
+        }
+        Ok(Some(CredentialMount {
+            name,
+            source: token.credential.clone(),
+        }))
+    }
+
+    fn save(&self) -> Result<()> {
+        let parent = self
+            .consent_path
+            .parent()
+            .expect("consent state path has a parent");
+        fs::create_dir_all(parent).context("creating FETCH consent state directory")?;
+        let temporary =
+            tempfile::NamedTempFile::new_in(parent).context("creating FETCH consent state")?;
+        serde_json::to_writer_pretty(temporary.reopen()?, &self.consent)?;
+        temporary
+            .persist(&self.consent_path)
+            .map_err(|error| error.error)
+            .context("saving FETCH consent state")?;
+        Ok(())
+    }
+}
+
+pub fn revoke_fetch_consent(token: &str) -> Result<usize> {
+    let path = consent_store_path()?;
+    let mut store: ConsentStore = match fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice(&bytes).context("parsing FETCH consent store")?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error).context("reading FETCH consent store"),
+    };
+    let removed = revoke_from_store(&mut store, token);
+    if removed != 0 {
+        let parent = path.parent().expect("consent state path has a parent");
+        let temporary =
+            tempfile::NamedTempFile::new_in(parent).context("creating FETCH consent state")?;
+        serde_json::to_writer_pretty(temporary.reopen()?, &store)?;
+        temporary
+            .persist(path)
+            .map_err(|error| error.error)
+            .context("saving FETCH consent state")?;
+    }
+    Ok(removed)
+}
+
+fn revoke_from_store(store: &mut ConsentStore, token: &str) -> usize {
+    let before = store.grants.len();
+    store.grants.retain(|grant| grant.token != token);
+    before - store.grants.len()
+}
+
+fn credential_config_path() -> Result<PathBuf> {
+    if let Some(directory) = std::env::var_os("CREDENTIALS_DIRECTORY") {
+        return Ok(PathBuf::from(directory).join("credentials"));
+    }
+    let home = std::env::var_os("HOME")
+        .context("HOME is unset; set CREDENTIALS_DIRECTORY for FETCH credentials")?;
+    Ok(PathBuf::from(home).join(".config/cix/credentials"))
+}
+
+fn consent_store_path() -> Result<PathBuf> {
+    if let Some(directory) = std::env::var_os("XDG_STATE_HOME") {
+        return Ok(PathBuf::from(directory).join("cix/fetch-consents.json"));
+    }
+    let home = std::env::var_os("HOME")
+        .context("HOME is unset; set XDG_STATE_HOME for FETCH consent state")?;
+    Ok(PathBuf::from(home).join(".local/state/cix/fetch-consents.json"))
+}
+
+fn concrete_fetch_url(command: &str) -> Option<String> {
+    command
+        .split_whitespace()
+        .map(|word| word.trim_matches(['\'', '\"']))
+        .find(|word| word.starts_with("https://") || word.starts_with("http://"))
+        .map(ToOwned::to_owned)
+}
+
+fn url_prefix(url: &str) -> Result<String> {
+    let (_, after_scheme) = url
+        .split_once("://")
+        .context("FETCH URL must have a scheme")?;
+    let (host, path) = after_scheme.split_once('/').unwrap_or((after_scheme, ""));
+    let first = path.split('/').next().filter(|part| !part.is_empty());
+    Ok(match first {
+        Some(first) => format!(
+            "{}://{host}/{first}",
+            &url[..url.find("://").expect("scheme exists")]
+        ),
+        None => format!(
+            "{}://{host}",
+            &url[..url.find("://").expect("scheme exists")]
+        ),
+    })
+}
+
+fn token_matches(pattern: &str, url: &str) -> bool {
+    match pattern.split_once('*') {
+        Some((prefix, suffix)) => url.starts_with(prefix) && url.ends_with(suffix),
+        None => url.starts_with(pattern),
+    }
+}
+
+fn choose_token(url: &str, matches: &[String], allow_secret: bool) -> Result<String> {
+    if allow_secret {
+        bail!(
+            "FETCH of {url} matches multiple credentials ({}); --allow-secret cannot choose one",
+            matches.join(", ")
+        );
+    }
+    eprint!(
+        "FETCH of {url} matches credentials {}; choose token name: ",
+        matches.join(", ")
+    );
+    io::stderr().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    let answer = answer.trim();
+    if matches.iter().any(|name| name == answer) {
+        Ok(answer.to_owned())
+    } else {
+        bail!("no matching FETCH credential was selected")
+    }
+}
+
 pub fn execute(
     cixfile: &Cixfile,
     directory: &Path,
@@ -127,7 +377,9 @@ pub fn execute(
     system: &str,
     update: Option<&str>,
     cold: bool,
+    allow_secret: bool,
 ) -> Result<BTreeMap<String, String>> {
+    let mut credentials = HostCredentials::load(directory, allow_secret)?;
     let needed = consumed_paths(cixfile);
     let mut binders = BTreeMap::new();
     for name in &cixfile.fetch_order {
@@ -143,6 +395,7 @@ pub fn execute(
             needed.get(name).cloned().unwrap_or_default(),
             update.is_some_and(|requested| requested.is_empty() || requested == name),
             cold,
+            &mut credentials,
         )?;
         binders.insert(name.clone(), view);
     }
@@ -159,6 +412,7 @@ pub fn execute(
             needed.get(name).cloned().unwrap_or_default(),
             update.is_some_and(|requested| requested.is_empty() || requested == name),
             cold,
+            &mut credentials,
         )?;
         binders.insert(name.clone(), view);
     }
@@ -177,6 +431,7 @@ fn execute_top_fetch(
     mut needed: BTreeMap<String, NeededPath>,
     force: bool,
     cold: bool,
+    credentials: &mut HostCredentials,
 ) -> Result<String> {
     if let Some(expected) = &fetch.expected {
         if lock.fetches.get(name).map(|pin| &pin.nar_hash) != Some(expected) {
@@ -263,6 +518,7 @@ fn execute_top_fetch(
         .tempdir()
         .context("creating top-level FETCH workdir")?;
     let started = Instant::now();
+    let credential = credentials.for_command(command)?;
     run_sandbox(
         work.path(),
         &shell,
@@ -272,6 +528,11 @@ fn execute_top_fetch(
         &offered_closure,
         &context.imports,
         None,
+        credential
+            .as_ref()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .as_slice(),
     )
     .with_context(|| {
         format!(
@@ -292,6 +553,11 @@ fn execute_top_fetch(
             &offered_closure,
             &context.imports,
             None,
+            credential
+                .as_ref()
+                .into_iter()
+                .collect::<Vec<_>>()
+                .as_slice(),
         )
         .with_context(|| {
             format!(
@@ -370,6 +636,7 @@ fn execute_builder(
     needed: BTreeMap<String, NeededPath>,
     update_fetch_pins: bool,
     cold: bool,
+    credentials: &mut HostCredentials,
 ) -> Result<String> {
     let command_count = builder
         .steps
@@ -590,6 +857,11 @@ fn execute_builder(
                 .then(|| copied_snapshot(&workdir))
                 .transpose()?;
                 let started = Instant::now();
+                let credential = if is_fetch {
+                    credentials.for_command(command)?
+                } else {
+                    None
+                };
                 run_sandbox(
                     &workdir,
                     shell.as_deref().expect("command steps have a shell"),
@@ -599,6 +871,11 @@ fn execute_builder(
                     &offered_closure,
                     &context.imports,
                     if is_fetch { None } else { run_network },
+                    credential
+                        .as_ref()
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .as_slice(),
                 )
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -616,6 +893,11 @@ fn execute_builder(
                             &offered_closure,
                             &context.imports,
                             None,
+                            credential
+                                .as_ref()
+                                .into_iter()
+                                .collect::<Vec<_>>()
+                                .as_slice(),
                         )
                         .with_context(|| {
                             format!("line {line}: FETCH update probe failed\n  | {source:?}")
@@ -1766,6 +2048,7 @@ fn run_sandbox(
     offered_closure: &BTreeSet<String>,
     imports: &[String],
     run_network: Option<RunNetwork>,
+    credentials: &[&CredentialMount],
 ) -> Result<()> {
     let import_union = prepare_import_union(imports, run_network.is_none())?;
     let env_is_missing = !import_union.path().join("bin/env").is_file();
@@ -1797,6 +2080,14 @@ fn run_sandbox(
     for path in offered_closure {
         process.args(["--ro-bind", path, path]);
     }
+    for credential in credentials {
+        let destination = format!("/run/cix-credentials/{}", credential.name);
+        process.args(["--dir", "/run", "--dir", "/run/cix-credentials"]);
+        process
+            .arg("--ro-bind")
+            .arg(&credential.source)
+            .arg(&destination);
+    }
     for subtree in ["bin", "etc", "share"] {
         let source = import_union.path().join(subtree);
         if source.is_dir() {
@@ -1822,6 +2113,16 @@ fn run_sandbox(
     }
     for (name, value) in environment {
         process.args(["--setenv", name, value]);
+    }
+    if let Some(credential) = credentials.first() {
+        process
+            .arg("--setenv")
+            .arg("CIX_FETCH_CREDENTIAL_FILE")
+            .arg(format!("/run/cix-credentials/{}", credential.name));
+        process
+            .arg("--setenv")
+            .arg("CIX_FETCH_TOKEN")
+            .arg(&credential.name);
     }
     let exports = export_prelude
         .iter()
@@ -2642,11 +2943,124 @@ mod tests {
             &offered_closure,
             &[offer],
             Some(RunNetwork::SocketFilter),
+            &[],
         )
         .unwrap();
         assert_eq!(
             fs::read_to_string(work.path().join("result")).unwrap(),
             "fallback-ok"
         );
+    }
+
+    #[test]
+    fn fetch_credential_matching_uses_concrete_url_prefixes() {
+        assert_eq!(
+            url_prefix("https://packages.example.test/team/npm/pkg.tgz").unwrap(),
+            "https://packages.example.test/team"
+        );
+        assert!(token_matches(
+            "https://packages.example.test/team/*",
+            "https://packages.example.test/team/npm/pkg.tgz"
+        ));
+        assert!(!token_matches(
+            "https://packages.example.test/other/*",
+            "https://packages.example.test/team/npm/pkg.tgz"
+        ));
+        assert_eq!(
+            concrete_fetch_url("curl --fail 'https://packages.example.test/team/npm/pkg.tgz'"),
+            Some("https://packages.example.test/team/npm/pkg.tgz".into())
+        );
+    }
+
+    #[test]
+    fn fetch_consent_is_scoped_to_project_prefix_and_token() {
+        let project = PathBuf::from("/work/example");
+        let first = Consent {
+            project: project.clone(),
+            token: "packages".into(),
+            prefix: "https://packages.example.test/team".into(),
+        };
+        let second_prefix = Consent {
+            project: project.clone(),
+            token: "packages".into(),
+            prefix: "https://packages.example.test/other".into(),
+        };
+        let other_project = Consent {
+            project: PathBuf::from("/work/other"),
+            token: "packages".into(),
+            prefix: first.prefix.clone(),
+        };
+        let mut store = ConsentStore {
+            grants: BTreeSet::from([first.clone(), second_prefix, other_project]),
+        };
+
+        assert!(store.grants.contains(&first));
+        assert_eq!(revoke_from_store(&mut store, "packages"), 3);
+        assert!(store.grants.is_empty());
+    }
+
+    #[test]
+    fn removed_fetch_token_refuses_an_anonymous_retry() {
+        let project = PathBuf::from("/work/example");
+        let mut credentials = HostCredentials {
+            project: project.clone(),
+            tokens: BTreeMap::new(),
+            consent_path: PathBuf::from("/tmp/fetch-consents.json"),
+            consent: ConsentStore {
+                grants: BTreeSet::from([Consent {
+                    project,
+                    token: "retired".into(),
+                    prefix: "https://packages.example.test/team".into(),
+                }]),
+            },
+            allow_secret: true,
+        };
+
+        let error = match credentials.for_command("curl https://packages.example.test/team/pkg.tgz")
+        {
+            Ok(_) => panic!("a removed token must not allow an anonymous FETCH"),
+            Err(error) => error.to_string(),
+        };
+        assert!(error.contains("retired"), "{error}");
+        assert!(error.contains("refusing anonymous retry"), "{error}");
+    }
+
+    #[test]
+    fn a_new_fetch_prefix_needs_its_own_consent() {
+        let directory = tempfile::tempdir().unwrap();
+        let credential = directory.path().join("credential");
+        fs::write(&credential, "not logged").unwrap();
+        let project = PathBuf::from("/work/example");
+        let old = Consent {
+            project: project.clone(),
+            token: "packages".into(),
+            prefix: "https://packages.example.test/team".into(),
+        };
+        let mut credentials = HostCredentials {
+            project: project.clone(),
+            tokens: BTreeMap::from([(
+                "packages".into(),
+                CredentialToken {
+                    url: "https://packages.example.test/*".into(),
+                    credential,
+                },
+            )]),
+            consent_path: directory.path().join("consent.json"),
+            consent: ConsentStore {
+                grants: BTreeSet::from([old]),
+            },
+            allow_secret: true,
+        };
+
+        let mounted = credentials
+            .for_command("curl https://packages.example.test/other/pkg.tgz")
+            .unwrap()
+            .expect("matching token is available");
+        assert_eq!(mounted.name, "packages");
+        assert!(credentials
+            .consent
+            .grants
+            .iter()
+            .all(|grant| grant.prefix != "https://packages.example.test/other"));
     }
 }

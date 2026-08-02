@@ -10,7 +10,7 @@ mod lock;
 mod model;
 mod seccomp;
 
-pub use build_chain::execute;
+pub use build_chain::{execute, revoke_fetch_consent};
 pub use codegen::{
     generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
     generate_fetch_context_nix, generate_fetch_offer_nix, generate_nix,
@@ -22,5 +22,5 @@ pub use lock::{
 };
 pub use model::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
-    Input, InputKind, Liveness, Port, Probe, Readiness, Service, Template, TemplatePart,
+    Input, InputKind, Liveness, Port, Probe, Readiness, Secret, Service, Template, TemplatePart,
 };

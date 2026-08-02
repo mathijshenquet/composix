@@ -221,6 +221,7 @@ fn same_service(left: &Service, right: &Service) -> bool {
         && left.listeners == right.listeners
         && left.readiness == right.readiness
         && left.liveness == right.liveness
+        && left.secrets == right.secrets
         && left.dirs == right.dirs
         && left.claims == right.claims
         && left.shm == right.shm

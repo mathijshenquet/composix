@@ -10,14 +10,18 @@ pub enum Command {
         /// Store path or flake installable, optionally with `#service`.
         ///
         /// For a flake output, append a second suffix: `flake#package#service`.
-        installable: String,
+        #[arg(required_unless_present = "compose", conflicts_with = "compose")]
+        installable: Option<String>,
+        /// Run an anonymous compose JSON document (a path or '-' for stdin).
+        #[arg(long, value_name = "FILE|-")]
+        compose: Option<std::path::PathBuf>,
         /// Override a declared environment variable (`NAME=VALUE`).
         #[arg(short = 'e', long = "env", value_name = "NAME=VALUE")]
         env: Vec<String>,
         /// Override a named port (`NAME=PORT`) or bind a listener (`NAME=ADDR:PORT`).
         #[arg(short = 'p', long = "port", value_name = "NAME=VALUE")]
         port: Vec<String>,
-        /// Materialize a declared directory (`/path=host:/host/path`, `shared:name`, or `as:state`; `host-idmap:` explicitly acknowledges idmapping).
+        /// Materialize a declared directory (`/path=host:/host/path`, `shared:name`, or `as:state`).
         #[arg(long = "dir", value_name = "PATH=MATERIALIZATION")]
         dirs: Vec<String>,
         /// Stable host identity required by host-backed directories.
@@ -71,6 +75,7 @@ impl Command {
             Self::Probe { command } => command.run(),
             Self::Run {
                 installable,
+                compose,
                 env,
                 port,
                 dirs,
@@ -78,16 +83,21 @@ impl Command {
                 detach,
                 schedule,
                 user,
-            } => crate::runtime::run(crate::runtime::RunOptions {
-                installable,
-                env,
-                port,
-                dirs,
-                identity,
-                detach,
-                schedule,
-                user,
-            }),
+            } => {
+                if compose.is_some() {
+                    anyhow::bail!("cix run --compose is handled by the top-level cix command")
+                }
+                crate::runtime::run(crate::runtime::RunOptions {
+                    installable: installable.expect("clap requires installable without --compose"),
+                    env,
+                    port,
+                    dirs,
+                    identity,
+                    detach,
+                    schedule,
+                    user,
+                })
+            }
             Self::Debug {
                 installable,
                 env,

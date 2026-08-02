@@ -683,6 +683,22 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
             nix_probe(&liveness.probe, "interval", &liveness.interval)
         )?;
     }
+    if !service.secrets.is_empty() {
+        write!(
+            output,
+            " secrets = {{ {} }};",
+            service
+                .secrets
+                .iter()
+                .map(|(name, secret)| match &secret.as_env {
+                    Some(as_env) =>
+                        format!("{} = {{ as = {}; }};", nix_attr(name), nix_string(as_env)),
+                    None => format!("{} = {{}};", nix_attr(name)),
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
+    }
     if let Some(dirs) = nix_dirs(service) {
         write!(output, " dirs = {dirs};")?;
     }
@@ -1077,6 +1093,24 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         value.insert(
             "liveness".into(),
             literal_probe(&liveness.probe, "interval", &liveness.interval),
+        );
+    }
+    if !service.secrets.is_empty() {
+        value.insert(
+            "secrets".into(),
+            Value::Object(
+                service
+                    .secrets
+                    .iter()
+                    .map(|(name, secret)| {
+                        let mut declaration = Map::new();
+                        if let Some(as_env) = &secret.as_env {
+                            declaration.insert("as".into(), Value::String(as_env.clone()));
+                        }
+                        (name.clone(), Value::Object(declaration))
+                    })
+                    .collect(),
+            ),
         );
     }
     let dirs = literal_dirs(service);

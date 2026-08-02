@@ -184,6 +184,7 @@ impl Parser<'_> {
                 "START" => self.start(line_number, source, arguments, false)?,
                 "START_PRE" => self.start(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,
+                "SECRET" => self.secret(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
                 "READINESS" => self.health_probe(line_number, source, arguments, true)?,

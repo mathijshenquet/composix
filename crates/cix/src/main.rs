@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command as ProcessCommand;
+use std::{fs, io::Read};
 
 use anyhow::{bail, Context};
 use cix_common::current_system;
@@ -62,6 +63,11 @@ enum Command {
     Logs(Logs),
     /// Read one accounting snapshot from systemd; use systemd-cgtop for a live view.
     Stats,
+    /// Manage host-local FETCH credential consent.
+    Credentials {
+        #[command(subcommand)]
+        command: CredentialsCommand,
+    },
     #[command(flatten)]
     Cixfile(cix_cixfile::cli::Command),
     #[command(flatten)]
@@ -78,6 +84,12 @@ enum Command {
     Run(cix_run::cli::Command),
 }
 
+#[derive(clap::Subcommand)]
+enum CredentialsCommand {
+    /// Revoke every host-local consent grant for a named FETCH token.
+    Revoke { token: String },
+}
+
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Inspect(options) => inspect(options),
@@ -90,13 +102,62 @@ fn main() -> anyhow::Result<()> {
             explain: options.explain,
         }),
         Command::Stats => cix_compose::stats(),
+        Command::Credentials {
+            command: CredentialsCommand::Revoke { token },
+        } => {
+            let removed = cix_cixfile::revoke_fetch_consent(&token)?;
+            println!("revoked {removed} FETCH consent grant(s) for {token}");
+            Ok(())
+        }
         Command::Cixfile(cmd) => cmd.run(),
         Command::Compose(cmd) => cmd.run(),
         Command::Index(cmd) => cmd.run(),
         Command::IndexGroup { command } => command.run(),
         Command::Run(cix_run::cli::Command::Ps) => cix_compose::ps(),
+        Command::Run(
+            command @ cix_run::cli::Command::Run {
+                compose: Some(_),
+                installable: None,
+                ..
+            },
+        ) => run_compose(command),
         Command::Run(cmd) => cmd.run(),
     }
+}
+
+fn run_compose(command: cix_run::cli::Command) -> anyhow::Result<()> {
+    let cix_run::cli::Command::Run {
+        compose: Some(compose),
+        installable: None,
+        env,
+        port,
+        dirs,
+        identity,
+        detach,
+        schedule,
+        user,
+    } = command
+    else {
+        unreachable!("only a compose run command reaches this helper");
+    };
+    if !env.is_empty()
+        || !port.is_empty()
+        || !dirs.is_empty()
+        || identity.is_some()
+        || detach
+        || schedule.is_some()
+        || user
+    {
+        bail!("cix run --compose accepts the compose document as the complete operator surface; put service fields in that JSON")
+    }
+    if compose.as_os_str() != "-" {
+        return cix_compose::up(&compose, cix_compose::UpdateRequest::None);
+    }
+    let mut input = Vec::new();
+    std::io::stdin().read_to_end(&mut input)?;
+    let file = tempfile::NamedTempFile::new().context("creating anonymous compose input")?;
+    fs::write(file.path(), input).context("writing anonymous compose input")?;
+    cix_compose::up(file.path(), cix_compose::UpdateRequest::None)
 }
 
 #[derive(Serialize)]

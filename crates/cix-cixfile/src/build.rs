@@ -17,6 +17,7 @@ pub struct BuildOptions {
     pub update_lock: Option<String>,
     pub tag: Option<String>,
     pub cold: bool,
+    pub allow_secret: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -160,6 +161,7 @@ pub fn build_family_with_stats(
         &system,
         requested_update,
         options.cold,
+        options.allow_secret,
     );
     save_lock(&lock_path, &lock)?;
     let snapshots = snapshots?;

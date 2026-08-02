@@ -194,6 +194,7 @@ fn run_bare_round(directory: &Path) -> Result<()> {
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })? {
         println!("{}", item.store_path);
     }
@@ -220,6 +221,7 @@ fn run_compose_round(
             update_lock: None,
             tag: None,
             cold: false,
+            allow_secret: false,
         })?;
         for (service, item) in map_outputs(&compose, &context.root, directory, outputs)? {
             cix_index::tag(&item.store_path, &compose.services[&service].item, None).with_context(

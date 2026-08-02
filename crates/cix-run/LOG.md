@@ -467,3 +467,54 @@
   scenario also passed while competing with the full parallel VM load. Final
   audit found no whitespace errors or unrelated worktree changes. The track is
   ready to commit; next step is orchestrator re-verification and merge.
+
+## track/secrets
+
+- 2026-08-02 10:00 UTC — Started CIP-81 from `.dev/specs/track-secrets.md` on
+  `track/secrets`. Read AGENTS.md, the current session journal, this assigned
+  log, the full adopted CIP (including all four FETCH consent turns), and the
+  relevant runtime/compose/Cixfile surfaces. Scope spans the declared runtime
+  `SECRET` contract, compose credential materialization and salted rotation
+  state, host-side FETCH credentials/consent, anonymous `run --compose`, docs,
+  and the required secrets VM. The builder-engine ownership fence is observed:
+  FETCH work will stay additive at execution/credential boundaries and not
+  touch cix-cixfile keying, memo, or trace code. Next: map exact model and CLI
+  seams, then implement schema and runtime delivery first.
+
+- 2026-08-02 10:30 UTC — Implemented the first integrated CIP-81 slice:
+  `SECRET name [AS VAR_FILE]` parses and persists in the manifest, with `%d`
+  credential-path environment projection; strict compose top-level `secrets`
+  sources resolve only into declaring services and emit `LoadCredential=` or
+  `LoadCredentialEncrypted=`. Missing declarations fail and excess supplies
+  warn LOUDly. `cix up` now maintains a per-composite random-salt HMAC state
+  outside generations and adds secret-rotated consumers to the restart set.
+  `cix run --compose <file|->` routes through compose activation; the
+  `host-idmap:` fused `--dir` spelling now gives the CIP-77 migration pointer.
+  FETCH credentials are host-local JSON configuration with concrete-URL,
+  project/token/prefix consent and sandbox-local credential-file mounting;
+  they do not alter keys, memo records, locks, probes, or trace data. Focused
+  parser/unit/compose tests are in progress; next is the complete focused
+  suites, generated docs/fixtures, and the VM scenario.
+
+- 2026-08-02 13:31 UTC — The dedicated secrets VM is green. Synchronous
+  `devenv shell -- nix build .#checks.x86_64-linux.scenario-secrets --no-link`
+  produced the valid `/nix/store/lpicg5k7zdm9dg5rm2bvpanz2wx10inv-vm-test-run-scenario`
+  output after its 63.33s script: a root-only source was delivered at the
+  systemd credential path, the `_FILE` shim worked, excess compose supply was
+  LOUD, rotating the source restarted only the consumer, and `cix run
+  --compose` activated a credential-consuming member. Earlier fixture failures
+  were only missing absolute coreutils paths and an attempted write to /run by
+  DynamicUser; the final assertion uses the unit journal. Focused
+  `devenv shell -- cargo test -p cix-build -p cix-compose -p cix-run` is green.
+  Added direct consent-state and strict compose-source coverage next; then run
+  the complete required gate and commit.
+
+- 2026-08-02 13:43 UTC — Complete CIP-81 gate is green. Synchronous receipts:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix
+  -- fmt --check examples`; `devenv shell -- cargo clippy --workspace
+  --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`; and
+  tour regeneration followed by its normal drift/determinism test. The mandated
+  `devenv shell -- nix flake check -L` built all 73 checks, then its immediate
+  synchronous cached rerun reported 12 checks previously built and `running 0
+  flake checks`, exit 0. The generated tour records `secrets: {}` in the
+  manifest projection. Next: stage the audited diff and commit `track/secrets`.
