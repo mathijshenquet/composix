@@ -1,7 +1,9 @@
+use std::ffi::OsString;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::thread;
 
 use cix_cixfile::{build, build_with_stats, parse, BuildOptions, BuiltItem, LockFile};
@@ -19,14 +21,38 @@ const PROJECT_FILES: &[&str] = &[
     "rust/worker/src/main.rs",
 ];
 
+static WORKSPACE_DIRECTORY: Mutex<()> = Mutex::new(());
+
+struct WorkspaceDirectory {
+    previous: Option<OsString>,
+}
+
+impl WorkspaceDirectory {
+    fn set(path: &Path) -> Self {
+        let previous = std::env::var_os("CIX_BUILD_WORKSPACE_DIR");
+        std::env::set_var("CIX_BUILD_WORKSPACE_DIR", path);
+        Self { previous }
+    }
+}
+
+impl Drop for WorkspaceDirectory {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(path) => std::env::set_var("CIX_BUILD_WORKSPACE_DIR", path),
+            None => std::env::remove_var("CIX_BUILD_WORKSPACE_DIR"),
+        }
+    }
+}
+
 #[test]
 fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
+    let _workspace_directory_lock = WORKSPACE_DIRECTORY.lock().unwrap();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = root.join("examples/build/proj1");
     let temporary = tempfile::tempdir().unwrap();
     copy_project(&source, temporary.path());
     let workspace_base = temporary.path().join("workspaces");
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", &workspace_base);
+    let _workspace_directory = WorkspaceDirectory::set(&workspace_base);
     let mut clean_lock = load_lock(temporary.path());
     clean_lock.fetches.clear();
     clean_lock.memo.clear();
@@ -77,6 +103,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
 
 #[test]
 fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
+    let _workspace_directory_lock = WORKSPACE_DIRECTORY.lock().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
@@ -99,7 +126,7 @@ fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
     let lock = root.join("examples/pack/nginx/Cixfile.lock");
     fs::copy(lock, temporary.path().join("Cixfile.lock")).unwrap();
     let workspace = tempfile::tempdir().unwrap();
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", workspace.path());
+    let _workspace_directory = WorkspaceDirectory::set(workspace.path());
     let options = BuildOptions {
         directory: temporary.path().to_owned(),
         update_lock: None,

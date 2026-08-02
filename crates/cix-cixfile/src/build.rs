@@ -417,10 +417,39 @@ fn add_item_to_store(path: &str, name: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        reject_expected_fetch_update, tag_namespace, tag_reference, validate_namespace,
-        validate_tag,
+        build_fingerprint, reject_expected_fetch_update, tag_namespace, tag_reference,
+        validate_namespace, validate_tag,
     };
     use crate::parse;
+    use cix_build::{LockFile, OutputReceipt};
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn output_receipts_do_not_change_the_build_fingerprint() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join("Cixfile"),
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSTART /bin/true\n",
+        )
+        .unwrap();
+        let mut lock = LockFile {
+            inputs: BTreeMap::new(),
+            artifacts: BTreeMap::new(),
+            fetches: BTreeMap::new(),
+            memo: BTreeMap::new(),
+            dev_envs: BTreeMap::new(),
+            outputs: BTreeMap::new(),
+        };
+        let before = build_fingerprint(directory.path(), &lock).unwrap();
+        lock.outputs.insert(
+            "app".into(),
+            OutputReceipt {
+                source_hash: "prior-run-hash".into(),
+                store_path: "/nix/store/prior-run-output".into(),
+            },
+        );
+        assert_eq!(before, build_fingerprint(directory.path(), &lock).unwrap());
+    }
 
     #[test]
     fn tags_are_tag_only_and_namespaces_supply_family_names() {
