@@ -394,6 +394,7 @@ fn choose_token(url: &str, matches: &[String], allow_secret: bool) -> Result<Str
 }
 */
 
+#[allow(clippy::too_many_arguments)]
 pub fn execute(
     cixfile: &Cixfile,
     directory: &Path,
@@ -402,6 +403,7 @@ pub fn execute(
     update: Option<&str>,
     cold: bool,
     allow_secret: bool,
+    workspace_directory: &Path,
 ) -> Result<(BTreeMap<String, String>, Vec<ExecutedStep>)> {
     let mut credentials = HostCredentials::load(directory, allow_secret)?;
     let needed = consumed_paths(cixfile);
@@ -442,6 +444,7 @@ pub fn execute(
             needed.get(name).cloned().unwrap_or_default(),
             update.is_some_and(|requested| requested.is_empty() || requested == name),
             cold,
+            workspace_directory,
             &mut credentials,
         )?;
         binders.insert(name.clone(), view);
@@ -713,6 +716,7 @@ fn execute_builder(
     needed: BTreeMap<String, NeededPath>,
     update_fetch_pins: bool,
     cold: bool,
+    workspace_directory: &Path,
     credentials: &mut HostCredentials,
 ) -> Result<(String, Vec<ExecutedStep>)> {
     let command_count = builder
@@ -811,7 +815,7 @@ fn execute_builder(
     }
 
     let persistent = (!cold)
-        .then(|| workspace_paths(directory, builder_name))
+        .then(|| workspace_paths(workspace_directory, directory, builder_name))
         .transpose()?;
     let prior_keys = persistent
         .as_ref()
@@ -1891,18 +1895,11 @@ fn add_store_object(path: &Path, name: &str) -> Result<String> {
         .context("nix store add did not return a store path")
 }
 
-fn workspace_paths(directory: &Path, builder: &str) -> Result<(PathBuf, PathBuf, PathBuf)> {
-    let base = if let Some(path) = std::env::var_os("CIX_BUILD_WORKSPACE_DIR") {
-        PathBuf::from(path)
-    } else if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
-        PathBuf::from(path).join("cix/workspaces")
-    } else {
-        PathBuf::from(
-            std::env::var_os("HOME")
-                .context("HOME is unset; set CIX_BUILD_WORKSPACE_DIR for Cixfile workspaces")?,
-        )
-        .join(".cache/cix/workspaces")
-    };
+fn workspace_paths(
+    base: &Path,
+    directory: &Path,
+    builder: &str,
+) -> Result<(PathBuf, PathBuf, PathBuf)> {
     let identity = workspace_identity(directory, builder);
     let root = base.join(identity);
     let work = root.join("work");

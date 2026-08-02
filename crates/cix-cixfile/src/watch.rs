@@ -1,9 +1,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    env, fs,
+    fs,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::Ordering,
         mpsc::{self, Receiver, Sender},
         Once,
     },
@@ -16,33 +16,38 @@ use notify::{Config, Event, EventKind, PollWatcher, RecommendedWatcher, Recursiv
 
 use crate::{build, BuildOptions, BuiltItem};
 
-const DEFAULT_DEBOUNCE: Duration = Duration::from_millis(300);
-static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+// The handler is installed once because ctrlc owns a process-wide handler slot.
 static INTERRUPT_HANDLER: Once = Once::new();
 
-pub fn watch(path: &Path) -> Result<()> {
+#[derive(Clone, Debug)]
+pub struct WatchOptions {
+    pub workspace_directory: PathBuf,
+    pub debounce: Duration,
+    pub state_directory: PathBuf,
+}
+
+pub fn watch(path: &Path, options: WatchOptions) -> Result<()> {
     install_interrupt_handler();
-    INTERRUPTED.store(false, Ordering::SeqCst);
-    let context = WatchContext::new(path)?;
-    watch_loop(context)
+    cix_common::INTERRUPTED.store(false, Ordering::SeqCst);
+    let context = WatchContext::new(path, options.workspace_directory, options.state_directory)?;
+    watch_loop(context, options.debounce)
 }
 
 fn install_interrupt_handler() {
     INTERRUPT_HANDLER.call_once(|| {
         ctrlc::set_handler(|| {
-            INTERRUPTED.store(true, Ordering::SeqCst);
+            cix_common::INTERRUPTED.store(true, Ordering::SeqCst);
         })
         .expect("installing cix watch Ctrl-C handler");
     });
 }
 
-fn watch_loop(context: WatchContext) -> Result<()> {
+fn watch_loop(context: WatchContext, debounce: Duration) -> Result<()> {
     let (sender, receiver) = mpsc::channel();
     let _watcher = start_watcher(&context.root, sender)?;
     eprintln!("watching {}", context.root.display());
-    let debounce = debounce();
 
-    while !INTERRUPTED.load(Ordering::SeqCst) {
+    while !cix_common::INTERRUPTED.load(Ordering::SeqCst) {
         let mut changed = receive_changes(&receiver, &context, Duration::from_millis(50));
         if changed.is_empty() {
             continue;
@@ -54,25 +59,17 @@ fn watch_loop(context: WatchContext) -> Result<()> {
             }
             changed.extend(more);
         }
-        if INTERRUPTED.load(Ordering::SeqCst) {
+        if cix_common::INTERRUPTED.load(Ordering::SeqCst) {
             break;
         }
         if let Err(error) = run_round(&context, &changed) {
-            if INTERRUPTED.load(Ordering::SeqCst) {
+            if cix_common::INTERRUPTED.load(Ordering::SeqCst) {
                 break;
             }
             eprintln!("watch round failed: {error:#}");
         }
     }
     Ok(())
-}
-
-fn debounce() -> Duration {
-    env::var("CIX_WATCH_DEBOUNCE_MS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .map(Duration::from_millis)
-        .unwrap_or(DEFAULT_DEBOUNCE)
 }
 
 fn receive_changes(
@@ -88,7 +85,7 @@ fn receive_changes(
             ) {
                 return BTreeSet::new();
             }
-            let ignores = IgnoreSet::new(&context.root);
+            let ignores = IgnoreSet::new(&context.root, &context.workspace_directory);
             event
                 .paths
                 .into_iter()
@@ -146,10 +143,12 @@ fn start_polling(
 struct WatchContext {
     root: PathBuf,
     compose: Option<PathBuf>,
+    workspace_directory: PathBuf,
+    state_directory: PathBuf,
 }
 
 impl WatchContext {
-    fn new(path: &Path) -> Result<Self> {
+    fn new(path: &Path, workspace_directory: PathBuf, state_directory: PathBuf) -> Result<Self> {
         let path = path
             .canonicalize()
             .with_context(|| format!("resolving watch path {}", path.display()))?;
@@ -177,24 +176,39 @@ impl WatchContext {
                 root.display()
             );
         }
-        Ok(Self { root, compose })
+        Ok(Self {
+            root,
+            compose,
+            workspace_directory,
+            state_directory,
+        })
     }
 }
 
 fn run_round(context: &WatchContext, paths: &BTreeSet<PathBuf>) -> Result<()> {
     match &context.compose {
         Some(compose) => run_compose_round(context, compose, paths),
-        None => run_bare_round(&context.root),
+        None => run_bare_round(
+            &context.root,
+            &context.workspace_directory,
+            &context.state_directory,
+        ),
     }
 }
 
-fn run_bare_round(directory: &Path) -> Result<()> {
+fn run_bare_round(
+    directory: &Path,
+    workspace_directory: &Path,
+    state_directory: &Path,
+) -> Result<()> {
     for item in build(&BuildOptions {
         directory: directory.to_owned(),
         update_lock: None,
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: workspace_directory.to_owned(),
+        state_directory: state_directory.to_owned(),
     })? {
         println!("{}", item.store_path);
     }
@@ -222,10 +236,18 @@ fn run_compose_round(
             tag: None,
             cold: false,
             allow_secret: false,
+            workspace_directory: context.workspace_directory.clone(),
+            state_directory: context.state_directory.clone(),
         })?;
         for (service, item) in map_outputs(&compose, &context.root, directory, outputs)? {
             let declaration = compose_item(&compose, &service).expect("mapped item child");
-            cix_index::tag(&item.store_path, &declaration.item, None).with_context(|| {
+            cix_index::tag(
+                &cix_index::Store::open(context.state_directory.clone())?,
+                &item.store_path,
+                &declaration.item,
+                None,
+            )
+            .with_context(|| {
                 format!(
                     "updating compose service {service:?} from {}",
                     directory.display()
@@ -237,12 +259,18 @@ fn run_compose_round(
 
     if !changed_services.is_empty() {
         cix_compose::up(
+            &cix_index::Store::open(context.state_directory.clone())?,
             compose_path,
             cix_compose::UpdateRequest::Paths(changed_services),
             false,
         )?;
     } else if compose_changed {
-        cix_compose::up(compose_path, cix_compose::UpdateRequest::None, false)?;
+        cix_compose::up(
+            &cix_index::Store::open(context.state_directory.clone())?,
+            compose_path,
+            cix_compose::UpdateRequest::None,
+            false,
+        )?;
     }
     Ok(())
 }
@@ -330,7 +358,7 @@ struct IgnoreSet {
 }
 
 impl IgnoreSet {
-    fn new(root: &Path) -> Self {
+    fn new(root: &Path, workspace_directory: &Path) -> Self {
         let mut builder = GitignoreBuilder::new(root);
         for path in gitignore_files(root) {
             let _ = builder.add(path);
@@ -342,7 +370,7 @@ impl IgnoreSet {
                 root.join("target"),
                 root.join("Cixfile.lock"),
                 root.join("cix.lock"),
-                workspace_base(),
+                workspace_directory.to_owned(),
             ],
             gitignore: builder.build().unwrap_or_else(|error| {
                 eprintln!("warning: ignoring invalid .gitignore while watching: {error}");
@@ -393,26 +421,6 @@ fn absolute_path(path: &Path, root: &Path) -> PathBuf {
     }
 }
 
-fn workspace_base() -> PathBuf {
-    let path = if let Some(path) = env::var_os("CIX_BUILD_WORKSPACE_DIR") {
-        PathBuf::from(path)
-    } else if let Some(path) = env::var_os("XDG_CACHE_HOME") {
-        PathBuf::from(path).join("cix/workspaces")
-    } else {
-        env::var_os("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_default()
-            .join(".cache/cix/workspaces")
-    };
-    if path.is_absolute() {
-        path
-    } else {
-        env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(path)
-    }
-}
-
 fn gitignore_files(root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
     let mut directories = vec![root.to_owned()];
@@ -440,7 +448,7 @@ fn gitignore_files(root: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::IgnoreSet;
-    use std::{env, fs};
+    use std::fs;
 
     #[test]
     fn context_ignores_cix_output_without_hiding_source() {
@@ -449,9 +457,7 @@ mod tests {
         fs::write(root.join(".gitignore"), "ignored/\n").unwrap();
         fs::create_dir_all(root.join("ignored")).unwrap();
         let workspace = root.join("workspaces");
-        let prior = env::var_os("CIX_BUILD_WORKSPACE_DIR");
-        env::set_var("CIX_BUILD_WORKSPACE_DIR", &workspace);
-        let ignores = IgnoreSet::new(root);
+        let ignores = IgnoreSet::new(root, &workspace);
         assert!(ignores.ignores(&root.join(".git/HEAD")));
         assert!(ignores.ignores(&root.join("target/debug/cix")));
         assert!(ignores.ignores(&root.join("Cixfile.lock")));
@@ -462,9 +468,5 @@ mod tests {
         assert!(ignores.ignores(root));
         assert!(!ignores.ignores(&root.join("start")));
         assert!(!ignores.ignores(&root.join("src/main.rs")));
-        match prior {
-            Some(value) => env::set_var("CIX_BUILD_WORKSPACE_DIR", value),
-            None => env::remove_var("CIX_BUILD_WORKSPACE_DIR"),
-        }
     }
 }

@@ -98,7 +98,7 @@ fn check_fixture(path: &Path) {
             "{}.snap",
             path.file_stem().expect("fixture stem").to_string_lossy()
         ));
-    if std::env::var_os("CIX_BLESS_DIAGNOSTICS").is_some() {
+    if std::env::var_os("BLESS_DIAGNOSTICS").is_some() {
         fs::write(&snapshot_path, &snapshot)
             .unwrap_or_else(|error| panic!("writing {}: {error}", snapshot_path.display()));
     }

@@ -297,15 +297,15 @@ fn sync_cache(store: &Store, cache: &Path, sign_key: Option<&str>) -> Result<()>
 /// Serves indefinitely. The request loop reloads sidecars so a long-running
 /// server notices tags created after it was started.
 pub fn serve(
+    store: &Store,
     listen: &str,
     substituters: Vec<String>,
     with_store: bool,
     sign_key: Option<&str>,
 ) -> Result<()> {
-    let store = Store::open()?;
     let cache = store.root().join("store");
     if with_store {
-        sync_cache(&store, &cache, sign_key)?;
+        sync_cache(store, &cache, sign_key)?;
     }
     let server = Server::http(listen).map_err(|error| anyhow!(error))?;
     eprintln!("cix index listening on {listen}");
@@ -341,7 +341,7 @@ pub fn serve(
 
         let tags = store.all()?;
         if with_store {
-            sync_cache(&store, &cache, sign_key)?;
+            sync_cache(store, &cache, sign_key)?;
         }
         let tags = bare_tags(tags);
         let (host, scheme) = request_origin(&request);

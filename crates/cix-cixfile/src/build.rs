@@ -18,6 +18,8 @@ pub struct BuildOptions {
     pub tag: Option<String>,
     pub cold: bool,
     pub allow_secret: bool,
+    pub workspace_directory: PathBuf,
+    pub state_directory: PathBuf,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -120,7 +122,8 @@ pub fn build_family_with_stats(
         ),
     };
     let lock_path = directory.join("Cixfile.lock");
-    let mut lock = ensure_lock(&lock_path, &cixfile.inputs, input_update)?;
+    let state = cix_index::Store::open(options.state_directory.clone())?;
+    let mut lock = ensure_lock(&state, &lock_path, &cixfile.inputs, input_update)?;
     resolve_input_metadata(&mut cixfile, &lock)?;
     let source_hash = build_fingerprint(&directory, &lock)?;
     if !options.cold && options.update_lock.is_none() && tags.is_empty() {
@@ -162,6 +165,7 @@ pub fn build_family_with_stats(
         requested_update,
         options.cold,
         options.allow_secret,
+        &options.workspace_directory,
     );
     save_lock(&lock_path, &lock)?;
     let (snapshots, executed_steps) = execution?;
@@ -180,7 +184,7 @@ pub fn build_family_with_stats(
     for item in &outputs {
         for tag in tags {
             let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
-            cix_index::tag(&item.store_path, &reference, None).with_context(|| {
+            cix_index::tag(&state, &item.store_path, &reference, None).with_context(|| {
                 format!("tagging built member {:?} as {reference:?}", item.name)
             })?;
         }

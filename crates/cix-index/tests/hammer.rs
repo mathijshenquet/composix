@@ -68,7 +68,7 @@ fn metadata(tag: &str, output: &Output) -> TagMetadata {
 }
 
 fn worker(root: &Path, worker: usize) {
-    let store = Store::open().expect("open worker store");
+    let store = Store::open(root.to_owned()).expect("open worker store");
     let output = artifact(root, worker);
     let mut operations = Vec::new();
     for round in 0..ROUNDS {
@@ -100,9 +100,18 @@ fn worker(root: &Path, worker: usize) {
 fn concurrent_publish_many_and_yank_preserve_the_table() {
     let root = temporary_path("root");
     fs::create_dir_all(&root).expect("create hammer root");
-    if let Ok(worker_number) = env::var("CIX_INDEX_HAMMER_WORKER") {
-        let root = PathBuf::from(env::var_os("CIX_STATE_DIR").expect("worker state directory"));
-        worker(&root, worker_number.parse().expect("worker number"));
+    if let (Some(worker_number), Some(root)) = (
+        std::env::args()
+            .skip_while(|argument| argument != "--worker")
+            .nth(1),
+        std::env::args()
+            .skip_while(|argument| argument != "--state")
+            .nth(1),
+    ) {
+        worker(
+            &PathBuf::from(root),
+            worker_number.parse().expect("worker number"),
+        );
         return;
     }
 
@@ -117,8 +126,12 @@ fn concurrent_publish_many_and_yank_preserve_the_table() {
                     "--ignored",
                     "--nocapture",
                 ])
-                .env("CIX_STATE_DIR", &root)
-                .env("CIX_INDEX_HAMMER_WORKER", worker.to_string())
+                .args([
+                    "--worker",
+                    &worker.to_string(),
+                    "--state",
+                    root.to_str().expect("UTF-8 root"),
+                ])
                 .spawn()
                 .expect("spawn hammer worker"),
         );
@@ -150,8 +163,7 @@ fn concurrent_publish_many_and_yank_preserve_the_table() {
             }
         }
     }
-    env::set_var("CIX_STATE_DIR", &root);
-    let store = Store::open().expect("open final store");
+    let store = Store::open(root.clone()).expect("open final store");
     let actual = store
         .all()
         .expect("read final table")
