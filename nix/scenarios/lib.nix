@@ -144,6 +144,7 @@ let
       networking.useDHCP = false;
       networking.interfaces.eth0.useDHCP = false;
       networking.firewall.enable = false;
+      systemd.settings.Manager.DefaultTimeoutStopSec = "1s";
       system.stateVersion = "24.11";
     };
     testScript = ''
