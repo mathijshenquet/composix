@@ -39,7 +39,7 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` |
+| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` |
 | `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
 | `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
@@ -201,7 +201,7 @@ Declare role directories by their systemd meaning:
 
 - `STATEDIR /var/lib/app` for durable state;
 - `CACHEDIR /var/cache/app` for disposable runtime cache;
-- `LOGSDIR /var/log/app` for service-managed logs;
+- `LOGDIR /var/log/app` for service-managed logs;
 - `CONFIGDIR /etc/app` for writable configuration; and
 - `RUNDIR /run/app` for ephemeral runtime data.
 
@@ -266,7 +266,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `START` argv; use quote-aware words | `START` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
-| `VOLUME /data` | Usually `STATEDIR /var/lib/app`; use the matching role-dir directive for other lifetimes | Role dirs are systemd-managed paths, not anonymous Docker volume objects. Host binds and shared ownership need separate compose/identity support. |
+| `VOLUME /data` | Use `STATEDIR` (or another role) for cix-managed private data; use `DIR /data` when the operator supplies the content | `DIR` materialization (`host:`, `shared:`, `as:`) arrives with compose; it is not an empty private volume. |
 | `USER`, `gosu`, `su-exec`, or `tini` | Delete them; DynamicUser and systemd provide identity, privilege drop, supervision, and reaping | A workload requiring a fixed uid/gid or startup `chown` has an identity/ownership requirement that must be reported, not hand-waved away. |
 | outbound access or JIT loosening | `CLAIM egress` or `CLAIM jit` | Those are the only current claims. Raw capabilities, devices, and privileged mode are not expressible. |
 | `HEALTHCHECK` | Preserve the probe semantics for the future D48 health edge | Health is designed as a probe plus explicit consumers (ordering/restart/convergence), not one container-status bit, and is not implemented yet. Mark the migration incomplete rather than dropping the check silently. |

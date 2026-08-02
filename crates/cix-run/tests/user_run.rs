@@ -28,9 +28,10 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     );
     let temporary = std::env::temp_dir().join(format!("cix-run-integration-{nonce}"));
     let fixture = temporary.join("fixture");
-    let host_timestamp = user_state_root()?.join("cix-run-integration-test/timestamp");
-    let host_state = host_timestamp.parent().unwrap().to_owned();
     let app_state = PathBuf::from("/var/lib/cix-run-integration-test");
+    let host_root = user_state_root()?.join("cix-run-integration-test");
+    let host_timestamp = host_root.join("var/lib/cix-run-integration-test/timestamp");
+    let host_state = host_timestamp.parent().unwrap().to_owned();
     fs::create_dir_all(fixture.join("bin"))?;
 
     let shell = find_program("sh")?;
@@ -77,7 +78,7 @@ fn user_run_persists_in_the_managed_state_directory() -> Result<()> {
     stop_service(&started.name, true)?;
     std::mem::forget(guard);
     fs::remove_file(&host_timestamp)?;
-    fs::remove_dir(&host_state)?;
+    fs::remove_dir_all(&host_root)?;
     fs::remove_dir_all(&temporary)?;
     Ok(())
 }

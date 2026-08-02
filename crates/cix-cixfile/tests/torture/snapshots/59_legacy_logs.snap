@@ -1,2 +1,2 @@
-line 5: LOGS is obsolete; replace it with LOGSDIR; see docs/cixfile.md#role-dirs
+line 5: LOGS is obsolete; replace it with LOGDIR; see docs/cixfile.md#role-dirs
   | "LOGS /var/log/app"

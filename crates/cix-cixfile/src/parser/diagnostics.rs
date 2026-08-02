@@ -21,7 +21,8 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "LISTENER",
     "STATEDIR",
     "CACHEDIR",
-    "LOGSDIR",
+    "LOGDIR",
+    "DIR",
     "CONFIGDIR",
     "RUNDIR",
     "CLAIM",
@@ -56,7 +57,7 @@ const MIGRATIONS: &[Migration] = &[
     },
     Migration {
         directive: "LOGS",
-        replacement: "LOGSDIR",
+        replacement: "LOGDIR",
         doc: "docs/cixfile.md#role-dirs",
         decision: "D52",
     },
@@ -120,7 +121,7 @@ const DOCKER_DIRECTIVES: &[DockerDirective] = &[
     },
     DockerDirective {
         directive: "VOLUME",
-        fix: "use STATEDIR, CACHEDIR, LOGSDIR, CONFIGDIR, or RUNDIR for writable data",
+        fix: "use STATEDIR, CACHEDIR, LOGDIR, CONFIGDIR, RUNDIR, or DIR according to lifecycle",
     },
     DockerDirective {
         directive: "ARG",

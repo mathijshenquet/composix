@@ -1,0 +1,5 @@
+# grade: problem=pass line=5 fix=pass docs=docs/cixfile.md#role-dirs
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE app
+START /bin/true
+DATADIR /media

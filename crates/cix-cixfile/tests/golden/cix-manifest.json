@@ -7,6 +7,16 @@
     "config": [
       "/etc/app"
     ],
+    "data": [
+      {
+        "path": "/consume",
+        "ro": false
+      },
+      {
+        "path": "/media",
+        "ro": true
+      }
+    ],
     "logs": [
       "/var/log/app"
     ],

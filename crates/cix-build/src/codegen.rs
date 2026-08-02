@@ -643,7 +643,7 @@ fn nix_dirs(service: &Service) -> Option<String> {
         ("config", &service.dirs.config),
         ("run", &service.dirs.run),
     ];
-    if roles.iter().all(|(_, paths)| paths.is_empty()) {
+    if roles.iter().all(|(_, paths)| paths.is_empty()) && service.dirs.data.is_empty() {
         return None;
     }
     let mut output = String::from("{");
@@ -660,6 +660,20 @@ fn nix_dirs(service: &Service) -> Option<String> {
             )
             .unwrap();
         }
+    }
+    if !service.dirs.data.is_empty() {
+        write!(
+            output,
+            " data = [ {} ];",
+            service
+                .dirs
+                .data
+                .iter()
+                .map(|(path, ro)| format!("{{ path = {}; ro = {}; }}", nix_string(path), ro))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )
+        .unwrap();
     }
     output.push_str(" }");
     Some(output)
@@ -952,6 +966,24 @@ fn literal_dirs(service: &Service) -> Map<String, Value> {
                 Value::Array(paths.iter().cloned().map(Value::String).collect()),
             );
         }
+    }
+    if !service.dirs.data.is_empty() {
+        dirs.insert(
+            "data".into(),
+            Value::Array(
+                service
+                    .dirs
+                    .data
+                    .iter()
+                    .map(|(path, ro)| {
+                        Value::Object(Map::from_iter([
+                            ("path".into(), Value::String(path.clone())),
+                            ("ro".into(), Value::Bool(*ro)),
+                        ]))
+                    })
+                    .collect(),
+            ),
+        );
     }
     dirs
 }

@@ -29,6 +29,6 @@ ENV PARSE_SERVER_DATABASE_URI required
 ENV PARSE_SERVER_URL required
 ENV PARSE_SERVER_LOGS_FOLDER = /var/log/parse-server
 PORT http = $PORT
-LOGSDIR /var/log/parse-server
+LOGDIR /var/log/parse-server
 CLAIM egress
 CLAIM jit

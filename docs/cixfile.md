@@ -58,7 +58,7 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` | a long-running service artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` | a long-running service artifact |
 | `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
@@ -315,14 +315,30 @@ not for `cix run` or `cix debug`.
 
 `SERVICE` is the full long-running contract. `START` is its main process; `START_PRE` is an
 idempotent pre-start hook. `PORT` and `LISTENER` declare inbound networking. `STATEDIR`,
-`CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
+`CACHEDIR`, `LOGDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
 `*Directory=` roles.
 
 <a id="role-dirs"></a>
 
-Each role directory is exactly one component below its conventional root: state below
-`/var/lib`, cache below `/var/cache`, logs below `/var/log`, configuration below `/etc`, and
-runtime data below `/run`.
+Role dirs are claims cix fulfills itself. `STATEDIR`, `CACHEDIR`, `LOGDIR`, and `RUNDIR` each
+accept any clean absolute path the application uses, including paths such as `LOGDIR /app/logs`.
+They are private to the service. cix mirrors the full in-namespace path beneath its unit-scoped
+systemd backing root, binds that backing path into the service, and sets the corresponding
+`$STATE_DIRECTORY`, `$CACHE_DIRECTORY`, `$LOGS_DIRECTORY`, or `$RUNTIME_DIRECTORY` value to the
+declared in-namespace path. Declare a role according to its lifecycle, not its spelling.
+
+`DIR /path[:ro|:rw]` is different: it claims operator-supplied data. A bare `DIR /path` is rw;
+`DIR /media:ro` is read-only. cix never creates, owns, or deletes it. `DIR` needs compose
+materialization, so `cix run` currently stops with a teaching error rather than inventing an
+empty private directory.
+
+| declaration | supplied by | stop/crash | future purge |
+| --- | --- | --- | --- |
+| `RUNDIR` | cix/systemd | removed | removed |
+| `CACHEDIR` | cix/systemd | kept | removable |
+| `LOGDIR` | cix/systemd | kept | removable with opt-in |
+| `STATEDIR` | cix/systemd | kept | kept unless explicit purge |
+| `DIR` | operator/compose | untouched | never |
 
 <a id="claims"></a>
 

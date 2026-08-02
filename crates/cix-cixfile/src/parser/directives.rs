@@ -762,33 +762,34 @@ impl Parser<'_> {
         };
         self.require_artifact_kind(directive, line, source, allowed)?;
         let fields = exact_fields(arguments, 1, line, source, &format!("{directive} <path>"))?;
-        reject_build_interpolation(fields[0], "directory path", line, source)?;
-        reject_runtime_variable(fields[0], "directory path", line, source)?;
-        let (root, role) = match directive {
-            "STATEDIR" => ("/var/lib", "state"),
-            "CACHEDIR" => ("/var/cache", "cache"),
-            "LOGSDIR" => ("/var/log", "logs"),
-            "CONFIGDIR" => ("/etc", "config"),
-            "RUNDIR" => ("/run", "run"),
-            _ => unreachable!(),
-        };
-        validate_role_path(fields[0], root, role, line, source)?;
+        let (path, ro) = parse_directory_declaration(directive, fields[0], line, source)?;
         let service = self.current_service_mut(directive, line, source)?;
+        if service.dirs.state.contains(path)
+            || service.dirs.cache.contains(path)
+            || service.dirs.logs.contains(path)
+            || service.dirs.config.contains(path)
+            || service.dirs.run.contains(path)
+            || service.dirs.data.contains_key(path)
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} path {path:?} is duplicated"),
+            ));
+        }
+        if directive == "DIR" {
+            service.dirs.data.insert(path.to_owned(), ro);
+            return Ok(());
+        }
         let paths = match directive {
             "STATEDIR" => &mut service.dirs.state,
             "CACHEDIR" => &mut service.dirs.cache,
-            "LOGSDIR" => &mut service.dirs.logs,
+            "LOGDIR" => &mut service.dirs.logs,
             "CONFIGDIR" => &mut service.dirs.config,
             "RUNDIR" => &mut service.dirs.run,
             _ => unreachable!(),
         };
-        if !paths.insert(fields[0].to_owned()) {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!("{directive} path {:?} is duplicated", fields[0]),
-            ));
-        }
+        paths.insert(path.to_owned());
         Ok(())
     }
 
@@ -946,9 +947,10 @@ impl Parser<'_> {
             "LISTENER",
             "STATEDIR",
             "CACHEDIR",
-            "LOGSDIR",
+            "LOGDIR",
             "CONFIGDIR",
             "RUNDIR",
+            "DIR",
             "STATE",
             "LOGS",
             "CONFIG",
