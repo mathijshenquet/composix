@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>adminer — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,25 +46,25 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>FROM php:8.4-alpine
+        <pre><code><span class="tok-directive">FROM</span> php:8.4-alpine
 
-RUN	echo &quot;upload_max_filesize = 128M&quot; &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
-&amp;&amp;	echo &quot;post_max_size = 128M&quot; &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
-&amp;&amp;	echo &quot;memory_limit = 1G&quot; &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
-&amp;&amp;	echo &quot;max_execution_time = 600&quot; &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
-&amp;&amp;	echo &quot;max_input_vars = 5000&quot; &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini
+<span class="tok-directive">RUN</span>	echo <span class="tok-string">&quot;upload_max_filesize = 128M&quot;</span> &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
+&amp;&amp;	echo <span class="tok-string">&quot;post_max_size = 128M&quot;</span> &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
+&amp;&amp;	echo <span class="tok-string">&quot;memory_limit = 1G&quot;</span> &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
+&amp;&amp;	echo <span class="tok-string">&quot;max_execution_time = 600&quot;</span> &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini \
+&amp;&amp;	echo <span class="tok-string">&quot;max_input_vars = 5000&quot;</span> &gt;&gt; /usr/local/etc/php/conf.d/0-upload_large_dumps.ini
 
-STOPSIGNAL SIGINT
+<span class="tok-directive">STOPSIGNAL</span> SIGINT
 
-RUN	addgroup -S adminer \
+<span class="tok-directive">RUN</span>	addgroup -S adminer \
 &amp;&amp;	adduser -S -G adminer adminer \
 &amp;&amp;	mkdir -p /var/www/html \
 &amp;&amp;	mkdir /var/www/html/plugins-enabled \
 &amp;&amp;	chown -R adminer:adminer /var/www/html
 
-WORKDIR /var/www/html
+<span class="tok-directive">WORKDIR</span> /var/www/html
 
-RUN	set -x \
+<span class="tok-directive">RUN</span>	set -x \
 &amp;&amp;	apk add --no-cache --virtual .build-deps \
 	postgresql-dev \
 	sqlite-dev \
@@ -63,36 +77,36 @@ RUN	set -x \
 	pdo_sqlite \
 	pdo_odbc \
 	pdo_dblib \
-&amp;&amp;	runDeps=&quot;$( \
-		scanelf --needed --nobanner --format &#39;%n#p&#39; --recursive /usr/local/lib/php/extensions \
-			| tr &#39;,&#39; &#39;\n&#39; \
+&amp;&amp;	runDeps=<span class="tok-string">&quot;$( \</span>
+		scanelf --needed --nobanner --format <span class="tok-string">&#39;%n#p&#39;</span> --recursive /usr/local/lib/php/extensions \
+			| tr <span class="tok-string">&#39;,&#39;</span> <span class="tok-string">&#39;\n&#39;</span> \
 			| sort -u \
-			| awk &#39;system(&quot;[ -e /usr/local/lib/&quot; $1 &quot; ]&quot;) == 0 { next } { print &quot;so:&quot; $1 }&#39; \
-	)&quot; \
+			| awk <span class="tok-string">&#39;system(&quot;[ -e /usr/local/lib/&quot; $1 &quot; ]&quot;) == 0 { next } { print &quot;so:&quot; $1 }&#39;</span> \
+	)<span class="tok-string">&quot; \</span>
 &amp;&amp;	apk add --no-cache --virtual .phpexts-rundeps $runDeps \
 &amp;&amp;	apk del --no-network .build-deps
 
-COPY	*.php /var/www/html/
+<span class="tok-directive">COPY</span>	*.php /var/www/html/
 
-ENV	ADMINER_VERSION=5.5.0
-ENV	ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
-ENV	ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
+<span class="tok-directive">ENV</span>	ADMINER_VERSION=5.5.0
+<span class="tok-directive">ENV</span>	ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+<span class="tok-directive">ENV</span>	ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
 
-RUN	set -x \
+<span class="tok-directive">RUN</span>	set -x \
 &amp;&amp;	curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php \
-&amp;&amp;	echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; |sha256sum -c - \
+&amp;&amp;	echo <span class="tok-string">&quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot;</span> |sha256sum -c - \
 &amp;&amp;	curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz \
-&amp;&amp;	echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; |sha256sum -c - \
-&amp;&amp;	tar xzf source.tar.gz --strip-components=1 &quot;adminer-$ADMINER_VERSION/designs/&quot; &quot;adminer-$ADMINER_VERSION/plugins/&quot; \
+&amp;&amp;	echo <span class="tok-string">&quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot;</span> |sha256sum -c - \
+&amp;&amp;	tar xzf source.tar.gz --strip-components=1 <span class="tok-string">&quot;adminer-$ADMINER_VERSION/designs/&quot;</span> <span class="tok-string">&quot;adminer-$ADMINER_VERSION/plugins/&quot;</span> \
 &amp;&amp;	rm source.tar.gz
 
-COPY	entrypoint.sh /usr/local/bin/
-ENTRYPOINT	[ &quot;entrypoint.sh&quot;, &quot;docker-php-entrypoint&quot; ]
+<span class="tok-directive">COPY</span>	entrypoint.sh /usr/local/bin/
+<span class="tok-directive">ENTRYPOINT</span>	[ <span class="tok-string">&quot;entrypoint.sh&quot;</span>, <span class="tok-string">&quot;docker-php-entrypoint&quot;</span> ]
 
-USER	adminer
-CMD	[ &quot;php&quot;, &quot;-S&quot;, &quot;[::]:8080&quot;, &quot;-t&quot;, &quot;/var/www/html&quot; ]
+<span class="tok-directive">USER</span>	adminer
+<span class="tok-directive">CMD</span>	[ <span class="tok-string">&quot;php&quot;</span>, <span class="tok-string">&quot;-S&quot;</span>, <span class="tok-string">&quot;[::]:8080&quot;</span>, <span class="tok-string">&quot;-t&quot;</span>, <span class="tok-string">&quot;/var/www/html&quot;</span> ]
 
-EXPOSE 8080
+<span class="tok-directive">EXPOSE</span> 8080
 </code></pre>
       </section>
     </section>
@@ -100,21 +114,21 @@ EXPOSE 8080
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-# The output hash pins the complete fetched work directory, not just the upstream file.
-BUILDER adminer_src
-  IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.cacert}
-  FETCH curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=
+<span class="tok-comment"># The output hash pins the complete fetched work directory, not just the upstream file.</span>
+<span class="tok-directive">BUILDER</span> adminer_src
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">FETCH</span> curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=
 
-SERVICE adminer
-  COPY ${src}/context/index.php /index.php
-  COPY ${src}/context/plugin-loader.php /plugin-loader.php
-  COPY ${adminer_src}/adminer.php /adminer.php
-  LINK ${pkgs.php84}/bin/php /bin/php
-  START php -S 0.0.0.0:8080 -t .
-  PORT http = 8080
+<span class="tok-directive">SERVICE</span> adminer
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/index.php /index.php
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/plugin-loader.php /plugin-loader.php
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer_src}</span>/adminer.php /adminer.php
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php84}</span>/bin/php /bin/php
+  <span class="tok-directive">START</span> php -S 0.0.0.0:8080 -t .
+  <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
     </section>

@@ -16,6 +16,14 @@
         }
       }
     },
+    "2f2f728a49870e164c2fc6762177c5513804060eaf4bbe110c2f85223ff7f1fb": {
+      "paths": {
+        "app": {
+          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
+          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        }
+      }
+    },
     "59d894dd0ad6f332936192c9f7381e441e782b845da997feccdbe9721a09478c": {
       "paths": {
         "app": {
@@ -34,7 +42,7 @@
   },
   "outputs": {
     "wallos": {
-      "sourceHash": "7276fecd17c248b7ba2532e155b59be44c83aa1f62e7aa6810f4a155d1e7d1c0",
+      "sourceHash": "7eb451a46ff5f1a9c62f34b0a7e75b06af99d29fbb344b607c50d548a0f96fe4",
       "storePath": "/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos"
     }
   }

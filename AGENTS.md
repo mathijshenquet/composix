@@ -24,7 +24,7 @@ Other landmarks: `.dev/specs/track-*.md` (past agent specs; write new ones here)
 - "Green" claims by agents get independently re-verified before merge — design for that: leave exact repro commands in your LOG.
 - A receipt is a SYNCHRONOUS exit status you observed, never detached or quiet output (lesson of 2026-08-02: three consecutive false greens on one scenario from reading detached-build output as success).
 - Decisions live in docs/design.md only; propose amendments there, don't fork design prose into other files.
-- Track gates END with the full `devenv shell -- nix flake check -L` — never a cherry-picked VM subset. (Lesson of 2026-07-31: thirteen merges passed a red CI because per-track gates ran hand-picked checks.)
+- Track gates (agent-side): fmt / examples fmt / warning-denied clippy / full workspace tests / tour regen+drift, plus the FOCUSED VM scenarios your track touches or adds. The full `devenv shell -- nix flake check -L` matrix runs once per track, at the orchestrator's independent pre-merge gate — that layer is load-bearing and never skipped (amended 2026-08-02 for gate speed; supersedes the full-matrix-per-agent rule of 2026-07-31 — the guarantee moved layers, it did not weaken: agents never hand-pick what COUNTS as green, they run a smaller declared tier).
 - Ledgers stay current (Mathijs, 2026-08-02): a track that lands or changes behavior re-grades the affected docs/docker.md and docs/corpus.md rows in the same track. Desk grades vs verified receipts stay honestly distinguished.
 
 ## Session close (orchestrator)

@@ -112,9 +112,12 @@ There is no magic `${build}` namespace and `TAKE` is gone. A migrated file shoul
 builder, normally `BUILDER build`, and use `COPY ${build}/path /destination`. The parser emits
 that migration directly instead of turning either spelling into a mysterious unknown name.
 
-`FILE <destination> <<EOF` adds an inline interpolated file. Use it when content must contain
-a build-time store path; ordinary files and scripts should remain real source files copied
-with `COPY`. Invoke a copied script through an explicit package shell:
+`FILE <destination> <<EOF` adds an inline interpolated file. Keep ordinary configuration and
+scripts as real files next to the Cixfile and copy them with `COPY`; use a FILE heredoc only
+when the file content itself must interpolate `${…}`. The unadopted
+[`FILE … FROM` draft](../cips/draft/file-from.md) is intended to dissolve that remaining inline
+case, but its syntax is not implemented. Invoke a copied script through an explicit package
+shell:
 
 ```dockerfile
 COPY start /bin/start
@@ -157,6 +160,10 @@ BUILD
 The complete body is the command and therefore part of the same memo key as a one-line RUN.
 Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
 use `$${…}` when the shell itself must receive a braced expansion.
+
+Keep a one-line RUN to no more than two commands joined with `&&`. Split longer work into
+multiple RUN steps so read-set keying can cache them independently, or use a heredoc with one
+command per line when the commands must remain one step.
 
 <a id="formatting"></a>
 

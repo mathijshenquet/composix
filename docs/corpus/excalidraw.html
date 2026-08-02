@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>excalidraw — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,26 +46,26 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>FROM --platform=${BUILDPLATFORM} node:24@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63 AS build
+        <pre><code><span class="tok-directive">FROM</span> --platform=<span class="tok-interpolation">${BUILDPLATFORM}</span> node:24@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63 AS build
 
-WORKDIR /opt/node_app
+<span class="tok-directive">WORKDIR</span> /opt/node_app
 
-COPY . .
+<span class="tok-directive">COPY</span> . .
 
-# do not ignore optional dependencies:
-# Error: Cannot find module @rollup/rollup-linux-x64-gnu
-RUN --mount=type=cache,target=/root/.cache/yarn \
-    npm_config_target_arch=${TARGETARCH} yarn --frozen-lockfile --network-timeout 600000
+<span class="tok-comment"># do not ignore optional dependencies:</span>
+<span class="tok-comment"># Error: Cannot find module @rollup/rollup-linux-x64-gnu</span>
+<span class="tok-directive">RUN</span> --mount=type=cache,target=/root/.cache/yarn \
+    npm_config_target_arch=<span class="tok-interpolation">${TARGETARCH}</span> yarn --frozen-lockfile --network-timeout 600000
 
-ARG NODE_ENV=production
+<span class="tok-directive">ARG</span> NODE_ENV=production
 
-RUN npm_config_target_arch=${TARGETARCH} yarn build:app:docker
+<span class="tok-directive">RUN</span> npm_config_target_arch=<span class="tok-interpolation">${TARGETARCH}</span> yarn build:app:docker
 
-FROM nginx:stable-alpine-slim@sha256:2c605dbeab79a6b2a63340474fe58119d0ef95bdc4b1f41df0aa689659b3d13b
+<span class="tok-directive">FROM</span> nginx:stable-alpine-slim@sha256:2c605dbeab79a6b2a63340474fe58119d0ef95bdc4b1f41df0aa689659b3d13b
 
-COPY --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html
+<span class="tok-directive">COPY</span> --from=build /opt/node_app/excalidraw-app/build /usr/share/nginx/html
 
-HEALTHCHECK CMD wget -q -O /dev/null http://localhost || exit 1
+<span class="tok-directive">HEALTHCHECK</span> CMD wget -q -O /dev/null http://localhost || exit 1
 </code></pre>
       </section>
     </section>
@@ -59,24 +73,48 @@ HEALTHCHECK CMD wget -q -O /dev/null http://localhost || exit 1
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.yarn} \
-    ${pkgs.python3} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.git} ${pkgs.cacert}
-COPY ${src}/context/ .
-FETCH yarn --frozen-lockfile --network-timeout 600000
-RUN yarn build:app:docker
+<span class="tok-directive">BUILDER</span> build
+<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.yarn}</span> \
+    <span class="tok-directive">${pkgs.python3}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+<span class="tok-directive">FETCH</span> yarn --frozen-lockfile --network-timeout 600000
+<span class="tok-directive">RUN</span> yarn build:app:docker
 
-SERVICE excalidraw
-COPY ${build}/excalidraw-app/build /srv/www
-COPY nginx.conf /etc/nginx/nginx.conf
-LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
-PORT http = 18090
-CACHEDIR /var/cache/nginx
-RUNDIR /run/nginx
+<span class="tok-directive">SERVICE</span> excalidraw
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/excalidraw-app/build /srv/www
+<span class="tok-directive">COPY</span> nginx.conf /etc/nginx/nginx.conf
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nginx}</span>/conf/mime.types /etc/nginx/mime.types
+<span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+<span class="tok-directive">PORT</span> http = 18090
+<span class="tok-directive">CACHEDIR</span> /var/cache/nginx
+<span class="tok-directive">RUNDIR</span> /run/nginx
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>nginx.conf</h3>
+        <pre><code>daemon off;
+pid /run/nginx/nginx.pid;
+error_log stderr info;
+events { }
+http {
+  include /etc/nginx/mime.types;
+  access_log off;
+  client_body_temp_path /var/cache/nginx/body;
+  proxy_temp_path /var/cache/nginx/proxy;
+  fastcgi_temp_path /var/cache/nginx/fastcgi;
+  uwsgi_temp_path /var/cache/nginx/uwsgi;
+  scgi_temp_path /var/cache/nginx/scgi;
+  server {
+    listen 18090;
+    root /srv/www;
+    location / {
+      try_files $uri $uri/ /index.html;
+    }
+  }
+}
 </code></pre>
       </section>
     </section>

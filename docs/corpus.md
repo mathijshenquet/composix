@@ -47,7 +47,7 @@ case in the [side-by-side browser](corpus/index.html).
 | 15 | Tomcat | Cix build and bounded HTTP reachability probe pass | ✅ complete package tree + idempotent setup | S | [receipt](../corpus/migrate/tomcat/receipt.md) |
 | 16 | Traefik | Cix build and ping endpoint pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/traefik/receipt.md) |
 | 17 | Verdaccio | Cix Corepack/pnpm build sequence fails before producing an item | 🔶 package-manager build remains non-green | M | [receipt](../corpus/migrate/verdaccio/receipt.md) |
-| 18 | Wallos | Historical Docker and Cix health probes pass; consumed app tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
+| 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative readiness remains untranslated and the consumed app tree is not yet reproducible for the closed-root audit | 🔶 runtime passes; READINESS undeclared; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
 | 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
 | 20 | Whoami | Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/whoami/receipt.md) |
 

@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>tomcat — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,49 +46,49 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>#
-# NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;apply-templates.sh&quot;
-#
-# PLEASE DO NOT EDIT IT DIRECTLY.
-#
+        <pre><code><span class="tok-comment">#</span>
+<span class="tok-comment"># NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;apply-templates.sh&quot;</span>
+<span class="tok-comment">#</span>
+<span class="tok-comment"># PLEASE DO NOT EDIT IT DIRECTLY.</span>
+<span class="tok-comment">#</span>
 
-FROM eclipse-temurin:21-jre-noble
+<span class="tok-directive">FROM</span> eclipse-temurin:21-jre-noble
 
-ENV CATALINA_HOME /usr/local/tomcat
-ENV PATH $CATALINA_HOME/bin:$PATH
-RUN mkdir -p &quot;$CATALINA_HOME&quot;
-WORKDIR $CATALINA_HOME
+<span class="tok-directive">ENV</span> CATALINA_HOME /usr/local/tomcat
+<span class="tok-directive">ENV</span> PATH $CATALINA_HOME/bin:$PATH
+<span class="tok-directive">RUN</span> mkdir -p <span class="tok-string">&quot;$CATALINA_HOME&quot;</span>
+<span class="tok-directive">WORKDIR</span> $CATALINA_HOME
 
-# let &quot;Tomcat Native&quot; live somewhere isolated
-ENV TOMCAT_NATIVE_LIBDIR $CATALINA_HOME/native-jni-lib
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$TOMCAT_NATIVE_LIBDIR
+<span class="tok-comment"># let &quot;Tomcat Native&quot; live somewhere isolated</span>
+<span class="tok-directive">ENV</span> TOMCAT_NATIVE_LIBDIR $CATALINA_HOME/native-jni-lib
+<span class="tok-directive">ENV</span> LD_LIBRARY_PATH <span class="tok-interpolation">${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}</span>$TOMCAT_NATIVE_LIBDIR
 
-ENV TOMCAT_MAJOR 10
-ENV TOMCAT_VERSION 10.1.57
-ENV TOMCAT_SHA512 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
+<span class="tok-directive">ENV</span> TOMCAT_MAJOR 10
+<span class="tok-directive">ENV</span> TOMCAT_VERSION 10.1.57
+<span class="tok-directive">ENV</span> TOMCAT_SHA512 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
 
-COPY --from=tomcat:10.1.57-jdk21-temurin-noble $CATALINA_HOME $CATALINA_HOME
-RUN set -eux; \
+<span class="tok-directive">COPY</span> --from=tomcat:10.1.57-jdk21-temurin-noble $CATALINA_HOME $CATALINA_HOME
+<span class="tok-directive">RUN</span> set -eux; \
 	apt-get update; \
-	xargs -rt apt-get install -y --no-install-recommends &lt; &quot;$TOMCAT_NATIVE_LIBDIR/.dependencies.txt&quot;; \
+	xargs -rt apt-get install -y --no-install-recommends &lt; <span class="tok-string">&quot;$TOMCAT_NATIVE_LIBDIR/.dependencies.txt&quot;</span>; \
 	rm -rf /var/lib/apt/lists/*
 
-# verify Tomcat Native is working properly
-RUN set -eux; \
-	nativeLines=&quot;$(catalina.sh configtest 2&gt;&amp;1)&quot;; \
-	nativeLines=&quot;$(echo &quot;$nativeLines&quot; | grep &#39;Apache Tomcat Native&#39;)&quot;; \
-	nativeLines=&quot;$(echo &quot;$nativeLines&quot; | sort -u)&quot;; \
-	if ! echo &quot;$nativeLines&quot; | grep -E &#39;INFO: Loaded( APR based)? Apache Tomcat Native library&#39; &gt;&amp;2; then \
-		echo &gt;&amp;2 &quot;$nativeLines&quot;; \
+<span class="tok-comment"># verify Tomcat Native is working properly</span>
+<span class="tok-directive">RUN</span> set -eux; \
+	nativeLines=<span class="tok-string">&quot;$(catalina.sh configtest 2&gt;&amp;1)&quot;</span>; \
+	nativeLines=<span class="tok-string">&quot;$(echo &quot;</span>$nativeLines<span class="tok-string">&quot; | grep &#39;Apache Tomcat Native&#39;)&quot;</span>; \
+	nativeLines=<span class="tok-string">&quot;$(echo &quot;</span>$nativeLines<span class="tok-string">&quot; | sort -u)&quot;</span>; \
+	if ! echo <span class="tok-string">&quot;$nativeLines&quot;</span> | grep -E <span class="tok-string">&#39;INFO: Loaded( APR based)? Apache Tomcat Native library&#39;</span> &gt;&amp;2; then \
+		echo &gt;&amp;2 <span class="tok-string">&quot;$nativeLines&quot;</span>; \
 		exit 1; \
 	fi
 
-EXPOSE 8080
+<span class="tok-directive">EXPOSE</span> 8080
 
-# upstream eclipse-temurin-provided entrypoint script caused https://github.com/docker-library/tomcat/issues/77 to come back as https://github.com/docker-library/tomcat/issues/302; use &quot;/entrypoint.sh&quot; at your own risk
-ENTRYPOINT []
+<span class="tok-comment"># upstream eclipse-temurin-provided entrypoint script caused https://github.com/docker-library/tomcat/issues/77 to come back as https://github.com/docker-library/tomcat/issues/302; use &quot;/entrypoint.sh&quot; at your own risk</span>
+<span class="tok-directive">ENTRYPOINT</span> []
 
-CMD [&quot;catalina.sh&quot;, &quot;run&quot;]
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;catalina.sh&quot;</span>, <span class="tok-string">&quot;run&quot;</span>]
 </code></pre>
       </section>
     </section>
@@ -82,27 +96,40 @@ CMD [&quot;catalina.sh&quot;, &quot;run&quot;]
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-SERVICE tomcat
-  COPY ${pkgs.coreutils} /coreutils
-  COPY ${pkgs.gnused} /gnused
-  COPY ${pkgs.tomcat10} /tomcat
-  COPY ${pkgs.jdk21_headless} /jre
-  COPY setup.sh /bin/tomcat-setup
-  LINK ${pkgs.tomcat10}/bin/catalina.sh /bin/catalina.sh
-  STATEDIR /var/lib/tomcat
-  LOGDIR /var/log/tomcat
-  RUNDIR /run/tomcat
-  ENV CATALINA_HOME = /tomcat
-  ENV CATALINA_BASE = /var/lib/tomcat
-  ENV CATALINA_TMPDIR = /run/tomcat
-  ENV JRE_HOME = /jre
-  ENV PATH = /coreutils/bin:/gnused/bin:/bin
-  START_PRE ${pkgs.bash}/bin/sh /bin/tomcat-setup
-  START ${pkgs.bash}/bin/sh /tomcat/bin/catalina.sh run
-  PORT http = 8080
-  CLAIM jit
+<span class="tok-directive">SERVICE</span> tomcat
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.coreutils}</span> /coreutils
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.gnused}</span> /gnused
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> /tomcat
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.jdk21_headless}</span> /jre
+  <span class="tok-directive">COPY</span> setup.sh /bin/tomcat-setup
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.tomcat10}</span>/bin/catalina.sh /bin/catalina.sh
+  <span class="tok-directive">STATEDIR</span> /var/lib/tomcat
+  <span class="tok-directive">LOGDIR</span> /var/log/tomcat
+  <span class="tok-directive">RUNDIR</span> /run/tomcat
+  <span class="tok-directive">ENV</span> CATALINA_HOME = /tomcat
+  <span class="tok-directive">ENV</span> CATALINA_BASE = /var/lib/tomcat
+  <span class="tok-directive">ENV</span> CATALINA_TMPDIR = /run/tomcat
+  <span class="tok-directive">ENV</span> JRE_HOME = /jre
+  <span class="tok-directive">ENV</span> PATH = /coreutils/bin:/gnused/bin:/bin
+  <span class="tok-directive">START_PRE</span> tomcat-setup
+  <span class="tok-directive">START</span> catalina.sh run
+  <span class="tok-directive">PORT</span> http = 8080
+<span class="tok-directive">CLAIM</span> jit
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>setup.sh</h3>
+        <pre><code>#!/bin/sh
+set -eu
+mkdir -p /var/lib/tomcat/conf /var/lib/tomcat/webapps /var/lib/tomcat/work
+if [ ! -e /var/lib/tomcat/conf/server.xml ]; then
+  cp -R --no-preserve=mode,ownership /tomcat/conf/. /var/lib/tomcat/conf/
+fi
+mkdir -p /var/lib/tomcat/conf/Catalina/localhost
+sed -i &#39;s/port=&quot;8005&quot; shutdown=&quot;SHUTDOWN&quot;/port=&quot;-1&quot; shutdown=&quot;SHUTDOWN&quot;/&#39; /var/lib/tomcat/conf/server.xml
+ln -sfn /var/log/tomcat /var/lib/tomcat/logs
 </code></pre>
       </section>
     </section>

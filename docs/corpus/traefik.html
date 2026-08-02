@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>traefik — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,36 +46,36 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>FROM alpine:3.22
-RUN apk --no-cache add ca-certificates tzdata
-RUN set -ex; \
-	apkArch=&quot;$(apk --print-arch)&quot;; \
-	case &quot;$apkArch&quot; in \
-		armhf) arch=&#39;armv6&#39; ;; \
-		aarch64) arch=&#39;arm64&#39; ;; \
-		x86_64) arch=&#39;amd64&#39; ;; \
-		riscv64) arch=&#39;riscv64&#39; ;; \
-		s390x) arch=&#39;s390x&#39; ;; \
-		ppc64le) arch=&#39;ppc64le&#39; ;; \
-		*) echo &gt;&amp;2 &quot;error: unsupported architecture: $apkArch&quot;; exit 1 ;; \
+        <pre><code><span class="tok-directive">FROM</span> alpine:3.22
+<span class="tok-directive">RUN</span> apk --no-cache add ca-certificates tzdata
+<span class="tok-directive">RUN</span> set -ex; \
+	apkArch=<span class="tok-string">&quot;$(apk --print-arch)&quot;</span>; \
+	case <span class="tok-string">&quot;$apkArch&quot;</span> in \
+		armhf) arch=<span class="tok-string">&#39;armv6&#39;</span> ;; \
+		aarch64) arch=<span class="tok-string">&#39;arm64&#39;</span> ;; \
+		x86_64) arch=<span class="tok-string">&#39;amd64&#39;</span> ;; \
+		riscv64) arch=<span class="tok-string">&#39;riscv64&#39;</span> ;; \
+		s390x) arch=<span class="tok-string">&#39;s390x&#39;</span> ;; \
+		ppc64le) arch=<span class="tok-string">&#39;ppc64le&#39;</span> ;; \
+		*) echo &gt;&amp;2 <span class="tok-string">&quot;error: unsupported architecture: $apkArch&quot;</span>; exit 1 ;; \
 	esac; \
-	wget --quiet -O /tmp/traefik.tar.gz &quot;https://github.com/traefik/traefik/releases/download/v3.5.6/traefik_v3.5.6_linux_$arch.tar.gz&quot;; \
+	wget --quiet -O /tmp/traefik.tar.gz <span class="tok-string">&quot;https://github.com/traefik/traefik/releases/download/v3.5.6/traefik_v3.5.6_linux_$arch.tar.gz&quot;</span>; \
 	tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik; \
 	rm -f /tmp/traefik.tar.gz; \
 	chmod +x /usr/local/bin/traefik
-COPY entrypoint.sh /
-EXPOSE 80
-ENTRYPOINT [&quot;/entrypoint.sh&quot;]
-CMD [&quot;traefik&quot;]
+<span class="tok-directive">COPY</span> entrypoint.sh /
+<span class="tok-directive">EXPOSE</span> 80
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;/entrypoint.sh&quot;</span>]
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;traefik&quot;</span>]
 
-# Metadata
-LABEL org.opencontainers.image.vendor=&quot;Traefik Labs&quot; \
-    org.opencontainers.image.url=&quot;https://traefik.io&quot; \
-    org.opencontainers.image.source=&quot;https://github.com/traefik/traefik&quot; \
-    org.opencontainers.image.title=&quot;Traefik&quot; \
-    org.opencontainers.image.description=&quot;A modern reverse-proxy&quot; \
-    org.opencontainers.image.version=&quot;v3.5.6&quot; \
-    org.opencontainers.image.documentation=&quot;https://docs.traefik.io&quot;
+<span class="tok-comment"># Metadata</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.vendor=<span class="tok-string">&quot;Traefik Labs&quot;</span> \
+    org.opencontainers.image.url=<span class="tok-string">&quot;https://traefik.io&quot;</span> \
+    org.opencontainers.image.source=<span class="tok-string">&quot;https://github.com/traefik/traefik&quot;</span> \
+    org.opencontainers.image.title=<span class="tok-string">&quot;Traefik&quot;</span> \
+    org.opencontainers.image.description=<span class="tok-string">&quot;A modern reverse-proxy&quot;</span> \
+    org.opencontainers.image.version=<span class="tok-string">&quot;v3.5.6&quot;</span> \
+    org.opencontainers.image.documentation=<span class="tok-string">&quot;https://docs.traefik.io&quot;</span>
 </code></pre>
       </section>
     </section>
@@ -69,13 +83,13 @@ LABEL org.opencontainers.image.vendor=&quot;Traefik Labs&quot; \
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-SERVICE traefik
-  LINK ${pkgs.traefik}/bin/traefik /bin/traefik
-  START traefik --ping=true --entryPoints.web.address=:8081
-  PORT http = 8081
-  PORT monitor = 8080
+<span class="tok-directive">SERVICE</span> traefik
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.traefik}</span>/bin/traefik /bin/traefik
+  <span class="tok-directive">START</span> traefik --ping=true
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">PORT</span> monitor = 8080
 </code></pre>
       </section>
     </section>
