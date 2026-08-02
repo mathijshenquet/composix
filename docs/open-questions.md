@@ -42,6 +42,14 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
 
 ## Open for agents
 
+- **netns activation under load** (2026-08-02, orchestrator gate): the
+  scenario-netns closed-root leg failed once under full parallel VM
+  load — `cix-netns-b-fixed.service` failed during activation — and
+  passed focused on the identical tree. Possibly a real ordering race
+  (member starting before the pod netns oneshot completes) that load
+  exposes; reproduce under contention and root-cause before waving it
+  off as flake.
+
 - **CIP-79 adapter liveness on systemd 257** — the cix-owned HTTP/TCP
   `ExecStartPost` parent exits successfully, but its forked resident pinger is
   not retained and a healthy service later hits `WatchdogSec`. Add a systemd
