@@ -4,6 +4,7 @@ pub mod cli;
 mod directories;
 mod generation;
 mod model;
+mod network;
 mod observability;
 mod ps;
 mod resolve;

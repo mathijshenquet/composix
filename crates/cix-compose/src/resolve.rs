@@ -19,6 +19,7 @@ use crate::{
         Child, Compose, ComposeService, Edge, Lock, LockedService, Network, Publish, SecretSource,
         UpdatePolicy,
     },
+    network::{CheckedPod, CheckedPublish, PublishKind},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -41,28 +42,6 @@ pub struct CheckedService {
     pub declaration: ComposeService,
     pub pod: Option<String>,
     pub egress: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedPod {
-    pub path: String,
-    pub egress: bool,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedPublish {
-    pub name: String,
-    pub service: String,
-    pub surface: String,
-    pub address: SocketAddr,
-    pub pod: String,
-    pub kind: PublishKind,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PublishKind {
-    Listener,
-    Port { target: u16 },
 }
 
 #[derive(Clone, Debug)]

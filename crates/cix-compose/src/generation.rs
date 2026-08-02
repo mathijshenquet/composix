@@ -15,9 +15,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     directories::{
         bind_value, collect_shared_directories, manifest_directory, private_service,
-        render_shared_directory_unit, shared_group, stable_hash, DirectoryBacking, DirectoryRole,
+        render_shared_directory_unit, shared_group, DirectoryBacking, DirectoryRole,
     },
-    resolve::{CheckResult, PublishKind},
+    network::{
+        default_leases, filesystem_segment, namespace_name, netns_unit_name, parent_path,
+        pod_address, publish_socket_name, render_netns_unit, render_proxy_unit, render_socket_unit,
+        veth_name, PodLease, PublishKind,
+    },
+    resolve::CheckResult,
     unit_path,
 };
 
@@ -93,11 +98,6 @@ pub struct ManifestPod {
     pub address: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub members: BTreeSet<String>,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
-pub struct PodLease {
-    pub host: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -837,17 +837,6 @@ fn edge_group(composite: &str, edge: &str) -> String {
     format!("cix-e-{hash:016x}")
 }
 
-fn filesystem_segment(value: &str) -> String {
-    value.bytes().fold(String::new(), |mut encoded, byte| {
-        if byte.is_ascii_alphanumeric() {
-            encoded.push(char::from(byte));
-        } else {
-            encoded.push_str(&format!("_{byte:02x}"));
-        }
-        encoded
-    })
-}
-
 fn render_edge_unit(
     edge: &str,
     target: &str,
@@ -860,123 +849,6 @@ fn render_edge_unit(
         members.join(" "),
         target.trim_end_matches(".target")
     )
-}
-
-fn render_socket_unit(
-    listener: &str,
-    service: &str,
-    target: &str,
-    address: &std::net::SocketAddr,
-) -> String {
-    format!(
-        "[Unit]\nDescription=cix compose listener: {listener} for {service}\nPartOf={target}\nBefore={service}\n\n[Socket]\nListenStream={address}\nFileDescriptorName={listener}\nService={service}\n"
-    )
-}
-
-fn publish_socket_name(composite: &str, published: &crate::resolve::CheckedPublish) -> String {
-    format!(
-        "cix-{composite}-publish-{}.socket",
-        unit_path(&published.name)
-    )
-}
-
-fn render_proxy_unit(
-    name: &str,
-    socket: &str,
-    netns: &str,
-    namespace: &str,
-    target: &str,
-    slice: &str,
-    port: u16,
-) -> String {
-    format!(
-        "[Unit]\nDescription=cix compose published port proxy: {name}\nPartOf={target}\nRequires={netns} {socket}\nAfter={netns} {socket}\nJoinsNamespaceOf={netns}\n\n[Service]\nType=notify\nSlice={slice}\nNetworkNamespacePath=/run/netns/{namespace}\nExecStart=/run/current-system/systemd/lib/systemd/systemd-socket-proxyd 127.0.0.1:{port}\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nProtectHome=yes\nRestrictAddressFamilies=AF_INET AF_INET6\n"
-    )
-}
-
-fn render_netns_unit(
-    path: &str,
-    namespace: &str,
-    target: &str,
-    members: &[String],
-    lease: Option<PodLease>,
-    composite: &str,
-) -> String {
-    let description = if path.is_empty() { "root" } else { path };
-    let before = if members.is_empty() {
-        String::new()
-    } else {
-        format!("Before={}\n", members.join(" "))
-    };
-    let mut start = format!(
-        "/run/current-system/sw/bin/mkdir -p /run/netns; if ! /run/current-system/sw/bin/ip netns list | /run/current-system/sw/bin/grep -q \"^{} \"; then /run/current-system/sw/bin/ip netns add {}; fi; /run/current-system/sw/bin/ip -n {} link set lo up",
-        namespace, namespace, namespace
-    );
-    let mut after = String::new();
-    let mut requires = String::new();
-    if let Some(lease) = lease {
-        let host = veth_name(composite, path, 'h');
-        let peer = veth_name(composite, path, 'p');
-        let address = pod_address(lease);
-        start.push_str(&format!(
-            "; n=0; while ! /run/current-system/sw/bin/ip link show cix0 >/dev/null 2>&1; do n=$((n + 1)); test $n -lt 100; /run/current-system/sw/bin/sleep 0.1; done; /run/current-system/sw/bin/ip link delete {host} 2>/dev/null || true; /run/current-system/sw/bin/ip link add {host} type veth peer name {peer}; /run/current-system/sw/bin/ip link set {peer} netns {namespace}; /run/current-system/sw/bin/ip -n {namespace} link set {peer} addrgenmode none; /run/current-system/sw/bin/ip -n {namespace} address replace {address}/16 dev {peer}; /run/current-system/sw/bin/ip -n {namespace} link set {peer} up; /run/current-system/sw/bin/ip link set {host} master cix0; /run/current-system/sw/bin/ip link set {host} up; /run/current-system/sw/bin/ip -n {namespace} route replace default via 10.231.0.1"
-        ));
-        after.push_str("After=systemd-networkd.service\n");
-        requires.push_str("Requires=systemd-networkd.service\n");
-    }
-    format!(
-        "[Unit]\nDescription=cix compose network namespace: {description}\nPartOf={target}\n{before}{requires}{after}\n[Service]\nType=oneshot\nRemainAfterExit=yes\nSlice={}.slice\nExecStart=/bin/sh -ec '{start}'\nExecStop=/bin/sh -ec '/run/current-system/sw/bin/ip link delete {} 2>/dev/null || true; /run/current-system/sw/bin/ip netns delete {namespace}'\n",
-        target.trim_end_matches(".target"),
-        veth_name(composite, path, 'h')
-    )
-}
-
-fn namespace_name(composite: &str, path: &str) -> String {
-    if path.is_empty() {
-        format!("cix-{composite}-netns")
-    } else {
-        format!("cix-{composite}-{}-netns", filesystem_segment(path))
-    }
-}
-
-fn netns_unit_name(composite: &str, path: &str) -> String {
-    if path.is_empty() {
-        format!("cix-{composite}-netns.service")
-    } else {
-        format!("cix-{composite}-{}-netns.service", unit_path(path))
-    }
-}
-
-fn veth_name(composite: &str, path: &str, side: char) -> String {
-    format!("cx{:08x}{side}", stable_hash(composite, path) as u32)
-}
-
-fn pod_address(lease: PodLease) -> std::net::Ipv4Addr {
-    let [high, low] = lease.host.to_be_bytes();
-    std::net::Ipv4Addr::new(10, 231, high, low)
-}
-
-fn default_leases(checked: &CheckResult) -> BTreeMap<String, PodLease> {
-    checked
-        .pods
-        .iter()
-        .filter(|(_, pod)| pod.egress)
-        .enumerate()
-        .map(|(index, (path, _))| {
-            (
-                path.clone(),
-                PodLease {
-                    host: u16::try_from(index + 2).expect("compose pod count fits IPv4 IPAM"),
-                },
-            )
-        })
-        .collect()
-}
-
-fn parent_path(path: &str) -> &str {
-    path.rsplit_once('/')
-        .map(|(parent, _)| parent)
-        .unwrap_or("")
 }
 
 fn render_timer_unit(
@@ -1664,7 +1536,7 @@ mod tests {
         let (directory, mut checked, compose_path) = fixture();
         checked.pods.insert(
             String::new(),
-            crate::resolve::CheckedPod {
+            crate::network::CheckedPod {
                 path: String::new(),
                 egress: true,
             },
@@ -1675,7 +1547,7 @@ mod tests {
         }
         checked.services.get_mut("worker").unwrap().egress = true;
         checked.publishes = vec![
-            crate::resolve::CheckedPublish {
+            crate::network::CheckedPublish {
                 name: "fd".into(),
                 service: "web".into(),
                 surface: "http".into(),
@@ -1683,7 +1555,7 @@ mod tests {
                 pod: String::new(),
                 kind: PublishKind::Listener,
             },
-            crate::resolve::CheckedPublish {
+            crate::network::CheckedPublish {
                 name: "tcp".into(),
                 service: "worker".into(),
                 surface: "http".into(),

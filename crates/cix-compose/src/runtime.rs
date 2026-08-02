@@ -19,10 +19,10 @@ use sha2::Sha256;
 use crate::{
     build_generation_with_closed_root,
     cli::CleanWhat,
-    generation::{
-        build_generation_with_leases, DirectoryBackingKind, Manifest, PodLease, UnitKind,
-    },
-    load_and_check, unit_path, Compose, UpdateRequest,
+    generation::{build_generation_with_leases, DirectoryBackingKind, Manifest, UnitKind},
+    load_and_check,
+    network::PodLease,
+    unit_path, Compose, UpdateRequest,
 };
 
 const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
