@@ -1,5 +1,71 @@
 # composix work log
 
+## 2026-08-02 (the board-clearing day: every adopted CIP implemented; herdr C2; fable's first crack)
+
+- **Merged, all CI-green** (order): obs/CIP-83 (`f4f39cc`); devices/CIP-78
+  (`dc27687`) + devfix (PrivateDevices UserFull degradation — CI-only
+  AppArmor class, `af88d71`); regrade (51 ribbons, Evidence column,
+  `bb2c970`); CIP-reorg (85/86 retro-minted, cips/ to repo root,
+  accepted/+draft/ split); corpusweb (one living corpus + side-by-side
+  browser, `9823621`); health/CIP-79 (`f607a7f`); dirs2/CIP-82 leg 2
+  (`9037d67`, terra ×3 — TWO fixture false-greens caught by the
+  independent gate, then a real `cix clean` lifecycle fix); ergo/CIP-88
+  (`81586c5`, ×3 — semantic merge seam + a workspace-env test race);
+  overlay/D70 + trailing EXPECT + wallos on the three-line overlay form
+  (`0402e05`); secrets/CIP-81 + `run --compose` (`857d185`); vmslim
+  (scenario sweep **-53%**: teardown-dominated, DefaultTimeoutStopSec=1s,
+  `527764e`); corpusstyle (authoring canon + browser v2 highlighting,
+  `d8b463e`); closedroot/CIP-84 phase 1 (audit VM over 7 examples + 10
+  corpus cases, 10 honest downgrades, `3540315`); tree1/CIP-85 leg 1
+  (group nodes, path identity, per-path locks, root verbs, `e981beb`);
+  netns/CIP-86 (`d82a4c5`, ×2 — full matrix caught a shared-surface
+  regression); mastodon flagship (six members, shared-rw/readiness/
+  secret/timer/logs receipts, audited under closed root, `13324f5`);
+  hygiene-a+b/CIP-90 (clap boundary, env-free tests, `ps --json`, tour
+  from one truth; `c92c9ed`+`e0ea60a`); thin1/CIP-89 leg 1 (assembler
+  splits, compat deletions, 2000-LOC tripwire, `6567c5e`); tracefast/
+  CIP-87 bar (**84.83s → 8.31s warm edit, capture complete** — terra ×2
+  honest stops → sol frontier measurement → fable crack; `b5a52c1`);
+  docstruth (`f94519c`); micro-fixes: hermetic store-prefix test
+  (`daa7bdd`), fixed-width nonce (`3b0d4cd`), netns teardown flake
+  (`f63ad1c`).
+- **Decisions**: CIP-85/86 retro-minted (renumbering blessed; range need
+  not be gapless); CIP-87 read-set keying + CIP-88 builder ergonomics +
+  CIP-89 thinning + CIP-90 test hygiene drafted AND adopted same day;
+  CIP-87 amendments: perf criterion (~9s green/crane floor), verify-only
+  RUN memos (Mathijs in-session), FETCH self-observation rule with four
+  load-bearing conditions (per-path hash, full-write-set apply,
+  cold-replay precedence, same-memo scope); CIP-88 amendments: vendored
+  dev-env replaces per-var minting, all sensible lock attrs, junk lint;
+  trailing `FETCH … EXPECT`; file-first authoring canon. Drafts open:
+  emit-nix (with tier-1b in-nixpkgs form + pure-build cut), file-from.
+- **Process** (all recorded in CLAUDE.md/AGENTS.md/memory): /goal
+  shorthand + drive-progress; herdr worker C2 + `herdr worktree` flow
+  (unlosable completion signals, blocked detection, mid-flight
+  re-prompts — replaced background codex exec after a lost-signal burn
+  idled a slot ~4h); focused agent gates with the full matrix at the
+  orchestrator layer only; receipts = synchronous exit statuses (terra's
+  three detached-output false-greens); shared-state justification rule
+  (inventory ran clean); ledger-currency rule; delegation cost rule
+  (prompt vs fix); process autonomy with speed×correctness KPIs; gates
+  bounded (nice, -j6 --cores 4). Escalation ladder proved: terra → sol
+  → fable (first fable worker datapoint: exceptional; table updated).
+- **The independent gate earned its layer**: seven real catches today
+  that agent-local green missed (dirs2 ×2, ergo ×2, netns shared
+  surfaces, mastodon audit inventory, hygiene-a workspace race).
+- **In flight at close**: track/fetchself (CIP-87 self-observation
+  rule) + track/thin2 (compose strata pass) — the final two board
+  items; gates + merges follow the standing cycle.
+- **Open with Mathijs**: the 14 one-line dispositions + ARG re-marking
+  (docs/open-questions.md); emit-nix draft adoption; FILE…FROM draft
+  adoption.
+- **Open for agents**: netns activation race under load (recorded in
+  open-questions); systemd-257 adapter-liveness retention; phase-2
+  closed-root flip once the audit era proves out; D26/D27 named
+  networks + talks-to; publish era; reconciler. Upstream: gitsitter
+  issue #24 (.git/HEAD permanent-stale floor, affects all build
+  routes).
+
 ## 2026-08-02 closed-root track complete (CIP-84 phase 1)
 
 - **Completed on `track/closedroot`**: opt-in `--closed-root` compilation for
