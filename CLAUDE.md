@@ -23,7 +23,8 @@ announced in chat as it starts (Mathijs watches via /rc).
    Agent slots stay filled within machine capacity (max 4 concurrent).
 2. **Dry → prospect once**: when no open ends remain, do ONE codebase/design
    sweep for possible unblockers — cleanup and quality inventories count —
-   and land the findings as `cips/draft/` entries for adoption. Drafts are
+   and land the findings as `cips/draft/` entries for adoption, each linked
+   to Mathijs by full GitHub URL (the standing CIP-README rule). Drafts are
    the only output of this step: prospecting never starts implementation on
    its own authority. (One ontology: everything prospective is a CIP draft.)
 
