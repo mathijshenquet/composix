@@ -1657,7 +1657,10 @@ pub(crate) fn nonce() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
-    format!("{nanos:x}{:x}", std::process::id())
+    // Fixed width: unit-name length must be host-independent, or every
+    // rendered table column (and the drift-checked tour) varies with pid
+    // digit count.
+    format!("{nanos:016x}{:08x}", std::process::id())
 }
 
 pub(crate) fn namespace_failure(error: &anyhow::Error) -> bool {
