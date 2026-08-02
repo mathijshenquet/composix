@@ -1,6 +1,8 @@
 # Examples
 
 - `pack/<name>/` holds individual service items. A `Cixfile` is the canonical form.
+- `pack/devices/` is the Frigate-shaped device/SHM example; its `/dev/cix-device`
+  claim is exercised by the NixOS device scenario rather than requiring hardware on the host.
 - `compose/` holds composites that consume pack items through tags.
 - `build/` holds build-story projects. `build/ingredient` proves a small EXPECT-pinned HTTPS
   fetch with imported curl and CA roots. `build/projB` proves the Rust FETCH/RUN path;

@@ -352,3 +352,40 @@
   only cix-run source/tests/log and the two VM assertions;
   pre-existing generated `devenv.lock` remains intentionally unstaged. The
   commit is the handoff point for track/dirs.
+
+## track/devices
+
+- 2026-08-02 00:50 UTC — Started CIP-78 devices on `track/devices`. Read
+  AGENTS.md, `.dev/specs/track-devices.md`, authoritative CIP-78 §§3/5,
+  `.dev/LOG.md`, and the active cix-run/cixfile/compose surfaces. Existing
+  claims are strings in both runner and Cixfile model, so this track needs a
+  typed parameterized device form while retaining bare `jit`, `egress`, and
+  `gpu`. Mechanical reading to document: a device-claiming unit replaces
+  `PrivateDevices=` with `DevicePolicy=closed` plus an allow-list; non-claiming
+  units retain today's `PrivateDevices=` posture. Next: implement manifest and
+  Cixfile validation/model first, then unit compilation, compose override,
+  example/scenario, docs, and the full gate.
+
+- 2026-08-02 07:20 UTC — Implemented the manifest/Cixfile/compiler/compose
+  slice. Claims are now bare `jit`/`egress`/`gpu` strings or strict
+  `{ "device": "/dev/..." }` objects; `SHM` and `shm` validate a systemd-style
+  size. Device claims emit `DevicePolicy=closed` and individual `DeviceAllow=`
+  entries in place of the now-explicit normal `PrivateDevices=yes`; gpu adds
+  `video render`, and literal devices stat their owner group (with a warning,
+  not a generation failure, if absent). Compose's `shm` wins, persists as an
+  effective manifest value, and diff names the SHM change; `grants` remains
+  strict-schema rejected/reserved. Focused `cargo fmt` plus cix-run, cixfile,
+  and compose suites are green (48 cix-run / 24 compose tests). Added the
+  Frigate-shaped example and the new VM scenario; its NixOS build is running.
+  Next: finish the VM proof, inspect the complete diff, and run the required
+  full gate.
+
+- 2026-08-02 07:48 UTC — The focused `scenario-devices` VM check passes:
+  the service starts with a closed allow-list containing `/dev/dri` and the
+  literal node, has `video`/`render`, lacks `PrivateDevices`, and sees its
+  64 MiB `/dev/shm`. Replaced its unreliable journal polling with an
+  active-after-two-seconds assertion, so the probe's preceding device and SHM
+  assertions remain decisive. Final gates are green: `cargo fmt --check`,
+  `cix fmt --check examples`, warning-denied workspace clippy, workspace
+  tests, regenerated+checked tour, and `devenv shell -- nix flake check -L`
+  (including all VM scenarios). Next: stage the final log, review, and commit.

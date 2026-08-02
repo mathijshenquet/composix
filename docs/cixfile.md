@@ -343,8 +343,19 @@ empty private directory.
 <a id="claims"></a>
 
 `CLAIM jit` drops `MemoryDenyWriteExecute=`; `CLAIM egress` declares
-outward network access and retains compose's usage-override semantics. The claim vocabulary is
-closed to `jit` and `egress`, one claim per line.
+outward network access and retains compose's usage-override semantics. `CLAIM gpu` replaces the
+ordinary `PrivateDevices=` sandbox with `DevicePolicy=closed`, allows the `/dev/dri` class, and
+adds `video` and `render`. `CLAIM device /dev/<node>` adds exactly that node and resolves its
+owning group while generating the unit. If the node is absent at generation time cix warns and
+leaves activation to fail when the hardware is still absent. Device claims never broaden into
+`--privileged` access. The claim vocabulary is closed to `jit`, `egress`, `gpu`, and
+`device /dev/<node>`, one claim per line.
+
+`SHM <size>` mounts a private `/dev/shm` with systemd size syntax, for example `SHM 64M` or
+`SHM 1G`. In compose, a service `shm: "<size>"` is an operator override and wins over the item;
+`cix compose diff` reports an effective SHM change. `grants:` is reserved for the future explicit
+compose-side loosening field; it is deliberately not accepted yet, so compose cannot silently
+widen device access.
 
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,

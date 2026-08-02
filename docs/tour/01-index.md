@@ -102,6 +102,7 @@ $ cix inspect my-app:v1
     "mounts": null,
     "network": null,
     "ports": {},
+    "shm": null,
     "start": [
       "message"
     ],

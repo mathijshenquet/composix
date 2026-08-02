@@ -20,6 +20,6 @@ pub use lock::{
     VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 pub use model::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, Dirs, Env, Fetch, Input,
-    InputKind, Port, Service, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
+    Input, InputKind, Port, Service, Template, TemplatePart,
 };

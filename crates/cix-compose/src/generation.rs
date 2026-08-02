@@ -62,6 +62,8 @@ pub struct ManifestService {
     pub item_service: String,
     pub store_path: String,
     pub nar_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shm: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -227,6 +229,9 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             extra_properties.push(("Sockets".into(), sockets.join(" ")));
         }
         let mut compiled_service = checked_service.spec.clone();
+        if let Some(shm) = &declaration.shm {
+            compiled_service.shm = Some(shm.clone());
+        }
         if let Some(run_paths) = &mut compiled_service.dirs.run {
             run_paths.retain(|path| {
                 !claims
@@ -330,6 +335,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                 item_service: checked_service.item_service.clone(),
                 store_path: locked.store_path.clone(),
                 nar_hash: locked.nar_hash.clone(),
+                shm: compiled_service.shm,
             },
         );
     }
@@ -519,6 +525,7 @@ mod tests {
                         schedule: None,
                         persistent: None,
                         jitter: None,
+                        shm: None,
                     },
                 ),
                 (
@@ -531,6 +538,7 @@ mod tests {
                         schedule: None,
                         persistent: None,
                         jitter: None,
+                        shm: None,
                     },
                 ),
             ]),
@@ -665,6 +673,26 @@ mod tests {
         )
         .unwrap();
         assert_eq!(timer, expected);
+    }
+
+    #[test]
+    fn compose_shm_override_wins_over_the_item() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked.compose.services.get_mut("web").unwrap().shm = Some("96M".into());
+        let generation = directory.path().join("generation");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let unit = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(
+            unit.contains("TemporaryFileSystem=/dev/shm:size=96M"),
+            "{unit}"
+        );
+        assert_eq!(manifest.services["web"].shm.as_deref(), Some("96M"));
     }
 
     #[test]

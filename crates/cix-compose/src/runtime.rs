@@ -269,6 +269,20 @@ fn compare_generations(old: Option<&Path>, new: &Path) -> Result<Vec<String>> {
         if old_path != new_path {
             report.push(format!("service {name}: {old_path} -> {new_path}"));
         }
+        let old_shm = old_services
+            .and_then(|services| services.get(&name))
+            .and_then(|service| service.shm.as_deref());
+        let new_shm = new_manifest
+            .services
+            .get(&name)
+            .and_then(|service| service.shm.as_deref());
+        if old_shm != new_shm {
+            report.push(format!(
+                "service {name}: shm {} -> {}",
+                old_shm.unwrap_or("default"),
+                new_shm.unwrap_or("default")
+            ));
+        }
     }
     Ok(report)
 }
@@ -563,6 +577,7 @@ mod tests {
                     item_service: "app".into(),
                     store_path: service_path.into(),
                     nar_hash: service_path.into(),
+                    shm: None,
                 },
             )]),
             degradations: Vec::new(),

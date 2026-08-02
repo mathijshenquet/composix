@@ -27,6 +27,7 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivatePIDs=yes
+PrivateDevices=yes
 NoNewPrivileges=yes
 RestrictSUIDSGID=yes
 ProtectKernelTunables=yes

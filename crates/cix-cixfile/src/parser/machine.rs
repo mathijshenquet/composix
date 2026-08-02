@@ -186,6 +186,7 @@ impl Parser<'_> {
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
+                "SHM" => self.shm(line_number, source, arguments)?,
                 "STATEDIR" | "CACHEDIR" | "LOGDIR" | "CONFIGDIR" | "RUNDIR" | "DIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }

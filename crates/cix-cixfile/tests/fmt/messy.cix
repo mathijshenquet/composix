@@ -21,3 +21,5 @@ EOF
  START	/bin/bash	-c	'echo  hi'   
  ENV	MODE	=	production   
  PORT	http	=	8080  
+ CLAIM	gpu
+ SHM	256M

@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE frigate-shaped
+  COPY ${src}/start /bin/start
+  START ${pkgs.bash}/bin/sh /bin/start
+  CLAIM device /dev/cix-device
+  SHM 64M

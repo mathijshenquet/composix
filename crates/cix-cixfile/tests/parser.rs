@@ -396,7 +396,7 @@ START /bin/true \
         assert!(dirs.run.contains("/run/web"));
         assert_eq!(
             parsed.artifacts["web"].service.claims,
-            BTreeSet::from(["egress".into(), "jit".into()])
+            BTreeSet::from([Claim::Named("egress".into()), Claim::Named("jit".into()),])
         );
         for (directive, replacement, anchor) in [
             ("STATE /var/lib/web", "STATEDIR", "#role-dirs"),
@@ -416,6 +416,43 @@ START /bin/true \
         let unknown =
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nCLAIM all\n").unwrap_err();
         assert!(unknown.message.contains("jit, egress"), "{unknown}");
+    }
+
+    #[test]
+    fn device_gpu_and_shm_claims_are_strict() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE detector\nSTART /bin/true\nCLAIM gpu\nCLAIM device /dev/video0\nSHM 256M\n",
+        )
+        .unwrap();
+        let service = &parsed.artifacts["detector"].service;
+        assert!(service.claims.contains(&Claim::Named("gpu".into())));
+        assert!(service
+            .claims
+            .contains(&Claim::Device("/dev/video0".into())));
+        assert_eq!(service.shm.as_deref(), Some("256M"));
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&parsed).unwrap()).unwrap();
+        assert_eq!(
+            manifest["claims"],
+            serde_json::json!(["gpu", {"device": "/dev/video0"}])
+        );
+        assert_eq!(manifest["shm"], "256M");
+
+        for directive in [
+            "CLAIM device ttyUSB0",
+            "CLAIM device /dev/../etc/passwd",
+            "CLAIM device /tmp/device",
+            "CLAIM gpu extra",
+            "SHM -1G",
+            "SHM 1Z",
+            "SHM 1G extra",
+        ] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE detector\nSTART /bin/true\n{directive}\n"
+            ))
+            .unwrap_err();
+            assert_eq!(error.line, 4, "{directive}: {error}");
+        }
     }
 
     #[test]

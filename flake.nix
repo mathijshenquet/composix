@@ -97,6 +97,7 @@
         scenario-update-repin = import ./nix/scenarios/update-repin.nix { inherit pkgs cix; };
         scenario-gc-survival = import ./nix/scenarios/gc-survival.nix { inherit pkgs cix; };
         scenario-observability = import ./nix/scenarios/observability.nix { inherit pkgs cix; };
+        scenario-devices = import ./nix/scenarios/devices.nix { inherit pkgs cix; };
         with-spec-redis = pkgs.runCommand "with-spec-redis-check" { } ''
           test -f ${withSpecRedis}/cix-manifest.json
           test -L ${withSpecRedis}/etc/redis
