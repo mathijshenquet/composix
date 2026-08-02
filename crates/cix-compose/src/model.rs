@@ -29,6 +29,12 @@ pub struct ComposeService {
     pub env: BTreeMap<String, String>,
     #[serde(default)]
     pub bind: BTreeMap<String, String>,
+    /// Per-path materialization overrides. Keys are in-service absolute paths.
+    #[serde(default)]
+    pub dirs: BTreeMap<PathBuf, DirectoryMaterialization>,
+    /// A stable host identity used at an operator-owned host-directory seam.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identity: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schedule: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -37,6 +43,35 @@ pub struct ComposeService {
     pub jitter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shm: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct DirectoryMaterialization {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<PathBuf>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shared: Option<String>,
+    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
+    pub role: Option<DirectoryRole>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub idmap: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub write: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd)]
+#[serde(rename_all = "lowercase")]
+pub enum DirectoryRole {
+    State,
+    Cache,
+    Logs,
+    Config,
+    Run,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -86,6 +121,7 @@ impl Compose {
     pub fn load(path: &Path) -> Result<Self> {
         let contents =
             fs::read(path).with_context(|| format!("reading compose file {}", path.display()))?;
+        let contents = interpolate_dotenv(&contents, path)?;
         let compose: Self = from_slice_with_path(&contents, path)?;
         compose.validate_shape()?;
         Ok(compose)
@@ -130,6 +166,63 @@ impl Compose {
                 cix_run::spec::validate_systemd_size(shm)
                     .with_context(|| format!("services.{name}.shm"))?;
             }
+            if service.identity.as_deref().is_some_and(str::is_empty) {
+                bail!("services.{name}.identity: identity must not be empty");
+            }
+            if let Some(identity) = &service.identity {
+                validate_name(&format!("services.{name}.identity"), identity)?;
+            }
+            for (path, materialization) in &service.dirs {
+                if !path.is_absolute() {
+                    bail!(
+                        "services.{name}.dirs.{}: path must be absolute",
+                        path.display()
+                    );
+                }
+                match (&materialization.host, &materialization.shared) {
+                    (Some(_), Some(_)) => bail!(
+                        "services.{name}.dirs.{}: host and shared are mutually exclusive",
+                        path.display()
+                    ),
+                    (None, None) if materialization.role.is_none() => bail!(
+                        "services.{name}.dirs.{}: declare host, shared, or as",
+                        path.display()
+                    ),
+                    _ => {}
+                }
+                if let Some(host) = &materialization.host {
+                    if !host.is_absolute() {
+                        bail!(
+                            "services.{name}.dirs.{}.host: path must be absolute",
+                            path.display()
+                        );
+                    }
+                }
+                if materialization.idmap && materialization.host.is_none() {
+                    bail!(
+                        "services.{name}.dirs.{}.idmap: idmap: true only acknowledges a host bind",
+                        path.display()
+                    );
+                }
+                if materialization.write && materialization.host.is_none() {
+                    bail!(
+                        "services.{name}.dirs.{}.write: write is only valid for an operator host bind",
+                        path.display()
+                    );
+                }
+                if materialization.shared.as_deref().is_some_and(str::is_empty) {
+                    bail!(
+                        "services.{name}.dirs.{}.shared: shared name must not be empty",
+                        path.display()
+                    );
+                }
+                if let Some(shared) = &materialization.shared {
+                    validate_name(
+                        &format!("services.{name}.dirs.{}.shared", path.display()),
+                        shared,
+                    )?;
+                }
+            }
         }
         for (name, edge) in &self.edges {
             validate_name(&format!("edges.{name}"), name)?;
@@ -151,6 +244,88 @@ impl Compose {
         }
         Ok(())
     }
+}
+
+fn interpolate_dotenv(contents: &[u8], compose_path: &Path) -> Result<Vec<u8>> {
+    let text = std::str::from_utf8(contents)
+        .with_context(|| format!("compose file {} is not UTF-8", compose_path.display()))?;
+    let dotenv_path = compose_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(".env");
+    let dotenv = match fs::read_to_string(&dotenv_path) {
+        Ok(contents) => parse_dotenv(&contents, &dotenv_path)?,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeMap::new(),
+        Err(error) => {
+            return Err(error).with_context(|| format!("reading {}", dotenv_path.display()))
+        }
+    };
+
+    let mut rendered = String::with_capacity(text.len());
+    let mut remainder = text;
+    while let Some(start) = remainder.find("${") {
+        rendered.push_str(&remainder[..start]);
+        let after = &remainder[start + 2..];
+        let end = after.find('}').with_context(|| {
+            format!(
+                "{}: unterminated .env interpolation",
+                compose_path.display()
+            )
+        })?;
+        let name = &after[..end];
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
+        {
+            bail!(
+                "{}: invalid .env interpolation ${{{name}}}",
+                compose_path.display()
+            );
+        }
+        let value = dotenv.get(name).with_context(|| {
+            format!(
+                "{}: ${{{name}}} is not defined by its own directory .env; ambient environment interpolation is refused",
+                compose_path.display()
+            )
+        })?;
+        rendered.push_str(value);
+        remainder = &after[end + 1..];
+    }
+    rendered.push_str(remainder);
+    Ok(rendered.into_bytes())
+}
+
+fn parse_dotenv(contents: &str, path: &Path) -> Result<BTreeMap<String, String>> {
+    let mut values = BTreeMap::new();
+    for (index, line) in contents.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (name, value) = line
+            .split_once('=')
+            .with_context(|| format!("{}:{}: expected NAME=VALUE", path.display(), index + 1))?;
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
+        {
+            bail!(
+                "{}:{}: invalid .env name {name:?}",
+                path.display(),
+                index + 1
+            );
+        }
+        if values.insert(name.to_owned(), value.to_owned()).is_some() {
+            bail!(
+                "{}:{}: duplicate .env name {name}",
+                path.display(),
+                index + 1
+            );
+        }
+    }
+    Ok(values)
 }
 
 impl Lock {
@@ -334,5 +509,45 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("grants"));
+    }
+
+    #[test]
+    fn dotenv_is_contained_to_the_compose_directory() {
+        let directory = tempfile::tempdir().unwrap();
+        let compose = directory.path().join("compose.json");
+        fs::write(
+            directory.path().join(".env"),
+            "ITEM=demo:v1\nMESSAGE=hello\n",
+        )
+        .unwrap();
+        fs::write(
+            &compose,
+            r#"{"composeVersion":1,"name":"demo","services":{"web":{"item":"${ITEM}","env":{"MESSAGE":"${MESSAGE}"}}}}"#,
+        )
+        .unwrap();
+        let loaded = Compose::load(&compose).unwrap();
+        assert_eq!(loaded.services["web"].item, "demo:v1");
+        assert_eq!(loaded.services["web"].env["MESSAGE"], "hello");
+
+        fs::write(
+            &compose,
+            r#"{"composeVersion":1,"name":"demo","services":{"web":{"item":"${AMBIENT}"}}}"#,
+        )
+        .unwrap();
+        let error = Compose::load(&compose).unwrap_err().to_string();
+        assert!(error.contains("own directory .env"), "{error}");
+    }
+
+    #[test]
+    fn directory_materializations_are_strict() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"demo","services":{"web":{"item":"demo:v1","dirs":{"/data":{"host":"/srv/data","shared":"data"}}}}}"#,
+        )
+        .unwrap();
+        let error = Compose::load(&path).unwrap_err().to_string();
+        assert!(error.contains("mutually exclusive"), "{error}");
     }
 }

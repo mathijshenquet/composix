@@ -22,12 +22,40 @@ pub enum Command {
     Down {
         /// Composite name; defaults to the name in ./compose.json.
         name: Option<String>,
+        /// Delete cix-owned private and shared role data after confirmation.
+        #[arg(long)]
+        purge: bool,
+        /// Confirm --purge without an interactive prompt.
+        #[arg(long, requires = "purge")]
+        yes: bool,
+    },
+    /// Remove explicitly expendable role data from a composite.
+    Clean {
+        /// Composite name.
+        name: String,
+        /// Directory class to clean.
+        #[arg(long)]
+        what: CleanWhat,
+    },
+    /// Refused: cix has no writable container layer to recreate.
+    Recreate {
+        /// Composite name retained only to make the migration command obvious.
+        name: Option<String>,
     },
     /// Roll a composite profile back one generation and activate it.
     Rollback {
         /// Composite name.
         name: String,
     },
+}
+
+#[derive(clap::ValueEnum, Clone, Copy)]
+pub enum CleanWhat {
+    Cache,
+    Logs,
+    State,
+    Dir,
+    Shared,
 }
 
 #[derive(clap::Subcommand)]
@@ -63,13 +91,18 @@ impl Command {
                 };
                 crate::up(&file, update)
             }
-            Self::Down { name } => {
+            Self::Down { name, purge, yes } => {
                 let name = match name {
                     Some(name) => name,
                     None => crate::Compose::load(&PathBuf::from("compose.json"))?.name,
                 };
-                crate::down(&name)
+                crate::down(&name, purge, yes)
             }
+            Self::Clean { name, what } => crate::clean(&name, what),
+            Self::Recreate { name } => anyhow::bail!(
+                "cix recreate is refused: cix up converges without a writable container layer; use cix clean --what=cache for expendable state{}",
+                name.map(|name| format!(" in composite {name}")).unwrap_or_default()
+            ),
             Self::Rollback { name } => crate::rollback(&name),
         }
     }

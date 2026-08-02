@@ -13,7 +13,7 @@ pub use generation::{
 };
 pub use model::{Compose, Lock};
 pub use resolve::{load_and_check, CheckResult, UpdateRequest};
-pub use runtime::{check, diff, down, rollback, up};
+pub use runtime::{check, clean, diff, down, rollback, up};
 
 pub use observability::{logs, result_label, stats, LogsOptions};
 pub use ps::ps;
