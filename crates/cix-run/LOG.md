@@ -518,3 +518,9 @@
   synchronous cached rerun reported 12 checks previously built and `running 0
   flake checks`, exit 0. The generated tour records `secrets: {}` in the
   manifest projection. Next: stage the audited diff and commit `track/secrets`.
+
+- 2026-08-02 13:43 UTC — Committed the completed implementation as `f3fa1ac`
+  (`Implement CIP-81 secrets`) and pushed it normally to
+  `origin/track/secrets`; the synchronous remote receipt resolves that ref to
+  `f3fa1ac4cc6f1261b0b831cd26080e3949b5f972`. No source changes followed the
+  full gate; this journal close remains to commit.
