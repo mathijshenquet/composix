@@ -43,11 +43,27 @@ upstream flake's 0.07 s (d).
 
 ## 3. Recommendation
 
-- **(a) Auto-`PKG_CONFIG_PATH`**: for each IMPORT in declaration order,
-  if `<pkg>/lib/pkgconfig` exists, append it. Earlier-wins ordering
-  matches the IMPORT collision rule. No other variables are minted
-  until a corpus case demands them (candidates like `CMAKE_PREFIX_PATH`
-  wait for evidence, logged in the ledger when refused).
+- **(a) Vendored dev-env from the pinned universe** (amended 2026-08-02,
+  Mathijs: a cix-maintained variable list is a moving target — nixpkgs
+  itself is the authority on its packages' env conventions). Instead of
+  cix minting `PKG_CONFIG_PATH` (then `CMAKE_PREFIX_PATH`, then the
+  next one) piecemeal, cix synthesizes a dev environment from the
+  FROM-pinned universe using nixpkgs' own stdenv machinery
+  (`nix print-dev-env` over a shell whose inputs are the IMPORTed
+  packages), filters it, and **snapshots the surviving variables into
+  Cixfile.lock**, keyed by (universe rev, ordered import set). The env
+  is vendored data: diffable, moves only with `--update-lock`, costs
+  zero nix invocations on warm builds (the no-op floor is preserved).
+  Filtering principle rather than per-tool list: skeleton-owned
+  variables always win (`PATH`, `HOME`, `TMPDIR`, `TZ`, `LC_ALL`,
+  `SOURCE_DATE_EPOCH`, …), stdenv control noise (phases, hook
+  functions) is dropped, and what remains must be deterministic —
+  the natural shape filter is "exported variables whose values
+  reference store paths in the offered closure". Integration hedge: if
+  full-capture fights the sandbox skeleton, inject the search-path
+  subset (`PKG_CONFIG_PATH` and friends) *from the same vendored
+  snapshot* — still nixpkgs-computed, still lock-pinned — and record
+  the findings.
 - **(b) Lock metadata attributes on FROM bindings**: `${src.rev}`,
   `${src.shortRev}`, `${src.narHash}`, resolved from Cixfile.lock at
   parse time; part of the resolved arguments, so keying is automatic
@@ -89,17 +105,26 @@ upstream flake's 0.07 s (d).
 §3 (a)–(d) adopted as written. Open-question fills (orchestrator,
 2026-08-02, amendable):
 
-1. Mint `rev`/`shortRev`/`narHash` only; `lastModified` waits for a
-   real consumer.
-2. Refused env-var candidates are recorded in this CIP plus a code
-   comment at the refusal site — no docker.md rows (they are not
-   docker features).
-3. No junk lint until a real case bites; the consumed-set model makes
-   junk semantically free, so a lint would police aesthetics.
+1. Mint **all sensible attributes** (Mathijs): `rev`, `shortRev`,
+   `revCount`, `narHash`, `lastModified`, `lastModifiedDate`, plus the
+   dirty variants where derivable on local trees. Referencing an
+   attribute the binding cannot supply is a spanned error listing what
+   *is* available.
+2. Superseded by the (a) amendment: there is no cix-maintained
+   variable list to refuse candidates against; the vendored snapshot's
+   filter principle is the whole policy.
+3. **Lint adopted** (Mathijs: "a lint/print is never wrong"): when a
+   FETCH leaves a large unconsumed complement — and, once CIP-87
+   lands, when a step's unread complement is very large — print an
+   informational note with sizes. Never fails the build.
 
 ## Changelog
 
 - 2026-08-02: drafted and adopted same day.
+- 2026-08-02 (same day, Mathijs's second read): (a) reshaped from
+  auto-`PKG_CONFIG_PATH` to the vendored dev-env snapshot; (b) widened
+  to all sensible attributes; junk lint reversed from refused to
+  adopted-as-informational.
 
 ## Placement of fixture and assertions (shared with read-set draft)
 
