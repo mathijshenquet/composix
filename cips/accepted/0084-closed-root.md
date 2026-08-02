@@ -171,3 +171,7 @@ filtered cix-managed copy arrives with the netns era, D49);
 `--user` mode gets the same closed root (dev/prod parity); ledger
 downgrades (Home Assistant class) land with the implementation.
 Phasing as §3.4: audit-gate era first, then the only runtime.
+
+## Changelog
+
+- 2026-08-02: phase 1 implemented opt-in closed-root compilation and the exhaustive example/corpus audit VM.

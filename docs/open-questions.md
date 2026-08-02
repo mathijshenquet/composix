@@ -1,6 +1,6 @@
 # Open questions inventory — migration docs & compat ledgers
 
-Status: swept 2026-08-01; cleaned same day after the CIP wave. Sources:
+Status: swept 2026-08-02 after the adopted CIP implementation wave. Sources:
 every ❓/⏳ row in docs/docker.md, the gap rows in docs/migrate.md,
 docs/corpus.md §4, and the deferral notes in docs/design.md. New
 decisions land as CIPs (cips/); this doc tracks what remains
@@ -20,9 +20,16 @@ genuinely open.
 | [CIP-82](../cips/accepted/0082-dirs.md) | dirs: claims model, overlay backing, `DIR`, lifecycle table | `-v/--mount`, named volumes + volume CLI ❓, bind mounts ⏳, `volume prune`/mutable-GC ❓, `container prune` cleanup ❓, corpus demands #2+#3 |
 | [CIP-83](../cips/accepted/0083-observability.md) | logs/stats/exit-causes as journald projection; `logNamespace:` | `cix logs`/`stats`/`system df` sugar ❓, per-app retention, logging drivers (❌ stands) |
 | [CIP-84](../cips/accepted/0084-closed-root.md) | mandatory closed root, whole-store ro | the ProtectSystem leak, NixOS two-paths lean, userns honesty follow-up |
+| [CIP-85](../cips/accepted/0085-compose-tree.md) | recursive compose tree and host-root grammar | nested composites, path identity, subtree locks/repins, mutable host roots |
+| [CIP-86](../cips/accepted/0086-netns.md) | D49 pod/netns realization | pod namespaces, fd-first publish, persisted egress IPAM; D26/D27 stay separate |
+| [CIP-87](../cips/accepted/0087-read-set-keying.md) | traced read-set step keys | early cutoff and cold divergence audit |
+| [CIP-88](../cips/accepted/0088-builder-ergonomics.md) | builder ergonomics | stats, vendored dev environments, source metadata, junk lint |
+| [CIP-89](../cips/accepted/0089-thinning-round.md) | owned-module thinning | module maps, 2000-LOC tripwire, alpha compatibility audit |
+| [CIP-90](../cips/accepted/0090-test-hygiene.md) | boundary configuration and structural tour reads | process-global test state and screen-scraping failure classes |
 
-Implementation status lives in .dev/LOG.md (75/76/78/80 shipped;
-82 leg 1 and 83 in flight; 79/84 queued).
+Implementation status lives in .dev/LOG.md. CIPs 75–83 and 86–88 are built; CIP-84 phase 1,
+CIP-85 leg 1 plus netns/publish, CIP-89 leg 1, and CIP-90 leg A are built. Every scoped leg on the
+adopted board is CI-confirmed; later legs remain explicit in their CIPs.
 
 ## Recorded-elsewhere, ledger row should cite it
 
@@ -32,6 +39,14 @@ Implementation status lives in .dev/LOG.md (75/76/78/80 shipped;
   Cixfile text is the parameter channel) + D46 (parametric composes);
   gitea's version-stamp case gets a documented pattern, not a mechanism.
   **Awaiting blessing.**
+
+## Open for agents
+
+- **CIP-79 adapter liveness on systemd 257** — the cix-owned HTTP/TCP
+  `ExecStartPost` parent exits successfully, but its forked resident pinger is
+  not retained and a healthy service later hits `WatchdogSec`. Add a systemd
+  version gate or fix the retention mechanism; see the
+  [Mastodon receipt](../corpus/migrate/mastodon/receipt.md#synchronous-receipt).
 
 ## Proposed one-line dispositions (awaiting Mathijs, batch-blessable)
 
@@ -70,10 +85,11 @@ Implementation status lives in .dev/LOG.md (75/76/78/80 shipped;
 - **Publish era** (D17/D35): push, login/auth, entry signing, mirror
   redistribution, pull-through fill, hub/orgs/search/webhooks, SBOM &
   attestation exchange formats (+ Scout-class analysis on closures).
-- **Networking era** (D26/D27/D49): bridge/DNS, finer isolation,
-  network objects/drivers, `--hostname/--dns/--ip`, per-netns sysctls,
-  port remapping/NAT & bind-address policy, the filtered resolver copy
-  (CIP-84 §5).
+- **Named-network era** (D26/D27): named network objects/drivers,
+  service DNS/aliases, `talks-to` isolation, cross-composite and multi-host
+  realization, `--hostname/--dns/--ip`, and per-netns sysctls. D49's pod
+  netns, fd/proxy publish, persisted IPAM, bridge/veth egress, and closed-root
+  resolver projection are built in CIP-86.
 - **Compose v1+** (D30 ledger): replicas/scale, resource limits (slice
   properties), configs objects, reusable top-level objects, live
   `update`.
