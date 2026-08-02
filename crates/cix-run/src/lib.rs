@@ -1,5 +1,11 @@
 //! Part 2: cix-manifest.json parsing/validation, systemd unit generation, cix run.
 //! See docs/design.md "Part 2 — spec + run".
+//!
+//! ## Module map
+//!
+//! `unit` conducts ordered systemd property assembly; `devices`, `directories`,
+//! `health`, and `closed_root` each own one feature projection. New run feature
+//! strata belong in their own module.
 
 pub mod capabilities;
 pub mod cli;

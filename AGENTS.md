@@ -20,6 +20,7 @@ Other landmarks: `.dev/specs/track-*.md` (past agent specs; write new ones here)
 
 ## Conventions
 - Work happens on `track/<name>` branches in herdr-managed worktrees (`herdr worktree create --branch track/<name> --label <name> --no-focus` — worktree + attachable workspace in one, so the fleet is visible in Mathijs's UI; Mathijs 2026-08-02). Pre-existing `.worktrees/<name>` checkouts remain valid until their track lands. Spec file per track in `.dev/specs/`.
+- New feature strata get new modules; keep crate module maps current.
 - Keep your assigned LOG.md current (append-only, timestamped) — it is the durable memory.
 - "Green" claims by agents get independently re-verified before merge — design for that: leave exact repro commands in your LOG.
 - A receipt is a SYNCHRONOUS exit status you observed, never detached or quiet output (lesson of 2026-08-02: three consecutive false greens on one scenario from reading detached-build output as success).

@@ -108,7 +108,12 @@ impl Store {
         fs::create_dir_all(store.roots_dir()).context("creating cix roots directory")?;
         fs::create_dir_all(store.names_dir()).context("creating cix names directory")?;
         fs::create_dir_all(store.tmp_dir()).context("creating cix temporary directory")?;
-        store.migrate_legacy()?;
+        if store.root.join("tags").is_dir() {
+            bail!(
+                "legacy index tags/ state is unsupported in this alpha; remove or regenerate {} with the current cix",
+                store.root.display()
+            );
+        }
         Ok(store)
     }
 
@@ -126,14 +131,6 @@ impl Store {
 
     pub(crate) fn tmp_dir(&self) -> PathBuf {
         self.root.join("tmp")
-    }
-
-    pub(crate) fn legacy_meta_dir(&self) -> PathBuf {
-        self.root.join("tags")
-    }
-
-    pub(crate) fn legacy_dir(&self) -> PathBuf {
-        self.root.join("meta.legacy")
     }
 
     pub fn encode(reference: &Ref) -> String {
@@ -384,57 +381,6 @@ impl Store {
         }
         tags.sort_by(|left, right| left.reference.cmp(&right.reference));
         Ok(tags)
-    }
-
-    pub(crate) fn migrate_legacy(&self) -> Result<()> {
-        let legacy = self.legacy_meta_dir();
-        if !legacy.is_dir() {
-            return Ok(());
-        }
-        let mut names: BTreeMap<String, BTreeMap<String, TagRecord>> = BTreeMap::new();
-        let mut old_roots = Vec::new();
-        for entry in fs::read_dir(&legacy).context("listing legacy tag sidecars")? {
-            let entry = entry?;
-            if entry
-                .path()
-                .extension()
-                .and_then(|extension| extension.to_str())
-                != Some("json")
-            {
-                continue;
-            }
-            let metadata: TagMetadata = serde_json::from_slice(&fs::read(entry.path())?)
-                .with_context(|| format!("parsing legacy sidecar {}", entry.path().display()))?;
-            let reference = Ref::parse(&metadata.reference)?;
-            names
-                .entry(reference.name.clone())
-                .or_default()
-                .insert(reference.tag.clone(), Self::record_from_metadata(metadata)?);
-            old_roots.push(
-                self.roots_dir()
-                    .join(URL_SAFE_NO_PAD.encode(reference.display())),
-            );
-        }
-        for (name, tags) in names {
-            if self.read_pointer(&name)?.is_some() {
-                continue;
-            }
-            let table = TagTable {
-                cix_tag_table: 1,
-                name: name.clone(),
-                parent: None,
-                tags,
-            };
-            let pointer = self.add_table(&table)?;
-            self.cas_pointer(&name, None, &pointer, &table)?;
-        }
-        for root in old_roots {
-            if fs::symlink_metadata(&root).is_ok() {
-                fs::remove_file(root)?;
-            }
-        }
-        fs::rename(&legacy, self.legacy_dir()).context("moving legacy sidecars to meta.legacy")?;
-        Ok(())
     }
 }
 
@@ -695,41 +641,11 @@ mod tests {
     }
 
     #[test]
-    fn migrates_a_legacy_sidecar_fixture_once() {
-        let root = temporary_path("migration");
-        let legacy = root.join("tags");
-        fs::create_dir_all(&legacy).unwrap();
-        fs::create_dir_all(root.join("roots")).unwrap();
-        let artifact = output("migration-artifact");
-        let reference = Ref::parse("x:v1").unwrap();
-        let legacy_metadata = metadata("x", "v1", artifact);
-        let encoded = Store::encode(&reference);
-        fs::write(
-            legacy.join(format!("{encoded}.json")),
-            serde_json::to_vec_pretty(&legacy_metadata).unwrap(),
-        )
-        .unwrap();
-        let legacy_root = root.join("roots").join(&encoded);
-        let legacy_root_text = legacy_root.to_string_lossy().into_owned();
-        cix_common::nix(&[
-            "build",
-            &legacy_metadata.entry.outputs["x86_64-linux"].store_path,
-            "--out-link",
-            &legacy_root_text,
-        ])
-        .unwrap();
-
-        let store = Store::open_at(root.clone()).unwrap();
-        assert_eq!(store.load(&reference).unwrap(), Some(legacy_metadata));
-        assert!(root
-            .join("meta.legacy")
-            .join(format!("{encoded}.json"))
-            .is_file());
-        assert!(!root.join("tags").exists());
-        assert!(!legacy_root.exists());
-        drop(store);
-        let reopened = Store::open_at(root.clone()).unwrap();
-        assert!(reopened.load(&reference).unwrap().is_some());
-        remove_store(&reopened);
+    fn legacy_sidecar_state_teaches_rebuild() {
+        let root = temporary_path("legacy-state");
+        fs::create_dir_all(root.join("tags")).unwrap();
+        let error = Store::open_at(root.clone()).unwrap_err().to_string();
+        assert!(error.contains("legacy index tags/ state is unsupported"));
+        fs::remove_dir_all(root).unwrap();
     }
 }
