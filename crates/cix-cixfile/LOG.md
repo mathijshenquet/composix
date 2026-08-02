@@ -1,5 +1,71 @@
 # Cixfile track work log
 
+- 2026-08-02T12:00:00Z — Started the requested ergo semantic-fix round on
+  `track/ergo` at `e851b0e`. Read the complete spec, current project journal,
+  and this crate journal. The merged tree already contains CIP-88's
+  `LockFile.outputs` model and writer, but Chapter 3 currently disagrees with
+  main in two directions: it adds the outputs receipt and loses the live
+  `cix ps` row. Next: reproduce deterministic tour generation, capture the
+  user-manager/probe failure synchronously, then reconcile the actual writer
+  and runtime seams with regression coverage before the full gate.
+
+- 2026-08-02T12:08:00Z — Reproduced `devenv shell -- cargo test -p cix --test
+  tour -- --ignored generate_tour --nocapture` synchronously (exit 0). It
+  rewrote Chapter 3 with the expected active user unit; the prebuilt lock
+  retained the additive `outputs.copied-greeting = { sourceHash, storePath }`
+  receipt, confirming the CIP-88 writer/reader seam is intact. Journal
+  evidence identifies the apparent run failure precisely: the PrivateDevices
+  probe exits `218/CAPABILITIES`, HostCapabilities drops only
+  `PrivateDevices`; the full user unit then exits `226/NAMESPACE`; its existing
+  namespace-degraded retry starts successfully. The actual lost row was the
+  tour filter's stale assumption that UNIT is column two. Observability's
+  COMPOSITE/SERVICE projection can precede it; the merged filter locates the
+  known unit anywhere in the row and generation now retains `active/running`.
+  Added the missing direct assertion that the rendered consumer lock contains
+  `outputs`, so both the writer shape and the generated receipt are guarded.
+  Next: focused tests and deterministic tour drift, then the prescribed gate.
+
+- 2026-08-02T12:12:00Z — Focused verification is green: formatter check,
+  committed-tour suite, and a second exact deterministic tour run all exited
+  0. Committed the scoped repair as `fb7df76` (`fix: preserve ergo tour
+  receipts`): Chapter 3 now records the real active row, and the tour asserts
+  its regenerated tagged-item lock contains `outputs`. Immediately after the
+  commit, `git diff --exit-code -- docs/tour` exited 0. Only this required
+  uncommitted task journal remains. Next: prescribed examples formatter,
+  warning-denied clippy, workspace tests, regeneration/drift, and full flake
+  gate.
+
+- 2026-08-02T12:24:00Z — Prescribed examples formatting and
+  warning-denied workspace/all-target clippy both exited 0. The first serial
+  workspace run exposed an intermittent existing proj1-tour assertion
+  (`workspace-state: cold` after the source edit), which poisoned that
+  renderer process's mutex; it is not a PrivateDevices or output-lock
+  regression. A fresh exact deterministic-tour run and the isolated
+  foreign-user-unit test both exited 0, and the complete serial workspace
+  rerun proceeded through the same suite. Fresh ignored regeneration,
+  `git diff --exit-code -- docs/tour`, and the committed-document test all
+  exited 0; the second exact deterministic invocation was already proven at
+  12:12. Next: full synchronous `devenv shell -- nix flake check -L`, then
+  final scope/status audit and a journal-only closing entry.
+
+- 2026-08-02T12:38:00Z — Final gates are green with synchronous observed
+  status: the repeat serial `devenv shell -- cargo test --workspace --
+  --test-threads=1` exited 0 (including tour, real-Nix lock, user-run, and
+  doc tests), and the final `devenv shell -- nix flake check -L` exited 0 over
+  all 71 checks, including vm-dogfood, compose fallback, health, dirs2,
+  devices, lifecycle, observability, update/repin, side-by-side, and GC
+  survival. The flake's expected KVM→TCG fallback occurred; an ignored
+  eval-cache SQLite-busy warning did not affect the result. Prior formatter,
+  examples formatter, warning-denied clippy, fresh tour generation, committed
+  tour drift, and deterministic-tour checks are all recorded above. Final
+  scope audit next: only this required, intentionally uncommitted journal
+  should differ from `fb7df76`.
+
+- 2026-08-02T12:40:00Z — Final audit passed: `git diff --check` and
+  `git diff --exit-code -- docs/tour` both exit 0; `fb7df76` is HEAD and the
+  sole worktree modification is this intentionally uncommitted track journal.
+  The requested ergo fix round is complete.
+
 - 2026-08-02T07:51:00Z — Committed the complete scoped regrade as `778bf54`
   (`docs: regrade corpus after feature wave`): 13 files, including the three
   empirical receipts, 51-row evidence-class sweep, refreshed migration and
