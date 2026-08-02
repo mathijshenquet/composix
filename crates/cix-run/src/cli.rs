@@ -1,5 +1,10 @@
 #[derive(clap::Subcommand)]
 pub enum Command {
+    /// Run cix's native HTTP/TCP readiness and watchdog adapters.
+    Probe {
+        #[command(subcommand)]
+        command: crate::probe::Command,
+    },
     /// Run a manifested service as a transient systemd unit.
     Run {
         /// Store path or flake installable, optionally with `#service`.
@@ -57,6 +62,7 @@ pub enum Command {
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
         match self {
+            Self::Probe { command } => command.run(),
             Self::Run {
                 installable,
                 env,

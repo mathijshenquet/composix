@@ -45,9 +45,9 @@ Implementation status lives in .dev/LOG.md (75/76/78/80 shipped;
 - **Namespace sharing modes (`--ipc/--pid/--uts`)** ⏳❓ → D43 pods are
   the sharing unit (`JoinsNamespaceOf=` is the mechanism); standalone
   sharing flags stay ❌.
-- **Restart policy knobs** ⏳ → LIVENESS is the restart opt-in (CIP-79);
-  `Restart=`/`RestartSec` tuning fields are compose-mechanical, ride the
-  health implementation.
+- **Restart policy knobs** ⏳ → LIVENESS is the shipped restart opt-in (CIP-79)
+  with a fixed bounded policy; configurable `Restart=`/`RestartSec` tuning remains
+  compose-mechanical follow-up work.
 - **`docker init` generator** ❓ → the migrate prompt is the current
   generator; a `cix init` skeleton is tooling-era ⏳.
 - **Docker Offload** ❓ → ❌; nix remote builders are the delegation

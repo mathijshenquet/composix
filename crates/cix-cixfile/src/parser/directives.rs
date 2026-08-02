@@ -749,6 +749,79 @@ impl Parser<'_> {
         Ok(())
     }
 
+    pub(super) fn health_probe(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+        readiness: bool,
+    ) -> Result<(), ParseError> {
+        let directive = if readiness { "READINESS" } else { "LIVENESS" };
+        self.require_artifact_kind(
+            directive,
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
+        let parameter = if readiness { "IN" } else { "EVERY" };
+        let fields = arguments.split_whitespace().collect::<Vec<_>>();
+        let (probe, marker, duration) = match fields.as_slice() {
+            ["notify", marker, duration] => (Probe::Notify, *marker, *duration),
+            ["http", target, marker, duration] => {
+                validate_http_probe_target(target, line, source)?;
+                (Probe::Http((*target).to_owned()), *marker, *duration)
+            }
+            ["tcp", target, marker, duration] => {
+                validate_tcp_probe_target(target, line, source)?;
+                (Probe::Tcp((*target).to_owned()), *marker, *duration)
+            }
+            _ => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "{directive} requires `http <host:port/path> {parameter} <duration>`, `tcp <host:port> {parameter} <duration>`, or `notify {parameter} <duration>`"
+                    ),
+                ))
+            }
+        };
+        if marker != parameter {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("{directive} uses {parameter} before its duration, not {marker}"),
+            ));
+        }
+        validate_probe_duration(duration, line, source)?;
+        let service = self.current_service_mut(directive, line, source)?;
+        if readiness {
+            if service.readiness.is_some() {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "READINESS is already declared for this artifact",
+                ));
+            }
+            service.readiness = Some(Readiness {
+                probe,
+                timeout: duration.to_owned(),
+            });
+        } else {
+            if service.liveness.is_some() {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "LIVENESS is already declared for this artifact",
+                ));
+            }
+            service.liveness = Some(Liveness {
+                probe,
+                interval: duration.to_owned(),
+            });
+        }
+        Ok(())
+    }
+
     pub(super) fn directory(
         &mut self,
         directive: &str,
@@ -1034,6 +1107,8 @@ impl Parser<'_> {
             "ENV",
             "PORT",
             "LISTENER",
+            "READINESS",
+            "LIVENESS",
             "STATEDIR",
             "CACHEDIR",
             "LOGDIR",

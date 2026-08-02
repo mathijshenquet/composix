@@ -28,15 +28,15 @@ Ribbons:
 | 3 | [flask-redis](https://raw.githubusercontent.com/docker/awesome-compose/master/flask-redis/compose.yaml) | build: + live source bind (dev loop) | 🔶 D47 build + `cix watch` warm rebuild/restart are built; source sync is deliberately refused, so framework hot reload stays in `nix develop` | M | desk |
 | 4 | [react-express-mongodb](https://raw.githubusercontent.com/docker/awesome-compose/master/react-express-mongodb/compose.yaml) | 2 networks (frontend can't see db), anon-volume masking node_modules | segmentation ⏳ D26/D27; volume-masking ❌ idiom (restructure honestly) | M | desk |
 | 5 | [Gitea](https://docs.gitea.com/installation/install-with-docker) | 1 svc, data dir, ports incl. SSH 222:22 | ✅ private state dir + declared ports | S | desk |
-| 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | ordering ✅; READINESS/LIVENESS ⏳ CIP-79 implementation; init ceremony dissolves under systemd | S | desk |
-| 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | binds ⏳ compose operator-binds; `SHM` ✅; GPU 🔶 `CLAIM gpu` proves unit properties only, not Immich/NVIDIA app integration | M | desk |
+| 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | 🔁 HTTP/TCP `READINESS`/`LIVENESS` and structural readiness ordering are built; the separate condition graph is deliberately ❌; init ceremony dissolves under systemd | S | desk |
+| 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | 🔶 native HTTP/TCP probes and `SHM` are built; binds await compose operator materialization, and `CLAIM gpu` proves unit properties only—not Immich/NVIDIA integration | M | desk |
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | ⏳ `DIR /consume` is declarable; compose `host:` materialization remains queued; variants ≈ D46 parametric | M | desk |
-| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 `CLAIM egress` is built; CIP-82 `shared:` and CIP-79 readiness are decided but queued; segmentation remains D26/D27 | M | desk |
+| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 `CLAIM egress` and readiness/liveness probes are built; the health DAG is deliberately ❌, while CIP-82 `shared:` materialization and D26/D27 segmentation remain | M | desk |
 | 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | anchors ✅ moot (JSON canonical, D28); CIP-82 `shared:` is decided but compose materialization is queued | M | desk |
 | 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | 🔶 `START_PRE` maps the setup chain; `LimitNOFILE` is native systemd operator policy but has no compose field | S | desk |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M | desk |
 | 13 | [Pi-hole](https://raw.githubusercontent.com/pi-hole/docker-pi-hole/master/README.md) | cap NET_ADMIN/SYS_TIME/SYS_NICE, port 53, DHCP/NTP | 🔶 port declaration works, but those raw capabilities and host mutations require explicit operator policy; no native semantic claim yet | M | desk |
-| 14 | [Supabase](https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml) | 12-svc health-conditioned DAG, 20+ binds, :z flags | ⏳ structural stack exists; CIP-79 probes and CIP-82 host materializations are queued; `:z` is SELinux/operator policy | L | desk |
+| 14 | [Supabase](https://raw.githubusercontent.com/supabase/supabase/master/docker/docker-compose.yml) | 12-svc health-conditioned DAG, 20+ binds, :z flags | 🔶 native probes and structural readiness ordering are built, while the condition graph is deliberately ❌; CIP-82 host materialization remains queued and `:z` is SELinux/operator policy | L | desk |
 | 15 | [Sentry self-hosted](https://raw.githubusercontent.com/getsentry/self-hosted/master/docker-compose.yml) | ~60 svcs, profiles, external volumes, installer-driven | profiles ≈ D46 parametric ⏳; compose-as-installer-backend ❌-leaning honest | XL | desk |
 | 16 | [Nextcloud AIO](https://raw.githubusercontent.com/nextcloud/all-in-one/main/compose.yaml) | mastercontainer spawns ~10 siblings via docker.sock | ❌ — the file describes 10% of the deployment; competing orchestration model | — | desk |
 | 17 | [Frigate](https://docs.frigate.video/frigate/installation) | privileged, 5 device passthroughs, sized tmpfs, shm | devices 🔶 `CLAIM device` + closed `DevicePolicy=` dogfooded on a VM node, no privileged widening; `SHM` ✅; not a full Frigate app verification | L | desk |
@@ -47,8 +47,8 @@ healthchecks 10 + condition-gated depends_on 6, .env/interpolation ~6, named net
 (multi-net 2, internal:true 1), shm_size 5, docker.sock 3, privileged 2, compose
 `secrets:` **0**, `deploy/replicas` **0**. The wild ignores the features docker-compose
 has on paper (secrets, replicas — validating D30's deferrals) and leans hard on the ones
-now explicitly designed but have not finished implementing (CIP-79 health and
-CIP-82 operator materialization).
+whose design now has implementation behind it (CIP-79 health), plus the still-unfinished
+CIP-82 operator materialization.
 
 ## 2. Kubernetes shapes in the wild (15)
 
@@ -108,10 +108,11 @@ gosu/su-exec/tini/uid-999 boilerplate: ceremony our substrate deletes.
 
 Ranked by frequency × how squarely it hits us:
 
-1. **Health wiring — ⏳ implementation.** Ten of 18 compose files plus probes in
-   essentially every k8s chart keep this first. CIP-79 has settled the model
-   (`READINESS`/`LIVENESS`, notify/watchdog, no health graph), but the directives and
-   prober are not built yet.
+1. **Health wiring — ✅ met.** Ten of 18 compose files plus probes in essentially every
+   k8s chart forced CIP-79's `READINESS`/`LIVENESS` split. Native notify and cix-owned
+   HTTP/TCP probes now drive start-job rollout and systemd watchdog restart; the health VM
+   proves timeout, structural readiness ordering, and recovery. The condition graph remains
+   deliberately ❌, not deferred.
 2. **Operator host-binds — ⏳ materialization.** Immich, Paperless, and Mastodon can
    now declare operator content with `DIR`; CIP-82's compose `host:`/`as:` machinery
    is decided but not implemented. Declaration alone does not mount bytes.
@@ -145,8 +146,8 @@ Ranked by frequency × how squarely it hits us:
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
 - **Mastodon-shaped stack** remains the top integration candidate after CIP-79/82:
-  it now validates two queued implementations (`READINESS` and `shared:`) plus
-  network segmentation instead of forcing an unsettled directory design.
+  readiness is now built, so it would validate queued `shared:` materialization plus
+  network segmentation instead of forcing an unsettled health design.
 - **Paperless-shaped ingest** is the smallest clean CIP-82 leg-2 gate: one writable
   operator watch-dir, one private state dir, and an observable import result.
 - **Immich-shaped** is deferred to the in-flight CIP-78 devices track; it remains the

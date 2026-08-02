@@ -2,13 +2,13 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::ffi::CStr;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
 use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
-use crate::spec::{Dirs, Protocol, Service};
+use crate::spec::{format_duration, parse_duration, Dirs, Probe, ProbeType, Protocol, Service};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitMode {
@@ -64,6 +64,10 @@ pub struct UnitCompileOptions {
     pub extra_properties: Vec<(String, String)>,
     /// Indexed journald fields identifying the cix owner of this unit.
     pub log_fields: Vec<(String, String)>,
+    /// Exact cix executable used by native readiness/liveness adapters.
+    ///
+    /// Production callers normally leave this unset so it resolves to the running binary.
+    pub probe_binary: Option<PathBuf>,
 }
 
 impl UnitCompileOptions {
@@ -73,6 +77,7 @@ impl UnitCompileOptions {
             naming: UnitNaming::cix_run(service_name),
             extra_properties: Vec::new(),
             log_fields: vec![("CIX_RUN".into(), format!("cix-run-{service_name}.service"))],
+            probe_binary: None,
         }
     }
 }
@@ -304,6 +309,7 @@ pub(crate) fn build_unit_with_options(
         let start_pre = resolved_argv(output, "start_pre", start_pre, &item_env)?;
         properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
     }
+    add_health_properties(&mut properties, service, options)?;
 
     let mut environment = item_env
         .iter()
@@ -332,6 +338,96 @@ pub(crate) fn build_unit_with_options(
         argv,
         degradations,
     })
+}
+
+fn add_health_properties(
+    properties: &mut Vec<(String, String)>,
+    service: &Service,
+    options: &UnitCompileOptions,
+) -> Result<()> {
+    if let Some(readiness) = &service.readiness {
+        if readiness.probe.probe_type == ProbeType::Notify {
+            properties
+                .iter_mut()
+                .find(|(name, _)| name == "Type")
+                .expect("Type property exists")
+                .1 = "notify".into();
+        } else {
+            properties.push((
+                "ExecStartPost".into(),
+                probe_command(options, "await", &readiness.probe, None)?,
+            ));
+        }
+        properties.push(("TimeoutStartSec".into(), readiness.timeout.clone()));
+        properties.push(("TimeoutStopSec".into(), readiness.timeout.clone()));
+    }
+
+    if service.liveness.is_some()
+        && service
+            .readiness
+            .as_ref()
+            .is_some_and(|readiness| readiness.probe.probe_type != ProbeType::Notify)
+    {
+        properties.push(("NotifyAccess".into(), "all".into()));
+    }
+
+    if let Some(liveness) = &service.liveness {
+        let interval = parse_duration(&liveness.interval).context("invalid liveness interval")?;
+        let watchdog = interval
+            .checked_mul(3)
+            .context("liveness watchdog window is too large")?;
+        properties.push(("WatchdogSec".into(), format_duration(watchdog)));
+        if liveness.probe.probe_type != ProbeType::Notify {
+            if !properties.iter().any(|(name, _)| name == "NotifyAccess") {
+                properties.push(("NotifyAccess".into(), "all".into()));
+            }
+            properties.push((
+                "ExecStartPost".into(),
+                probe_command(options, "pinger", &liveness.probe, Some(&liveness.interval))?,
+            ));
+        }
+        properties.extend([
+            ("Restart".into(), "on-failure".into()),
+            ("RestartSec".into(), liveness.interval.clone()),
+            ("StartLimitIntervalSec".into(), "5min".into()),
+            ("StartLimitBurst".into(), "5".into()),
+        ]);
+    }
+    Ok(())
+}
+
+fn probe_command(
+    options: &UnitCompileOptions,
+    mode: &str,
+    probe: &Probe,
+    interval: Option<&str>,
+) -> Result<String> {
+    let binary = options
+        .probe_binary
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(std::env::current_exe)
+        .context("resolving the cix binary for a native health probe")?;
+    if !binary.is_absolute() {
+        bail!("cix probe binary {} is not absolute", binary.display());
+    }
+    let probe_type = match probe.probe_type {
+        ProbeType::Http => "http",
+        ProbeType::Tcp => "tcp",
+        ProbeType::Notify => bail!("notify probes do not use the cix probe adapter"),
+    };
+    let target = probe.target.as_deref().expect("validated adapter target");
+    let mut command = vec![
+        binary.to_string_lossy().into_owned(),
+        "probe".into(),
+        mode.into(),
+        probe_type.into(),
+        target.into(),
+    ];
+    if let Some(interval) = interval {
+        command.extend(["--every".into(), interval.into()]);
+    }
+    Ok(exec_command(&command))
 }
 
 fn add_device_policy(properties: &mut Vec<(String, String)>, service: &Service) -> Result<()> {
@@ -687,10 +783,23 @@ fn render(
     properties: &[(String, String)],
 ) -> String {
     let mut output = format!(
-        "[Unit]\nDescription={}\n\n[Service]\n",
+        "[Unit]\nDescription={}\n",
         unit_value(&format!("cix run: {service_name}"))
     );
+    for (name, value) in properties
+        .iter()
+        .filter(|(name, _)| name.starts_with("StartLimit"))
+    {
+        output.push_str(name);
+        output.push('=');
+        output.push_str(value);
+        output.push('\n');
+    }
+    output.push_str("\n[Service]\n");
     for (name, value) in properties {
+        if name.starts_with("StartLimit") {
+            continue;
+        }
         output.push_str(name);
         output.push('=');
         output.push_str(value);
@@ -785,6 +894,151 @@ mod tests {
         )
         .unwrap();
         assert_eq!(actual, include_str!("../tests/fixtures/full-system.unit"));
+    }
+
+    #[test]
+    fn health_property_snapshots_cover_every_probe_consumer_and_mode() {
+        for consumer in ["readiness", "liveness"] {
+            for probe_type in ["notify", "http", "tcp"] {
+                for mode in [UnitMode::System, UnitMode::UserFull] {
+                    let target = match probe_type {
+                        "http" => r#", "target": ":8080/healthz""#,
+                        "tcp" => r#", "target": ":5432""#,
+                        "notify" => "",
+                        _ => unreachable!(),
+                    };
+                    let duration = if consumer == "readiness" {
+                        r#""timeout": "90s""#
+                    } else {
+                        r#""interval": "10s""#
+                    };
+                    let spec = Spec::from_slice(
+                        format!(
+                            r#"{{"cixManifest":0,"start":["bin/app"],"{consumer}":{{"type":"{probe_type}"{target},{duration}}}}}"#
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
+                    let service = service(&spec);
+                    let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+                    let mut options = UnitCompileOptions::cix_run("app");
+                    options.probe_binary =
+                        Some("/nix/store/11111111111111111111111111111111-cix/bin/cix".into());
+                    let compiled = compile_unit(
+                        Path::new("/nix/store/00000000000000000000000000000000-app"),
+                        "app",
+                        service,
+                        &config,
+                        mode,
+                        &options,
+                    )
+                    .unwrap();
+                    let actual = compiled
+                        .properties
+                        .iter()
+                        .filter(|(name, _)| {
+                            matches!(
+                                name.as_str(),
+                                "Type"
+                                    | "ExecStartPost"
+                                    | "TimeoutStartSec"
+                                    | "TimeoutStopSec"
+                                    | "WatchdogSec"
+                                    | "NotifyAccess"
+                                    | "Restart"
+                                    | "RestartSec"
+                                    | "StartLimitIntervalSec"
+                                    | "StartLimitBurst"
+                            )
+                        })
+                        .map(|(name, value)| format!("{name}={value}\n"))
+                        .collect::<String>();
+                    let expected = health_snapshot(consumer, probe_type, mode);
+                    assert_eq!(actual, expected, "{consumer}/{probe_type}/{mode:?}");
+                }
+            }
+        }
+    }
+
+    fn health_snapshot(consumer: &str, probe_type: &str, mode: UnitMode) -> &'static str {
+        match (consumer, probe_type, mode) {
+            ("readiness", "notify", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-notify-system.unit")
+            }
+            ("readiness", "notify", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-notify-user.unit")
+            }
+            ("readiness", "http", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-http-system.unit")
+            }
+            ("readiness", "http", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-http-user.unit")
+            }
+            ("readiness", "tcp", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-tcp-system.unit")
+            }
+            ("readiness", "tcp", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-tcp-user.unit")
+            }
+            ("liveness", "notify", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-notify-system.unit")
+            }
+            ("liveness", "notify", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-notify-user.unit")
+            }
+            ("liveness", "http", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-http-system.unit")
+            }
+            ("liveness", "http", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-http-user.unit")
+            }
+            ("liveness", "tcp", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-tcp-system.unit")
+            }
+            ("liveness", "tcp", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-tcp-user.unit")
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn restart_policy_is_emitted_only_for_liveness_declarations() {
+        for (field, has_restart) in [
+            ("", false),
+            (r#", "readiness":{"type":"notify","timeout":"10s"}"#, false),
+            (r#", "liveness":{"type":"notify","interval":"10s"}"#, true),
+        ] {
+            let spec = Spec::from_slice(
+                format!(r#"{{"cixManifest":0,"start":["bin/app"]{field}}}"#).as_bytes(),
+            )
+            .unwrap();
+            let service = service(&spec);
+            let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+            let compiled = compile_unit(
+                Path::new("/nix/store/00000000000000000000000000000000-app"),
+                "app",
+                service,
+                &config,
+                UnitMode::System,
+                &UnitCompileOptions::cix_run("app"),
+            )
+            .unwrap();
+            assert_eq!(
+                compiled
+                    .properties
+                    .iter()
+                    .any(|(name, _)| name == "Restart"),
+                has_restart
+            );
+            assert_eq!(
+                compiled
+                    .properties
+                    .iter()
+                    .any(|(name, _)| name.starts_with("StartLimit")),
+                has_restart
+            );
+        }
     }
 
     #[test]
@@ -1150,6 +1404,7 @@ mod tests {
                     ("CIX_COMPOSITE".into(), "mycomp".into()),
                     ("CIX_SERVICE".into(), "web".into()),
                 ],
+                probe_binary: None,
             },
         )
         .unwrap();

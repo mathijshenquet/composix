@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use cix_cixfile::parse;
 
 const FIXTURE_MIN: usize = 40;
-const FIXTURE_MAX: usize = 66;
+const FIXTURE_MAX: usize = 67;
 
 #[test]
 fn torture_corpus_diagnostics_match_snapshots_and_quality_grades() {

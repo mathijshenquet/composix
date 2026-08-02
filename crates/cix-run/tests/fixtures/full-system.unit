@@ -1,8 +1,10 @@
 [Unit]
 Description=cix run: web
+StartLimitIntervalSec=5min
+StartLimitBurst=5
 
 [Service]
-Type=exec
+Type=notify
 Slice=cix-run.slice
 LogExtraFields=CIX_RUN=cix-run-web.service CIX_ITEM=/nix/store/00000000000000000000000000000000-web
 TemporaryFileSystem=/var/lib:ro
@@ -41,6 +43,11 @@ CapabilityBoundingSet=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 SocketBindAllow=tcp:9090
 SocketBindDeny=any
+TimeoutStartSec=90s
+TimeoutStopSec=90s
+WatchdogSec=30s
+Restart=on-failure
+RestartSec=10s
 ExecStart="/nix/store/00000000000000000000000000000000-web/bin/web" "--port" "9090" "--database" "postgres://db/a b" "--enabled=true"
 Environment="DB_URL=postgres://db/a b"
 Environment="ENABLED=true"

@@ -19,6 +19,8 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "ENV",
     "PORT",
     "LISTENER",
+    "READINESS",
+    "LIVENESS",
     "STATEDIR",
     "CACHEDIR",
     "LOGDIR",

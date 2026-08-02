@@ -1,6 +1,6 @@
 # The Cixfile
 
-*Status: D47 blocks and binders through D65 are implemented: named persistent builders,
+*Status: D47 blocks and binders through D65 plus CIP-79 health are implemented: named persistent builders,
 narrow consumed-path records, package IMPORT unions, declared or TOFU-pinned network fetches,
 directive continuations, RUN heredocs, and full-line comments.*
 
@@ -58,8 +58,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -357,9 +357,43 @@ leaves activation to fail when the hardware is still absent. Device claims never
 compose-side loosening field; it is deliberately not accepted yet, so compose cannot silently
 widen device access.
 
+<a id="health"></a>
+
+### Readiness and liveness
+
+`READINESS` gates successful startup; `LIVENESS` opts the unit into watchdog restart. Both are
+valid in `SERVICE` and `APP` blocks and accept only `http`, `tcp`, or `notify` probes:
+
+```dockerfile
+READINESS http :8080/healthz IN 90s
+READINESS tcp db.internal:5432 IN 60s
+READINESS notify IN 90s
+
+LIVENESS http :8080/livez EVERY 10s
+LIVENESS tcp db.internal:5432 EVERY 10s
+LIVENESS notify EVERY 10s
+```
+
+An HTTP target is `host:port/path` (the leading `:port/path` shorthand probes localhost); TCP is
+`host:port` with no path. Durations are positive integers followed by `ms`, `s`, `m`/`min`, `h`,
+or `d`. `notify` has no target: the process sends native systemd readiness/watchdog messages.
+
+For adapter probes, cix emits its own native HTTP/TCP prober—no `curl` or shell enters the item
+closure. Readiness blocks the systemd start job until the first success and `IN` is its
+`TimeoutStartSec=` budget, so `cix up` waits and fails when readiness times out. Liveness feeds
+systemd's watchdog on success; the watchdog window is fixed at three times `EVERY`, and declaring
+it emits a bounded `Restart=on-failure` policy. Structural compose edges wait for the producer's
+start job and therefore its readiness. A separate `condition: service_healthy` graph is rejected.
+
+The generated manifest fields are typed objects such as
+`"readiness":{"type":"http","target":":8080/healthz","timeout":"90s"}` and
+`"liveness":{"type":"notify","interval":"10s"}`. The former v0
+`health {exec, interval}` manifest field is refused with a migration message; there is no `exec`
+probe in this schema.
+
 `APP` is a one-shot command. `cix run` starts it as `Type=oneshot`, waits, streams its
 output, and returns the command's exit status. Apps have no setup hooks, ports, listeners,
-health checks or log/config/run role directories.
+or log/config/run role directories.
 
 An anonymous `cix run` holds an indirect Nix GC root for the item's unit lifetime, then its
 visible `ExecStopPost=` removes that root when the unit stops. Tags remain the durable naming

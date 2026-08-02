@@ -169,6 +169,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .or_default()
             .push(EdgeClaim {
                 unit: edge_unit.clone(),
+                dependency: None,
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: edge.producer.path.display().to_string(),
@@ -176,6 +177,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         for (consumer, config) in &edge.consumers {
             service_edges.entry(consumer).or_default().push(EdgeClaim {
                 unit: edge_unit.clone(),
+                dependency: Some(format!("{prefix}-{}.service", edge.producer.service)),
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: config
@@ -257,6 +259,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                     ("CIX_COMPOSITE".into(), composite.clone()),
                     ("CIX_SERVICE".into(), service_name.clone()),
                 ],
+                probe_binary: None,
             },
             capabilities,
         )
@@ -276,7 +279,12 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .map(|claim| claim.unit.clone())
             .chain(sockets.iter().cloned())
             .collect::<BTreeSet<_>>();
-        let text = add_unit_dependencies(&compiled.text, &target, &requires);
+        let after = requires
+            .iter()
+            .cloned()
+            .chain(claims.iter().filter_map(|claim| claim.dependency.clone()))
+            .collect::<BTreeSet<_>>();
+        let text = add_unit_dependencies(&compiled.text, &target, &requires, &after);
         units.insert(service_unit.clone(), text);
         manifest_units.insert(
             service_unit.clone(),
@@ -380,6 +388,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
 #[derive(Clone)]
 struct EdgeClaim {
     unit: String,
+    dependency: Option<String>,
     group: String,
     source: String,
     destination: String,
@@ -443,11 +452,20 @@ fn render_timer_unit(
     text
 }
 
-fn add_unit_dependencies(text: &str, target: &str, requires: &BTreeSet<String>) -> String {
+fn add_unit_dependencies(
+    text: &str,
+    target: &str,
+    requires: &BTreeSet<String>,
+    after: &BTreeSet<String>,
+) -> String {
     let mut properties = format!("PartOf={target}\n");
     if !requires.is_empty() {
         let requires = requires.iter().cloned().collect::<Vec<_>>().join(" ");
-        properties.push_str(&format!("Requires={requires}\nAfter={requires}\n"));
+        properties.push_str(&format!("Requires={requires}\n"));
+    }
+    if !after.is_empty() {
+        let after = after.iter().cloned().collect::<Vec<_>>().join(" ");
+        properties.push_str(&format!("After={after}\n"));
     }
     text.replacen(
         "\n\n[Service]\n",
