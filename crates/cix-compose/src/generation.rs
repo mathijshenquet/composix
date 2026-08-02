@@ -13,8 +13,11 @@ use cix_run::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    model::DirectoryRole,
-    resolve::{CheckResult, DirectoryBacking, DirectoryClaim, PublishKind},
+    directories::{
+        bind_value, collect_shared_directories, manifest_directory, private_service,
+        render_shared_directory_unit, shared_group, stable_hash, DirectoryBacking, DirectoryRole,
+    },
+    resolve::{CheckResult, PublishKind},
     unit_path,
 };
 
@@ -1022,155 +1025,6 @@ fn add_unit_dependencies(
     )
 }
 
-struct SharedDirectory {
-    host_path: PathBuf,
-    members: Vec<String>,
-}
-
-fn collect_shared_directories(checked: &CheckResult) -> BTreeMap<String, SharedDirectory> {
-    let mut shared = BTreeMap::new();
-    for (service, checked_service) in &checked.services {
-        for claim in &checked_service.directories {
-            let DirectoryBacking::Shared { name } = &claim.backing else {
-                continue;
-            };
-            let entry = shared
-                .entry(name.clone())
-                .or_insert_with(|| SharedDirectory {
-                    host_path: shared_host_path(&checked.compose.name, name),
-                    members: Vec::new(),
-                });
-            entry
-                .members
-                .push(service_unit_name(&checked.compose.name, service));
-        }
-    }
-    for entry in shared.values_mut() {
-        entry.members.sort();
-        entry.members.dedup();
-    }
-    shared
-}
-
-fn private_service(
-    service: &cix_run::spec::Service,
-    claims: &[DirectoryClaim],
-) -> cix_run::spec::Service {
-    let mut private = service.clone();
-    private.dirs.state.clear();
-    private.dirs.cache.clear();
-    private.dirs.logs.clear();
-    private.dirs.config.clear();
-    private.dirs.run = None;
-    private.dirs.data.clear();
-    for claim in claims {
-        if claim.backing != DirectoryBacking::Private {
-            continue;
-        }
-        match claim.role {
-            Some(DirectoryRole::State) => private.dirs.state.push(claim.path.clone()),
-            Some(DirectoryRole::Cache) => private.dirs.cache.push(claim.path.clone()),
-            Some(DirectoryRole::Logs) => private.dirs.logs.push(claim.path.clone()),
-            Some(DirectoryRole::Config) => private.dirs.config.push(claim.path.clone()),
-            Some(DirectoryRole::Run) => private
-                .dirs
-                .run
-                .get_or_insert_with(Vec::new)
-                .push(claim.path.clone()),
-            None => unreachable!("DIR cannot retain private backing"),
-        }
-    }
-    private
-}
-
-fn bind_value(source: &Path, destination: &Path, idmap: bool) -> String {
-    let mut value = format!("{}:{}", source.display(), destination.display());
-    if idmap {
-        value.push_str(":idmap");
-    }
-    value
-}
-
-fn shared_group(composite: &str, name: &str) -> String {
-    format!("cix-s-{:016x}", stable_hash(composite, name))
-}
-
-fn shared_host_path(composite: &str, name: &str) -> PathBuf {
-    Path::new("/var/lib/cix-compose")
-        .join(composite)
-        .join("shared")
-        .join(name)
-}
-
-fn stable_hash(composite: &str, name: &str) -> u64 {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for byte in composite
-        .bytes()
-        .chain(std::iter::once(0))
-        .chain(name.bytes())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x100000001b3);
-    }
-    hash
-}
-
-fn render_shared_directory_unit(
-    name: &str,
-    target: &str,
-    host_path: &Path,
-    group: &str,
-    members: &[String],
-) -> String {
-    let relative = host_path
-        .strip_prefix("/var/lib")
-        .expect("shared path is below /var/lib")
-        .display();
-    format!(
-        "[Unit]\nDescription=cix compose shared directory: {name}\nPartOf={target}\nBefore={}\n\n[Service]\nType=oneshot\nSlice={}.slice\nExecStart=/bin/sh -c true\nRemainAfterExit=yes\nGroup={group}\nStateDirectory={relative}\nStateDirectoryMode=2770\nUMask=0002\n",
-        members.join(" "),
-        target.trim_end_matches(".target")
-    )
-}
-
-fn manifest_directory(composite: &str, service: &str, claim: &DirectoryClaim) -> ManifestDirectory {
-    let (backing, host_path) = match &claim.backing {
-        DirectoryBacking::Private => (
-            DirectoryBackingKind::Private,
-            private_host_path(
-                composite,
-                service,
-                claim.role.expect("private role"),
-                &claim.path,
-            ),
-        ),
-        DirectoryBacking::Host { path, .. } => (DirectoryBackingKind::Host, path.clone()),
-        DirectoryBacking::Shared { name } => (
-            DirectoryBackingKind::Shared,
-            shared_host_path(composite, name),
-        ),
-    };
-    ManifestDirectory {
-        path: claim.path.clone(),
-        role: claim.role,
-        backing,
-        host_path,
-    }
-}
-
-fn private_host_path(composite: &str, service: &str, role: DirectoryRole, path: &Path) -> PathBuf {
-    let root = match role {
-        DirectoryRole::State => "/var/lib",
-        DirectoryRole::Cache => "/var/cache",
-        DirectoryRole::Logs => "/var/log",
-        DirectoryRole::Config => "/etc",
-        DirectoryRole::Run => "/run",
-    };
-    Path::new(root)
-        .join(format!("cix-{composite}-{}", unit_path(service)))
-        .join(path.strip_prefix("/").expect("validated absolute path"))
-}
-
 fn service_unit_name(composite: &str, path: &str) -> String {
     format!("cix-{composite}-{}.service", unit_path(path))
 }
@@ -1222,6 +1076,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        directories::{DirectoryClaim, DirectoryRole},
         model::{
             Child, Compose, ComposeService, Edge, Lock, LockedService, Producer, UpdatePolicy,
         },

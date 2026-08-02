@@ -11,9 +11,14 @@ use cix_run::{
     spec::{ManifestKind, Service},
 };
 
-use crate::model::{
-    Child, Compose, ComposeService, DirectoryMaterialization, DirectoryRole, Edge, Lock,
-    LockedService, Network, Publish, SecretSource, UpdatePolicy,
+use crate::{
+    directories::{
+        materialize_directories, validate_shared_directories, DirectoryBacking, DirectoryClaim,
+    },
+    model::{
+        Child, Compose, ComposeService, Edge, Lock, LockedService, Network, Publish, SecretSource,
+        UpdatePolicy,
+    },
 };
 
 #[derive(Clone, Debug, Default)]
@@ -58,23 +63,6 @@ pub struct CheckedPublish {
 pub enum PublishKind {
     Listener,
     Port { target: u16 },
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct DirectoryClaim {
-    pub path: PathBuf,
-    /// `None` denotes the undecorated manifest `DIR` claim.
-    pub declared_role: Option<DirectoryRole>,
-    pub role: Option<DirectoryRole>,
-    pub writable: bool,
-    pub backing: DirectoryBacking,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DirectoryBacking {
-    Private,
-    Host { path: PathBuf, idmap: bool },
-    Shared { name: String },
 }
 
 #[derive(Clone, Debug)]
@@ -650,214 +638,6 @@ fn reject_secret_env_delivery(
         }
     }
     Ok(())
-}
-
-fn materialize_directories(
-    service_name: &str,
-    declaration: &crate::model::ComposeService,
-    service: &Service,
-    warnings: &mut Vec<String>,
-) -> Result<Vec<DirectoryClaim>> {
-    let mut declared = BTreeMap::new();
-    for (role, paths) in [
-        (DirectoryRole::State, service.dirs.state.as_slice()),
-        (DirectoryRole::Cache, service.dirs.cache.as_slice()),
-        (DirectoryRole::Logs, service.dirs.logs.as_slice()),
-        (DirectoryRole::Config, service.dirs.config.as_slice()),
-        (
-            DirectoryRole::Run,
-            service.dirs.run.as_deref().unwrap_or_default(),
-        ),
-    ] {
-        for path in paths {
-            declared.insert(path.clone(), (Some(role), true));
-        }
-    }
-    for data in &service.dirs.data {
-        declared.insert(data.path.clone(), (None, !data.ro));
-    }
-
-    let mut claims = Vec::new();
-    for (path, (declared_role, writable)) in &declared {
-        let materialization = declaration.dirs.get(path);
-        if declared_role.is_none() && materialization.is_none() {
-            bail!(
-                "services.{service_name}.dirs.{}: DIR declares operator-supplied data; provide host or shared backing, or for a cix-managed dir pick STATEDIR/CACHEDIR/LOGDIR/RUNDIR",
-                path.display()
-            );
-        }
-        if materialization.is_some_and(|materialization| materialization.write) {
-            bail!(
-                "services.{service_name}.dirs.{}.write: write is only for an undeclared extra operator bind",
-                path.display()
-            );
-        }
-        claims.push(directory_claim(
-            service_name,
-            path,
-            *declared_role,
-            *writable,
-            materialization,
-            declaration.identity.as_deref(),
-            warnings,
-        )?);
-    }
-
-    for (path, materialization) in &declaration.dirs {
-        if declared.contains_key(path) {
-            continue;
-        }
-        if materialization.shared.is_some()
-            || materialization.role.is_some()
-            || materialization.idmap
-        {
-            bail!(
-                "services.{service_name}.dirs.{}: undeclared extra binds may only use host and optional write: true",
-                path.display()
-            );
-        }
-        let host = materialization
-            .host
-            .as_ref()
-            .expect("model requires a backing");
-        if declaration.identity.is_none() {
-            bail!(
-                "services.{service_name}.dirs.{}.host: host backing requires a declared static identity (D48d)",
-                path.display()
-            );
-        }
-        warnings.push(format!(
-            "services.{service_name}.dirs.{}: undeclared operator host bind is {} (CIP-82)",
-            path.display(),
-            if materialization.write {
-                "read-write"
-            } else {
-                "read-only"
-            }
-        ));
-        claims.push(DirectoryClaim {
-            path: path.clone(),
-            declared_role: None,
-            role: None,
-            writable: materialization.write,
-            backing: DirectoryBacking::Host {
-                path: host.clone(),
-                idmap: false,
-            },
-        });
-    }
-    Ok(claims)
-}
-
-fn directory_claim(
-    service_name: &str,
-    path: &Path,
-    declared_role: Option<DirectoryRole>,
-    writable: bool,
-    materialization: Option<&DirectoryMaterialization>,
-    identity: Option<&str>,
-    warnings: &mut Vec<String>,
-) -> Result<DirectoryClaim> {
-    let role = materialization
-        .and_then(|materialization| materialization.role)
-        .or(declared_role);
-    if let (Some(from), Some(to)) = (declared_role, role) {
-        if from != to && role_rank(to) < role_rank(from) {
-            warnings.push(format!(
-                "services.{service_name}.dirs.{}: LOUD durability degradation: {} is treated as {} (CIP-82/D49a)",
-                path.display(),
-                role_name(from),
-                role_name(to)
-            ));
-        }
-    }
-    let backing = match materialization {
-        None => DirectoryBacking::Private,
-        Some(materialization) if materialization.host.is_some() => {
-            if identity.is_none() {
-                bail!(
-                    "services.{service_name}.dirs.{}.host: host backing requires a declared static identity (D48d)",
-                    path.display()
-                );
-            }
-            DirectoryBacking::Host {
-                path: materialization.host.clone().expect("checked above"),
-                idmap: materialization.idmap,
-            }
-        }
-        Some(materialization) if materialization.shared.is_some() => {
-            if !writable {
-                bail!(
-                    "services.{service_name}.dirs.{}: a read-only DIR cannot be a shared writable surface",
-                    path.display()
-                );
-            }
-            if !matches!(role, Some(DirectoryRole::State) | None) {
-                bail!(
-                    "services.{service_name}.dirs.{}.shared: shared is only valid on STATEDIR or DIR in v0",
-                    path.display()
-                );
-            }
-            DirectoryBacking::Shared {
-                name: materialization.shared.clone().expect("checked above"),
-            }
-        }
-        Some(_) => DirectoryBacking::Private,
-    };
-    Ok(DirectoryClaim {
-        path: path.to_owned(),
-        declared_role,
-        role,
-        writable,
-        backing,
-    })
-}
-
-fn validate_shared_directories(services: &BTreeMap<String, CheckedService>) -> Result<()> {
-    type SharedMembers<'a> = (Option<DirectoryRole>, Vec<(&'a str, &'a Path)>);
-    let mut shared: BTreeMap<&str, SharedMembers<'_>> = BTreeMap::new();
-    for (service, checked) in services {
-        for claim in &checked.directories {
-            let DirectoryBacking::Shared { name } = &claim.backing else {
-                continue;
-            };
-            if claim.declared_role.is_none() && claim.role.is_none() {
-                // This is the valid undecorated DIR spelling; retain its distinct role.
-            }
-            let entry = shared
-                .entry(name)
-                .or_insert_with(|| (claim.role, Vec::new()));
-            if entry.0 != claim.role {
-                bail!(
-                    "shared {name:?}: members disagree on role ({} at services.{service}.dirs.{})",
-                    entry.0.map(role_name).unwrap_or("DIR"),
-                    claim.path.display()
-                );
-            }
-            entry.1.push((service, &claim.path));
-        }
-    }
-    Ok(())
-}
-
-fn role_rank(role: DirectoryRole) -> u8 {
-    match role {
-        DirectoryRole::State => 4,
-        DirectoryRole::Logs => 3,
-        DirectoryRole::Config => 3,
-        DirectoryRole::Cache => 2,
-        DirectoryRole::Run => 1,
-    }
-}
-
-fn role_name(role: DirectoryRole) -> &'static str {
-    match role {
-        DirectoryRole::State => "STATEDIR",
-        DirectoryRole::Cache => "CACHEDIR",
-        DirectoryRole::Logs => "LOGDIR",
-        DirectoryRole::Config => "CONFIGDIR",
-        DirectoryRole::Run => "RUNDIR",
-    }
 }
 
 fn validate_schedule(

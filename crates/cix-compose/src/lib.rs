@@ -1,6 +1,7 @@
 //! Compose trees: strict manifests, locked resolution, deterministic generations, and activation.
 
 pub mod cli;
+mod directories;
 mod generation;
 mod model;
 mod observability;

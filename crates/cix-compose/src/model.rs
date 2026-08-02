@@ -8,6 +8,8 @@ use anyhow::{bail, Context, Result};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::directories::DirectoryMaterialization;
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Compose {
@@ -141,35 +143,6 @@ pub struct ComposeService {
     pub shm: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub egress: Option<bool>,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct DirectoryMaterialization {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub host: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub shared: Option<String>,
-    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
-    pub role: Option<DirectoryRole>,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub idmap: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub write: bool,
-}
-
-fn is_false(value: &bool) -> bool {
-    !value
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd)]
-#[serde(rename_all = "lowercase")]
-pub enum DirectoryRole {
-    State,
-    Cache,
-    Logs,
-    Config,
-    Run,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
