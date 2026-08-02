@@ -15,7 +15,8 @@ use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
 use crate::spec::{ManifestKind, Service, Spec};
 use crate::unit::{
-    build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode,
+    build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitDegradation,
+    UnitMode,
 };
 
 static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -103,7 +104,9 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
     } else {
         UnitMode::System
     };
-    let definition = build_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    let definition =
+        build_runtime_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    warn_degradations(&definition.degradations);
     if !options.user {
         let name = format!("cix-run-{}-{}.service", target.name, nonce());
         let result = run_transient_app(&name, false, &target.output, &definition)?;
@@ -141,17 +144,9 @@ fn run_app(target: ResolvedService, options: &RunOptions) -> Result<()> {
     if capability_failure(&error) {
         eprintln!("warning: user manager rejected capability controls ({error:#})");
         eprintln!(
-            "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
+            "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, ProtectKernelLogs, and PrivateDevices"
         );
-        let without_capabilities = without_properties(
-            &definition,
-            &[
-                "AmbientCapabilities",
-                "CapabilityBoundingSet",
-                "ProtectKernelModules",
-                "ProtectKernelLogs",
-            ],
-        );
+        let without_capabilities = without_user_capability_controls(&definition);
         let (retry_status, retry_error) =
             failed_app_attempt(&target.name, true, &target.output, &without_capabilities)?;
         if retry_status.success() {
@@ -184,7 +179,9 @@ fn schedule_app(target: ResolvedService, options: &RunOptions, schedule: &str) -
     } else {
         UnitMode::System
     };
-    let definition = build_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    let definition =
+        build_runtime_unit(&target.output, &target.name, &target.service, &config, mode)?;
+    warn_degradations(&definition.degradations);
     start_scheduled_app(
         &target.output,
         &target.name,
@@ -331,12 +328,7 @@ pub fn start_service(
             &UnitCompileOptions::cix_run(service_name),
             &capabilities,
         )?;
-        for degradation in &definition.degradations {
-            eprintln!(
-                "warning: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
-                degradation.property, degradation.reason
-            );
-        }
+        warn_degradations(&definition.degradations);
         return match start_with_listeners(&name, false, output, config, &definition) {
             Ok(()) => Ok(StartedUnit {
                 name,
@@ -351,12 +343,22 @@ pub fn start_service(
         };
     }
 
-    let definition = build_unit(output, service_name, service, config, UnitMode::UserFull)?;
+    let capabilities = user_capabilities(service)?;
+    let definition = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        UnitMode::UserFull,
+        &UnitCompileOptions::cix_run(service_name),
+        &capabilities,
+    )?;
+    warn_degradations(&definition.degradations);
     match start_with_listeners(&name, true, output, config, &definition) {
         Ok(()) => Ok(StartedUnit {
             name,
             user: true,
-            degraded: false,
+            degraded: !definition.degradations.is_empty(),
         }),
         Err(full_error) => {
             let full_error = with_unit_diagnostics(full_error, &name, true);
@@ -366,17 +368,9 @@ pub fn start_service(
                 let capability_name = format!("cix-run-{service_name}-{}.service", nonce());
                 eprintln!("warning: user manager rejected capability controls ({full_error:#})");
                 eprintln!(
-                    "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs"
+                    "warning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, ProtectKernelLogs, and PrivateDevices"
                 );
-                let without_capabilities = without_properties(
-                    &definition,
-                    &[
-                        "AmbientCapabilities",
-                        "CapabilityBoundingSet",
-                        "ProtectKernelModules",
-                        "ProtectKernelLogs",
-                    ],
-                );
+                let without_capabilities = without_user_capability_controls(&definition);
                 match start_with_listeners(
                     &capability_name,
                     true,
@@ -474,6 +468,71 @@ pub(crate) fn without_properties(definition: &UnitDefinition, names: &[&str]) ->
         .join("\n");
     definition.text.push('\n');
     definition
+}
+
+fn build_runtime_unit(
+    output: &Path,
+    service_name: &str,
+    service: &Service,
+    config: &ResolvedConfig,
+    mode: UnitMode,
+) -> Result<UnitDefinition> {
+    let capabilities = if mode == UnitMode::UserFull {
+        user_capabilities(service)?
+    } else {
+        HostCapabilities::all_supported()
+    };
+    build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &UnitCompileOptions::cix_run(service_name),
+        &capabilities,
+    )
+}
+
+fn user_capabilities(service: &Service) -> Result<HostCapabilities> {
+    if service.has_device_claim() {
+        Ok(HostCapabilities::all_supported())
+    } else {
+        HostCapabilities::probe_user()
+    }
+}
+
+pub(crate) fn warn_degradations(degradations: &[UnitDegradation]) {
+    for degradation in degradations {
+        match degradation.property.as_str() {
+            "PrivatePIDs=yes" => eprintln!(
+                "warning: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
+                degradation.property, degradation.reason
+            ),
+            "PrivateDevices=yes" => {
+                eprintln!(
+                    "warning: user manager rejected PrivateDevices isolation ({})",
+                    degradation.reason
+                );
+                eprintln!(
+                    "warning: retrying without PrivateDevices; this --user service can access the host device namespace (D13 degraded fallback)"
+                );
+            }
+            property => eprintln!("warning: dropped {property}: {}", degradation.reason),
+        }
+    }
+}
+
+pub(crate) fn without_user_capability_controls(definition: &UnitDefinition) -> UnitDefinition {
+    without_properties(
+        definition,
+        &[
+            "AmbientCapabilities",
+            "CapabilityBoundingSet",
+            "ProtectKernelModules",
+            "ProtectKernelLogs",
+            "PrivateDevices",
+        ],
+    )
 }
 
 pub fn stop_service(name: &str, user: bool) -> Result<()> {
@@ -1476,6 +1535,29 @@ mod tests {
         assert!(capability_failure(&anyhow::anyhow!(
             "Failed at step CAPABILITIES"
         )));
+    }
+
+    #[test]
+    fn synchronous_user_capability_fallback_drops_private_devices() {
+        let definition = UnitDefinition {
+            name: "cix-run-web.service".into(),
+            target: "cix-run.target".into(),
+            text: "[Service]\nPrivateDevices=yes\nCapabilityBoundingSet=\n".into(),
+            properties: vec![
+                ("PrivateDevices".into(), "yes".into()),
+                ("CapabilityBoundingSet".into(), String::new()),
+            ],
+            environment: Vec::new(),
+            argv: Vec::new(),
+            degradations: Vec::new(),
+        };
+
+        let fallback = without_user_capability_controls(&definition);
+        assert!(!fallback.text.contains("PrivateDevices="));
+        assert!(!fallback
+            .properties
+            .iter()
+            .any(|(name, _)| name == "PrivateDevices"));
     }
 
     #[test]

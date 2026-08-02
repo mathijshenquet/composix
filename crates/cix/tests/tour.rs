@@ -196,16 +196,17 @@ fn filter_unit_listing(raw: &str, unit_names: &[String]) -> String {
         .filter_map(|line| {
             let mut fields = line.split_whitespace();
             let manager = fields.next()?;
-            let unit = fields.next()?;
-            if !unit_names.iter().any(|name| name == unit) {
-                return None;
-            }
+            let fields = fields.collect::<Vec<_>>();
+            let unit_index = fields
+                .iter()
+                .position(|field| unit_names.iter().any(|name| name == field))?;
+            let unit = *fields.get(unit_index)?;
             Some((
                 manager,
                 unit,
-                fields.next()?,
-                fields.next()?,
-                fields.collect::<Vec<_>>().join(" "),
+                *fields.get(unit_index + 1)?,
+                *fields.get(unit_index + 2)?,
+                fields[(unit_index + 3)..].join(" "),
             ))
         })
         .collect::<Vec<_>>();
@@ -735,7 +736,9 @@ START /bin/true
     };
     let own_units = [unit_name.clone()];
     let running = doc.sh_units("cix ps", true, &own_units);
-    assert!(running.contains(&unit_name));
+    let displayed_running = filter_unit_listing(&running, &own_units);
+    assert!(displayed_running.contains(&unit_name));
+    assert!(displayed_running.contains("active/running"));
 
     doc.para("## Debug");
     doc.para("`cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.");
@@ -1240,11 +1243,13 @@ fn normalize_swallows_every_host_specific_degraded_fallback_detail() {
     let base = Path::new("/tour");
     let namespace = "warning: the user manager rejected mount-namespace sandboxing (Operation not supported\ncaused by: host policy)\nwarning: retrying without PrivateUsers, PrivatePIDs, ProtectSystem, ProtectHome, PrivateTmp, and BindPaths; managed *Directory persistence remains";
     let capability = "warning: user manager rejected capability controls (Failed to set capabilities)\nwarning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs";
+    let private_devices = "warning: user manager rejected PrivateDevices isolation (Operation not permitted)\nwarning: retrying without PrivateDevices; this --user service can access the host device namespace (D13 degraded fallback)";
     let old_systemd = "Unknown assignment: PrivatePIDs=yes\nwarning: the user manager rejected mount-namespace sandboxing (Operation not supported)\nwarning: retrying without PrivateUsers";
     // Presence of the pair is itself host-specific (permissive kernels emit nothing), so
     // normalization removes it entirely: degraded and non-degraded hosts must render alike.
     assert_eq!(normalize(namespace, base), "");
     assert_eq!(normalize(capability, base), "");
+    assert_eq!(normalize(private_devices, base), "");
     assert_eq!(normalize(old_systemd, base), "");
 }
 
