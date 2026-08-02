@@ -18,7 +18,16 @@ for new decisions.
   section. Post-1.0, amendments become new CIPs that supersede.
 - **Rejected** drafts stay in `draft/` with `Status: rejected (<why>)` —
   refusals are records (feature-level refusals also land in the
-  docs/docker.md ledger).
+  docs/docker.md ledger). Superseded pre-CIP explorations are filed the
+  same way (`Status: superseded`).
+- **Retro-adoption & consolidation** (alpha rule, Mathijs 2026-08-02):
+  pre-CIP design papers may be renumbered into the CIP sequence, and
+  clusters of design.md D-numbers may be cleaned up and consolidated
+  into one CIP. The consolidating CIP names the D-numbers it absorbs;
+  the design.md entries stay citable and gain a pointer. Neither
+  sequence needs to stay gapless — one clear system beats a contiguous
+  range. First instances: CIP-85 (compose tree, D40–D46) and CIP-86
+  (netns realization, D49).
 
 ## Template
 

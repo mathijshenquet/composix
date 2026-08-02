@@ -1,4 +1,11 @@
-# Compose surface-language prototypes
+# Compose surface language (draft CIP)
+
+Status: **draft, parked on D28's evidence gate.** D28 dissolved the
+compose-language question: `compose.json` is canonical, human authoring is a
+generator concern, and this document stands as the encoding archive — TOML
+(its recommendation) and the Cixfile-DSL are *candidate sugar encodings*,
+evidence-gated on people actually hand-writing composites at scale. Reopening
+this draft for adoption is a D28 amendment and needs that evidence.
 
 > **Exploratory:** this document is a decision input, not a design decision or an
 > implementation contract. Every key and directive below is prototype syntax.

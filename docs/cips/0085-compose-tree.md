@@ -1,9 +1,11 @@
 # The compose tree — one grammar from build output to host
 
-Status: **decided 2026-07-30** (design round with Mathijs; D-numbers recorded in
-docs/design.md D40–D46, which win on conflict). This paper is the connected story;
-docs/compose-netns.md remains the *realization* paper for the netns mechanics and is
-amended by this round (naming + optionality; see below).
+Status: **CIP-85, retro-adopted 2026-08-02** (pre-CIP design paper, decided
+2026-07-30 as D40–D46; renumbered into the CIP sequence per the alpha
+consolidation rule in the CIP README). This paper is the connected story; the
+D40–D46 entries in docs/design.md remain the decision records and win on
+conflict. [CIP-86](0086-netns.md) remains the *realization* paper for the netns
+mechanics and is amended by this round (naming + optionality; see below).
 
 ## The thesis, one sentence
 

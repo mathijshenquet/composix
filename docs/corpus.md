@@ -53,7 +53,7 @@ we deferred *with intent to build* (health wiring, operator binds).
 
 | # | Shape (source) | Essential semantics | Ribbon | Effort |
 |---|---|---|---|---|
-| 1 | [minimal nginx Deployment](https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/application/deployment.yaml) | run N copies on port 80 | ✅ minus replicas (⏳ D30-deferral; `replicas` = tree-node property per compose-tree) | S |
+| 1 | [minimal nginx Deployment](https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/application/deployment.yaml) | run N copies on port 80 | ✅ minus replicas (⏳ D30-deferral; `replicas` = tree-node property per CIP-85) | S |
 | 2 | [Guestbook](https://raw.githubusercontent.com/kubernetes/examples/master/web/guestbook/frontend-deployment.yaml) | stateless tier finds redis via DNS | ✅ edges/localhost instead of DNS; probes ⏳ D30-health; limits ⏳ resource-limits | S |
 | 3 | [Bitnami WordPress chart](https://raw.githubusercontent.com/bitnami/charts/main/bitnami/wordpress/templates/deployment.yaml) | PHP + writable dir + DB password + hostname | ✅ core; init-chown ceremony **dissolves** (DynamicUser+state dirs own ownership); secrets ⏳ LoadCredential | M |
 | 4 | [Bitnami PostgreSQL chart](https://raw.githubusercontent.com/bitnami/charts/main/bitnami/postgresql/templates/primary/statefulset.yaml) | one postgres, stable identity, durable volume, password | ✅ — ~90% of the template is permission/TLS/configurability ceremony our model doesn't need; showcase row | S |
