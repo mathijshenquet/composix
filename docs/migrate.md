@@ -93,8 +93,16 @@ COPY start /bin/start
 START ${pkgs.bash}/bin/sh /bin/start
 ```
 
-Use `FILE` only when generated file content must embed a resolved store path. Ordinary
-configuration and scripts should be visible context files copied with `COPY`.
+Keep file content in real, checked-in files next to the Cixfile and bring it into an artifact
+with `COPY`. This is the rule for scripts and configuration alike: it preserves normal editor
+tooling and keeps the Cixfile readable. Use a `FILE <<EOF` heredoc only when the content itself
+must interpolate `${…}`. That exception is temporary: the unadopted
+[`FILE … FROM` draft](../cips/draft/file-from.md) is the intended way to move interpolated
+content back into real files; do not write or assume that syntax until the draft is adopted.
+
+Keep a one-line `RUN` to at most two commands joined with `&&`. For longer work, prefer
+multiple `RUN` steps—constructive read-set keying keeps independent steps cacheable—or use a
+`RUN` heredoc with one command per line. Do not compress a build into a page-wide shell chain.
 
 ## A migration workflow
 
@@ -183,6 +191,9 @@ cargo build --release --locked --offline
 cp target/release/server output/server
 BUILD
 ```
+
+Use this form when the commands belong to one atomic build step. Put one command on each line;
+do not recreate a long `&&` chain inside the heredoc.
 
 Full-line `#` comments and physical-line `\` continuations are supported. End-of-line
 comments are not Cixfile syntax; within `RUN` or `FETCH`, `#` belongs to the shell command.

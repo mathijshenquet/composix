@@ -5,7 +5,8 @@ Source revision: `3a7f965d0412b40ca29a678c90f0c830bc7e3faa` (2026-07-31).
 Docker: `./check.sh docker` passed on 2026-07-31. Image:
 `sha256:103ffa469b3455ebb5609802c124b6d7202bdd8606690c6e09ae18bc605eae46`.
 
-Cix: `./check.sh cix` passed synchronously on 2026-08-02. Final item:
+Cix: `./check.sh cix` passed synchronously on 2026-08-02 after the file-first
+authoring rewrite. Final item remained byte-identical:
 `/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos`; the active unit
 passed the bounded `/health.php` probe. The setup hook
 created/migrated SQLite, nginx/PHP-FPM communicate over the declared runtime
@@ -20,8 +21,15 @@ escape hatch. D4 remains the honest route for an organisation-owned full
 universe tree or Nix computation that cannot be expressed as an overlay file.
 
 The runtime retains nginx, PHP-FPM, scheduled jobs (via unprivileged supercronic),
-durable SQLite/logo state, startup migrations, and outbound update behavior. Cix
-still cannot encode the upstream Docker `HEALTHCHECK` as a D48 health edge.
+durable SQLite/logo state, startup migrations, and outbound update behavior. The
+checked Cixfile has not yet translated the endpoint into a CIP-79 `READINESS`
+declaration; the receipt's bounded probe is therefore empirical, not a declared
+startup contract.
+
+The setup and supervisor programs are ordinary sibling files copied into the
+artifact. The application rewrite is split into six readable RUN steps; the two
+configuration heredocs remain together only because nginx configuration needs
+`${pkgs.nginx}` interpolation, pending the unadopted FILE … FROM draft.
 
 Overlay experience: package customization stays a concise native Nix function,
 while the service contract, roles, readiness, setup, and process supervision

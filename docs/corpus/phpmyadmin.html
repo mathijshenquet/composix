@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>phpmyadmin — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,14 +46,14 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code># DO NOT EDIT: created by update.sh from Dockerfile-debian.template
-FROM php:8.3-apache
+        <pre><code><span class="tok-comment"># DO NOT EDIT: created by update.sh from Dockerfile-debian.template</span>
+<span class="tok-directive">FROM</span> php:8.3-apache
 
-ENV UPLOAD_PROGRESS_EXT_URL=&quot;https://github.com/php/pecl-php-uploadprogress/archive/refs/tags/uploadprogress-2.0.2.tar.gz&quot;
-ENV UPLOAD_PROGRESS_SHA256=&quot;fe3f6cdfcedad563c970c4fd1cda31e422cfc0df5cc9a217d8c80ed3c8d137f5&quot;
+<span class="tok-directive">ENV</span> UPLOAD_PROGRESS_EXT_URL=<span class="tok-string">&quot;https://github.com/php/pecl-php-uploadprogress/archive/refs/tags/uploadprogress-2.0.2.tar.gz&quot;</span>
+<span class="tok-directive">ENV</span> UPLOAD_PROGRESS_SHA256=<span class="tok-string">&quot;fe3f6cdfcedad563c970c4fd1cda31e422cfc0df5cc9a217d8c80ed3c8d137f5&quot;</span>
 
-# Install dependencies
-RUN set -ex; \
+<span class="tok-comment"># Install dependencies</span>
+<span class="tok-directive">RUN</span> set -ex; \
     \
     apt-get update; \
     apt-get install -y --no-install-recommends \
@@ -47,7 +61,7 @@ RUN set -ex; \
         dirmngr \
     ; \
     \
-    savedAptMark=&quot;$(apt-mark showmanual)&quot;; \
+    savedAptMark=<span class="tok-string">&quot;$(apt-mark showmanual)&quot;</span>; \
     \
     apt-get install -y --no-install-recommends \
         libbz2-dev \
@@ -60,12 +74,12 @@ RUN set -ex; \
     ; \
     \
     mkdir -p /tmp/uploadprogress; \
-    curl -fsSL -o /tmp/uploadprogress/uploadprogress.tar.gz &quot;$UPLOAD_PROGRESS_EXT_URL&quot;; \
-    echo &quot;$UPLOAD_PROGRESS_SHA256 /tmp/uploadprogress/uploadprogress.tar.gz&quot; | sha256sum -c -; \
+    curl -fsSL -o /tmp/uploadprogress/uploadprogress.tar.gz <span class="tok-string">&quot;$UPLOAD_PROGRESS_EXT_URL&quot;</span>; \
+    echo <span class="tok-string">&quot;$UPLOAD_PROGRESS_SHA256 /tmp/uploadprogress/uploadprogress.tar.gz&quot;</span> | sha256sum -c -; \
     tar -xf /tmp/uploadprogress/uploadprogress.tar.gz -C /tmp/uploadprogress --strip-components=1; \
     \
     docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-xpm; \
-    docker-php-ext-install -j &quot;$(nproc)&quot; \
+    docker-php-ext-install -j <span class="tok-string">&quot;$(nproc)&quot;</span> \
         bz2 \
         gd \
         mysqli \
@@ -77,37 +91,37 @@ RUN set -ex; \
     \
     rm -r /tmp/uploadprogress; \
     \
-    apt-mark auto &#39;.*&#39; &gt; /dev/null; \
+    apt-mark auto <span class="tok-string">&#39;.*&#39;</span> &gt; /dev/null; \
     apt-mark manual $savedAptMark; \
-    extdir=&quot;$(php -r &#39;echo ini_get(&quot;extension_dir&quot;);&#39;)&quot;; \
-    ldd &quot;$extdir&quot;/*.so \
-        | awk &#39;/=&gt;/ { so = $(NF-1); if (index(so, &quot;/usr/local/&quot;) == 1) { next }; gsub(&quot;^/(usr/)?&quot;, &quot;&quot;, so); print so }&#39; \
+    extdir=<span class="tok-string">&quot;$(php -r &#39;echo ini_get(&quot;</span>extension_dir<span class="tok-string">&quot;);&#39;)&quot;</span>; \
+    ldd <span class="tok-string">&quot;$extdir&quot;</span>/*.so \
+        | awk <span class="tok-string">&#39;/=&gt;/ { so = $(NF-1); if (index(so, &quot;/usr/local/&quot;) == 1) { next }; gsub(&quot;^/(usr/)?&quot;, &quot;&quot;, so); print so }&#39;</span> \
         | sort -u \
         | xargs -r dpkg-query -S \
         | cut -d: -f1 \
         | sort -u \
         | xargs -rt apt-mark manual; \
     \
-    # start: Apache specific build
-    a2enmod remoteip; \
-    # end: Apache specific build
-    \
+    <span class="tok-comment"># start: Apache specific build</span>
+    <span class="tok-directive">a2enmod</span> remoteip; \
+    <span class="tok-comment"># end: Apache specific build</span>
+    <span class="tok-directive">\</span>
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
     rm -rf /var/lib/apt/lists/*; \
-    ldd &quot;$extdir&quot;/*.so | grep -qzv &quot;=&gt; not found&quot; || (echo &quot;Sanity check failed: missing libraries:&quot;; ldd &quot;$extdir&quot;/*.so | grep &quot; =&gt; not found&quot;; exit 1); \
-    ldd &quot;$extdir&quot;/*.so | grep -q &quot;libzip.so.* =&gt; .*/libzip.so.*&quot; || (echo &quot;Sanity check failed: libzip.so is not referenced&quot;; ldd &quot;$extdir&quot;/*.so; exit 1); \
-    err=&quot;$(php --version 3&gt;&amp;1 1&gt;&amp;2 2&gt;&amp;3)&quot;; \
-    [ -z &quot;$err&quot; ] || (echo &quot;Sanity check failed: php returned errors; $err&quot;; exit 1;);
+    ldd <span class="tok-string">&quot;$extdir&quot;</span>/*.so | grep -qzv <span class="tok-string">&quot;=&gt; not found&quot;</span> || (echo <span class="tok-string">&quot;Sanity check failed: missing libraries:&quot;</span>; ldd <span class="tok-string">&quot;$extdir&quot;</span>/*.so | grep <span class="tok-string">&quot; =&gt; not found&quot;</span>; exit 1); \
+    ldd <span class="tok-string">&quot;$extdir&quot;</span>/*.so | grep -q <span class="tok-string">&quot;libzip.so.* =&gt; .*/libzip.so.*&quot;</span> || (echo <span class="tok-string">&quot;Sanity check failed: libzip.so is not referenced&quot;</span>; ldd <span class="tok-string">&quot;$extdir&quot;</span>/*.so; exit 1); \
+    err=<span class="tok-string">&quot;$(php --version 3&gt;&amp;1 1&gt;&amp;2 2&gt;&amp;3)&quot;</span>; \
+    [ -z <span class="tok-string">&quot;$err&quot;</span> ] || (echo <span class="tok-string">&quot;Sanity check failed: php returned errors; $err&quot;</span>; exit 1;);
 
-# set recommended PHP.ini settings
-# see https://secure.php.net/manual/en/opcache.installation.php
-ENV PMA_SSL_DIR=/etc/phpmyadmin/ssl
-ENV MAX_EXECUTION_TIME=600
-ENV MEMORY_LIMIT=512M
-ENV UPLOAD_LIMIT=2048K
-ENV TZ=UTC
-ENV SESSION_SAVE_PATH=/sessions
-RUN set -ex; \
+<span class="tok-comment"># set recommended PHP.ini settings</span>
+<span class="tok-comment"># see https://secure.php.net/manual/en/opcache.installation.php</span>
+<span class="tok-directive">ENV</span> PMA_SSL_DIR=/etc/phpmyadmin/ssl
+<span class="tok-directive">ENV</span> MAX_EXECUTION_TIME=600
+<span class="tok-directive">ENV</span> MEMORY_LIMIT=512M
+<span class="tok-directive">ENV</span> UPLOAD_LIMIT=2048K
+<span class="tok-directive">ENV</span> TZ=UTC
+<span class="tok-directive">ENV</span> SESSION_SAVE_PATH=/sessions
+<span class="tok-directive">RUN</span> set -ex; \
     mkdir $SESSION_SAVE_PATH; \
     mkdir -p $PMA_SSL_DIR; \
     chmod 1777 $SESSION_SAVE_PATH; \
@@ -117,81 +131,81 @@ RUN set -ex; \
     chown www-data:www-data $SESSION_SAVE_PATH; \
     \
     { \
-        echo &#39;opcache.memory_consumption=128&#39;; \
-        echo &#39;opcache.interned_strings_buffer=8&#39;; \
-        echo &#39;opcache.max_accelerated_files=4000&#39;; \
-        echo &#39;opcache.revalidate_freq=2&#39;; \
-        echo &#39;opcache.fast_shutdown=1&#39;; \
+        echo <span class="tok-string">&#39;opcache.memory_consumption=128&#39;</span>; \
+        echo <span class="tok-string">&#39;opcache.interned_strings_buffer=8&#39;</span>; \
+        echo <span class="tok-string">&#39;opcache.max_accelerated_files=4000&#39;</span>; \
+        echo <span class="tok-string">&#39;opcache.revalidate_freq=2&#39;</span>; \
+        echo <span class="tok-string">&#39;opcache.fast_shutdown=1&#39;</span>; \
     } &gt; $PHP_INI_DIR/conf.d/opcache-recommended.ini; \
     \
     { \
-        echo &#39;session.cookie_httponly=1&#39;; \
-        echo &#39;session.use_strict_mode=1&#39;; \
+        echo <span class="tok-string">&#39;session.cookie_httponly=1&#39;</span>; \
+        echo <span class="tok-string">&#39;session.use_strict_mode=1&#39;</span>; \
     } &gt; $PHP_INI_DIR/conf.d/session-strict.ini; \
     \
     { \
-        echo &#39;allow_url_fopen=Off&#39;; \
-        echo &#39;max_execution_time=${MAX_EXECUTION_TIME}&#39;; \
-        echo &#39;max_input_vars=10000&#39;; \
-        echo &#39;memory_limit=${MEMORY_LIMIT}&#39;; \
-        echo &#39;post_max_size=${UPLOAD_LIMIT}&#39;; \
-        echo &#39;upload_max_filesize=${UPLOAD_LIMIT}&#39;; \
-        echo &#39;date.timezone=${TZ}&#39;; \
-        echo &#39;session.save_path=${SESSION_SAVE_PATH}&#39;; \
+        echo <span class="tok-string">&#39;allow_url_fopen=Off&#39;</span>; \
+        echo <span class="tok-string">&#39;max_execution_time=${MAX_EXECUTION_TIME}&#39;</span>; \
+        echo <span class="tok-string">&#39;max_input_vars=10000&#39;</span>; \
+        echo <span class="tok-string">&#39;memory_limit=${MEMORY_LIMIT}&#39;</span>; \
+        echo <span class="tok-string">&#39;post_max_size=${UPLOAD_LIMIT}&#39;</span>; \
+        echo <span class="tok-string">&#39;upload_max_filesize=${UPLOAD_LIMIT}&#39;</span>; \
+        echo <span class="tok-string">&#39;date.timezone=${TZ}&#39;</span>; \
+        echo <span class="tok-string">&#39;session.save_path=${SESSION_SAVE_PATH}&#39;</span>; \
     } &gt; $PHP_INI_DIR/conf.d/phpmyadmin-misc.ini
 
-USER www-data:www-data
+<span class="tok-directive">USER</span> www-data:www-data
 
-# Calculate download URL
-ENV VERSION=5.2.3
-ENV SHA256=57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
-ENV URL=https://files.phpmyadmin.net/phpMyAdmin/${VERSION}/phpMyAdmin-${VERSION}-all-languages.tar.xz
+<span class="tok-comment"># Calculate download URL</span>
+<span class="tok-directive">ENV</span> VERSION=5.2.3
+<span class="tok-directive">ENV</span> SHA256=57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
+<span class="tok-directive">ENV</span> URL=https://files.phpmyadmin.net/phpMyAdmin/<span class="tok-interpolation">${VERSION}</span>/phpMyAdmin-<span class="tok-interpolation">${VERSION}</span>-all-languages.tar.xz
 
-LABEL org.opencontainers.image.title=&quot;Official phpMyAdmin Docker image&quot; \
-    org.opencontainers.image.description=&quot;Run phpMyAdmin with Alpine, Apache and PHP FPM.&quot; \
-    org.opencontainers.image.authors=&quot;The phpMyAdmin Team &lt;developers@phpmyadmin.net&gt;&quot; \
-    org.opencontainers.image.vendor=&quot;phpMyAdmin&quot; \
-    org.opencontainers.image.documentation=&quot;https://github.com/phpmyadmin/docker#readme&quot; \
-    org.opencontainers.image.licenses=&quot;GPL-2.0-only&quot; \
-    org.opencontainers.image.version=&quot;${VERSION}&quot; \
-    org.opencontainers.image.url=&quot;https://github.com/phpmyadmin/docker#readme&quot; \
-    org.opencontainers.image.source=&quot;https://github.com/phpmyadmin/docker.git&quot;
+<span class="tok-directive">LABEL</span> org.opencontainers.image.title=<span class="tok-string">&quot;Official phpMyAdmin Docker image&quot;</span> \
+    org.opencontainers.image.description=<span class="tok-string">&quot;Run phpMyAdmin with Alpine, Apache and PHP FPM.&quot;</span> \
+    org.opencontainers.image.authors=<span class="tok-string">&quot;The phpMyAdmin Team &lt;developers@phpmyadmin.net&gt;&quot;</span> \
+    org.opencontainers.image.vendor=<span class="tok-string">&quot;phpMyAdmin&quot;</span> \
+    org.opencontainers.image.documentation=<span class="tok-string">&quot;https://github.com/phpmyadmin/docker#readme&quot;</span> \
+    org.opencontainers.image.licenses=<span class="tok-string">&quot;GPL-2.0-only&quot;</span> \
+    org.opencontainers.image.version=<span class="tok-string">&quot;${VERSION}&quot;</span> \
+    org.opencontainers.image.url=<span class="tok-string">&quot;https://github.com/phpmyadmin/docker#readme&quot;</span> \
+    org.opencontainers.image.source=<span class="tok-string">&quot;https://github.com/phpmyadmin/docker.git&quot;</span>
 
-# Download tarball, verify it using gpg and extract
-RUN set -ex; \
-    export GNUPGHOME=&quot;$(mktemp -d)&quot;; \
-    export GPGKEY=&quot;3D06A59ECE730EB71B511C17CE752F178259BD92&quot;; \
+<span class="tok-comment"># Download tarball, verify it using gpg and extract</span>
+<span class="tok-directive">RUN</span> set -ex; \
+    export GNUPGHOME=<span class="tok-string">&quot;$(mktemp -d)&quot;</span>; \
+    export GPGKEY=<span class="tok-string">&quot;3D06A59ECE730EB71B511C17CE752F178259BD92&quot;</span>; \
     curl -fsSL -o phpMyAdmin.tar.xz $URL; \
     curl -fsSL -o phpMyAdmin.tar.xz.asc $URL.asc; \
-    echo &quot;$SHA256 *phpMyAdmin.tar.xz&quot; | sha256sum -c -; \
-    gpg --batch --keyserver keyserver.ubuntu.com --recv-keys &quot;$GPGKEY&quot; \
-        || gpg --batch --keyserver pgp.mit.edu --recv-keys &quot;$GPGKEY&quot; \
-        || gpg --batch --keyserver keyserver.pgp.com --recv-keys &quot;$GPGKEY&quot; \
-        || gpg --batch --keyserver keys.openpgp.org --recv-keys &quot;$GPGKEY&quot;; \
+    echo <span class="tok-string">&quot;$SHA256 *phpMyAdmin.tar.xz&quot;</span> | sha256sum -c -; \
+    gpg --batch --keyserver keyserver.ubuntu.com --recv-keys <span class="tok-string">&quot;$GPGKEY&quot;</span> \
+        || gpg --batch --keyserver pgp.mit.edu --recv-keys <span class="tok-string">&quot;$GPGKEY&quot;</span> \
+        || gpg --batch --keyserver keyserver.pgp.com --recv-keys <span class="tok-string">&quot;$GPGKEY&quot;</span> \
+        || gpg --batch --keyserver keys.openpgp.org --recv-keys <span class="tok-string">&quot;$GPGKEY&quot;</span>; \
     gpg --batch --verify phpMyAdmin.tar.xz.asc phpMyAdmin.tar.xz; \
     tar -xf phpMyAdmin.tar.xz -C /var/www/html --strip-components=1; \
     mkdir -p /var/www/html/tmp; \
     gpgconf --kill all; \
-    rm -r &quot;$GNUPGHOME&quot; phpMyAdmin.tar.xz phpMyAdmin.tar.xz.asc; \
+    rm -r <span class="tok-string">&quot;$GNUPGHOME&quot;</span> phpMyAdmin.tar.xz phpMyAdmin.tar.xz.asc; \
     rm -r -v /var/www/html/setup/ /var/www/html/examples/ /var/www/html/js/src/ /var/www/html/babel.config.json /var/www/html/doc/html/_sources/ /var/www/html/RELEASE-DATE-$VERSION /var/www/html/CONTRIBUTING.md; \
-    grep -q -F &quot;&#39;configFile&#39; =&gt; ROOT_PATH . &#39;config.inc.php&#39;,&quot; /var/www/html/libraries/vendor_config.php; \
-    sed -i &quot;s@&#39;configFile&#39; =&gt; .*@&#39;configFile&#39; =&gt; &#39;/etc/phpmyadmin/config.inc.php&#39;,@&quot; /var/www/html/libraries/vendor_config.php; \
-    grep -q -F &quot;&#39;configFile&#39; =&gt; &#39;/etc/phpmyadmin/config.inc.php&#39;,&quot; /var/www/html/libraries/vendor_config.php; \
+    grep -q -F <span class="tok-string">&quot;&#39;configFile&#39; =&gt; ROOT_PATH . &#39;config.inc.php&#39;,&quot;</span> /var/www/html/libraries/vendor_config.php; \
+    sed -i <span class="tok-string">&quot;s@&#39;configFile&#39; =&gt; .*@&#39;configFile&#39; =&gt; &#39;/etc/phpmyadmin/config.inc.php&#39;,@&quot;</span> /var/www/html/libraries/vendor_config.php; \
+    grep -q -F <span class="tok-string">&quot;&#39;configFile&#39; =&gt; &#39;/etc/phpmyadmin/config.inc.php&#39;,&quot;</span> /var/www/html/libraries/vendor_config.php; \
     php -l /var/www/html/libraries/vendor_config.php; \
     find /var/www/html -type d -exec chmod 555 {} \;; \
     find /var/www/html -type f -exec chmod 444 {} \;; \
     chmod 1777 /var/www/html/tmp;
 
-# Copy configuration
-COPY --chown=www-data:www-data config.inc.php /etc/phpmyadmin/config.inc.php
-COPY --chown=www-data:www-data helpers.php /etc/phpmyadmin/helpers.php
+<span class="tok-comment"># Copy configuration</span>
+<span class="tok-directive">COPY</span> --chown=www-data:www-data config.inc.php /etc/phpmyadmin/config.inc.php
+<span class="tok-directive">COPY</span> --chown=www-data:www-data helpers.php /etc/phpmyadmin/helpers.php
 
-# Copy main script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+<span class="tok-comment"># Copy main script</span>
+<span class="tok-directive">COPY</span> docker-entrypoint.sh /docker-entrypoint.sh
 
-USER root
-ENTRYPOINT [ &quot;/docker-entrypoint.sh&quot; ]
-CMD [&quot;apache2-foreground&quot;]
+<span class="tok-directive">USER</span> root
+<span class="tok-directive">ENTRYPOINT</span> [ <span class="tok-string">&quot;/docker-entrypoint.sh&quot;</span> ]
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;apache2-foreground&quot;</span>]
 </code></pre>
       </section>
     </section>
@@ -199,19 +213,19 @@ CMD [&quot;apache2-foreground&quot;]
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.xz} ${pkgs.cacert}
-  FETCH curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz EXPECT sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=
-  RUN mkdir app &amp;&amp; tar -xJf phpMyAdmin-5.2.3-all-languages.tar.xz --strip-components=1 -C app
+<span class="tok-directive">BUILDER</span> build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.xz}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">FETCH</span> curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz EXPECT sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=
+  <span class="tok-directive">RUN</span> mkdir app &amp;&amp; tar -xJf phpMyAdmin-5.2.3-all-languages.tar.xz --strip-components=1 -C app
 
-SERVICE phpmyadmin
-  COPY ${build}/app /srv/phpmyadmin
-  STATEDIR /var/lib/phpmyadmin
-  LINK ${pkgs.php83}/bin/php /bin/php
-  START php -S 0.0.0.0:8080 -t /srv/phpmyadmin
-  PORT http = 8080
+<span class="tok-directive">SERVICE</span> phpmyadmin
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/app /srv/phpmyadmin
+  <span class="tok-directive">STATEDIR</span> /var/lib/phpmyadmin
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php83}</span>/bin/php /bin/php
+  <span class="tok-directive">START</span> php -S 0.0.0.0:8080 -t /srv/phpmyadmin
+  <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
     </section>

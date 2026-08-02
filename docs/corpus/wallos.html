@@ -5,82 +5,96 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>wallos — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / wallos</nav>
   <h1>wallos</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime passes; health awaits CIP-79 implementation · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Docker and Cix health probes pass through the Cixfile overlay universe; declarative health is absent · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime passes; READINESS remains undeclared · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Docker and Cix health probes pass through the Cixfile overlay universe; declarative readiness remains untranslated · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/SOURCE">Pinned upstream source notes</a></p>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code># Use the php:8.3-fpm-alpine base image
-FROM php:8.3-fpm-alpine
+        <pre><code><span class="tok-comment"># Use the php:8.3-fpm-alpine base image</span>
+<span class="tok-directive">FROM</span> php:8.3-fpm-alpine
 
-# Set working directory to /var/www/html
-WORKDIR /var/www/html
+<span class="tok-comment"># Set working directory to /var/www/html</span>
+<span class="tok-directive">WORKDIR</span> /var/www/html
 
-# Update packages and install dependencies
-RUN apk upgrade --no-cache &amp;&amp; \
+<span class="tok-comment"># Update packages and install dependencies</span>
+<span class="tok-directive">RUN</span> apk upgrade --no-cache &amp;&amp; \
     apk add --no-cache dumb-init shadow sqlite-dev libpng libpng-dev libjpeg-turbo libjpeg-turbo-dev freetype freetype-dev curl autoconf libgomp icu-dev icu-data-full nginx dcron tzdata libzip-dev sqlite libwebp-dev &amp;&amp; \
     docker-php-ext-install pdo pdo_sqlite calendar &amp;&amp; \
     docker-php-ext-enable pdo pdo_sqlite &amp;&amp; \
     docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp &amp;&amp; \
     docker-php-ext-install -j$(nproc) gd intl zip
 
-# Copy your PHP application files into the container
-COPY . .
+<span class="tok-comment"># Copy your PHP application files into the container</span>
+<span class="tok-directive">COPY</span> . .
 
-# Copy Nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY nginx.default.conf /etc/nginx/http.d/default.conf
+<span class="tok-comment"># Copy Nginx configuration</span>
+<span class="tok-directive">COPY</span> nginx.conf /etc/nginx/nginx.conf
+<span class="tok-directive">COPY</span> nginx.default.conf /etc/nginx/http.d/default.conf
 
-# Remove nginx conf files from webroot
-RUN rm -rf /var/www/html/nginx.conf &amp;&amp; \
+<span class="tok-comment"># Remove nginx conf files from webroot</span>
+<span class="tok-directive">RUN</span> rm -rf /var/www/html/nginx.conf &amp;&amp; \
     rm -rf /var/www/html/nginx.default.conf
 
-# Copy the custom crontab file
-COPY cronjobs /etc/cron.d/cronjobs
+<span class="tok-comment"># Copy the custom crontab file</span>
+<span class="tok-directive">COPY</span> cronjobs /etc/cron.d/cronjobs
 
-# Convert the line endings, allow read access to the cron file, and create cron log folder
-RUN dos2unix /etc/cron.d/cronjobs &amp;&amp; \
+<span class="tok-comment"># Convert the line endings, allow read access to the cron file, and create cron log folder</span>
+<span class="tok-directive">RUN</span> dos2unix /etc/cron.d/cronjobs &amp;&amp; \
     chmod 0644 /etc/cron.d/cronjobs &amp;&amp; \
     /usr/bin/crontab /etc/cron.d/cronjobs &amp;&amp; \
     mkdir /var/log/cron &amp;&amp; \
     chown -R www-data:www-data /var/www/html &amp;&amp; \
     chmod +x /var/www/html/startup.sh &amp;&amp; \
-    echo &#39;pm.max_children = 15&#39; &gt;&gt; /usr/local/etc/php-fpm.d/zz-docker.conf &amp;&amp; \
-    echo &#39;pm.max_requests = 500&#39; &gt;&gt; /usr/local/etc/php-fpm.d/zz-docker.conf
+    echo <span class="tok-string">&#39;pm.max_children = 15&#39;</span> &gt;&gt; /usr/local/etc/php-fpm.d/zz-docker.conf &amp;&amp; \
+    echo <span class="tok-string">&#39;pm.max_requests = 500&#39;</span> &gt;&gt; /usr/local/etc/php-fpm.d/zz-docker.conf
 
-# Expose port 80 for Nginx
-EXPOSE 80
+<span class="tok-comment"># Expose port 80 for Nginx</span>
+<span class="tok-directive">EXPOSE</span> 80
 
-ENTRYPOINT [&quot;dumb-init&quot;, &quot;--&quot;]
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;dumb-init&quot;</span>, <span class="tok-string">&quot;--&quot;</span>]
 
-# Requires docker engine 25+ for the --start-interval flag
-HEALTHCHECK --interval=2m --timeout=2s --start-period=20s --start-interval=5s --retries=3 \
-    CMD [&quot;curl&quot;, &quot;-fsS&quot;, &quot;http://127.0.0.1/health.php&quot;]
+<span class="tok-comment"># Requires docker engine 25+ for the --start-interval flag</span>
+<span class="tok-directive">HEALTHCHECK</span> --interval=2m --timeout=2s --start-period=20s --start-interval=5s --retries=3 \
+    CMD [<span class="tok-string">&quot;curl&quot;</span>, <span class="tok-string">&quot;-fsS&quot;</span>, <span class="tok-string">&quot;http://127.0.0.1/health.php&quot;</span>]
 
-# Start both PHP-FPM, Nginx
-CMD [&quot;/var/www/html/startup.sh&quot;]
+<span class="tok-comment"># Start both PHP-FPM, Nginx</span>
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;/var/www/html/startup.sh&quot;</span>]
 </code></pre>
       </section>
     </section>
@@ -88,73 +102,101 @@ CMD [&quot;/var/www/html/startup.sh&quot;]
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER app
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
-  COPY ${src}/context/ app
-  RUN cd app &amp;&amp; rm -rf Dockerfile nginx.conf nginx.default.conf startup.sh db images/uploads/logos &amp;&amp; mkdir -p images/uploads &amp;&amp; ln -s /var/lib/wallos/db db &amp;&amp; ln -s /var/lib/wallos/logos images/uploads/logos &amp;&amp; sed &#39;s#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g&#39; cronjobs &gt; cronjobs.cix &amp;&amp; mv cronjobs.cix cronjobs
+<span class="tok-directive">BUILDER</span> app
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ app
+  <span class="tok-directive">RUN</span> rm -rf app/Dockerfile app/nginx.conf app/nginx.default.conf app/startup.sh app/db app/images/uploads/logos
+  <span class="tok-directive">RUN</span> mkdir -p app/images/uploads
+  <span class="tok-directive">RUN</span> ln -s /var/lib/wallos/db app/db
+  <span class="tok-directive">RUN</span> ln -s /var/lib/wallos/logos app/images/uploads/logos
+  <span class="tok-directive">RUN</span> sed &#39;s#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g&#39; app/cronjobs &gt; app/cronjobs.cix
+  <span class="tok-directive">RUN</span> mv app/cronjobs.cix app/cronjobs
 
-SERVICE wallos
-  COPY ${app}/app /var/www/html
-  LINK ${pkgs.bash}/bin/bash /bin/bash
-  LINK ${pkgs.coreutils}/bin/mkdir /bin/mkdir
-  LINK ${pkgs.php}/bin/php /bin/php
-  LINK ${pkgs.php}/bin/php-fpm /bin/php-fpm
-  LINK ${pkgs.nginx}/bin/nginx /bin/nginx
-  LINK ${pkgs.supercronic}/bin/supercronic /bin/supercronic
-  FILE /etc/php-fpm.conf &lt;&lt;PHP
-[global]
-error_log = /var/log/wallos/php-fpm.log
-daemonize = no
+<span class="tok-directive">SERVICE</span> wallos
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/app /var/www/html
+  <span class="tok-directive">COPY</span> setup.sh /bin/setup
+  <span class="tok-directive">COPY</span> start.sh /bin/start
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/bash
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.coreutils}</span>/bin/mkdir /bin/mkdir
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php}</span>/bin/php /bin/php
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php}</span>/bin/php-fpm /bin/php-fpm
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx /bin/nginx
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.supercronic}</span>/bin/supercronic /bin/supercronic
+  <span class="tok-comment"># Kept inline until FILE … FROM because the config pair includes package interpolation.</span>
+  <span class="tok-directive">FILE</span> /etc/php-fpm.conf &lt;&lt;PHP
+<span class="tok-heredoc">[global]</span>
+<span class="tok-heredoc">error_log = /var/log/wallos/php-fpm.log</span>
+<span class="tok-heredoc">daemonize = no</span>
 
-[www]
-listen = /run/wallos/php-fpm.sock
-listen.mode = 0660
-pm = dynamic
-pm.max_children = 15
-pm.start_servers = 2
-pm.min_spare_servers = 1
-pm.max_spare_servers = 3
-pm.max_requests = 500
-catch_workers_output = yes
-clear_env = no
-PHP
-  FILE /etc/nginx.conf &lt;&lt;NGINX
-daemon off;
-pid /run/wallos/nginx.pid;
-error_log stderr info;
-events { worker_connections 1024; }
-http {
-  include ${pkgs.nginx}/conf/mime.types;
-  default_type application/octet-stream;
-  access_log /var/log/wallos/nginx-access.log;
-  client_body_temp_path /var/cache/wallos/body;
-  proxy_temp_path /var/cache/wallos/proxy;
-  fastcgi_temp_path /var/cache/wallos/fastcgi;
-  uwsgi_temp_path /var/cache/wallos/uwsgi;
-  scgi_temp_path /var/cache/wallos/scgi;
-  server {
-    listen 18092;
-    root /var/www/html;
-    index index.php;
-    location / { try_files $uri $uri/ /index.php?$args; }
-    location ~ \.php$ {
-      include ${pkgs.nginx}/conf/fastcgi_params;
-      fastcgi_pass unix:/run/wallos/php-fpm.sock;
-      fastcgi_index index.php;
-      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-    location ~ \.db$ { deny all; return 403; }
-    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }
-    location ~* \.tmp/.*\.php$ { deny all; return 403; }
-    location ~* ^/includes/.*\.php$ { deny all; return 403; }
-  }
+<span class="tok-heredoc">[www]</span>
+<span class="tok-heredoc">listen = /run/wallos/php-fpm.sock</span>
+<span class="tok-heredoc">listen.mode = 0660</span>
+<span class="tok-heredoc">pm = dynamic</span>
+<span class="tok-heredoc">pm.max_children = 15</span>
+<span class="tok-heredoc">pm.start_servers = 2</span>
+<span class="tok-heredoc">pm.min_spare_servers = 1</span>
+<span class="tok-heredoc">pm.max_spare_servers = 3</span>
+<span class="tok-heredoc">pm.max_requests = 500</span>
+<span class="tok-heredoc">catch_workers_output = yes</span>
+<span class="tok-heredoc">clear_env = no</span>
+<span class="tok-directive">PHP</span>
+  <span class="tok-directive">FILE</span> /etc/nginx.conf &lt;&lt;NGINX
+<span class="tok-heredoc">daemon off;</span>
+<span class="tok-heredoc">pid /run/wallos/nginx.pid;</span>
+<span class="tok-heredoc">error_log stderr info;</span>
+<span class="tok-heredoc">events { worker_connections 1024; }</span>
+<span class="tok-heredoc">http {</span>
+<span class="tok-heredoc">  include </span><span class="tok-interpolation">${pkgs.nginx}</span><span class="tok-heredoc">/conf/mime.types;</span>
+<span class="tok-heredoc">  default_type application/octet-stream;</span>
+<span class="tok-heredoc">  access_log /var/log/wallos/nginx-access.log;</span>
+<span class="tok-heredoc">  client_body_temp_path /var/cache/wallos/body;</span>
+<span class="tok-heredoc">  proxy_temp_path /var/cache/wallos/proxy;</span>
+<span class="tok-heredoc">  fastcgi_temp_path /var/cache/wallos/fastcgi;</span>
+<span class="tok-heredoc">  uwsgi_temp_path /var/cache/wallos/uwsgi;</span>
+<span class="tok-heredoc">  scgi_temp_path /var/cache/wallos/scgi;</span>
+<span class="tok-heredoc">  server {</span>
+<span class="tok-heredoc">    listen 18092;</span>
+<span class="tok-heredoc">    root /var/www/html;</span>
+<span class="tok-heredoc">    index index.php;</span>
+<span class="tok-heredoc">    location / { try_files $uri $uri/ /index.php?$args; }</span>
+<span class="tok-heredoc">    location ~ \.php$ {</span>
+<span class="tok-heredoc">      include </span><span class="tok-interpolation">${pkgs.nginx}</span><span class="tok-heredoc">/conf/fastcgi_params;</span>
+<span class="tok-heredoc">      fastcgi_pass unix:/run/wallos/php-fpm.sock;</span>
+<span class="tok-heredoc">      fastcgi_index index.php;</span>
+<span class="tok-heredoc">      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;</span>
+<span class="tok-heredoc">    }</span>
+<span class="tok-heredoc">    location ~ \.db$ { deny all; return 403; }</span>
+<span class="tok-heredoc">    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }</span>
+<span class="tok-heredoc">    location ~* \.tmp/.*\.php$ { deny all; return 403; }</span>
+<span class="tok-heredoc">    location ~* ^/includes/.*\.php$ { deny all; return 403; }</span>
+<span class="tok-heredoc">  }</span>
+<span class="tok-heredoc">}</span>
+<span class="tok-directive">NGINX</span>
+  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/start
+  <span class="tok-directive">START_PRE</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/setup
+  <span class="tok-directive">STATEDIR</span> /var/lib/wallos/db
+  <span class="tok-directive">STATEDIR</span> /var/lib/wallos/logos
+  <span class="tok-directive">CACHEDIR</span> /var/cache/wallos
+  <span class="tok-directive">LOGDIR</span> /var/log/wallos
+  <span class="tok-directive">RUNDIR</span> /run/wallos
+  <span class="tok-directive">CLAIM</span> egress
+  <span class="tok-directive">CLAIM</span> jit
+  <span class="tok-directive">PORT</span> http = 18092
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>php.nix</h3>
+        <pre><code>final: prev: {
+  php = prev.php83.withExtensions ({ enabled, all }: enabled ++ (<span class="tok-directive">with</span> all; [ calendar gd intl pdo_sqlite zip ]));
 }
-NGINX
-  FILE /bin/setup &lt;&lt;SETUP
-set -eu
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>setup.sh</h3>
+        <pre><code>set -eu
 mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
 cd /var/www/html
 php endpoints/cronjobs/createdatabase.php
@@ -162,9 +204,11 @@ php endpoints/db/migrate.php
 php endpoints/cronjobs/updatenextpayment.php
 php endpoints/cronjobs/updateexchange.php
 php endpoints/cronjobs/checkforupdates.php
-SETUP
-  FILE /bin/start &lt;&lt;START
-set -eu
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>start.sh</h3>
+        <pre><code>set -eu
 php_pid=
 cron_pid=
 nginx_pid=
@@ -181,17 +225,6 @@ cron_pid=$!
 nginx -c /etc/nginx.conf -e stderr &amp;
 nginx_pid=$!
 wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
-START
-  START ${pkgs.bash}/bin/bash /bin/start
-  START_PRE ${pkgs.bash}/bin/bash /bin/setup
-  STATEDIR /var/lib/wallos/db
-  STATEDIR /var/lib/wallos/logos
-  CACHEDIR /var/cache/wallos
-  LOGDIR /var/log/wallos
-  RUNDIR /run/wallos
-  CLAIM egress
-  CLAIM jit
-  PORT http = 18092
 </code></pre>
       </section>
     </section>
