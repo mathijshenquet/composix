@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::ffi::CStr;
 use std::io::Read;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -10,7 +8,7 @@ use anyhow::{bail, Context, Result};
 use crate::capabilities::HostCapabilities;
 use crate::closed_root::ClosedRootOptions;
 use crate::config::ResolvedConfig;
-use crate::spec::{format_duration, parse_duration, Dirs, Probe, ProbeType, Protocol, Service};
+use crate::spec::{Protocol, Service};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitMode {
@@ -253,7 +251,7 @@ pub(crate) fn build_unit_with_options(
         .join(" ");
     properties.push(("LogExtraFields".into(), log_fields));
 
-    add_directories(
+    crate::directories::add_properties(
         &mut properties,
         &format!("{}-{service_name}", options.naming.directory_prefix),
         &service.dirs,
@@ -290,7 +288,7 @@ pub(crate) fn build_unit_with_options(
         properties.push(("ProtectHome".into(), "yes".into()));
         properties.push(("PrivateTmp".into(), "yes".into()));
         properties.push(("PrivatePIDs".into(), "yes".into()));
-        add_device_policy(&mut properties, service)?;
+        crate::devices::add_policy(&mut properties, service)?;
     }
     properties.extend([
         ("NoNewPrivileges".into(), "yes".into()),
@@ -342,7 +340,7 @@ pub(crate) fn build_unit_with_options(
         }
         properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
     }
-    add_health_properties(&mut properties, service, options)?;
+    crate::health::add_properties(&mut properties, service, options)?;
 
     let mut environment = item_env
         .iter()
@@ -353,7 +351,7 @@ pub(crate) fn build_unit_with_options(
             environment.push((as_env.clone(), format!("%d/{name}")));
         }
     }
-    add_directory_environment(&mut environment, &service.dirs);
+    crate::directories::add_environment(&mut environment, &service.dirs);
     if mode != UnitMode::System {
         environment.push((
             "CIX_APP".into(),
@@ -387,62 +385,6 @@ pub(crate) fn build_unit_with_options(
         argv,
         degradations,
     })
-}
-
-fn add_health_properties(
-    properties: &mut Vec<(String, String)>,
-    service: &Service,
-    options: &UnitCompileOptions,
-) -> Result<()> {
-    if let Some(readiness) = &service.readiness {
-        if readiness.probe.probe_type == ProbeType::Notify {
-            properties
-                .iter_mut()
-                .find(|(name, _)| name == "Type")
-                .expect("Type property exists")
-                .1 = "notify".into();
-        } else {
-            properties.push((
-                "ExecStartPost".into(),
-                probe_command(options, "await", &readiness.probe, None)?,
-            ));
-        }
-        properties.push(("TimeoutStartSec".into(), readiness.timeout.clone()));
-        properties.push(("TimeoutStopSec".into(), readiness.timeout.clone()));
-    }
-
-    if service.liveness.is_some()
-        && service
-            .readiness
-            .as_ref()
-            .is_some_and(|readiness| readiness.probe.probe_type != ProbeType::Notify)
-    {
-        properties.push(("NotifyAccess".into(), "all".into()));
-    }
-
-    if let Some(liveness) = &service.liveness {
-        let interval = parse_duration(&liveness.interval).context("invalid liveness interval")?;
-        let watchdog = interval
-            .checked_mul(3)
-            .context("liveness watchdog window is too large")?;
-        properties.push(("WatchdogSec".into(), format_duration(watchdog)));
-        if liveness.probe.probe_type != ProbeType::Notify {
-            if !properties.iter().any(|(name, _)| name == "NotifyAccess") {
-                properties.push(("NotifyAccess".into(), "all".into()));
-            }
-            properties.push((
-                "ExecStartPost".into(),
-                probe_command(options, "pinger", &liveness.probe, Some(&liveness.interval))?,
-            ));
-        }
-        properties.extend([
-            ("Restart".into(), "on-failure".into()),
-            ("RestartSec".into(), liveness.interval.clone()),
-            ("StartLimitIntervalSec".into(), "5min".into()),
-            ("StartLimitBurst".into(), "5".into()),
-        ]);
-    }
-    Ok(())
 }
 
 fn add_closed_root(
@@ -564,97 +506,6 @@ fn identity_hash(value: &str) -> u64 {
         hash = hash.wrapping_mul(0x100000001b3);
     }
     hash
-}
-
-fn probe_command(
-    options: &UnitCompileOptions,
-    mode: &str,
-    probe: &Probe,
-    interval: Option<&str>,
-) -> Result<String> {
-    let binary = options
-        .probe_binary
-        .clone()
-        .map(Ok)
-        .unwrap_or_else(std::env::current_exe)
-        .context("resolving the cix binary for a native health probe")?;
-    if !binary.is_absolute() {
-        bail!("cix probe binary {} is not absolute", binary.display());
-    }
-    let probe_type = match probe.probe_type {
-        ProbeType::Http => "http",
-        ProbeType::Tcp => "tcp",
-        ProbeType::Notify => bail!("notify probes do not use the cix probe adapter"),
-    };
-    let target = probe.target.as_deref().expect("validated adapter target");
-    let mut command = vec![
-        binary.to_string_lossy().into_owned(),
-        "probe".into(),
-        mode.into(),
-        probe_type.into(),
-        target.into(),
-    ];
-    if let Some(interval) = interval {
-        command.extend(["--every".into(), interval.into()]);
-    }
-    Ok(exec_command(&command))
-}
-
-fn add_device_policy(properties: &mut Vec<(String, String)>, service: &Service) -> Result<()> {
-    if !service.has_device_claim() {
-        properties.push(("PrivateDevices".into(), "yes".into()));
-        return Ok(());
-    }
-
-    properties.push(("DevicePolicy".into(), "closed".into()));
-    let mut groups = BTreeSet::new();
-    if service.has_claim("gpu") {
-        properties.push(("DeviceAllow".into(), "/dev/dri rwm".into()));
-        groups.extend(["render".to_owned(), "video".to_owned()]);
-    }
-    for device in service.device_claims() {
-        properties.push(("DeviceAllow".into(), format!("{} rwm", device.display())));
-        if let Some(group) = device_group(device)? {
-            groups.insert(group);
-        }
-    }
-    if !groups.is_empty() {
-        properties.push((
-            "SupplementaryGroups".into(),
-            groups.into_iter().collect::<Vec<_>>().join(" "),
-        ));
-    }
-    Ok(())
-}
-
-fn device_group(device: &Path) -> Result<Option<String>> {
-    let metadata = match std::fs::metadata(device) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            eprintln!(
-                "warning: claimed device {} is absent while generating the unit; no owning group was added and activation will fail until the hardware is present",
-                device.display()
-            );
-            return Ok(None);
-        }
-        Err(error) => {
-            return Err(error)
-                .with_context(|| format!("statting claimed device {}", device.display()))
-        }
-    };
-    let group = unsafe { libc::getgrgid(metadata.gid()) };
-    if group.is_null() {
-        eprintln!(
-            "warning: claimed device {} has gid {} with no resolvable group; no supplementary group was added",
-            device.display(),
-            metadata.gid()
-        );
-        return Ok(None);
-    }
-    let name = unsafe { CStr::from_ptr((*group).gr_name) }
-        .to_str()
-        .context("claimed device group name is not valid UTF-8")?;
-    Ok((!name.is_empty()).then(|| name.to_owned()))
 }
 
 fn apply_host_capabilities(
@@ -920,124 +771,6 @@ fn clean_executable(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn add_directories(
-    properties: &mut Vec<(String, String)>,
-    managed_base: &str,
-    dirs: &Dirs,
-    user: bool,
-    bind: bool,
-) {
-    let mut additional_mount_points = BTreeSet::new();
-    for (role, paths, directive, mode_directive, system_root, user_root) in [
-        (
-            "state",
-            dirs.state.as_slice(),
-            "StateDirectory",
-            "StateDirectoryMode",
-            "/var/lib",
-            "%S",
-        ),
-        (
-            "cache",
-            dirs.cache.as_slice(),
-            "CacheDirectory",
-            "CacheDirectoryMode",
-            "/var/cache",
-            "%C",
-        ),
-        (
-            "logs",
-            dirs.logs.as_slice(),
-            "LogsDirectory",
-            "LogsDirectoryMode",
-            "/var/log",
-            "%L",
-        ),
-        (
-            "config",
-            dirs.config.as_slice(),
-            "ConfigurationDirectory",
-            "ConfigurationDirectoryMode",
-            "/etc",
-            "%E",
-        ),
-        (
-            "run",
-            dirs.run.as_deref().unwrap_or_default(),
-            "RuntimeDirectory",
-            "RuntimeDirectoryMode",
-            "/run",
-            "%t",
-        ),
-    ] {
-        if paths.is_empty() {
-            continue;
-        }
-        let mut directory_values = Vec::with_capacity(paths.len() + 1);
-        let mut bind_values = Vec::new();
-        // The managed root is an ownership anchor. Its id-mapped view must
-        // exist before the explicit per-path binds project its subpaths.
-        if bind && !user && role != "config" && role != "run" {
-            directory_values.push(managed_base.to_owned());
-        }
-        for destination in paths {
-            let mirror = destination
-                .strip_prefix("/")
-                .expect("validated absolute directory path")
-                .to_string_lossy()
-                .replace('%', "%%");
-            let source = format!("{managed_base}/{mirror}");
-            directory_values.push(source.clone());
-            if bind {
-                let root = if user { user_root } else { system_root };
-                bind_values.push(format!(
-                    "{root}/{source}:{}",
-                    destination.to_string_lossy().replace('%', "%%")
-                ));
-            }
-            if bind && !user && !destination.starts_with(system_root) {
-                if let Some(top_component) = destination.components().nth(1) {
-                    additional_mount_points.insert(format!(
-                        "/{}:ro",
-                        top_component.as_os_str().to_string_lossy()
-                    ));
-                }
-            }
-        }
-        if bind && !user && role != "run" {
-            properties.push(("TemporaryFileSystem".into(), format!("{system_root}:ro")));
-        }
-        properties.push((directive.into(), directory_values.join(" ")));
-        properties.push((mode_directive.into(), "0700".into()));
-        for value in bind_values {
-            properties.push(("BindPaths".into(), value));
-        }
-    }
-    for mount_point in additional_mount_points {
-        properties.push(("TemporaryFileSystem".into(), mount_point));
-    }
-}
-
-fn add_directory_environment(environment: &mut Vec<(String, String)>, dirs: &Dirs) {
-    for (name, paths) in [
-        ("STATE_DIRECTORY", dirs.state.as_slice()),
-        ("CACHE_DIRECTORY", dirs.cache.as_slice()),
-        ("LOGS_DIRECTORY", dirs.logs.as_slice()),
-        ("RUNTIME_DIRECTORY", dirs.run.as_deref().unwrap_or_default()),
-    ] {
-        if !paths.is_empty() {
-            environment.push((
-                name.into(),
-                paths
-                    .iter()
-                    .map(|path| path.to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join(":"),
-            ));
-        }
-    }
-}
-
 fn render(
     service_name: &str,
     argv: &[String],
@@ -1085,7 +818,7 @@ fn render(
     output
 }
 
-fn exec_command(argv: &[String]) -> String {
+pub(crate) fn exec_command(argv: &[String]) -> String {
     argv.iter()
         .map(|value| quote_exec_word(value))
         .collect::<Vec<_>>()
