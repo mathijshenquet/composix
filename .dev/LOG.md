@@ -18,12 +18,17 @@ merge --no-ff to main with the house message style → gitsitter auto-pushes
   compose strata pass (terra; …)", CI watch, `herdr workspace close w24`,
   add CIP-89 changelog line "leg 2 landed".
 - **IN FLIGHT 2 — track/fetchself** (CIP-87 self-observation rule,
-  terra, still WORKING in herdr pane w23:p1, agent name `fetchself`).
-  Wait: `herdr wait agent-status w23:p1 --status done` (+ a blocked
-  watch). On done: read the pane tail + LOG, commit journal, then the
-  standing cycle. Acceptance per spec `.dev/specs/track-fetchself.md`:
-  four conditions verbatim, two-prime workaround removed, cold control
-  green, warm bench ≈8.3s held, a/b same-memo-scope regression test.
+  terra, pane w23:p1): implementation DONE (`5b539d2` — rule, a/b
+  adversarial coverage, cold control green, two-prime removed) but the
+  reported 14.46s warm bench vs the 8.31s CIP receipt is possibly an
+  unlike comparison (single-prime first-warm vs two-prime steady
+  state). A STEADY-STATE measurement round is running (second/third
+  consecutive edit). If ≈8.3s: no regression, docs report first-warm
+  and steady-warm separately, then the standing cycle (journal, main
+  merge, full gate, merge, CI, close w23, CIP-89/87 changelog lines).
+  If materially above: STOP — the number is a CIP criterion; hold the
+  merge for Mathijs unless the attribution shows a trivially fixable
+  self-inflicted cost (the revert must not run on a hit).
 - **AFTER BOTH LAND (Mathijs's standing request)**: nix GC + roots
   audit — FIRST `nix-store --gc --print-roots | grep -v ^/proc`,
   classify (home-manager generations, devenv/direnv per-worktree roots
