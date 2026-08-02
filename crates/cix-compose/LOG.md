@@ -1,5 +1,58 @@
 # compose track log
 
+- 2026-08-02 UTC — Committed the complete CIP-85 leg-1 implementation as `a21c46a`
+  (`Implement CIP-85 compose trees`). The required compose journal is intentionally the sole
+  remaining worktree change. No full-matrix claim is made: that gate belongs to the orchestrator.
+
+- 2026-08-02 UTC — Final agent-side gate is green. Exact receipts: `devenv shell -- bash -c
+  'cargo fmt --all --check && cargo run -- fmt --check examples && cargo clippy --workspace
+  --all-targets -- -D warnings'`; `devenv shell -- cargo test --workspace`; explicit tour and
+  corpus regeneration each followed by zero unstaged generated-page drift; and one synchronous
+  `devenv shell -- nix build .#checks.x86_64-linux.scenario-tree
+  .#checks.x86_64-linux.scenario-lifecycle .#checks.x86_64-linux.scenario-side-by-side --no-link
+  -L` completed all three focused VMs successfully. The staged implementation is ready to commit;
+  this journal remains intentionally unstaged. Per the current track policy, the full flake matrix
+  is reserved for the orchestrator's independent pre-merge gate.
+
+- 2026-08-02 UTC — Completed the live-format migration and documentation pass. All compose
+  examples, focused scenarios, the Cixfile watch seam, corpus fixture/browser, and executable tour
+  now use `cixCompose`/`children` and path-keyed locks. The CIP-85 changelog and design,
+  Docker-compatibility, and corpus ledgers distinguish the built tree/host-root features from
+  deferred networking, publish climbing, replicas, and D46 expansion. Regeneration exposed and I
+  fixed one stale tour lock writer plus an observability test that had treated nested member paths
+  as invalid; focused compose tests and tour generation now pass. Concrete deployment validation
+  also refuses `$tag` with the D46 publish-time boundary. Next: inspect/stage generated outputs,
+  run workspace formatting/clippy/tests and drift checks, then lifecycle/side-by-side/tree VMs.
+
+- 2026-08-02 UTC — The new focused `scenario-tree` is green synchronously via
+  `devenv shell -- nix build .#checks.x86_64-linux.scenario-tree --no-link -L`. It brings up
+  an inline group plus a tagged compose-artifact group, proves nested slice cgroups and exact
+  path-derived units, two instances of one tag with distinct state roots/content, all four
+  path-lock entries, and a targeted `--update-lock inline/one` that changes/restarts only that
+  instance while its sibling and the referenced subtree retain timestamps. `cix root add/remove`
+  also round-trips in the VM and down leaves no units. Rust workspace testing reached only the
+  expected generated corpus-page drift from the migrated renovate compose fixture. Next:
+  regenerate corpus/tour docs, update the design/CIP/Docker/corpus ledgers, then run focused
+  lifecycle/side-by-side and the complete agent gate.
+
+- 2026-08-02 UTC — Implemented the core tree model and compile-time flattening. New documents use
+  authoritative `cixCompose: 1`; old `composeVersion`/`services` input is refused with a direct
+  `children` migration, refs require `name:tag`, and `network`/`publish` are loud leg-boundary
+  refusals. Inline and tagged compose groups recurse through one root-owned path lock, with
+  subtree update selection, local edge validation, path-scoped shared surfaces, flattened leaf
+  services, nested slices, and path-derived units/directories. Added `cix root add/remove` atomic
+  structured edits and adapted watch's root-item integration. Production `cargo check -p cix`
+  passes. Next: convert and strengthen the unit tests/schema/fixtures, then build the real tree VM
+  scenario before docs and broad gates.
+
+- 2026-08-02 UTC — Started `track/tree1` (CIP-85 leg 1). Read the track spec, session
+  journal, design registry, and existing compose journal; confirmed the branch is clean and
+  direnv is active. Scope is the v2 group-node tree without networking: strict `children` refs
+  and inline groups, path identity/slices/surfaces, one root lock keyed by path (including nested
+  compose refs), mutable `cix root` files, focused VM coverage, ledgers, gates, and a commit. Next:
+  read CIP-85 and the relevant D41–D46/D72 records integrally, then map the existing compose and
+  CLI seams before implementation.
+
 - 2026-08-01 UTC — Final gate green. Exact workspace receipt: `devenv shell -- bash -c
   'cargo fmt --all --check && cargo run -- fmt --check examples && cargo clippy --workspace
   --all-targets -- -D warnings && cargo test --workspace'`; tour regeneration plus
