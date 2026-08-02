@@ -80,10 +80,10 @@ is the design-era archive. Each runnable pack has a `demo.sh`; a NixOS VM check
   composix does instead (adopted / adapted / rejected / deferred) plus what is honestly still
   missing.
 - [cixfile.md](docs/cixfile.md) — the Cixfile, and where it is honestly not a Dockerfile.
-- [cixfile-build.md](docs/cixfile-build.md) — the superseded engine-specific build design
-  study retained as decision context for D39.
-- [compose-formats.md](docs/compose-formats.md) — how the compose-language question was
-  explored and then dissolved: canonical `compose.json`, authoring as code.
+- [docs/cips/](docs/cips/) — Composix Improvement Proposals: adopted design rounds
+  (numbered, continuing the D-sequence) and parked/superseded drafts, including the
+  compose tree (CIP-85), the netns realization plan (CIP-86), and the compose
+  surface-language archive (draft, parked per D28).
 
 ## Development
 

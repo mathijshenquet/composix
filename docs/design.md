@@ -416,7 +416,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   config is program output, not a document). The k8s lesson re-read: machine-format manifests
   were right, leaving generation to text templating (Helm) was the mistake — we bless
   generation-as-code from day one and the data format never grows a template feature.
-  `docs/compose-formats.md` stands as the encoding archive: TOML (its recommendation) and the
+  `docs/cips/draft/compose-syntax.md` stands as the encoding archive: TOML (its recommendation) and the
   Cixfile-DSL become *candidate sugar encodings*, evidence-gated on people actually
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
@@ -718,7 +718,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   fully disjoint. The **host root is the same format in a mutable file** (+ lock), and
   day-two CLI verbs are structured edits of that file (the D28 machine-format payoff);
   only the root must live on the host, every subtree may be a ref. Full story:
-  docs/compose-tree.md.
+  CIP-85 (docs/cips/0085-compose-tree.md; consolidates D40–D46).
 - ✅ D43 (2026-07-30) — **pod-ness is a scoped property, not a stratum.** `network: "pod"`
   on any composite claims one netns for its subtree; **nearest-pod-ancestor** decides
   each service's namespace (pod-in-pod legal; embedding never strips a sealed artifact's
@@ -728,7 +728,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   host networking (rawdog = absence of a property; the `network: host` escape flag
   dies). Per-service **`egress: true`** (final spelling per D48(b); D20-side app
   semantics) declares outward initiation; absence = loopback-only view, zero network
-  machinery for pure composites. Amends D23's fixed boundary; compose-netns.md remains
+  machinery for pure composites. Amends D23's fixed boundary; CIP-86 remains
   the realization paper.
 - ✅ D44 (2026-07-30) — **ref/lock semantics unified on every floor** (Mathijs: pinning
   was always a root-level affair). Refs are always `name:tag` — no bare names, no
@@ -841,7 +841,8 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   serving on hook failure), is deferred until the native shape proves insufficient.
 
 - ✅ D49 (2026-07-30) — **netns-round resolutions** (Mathijs's read of
-  docs/compose-netns.md; closes that paper's open decisions):
+  the netns paper, now CIP-86 at docs/cips/0086-netns.md; closes that
+  paper's open decisions):
   (a) **Egress is a leaf/manifest property with a compose-level per-child override**
   (`egress: true|false`), because capability need is app knowledge but *usage* is
   instance knowledge (the same app does or does not egress depending on how you
