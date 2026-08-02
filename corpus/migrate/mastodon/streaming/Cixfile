@@ -1,0 +1,13 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE streaming
+  COPY ${src}/nginx.conf /etc/nginx/nginx.conf
+  COPY ${src}/verify-dependencies.sh /opt/mastodon/verify-dependencies.sh
+  START_PRE ${pkgs.bash}/bin/sh /opt/mastodon/verify-dependencies.sh ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+  SECRET db-password
+  PORT streaming = 34000
+  CACHEDIR /var/cache/nginx
+  RUNDIR /run/nginx
+  READINESS http :34000/api/v1/streaming/health IN 30s

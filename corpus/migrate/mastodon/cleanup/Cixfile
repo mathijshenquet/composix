@@ -1,0 +1,7 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+APP cleanup
+  COPY ${src}/cleanup.sh /opt/mastodon/cleanup.sh
+  START ${pkgs.bash}/bin/sh /opt/mastodon/cleanup.sh ${pkgs.postgresql}/bin/psql
+  SECRET db-password

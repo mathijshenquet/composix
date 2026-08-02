@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mastodon — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / mastodon</nav>
+  <h1>mastodon</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 executable six-member stack proves shared-rw, structural readiness, native liveness, a DB credential, Unix edges, maintenance timer, and selected logs; D26/D27 segmentation remains an explicit loss · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> internal: true no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>upstream-compose.yml</h3>
+        <pre><code><span class="tok-comment"># This file is designed for production server deployment, not local development work</span>
+<span class="tok-comment"># For a containerized local dev environment, see: https://github.com/mastodon/mastodon/blob/main/docs/DEVELOPMENT.md#docker</span>
+
+<span class="tok-key">services</span>:
+  <span class="tok-key">db</span>:
+    <span class="tok-key">restart</span>: always
+    <span class="tok-key">image</span>: postgres:<span class="tok-number">14-</span>alpine
+    <span class="tok-key">shm_size</span>: <span class="tok-number">256</span>mb
+    <span class="tok-key">networks</span>:
+      - internal_network
+    <span class="tok-key">healthcheck</span>:
+      <span class="tok-key">test</span>: [<span class="tok-string">&#39;CMD&#39;</span>, <span class="tok-string">&#39;pg_isready&#39;</span>, <span class="tok-string">&#39;-U&#39;</span>, <span class="tok-string">&#39;postgres&#39;</span>]
+    <span class="tok-key">volumes</span>:
+      - <span class="tok-key">./postgres14</span>:/var/lib/postgresql/data
+    <span class="tok-key">environment</span>:
+      - <span class="tok-string">&#39;POSTGRES_HOST_AUTH_METHOD=trust&#39;</span>
+
+  <span class="tok-key">redis</span>:
+    <span class="tok-key">restart</span>: always
+    <span class="tok-key">image</span>: redis:<span class="tok-number">7-</span>alpine
+    <span class="tok-key">networks</span>:
+      - internal_network
+    <span class="tok-key">healthcheck</span>:
+      <span class="tok-key">test</span>: [<span class="tok-string">&#39;CMD&#39;</span>, <span class="tok-string">&#39;redis-cli&#39;</span>, <span class="tok-string">&#39;ping&#39;</span>]
+    <span class="tok-key">volumes</span>:
+      - <span class="tok-key">./redis</span>:/data
+
+  <span class="tok-comment"># es:</span>
+  <span class="tok-comment">#   restart: always</span>
+  <span class="tok-comment">#   image: docker.elastic.co/elasticsearch/elasticsearch:8.19.15</span>
+  <span class="tok-comment">#   environment:</span>
+  <span class="tok-comment">#     - &quot;ELASTIC_PASSWORD=password&quot;  #Username is elastic. Do not change the username.</span>
+  <span class="tok-comment">#     - &quot;ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.enforce.bootstrap.checks=true&quot;</span>
+  <span class="tok-comment">#     - &quot;xpack.license.self_generated.type=basic&quot;</span>
+  <span class="tok-comment">#     - &quot;xpack.security.enabled=false&quot;</span>
+  <span class="tok-comment">#     - &quot;xpack.watcher.enabled=false&quot;</span>
+  <span class="tok-comment">#     - &quot;xpack.graph.enabled=false&quot;</span>
+  <span class="tok-comment">#     - &quot;xpack.ml.enabled=false&quot;</span>
+  <span class="tok-comment">#     - &quot;bootstrap.memory_lock=true&quot;</span>
+  <span class="tok-comment">#     - &quot;cluster.name=es-mastodon&quot;</span>
+  <span class="tok-comment">#     - &quot;discovery.type=single-node&quot;</span>
+  <span class="tok-comment">#     - &quot;thread_pool.write.queue_size=1000&quot;</span>
+  <span class="tok-comment">#   networks:</span>
+  <span class="tok-comment">#      - external_network</span>
+  <span class="tok-comment">#      - internal_network</span>
+  <span class="tok-comment">#   healthcheck:</span>
+  <span class="tok-comment">#      test: [&quot;CMD-SHELL&quot;, &quot;curl --silent --fail localhost:9200/_cluster/health || exit 1&quot;]</span>
+  <span class="tok-comment">#   volumes:</span>
+  <span class="tok-comment">#      - ./elasticsearch:/usr/share/elasticsearch/data</span>
+  <span class="tok-comment">#   ulimits:</span>
+  <span class="tok-comment">#     memlock:</span>
+  <span class="tok-comment">#       soft: -1</span>
+  <span class="tok-comment">#       hard: -1</span>
+  <span class="tok-comment">#     nofile:</span>
+  <span class="tok-comment">#       soft: 65536</span>
+  <span class="tok-comment">#       hard: 65536</span>
+  <span class="tok-comment">#   ports:</span>
+  <span class="tok-comment">#     - &#39;127.0.0.1:9200:9200&#39;</span>
+
+  <span class="tok-key">web</span>:
+    <span class="tok-comment"># You can uncomment the following line if you want to not use the prebuilt image, for example if you have local code changes</span>
+    <span class="tok-comment"># build: .</span>
+    <span class="tok-key">image</span>: ghcr.io/mastodon/mastodon:v4.<span class="tok-number">6.4</span>
+    <span class="tok-key">restart</span>: always
+    <span class="tok-key">env_file</span>: .env.production
+    <span class="tok-key">command</span>: bundle exec puma <span class="tok-number">-</span>C config/puma.rb
+    <span class="tok-key">networks</span>:
+      - external_network
+      - internal_network
+    <span class="tok-key">healthcheck</span>:
+      <span class="tok-comment"># prettier-ignore</span>
+      <span class="tok-key">test</span>: [<span class="tok-string">&#39;CMD-SHELL&#39;</span>,<span class="tok-string">&quot;curl -s --noproxy localhost localhost:3000/health | grep -q &#39;OK&#39; || exit 1&quot;</span>]
+    <span class="tok-key">ports</span>:
+      - <span class="tok-string">&#39;127.0.0.1:3000:3000&#39;</span>
+    <span class="tok-key">depends_on</span>:
+      - db
+      - redis
+      <span class="tok-comment"># - es</span>
+    <span class="tok-key">volumes</span>:
+      - <span class="tok-key">./public/system</span>:/mastodon/public/system
+
+  <span class="tok-key">streaming</span>:
+    <span class="tok-comment"># You can uncomment the following lines if you want to not use the prebuilt image, for example if you have local code changes</span>
+    <span class="tok-comment"># build:</span>
+    <span class="tok-comment">#   dockerfile: ./streaming/Dockerfile</span>
+    <span class="tok-comment">#   context: .</span>
+    <span class="tok-key">image</span>: ghcr.io/mastodon/mastodon-streaming:v4.<span class="tok-number">6.4</span>
+    <span class="tok-key">restart</span>: always
+    <span class="tok-key">env_file</span>: .env.production
+    <span class="tok-key">command</span>: node ./streaming/index.js
+    <span class="tok-key">networks</span>:
+      - external_network
+      - internal_network
+    <span class="tok-key">healthcheck</span>:
+      <span class="tok-comment"># prettier-ignore</span>
+      <span class="tok-key">test</span>: [<span class="tok-string">&#39;CMD-SHELL&#39;</span>, <span class="tok-string">&quot;curl -s --noproxy localhost localhost:4000/api/v1/streaming/health | grep -q &#39;OK&#39; || exit 1&quot;</span>]
+    <span class="tok-key">ports</span>:
+      - <span class="tok-string">&#39;127.0.0.1:4000:4000&#39;</span>
+    <span class="tok-key">depends_on</span>:
+      - db
+      - redis
+
+  <span class="tok-key">sidekiq</span>:
+    <span class="tok-comment"># You can uncomment the following line if you want to not use the prebuilt image, for example if you have local code changes</span>
+    <span class="tok-comment"># build: .</span>
+    <span class="tok-key">image</span>: ghcr.io/mastodon/mastodon:v4.<span class="tok-number">6.4</span>
+    <span class="tok-key">restart</span>: always
+    <span class="tok-key">env_file</span>: .env.production
+    <span class="tok-key">command</span>: bundle exec sidekiq
+    <span class="tok-key">depends_on</span>:
+      - db
+      - redis
+    <span class="tok-key">networks</span>:
+      - external_network
+      - internal_network
+    <span class="tok-key">volumes</span>:
+      - <span class="tok-key">./public/system</span>:/mastodon/public/system
+    <span class="tok-key">healthcheck</span>:
+      <span class="tok-key">test</span>: [<span class="tok-string">&#39;CMD-SHELL&#39;</span>, <span class="tok-string">&quot;ps aux | grep &#39;[s]idekiq\ 8&#39; || false&quot;</span>]
+
+  <span class="tok-comment">## Uncomment to enable federation with tor instances along with adding the following ENV variables</span>
+  <span class="tok-comment">## http_hidden_proxy=http://privoxy:8118</span>
+  <span class="tok-comment">## ALLOW_ACCESS_TO_HIDDEN_SERVICE=true</span>
+  <span class="tok-comment"># tor:</span>
+  <span class="tok-comment">#   image: sirboops/tor</span>
+  <span class="tok-comment">#   networks:</span>
+  <span class="tok-comment">#      - external_network</span>
+  <span class="tok-comment">#      - internal_network</span>
+  <span class="tok-comment">#</span>
+  <span class="tok-comment"># privoxy:</span>
+  <span class="tok-comment">#   image: sirboops/privoxy</span>
+  <span class="tok-comment">#   volumes:</span>
+  <span class="tok-comment">#     - ./priv-config:/opt/config</span>
+  <span class="tok-comment">#   networks:</span>
+  <span class="tok-comment">#     - external_network</span>
+  <span class="tok-comment">#     - internal_network</span>
+
+<span class="tok-key">networks</span>:
+  <span class="tok-key">external_network</span>:
+  <span class="tok-key">internal_network</span>:
+    <span class="tok-key">internal</span>: <span class="tok-literal">true</span>
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>compose.json</h3>
+        <pre><code>{
+  <span class="tok-key">&quot;cixCompose&quot;</span>: <span class="tok-number">1</span>,
+  <span class="tok-key">&quot;name&quot;</span>: <span class="tok-string">&quot;corpus-mastodon&quot;</span>,
+  <span class="tok-key">&quot;children&quot;</span>: {
+    <span class="tok-key">&quot;postgres&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-postgres:checked&quot;</span>
+    },
+    <span class="tok-key">&quot;redis&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-redis:checked&quot;</span>
+    },
+    <span class="tok-key">&quot;web&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-web:checked&quot;</span>,
+      <span class="tok-key">&quot;dirs&quot;</span>: {
+        <span class="tok-key">&quot;/mastodon/public/system&quot;</span>: {
+          <span class="tok-key">&quot;shared&quot;</span>: <span class="tok-string">&quot;public-system&quot;</span>
+        }
+      }
+    },
+    <span class="tok-key">&quot;sidekiq&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-sidekiq:checked&quot;</span>,
+      <span class="tok-key">&quot;dirs&quot;</span>: {
+        <span class="tok-key">&quot;/mastodon/public/system&quot;</span>: {
+          <span class="tok-key">&quot;shared&quot;</span>: <span class="tok-string">&quot;public-system&quot;</span>
+        }
+      }
+    },
+    <span class="tok-key">&quot;streaming&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-streaming:checked&quot;</span>
+    },
+    <span class="tok-key">&quot;cleanup&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;corpus-mastodon-cleanup:checked&quot;</span>,
+      <span class="tok-key">&quot;schedule&quot;</span>: <span class="tok-string">&quot;*-*-* *:*:00/5&quot;</span>,
+      <span class="tok-key">&quot;persistent&quot;</span>: <span class="tok-literal">true</span>
+    }
+  },
+  <span class="tok-key">&quot;edges&quot;</span>: {
+    <span class="tok-key">&quot;database&quot;</span>: {
+      <span class="tok-key">&quot;producer&quot;</span>: {
+        <span class="tok-key">&quot;child&quot;</span>: <span class="tok-string">&quot;postgres&quot;</span>,
+        <span class="tok-key">&quot;path&quot;</span>: <span class="tok-string">&quot;/run/postgresql&quot;</span>
+      },
+      <span class="tok-key">&quot;consumers&quot;</span>: {
+        <span class="tok-key">&quot;web&quot;</span>: {},
+        <span class="tok-key">&quot;sidekiq&quot;</span>: {},
+        <span class="tok-key">&quot;streaming&quot;</span>: {},
+        <span class="tok-key">&quot;cleanup&quot;</span>: {}
+      }
+    },
+    <span class="tok-key">&quot;redis&quot;</span>: {
+      <span class="tok-key">&quot;producer&quot;</span>: {
+        <span class="tok-key">&quot;child&quot;</span>: <span class="tok-string">&quot;redis&quot;</span>,
+        <span class="tok-key">&quot;path&quot;</span>: <span class="tok-string">&quot;/run/redis&quot;</span>
+      },
+      <span class="tok-key">&quot;consumers&quot;</span>: {
+        <span class="tok-key">&quot;web&quot;</span>: {},
+        <span class="tok-key">&quot;sidekiq&quot;</span>: {},
+        <span class="tok-key">&quot;streaming&quot;</span>: {}
+      }
+    }
+  },
+  <span class="tok-key">&quot;secrets&quot;</span>: {
+    <span class="tok-key">&quot;db-password&quot;</span>: {
+      <span class="tok-key">&quot;file&quot;</span>: <span class="tok-string">&quot;${MASTODON_DB_PASSWORD_FILE}&quot;</span>
+    }
+  }
+}
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/mastodon</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

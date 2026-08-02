@@ -81,8 +81,8 @@ claim that sealed root broke them.
 | 6 | [Umami](https://raw.githubusercontent.com/umami-software/umami/master/docker-compose.yml) | healthcheck-gated startup, init: | 🔁 HTTP/TCP `READINESS`/`LIVENESS` and structural readiness ordering are built; the separate condition graph is deliberately ❌; init ceremony dissolves under systemd | S | desk |
 | 7 | [Immich](https://raw.githubusercontent.com/immich-app/immich/main/docker/docker-compose.yml) | env-interpolated bind paths, image healthchecks, shm_size, GPU overlays | 🔶 own-directory `.env`, static-identity `host:`, probes, and `SHM` are built; `CLAIM gpu` still proves unit properties only—not Immich/NVIDIA integration | M | desk |
 | 8 | [Paperless-ngx](https://raw.githubusercontent.com/paperless-ngx/paperless-ngx/main/docker/compose/docker-compose.postgres.yml) | consume watch-dir (host-shared rw bind), variant compose files | 🔶 `DIR /consume` plus static-identity read-write `host:` materialization cover the watch-dir; tagged/inline subtrees are built, while computed D46 variants remain publish-time work | M | desk |
-| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 hermetic `shared:` covers the rw surface; `CLAIM egress` and readiness/liveness are built, but the health DAG and D26/D27 segmentation remain | M | desk |
-| 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | 🔶 anchors are moot (JSON canonical, D28) and `shared:` now covers the asset surface; full migration remains a desk claim | M | desk |
+| 9 | [Mastodon](https://raw.githubusercontent.com/mastodon/mastodon/main/docker-compose.yml) | `internal: true` no-egress net; rw dir **shared between web+sidekiq**; 127.0.0.1 binds; 5-svc health DAG | 🔶 executable six-member stack proves shared-rw, structural readiness, native liveness, a DB credential, Unix edges, maintenance timer, and selected logs; D26/D27 segmentation remains an explicit loss | M | [receipt](../corpus/migrate/mastodon/receipt.md) |
+| 10 | [Penpot](https://raw.githubusercontent.com/penpot/penpot/main/docker/images/docker-compose.yaml) | YAML anchors (preprocessing), shared-rw assets volume | 🔶 anchors are moot (JSON canonical, D28); the shared-rw mechanism is now empirically closed by the Mastodon stack, while a Penpot application migration remains unrun | M | [shared-rw receipt](../corpus/migrate/mastodon/receipt.md) |
 | 11 | [Plausible CE](https://raw.githubusercontent.com/plausible/community-edition/master/compose.yml) | ulimits, migrate-then-run chains | 🔶 `START_PRE` maps the setup chain; `LimitNOFILE` is native systemd operator policy but has no compose field | S | desk |
 | 12 | [Authentik](https://goauthentik.io/docker-compose.yml) | normal stack + worker mounting **docker.sock** to manage outposts | stack ✅; socket-worker ❌ (imperatively orchestrates siblings — competing model; our answer is cix's own surface) | M | desk |
 | 13 | [Pi-hole](https://raw.githubusercontent.com/pi-hole/docker-pi-hole/master/README.md) | cap NET_ADMIN/SYS_TIME/SYS_NICE, port 53, DHCP/NTP | 🔶 port declaration works, but those raw capabilities and host mutations require explicit operator policy; no native semantic claim yet | M | desk |
@@ -97,8 +97,8 @@ healthchecks 10 + condition-gated depends_on 6, .env/interpolation ~6, named net
 (multi-net 2, internal:true 1), shm_size 5, docker.sock 3, privileged 2, compose
 `secrets:` **0**, `deploy/replicas` **0**. The wild ignores the features docker-compose
 has on paper (secrets, replicas — validating D30's deferrals) and leans hard on the ones
-whose design now has implementation behind it (CIP-79 health), plus the still-unfinished
-CIP-82 operator materialization.
+whose design now has implementation behind it (CIP-79 health and CIP-82 directory
+materialization), including the multi-member Mastodon receipt below.
 
 ## 2. Kubernetes shapes in the wild (15)
 
@@ -165,7 +165,7 @@ corpus rows still lack the implementation.
 |---:|---|---|---|
 | 1 | Health wiring | **Met ([CIP-79](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0079-health.md))** | Compose 6, 7, 9, 14; Kubernetes 2, 10 — the health VM scenario proves rollout gating, structural readiness ordering, and watchdog restart/recovery |
 | 2 | Operator host-binds | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 2, 7, 8, 14; dirs2 VM proves static-identity pre-existing host data survives purge |
-| 3 | Shared-rw directories | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 9, 10; dirs2 VM proves setgid group sharing |
+| 3 | Shared-rw directories | **Met ([CIP-82](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0082-dirs.md))** | Compose 9, 10; dirs2 VM proves setgid group sharing and the [Mastodon receipt](../corpus/migrate/mastodon/receipt.md) proves two application members write one surface |
 | 4 | Timers / CronJob | **Met ([CIP-75](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0075-timers.md))** | Kubernetes 11; [Renovate receipt](../corpus/migrate/renovate/receipt.md) |
 | 5 | Operational logs | **Met ([CIP-83](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0083-observability.md))** | Dockerfile 3; Kubernetes 11 |
 | 6 | Artifact dev loop | **Met; source sync refused ([CIP-76](https://github.com/mathijshenquet/composix/blob/main/cips/accepted/0076-devloop.md))** | Compose 3 |
@@ -184,9 +184,11 @@ webroots are other control planes or filesystem models, not missing emulation.
 
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
-- **Mastodon-shaped stack** remains the top integration candidate after CIP-79/82:
-  readiness is now built, so it would validate queued `shared:` materialization plus
-  network segmentation instead of forcing an unsettled health design.
+- **Mastodon-shaped stack** is adopted into the executable corpus: its
+  [receipt](../corpus/migrate/mastodon/receipt.md) composes shared state, readiness,
+  liveness, secrets, Unix edges, a timer, and selected logs. D26/D27 network
+  segmentation remains explicitly unclaimed, so a future netns rerun strengthens the
+  same case rather than inventing another example.
 - **Paperless-shaped ingest** is the smallest clean CIP-82 leg-2 gate: one writable
   operator watch-dir, one private state dir, and an observable import result.
 - **Immich-shaped** is deferred to the in-flight CIP-78 devices track; it remains the
