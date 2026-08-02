@@ -12,8 +12,8 @@ use cix_run::{
 };
 
 use crate::model::{
-    Compose, DirectoryMaterialization, DirectoryRole, Lock, LockedService, SecretSource,
-    UpdatePolicy,
+    Child, Compose, ComposeService, DirectoryMaterialization, DirectoryRole, Edge, Lock,
+    LockedService, SecretSource, UpdatePolicy,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -21,8 +21,8 @@ pub enum UpdateRequest {
     #[default]
     None,
     All,
-    Service(String),
-    Services(BTreeSet<String>),
+    Path(String),
+    Paths(BTreeSet<String>),
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +33,7 @@ pub struct CheckedService {
     pub config: ResolvedConfig,
     pub directories: Vec<DirectoryClaim>,
     pub secrets: BTreeMap<String, SecretSource>,
+    pub declaration: ComposeService,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,6 +58,9 @@ pub struct CheckResult {
     pub compose: Compose,
     pub lock: Lock,
     pub services: BTreeMap<String, CheckedService>,
+    pub edges: BTreeMap<String, Edge>,
+    /// Relative group paths. The empty path is the deployment root.
+    pub groups: BTreeSet<String>,
     pub warnings: Vec<String>,
 }
 
@@ -89,55 +93,28 @@ fn check_with_calendar(
     resolver: &dyn Fn(&str) -> Result<Output>,
     calendar_validator: &dyn Fn(&str) -> Result<()>,
 ) -> Result<CheckResult> {
-    match update {
-        UpdateRequest::Service(name) => validate_updated_service(compose, name)?,
-        UpdateRequest::Services(names) => {
-            for name in names {
-                validate_updated_service(compose, name)?;
-            }
-        }
-        UpdateRequest::None | UpdateRequest::All => {}
-    }
-    validate_edge_references(compose)?;
-    let lock = resolve_lock(compose, existing, update, resolver)?;
-    let mut services = BTreeMap::new();
-    let mut warnings = Vec::new();
-    for (name, declaration) in &compose.services {
-        let locked = &lock.services[name];
-        let store_path = PathBuf::from(&locked.store_path);
-        let spec = cix_run::spec::Spec::load(&store_path)
-            .with_context(|| format!("services.{name}.item: invalid item {}", declaration.item))?;
-        validate_schedule(name, declaration, spec.kind, calendar_validator)?;
-        let (item_service, service) = spec.select_service(None).with_context(|| {
-            format!("services.{name}.item: D41 requires the resolved item to contain one service")
-        })?;
-        reject_secret_env_delivery(name, declaration)?;
-        let secrets = resolve_secrets(name, service, &compose.secrets)?;
-        let env = declaration
-            .env
-            .iter()
-            .map(|(key, value)| format!("{key}={value}"))
-            .collect::<Vec<_>>();
-        let bindings = declaration
-            .bind
-            .iter()
-            .map(|(key, value)| format!("{key}={value}"))
-            .collect::<Vec<_>>();
-        let config = ResolvedConfig::resolve(service, &env, &bindings)
-            .with_context(|| format!("services.{name}"))?;
-        let directories = materialize_directories(name, declaration, service, &mut warnings)?;
-        services.insert(
-            name.clone(),
-            CheckedService {
-                store_path,
-                item_service: item_service.to_owned(),
-                spec: service.clone(),
-                config,
-                directories,
-                secrets,
-            },
-        );
-    }
+    let mut builder = TreeBuilder {
+        existing,
+        update,
+        resolver,
+        calendar_validator,
+        lock: Lock::default(),
+        services: BTreeMap::new(),
+        edges: BTreeMap::new(),
+        groups: BTreeSet::new(),
+        known_paths: BTreeSet::new(),
+        warnings: Vec::new(),
+    };
+    builder.walk_group("", &compose.children, &compose.edges, &compose.secrets, 0)?;
+    builder.validate_update_paths()?;
+    let TreeBuilder {
+        lock,
+        services,
+        edges,
+        groups,
+        mut warnings,
+        ..
+    } = builder;
     let declared_secrets = services
         .values()
         .flat_map(|service| service.spec.secrets.keys().cloned())
@@ -151,15 +128,253 @@ fn check_with_calendar(
             "secrets.{name}: supplied but no resolved service declares it; CIP-81 treats this as a LOUD loosening"
         ));
     }
-    validate_edges(compose, &services)?;
+    validate_edges(&edges, &services)?;
     validate_collisions(&services)?;
     validate_shared_directories(&services)?;
     Ok(CheckResult {
         compose: compose.clone(),
         lock,
         services,
+        edges,
+        groups,
         warnings,
     })
+}
+
+struct TreeBuilder<'a> {
+    existing: &'a Lock,
+    update: &'a UpdateRequest,
+    resolver: &'a dyn Fn(&str) -> Result<Output>,
+    calendar_validator: &'a dyn Fn(&str) -> Result<()>,
+    lock: Lock,
+    services: BTreeMap<String, CheckedService>,
+    edges: BTreeMap<String, Edge>,
+    groups: BTreeSet<String>,
+    known_paths: BTreeSet<String>,
+    warnings: Vec<String>,
+}
+
+impl TreeBuilder<'_> {
+    fn walk_group(
+        &mut self,
+        prefix: &str,
+        children: &BTreeMap<String, Child>,
+        edges: &BTreeMap<String, Edge>,
+        secrets: &BTreeMap<String, SecretSource>,
+        depth: usize,
+    ) -> Result<()> {
+        if depth > 64 {
+            bail!("children: compose nesting exceeds the maximum depth of 64");
+        }
+        self.groups.insert(prefix.to_owned());
+        if !prefix.is_empty() {
+            self.known_paths.insert(prefix.to_owned());
+        }
+        for (name, child) in children {
+            let path = join_path(prefix, name);
+            self.known_paths.insert(path.clone());
+            match child {
+                Child::Item(declaration) => self.resolve_item(&path, declaration, secrets)?,
+                Child::Compose(reference) => {
+                    let locked = self.resolve_reference(
+                        &path,
+                        &reference.compose,
+                        reference.update,
+                        "compose",
+                    )?;
+                    let artifact_path = Path::new(&locked.store_path).join("cix.json");
+                    let nested = Compose::load_artifact(&artifact_path).with_context(|| {
+                        format!(
+                            "children.{}.compose: resolved artifact {} must contain cix.json",
+                            path, reference.compose
+                        )
+                    })?;
+                    self.walk_group(
+                        &path,
+                        &nested.children,
+                        &nested.edges,
+                        &nested.secrets,
+                        depth + 1,
+                    )?;
+                }
+                Child::Group(group) => self.walk_group(
+                    &path,
+                    &group.children,
+                    &group.edges,
+                    &group.secrets,
+                    depth + 1,
+                )?,
+            }
+        }
+        self.flatten_edges(prefix, children, edges)
+    }
+
+    fn resolve_item(
+        &mut self,
+        path: &str,
+        declaration: &ComposeService,
+        secrets: &BTreeMap<String, SecretSource>,
+    ) -> Result<()> {
+        let locked = self.resolve_reference(path, &declaration.item, declaration.update, "item")?;
+        let store_path = PathBuf::from(&locked.store_path);
+        let spec = cix_run::spec::Spec::load(&store_path)
+            .with_context(|| format!("children.{path}.item: invalid item {}", declaration.item))?;
+        validate_schedule(path, declaration, spec.kind, self.calendar_validator)?;
+        let (item_service, service) = spec.select_service(None).with_context(|| {
+            format!("children.{path}.item: D41 requires the resolved item to contain one service")
+        })?;
+        reject_secret_env_delivery(path, declaration)?;
+        let resolved_secrets = resolve_secrets(path, service, secrets)?;
+        let env = declaration
+            .env
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>();
+        let bindings = declaration
+            .bind
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>();
+        let config = ResolvedConfig::resolve(service, &env, &bindings)
+            .with_context(|| format!("children.{path}"))?;
+        let mut directories =
+            materialize_directories(path, declaration, service, &mut self.warnings)?;
+        let group_path = path.rsplit_once('/').map(|(group, _)| group).unwrap_or("");
+        for claim in &mut directories {
+            if let DirectoryBacking::Shared { name } = &mut claim.backing {
+                *name = join_path(group_path, name);
+            }
+        }
+        self.services.insert(
+            path.to_owned(),
+            CheckedService {
+                store_path,
+                item_service: item_service.to_owned(),
+                spec: service.clone(),
+                config,
+                directories,
+                secrets: resolved_secrets,
+                declaration: declaration.clone(),
+            },
+        );
+        Ok(())
+    }
+
+    fn resolve_reference(
+        &mut self,
+        path: &str,
+        reference: &str,
+        policy: UpdatePolicy,
+        field: &str,
+    ) -> Result<LockedService> {
+        let explicitly_updated = update_contains(self.update, path);
+        let reusable = policy == UpdatePolicy::Pin
+            && !explicitly_updated
+            && self
+                .existing
+                .paths
+                .get(path)
+                .is_some_and(|locked| locked.reference == reference);
+        let locked = if reusable {
+            self.existing.paths[path].clone()
+        } else {
+            let output = (self.resolver)(reference)
+                .with_context(|| format!("children.{path}.{field}: resolving {reference}"))?;
+            LockedService {
+                reference: reference.to_owned(),
+                store_path: output.store_path,
+                nar_hash: output.nar_hash,
+            }
+        };
+        self.lock.paths.insert(path.to_owned(), locked.clone());
+        Ok(locked)
+    }
+
+    fn flatten_edges(
+        &mut self,
+        prefix: &str,
+        children: &BTreeMap<String, Child>,
+        edges: &BTreeMap<String, Edge>,
+    ) -> Result<()> {
+        for (edge_name, edge) in edges {
+            let producer =
+                flatten_endpoint(prefix, children, &edge.producer.child).with_context(|| {
+                    format!("edges.{}.producer.child", join_path(prefix, edge_name))
+                })?;
+            let mut consumers = BTreeMap::new();
+            for (consumer, config) in &edge.consumers {
+                let path = flatten_endpoint(prefix, children, consumer).with_context(|| {
+                    format!(
+                        "edges.{}.consumers.{consumer}",
+                        join_path(prefix, edge_name)
+                    )
+                })?;
+                consumers.insert(path, config.clone());
+            }
+            self.edges.insert(
+                join_path(prefix, edge_name),
+                Edge {
+                    producer: crate::model::Producer {
+                        child: producer,
+                        path: edge.producer.path.clone(),
+                    },
+                    consumers,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn validate_update_paths(&self) -> Result<()> {
+        match self.update {
+            UpdateRequest::Path(path) => {
+                if !self.known_paths.contains(path) {
+                    bail!("--update-lock: path {path:?} is not declared in the compose tree");
+                }
+            }
+            UpdateRequest::Paths(paths) => {
+                for path in paths {
+                    if !self.known_paths.contains(path) {
+                        bail!("--update-lock: path {path:?} is not declared in the compose tree");
+                    }
+                }
+            }
+            UpdateRequest::None | UpdateRequest::All => {}
+        }
+        Ok(())
+    }
+}
+
+fn join_path(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{prefix}/{name}")
+    }
+}
+
+fn update_contains(update: &UpdateRequest, path: &str) -> bool {
+    let contains = |selected: &str| path == selected || path.starts_with(&format!("{selected}/"));
+    match update {
+        UpdateRequest::None => false,
+        UpdateRequest::All => true,
+        UpdateRequest::Path(selected) => contains(selected),
+        UpdateRequest::Paths(selected) => selected.iter().any(|selected| contains(selected)),
+    }
+}
+
+fn flatten_endpoint(
+    prefix: &str,
+    children: &BTreeMap<String, Child>,
+    name: &str,
+) -> Result<String> {
+    match children.get(name) {
+        Some(Child::Item(_)) => Ok(join_path(prefix, name)),
+        Some(Child::Compose(_) | Child::Group(_)) => bail!(
+            "child {name:?} is a group; edges crossing a group boundary require publish and are deferred to the netns/publish track"
+        ),
+        None => bail!("unknown child {name:?}"),
+    }
 }
 
 fn resolve_secrets(
@@ -448,67 +663,13 @@ fn validate_calendar(schedule: &str) -> Result<()> {
     bail!("{}", message.trim());
 }
 
-fn resolve_lock(
-    compose: &Compose,
-    existing: &Lock,
-    update: &UpdateRequest,
-    resolver: &dyn Fn(&str) -> Result<Output>,
-) -> Result<Lock> {
-    let mut services = BTreeMap::new();
-    for (name, declaration) in &compose.services {
-        let explicitly_updated = matches!(update, UpdateRequest::All)
-            || matches!(update, UpdateRequest::Service(selected) if selected == name)
-            || matches!(update, UpdateRequest::Services(selected) if selected.contains(name));
-        let reusable = declaration.update == UpdatePolicy::Pin
-            && !explicitly_updated
-            && existing
-                .services
-                .get(name)
-                .is_some_and(|locked| locked.reference == declaration.item);
-        let locked = if reusable {
-            existing.services[name].clone()
-        } else {
-            let output = resolver(&declaration.item)
-                .with_context(|| format!("services.{name}.item: resolving {}", declaration.item))?;
-            LockedService {
-                reference: declaration.item.clone(),
-                store_path: output.store_path,
-                nar_hash: output.nar_hash,
-            }
-        };
-        services.insert(name.clone(), locked);
-    }
-    Ok(Lock { services })
-}
-
-fn validate_updated_service(compose: &Compose, name: &str) -> Result<()> {
-    if !compose.services.contains_key(name) {
-        bail!("--update: service {name:?} is not declared");
-    }
-    Ok(())
-}
-
-fn validate_edge_references(compose: &Compose) -> Result<()> {
-    for (edge_name, edge) in &compose.edges {
-        if !compose.services.contains_key(&edge.producer.service) {
-            bail!(
-                "edges.{edge_name}.producer.service: unknown service {:?}",
-                edge.producer.service
-            );
-        }
-        for consumer in edge.consumers.keys() {
-            if !compose.services.contains_key(consumer) {
-                bail!("edges.{edge_name}.consumers.{consumer}: unknown service");
-            }
-        }
-    }
-    Ok(())
-}
-
-fn validate_edges(compose: &Compose, services: &BTreeMap<String, CheckedService>) -> Result<()> {
+fn validate_edges(
+    edges: &BTreeMap<String, Edge>,
+    services: &BTreeMap<String, CheckedService>,
+) -> Result<()> {
     let mut destinations: BTreeMap<(&str, &Path), &str> = BTreeMap::new();
-    for (edge_name, edge) in &compose.edges {
-        let producer = &services[&edge.producer.service];
+    for (edge_name, edge) in edges {
+        let producer = &services[&edge.producer.child];
         let declared = producer
             .spec
             .dirs
@@ -519,14 +680,14 @@ fn validate_edges(compose: &Compose, services: &BTreeMap<String, CheckedService>
             .any(|path| path == &edge.producer.path);
         if !declared {
             bail!(
-                "edges.{edge_name}.producer.path: {} is not declared in services.{}.dirs.run",
+                "edges.{edge_name}.producer.path: {} is not declared in children.{}.dirs.run",
                 edge.producer.path.display(),
-                edge.producer.service
+                edge.producer.child
             );
         }
         record_destination(
             &mut destinations,
-            &edge.producer.service,
+            &edge.producer.child,
             &edge.producer.path,
             edge_name,
         )?;
@@ -630,7 +791,7 @@ mod tests {
 
     fn compose(services: &str, edges: &str) -> Compose {
         serde_json::from_str(&format!(
-            r#"{{"composeVersion":1,"name":"stack","services":{services},"edges":{edges}}}"#
+            r#"{{"cixCompose":1,"name":"stack","children":{services},"edges":{edges}}}"#
         ))
         .unwrap()
     }
@@ -669,7 +830,7 @@ mod tests {
             })
         };
         let old = Lock {
-            services: BTreeMap::from([
+            paths: BTreeMap::from([
                 (
                     "pin".into(),
                     LockedService {
@@ -690,19 +851,19 @@ mod tests {
         };
 
         let checked = check_with(&compose, &old, &UpdateRequest::None, &resolver).unwrap();
-        assert_eq!(checked.lock.services["pin"].nar_hash, "pin-old");
-        assert_eq!(checked.lock.services["track"].nar_hash, "track-new");
+        assert_eq!(checked.lock.paths["pin"].nar_hash, "pin-old");
+        assert_eq!(checked.lock.paths["track"].nar_hash, "track-new");
         assert_eq!(&*calls.borrow(), &["track:v1"]);
 
         calls.borrow_mut().clear();
         let checked = check_with(
             &compose,
             &old,
-            &UpdateRequest::Service("pin".into()),
+            &UpdateRequest::Path("pin".into()),
             &resolver,
         )
         .unwrap();
-        assert_eq!(checked.lock.services["pin"].nar_hash, "pin-new");
+        assert_eq!(checked.lock.paths["pin"].nar_hash, "pin-new");
         assert_eq!(
             &*calls.borrow(),
             &["pin:v1".to_owned(), "track:v1".to_owned()]
@@ -712,11 +873,11 @@ mod tests {
         let checked = check_with(
             &compose,
             &old,
-            &UpdateRequest::Services(BTreeSet::from(["pin".into()])),
+            &UpdateRequest::Paths(BTreeSet::from(["pin".into()])),
             &resolver,
         )
         .unwrap();
-        assert_eq!(checked.lock.services["pin"].nar_hash, "pin-new");
+        assert_eq!(checked.lock.paths["pin"].nar_hash, "pin-new");
         assert_eq!(
             &*calls.borrow(),
             &["pin:v1".to_owned(), "track:v1".to_owned()]
@@ -776,21 +937,20 @@ mod tests {
 
         let bad_edge = compose(
             r#"{"a":{"item":"valid:v1","env":{"NEEDED":"x"},"bind":{"http":"127.0.0.1:8080"}}}"#,
-            r#"{"db":{"producer":{"service":"missing","path":"/run/app"},"consumers":{"a":{}}}}"#,
+            r#"{"db":{"producer":{"child":"missing","path":"/run/app"},"consumers":{"a":{}}}}"#,
         );
-        assert!(
-            check_with(&bad_edge, &Lock::default(), &UpdateRequest::None, &resolver)
-                .unwrap_err()
-                .to_string()
-                .contains("unknown service")
-        );
+        assert!(format!(
+            "{:#}",
+            check_with(&bad_edge, &Lock::default(), &UpdateRequest::None, &resolver).unwrap_err()
+        )
+        .contains("unknown child"));
 
         let bad_path = compose(
             r#"{
                 "a":{"item":"valid:v1","env":{"NEEDED":"x"},"bind":{"http":"127.0.0.1:8080"}},
                 "b":{"item":"valid:v1","env":{"NEEDED":"x"},"bind":{"http":"127.0.0.1:8081"}}
             }"#,
-            r#"{"db":{"producer":{"service":"a","path":"/run/wrong"},"consumers":{"b":{}}}}"#,
+            r#"{"db":{"producer":{"child":"a","path":"/run/wrong"},"consumers":{"b":{}}}}"#,
         );
         assert!(
             check_with(&bad_path, &Lock::default(), &UpdateRequest::None, &resolver)
@@ -834,8 +994,8 @@ mod tests {
         );
 
         let supplied: Compose = serde_json::from_str(r#"{
-            "composeVersion":1,"name":"stack",
-            "services":{"app":{"item":"app:v1"}},
+            "cixCompose":1,"name":"stack",
+            "children":{"app":{"item":"app:v1"}},
             "secrets":{"db-password":{"file":"/run/keys/db"},"stray":{"encrypted":"/run/keys/stray"}}
         }"#).unwrap();
         let checked =
@@ -1005,5 +1165,113 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(error.contains("members disagree on role"), "{error}");
+    }
+
+    #[test]
+    fn locks_every_ref_by_path_and_updates_only_the_selected_subtree() {
+        let directory = tempfile::tempdir().unwrap();
+        let item = write_item(
+            directory.path(),
+            "shared-item",
+            &item_spec(r#""start":["/nix/store/fake/bin/app"]"#),
+        );
+        let artifact = directory.path().join("suite");
+        fs::create_dir_all(&artifact).unwrap();
+        fs::write(
+            artifact.join("cix.json"),
+            r#"{"cixCompose":1,"name":"advisory-name","children":{"leaf":{"item":"same:v1"}}}"#,
+        )
+        .unwrap();
+        fs::write(artifact.join("cix.lock"), b"this advisory lock is ignored").unwrap();
+        let root: Compose = serde_json::from_str(
+            r#"{
+              "cixCompose": 1,
+              "name": "root",
+              "children": {
+                "inline": {"children": {
+                  "a": {"item": "same:v1"},
+                  "b": {"item": "same:v1"}
+                }},
+                "sealed": {"compose": "suite:v1"}
+              }
+            }"#,
+        )
+        .unwrap();
+        let old = Lock {
+            paths: BTreeMap::from([
+                (
+                    "inline/a".into(),
+                    LockedService {
+                        reference: "same:v1".into(),
+                        store_path: item.display().to_string(),
+                        nar_hash: "a-old".into(),
+                    },
+                ),
+                (
+                    "inline/b".into(),
+                    LockedService {
+                        reference: "same:v1".into(),
+                        store_path: item.display().to_string(),
+                        nar_hash: "b-old".into(),
+                    },
+                ),
+                (
+                    "sealed".into(),
+                    LockedService {
+                        reference: "suite:v1".into(),
+                        store_path: artifact.display().to_string(),
+                        nar_hash: "suite-old".into(),
+                    },
+                ),
+                (
+                    "sealed/leaf".into(),
+                    LockedService {
+                        reference: "same:v1".into(),
+                        store_path: item.display().to_string(),
+                        nar_hash: "leaf-old".into(),
+                    },
+                ),
+            ]),
+        };
+        let calls = RefCell::new(Vec::new());
+        let resolver = |reference: &str| {
+            calls.borrow_mut().push(reference.to_owned());
+            Ok(if reference == "suite:v1" {
+                output(&artifact, "suite-new")
+            } else {
+                output(&item, "item-new")
+            })
+        };
+
+        let checked = check_with(&root, &old, &UpdateRequest::None, &resolver).unwrap();
+        assert!(calls.borrow().is_empty());
+        assert_eq!(
+            checked.services.keys().cloned().collect::<Vec<_>>(),
+            ["inline/a", "inline/b", "sealed/leaf"]
+        );
+        assert_eq!(checked.lock.paths.len(), 4);
+
+        let checked = check_with(
+            &root,
+            &old,
+            &UpdateRequest::Path("inline/a".into()),
+            &resolver,
+        )
+        .unwrap();
+        assert_eq!(checked.lock.paths["inline/a"].nar_hash, "item-new");
+        assert_eq!(checked.lock.paths["inline/b"].nar_hash, "b-old");
+        assert_eq!(&*calls.borrow(), &["same:v1"]);
+
+        calls.borrow_mut().clear();
+        let checked = check_with(
+            &root,
+            &old,
+            &UpdateRequest::Path("sealed".into()),
+            &resolver,
+        )
+        .unwrap();
+        assert_eq!(checked.lock.paths["sealed"].nar_hash, "suite-new");
+        assert_eq!(checked.lock.paths["sealed/leaf"].nar_hash, "item-new");
+        assert_eq!(&*calls.borrow(), &["suite:v1", "same:v1"]);
     }
 }

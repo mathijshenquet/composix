@@ -6,6 +6,8 @@ use std::{
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
+use crate::unit_path;
+
 #[derive(Clone, Debug, Default)]
 pub struct LogsOptions {
     pub target: String,
@@ -199,18 +201,15 @@ fn split_target(target: &str) -> Result<(String, Option<String>)> {
         Some((composite, service)) => (composite, Some(service)),
         None => (target, None),
     };
-    if composite.is_empty()
-        || service.is_some_and(str::is_empty)
-        || service.is_some_and(|service| service.contains('/'))
-    {
-        bail!("logs target must be <composite>[/<service>]");
+    if composite.is_empty() || service.is_some_and(|path| path.split('/').any(str::is_empty)) {
+        bail!("logs target must be <composite>[/<child/path>]");
     }
     Ok((composite.to_owned(), service.map(str::to_owned)))
 }
 
 fn log_namespace(composite: &str, service: Option<&str>) -> Result<Option<String>> {
     let unit = match service {
-        Some(service) => format!("cix-{composite}-{service}.service"),
+        Some(service) => format!("cix-{composite}-{}.service", unit_path(service)),
         None => list_units(false)?
             .into_iter()
             .find(|unit| {
@@ -298,7 +297,11 @@ mod tests {
             split_target("stack/api").unwrap(),
             ("stack".into(), Some("api".into()))
         );
-        assert!(split_target("stack/api/extra").is_err());
+        assert_eq!(
+            split_target("stack/tier/api").unwrap(),
+            ("stack".into(), Some("tier/api".into()))
+        );
+        assert!(split_target("stack//api").is_err());
     }
 
     #[test]

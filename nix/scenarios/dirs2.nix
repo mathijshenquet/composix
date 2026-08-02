@@ -37,9 +37,9 @@ let
   '';
   compose = pkgs.writeText "scenario-dirs2.json" ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "dirs2",
-      "services": {
+      "children": {
         "host": {
           "item": "scenario-dirs2-host:v1",
           "identity": "dirs2host",
@@ -56,9 +56,9 @@ let
   '';
   degradation = pkgs.writeText "scenario-dirs2-degrade.json" ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "dirs2-degrade",
-      "services": {
+      "children": {
         "private": {"item": "scenario-dirs2-private:v1", "dirs": {"/var/lib/private": {"as": "cache"}}}
       }
     }

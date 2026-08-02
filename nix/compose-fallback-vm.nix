@@ -16,15 +16,15 @@ let
   });
 
   compose = pkgs.writeText "compose-fallback.json" (builtins.toJSON {
-    composeVersion = 1;
+    cixCompose = 1;
     name = "fallback";
-    services = {
-      producer.item = producer;
-      consumer.item = consumer;
+    children = {
+      producer.item = "fallback-producer:v1";
+      consumer.item = "fallback-consumer:v1";
     };
     edges.shared = {
       producer = {
-        service = "producer";
+        child = "producer";
         path = "/run/fallback-edge";
       };
       consumers.consumer = { };
@@ -32,14 +32,14 @@ let
   });
 
   lock = pkgs.writeText "compose-fallback.lock" (builtins.toJSON {
-    services = {
+    paths = {
       producer = {
-        ref = toString producer;
+        ref = "fallback-producer:v1";
         storePath = toString producer;
         narHash = "sha256-compose-fallback-producer";
       };
       consumer = {
-        ref = toString consumer;
+        ref = "fallback-consumer:v1";
         storePath = toString consumer;
         narHash = "sha256-compose-fallback-consumer";
       };

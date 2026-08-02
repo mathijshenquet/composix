@@ -94,6 +94,7 @@
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         scenario-lifecycle = import ./nix/scenarios/lifecycle.nix { inherit pkgs cix; };
         scenario-side-by-side = import ./nix/scenarios/side-by-side.nix { inherit pkgs cix; };
+        scenario-tree = import ./nix/scenarios/tree.nix { inherit pkgs cix; };
         scenario-update-repin = import ./nix/scenarios/update-repin.nix { inherit pkgs cix; };
         scenario-gc-survival = import ./nix/scenarios/gc-survival.nix { inherit pkgs cix; };
         scenario-observability = import ./nix/scenarios/observability.nix { inherit pkgs cix; };

@@ -95,15 +95,15 @@ let
 
   compose = pkgs.writeText "scenario-health.json" ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "health",
-      "services": {
+      "children": {
         "consumer": { "item": "scenario-health-consumer:v1" },
         "web": { "item": "scenario-health-web:v1" }
       },
       "edges": {
         "producer": {
-          "producer": { "service": "web", "path": "/run/health" },
+          "producer": { "child": "web", "path": "/run/health" },
           "consumers": { "consumer": { "path": "/run/producer" } }
         }
       }
@@ -112,9 +112,9 @@ let
 
   failingCompose = pkgs.writeText "scenario-health-failing.json" ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "healthfail",
-      "services": {
+      "children": {
         "bad": { "item": "scenario-health-failing:v1" }
       }
     }

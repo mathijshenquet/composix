@@ -449,7 +449,7 @@ fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) 
     fs::write(
         cix_compose::Compose::lock_path(compose_path),
         format!(
-            "{{\n  \"services\": {{\n    \"web\": {{\n      \"ref\": \"{reference_text}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
+            "{{\n  \"paths\": {{\n    \"web\": {{\n      \"ref\": \"{reference_text}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
         ),
     )
     .expect("writing resolved compose lock");
@@ -721,7 +721,7 @@ START /bin/true
     doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one version-0 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
     assert!(manifest.contains("\"cixManifest\":0"));
-    assert!(!manifest.contains("\"services\""));
+    assert!(!manifest.contains("\"children\""));
     assert!(manifest.contains("/bin/sh"));
 
     doc.para("## Run");
@@ -918,9 +918,9 @@ fn chapter_advanced() -> String {
     fs::write(
         doc.base.join("compose.json"),
         r#"{
-  "composeVersion": 1,
+  "cixCompose": 1,
   "name": "tour-compose",
-  "services": {
+  "children": {
     "web": {
       "item": "web:current",
       "update": "track"

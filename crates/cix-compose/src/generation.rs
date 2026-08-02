@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     model::DirectoryRole,
     resolve::{CheckResult, DirectoryBacking, DirectoryClaim},
+    unit_path,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -182,7 +183,6 @@ fn render_units(
     closed_root: bool,
 ) -> Result<Rendered> {
     let composite = &checked.compose.name;
-    let slice = format!("cix-{composite}.slice");
     let target = format!("cix-{composite}.target");
     let prefix = format!("cix-{composite}");
     let mut units = BTreeMap::new();
@@ -195,7 +195,7 @@ fn render_units(
     let shared = collect_shared_directories(checked);
 
     for (name, shared) in &shared {
-        let unit = format!("{prefix}-shared-{name}.service");
+        let unit = format!("{prefix}-shared-{}.service", unit_path(name));
         let group = shared_group(composite, name);
         sysusers.push_str(&format!("g {group} - -\n"));
         units.insert(
@@ -214,14 +214,14 @@ fn render_units(
         target_after.insert(unit);
     }
 
-    for (edge_name, edge) in &checked.compose.edges {
-        let edge_unit = format!("{prefix}-edge-{edge_name}.service");
-        let runtime = format!("{prefix}-edge-{edge_name}");
+    for (edge_name, edge) in &checked.edges {
+        let edge_unit = format!("{prefix}-edge-{}.service", unit_path(edge_name));
+        let runtime = format!("{prefix}-edge-{}", unit_path(edge_name));
         let group = edge_group(composite, edge_name);
         sysusers.push_str(&format!("g {group} - -\n"));
-        let members = std::iter::once(edge.producer.service.as_str())
+        let members = std::iter::once(edge.producer.child.as_str())
             .chain(edge.consumers.keys().map(String::as_str))
-            .map(|service| format!("{prefix}-{service}.service"))
+            .map(|service| service_unit_name(composite, service))
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect::<Vec<_>>();
@@ -241,7 +241,7 @@ fn render_units(
         target_after.insert(edge_unit.clone());
 
         service_edges
-            .entry(&edge.producer.service)
+            .entry(&edge.producer.child)
             .or_default()
             .push(EdgeClaim {
                 unit: edge_unit.clone(),
@@ -253,7 +253,7 @@ fn render_units(
         for (consumer, config) in &edge.consumers {
             service_edges.entry(consumer).or_default().push(EdgeClaim {
                 unit: edge_unit.clone(),
-                dependency: Some(format!("{prefix}-{}.service", edge.producer.service)),
+                dependency: Some(service_unit_name(composite, &edge.producer.child)),
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: config
@@ -268,8 +268,10 @@ fn render_units(
 
     let mut manifest_services = BTreeMap::new();
     for (service_name, checked_service) in &checked.services {
-        let service_unit = format!("{prefix}-{service_name}.service");
-        let declaration = &checked.compose.services[service_name];
+        let service_unit = service_unit_name(composite, service_name);
+        let declaration = &checked_service.declaration;
+        let service_slice = service_slice_name(composite, service_name);
+        let service_segment = unit_path(service_name);
         let claims = service_edges
             .get(service_name.as_str())
             .cloned()
@@ -352,7 +354,7 @@ fn render_units(
                         "BindPaths".into(),
                         bind_value(&shared.host_path, &claim.path, false),
                     ));
-                    let unit = format!("{prefix}-shared-{name}.service");
+                    let unit = format!("{prefix}-shared-{}.service", unit_path(name));
                     unit_properties.push(("Requires".into(), unit.clone()));
                     unit_properties.push(("After".into(), unit));
                 }
@@ -362,7 +364,7 @@ fn render_units(
             .config
             .listeners
             .keys()
-            .map(|listener| format!("{prefix}-{service_name}-{listener}.socket"))
+            .map(|listener| format!("{prefix}-{service_segment}-{listener}.socket"))
             .collect::<Vec<_>>();
         if !sockets.is_empty() {
             extra_properties.push(("Sockets".into(), sockets.join(" ")));
@@ -388,14 +390,14 @@ fn render_units(
         }
         let compiled = compile_unit_for_host(
             &checked_service.store_path,
-            service_name,
+            &service_segment,
             &compiled_service,
             &checked_service.config,
             UnitMode::System,
             &UnitCompileOptions {
                 naming: UnitNaming {
                     unit: service_unit.clone(),
-                    slice: slice.clone(),
+                    slice: service_slice,
                     target: target.clone(),
                     directory_prefix: prefix.clone(),
                 },
@@ -412,7 +414,7 @@ fn render_units(
             },
             capabilities,
         )
-        .with_context(|| format!("compiling services.{service_name}"))?;
+        .with_context(|| format!("compiling children.{service_name}"))?;
         degradations.extend(
             compiled
                 .degradations
@@ -459,7 +461,7 @@ fn render_units(
             },
         );
         if let Some(schedule) = declaration.schedule.as_deref() {
-            let timer = format!("{prefix}-{service_name}.timer");
+            let timer = format!("{prefix}-{service_segment}.timer");
             units.insert(
                 timer.clone(),
                 render_timer_unit(
@@ -485,7 +487,7 @@ fn render_units(
         }
 
         for (listener, address) in &checked_service.config.listeners {
-            let socket = format!("{prefix}-{service_name}-{listener}.socket");
+            let socket = format!("{prefix}-{service_segment}-{listener}.socket");
             units.insert(
                 socket.clone(),
                 render_socket_unit(listener, &service_unit, &target, address),
@@ -500,7 +502,7 @@ fn render_units(
             );
             target_wants.insert(socket);
         }
-        let locked = &checked.lock.services[service_name];
+        let locked = &checked.lock.paths[service_name];
         manifest_services.insert(
             service_name.clone(),
             ManifestService {
@@ -517,18 +519,26 @@ fn render_units(
         );
     }
 
-    units.insert(
-        slice.clone(),
-        format!("[Unit]\nDescription=cix compose slice: {composite}\n"),
-    );
-    manifest_units.insert(
-        slice.clone(),
-        ManifestUnit {
-            kind: UnitKind::Slice,
-            service: None,
-            scheduled: false,
-        },
-    );
+    for group_path in &checked.groups {
+        let group_slice = group_slice_name(composite, group_path);
+        let description = if group_path.is_empty() {
+            composite.as_str()
+        } else {
+            group_path.as_str()
+        };
+        units.insert(
+            group_slice.clone(),
+            format!("[Unit]\nDescription=cix compose slice: {description}\n"),
+        );
+        manifest_units.insert(
+            group_slice,
+            ManifestUnit {
+                kind: UnitKind::Slice,
+                service: None,
+                scheduled: false,
+            },
+        );
+    }
     units.insert(
         target.clone(),
         render_target(composite, &target_wants, &target_after),
@@ -668,7 +678,7 @@ fn collect_shared_directories(checked: &CheckResult) -> BTreeMap<String, SharedD
                 });
             entry
                 .members
-                .push(format!("cix-{}-{service}.service", checked.compose.name));
+                .push(service_unit_name(&checked.compose.name, service));
         }
     }
     for entry in shared.values_mut() {
@@ -793,8 +803,28 @@ fn private_host_path(composite: &str, service: &str, role: DirectoryRole, path: 
         DirectoryRole::Run => "/run",
     };
     Path::new(root)
-        .join(format!("cix-{composite}-{service}"))
+        .join(format!("cix-{composite}-{}", unit_path(service)))
         .join(path.strip_prefix("/").expect("validated absolute path"))
+}
+
+fn service_unit_name(composite: &str, path: &str) -> String {
+    format!("cix-{composite}-{}.service", unit_path(path))
+}
+
+fn group_slice_name(composite: &str, path: &str) -> String {
+    if path.is_empty() {
+        format!("cix-{composite}.slice")
+    } else {
+        format!("cix-{composite}-{}.slice", unit_path(path))
+    }
+}
+
+fn service_slice_name(composite: &str, path: &str) -> String {
+    let parent = path
+        .rsplit_once('/')
+        .map(|(parent, _)| parent)
+        .unwrap_or("");
+    group_slice_name(composite, parent)
 }
 
 fn render_target(composite: &str, wants: &BTreeSet<String>, after: &BTreeSet<String>) -> String {
@@ -828,14 +858,16 @@ mod tests {
 
     use super::*;
     use crate::{
-        model::{Compose, ComposeService, Edge, Lock, LockedService, Producer, UpdatePolicy},
+        model::{
+            Child, Compose, ComposeService, Edge, Lock, LockedService, Producer, UpdatePolicy,
+        },
         resolve::CheckedService,
     };
 
     fn fixture() -> (tempfile::TempDir, CheckResult, PathBuf) {
         let directory = tempfile::tempdir().unwrap();
         let compose_path = directory.path().join("compose.json");
-        fs::write(&compose_path, b"{\"composeVersion\":1}\n").unwrap();
+        fs::write(&compose_path, b"{\"cixCompose\":1}\n").unwrap();
         let spec = Spec::from_slice(
             br#"{
                 "cixManifest": 0,
@@ -852,56 +884,55 @@ mod tests {
             ResolvedConfig::resolve(&web_service, &[], &["http=127.0.0.1:8080".into()]).unwrap();
         let worker_config =
             ResolvedConfig::resolve(&worker_service, &[], &["http=127.0.0.1:8081".into()]).unwrap();
+        let web_declaration = ComposeService {
+            item: "web:v1".into(),
+            update: UpdatePolicy::Pin,
+            env: BTreeMap::new(),
+            bind: BTreeMap::new(),
+            dirs: BTreeMap::new(),
+            identity: None,
+            schedule: None,
+            persistent: None,
+            jitter: None,
+            shm: None,
+        };
+        let worker_declaration = ComposeService {
+            item: "worker:v1".into(),
+            update: UpdatePolicy::Pin,
+            env: BTreeMap::new(),
+            bind: BTreeMap::new(),
+            dirs: BTreeMap::new(),
+            identity: None,
+            schedule: None,
+            persistent: None,
+            jitter: None,
+            shm: None,
+        };
+        let edges = BTreeMap::from([(
+            "shared".into(),
+            Edge {
+                producer: Producer {
+                    child: "worker".into(),
+                    path: "/run/app".into(),
+                },
+                consumers: BTreeMap::from([("web".into(), Default::default())]),
+            },
+        )]);
         let compose = Compose {
-            compose_version: 1,
+            cix_compose: 1,
             name: "stack".into(),
-            services: BTreeMap::from([
-                (
-                    "web".into(),
-                    ComposeService {
-                        item: "web:v1".into(),
-                        update: UpdatePolicy::Pin,
-                        env: BTreeMap::new(),
-                        bind: BTreeMap::new(),
-                        dirs: BTreeMap::new(),
-                        identity: None,
-                        schedule: None,
-                        persistent: None,
-                        jitter: None,
-                        shm: None,
-                    },
-                ),
-                (
-                    "worker".into(),
-                    ComposeService {
-                        item: "worker:v1".into(),
-                        update: UpdatePolicy::Pin,
-                        env: BTreeMap::new(),
-                        bind: BTreeMap::new(),
-                        dirs: BTreeMap::new(),
-                        identity: None,
-                        schedule: None,
-                        persistent: None,
-                        jitter: None,
-                        shm: None,
-                    },
-                ),
+            children: BTreeMap::from([
+                ("web".into(), Child::Item(web_declaration.clone())),
+                ("worker".into(), Child::Item(worker_declaration.clone())),
             ]),
             log_namespace: false,
             secrets: BTreeMap::new(),
-            edges: BTreeMap::from([(
-                "shared".into(),
-                Edge {
-                    producer: Producer {
-                        service: "worker".into(),
-                        path: "/run/app".into(),
-                    },
-                    consumers: BTreeMap::from([("web".into(), Default::default())]),
-                },
-            )]),
+            edges: edges.clone(),
+            network: None,
+            publish: None,
         };
         let lock = Lock {
-            services: BTreeMap::from([
+            paths: BTreeMap::from([
                 (
                     "web".into(),
                     LockedService {
@@ -924,6 +955,8 @@ mod tests {
             compose,
             lock,
             warnings: Vec::new(),
+            edges,
+            groups: BTreeSet::from([String::new()]),
             services: BTreeMap::from([
                 (
                     "web".into(),
@@ -940,6 +973,7 @@ mod tests {
                             backing: DirectoryBacking::Private,
                         }],
                         secrets: BTreeMap::new(),
+                        declaration: web_declaration,
                     },
                 ),
                 (
@@ -966,6 +1000,7 @@ mod tests {
                             },
                         ],
                         secrets: BTreeMap::new(),
+                        declaration: worker_declaration,
                     },
                 ),
             ]),
@@ -1001,6 +1036,39 @@ mod tests {
     }
 
     #[test]
+    fn two_level_paths_name_units_and_nested_slice_snapshot() {
+        let (directory, mut checked, compose_path) = fixture();
+        let web = checked.services.remove("web").unwrap();
+        checked.services.insert("tier/web".into(), web);
+        let locked = checked.lock.paths.remove("web").unwrap();
+        checked.lock.paths.insert("tier/web".into(), locked);
+        checked.groups.insert("tier".into());
+        checked.edges.clear();
+        let generation = directory.path().join("nested-generation");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+
+        let unit_name = "cix-stack-tier-web.service";
+        let unit = fs::read_to_string(generation.join("units").join(unit_name)).unwrap();
+        assert!(unit.contains("Slice=cix-stack-tier.slice"), "{unit}");
+        assert!(unit.contains("CIX_SERVICE=tier/web"), "{unit}");
+        assert!(manifest.units.contains_key(unit_name));
+        assert!(manifest.units.contains_key("cix-stack.slice"));
+        assert!(manifest.units.contains_key("cix-stack-tier.slice"));
+        let slice = fs::read_to_string(generation.join("units/cix-stack-tier.slice")).unwrap();
+        let expected = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/cix-stack-tier.slice"),
+        )
+        .unwrap();
+        assert_eq!(slice, expected);
+    }
+
+    #[test]
     fn closed_root_generation_marks_manifest_and_seals_each_service() {
         let (directory, checked, compose_path) = fixture();
         let generation = directory.path().join("closed-root-generation");
@@ -1030,7 +1098,7 @@ mod tests {
     #[test]
     fn scheduled_apps_render_timer_snapshots_and_are_wanted_instead_of_services() {
         let (directory, mut checked, compose_path) = fixture();
-        let worker = checked.compose.services.get_mut("worker").unwrap();
+        let worker = &mut checked.services.get_mut("worker").unwrap().declaration;
         worker.schedule = Some("Mon *-*-* 12:00:00".into());
         let generation = directory.path().join("generation");
         render_generation(
@@ -1051,12 +1119,17 @@ mod tests {
         assert!(!target.contains("cix-stack-worker.service"), "{target}");
 
         checked
-            .compose
             .services
             .get_mut("worker")
             .unwrap()
+            .declaration
             .persistent = Some(true);
-        checked.compose.services.get_mut("worker").unwrap().jitter = Some("5m".into());
+        checked
+            .services
+            .get_mut("worker")
+            .unwrap()
+            .declaration
+            .jitter = Some("5m".into());
         let configured = directory.path().join("configured");
         render_generation(
             &checked,
@@ -1077,7 +1150,7 @@ mod tests {
     #[test]
     fn compose_shm_override_wins_over_the_item() {
         let (directory, mut checked, compose_path) = fixture();
-        checked.compose.services.get_mut("web").unwrap().shm = Some("96M".into());
+        checked.services.get_mut("web").unwrap().declaration.shm = Some("96M".into());
         let generation = directory.path().join("generation");
         let manifest = render_generation(
             &checked,
@@ -1097,7 +1170,12 @@ mod tests {
     #[test]
     fn host_shared_and_reclassified_directories_render_their_distinct_mechanisms() {
         let (directory, mut checked, compose_path) = fixture();
-        checked.compose.services.get_mut("web").unwrap().identity = Some("hostuser".into());
+        checked
+            .services
+            .get_mut("web")
+            .unwrap()
+            .declaration
+            .identity = Some("hostuser".into());
         checked.services.get_mut("web").unwrap().directories = vec![
             DirectoryClaim {
                 path: "/run/app".into(),

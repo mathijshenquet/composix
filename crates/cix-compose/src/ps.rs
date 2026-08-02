@@ -118,6 +118,17 @@ fn grouping(user: bool, unit: &str) -> Result<(String, String)> {
     if !service_unit.ends_with(".service") {
         return Ok(("-".into(), "-".into()));
     }
+    if let Ok(fields) = systemctl_value(user, &service_unit, "LogExtraFields") {
+        let field = |name: &str| {
+            fields
+                .split_whitespace()
+                .find_map(|entry| entry.strip_prefix(&format!("{name}=")))
+                .map(str::to_owned)
+        };
+        if let (Some(composite), Some(service)) = (field("CIX_COMPOSITE"), field("CIX_SERVICE")) {
+            return Ok((composite, service));
+        }
+    }
     let slice = systemctl_value(user, &service_unit, "Slice")?;
     let Some(composite) = slice
         .strip_prefix("cix-")

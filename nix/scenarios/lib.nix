@@ -97,15 +97,15 @@ let
       updateField = if update == null then "" else '', "update": "${update}"'';
     in ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "${name}",
-      "services": {
+      "children": {
         "api": { "item": "${apiRef}", "bind": { "http": "${bind}" }${env}${updateField} },
         "db": { "item": "scenario-db:v1" }
       },
       "edges": {
         "database": {
-          "producer": { "service": "db", "path": "/run/db" },
+          "producer": { "child": "db", "path": "/run/db" },
           "consumers": { "api": {} }
         }
       }
@@ -123,9 +123,9 @@ let
 
   timerComposeFile = pkgs.writeText "scenario-timers.json" ''
     {
-      "composeVersion": 1,
+      "cixCompose": 1,
       "name": "timers",
-      "services": {
+      "children": {
         "job": {
           "item": "scenario-job:v1",
           "schedule": "Mon *-*-* 12:00:00",

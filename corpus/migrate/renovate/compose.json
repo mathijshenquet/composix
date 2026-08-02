@@ -1,7 +1,7 @@
 {
-  "composeVersion": 1,
+  "cixCompose": 1,
   "name": "corpus-renovate",
-  "services": {
+  "children": {
     "renovate": {
       "item": "renovate:regrade",
       "schedule": "daily",

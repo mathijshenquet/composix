@@ -224,14 +224,13 @@ fn run_compose_round(
             allow_secret: false,
         })?;
         for (service, item) in map_outputs(&compose, &context.root, directory, outputs)? {
-            cix_index::tag(&item.store_path, &compose.services[&service].item, None).with_context(
-                || {
-                    format!(
-                        "updating compose service {service:?} from {}",
-                        directory.display()
-                    )
-                },
-            )?;
+            let declaration = compose_item(&compose, &service).expect("mapped item child");
+            cix_index::tag(&item.store_path, &declaration.item, None).with_context(|| {
+                format!(
+                    "updating compose service {service:?} from {}",
+                    directory.display()
+                )
+            })?;
             changed_services.insert(service);
         }
     }
@@ -239,7 +238,7 @@ fn run_compose_round(
     if !changed_services.is_empty() {
         cix_compose::up(
             compose_path,
-            cix_compose::UpdateRequest::Services(changed_services),
+            cix_compose::UpdateRequest::Paths(changed_services),
             false,
         )?;
     } else if compose_changed {
@@ -273,7 +272,7 @@ fn map_outputs(
 ) -> Result<BTreeMap<String, BuiltItem>> {
     let mut mapped = BTreeMap::new();
     for output in &outputs {
-        if compose.services.contains_key(&output.name) {
+        if compose_item(compose, &output.name).is_some() {
             mapped.insert(output.name.clone(), output.clone());
         }
     }
@@ -284,7 +283,7 @@ fn map_outputs(
             .and_then(|relative| relative.components().next())
             .and_then(|component| component.as_os_str().to_str());
         if let Some(service) =
-            directory_service.filter(|service| compose.services.contains_key(*service))
+            directory_service.filter(|service| compose_item(compose, service).is_some())
         {
             mapped.insert(
                 service.to_owned(),
@@ -299,12 +298,29 @@ fn map_outputs(
         );
     }
     for service in mapped.keys() {
-        let reference = cix_common::Ref::parse(&compose.services[service].item)?;
+        let declaration = compose_item(compose, service).expect("mapped item child");
+        let reference = cix_common::Ref::parse(&declaration.item)?;
         if reference.root_url.is_some() {
             bail!("compose service {service:?} has a remote item; cix watch can only retag local items");
         }
     }
     Ok(mapped)
+}
+
+fn compose_item<'a>(
+    compose: &'a cix_compose::Compose,
+    path: &str,
+) -> Option<&'a cix_compose::ComposeService> {
+    let mut children = &compose.children;
+    let mut parts = path.split('/').peekable();
+    while let Some(part) = parts.next() {
+        match children.get(part)? {
+            cix_compose::Child::Item(service) if parts.peek().is_none() => return Some(service),
+            cix_compose::Child::Group(group) => children = &group.children,
+            cix_compose::Child::Item(_) | cix_compose::Child::Compose(_) => return None,
+        }
+    }
+    None
 }
 
 struct IgnoreSet {
