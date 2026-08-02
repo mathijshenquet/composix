@@ -240,9 +240,10 @@ fn run_compose_round(
         cix_compose::up(
             compose_path,
             cix_compose::UpdateRequest::Services(changed_services),
+            false,
         )?;
     } else if compose_changed {
-        cix_compose::up(compose_path, cix_compose::UpdateRequest::None)?;
+        cix_compose::up(compose_path, cix_compose::UpdateRequest::None, false)?;
     }
     Ok(())
 }

@@ -101,6 +101,7 @@
         scenario-health = import ./nix/scenarios/health.nix { inherit pkgs cix; };
         scenario-secrets = import ./nix/scenarios/secrets.nix { inherit pkgs cix; };
         scenario-dirs2 = import ./nix/scenarios/dirs2.nix { inherit pkgs cix; };
+        scenario-closedroot-audit = import ./nix/scenarios/closedroot-audit.nix { inherit pkgs cix; };
         with-spec-redis = pkgs.runCommand "with-spec-redis-check" { } ''
           test -f ${withSpecRedis}/cix-manifest.json
           test -L ${withSpecRedis}/etc/redis

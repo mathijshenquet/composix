@@ -451,6 +451,50 @@ leaves activation to fail when the hardware is still absent. Device claims never
 compose-side loosening field; it is deliberately not accepted yet, so compose cannot silently
 widen device access.
 
+<a id="closed-root"></a>
+
+### Closed-root audit mode
+
+`cix run --closed-root` and `cix up --closed-root` put every artifact process in a sealed
+filesystem root. This is CIP-84's phase-1 audit gate; the flag is deliberately off by default
+until the complete example/corpus tier is green, after which the sealed root becomes the only
+runtime rather than a permanent compatibility dial.
+
+The root starts empty. cix mounts the API filesystems, the whole Nix store read-only, the item's
+declared runtime projections, role directories, and explicit compose/claim materializations.
+Nothing else on the host is visible. `ProtectSystem=strict` remains defense in depth, but the
+important boundary is visibility: an undeclared `/etc`, `/opt`, host data path, or executable
+does not exist in the service's world.
+
+Four host edges have narrow channels:
+
+- cix generates `/etc/passwd` and `/etc/group` containing exactly root, the unit identity, and
+  nobody, and combines that database with `PrivateUsers=`. This covers DynamicUser and declared
+  static identities without importing the host account database.
+- `CLAIM egress` brings in the host's `/etc/resolv.conf` verbatim. CA trust does not: link or copy
+  `${pkgs.cacert}` (or another declared trust bundle) into the artifact and point the application
+  at it.
+- timezone selection is an ordinary `TZ` environment value. `/etc/localtime` is never injected.
+- systemd mounts notify and journald sockets into the root. Native readiness/liveness adapters
+  therefore keep working without adding a shell or logging sidecar.
+
+The sole conventional executable alias is `/usr/bin/env -> /bin/env`; it dangles unless the
+artifact explicitly provides `/bin/env`, for example with
+`LINK ${pkgs.coreutils}/bin/env /bin/env`. cix reports that dependency when a declared executable
+uses an env shebang. `/bin/sh` is never created. Name the shell package directly in `START` or
+`START_PRE`, such as `START ${pkgs.bash}/bin/sh /bin/start`; shell availability is part of the
+artifact contract, not NixOS host luck.
+
+Closed-root services cannot bind ports below 1024 directly. `PrivateUsers=` puts their
+capabilities in a user namespace, where `CAP_NET_BIND_SERVICE` cannot authorize a bind in the
+host network namespace. Use an unprivileged port or declare a named `LISTENER` so systemd owns
+the privileged socket; cix rejects the ineffective direct-capability combination at compile time.
+
+There is no raw-host opt-out. Host data, shared surfaces, devices, and network egress enter only
+through their declared directory/materialization/claim channels. `--user --closed-root` attempts
+the same filesystem world for dev/prod parity and uses the existing loud D13 degradation when a
+user manager or kernel cannot realize mount namespaces.
+
 <a id="health"></a>
 
 ### Readiness and liveness

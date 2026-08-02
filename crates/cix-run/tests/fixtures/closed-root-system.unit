@@ -1,0 +1,71 @@
+[Unit]
+Description=cix run: audit
+
+[Service]
+Type=exec
+Slice=cix-run.slice
+LogExtraFields=CIX_RUN=cix-run-audit.service CIX_ITEM=/nix/store/00000000000000000000000000000000-app
+TemporaryFileSystem=/var/lib:ro
+StateDirectory=cix-run-audit cix-run-audit/var/lib/app
+StateDirectoryMode=0700
+BindPaths=/var/lib/cix-run-audit/var/lib/app:/var/lib/app
+TemporaryFileSystem=/var/cache:ro
+CacheDirectory=cix-run-audit cix-run-audit/cache
+CacheDirectoryMode=0700
+BindPaths=/var/cache/cix-run-audit/cache:/cache
+TemporaryFileSystem=/var/log:ro
+LogsDirectory=cix-run-audit cix-run-audit/var/log/app
+LogsDirectoryMode=0700
+BindPaths=/var/log/cix-run-audit/var/log/app:/var/log/app
+TemporaryFileSystem=/etc:ro
+ConfigurationDirectory=cix-run-audit/etc/app
+ConfigurationDirectoryMode=0700
+BindPaths=/etc/cix-run-audit/etc/app:/etc/app
+RuntimeDirectory=cix-run-audit/run/app
+RuntimeDirectoryMode=0700
+BindPaths=/run/cix-run-audit/run/app:/run/app
+TemporaryFileSystem=/cache:ro
+DynamicUser=yes
+RootDirectory=/run/cix/closed-roots/cix-audit-system.service
+MountAPIVFS=yes
+BindReadOnlyPaths=/nix/store
+BindPaths=/run/cix/closed-roots/cix-audit-system.service/nss/passwd:/etc/passwd
+BindPaths=/run/cix/closed-roots/cix-audit-system.service/nss/group:/etc/group
+BindPaths=/run/cix/gcroots:/run/cix/gcroots
+RuntimeDirectory=cix-nss-20fd27514087ecfc
+RuntimeDirectoryMode=0700
+PrivateUsers=yes
+BindReadOnlyPaths=/etc/resolv.conf:/etc/resolv.conf
+ExecStartPre=+"/nix/store/11111111111111111111111111111111-cix/bin/cix" closed-root-nss "operator" "/run/cix-nss-20fd27514087ecfc"
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivatePIDs=yes
+DevicePolicy=closed
+DeviceAllow=/dev/dri rwm
+DeviceAllow=/dev/cix-device rwm
+SupplementaryGroups=render video
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+PrivateNetwork=yes
+TemporaryFileSystem=/dev/shm:size=64M
+SupplementaryGroups=cix-shared
+BindPaths=/srv/shared:/data
+BindReadOnlyPaths=/srv/input:/input
+DynamicUser=no
+User=operator
+Group=operator
+ExecStart="/nix/store/00000000000000000000000000000000-app/bin/app"
+Environment="STATE_DIRECTORY=/var/lib/app"
+Environment="CACHE_DIRECTORY=/cache"
+Environment="LOGS_DIRECTORY=/var/log/app"
+Environment="RUNTIME_DIRECTORY=/run/app"

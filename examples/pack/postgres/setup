@@ -3,13 +3,7 @@ set -eu
 
 if [ ! -s "$data_dir/PG_VERSION" ]; then
   rm -rf "$init_dir"
-  mkdir -p "$init_dir"
-  LANG=C LC_ALL=C initdb \
-    --pgdata="$init_dir" \
-    --username=cix \
-    --auth-local=trust \
-    --auth-host=trust \
-    --encoding=UTF8 \
-    --no-locale
+  cp -R --no-preserve=mode,ownership /opt/postgres/template "$init_dir"
   mv "$init_dir" "$data_dir"
 fi
+chmod 0700 "$data_dir"

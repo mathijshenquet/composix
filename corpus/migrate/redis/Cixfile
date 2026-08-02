@@ -2,5 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE redis
   STATEDIR /data
+  ENV LANG = C
+  ENV LC_ALL = C
   START ${pkgs.redis}/bin/redis-server --dir /data --port 6379
   PORT redis = 6379

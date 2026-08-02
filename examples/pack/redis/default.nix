@@ -9,6 +9,10 @@ composix.withSpec {
     cixManifest = 0;
     start = [ "${pkgs.redis}/bin/redis-server" "/etc/redis/redis.conf" ];
     mounts = [ "/etc/redis" ];
+    env = {
+      LANG.default = "C";
+      LC_ALL.default = "C";
+    };
     ports.redis = {
       value = 6379;
       protocol = "tcp";

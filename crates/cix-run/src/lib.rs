@@ -3,6 +3,7 @@
 
 pub mod capabilities;
 pub mod cli;
+pub mod closed_root;
 pub mod config;
 pub mod debug;
 pub mod exec;

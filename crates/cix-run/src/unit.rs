@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::ffi::CStr;
+use std::io::Read;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
 use crate::capabilities::HostCapabilities;
+use crate::closed_root::ClosedRootOptions;
 use crate::config::ResolvedConfig;
 use crate::spec::{format_duration, parse_duration, Dirs, Probe, ProbeType, Protocol, Service};
 
@@ -70,6 +72,8 @@ pub struct UnitCompileOptions {
     ///
     /// Production callers normally leave this unset so it resolves to the running binary.
     pub probe_binary: Option<PathBuf>,
+    /// CIP-84 phase-1 sealed root configuration. None preserves the pre-audit runtime.
+    pub closed_root: Option<ClosedRootOptions>,
 }
 
 impl UnitCompileOptions {
@@ -81,6 +85,7 @@ impl UnitCompileOptions {
             unit_properties: Vec::new(),
             log_fields: vec![("CIX_RUN".into(), format!("cix-run-{service_name}.service"))],
             probe_binary: None,
+            closed_root: None,
         }
     }
 }
@@ -228,6 +233,14 @@ pub(crate) fn build_unit_with_options(
 
     let item_env = config.item_environment(output)?;
     let argv = resolved_argv(output, "start", &service.start, &item_env)?;
+    if options.closed_root.is_some() {
+        validate_closed_root_executable(output, &argv[0])?;
+        if let Some((name, port)) = config.ports.iter().find(|(_, port)| **port < 1024) {
+            bail!(
+                "closed root cannot grant {name} port {port}: PrivateUsers isolates capabilities from the host network namespace; use a port >= 1024 or a named LISTENER for systemd socket activation"
+            );
+        }
+    }
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
     properties.push(("Slice".into(), options.naming.slice.clone()));
@@ -248,7 +261,7 @@ pub(crate) fn build_unit_with_options(
         mode != UnitMode::UserDegraded,
     );
 
-    if mode == UnitMode::System {
+    if mode == UnitMode::System || options.closed_root.is_some() {
         add_mounts(&mut properties, output, service)?;
     }
 
@@ -256,6 +269,20 @@ pub(crate) fn build_unit_with_options(
         properties.push(("DynamicUser".into(), "yes".into()));
     } else if mode == UnitMode::UserFull {
         properties.push(("PrivateUsers".into(), "yes".into()));
+    }
+
+    if let Some(closed_root) = &options.closed_root {
+        if mode == UnitMode::UserDegraded {
+            bail!("closed root requires mount-namespace support");
+        }
+        add_closed_root(
+            &mut properties,
+            service,
+            mode,
+            options,
+            closed_root,
+            capabilities.systemd_version,
+        )?;
     }
 
     if mode != UnitMode::UserDegraded {
@@ -310,6 +337,9 @@ pub(crate) fn build_unit_with_options(
     }
     if let Some(start_pre) = &service.start_pre {
         let start_pre = resolved_argv(output, "start_pre", start_pre, &item_env)?;
+        if options.closed_root.is_some() {
+            validate_closed_root_executable(output, &start_pre[0])?;
+        }
         properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
     }
     add_health_properties(&mut properties, service, options)?;
@@ -413,6 +443,127 @@ fn add_health_properties(
         ]);
     }
     Ok(())
+}
+
+fn add_closed_root(
+    properties: &mut Vec<(String, String)>,
+    service: &Service,
+    mode: UnitMode,
+    options: &UnitCompileOptions,
+    closed_root: &ClosedRootOptions,
+    systemd_version: u32,
+) -> Result<()> {
+    let root = closed_root
+        .root_directory()
+        .to_str()
+        .context("closed-root path is not valid UTF-8")?
+        .replace('%', "%%");
+    let gc_roots = closed_root
+        .gc_root_directory()
+        .to_str()
+        .context("closed-root GC-root path is not valid UTF-8")?
+        .replace('%', "%%");
+    properties.extend([
+        ("RootDirectory".into(), root.clone()),
+        ("MountAPIVFS".into(), "yes".into()),
+        ("BindReadOnlyPaths".into(), "/nix/store".into()),
+        ("BindPaths".into(), format!("{root}/nss/passwd:/etc/passwd")),
+        ("BindPaths".into(), format!("{root}/nss/group:/etc/group")),
+        ("BindPaths".into(), format!("{gc_roots}:{gc_roots}")),
+    ]);
+    let identity = closed_root_identity(mode, options, closed_root)?;
+    let identity_directory = format!("cix-nss-{:016x}", identity_hash(&options.naming.unit));
+    properties.push(("RuntimeDirectory".into(), identity_directory.clone()));
+    properties.push(("RuntimeDirectoryMode".into(), "0700".into()));
+    if mode == UnitMode::System
+        && !options
+            .extra_properties
+            .iter()
+            .any(|(name, _)| name == "User")
+    {
+        properties.push(("User".into(), identity.clone()));
+    }
+    if !properties.iter().any(|(name, _)| name == "PrivateUsers") {
+        properties.push(("PrivateUsers".into(), "yes".into()));
+    }
+    if service.has_claim("egress") {
+        properties.push((
+            "BindReadOnlyPaths".into(),
+            "/etc/resolv.conf:/etc/resolv.conf".into(),
+        ));
+    }
+    if systemd_version < 257 {
+        // Before v257, MountAPIVFS did not imply BindLogSockets; RootDirectory
+        // therefore needs the three journald endpoints named by systemd.exec(5).
+        for socket in [
+            "/dev/log",
+            "/run/systemd/journal/socket",
+            "/run/systemd/journal/stdout",
+        ] {
+            properties.push(("BindReadOnlyPaths".into(), socket.into()));
+        }
+    }
+    let binary = options
+        .probe_binary
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(std::env::current_exe)
+        .context("resolving the cix binary for closed-root NSS generation")?;
+    if !binary.is_absolute() {
+        bail!(
+            "cix closed-root helper {} is not absolute",
+            binary.display()
+        );
+    }
+    properties.push((
+        "ExecStartPre".into(),
+        format!(
+            "+{} closed-root-nss {} {}",
+            quote_exec_word(&binary.to_string_lossy()),
+            quote_exec_word(&identity),
+            quote_exec_word(&format!("/run/{identity_directory}"))
+        ),
+    ));
+    Ok(())
+}
+
+fn closed_root_identity(
+    mode: UnitMode,
+    options: &UnitCompileOptions,
+    closed_root: &ClosedRootOptions,
+) -> Result<String> {
+    if let Some(identity) = closed_root.identity_override() {
+        return Ok(identity.to_owned());
+    }
+    if let Some((_, identity)) = options
+        .extra_properties
+        .iter()
+        .rev()
+        .find(|(name, _)| name == "User")
+    {
+        return Ok(identity.clone());
+    }
+    if mode == UnitMode::System {
+        return Ok(format!("cixr-{:016x}", identity_hash(&options.naming.unit)));
+    }
+    let uid = unsafe { libc::geteuid() };
+    let passwd = unsafe { libc::getpwuid(uid) };
+    if passwd.is_null() {
+        bail!("current uid {uid} has no passwd identity for closed-root --user mode");
+    }
+    unsafe { CStr::from_ptr((*passwd).pw_name) }
+        .to_str()
+        .context("current passwd identity is not valid UTF-8")
+        .map(str::to_owned)
+}
+
+fn identity_hash(value: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in value.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
 }
 
 fn probe_command(
@@ -626,9 +777,16 @@ fn resolved_argv(
         .collect::<Result<Vec<_>>>()?;
 
     let executable = Path::new(&argv[0]);
+    if executable == Path::new("/bin/sh") {
+        bail!(
+            "/bin/sh is not an ambient runtime dependency; name the shell explicitly, for example START ${{pkgs.bash}}/bin/sh (CIP-80)"
+        );
+    }
     let resolved = if executable.is_absolute() {
         clean_executable(executable)?;
         executable.to_owned()
+    } else if executable.components().count() == 1 {
+        resolve_item_program(output, executable, env)?
     } else {
         clean_executable(executable)?;
         output.join(executable)
@@ -644,6 +802,76 @@ fn resolved_argv(
         .into_string()
         .map_err(|_| anyhow::anyhow!("executable path is not valid UTF-8"))?;
     Ok(argv)
+}
+
+fn validate_closed_root_executable(output: &Path, executable: &str) -> Result<()> {
+    let file = match std::fs::File::open(executable) {
+        Ok(file) => file,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!("inspecting closed-root executable {executable} for its interpreter")
+            })
+        }
+    };
+    let mut bytes = Vec::with_capacity(256);
+    file.take(256)
+        .read_to_end(&mut bytes)
+        .with_context(|| format!("reading closed-root executable {executable} interpreter"))?;
+    let first_line = bytes
+        .split(|byte| *byte == b'\n')
+        .next()
+        .unwrap_or_default();
+    if first_line == b"#!/bin/sh" || first_line.starts_with(b"#!/bin/sh ") {
+        bail!(
+            "closed-root executable {executable} names /bin/sh, which is never injected; the shell is a named dependency (CIP-80)"
+        );
+    }
+    if (first_line == b"#!/usr/bin/env" || first_line.starts_with(b"#!/usr/bin/env "))
+        && !output.join("bin/env").is_file()
+    {
+        bail!(
+            "closed-root executable {executable} needs /usr/bin/env; LINK ${{pkgs.coreutils}}/bin/env /bin/env or provide another declared env implementation"
+        );
+    }
+    Ok(())
+}
+
+fn resolve_item_program(
+    output: &Path,
+    executable: &Path,
+    env: &BTreeMap<String, String>,
+) -> Result<PathBuf> {
+    clean_executable(executable)?;
+    let path = env
+        .get("PATH")
+        .context("bare START requires a resolved PATH")?;
+    let candidates = path
+        .split(':')
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            let directory = Path::new(entry);
+            if directory.starts_with("/nix/store") {
+                directory.join(executable)
+            } else {
+                output
+                    .join(directory.strip_prefix("/").unwrap_or(directory))
+                    .join(executable)
+            }
+        });
+    let mut fallback = None;
+    for candidate in candidates {
+        fallback.get_or_insert_with(|| candidate.clone());
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+    }
+    fallback.with_context(|| {
+        format!(
+            "bare executable {} was not found on the service PATH {path:?}",
+            executable.display()
+        )
+    })
 }
 
 fn interpolate(field: &str, input: &str, env: &BTreeMap<String, String>) -> Result<String> {
@@ -921,6 +1149,157 @@ mod tests {
         )
         .unwrap();
         (spec, config)
+    }
+
+    #[test]
+    fn closed_root_snapshots_cover_claims_dirs_materializations_and_modes() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/cache"],"logs":["/var/log/app"],"config":["/etc/app"],"run":["/run/app"]},"claims":["egress","gpu",{"device":"/dev/cix-device"}],"shm":"64M"}"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        for mode in [UnitMode::System, UnitMode::UserFull] {
+            let mut options = UnitCompileOptions::cix_run("audit");
+            options.naming.unit = format!(
+                "cix-audit-{}.service",
+                if mode == UnitMode::System {
+                    "system"
+                } else {
+                    "user"
+                }
+            );
+            options.extra_properties = vec![
+                ("SupplementaryGroups".into(), "cix-shared".into()),
+                ("BindPaths".into(), "/srv/shared:/data".into()),
+                ("BindReadOnlyPaths".into(), "/srv/input:/input".into()),
+            ];
+            if mode == UnitMode::System {
+                options.extra_properties.extend([
+                    ("DynamicUser".into(), "no".into()),
+                    ("User".into(), "operator".into()),
+                    ("Group".into(), "operator".into()),
+                ]);
+            }
+            options.probe_binary =
+                Some("/nix/store/11111111111111111111111111111111-cix/bin/cix".into());
+            options.closed_root = Some(
+                crate::closed_root::options_for_unit(&options.naming.unit, false)
+                    .unwrap()
+                    .with_identity_override("operator"),
+            );
+            let compiled = compile_unit_for_host(
+                Path::new("/nix/store/00000000000000000000000000000000-app"),
+                "audit",
+                service,
+                &config,
+                mode,
+                &options,
+                &HostCapabilities::all_supported(),
+            )
+            .unwrap();
+            let expected = match mode {
+                UnitMode::System => include_str!("../tests/fixtures/closed-root-system.unit"),
+                UnitMode::UserFull => include_str!("../tests/fixtures/closed-root-user.unit"),
+                UnitMode::UserDegraded => unreachable!(),
+            };
+            assert_eq!(compiled.text, expected);
+        }
+    }
+
+    #[test]
+    fn pre_v257_closed_root_adds_explicit_journal_socket_binds() {
+        let spec = Spec::from_slice(br#"{"cixManifest":0,"start":["bin/app"]}"#).unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let mut options = UnitCompileOptions::cix_run("compat");
+        options.probe_binary =
+            Some("/nix/store/11111111111111111111111111111111-cix/bin/cix".into());
+        options.closed_root =
+            Some(crate::closed_root::options_for_unit("cix-compat.service", false).unwrap());
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "compat",
+            service,
+            &config,
+            UnitMode::System,
+            &options,
+            &HostCapabilities::for_systemd_version(256),
+        )
+        .unwrap();
+        for socket in [
+            "/dev/log",
+            "/run/systemd/journal/socket",
+            "/run/systemd/journal/stdout",
+        ] {
+            assert!(compiled
+                .properties
+                .contains(&("BindReadOnlyPaths".into(), socket.into(),)));
+        }
+    }
+
+    #[test]
+    fn closed_root_teaches_explicit_shell_and_env_dependencies() {
+        let error = resolved_argv(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "start",
+            &["/bin/sh".into()],
+            &BTreeMap::new(),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("name the shell explicitly"), "{error}");
+
+        let output = tempfile::tempdir().unwrap();
+        let executable = output.path().join("start");
+        std::fs::write(&executable, "#!/usr/bin/env bash\n").unwrap();
+        let error = validate_closed_root_executable(output.path(), executable.to_str().unwrap())
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("LINK ${pkgs.coreutils}/bin/env"), "{error}");
+        std::fs::create_dir_all(output.path().join("bin")).unwrap();
+        std::fs::write(output.path().join("bin/env"), "env").unwrap();
+        validate_closed_root_executable(output.path(), executable.to_str().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn closed_root_refuses_host_dependent_low_port_capabilities() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"ports":{"http":{"value":80,"protocol":"tcp"}}}"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let mut options = UnitCompileOptions::cix_run("low-port");
+        options.closed_root =
+            Some(crate::closed_root::options_for_unit("cix-low-port.service", false).unwrap());
+        let error = build_unit_with_options(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "app",
+            service,
+            &config,
+            UnitMode::System,
+            &options,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "closed root cannot grant http port 80: PrivateUsers isolates capabilities from the host network namespace; use a port >= 1024 or a named LISTENER for systemd socket activation"
+        );
+    }
+
+    #[test]
+    fn bare_start_resolves_through_the_item_path() {
+        let output = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(output.path().join("bin")).unwrap();
+        std::fs::write(output.path().join("bin/app"), "app").unwrap();
+        let env = BTreeMap::from([("PATH".into(), "bin:/tools/bin".into())]);
+        assert_eq!(
+            resolve_item_program(output.path(), Path::new("app"), &env).unwrap(),
+            output.path().join("bin/app")
+        );
     }
 
     #[test]
@@ -1276,6 +1655,33 @@ mod tests {
             output.path().to_string_lossy().into_owned(),
         )));
 
+        let mut closed_options = UnitCompileOptions::cix_run("worker");
+        closed_options.probe_binary =
+            Some("/nix/store/11111111111111111111111111111111-cix/bin/cix".into());
+        closed_options.closed_root = Some(
+            crate::closed_root::options_for_unit("cix-worker-user.service", false)
+                .unwrap()
+                .with_identity_override("operator"),
+        );
+        let closed_user = build_unit_with_options(
+            output.path(),
+            "worker",
+            service,
+            &config,
+            UnitMode::UserFull,
+            &closed_options,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        assert!(closed_user.properties.contains(&(
+            "BindReadOnlyPaths".into(),
+            format!("{}/etc/nginx:/etc/nginx", output.path().display()),
+        )));
+        assert!(closed_user.properties.contains(&(
+            "BindReadOnlyPaths".into(),
+            format!("{}/cix-probe.conf:/cix-probe.conf", output.path().display()),
+        )));
+
         let degraded_definition = build_unit(
             output.path(),
             "worker",
@@ -1502,6 +1908,7 @@ mod tests {
                     ("CIX_SERVICE".into(), "web".into()),
                 ],
                 probe_binary: None,
+                closed_root: None,
             },
         )
         .unwrap();

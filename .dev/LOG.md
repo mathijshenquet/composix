@@ -1,5 +1,33 @@
 # composix work log
 
+## 2026-08-02 closed-root track complete (CIP-84 phase 1)
+
+- **Completed on `track/closedroot`**: opt-in `--closed-root` compilation for
+  run and compose with an empty per-unit root, whole-store read-only bind,
+  D22/role/claim projections, exact synthetic NSS, `PrivateUsers`, egress DNS,
+  journald compatibility, user-mode parity/fallback, and explicit shell/env
+  dependency diagnostics. Default behavior remains unchanged for phase 1.
+- **Audit and ledgers**: the exhaustive VM roster runs all seven pack members
+  and ten reproducible migration contracts with their native probes and sealed
+  root/forced-teardown assertions. Ten non-runnable or non-reproducible corpus
+  cases are explicitly downgraded; Docker and corpus ledgers distinguish the
+  receipts from desk claims.
+- **Decisions**: implemented adopted CIP-84 without a new decision. The work
+  follows D22 projections, D13 loud user-manager degradation, D48 identity and
+  egress vocabulary, D58-style explicit environment dependencies, and D63
+  anonymous-run GC lifetime. Direct ports below 1024 are refused in closed
+  roots because `PrivateUsers` capabilities cannot authorize host-netns binds;
+  named listeners remain the privileged-port route.
+- **Proof**: fmt, examples formatting, warning-denied workspace/all-target
+  clippy, explicit corpus/tour regeneration, workspace tests, focused dogfood
+  and closed-root VMs, and the exact final
+  `devenv shell -- nix flake check -L` all passed synchronously. Exact receipts
+  and the one caught fixture/preparation fix round are in
+  `crates/cix-run/LOG.md`.
+- **Open with Mathijs**: none for this track.
+- **Open for agents**: independently re-run the full gate, then merge
+  `track/closedroot`.
+
 ## 2026-08-02 health track complete (CIP-79)
 
 - **Completed on `track/health`**: strict READINESS/LIVENESS manifest and

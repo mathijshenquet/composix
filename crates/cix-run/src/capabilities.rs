@@ -26,6 +26,7 @@ impl Capability {
 pub struct HostCapabilities {
     pub private_pids_with_persistent_directories: Capability,
     pub user_private_devices: Capability,
+    pub systemd_version: u32,
 }
 
 impl HostCapabilities {
@@ -33,6 +34,7 @@ impl HostCapabilities {
         Self {
             private_pids_with_persistent_directories: Capability::Supported,
             user_private_devices: Capability::Supported,
+            systemd_version: 257,
         }
     }
 
@@ -42,6 +44,7 @@ impl HostCapabilities {
                 reason: reason.into(),
             },
             user_private_devices: Capability::Supported,
+            systemd_version: 257,
         }
     }
 
@@ -51,6 +54,14 @@ impl HostCapabilities {
             user_private_devices: Capability::Unsupported {
                 reason: reason.into(),
             },
+            systemd_version: 257,
+        }
+    }
+
+    pub fn for_systemd_version(version: u32) -> Self {
+        Self {
+            systemd_version: version,
+            ..Self::all_supported()
         }
     }
 
@@ -58,7 +69,7 @@ impl HostCapabilities {
         if let Some(capabilities) =
             capabilities_from_override(env::var(PRIVATE_PIDS_PROBE_OVERRIDE).ok().as_deref())?
         {
-            return Ok(capabilities);
+            return with_systemd_version(capabilities);
         }
 
         let systemctl = Command::new("systemctl")
@@ -75,25 +86,48 @@ impl HostCapabilities {
             .context("systemctl --version returned non-UTF-8 output")?;
         let version = parse_systemd_version(&version_output)?;
         if version < 257 {
-            return Ok(Self::private_pids_with_persistent_directories_unsupported(
+            return Ok(Self {
+                systemd_version: version,
+                ..Self::private_pids_with_persistent_directories_unsupported(
                 format!(
                     "systemd {version} predates PrivatePIDs= support; capability probe was not realized"
                 ),
-            ));
+                )
+            });
         }
 
-        realize_private_pids_probe(version)
+        let mut capabilities = realize_private_pids_probe(version)?;
+        capabilities.systemd_version = version;
+        Ok(capabilities)
     }
 
     pub fn probe_user() -> Result<Self> {
         if let Some(capabilities) = user_capabilities_from_override(
             env::var(PRIVATE_DEVICES_PROBE_OVERRIDE).ok().as_deref(),
         )? {
-            return Ok(capabilities);
+            return with_systemd_version(capabilities);
         }
 
         realize_user_private_devices_probe()
     }
+}
+
+fn with_systemd_version(mut capabilities: HostCapabilities) -> Result<HostCapabilities> {
+    let output = Command::new("systemctl")
+        .arg("--version")
+        .output()
+        .context("failed to run systemctl --version")?;
+    if !output.status.success() {
+        bail!(
+            "systemctl --version failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    capabilities.systemd_version = parse_systemd_version(
+        &String::from_utf8(output.stdout)
+            .context("systemctl --version returned non-UTF-8 output")?,
+    )?;
+    Ok(capabilities)
 }
 
 fn capabilities_from_override(value: Option<&str>) -> Result<Option<HostCapabilities>> {

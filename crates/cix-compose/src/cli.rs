@@ -17,6 +17,9 @@ pub enum Command {
         /// Re-resolve all pinned services, or one named service.
         #[arg(long, num_args = 0..=1, default_missing_value = "*", value_name = "SERVICE")]
         update: Option<String>,
+        /// Audit generated services in sealed filesystem roots (CIP-84 phase 1).
+        #[arg(long)]
+        closed_root: bool,
     },
     /// Stop and unlink a composite while retaining its profile.
     Down {
@@ -71,6 +74,9 @@ pub enum ComposeCommand {
         /// Path to compose.json.
         #[arg(default_value = "compose.json")]
         file: PathBuf,
+        /// Compare a sealed-root generation (CIP-84 phase 1).
+        #[arg(long)]
+        closed_root: bool,
     },
 }
 
@@ -81,15 +87,19 @@ impl Command {
                 command: ComposeCommand::Check { file },
             } => crate::check(&file),
             Self::Compose {
-                command: ComposeCommand::Diff { file },
-            } => crate::diff(&file),
-            Self::Up { file, update } => {
+                command: ComposeCommand::Diff { file, closed_root },
+            } => crate::diff(&file, closed_root),
+            Self::Up {
+                file,
+                update,
+                closed_root,
+            } => {
                 let update = match update.as_deref() {
                     None => UpdateRequest::None,
                     Some("*") => UpdateRequest::All,
                     Some(service) => UpdateRequest::Service(service.to_owned()),
                 };
-                crate::up(&file, update)
+                crate::up(&file, update, closed_root)
             }
             Self::Down { name, purge, yes } => {
                 let name = match name {

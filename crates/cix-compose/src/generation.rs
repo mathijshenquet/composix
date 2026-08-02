@@ -7,6 +7,7 @@ use std::{
 use anyhow::{Context, Result};
 use cix_run::{
     capabilities::HostCapabilities,
+    closed_root::options_for_unit,
     unit::{compile_unit_for_host, UnitCompileOptions, UnitMode, UnitNaming},
 };
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,8 @@ pub struct Manifest {
     pub name: String,
     pub units: BTreeMap<String, ManifestUnit>,
     pub services: BTreeMap<String, ManifestService>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub closed_root: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub degradations: Vec<ManifestDegradation>,
 }
@@ -100,11 +103,26 @@ pub fn build_generation(
     compose_path: &Path,
     capabilities: &HostCapabilities,
 ) -> Result<BuiltGeneration> {
+    build_generation_with_closed_root(checked, compose_path, capabilities, false)
+}
+
+pub fn build_generation_with_closed_root(
+    checked: &CheckResult,
+    compose_path: &Path,
+    capabilities: &HostCapabilities,
+    closed_root: bool,
+) -> Result<BuiltGeneration> {
     let temporary = tempfile::tempdir().context("creating compose generation workspace")?;
     let generation = temporary
         .path()
         .join(format!("cix-compose-{}-generation", checked.compose.name));
-    let manifest = render_generation(checked, compose_path, &generation, capabilities)?;
+    let manifest = render_generation_with_closed_root(
+        checked,
+        compose_path,
+        &generation,
+        capabilities,
+        closed_root,
+    )?;
     let generation_text = generation.to_string_lossy().into_owned();
     let output = cix_common::nix(&["store", "add-path", &generation_text])
         .context("adding compose generation to the Nix store")?;
@@ -121,6 +139,16 @@ pub fn render_generation(
     generation: &Path,
     capabilities: &HostCapabilities,
 ) -> Result<Manifest> {
+    render_generation_with_closed_root(checked, compose_path, generation, capabilities, false)
+}
+
+pub fn render_generation_with_closed_root(
+    checked: &CheckResult,
+    compose_path: &Path,
+    generation: &Path,
+    capabilities: &HostCapabilities,
+    closed_root: bool,
+) -> Result<Manifest> {
     let units_dir = generation.join("units");
     let sysusers_dir = generation.join("sysusers.d");
     fs::create_dir_all(&units_dir)?;
@@ -129,7 +157,7 @@ pub fn render_generation(
     write_json(&generation.join("compose.json"), &checked.compose)?;
     write_json(&generation.join("cix.lock"), &checked.lock)?;
 
-    let rendered = render_units(checked, capabilities)?;
+    let rendered = render_units(checked, capabilities, closed_root)?;
     for (name, text) in &rendered.units {
         fs::write(units_dir.join(name), text)
             .with_context(|| format!("writing generated unit {name}"))?;
@@ -148,7 +176,11 @@ struct Rendered {
     manifest: Manifest,
 }
 
-fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Result<Rendered> {
+fn render_units(
+    checked: &CheckResult,
+    capabilities: &HostCapabilities,
+    closed_root: bool,
+) -> Result<Rendered> {
     let composite = &checked.compose.name;
     let slice = format!("cix-{composite}.slice");
     let target = format!("cix-{composite}.target");
@@ -374,6 +406,9 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                     ("CIX_SERVICE".into(), service_name.clone()),
                 ],
                 probe_binary: None,
+                closed_root: closed_root
+                    .then(|| options_for_unit(&service_unit, false))
+                    .transpose()?,
             },
             capabilities,
         )
@@ -514,6 +549,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             name: composite.clone(),
             units: manifest_units,
             services: manifest_services,
+            closed_root,
             degradations,
         },
     })
@@ -962,6 +998,33 @@ mod tests {
         }
         let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
         assert!(!web.contains("RuntimeDirectory="));
+    }
+
+    #[test]
+    fn closed_root_generation_marks_manifest_and_seals_each_service() {
+        let (directory, checked, compose_path) = fixture();
+        let generation = directory.path().join("closed-root-generation");
+        let manifest = render_generation_with_closed_root(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+            true,
+        )
+        .unwrap();
+        assert!(manifest.closed_root);
+        for service in ["web", "worker"] {
+            let unit_name = format!("cix-stack-{service}.service");
+            let unit = fs::read_to_string(generation.join("units").join(&unit_name)).unwrap();
+            assert!(
+                unit.contains(&format!("RootDirectory=/run/cix/closed-roots/{unit_name}")),
+                "{unit}"
+            );
+            assert!(unit.contains("MountAPIVFS=yes"), "{unit}");
+            assert!(unit.contains("BindReadOnlyPaths=/nix/store"), "{unit}");
+            assert!(unit.contains("/nss/passwd:/etc/passwd"), "{unit}");
+            assert!(unit.contains("PrivateUsers=yes"), "{unit}");
+        }
     }
 
     #[test]
