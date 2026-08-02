@@ -120,6 +120,34 @@ Two structural upgrades over tier 1:
   nix sandbox for isolation and only arranges the filesystem view —
   that mode is the honest open item of this tier.
 
+**The pure-build cut** (what composix-without-compose-and-pack IS,
+precisely — the seam tier 1b exposes): the D41/D68 line turns out to
+be the product boundary. `BUILDER` blocks + `ITEM` outputs are the
+complete build product — manifest-less store trees, which is exactly
+what a nixpkgs package is. `SERVICE`/`APP` = the same build product
+PLUS a runtime contract carried as data in the tree. So the cut is
+not a fork but a projection:
+
+- **What nixpkgs consumes**: Cixfile parser + builder engine + lock +
+  `--cold` replay + ITEM assembly. No index (nixpkgs IS the
+  distribution), no unit generation, no compose — the entire runtime
+  half is absent, not stubbed. Concretely a crate seam:
+  cix-build + the cixfile parser, with the manifest/spec dependency
+  feature-gated to ITEM-only.
+- **What rides along for free**: a SERVICE built through the same
+  builder still emits its manifest as inert data — which is the
+  D68+D65 composed-ITEM route: a NixOS module could later consume
+  that manifest and generate units nixpkgs-side. The runtime thesis
+  re-enters as an optional consumer of data, never as a build
+  dependency.
+- **The strategic read**: the build half is independently valuable to
+  people who will never run a cix service — an adoption funnel
+  (meet cix as "the *2nix killer", discover the runtime later), at
+  the cost of maintaining a public builder seam for non-cix
+  consumers. The thesis stays intact because the coupling was always
+  one-directional: closed-root needs closure-complete builds; builds
+  never needed the runtime.
+
 **Tier 2 — `cix build --emit-nix <dir>` (generated standalone nix,
 cix-free at build time).** Same graph, written out as boring committed
 `.nix` — the form nixpkgs-upstream could take today (IFD is banned
