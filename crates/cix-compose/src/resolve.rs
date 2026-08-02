@@ -13,7 +13,7 @@ use cix_run::{
 
 use crate::model::{
     Child, Compose, ComposeService, DirectoryMaterialization, DirectoryRole, Edge, Lock,
-    LockedService, SecretSource, UpdatePolicy,
+    LockedService, Network, Publish, SecretSource, UpdatePolicy,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -34,6 +34,30 @@ pub struct CheckedService {
     pub directories: Vec<DirectoryClaim>,
     pub secrets: BTreeMap<String, SecretSource>,
     pub declaration: ComposeService,
+    pub pod: Option<String>,
+    pub egress: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedPod {
+    pub path: String,
+    pub egress: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedPublish {
+    pub name: String,
+    pub service: String,
+    pub surface: String,
+    pub address: SocketAddr,
+    pub pod: String,
+    pub kind: PublishKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PublishKind {
+    Listener,
+    Port { target: u16 },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,6 +85,8 @@ pub struct CheckResult {
     pub edges: BTreeMap<String, Edge>,
     /// Relative group paths. The empty path is the deployment root.
     pub groups: BTreeSet<String>,
+    pub pods: BTreeMap<String, CheckedPod>,
+    pub publishes: Vec<CheckedPublish>,
     pub warnings: Vec<String>,
 }
 
@@ -102,16 +128,30 @@ fn check_with_calendar(
         services: BTreeMap::new(),
         edges: BTreeMap::new(),
         groups: BTreeSet::new(),
+        pods: BTreeMap::new(),
+        publishes: Vec::new(),
         known_paths: BTreeSet::new(),
         warnings: Vec::new(),
     };
-    builder.walk_group("", &compose.children, &compose.edges, &compose.secrets, 0)?;
+    let root_exports = builder.walk_group(GroupWalk {
+        path: "",
+        children: &compose.children,
+        edges: &compose.edges,
+        secrets: &compose.secrets,
+        network: compose.network,
+        publish: &compose.publish,
+        inherited_pod: None,
+        depth: 0,
+    })?;
+    builder.collect_host_publishes("", root_exports)?;
     builder.validate_update_paths()?;
     let TreeBuilder {
         lock,
         services,
         edges,
         groups,
+        mut pods,
+        publishes,
         mut warnings,
         ..
     } = builder;
@@ -129,14 +169,28 @@ fn check_with_calendar(
         ));
     }
     validate_edges(&edges, &services)?;
-    validate_collisions(&services)?;
     validate_shared_directories(&services)?;
+    for (path, service) in &services {
+        if let Some(pod_path) = &service.pod {
+            pods.get_mut(pod_path)
+                .expect("service pod was registered")
+                .egress |= service.egress;
+        } else if service.egress {
+            warnings.push(format!(
+                "children.{}: CLAIM egress has no pod ancestor and is a loud host-network no-op (D43)",
+                path
+            ));
+        }
+    }
+    validate_collisions(&services, &publishes)?;
     Ok(CheckResult {
         compose: compose.clone(),
         lock,
         services,
         edges,
         groups,
+        pods,
+        publishes,
         warnings,
     })
 }
@@ -150,31 +204,61 @@ struct TreeBuilder<'a> {
     services: BTreeMap<String, CheckedService>,
     edges: BTreeMap<String, Edge>,
     groups: BTreeSet<String>,
+    pods: BTreeMap<String, CheckedPod>,
+    publishes: Vec<CheckedPublish>,
     known_paths: BTreeSet<String>,
     warnings: Vec<String>,
 }
 
+#[derive(Clone, Debug)]
+struct Surface {
+    service: String,
+    name: String,
+    kind: PublishKind,
+    binding: Option<SocketAddr>,
+    pod: Option<String>,
+}
+
+struct GroupWalk<'a> {
+    path: &'a str,
+    children: &'a BTreeMap<String, Child>,
+    edges: &'a BTreeMap<String, Edge>,
+    secrets: &'a BTreeMap<String, SecretSource>,
+    network: Option<Network>,
+    publish: &'a BTreeMap<String, Publish>,
+    inherited_pod: Option<&'a str>,
+    depth: usize,
+}
+
 impl TreeBuilder<'_> {
-    fn walk_group(
-        &mut self,
-        prefix: &str,
-        children: &BTreeMap<String, Child>,
-        edges: &BTreeMap<String, Edge>,
-        secrets: &BTreeMap<String, SecretSource>,
-        depth: usize,
-    ) -> Result<()> {
-        if depth > 64 {
+    fn walk_group(&mut self, walk: GroupWalk<'_>) -> Result<BTreeMap<String, Surface>> {
+        if walk.depth > 64 {
             bail!("children: compose nesting exceeds the maximum depth of 64");
         }
-        self.groups.insert(prefix.to_owned());
-        if !prefix.is_empty() {
-            self.known_paths.insert(prefix.to_owned());
+        self.groups.insert(walk.path.to_owned());
+        if !walk.path.is_empty() {
+            self.known_paths.insert(walk.path.to_owned());
         }
-        for (name, child) in children {
-            let path = join_path(prefix, name);
+        let pod = if walk.network == Some(Network::Pod) {
+            self.pods.insert(
+                walk.path.to_owned(),
+                CheckedPod {
+                    path: walk.path.to_owned(),
+                    egress: false,
+                },
+            );
+            Some(walk.path)
+        } else {
+            walk.inherited_pod
+        };
+        let mut child_surfaces = BTreeMap::new();
+        for (name, child) in walk.children {
+            let path = join_path(walk.path, name);
             self.known_paths.insert(path.clone());
-            match child {
-                Child::Item(declaration) => self.resolve_item(&path, declaration, secrets)?,
+            let surfaces = match child {
+                Child::Item(declaration) => {
+                    self.resolve_item(&path, declaration, walk.secrets, pod)?
+                }
                 Child::Compose(reference) => {
                     let locked = self.resolve_reference(
                         &path,
@@ -189,24 +273,61 @@ impl TreeBuilder<'_> {
                             path, reference.compose
                         )
                     })?;
-                    self.walk_group(
-                        &path,
-                        &nested.children,
-                        &nested.edges,
-                        &nested.secrets,
-                        depth + 1,
-                    )?;
+                    let mut surfaces = self.walk_group(GroupWalk {
+                        path: &path,
+                        children: &nested.children,
+                        edges: &nested.edges,
+                        secrets: &nested.secrets,
+                        network: nested.network,
+                        publish: &nested.publish,
+                        inherited_pod: pod,
+                        depth: walk.depth + 1,
+                    })?;
+                    apply_bindings(&path, &mut surfaces, &reference.bind)?;
+                    surfaces
                 }
-                Child::Group(group) => self.walk_group(
+                Child::Group(group) => {
+                    let mut surfaces = self.walk_group(GroupWalk {
+                        path: &path,
+                        children: &group.children,
+                        edges: &group.edges,
+                        secrets: &group.secrets,
+                        network: group.network,
+                        publish: &group.publish,
+                        inherited_pod: pod,
+                        depth: walk.depth + 1,
+                    })?;
+                    apply_bindings(&path, &mut surfaces, &group.bind)?;
+                    surfaces
+                }
+            };
+            if pod.is_none() {
+                self.collect_host_publishes(
                     &path,
-                    &group.children,
-                    &group.edges,
-                    &group.secrets,
-                    depth + 1,
-                )?,
+                    surfaces
+                        .iter()
+                        .map(|(name, surface)| (name.clone(), surface.clone())),
+                )?;
             }
+            child_surfaces.insert(name.clone(), surfaces);
         }
-        self.flatten_edges(prefix, children, edges)
+        self.flatten_edges(walk.path, walk.edges)?;
+        let mut exports = BTreeMap::new();
+        for (name, declaration) in walk.publish {
+            let child = child_surfaces
+                .get(&declaration.child)
+                .expect("model validated publish child");
+            let surface = child.get(&declaration.port).with_context(|| {
+                format!(
+                    "publish.{}: child {:?} has no port or listener surface {:?}",
+                    join_path(walk.path, name),
+                    declaration.child,
+                    declaration.port
+                )
+            })?;
+            exports.insert(name.clone(), surface.clone());
+        }
+        Ok(exports)
     }
 
     fn resolve_item(
@@ -214,7 +335,8 @@ impl TreeBuilder<'_> {
         path: &str,
         declaration: &ComposeService,
         secrets: &BTreeMap<String, SecretSource>,
-    ) -> Result<()> {
+        pod: Option<&str>,
+    ) -> Result<BTreeMap<String, Surface>> {
         let locked = self.resolve_reference(path, &declaration.item, declaration.update, "item")?;
         let store_path = PathBuf::from(&locked.store_path);
         let spec = cix_run::spec::Spec::load(&store_path)
@@ -235,8 +357,12 @@ impl TreeBuilder<'_> {
             .iter()
             .map(|(key, value)| format!("{key}={value}"))
             .collect::<Vec<_>>();
-        let config = ResolvedConfig::resolve(service, &env, &bindings)
-            .with_context(|| format!("children.{path}"))?;
+        let config = if pod.is_some() {
+            ResolvedConfig::resolve_compose(service, &env, &[])
+        } else {
+            ResolvedConfig::resolve(service, &env, &bindings)
+        }
+        .with_context(|| format!("children.{path}"))?;
         let mut directories =
             materialize_directories(path, declaration, service, &mut self.warnings)?;
         let group_path = path.rsplit_once('/').map(|(group, _)| group).unwrap_or("");
@@ -245,19 +371,71 @@ impl TreeBuilder<'_> {
                 *name = join_path(group_path, name);
             }
         }
+        let declared_egress = service.has_claim("egress");
+        let egress = declaration.egress.unwrap_or(declared_egress);
+        if declaration.egress == Some(true) && !declared_egress {
+            self.warnings.push(format!(
+                "children.{path}.egress: LOUD capability grant: the item did not declare CLAIM egress (D49a)"
+            ));
+        }
         self.services.insert(
             path.to_owned(),
             CheckedService {
                 store_path,
                 item_service: item_service.to_owned(),
                 spec: service.clone(),
-                config,
+                config: config.clone(),
                 directories,
                 secrets: resolved_secrets,
                 declaration: declaration.clone(),
+                pod: pod.map(str::to_owned),
+                egress,
             },
         );
-        Ok(())
+        let mut surfaces = BTreeMap::new();
+        for name in service.listeners.keys() {
+            surfaces.insert(
+                name.clone(),
+                Surface {
+                    service: path.to_owned(),
+                    name: name.clone(),
+                    kind: PublishKind::Listener,
+                    binding: pod
+                        .and_then(|_| declaration.bind.get(name))
+                        .map(|value| parse_publish_binding(path, name, value))
+                        .transpose()?,
+                    pod: pod.map(str::to_owned),
+                },
+            );
+        }
+        for name in service.ports.keys() {
+            let Some(target) = config.ports.get(name).copied() else {
+                bail!("children.{path}: port {name:?} has no resolved internal value");
+            };
+            surfaces.insert(
+                name.clone(),
+                Surface {
+                    service: path.to_owned(),
+                    name: name.clone(),
+                    kind: PublishKind::Port { target },
+                    binding: pod
+                        .and_then(|_| declaration.bind.get(name))
+                        .map(|value| parse_publish_binding(path, name, value))
+                        .transpose()?,
+                    pod: pod.map(str::to_owned),
+                },
+            );
+        }
+        if pod.is_some() {
+            for name in declaration.bind.keys() {
+                if !surfaces.contains_key(name) {
+                    bail!(
+                        "children.{path}.bind.{name}: target is neither a declared port nor listener"
+                    );
+                }
+            }
+        }
+        Ok(surfaces)
     }
 
     fn resolve_reference(
@@ -290,25 +468,57 @@ impl TreeBuilder<'_> {
         Ok(locked)
     }
 
-    fn flatten_edges(
+    fn collect_host_publishes(
         &mut self,
         prefix: &str,
-        children: &BTreeMap<String, Child>,
-        edges: &BTreeMap<String, Edge>,
+        surfaces: impl IntoIterator<Item = (String, Surface)>,
     ) -> Result<()> {
+        for (exported_name, surface) in surfaces {
+            let Some(pod) = surface.pod else {
+                continue;
+            };
+            let Some(address) = surface.binding else {
+                continue;
+            };
+            let name = if prefix.is_empty() {
+                exported_name
+            } else {
+                format!("{prefix}/{exported_name}")
+            };
+            if self
+                .publishes
+                .iter()
+                .any(|published| published.name == name)
+            {
+                continue;
+            }
+            self.publishes.push(CheckedPublish {
+                name,
+                service: surface.service,
+                surface: surface.name,
+                address,
+                pod,
+                kind: surface.kind,
+            });
+        }
+        Ok(())
+    }
+
+    fn flatten_edges(&mut self, prefix: &str, edges: &BTreeMap<String, Edge>) -> Result<()> {
         for (edge_name, edge) in edges {
-            let producer =
-                flatten_endpoint(prefix, children, &edge.producer.child).with_context(|| {
+            let producer = flatten_endpoint(prefix, &self.services, &edge.producer.child)
+                .with_context(|| {
                     format!("edges.{}.producer.child", join_path(prefix, edge_name))
                 })?;
             let mut consumers = BTreeMap::new();
             for (consumer, config) in &edge.consumers {
-                let path = flatten_endpoint(prefix, children, consumer).with_context(|| {
-                    format!(
-                        "edges.{}.consumers.{consumer}",
-                        join_path(prefix, edge_name)
-                    )
-                })?;
+                let path =
+                    flatten_endpoint(prefix, &self.services, consumer).with_context(|| {
+                        format!(
+                            "edges.{}.consumers.{consumer}",
+                            join_path(prefix, edge_name)
+                        )
+                    })?;
                 consumers.insert(path, config.clone());
             }
             self.edges.insert(
@@ -345,6 +555,28 @@ impl TreeBuilder<'_> {
     }
 }
 
+fn parse_publish_binding(path: &str, name: &str, value: &str) -> Result<SocketAddr> {
+    value.parse::<SocketAddr>().with_context(|| {
+        format!(
+            "children.{path}.bind.{name}: published binding must be an IP address and port such as 127.0.0.1:8080"
+        )
+    })
+}
+
+fn apply_bindings(
+    path: &str,
+    surfaces: &mut BTreeMap<String, Surface>,
+    bindings: &BTreeMap<String, String>,
+) -> Result<()> {
+    for (name, value) in bindings {
+        let surface = surfaces.get_mut(name).with_context(|| {
+            format!("children.{path}.bind.{name}: child group publishes no surface {name:?}")
+        })?;
+        surface.binding = Some(parse_publish_binding(path, name, value)?);
+    }
+    Ok(())
+}
+
 fn join_path(prefix: &str, name: &str) -> String {
     if prefix.is_empty() {
         name.to_owned()
@@ -365,15 +597,14 @@ fn update_contains(update: &UpdateRequest, path: &str) -> bool {
 
 fn flatten_endpoint(
     prefix: &str,
-    children: &BTreeMap<String, Child>,
+    services: &BTreeMap<String, CheckedService>,
     name: &str,
 ) -> Result<String> {
-    match children.get(name) {
-        Some(Child::Item(_)) => Ok(join_path(prefix, name)),
-        Some(Child::Compose(_) | Child::Group(_)) => bail!(
-            "child {name:?} is a group; edges crossing a group boundary require publish and are deferred to the netns/publish track"
-        ),
-        None => bail!("unknown child {name:?}"),
+    let path = join_path(prefix, name);
+    if services.contains_key(&path) {
+        Ok(path)
+    } else {
+        bail!("unknown leaf child path {name:?}")
     }
 }
 
@@ -714,12 +945,15 @@ fn record_destination<'a>(
     Ok(())
 }
 
-fn validate_collisions(services: &BTreeMap<String, CheckedService>) -> Result<()> {
-    let mut ports: BTreeMap<u16, (&str, &str)> = BTreeMap::new();
+fn validate_collisions(
+    services: &BTreeMap<String, CheckedService>,
+    publishes: &[CheckedPublish],
+) -> Result<()> {
+    let mut ports: BTreeMap<(Option<&str>, u16), (&str, &str)> = BTreeMap::new();
     for (service_name, checked) in services {
         for (port_name, port) in &checked.config.ports {
             if let Some((other_service, other_port)) =
-                ports.insert(*port, (service_name, port_name))
+                ports.insert((checked.pod.as_deref(), *port), (service_name, port_name))
             {
                 if other_service != service_name {
                     bail!(
@@ -740,7 +974,7 @@ fn validate_collisions(services: &BTreeMap<String, CheckedService>) -> Result<()
                     );
                 }
             }
-            if let Some((other_service, other_port)) = ports.get(&address.port()) {
+            if let Some((other_service, other_port)) = ports.get(&(None, address.port())) {
                 if *other_service != service_name {
                     bail!(
                         "services.{service_name}.bind.{listener}: {address} collides with services.{other_service} port {other_port:?}"
@@ -749,6 +983,18 @@ fn validate_collisions(services: &BTreeMap<String, CheckedService>) -> Result<()
             }
             bindings.push((service_name, listener, *address));
         }
+    }
+    for published in publishes {
+        for (other_service, other_listener, other_address) in &bindings {
+            if addresses_collide(published.address, *other_address) {
+                bail!(
+                    "publish.{}: {} collides with services.{other_service}.bind.{other_listener} ({other_address})",
+                    published.name,
+                    published.address
+                );
+            }
+        }
+        bindings.push((&published.service, &published.surface, published.address));
     }
     Ok(())
 }
@@ -943,7 +1189,7 @@ mod tests {
             "{:#}",
             check_with(&bad_edge, &Lock::default(), &UpdateRequest::None, &resolver).unwrap_err()
         )
-        .contains("unknown child"));
+        .contains("unknown leaf child"));
 
         let bad_path = compose(
             r#"{
@@ -1273,5 +1519,112 @@ mod tests {
         assert_eq!(checked.lock.paths["sealed"].nar_hash, "suite-new");
         assert_eq!(checked.lock.paths["sealed/leaf"].nar_hash, "item-new");
         assert_eq!(&*calls.borrow(), &["suite:v1", "same:v1"]);
+    }
+
+    #[test]
+    fn nearest_pod_ancestor_scopes_ports_and_egress() {
+        let directory = tempfile::tempdir().unwrap();
+        let item = write_item(
+            directory.path(),
+            "server",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}},"claims":["egress"]"#,
+            ),
+        );
+        let compose: Compose = serde_json::from_str(
+            r#"{
+              "cixCompose": 1,
+              "name": "pods",
+              "children": {
+                "host": {"item": "server:v1"},
+                "outer": {
+                  "network": "pod",
+                  "children": {
+                    "api": {"item": "server:v1", "egress": false},
+                    "inner": {
+                      "network": "pod",
+                      "children": {"api": {"item": "server:v1"}}
+                    }
+                  }
+                }
+              }
+            }"#,
+        )
+        .unwrap();
+        let checked = check_with(&compose, &Lock::default(), &UpdateRequest::None, &|_| {
+            Ok(output(&item, "hash"))
+        })
+        .unwrap();
+
+        assert_eq!(checked.services["host"].pod, None);
+        assert_eq!(checked.services["outer/api"].pod.as_deref(), Some("outer"));
+        assert_eq!(
+            checked.services["outer/inner/api"].pod.as_deref(),
+            Some("outer/inner")
+        );
+        assert!(!checked.services["outer/api"].egress);
+        assert!(checked.services["outer/inner/api"].egress);
+        assert!(!checked.pods["outer"].egress);
+        assert!(checked.pods["outer/inner"].egress);
+    }
+
+    #[test]
+    fn pod_publishes_resolve_fd_and_proxyd_surfaces() {
+        let directory = tempfile::tempdir().unwrap();
+        let listener = write_item(
+            directory.path(),
+            "listener",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"listeners":{"http":{"type":"stream"}}"#,
+            ),
+        );
+        let port = write_item(
+            directory.path(),
+            "port",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"ports":{"http":{"value":8080,"protocol":"tcp"}}"#,
+            ),
+        );
+        let compose: Compose = serde_json::from_str(
+            r#"{
+              "cixCompose": 1,
+              "name": "publish",
+              "network": "pod",
+              "children": {
+                "fd": {"item": "listener:v1", "bind": {"http": "127.0.0.1:18080"}},
+                "tcp": {"item": "port:v1", "bind": {"http": "127.0.0.1:18081"}}
+              },
+              "publish": {
+                "fd": {"child": "fd", "port": "http"},
+                "tcp": {"child": "tcp", "port": "http"}
+              }
+            }"#,
+        )
+        .unwrap();
+        let checked = check_with(
+            &compose,
+            &Lock::default(),
+            &UpdateRequest::None,
+            &|reference| {
+                Ok(output(
+                    if reference == "listener:v1" {
+                        &listener
+                    } else {
+                        &port
+                    },
+                    "hash",
+                ))
+            },
+        )
+        .unwrap();
+
+        assert_eq!(checked.publishes.len(), 2);
+        assert!(checked
+            .publishes
+            .iter()
+            .any(|publish| publish.name == "fd" && publish.kind == PublishKind::Listener));
+        assert!(checked.publishes.iter().any(|publish| {
+            publish.name == "tcp" && publish.kind == PublishKind::Port { target: 8080 }
+        }));
     }
 }

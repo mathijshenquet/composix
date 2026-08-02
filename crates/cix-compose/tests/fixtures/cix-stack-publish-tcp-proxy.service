@@ -1,0 +1,17 @@
+[Unit]
+Description=cix compose published port proxy: tcp
+PartOf=cix-stack.target
+Requires=cix-stack-netns.service cix-stack-publish-tcp.socket
+After=cix-stack-netns.service cix-stack-publish-tcp.socket
+JoinsNamespaceOf=cix-stack-netns.service
+
+[Service]
+Type=notify
+Slice=cix-stack.slice
+NetworkNamespacePath=/run/netns/cix-stack-netns
+ExecStart=/run/current-system/systemd/lib/systemd/systemd-socket-proxyd 127.0.0.1:8080
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6
