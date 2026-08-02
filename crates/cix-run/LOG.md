@@ -524,3 +524,159 @@
   `origin/track/secrets`; the synchronous remote receipt resolves that ref to
   `f3fa1ac4cc6f1261b0b831cd26080e3949b5f972`. No source changes followed the
   full gate; this journal close remains to commit.
+
+## track/closedroot
+
+- 2026-08-02 14:00 UTC — Started CIP-84 phase 1 from
+  `.dev/specs/track-closedroot.md` on the clean `track/closedroot` branch with
+  the repository devenv active. Read the current session journal, authoritative
+  design/CIP decision, assigned cix-run journal, closed-root spec, and affected
+  Docker/corpus ledgers. The adopted contract is an opt-in `--closed-root`
+  compiler path in this track, with whole-store read-only visibility, D22/role/
+  materialized claim projections, synthetic minimal NSS, claimed resolver
+  injection, no `/bin/sh`, user/system parity, and a full artifact audit VM;
+  phase 2 alone will make it unconditional. Next: map the shared run/compose
+  compiler and scenario inventory before implementing the unit model.
+
+- 2026-08-02 14:56 UTC — Implemented the shared phase-1 sealed-root compiler
+  and CLI plumbing for `cix run --closed-root`, anonymous compose, `cix up
+  --closed-root`, and compose diff. Units now use a per-unit empty root,
+  `MountAPIVFS`, whole-store ro, D22/role/materialization binds in both system
+  and user modes, no `/bin/sh`, `/usr/bin/env -> /bin/env`, claimed host
+  resolv.conf, `PrivateUsers`, and the pre-v257 three-socket journald fallback.
+  Dynamic NSS cannot be rendered before systemd allocates the UID; the proven
+  mechanism binds cix-owned passwd/group backing files and runs a privileged
+  in-root pre-start helper before pack hooks, deriving the exact UID/GID from a
+  dedicated systemd-managed identity directory and sealing three-line files.
+  Focused cix-run/compose tests pass, including system/user golden fixtures,
+  NSS contents, claims/dirs/materializations, D22 user projection, and the
+  v256 log-socket guard. Live system receipts passed for nginx HTTP and Redis
+  PING under the store-built CLI; nginx inspection proved the closed root,
+  whole-store/D22 binds, absent `/bin/sh`, and exact DynamicUser NSS. The audit
+  also found and fixed a pre-existing bare-START bug (`redis-server` resolved
+  beside rather than through item `PATH=bin`). On this host, user-manager
+  RootDirectory reached the existing D13 fallback because unprivileged mount
+  namespacing is unsupported; the attempted sealed path and downgrade were
+  loud as required. Removed only the explicitly named, stateless probe roots
+  afterward. Next: build the exhaustive closed-root audit scenario and apply
+  its honest ledger consequences.
+
+- 2026-08-02 15:10 UTC — Added `scenario-closedroot-audit`, with an exhaustive
+  checked-in directory inventory: all seven `examples/pack` members and ten
+  reproducible corpus runtime contracts start behind `--closed-root` and run
+  their native HTTP/protocol/readiness/version probe. Each service assertion
+  also checks its live RootDirectory, MountAPIVFS, whole-store read-only bind,
+  env alias, and absent `/bin/sh`; devices, shm, inherited listeners, JIT,
+  setup, role dirs, and app execution are represented. The remaining ten
+  corpus cases are an explicit roster, not silent skips. Directus, Filestash,
+  and Verdaccio have no runnable item; Dozzle and Watchtower require Docker's
+  control plane; Parse Server has no runtime receipt. Echo Server, Excalidraw,
+  Wallos, and Whoami did pass historical one-off probes, but their consumed
+  source/build trees are not checked in and their receipt store paths have no
+  derivation, so CI cannot reproduce those artifacts. Downgraded exactly those
+  four ledger rows to “runtime receipt, closed-root evidence pending” rather
+  than substituting fake look-alike services. Next: run and debug the dedicated
+  VM synchronously, then execute the complete track gate.
+
+- 2026-08-02 15:21 UTC — The first synchronous audit run found two real
+  closed-root host dependencies. Caddy's port 80 bind failed because
+  `PrivateUsers=` places `CAP_NET_BIND_SERVICE` in a user namespace while the
+  socket belongs to the host network namespace; changed the audited Caddy,
+  nginx, and Traefik cases to unprivileged ports and made the compiler reject
+  this ineffective low-port combination with a named-LISTENER teaching path.
+  The design/Cixfile/Docker ledgers now say so. Service shutdown then exposed
+  GC-root cleanup resolving `rm` through `/run/current-system/sw`, which is
+  intentionally absent from the sealed root; cleanup now canonicalizes the
+  executable into `/nix/store`. Corrected the handwritten audit manifests to
+  the v3 `start_pre` shape and made Tomcat's bash dependency explicit instead
+  of depending on its `/bin/sh` shebang. The targeted low-port compiler test
+  passes. Next: verify cleanup locally and rerun the complete audit VM.
+
+- 2026-08-02 15:48 UTC — Closed-root teardown now binds the cix-owned GC-root
+  directory into the empty root and executes a store-resident `rm`; a live
+  Caddy receipt proved that killing the main process runs `ExecStopPost` and
+  removes the host GC-root symlink. PostgreSQL revealed that upstream `initdb`
+  invokes `/bin/sh` internally, so the pack now produces a pristine database
+  template during its Nix build and copies it into the writable role directory
+  at startup. A live closed-root PostgreSQL receipt reached `pg_isready` and
+  cleaned up correctly. In the rerun VM, PostgreSQL and Tomcat passed their
+  native probes plus every isolation/cleanup assertion; Adminer returned HTTP
+  success, but its audit incorrectly required presentation text that its
+  current response does not contain, so the probe now asserts a successful
+  response without coupling the runtime contract to page copy. Next: rerun the
+  exhaustive VM from this correction, then execute all track gates.
+
+- 2026-08-02 16:00 UTC — The exhaustive VM progressed through PostgreSQL,
+  both Redis contracts, Tomcat, Adminer, phpMyAdmin, Traefik, all specialized
+  pack claims, Caddy, Memcached, and NATS. Redis exposed an inherited host
+  locale dependency; both checked-in Redis Cixfiles now choose the built-in
+  `C` locale explicitly, and both native PING probes pass. Bounded the
+  Memcached netcat client after confirming its VERSION reply so an open server
+  connection cannot hang the test driver. The corpus nginx manifest then
+  exposed a genuine service-contract bug: nginx daemonized away from systemd's
+  tracked main process. Its checked-in config and audit fixture now set
+  `daemon off;`, matching a foreground container entrypoint. Next: validate
+  nginx and the remaining app contract first, then complete the exhaustive VM.
+
+- 2026-08-02 16:08 UTC — Complete `scenario-closedroot-audit` receipt is
+  green (exit 0, 149.15-second VM script): every one of the seven pack items
+  and ten reproducible corpus items ran under `--closed-root`, passed its
+  native probe, exposed the required sealed-root properties, retained no
+  `/bin/sh`, and removed its GC root after forced main-process teardown. The
+  remaining gate is also green through Rust fmt, examples Cixfile fmt,
+  warning-denied all-target workspace clippy, explicit corpus-browser and tour
+  regeneration, and `cargo test --workspace` (including corpus/tour drift and
+  determinism). Corpus browser regeneration records the four honest
+  reproducibility downgrades plus the Redis/nginx/Tomcat/Traefik contract
+  changes; tour regeneration produced no tour-page diff. Next: run the
+  mandatory full `nix flake check -L`, then review, close the session log, and
+  commit.
+
+- 2026-08-02 16:18 UTC — The first full flake gate reached the pre-existing
+  `vm-dogfood` integration test and found that its hand-written PostgreSQL
+  fixture did not include the new build-time database template. Both the
+  dogfood VM and closed-root audit now import the checked-in PostgreSQL overlay
+  and copy the same template into their fixtures. The focused receipt
+  `devenv shell -- nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`
+  is green (exit 0, 160.59-second VM script), including service teardown and
+  GC-root cleanup. Next: rerun the complete `nix flake check -L` gate from the
+  corrected source tree.
+
+- 2026-08-02 16:23 UTC — Mandatory final gate
+  `devenv shell -- nix flake check -L` is green (exit 0): all 132 flake checks
+  passed from the corrected tree, including `vm-dogfood`, the full
+  `scenario-closedroot-audit` 17-app matrix, and every existing scenario. The
+  aggregate run's longest existing compose teardown completed synchronously in
+  283.14 seconds. Next: final spec/diff review, append the orchestrator session
+  journal, and commit the completed track without staging either LOG.
+
+- 2026-08-02 16:28 UTC — Final spec reconciliation found a compose-only
+  activation edge: every closed root binds the cix GC-root directory so
+  store-resident teardown tools can reach it, but compose does not create the
+  per-run anonymous GC links that happened to create `/run/cix/gcroots` during
+  the audit. Shared closed-root preparation now creates the bind source for
+  both run and compose, with a focused scaffold test. Next: rerun Rust gates
+  and the mandatory full flake check from this final correction.
+
+- 2026-08-02 16:34 UTC — Final correction receipts are green: `cargo fmt
+  --all --check`, warning-denied workspace/all-target clippy, and `cargo test
+  --workspace` (including the new preparation test plus corpus/tour drift) all
+  exited 0. The post-correction mandatory `devenv shell -- nix flake check -L`
+  also exited 0; its complete selected matrix passed, including
+  `scenario-closedroot-audit`, `vm-dogfood`, compose lifecycle, dirs2, and GC
+  survival. The longest VM completed synchronously in 275.68 seconds. Next:
+  close the orchestrator journal, stage implementation/docs only, and commit.
+
+- 2026-08-02 16:36 UTC — Ledger review corrected the Docker userns comparison:
+  ordinary phase-1 runs still use DynamicUser/idmapped mounts without a user
+  namespace, while `--closed-root` adds `PrivateUsers=yes`; neither is Docker's
+  daemon-wide subordinate-ID remapping model. Next: one final full flake receipt
+  on the exact documentation-complete tree, then commit.
+
+- 2026-08-02 16:41 UTC — Exact final-tree receipt
+  `devenv shell -- nix flake check -L` is green (exit 0), including the
+  closed-root audit, dogfood, every existing scenario, and a synchronous
+  270.06-second longest VM. Track implementation, examples, ledger regrades,
+  generated corpus pages, and tests are complete. Next: commit the staged
+  non-LOG patch; independent re-verification and merge remain for the
+  orchestrator.
