@@ -172,6 +172,18 @@ pub struct StepMemo {
     pub output_snapshot: Option<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub changes: BTreeMap<String, StepChange>,
+    #[serde(
+        rename = "outputHashes",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub output_hashes: BTreeMap<String, OutputHash>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutputHash {
+    pub content: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

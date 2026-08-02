@@ -140,9 +140,10 @@ artifact. Its shorter file does not erase those concepts.
 The original rows were measured on 2026-07-31 UTC on Linux 6.17.0-40-generic,
 x86_64, an AMD Ryzen 9 9950X3D (16 cores, 32 threads), with Determinate Nix
 3.21.0 / Nix 2.34.6 and Cix 0.1.0. The Cix no-op and one-line-edit receipts
-were re-run on 2026-08-02 with the copy-everything Cixfile and CIP-87 read-set engine. The
-pre-existing Nix toolchain and native-library paths were retained for every
-route. These are wall-clock observations, not a statistical benchmark.
+were re-run on 2026-08-02 with the copy-everything Cixfile and CIP-87 read-set
+engine. The pre-existing Nix toolchain and native-library paths were retained
+for every route. These are wall-clock observations, not a statistical
+benchmark.
 
 First, all three pinned definitions built successfully:
 
@@ -159,7 +160,7 @@ The measured matrix was:
 | --- | ---: | ---: | ---: |
 | Upstream flake | 0.07 s | 28.82 s | 30.64 s |
 | crane | 0.64 s | 37.81 s | 16.46 s |
-| Cixfile | 0.07 s (2026-08-02) | 26.94 s | 8.31 s (2026-08-02) |
+| Cixfile | 0.07 s (2026-08-02) | 26.94 s | 14.46 s first-warm; 8.31 s / 8.84 s steady-warm (2026-08-02) |
 
 ### No-op
 
@@ -224,18 +225,25 @@ archive.
 [`warm.patch`](../examples/compare/gitsitter/warm.patch) changes only the CLI
 description in `src/main.rs`. [`measure-warm.sh`](../examples/compare/gitsitter/measure-warm.sh)
 resolves the pinned source, primes the unpatched routes, applies that exact
-patch, and times each rebuild:
+patch, and times each rebuild. Its current single-prime Cix receipt is the
+first warm rebuild, not the steady state:
 
 ```console
 $ examples/compare/gitsitter/measure-warm.sh
 upstream_warm_change_seconds=30.64
 crane_warm_change_seconds=16.46
-cix_readset_warm_change_seconds=8.31
+cix_cold_control=green
+cix_readset_warm_change_seconds=14.46
 ```
 
-The Cix number is the 2026-08-02 post-trace-overhead measurement (repeat runs
-on the same quiet host: 8.54 s and 8.73 s). The Cix invocation also emitted
-this work receipt (abridged only to the two command steps):
+The 14.46 s first-warm result is not comparable to the prior two-prime 8.31 s
+receipt. After that first edit, two further one-line edits in the same profiled
+workspace measured 8.31 s and 8.84 s respectively. Both are steady-warm
+receipts: FETCH is a memo hit and FETCH self-validation takes 0.217 s /
+0.216 s. The third receipt adds an explicit `fetch-revert` timing marker,
+which is absent, proving that the CIP-87 revert branch did not run on that
+hit. The Cix invocation
+also emitted this work receipt (abridged only to the two command steps):
 
 ```console
 BUILDER build step 3 FETCH memo hit 5bbd3f90629a
@@ -243,7 +251,8 @@ BUILDER build step 4 RUN executed
 {"stats":{"nixSubprocesses":9,"steps":[{"kind":"FETCH","name":"build:3","status":"memo-hit"},{"kind":"RUN","name":"build:4","status":"executed"}]}}
 ```
 
-Of the 8.31 s, about 5.9 s is cargo's own floor on this fixture: gitsitter's
+Of the 8.31 s / 8.84 s steady-warm receipts, about 5.9 s is cargo's own floor
+on this fixture: gitsitter's
 `build.rs` declares `cargo:rerun-if-changed=.git/HEAD`, the staged source has
 no `.git`, and cargo treats a missing rerun-if-changed file as permanently
 stale, so build.rs + lib + bin recompile on every build — a no-Cix control
@@ -256,8 +265,8 @@ The production Cixfile intentionally demonstrates a GitHub source binder.
 For a controlled editable-source measurement, the script copies that Cixfile
 to a temporary directory and changes only its source binder to `FROM . AS
 src`. It removes the copied final-build memo, while retaining input and FETCH
-pins, so two untimed local primes establish both the output workspace and its
-single latest warm trace before patching. The upstream route
+pins, so one untimed local prime establishes the output workspace before the
+first patch. A following patch is the steady-warm measurement. The upstream route
 uses `overrideAttrs` for the patched `src`, and crane uses `--override-input`.
 Thus all three see the same committed patch, while no benchmark-only local
 binder is disguised as the shipped Cixfile.

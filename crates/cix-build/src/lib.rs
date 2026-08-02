@@ -46,8 +46,8 @@ pub use codegen::{
 pub use fetch::revoke_fetch_consent;
 pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, ArtifactPin, ConsumedPath, DevEnvironment,
-    FetchPin, InputLock, LockFile, MemoEntry, OutputReceipt, ReadDependency, StepChange, StepMemo,
-    VolatilePath, DEFAULT_NIXPKGS_URL,
+    FetchPin, InputLock, LockFile, MemoEntry, OutputHash, OutputReceipt, ReadDependency,
+    StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 
 pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");
