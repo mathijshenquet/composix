@@ -198,6 +198,8 @@
 
 <span class="tok-directive">SERVICE</span> redis
   <span class="tok-directive">STATEDIR</span> /data
+  <span class="tok-directive">ENV</span> LANG = C
+  <span class="tok-directive">ENV</span> LC_ALL = C
   <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.redis}</span>/bin/redis-server --dir /data --port 6379
   <span class="tok-directive">PORT</span> redis = 6379
 </code></pre>

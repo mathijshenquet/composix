@@ -179,10 +179,21 @@
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">SERVICE</span> nginx
+  <span class="tok-directive">FILE</span> /etc/nginx/nginx.conf &lt;&lt;NGINX
+<span class="tok-heredoc">daemon off;</span>
+<span class="tok-heredoc">events { }</span>
+<span class="tok-heredoc">http {</span>
+<span class="tok-heredoc">  access_log off;</span>
+<span class="tok-heredoc">  server {</span>
+<span class="tok-heredoc">    listen 8080;</span>
+<span class="tok-heredoc">    location / { return 200 &quot;nginx\n&quot;; }</span>
+<span class="tok-heredoc">  }</span>
+<span class="tok-heredoc">}</span>
+<span class="tok-directive">NGINX</span>
   <span class="tok-directive">LOGDIR</span> /var/log/nginx
   <span class="tok-directive">RUNDIR</span> /run/nginx
-  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx -g &#39;daemon off; error_log stderr info;&#39;
-  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+  <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
     </section>

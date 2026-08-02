@@ -113,10 +113,10 @@
   <span class="tok-directive">ENV</span> CATALINA_TMPDIR = /run/tomcat
   <span class="tok-directive">ENV</span> JRE_HOME = /jre
   <span class="tok-directive">ENV</span> PATH = /coreutils/bin:/gnused/bin:/bin
-  <span class="tok-directive">START_PRE</span> tomcat-setup
-  <span class="tok-directive">START</span> catalina.sh run
+  <span class="tok-directive">START_PRE</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/sh /bin/tomcat-setup
+  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/sh /tomcat/bin/catalina.sh run
   <span class="tok-directive">PORT</span> http = 8080
-<span class="tok-directive">CLAIM</span> jit
+  <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
       <section class="file">

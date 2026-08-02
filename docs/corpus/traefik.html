@@ -87,8 +87,8 @@
 
 <span class="tok-directive">SERVICE</span> traefik
   <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.traefik}</span>/bin/traefik /bin/traefik
-  <span class="tok-directive">START</span> traefik --ping=true
-  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">START</span> traefik --ping=true --entryPoints.web.address=:8081
+  <span class="tok-directive">PORT</span> http = 8081
   <span class="tok-directive">PORT</span> monitor = 8080
 </code></pre>
       </section>
