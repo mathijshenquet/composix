@@ -158,3 +158,4 @@ credential is not an input, it is access).
   fingerprint, named-token lock whitelist. r2 same day — the requested
   4× turn-over replaced the lock whitelist with host-side consent
   (direnv-allow shaped); locks no longer participate.
+- 2026-08-02: implemented file-only LoadCredential runtime delivery and host-consented FETCH credentials.
