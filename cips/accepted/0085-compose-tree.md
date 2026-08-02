@@ -7,11 +7,13 @@ D40–D46 entries in docs/design.md remain the decision records and win on
 conflict. [CIP-86](0086-netns.md) remains the *realization* paper for the netns
 mechanics and is amended by this round (naming + optionality; see below).
 
-Implementation changelog: **2026-08-02 — leg 1 landed.** The group-node grammar, inline and
-tagged subtrees, path instance identity/nested slices and role roots, one root-owned lock keyed by
-every ref path, selective subtree repins, and mutable `cix root add/remove` host-root edits are
-built and VM-proven. Pod networking, publish climbing, replicas, D45 tag-table refounding, and D46
-publish-time computation remain later legs; `network`/`publish` are rejected rather than inert.
+Implementation changelog: **2026-08-02 — legs 1 and netns/publish landed.** The group-node grammar,
+inline and tagged subtrees, path instance identity/nested slices and role roots, one root-owned
+lock keyed by every ref path, selective subtree repins, and mutable `cix root add/remove`
+host-root edits are built and VM-proven. CIP-86 now realizes pod networking, nearest-ancestor
+attachment, publish climbing, and persisted egress IPAM. Replicas, D45 tag-table refounding, and
+D46 publish-time computation remain later legs; D26/D27 named networks and `talks-to` remain
+era-parked.
 
 ## The thesis, one sentence
 

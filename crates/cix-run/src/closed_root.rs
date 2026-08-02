@@ -10,6 +10,7 @@ pub struct ClosedRootOptions {
     root_directory: PathBuf,
     gc_root_directory: PathBuf,
     identity_override: Option<String>,
+    resolver_source: PathBuf,
 }
 
 impl ClosedRootOptions {
@@ -28,6 +29,15 @@ impl ClosedRootOptions {
 
     pub(crate) fn identity_override(&self) -> Option<&str> {
         self.identity_override.as_deref()
+    }
+
+    pub fn with_resolver_source(mut self, source: impl Into<PathBuf>) -> Self {
+        self.resolver_source = source.into();
+        self
+    }
+
+    pub(crate) fn resolver_source(&self) -> &Path {
+        &self.resolver_source
     }
 }
 
@@ -53,6 +63,7 @@ pub fn options_for_unit(unit: &str, user: bool) -> Result<ClosedRootOptions> {
         root_directory: runtime.join("closed-roots").join(unit),
         gc_root_directory: runtime.join("gcroots"),
         identity_override: None,
+        resolver_source: PathBuf::from("/etc/resolv.conf"),
     })
 }
 
@@ -213,6 +224,7 @@ mod tests {
             root_directory: temporary.path().join("closed-roots/cix-test.service"),
             gc_root_directory: temporary.path().join("gcroots"),
             identity_override: None,
+            resolver_source: PathBuf::from("/etc/resolv.conf"),
         };
 
         prepare(&options).unwrap();

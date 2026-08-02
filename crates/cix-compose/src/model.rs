@@ -21,9 +21,9 @@ pub struct Compose {
     #[serde(default)]
     pub secrets: BTreeMap<String, SecretSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub network: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publish: Option<Value>,
+    pub network: Option<Network>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub publish: BTreeMap<String, Publish>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -75,6 +75,8 @@ pub struct ComposeRef {
     pub compose: String,
     #[serde(default)]
     pub update: UpdatePolicy,
+    #[serde(default)]
+    pub bind: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -86,9 +88,24 @@ pub struct Group {
     #[serde(default)]
     pub secrets: BTreeMap<String, SecretSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub network: Option<Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publish: Option<Value>,
+    pub network: Option<Network>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub publish: BTreeMap<String, Publish>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub bind: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Network {
+    Pod,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Publish {
+    pub child: String,
+    pub port: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -122,6 +139,8 @@ pub struct ComposeService {
     pub jitter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub egress: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -264,8 +283,8 @@ impl Compose {
             &self.children,
             &self.edges,
             &self.secrets,
-            self.network.as_ref(),
-            self.publish.as_ref(),
+            self.network,
+            &self.publish,
         )
     }
 }
@@ -304,6 +323,7 @@ fn insert_child(
                 persistent: None,
                 jitter: None,
                 shm: None,
+                egress: None,
             }),
         );
         return Ok(());
@@ -314,7 +334,8 @@ fn insert_child(
             edges: BTreeMap::new(),
             secrets: BTreeMap::new(),
             network: None,
-            publish: None,
+            publish: BTreeMap::new(),
+            bind: BTreeMap::new(),
         })
     });
     match child {
@@ -348,8 +369,8 @@ fn validate_group(
     children: &BTreeMap<String, Child>,
     edges: &BTreeMap<String, Edge>,
     secrets: &BTreeMap<String, SecretSource>,
-    network: Option<&Value>,
-    publish: Option<&Value>,
+    _network: Option<Network>,
+    publish: &BTreeMap<String, Publish>,
 ) -> Result<()> {
     let field = |name: &str| {
         if prefix.is_empty() {
@@ -358,18 +379,6 @@ fn validate_group(
             format!("{prefix}.{name}")
         }
     };
-    if network.is_some() {
-        bail!(
-            "{}: network/pod groups are not accepted in compose-tree leg 1; use the netns track",
-            field("network")
-        );
-    }
-    if publish.is_some() {
-        bail!(
-            "{}: publish climbing is not accepted in compose-tree leg 1; expose listeners only within the host-root boundary",
-            field("publish")
-        );
-    }
     if children.is_empty() {
         bail!(
             "{}: group must declare at least one child",
@@ -391,15 +400,34 @@ fn validate_group(
                 &group.children,
                 &group.edges,
                 &group.secrets,
-                group.network.as_ref(),
-                group.publish.as_ref(),
+                group.network,
+                &group.publish,
             )?,
+        }
+    }
+    for (name, published) in publish {
+        validate_name(&format!("{}.{}", field("publish"), name), name)?;
+        validate_name(
+            &format!("{}.{}.child", field("publish"), name),
+            &published.child,
+        )?;
+        validate_name(
+            &format!("{}.{}.port", field("publish"), name),
+            &published.port,
+        )?;
+        if !children.contains_key(&published.child) {
+            bail!(
+                "{}.{}.child: unknown child {:?}",
+                field("publish"),
+                name,
+                published.child
+            );
         }
     }
     validate_secrets(&field("secrets"), secrets)?;
     for (name, edge) in edges {
         validate_name(&format!("{}.{}", field("edges"), name), name)?;
-        validate_name(
+        validate_endpoint_path(
             &format!("{}.{}.producer.child", field("edges"), name),
             &edge.producer.child,
         )?;
@@ -419,7 +447,7 @@ fn validate_group(
             );
         }
         for (consumer, config) in &edge.consumers {
-            validate_name(
+            validate_endpoint_path(
                 &format!("{}.{}.consumers.{consumer}", field("edges"), name),
                 consumer,
             )?;
@@ -686,6 +714,16 @@ fn validate_name(path: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_endpoint_path(path: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
+        bail!("{path}: endpoint path must not be empty");
+    }
+    for component in value.split('/') {
+        validate_name(path, component)?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -911,7 +949,7 @@ mod tests {
     }
 
     #[test]
-    fn accepts_inline_and_referenced_groups_but_rejects_network_and_flat_v0() {
+    fn accepts_inline_referenced_and_pod_groups_but_rejects_host_flag_and_flat_v0() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("cix.json");
         fs::write(
@@ -935,9 +973,16 @@ mod tests {
             r#"{"cixCompose":1,"name":"root","network":"pod","children":{"api":{"item":"api:v1"}}}"#,
         )
         .unwrap();
+        assert_eq!(Compose::load(&path).unwrap().network, Some(Network::Pod));
+
+        fs::write(
+            &path,
+            r#"{"cixCompose":1,"name":"root","network":"host","children":{"api":{"item":"api:v1"}}}"#,
+        )
+        .unwrap();
         let error = Compose::load(&path).unwrap_err().to_string();
         assert!(error.contains("network"), "{error}");
-        assert!(error.contains("netns track"), "{error}");
+        assert!(error.contains("unknown variant"), "{error}");
 
         fs::write(
             &path,
