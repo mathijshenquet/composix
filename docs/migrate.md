@@ -39,7 +39,7 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGSDIR`, `CONFIGDIR`, `RUNDIR`, `CLAIM` |
+| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` |
 | `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
 | `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
 
@@ -201,7 +201,7 @@ Declare role directories by their systemd meaning:
 
 - `STATEDIR /var/lib/app` for durable state;
 - `CACHEDIR /var/cache/app` for disposable runtime cache;
-- `LOGSDIR /var/log/app` for service-managed logs;
+- `LOGDIR /var/log/app` for service-managed logs;
 - `CONFIGDIR /etc/app` for writable configuration; and
 - `RUNDIR /run/app` for ephemeral runtime data.
 
@@ -266,14 +266,14 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `START` argv; use quote-aware words | `START` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
-| `VOLUME /data` | Usually `STATEDIR /var/lib/app`; use the matching role-dir directive for other lifetimes | Role dirs are systemd-managed paths, not anonymous Docker volume objects. Host binds and shared ownership need separate compose/identity support. |
+| `VOLUME /data` | Use `STATEDIR` (or another role) for cix-managed private data; use `DIR /data` when the operator supplies the content | `DIR` materialization (`host:`, `shared:`, `as:`) arrives with compose; it is not an empty private volume. |
 | `USER`, `gosu`, `su-exec`, or `tini` | Delete them; DynamicUser and systemd provide identity, privilege drop, supervision, and reaping | A workload requiring a fixed uid/gid or startup `chown` has an identity/ownership requirement that must be reported, not hand-waved away. |
 | outbound access or JIT loosening | `CLAIM egress` or `CLAIM jit` | Those are the only current claims. Raw capabilities, devices, and privileged mode are not expressible. |
 | `HEALTHCHECK` | Preserve the probe semantics for the future D48 health edge | Health is designed as a probe plus explicit consumers (ordering/restart/convergence), not one container-status bit, and is not implemented yet. Mark the migration incomplete rather than dropping the check silently. |
 | cron, crontab, or Kubernetes `CronJob` | Build the work as an `APP`, then put `schedule: "<OnCalendar>"` on its compose member | Rewrite the schedule as systemd `OnCalendar=` and check it with `systemd-analyze calendar`; composix never translates cron syntax. Add explicit `persistent: true` or `jitter: "<duration>"` only when wanted. |
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
 | build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |
-| `LABEL` | Drop provenance labels; record display metadata as an open gap | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed but unbuilt. |
+| `LABEL` | Drop provenance labels | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed, deliberately unbuilt (D54). |
 | startup `mkdir`, `chown`, or config rewriting | Prefer role dirs and immutable `COPY`/`FILE` assembly | Keep a `START_PRE` hook only for genuinely idempotent service setup; do not preserve entrypoint ceremony blindly. |
 | supervisor running several daemons | Split into multiple `SERVICE` members and compose them | If their coordination or shared identity cannot be represented, report that boundary. |
 

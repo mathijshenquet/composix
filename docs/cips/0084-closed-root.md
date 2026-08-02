@@ -1,8 +1,8 @@
 # Closed root: runtime hermeticity, mandatory
 
-Status: draft, 2026-08-01, written after two dialogue rounds with
-Mathijs. His direction is already folded in: **mandatory** (no
-rawdog/opt-out dial), and the nix-coupling is embraced (§3, "strands").
+Status: **CIP-84, adopted 2026-08-01** (Mathijs: "de rest kan als
+proposed", after his whole-store argument won §4.1 — see §5). Mandatory
+(no rawdog/opt-out dial), nix-coupling embraced (§3, "strands").
 
 ## 1. The problem
 
@@ -54,9 +54,9 @@ hardened module tradition proves services run fine in such worlds.
 The generated unit uses `RootDirectory=` on an empty per-unit root +
 `MountAPIVFS=yes`, then binds in exactly:
 
-- the store closure of the item (computed at generation time from the
-  lock-pinned item's references — `nix path-info -r` equivalent),
-  read-only, per path (see §4.1 for the whole-store alternative);
+- `/nix/store`, read-only, whole (decided in §5 — the reference
+  scanner already makes embedded paths closure members; closure-only
+  binds and `RootImage=` remain recorded tightenings);
 - the item's D22 projections at their declared absolute paths;
 - role dirs per the dirs CIP (state/cache/logs/run), claims-derived
   extras (shared surfaces, `CLAIM mount` paths, devices);
@@ -143,3 +143,31 @@ coexist — nix makes closure-truth *available*, closed root makes it
    is worth more than dev convenience here.
 5. Ledger consequences: which corpus rows (Home Assistant, Frigate
    pre-CLAIM-device) get honest downgrades in docker.md/corpus.md.
+
+## 5. Decision
+
+Adopted with §3 as proposed and one reversal in §4.1, argued by
+Mathijs and conceded: **whole-store ro** is the posture. The
+works-on-my-machine claim against it was overstated — nix's reference
+scanner makes every store path embedded in the item's bytes (including
+manifest argv and env defaults) a closure member *by construction*
+("references define dependencies", D32), so the residual escape
+surface is only (a) scanner-evading string tricks (pathological; a
+static lint candidate) and (b) runtime-supplied store paths from
+state/config/env — and for (b) the honest concern is **gc-coherence**
+(presence-in-store is gc-revocable; only the rooted closure is not),
+which closure-only binding would convert from a rare gc-time surprise
+into a deterministic deploy-time failure but not actually fix. That
+diagnostic difference does not buy hundreds of bind mounts.
+Closure-only binds and the `RootImage=`/dm-verity route are recorded
+as available *tightenings* if evidence of class (b) arrives in the
+wild — not part of v1.
+
+Other rulings, per the proposals: NSS = generated three-line
+passwd/group + `PrivateUsers=` (§3.1); resolver under `CLAIM egress` =
+verbatim bind of the host resolv.conf for v1 (works including the
+systemd-resolved stub while egress services share the host netns; the
+filtered cix-managed copy arrives with the netns era, D49);
+`--user` mode gets the same closed root (dev/prod parity); ledger
+downgrades (Home Assistant class) land with the implementation.
+Phasing as §3.4: audit-gate era first, then the only runtime.

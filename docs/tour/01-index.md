@@ -89,6 +89,7 @@ $ cix inspect my-app:v1
     "dirs": {
       "cache": [],
       "config": [],
+      "data": [],
       "logs": [],
       "run": null,
       "state": []

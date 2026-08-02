@@ -11,9 +11,12 @@ use anyhow::{bail, Context, Result};
 use cix_common::Ref;
 use serde::Deserialize;
 
+use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
 use crate::spec::{ManifestKind, Service, Spec};
-use crate::unit::{build_unit, UnitDefinition, UnitMode};
+use crate::unit::{
+    build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode,
+};
 
 static NONCE_COUNTER: AtomicU64 = AtomicU64::new(0);
 static INTERRUPTED: AtomicBool = AtomicBool::new(false);
@@ -318,12 +321,27 @@ pub fn start_service(
 ) -> Result<StartedUnit> {
     let name = format!("cix-run-{service_name}-{}.service", nonce());
     if !user {
-        let definition = build_unit(output, service_name, service, config, UnitMode::System)?;
+        let capabilities = HostCapabilities::probe()?;
+        let definition = build_unit_with_options(
+            output,
+            service_name,
+            service,
+            config,
+            UnitMode::System,
+            &UnitCompileOptions::cix_run(service_name),
+            &capabilities,
+        )?;
+        for degradation in &definition.degradations {
+            eprintln!(
+                "warning: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
+                degradation.property, degradation.reason
+            );
+        }
         return match start_with_listeners(&name, false, output, config, &definition) {
             Ok(()) => Ok(StartedUnit {
                 name,
                 user: false,
-                degraded: false,
+                degraded: !definition.degradations.is_empty(),
             }),
             Err(error) => {
                 let error = with_unit_diagnostics(error, &name, false);

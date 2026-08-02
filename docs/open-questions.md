@@ -1,84 +1,69 @@
 # Open questions inventory — migration docs & compat ledgers
 
-Status: working inventory, swept 2026-08-01. Sources: every ❓/⏳ row in
-docs/docker.md, the gap rows in docs/migrate.md, docs/corpus.md §4, and
-the deferral notes in docs/design.md. Decisions land in design.md as
-D-numbers; this doc routes each open item to either a design doc, a
-proposed one-line disposition (awaiting Mathijs), or an era.
+Status: swept 2026-08-01; cleaned same day after the CIP wave. Sources:
+every ❓/⏳ row in docs/docker.md, the gap rows in docs/migrate.md,
+docs/corpus.md §4, and the deferral notes in docs/design.md. New
+decisions land as CIPs (docs/cips/); this doc tracks what remains
+genuinely open.
 
-## Clustered into CIP drafts (docs/cips/draft/, reviewed 2026-08-01)
+## Resolved into adopted CIPs (2026-08-01)
 
-| Draft | Covers | Ledger rows absorbed |
+| CIP | Decided | Absorbed |
 | --- | --- | --- |
-| [health](cips/draft/health.md) | liveness/readiness, health-graph ban | `HEALTHCHECK` (docker.md, migrate.md), corpus demand #1 |
-| [dirs](cips/draft/dirs.md) | dir declaration/materialization/lifecycle: operator host-binds, shared writable surfaces, volume-object refusal, down/clean/purge semantics (merges the earlier binds + shared-rw drafts) | `-v/--mount`, named volumes, `volume create/ls/rm/prune/update`, bind mounts, corpus demands #2+#3 |
-| [timers](cips/draft/timers.md) | compose `schedule:` on raw OnCalendar | corpus demand #4, Renovate row |
-| [secrets](cips/draft/secrets.md) | runtime `SECRET`/LoadCredential + build-time fetch credentials | compose secrets ⏳, BuildKit secret/SSH mounts ❓, migrate.md build-secrets ❌, `docker pass` ❓ (host keychain: out of scope), CLI credential stores ❓ (the fetch-credential file), corpus demand #8 |
-| [devices](cips/0078-devices.md) | `CLAIM gpu`, `SHM`, tmpfs sizing | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓ (dissolves into claims), tmpfs mounts ❓, compose-level `--privileged` override ❓ (stays ❌) |
-| [devloop](cips/draft/devloop.md) | `cix watch` = rebuild+restart; sync refused | compose `watch` ❓, live-reload dev binds |
-| [run-unary-compose](cips/draft/run-unary-compose.md) | design invariant: `cix run` = compose with one anonymous member | the recurring "and what about cix run?" question |
+| [CIP-75](cips/0075-timers.md) | compose `schedule:` on raw OnCalendar | corpus demand #4, cron/scheduler sidecars |
+| [CIP-76](cips/0076-devloop.md) | `cix watch`; sync ❌ forever | compose `watch` ❓, live-reload binds |
+| [CIP-77](cips/0077-run-unary-compose.md) | `cix run` = unary compose invariant | the recurring "what about cix run?" |
+| [CIP-78](cips/0078-devices.md) | `CLAIM` vocabulary; `CLAIM gpu`/`device`, `SHM` | `--device/--gpus` ⏳, `--shm-size` ⏳, `--group-add` ❓, tmpfs ❓, compose `--privileged` ❓ (stays ❌) |
+| [CIP-79](cips/0079-health.md) | READINESS/LIVENESS; health graph banned | `HEALTHCHECK` rows, corpus demand #1 |
+| [CIP-80](cips/0080-exec-naming.md) | EXEC→START, SETUP→START_PRE | the EXEC bikeshed |
+| [CIP-81](cips/0081-secrets.md) | SECRET/LoadCredential; fetch tokens + host-side consent | secrets rows, BuildKit secret mounts ❓, `docker pass` ❓, credential stores ❓, corpus demand #8 |
+| [CIP-82](cips/0082-dirs.md) | dirs: claims model, overlay backing, `DIR`, lifecycle table | `-v/--mount`, named volumes + volume CLI ❓, bind mounts ⏳, `volume prune`/mutable-GC ❓, `container prune` cleanup ❓, corpus demands #2+#3 |
+| [CIP-83](cips/0083-observability.md) | logs/stats/exit-causes as journald projection; `logNamespace:` | `cix logs`/`stats`/`system df` sugar ❓, per-app retention, logging drivers (❌ stands) |
+| [CIP-84](cips/0084-closed-root.md) | mandatory closed root, whole-store ro | the ProtectSystem leak, NixOS two-paths lean, userns honesty follow-up |
 
-Bikeshed backlog (small, self-contained): `START` naming — prior art
-docker `ENTRYPOINT`/`CMD`, k8s `command`/`args`, systemd `ExecStart=`,
-Procfile; current recommendation: keep `START` (exec(2) honesty, D55).
-Probe directive spelling: `READINESS`/`LIVENESS` proposed (health §4.1).
+Implementation status lives in .dev/LOG.md (75/76/78/80 shipped;
+82 leg 1 and 83 in flight; 79/84 queued).
 
-## Already decided — propose recording the disposition in the ledger
+## Recorded-elsewhere, ledger row should cite it
 
-- **`LABEL` / display metadata** → D54 (annotations designed,
-  deliberately unbuilt). migrate.md's "open gap" wording should cite D54.
-- **Migrate-on-upgrade hooks** → D48(f) (ordinary oneshot + ordering;
-  abort-before-switch deferred).
-- **Fixed uid/gid workloads** (`USER` row) → D48(d) identity registry.
-- **`ARG` / build args** ❓ → covered by D32 (generated Cixfile text is
-  the parameter channel) + D46 (parametric composes, publish-time
-  expansion). Propose re-marking 🔁 with those citations. The gitea
-  version-stamp case gets a documented pattern (stamp file COPY'd in),
-  not a mechanism.
-- **`SHELL`/`ONBUILD`/parser directives, `FROM` arbitrary base images,
-  docker.sock, commit, privileged, plugins** — already coherent ❌ class;
-  no action.
+- `LABEL`/display metadata → D54 (migrate.md row now cites it — done).
+- Migrate-on-upgrade hooks → D48(f). Fixed uid/gid (`USER` row) → D48(d).
+- `ARG`/build args ❓ → propose re-marking 🔁 citing D32 (generated
+  Cixfile text is the parameter channel) + D46 (parametric composes);
+  gitea's version-stamp case gets a documented pattern, not a mechanism.
+  **Awaiting blessing.**
 
-## Proposed one-line dispositions (cheap to bless or overrule)
+## Proposed one-line dispositions (awaiting Mathijs, batch-blessable)
 
-- **`docker cp`** ❓ → ❌ + docs: role dirs are host paths; `cix inspect`
-  names them. Copying into the immutable item is anti-model.
-- **`container prune` / cleanup contract** ❓ → fold into compose
-  lifecycle when demanded; transient units already collect (D63).
-- **`--name` stable handle** ❓ → compose provides stable names
-  (`cix-<comp>-<svc>`); a `cix run --name` is trivial sugar, ⏳ until
-  asked.
+- **`docker cp`** ❓ → ❌ + docs: role dirs are host paths (CIP-82 makes
+  them self-describing); `cix inspect` names them.
+- **`--name` stable handle** ❓ → compose provides stable names; a
+  `cix run --name` is CIP-77-mechanical sugar, ⏳ until asked.
 - **`STOPSIGNAL` / stop timeouts** ⏳ → mechanical manifest fields
-  (`KillSignal=`, `TimeoutStopSec=`); no design needed, schedule as a
-  small track when a corpus app needs it.
-- **`cix logs` / `stats` / `system df` / `prune` sugar** ❓ → one
-  "observability & janitor CLI" pass post-compose-v1; journald/cgtop are
-  honest interim answers. Not design-heavy; needs a taste round on
-  selectors.
+  (`KillSignal=`, `TimeoutStopSec=`); small track when a corpus app
+  needs it, no design required.
 - **Namespace sharing modes (`--ipc/--pid/--uts`)** ⏳❓ → D43 pods are
-  the sharing unit; standalone sharing flags stay ❌.
-- **Restart policies** ⏳ → compose maps to `Restart=`/`RestartSec`
-  fields; mechanical, rides the health round (LIVE = opt-in restart).
-- **`docker init` generator** ❓ → the migrate prompt (docs/migrate.md)
-  IS the current generator; a `cix init` skeleton is tooling-era ⏳.
+  the sharing unit (`JoinsNamespaceOf=` is the mechanism); standalone
+  sharing flags stay ❌.
+- **Restart policy knobs** ⏳ → LIVENESS is the restart opt-in (CIP-79);
+  `Restart=`/`RestartSec` tuning fields are compose-mechanical, ride the
+  health implementation.
+- **`docker init` generator** ❓ → the migrate prompt is the current
+  generator; a `cix init` skeleton is tooling-era ⏳.
 - **Docker Offload** ❓ → ❌; nix remote builders are the delegation
   story.
-- **AppArmor/SELinux labeling** ❓ → out of manifest scope; document
-  as host policy, revisit on a real SELinux-host user.
+- **AppArmor/SELinux labeling** ❓ → host policy, out of manifest scope;
+  revisit on a real SELinux-host user.
 - **Desktop Enhanced Container Isolation** ❓ → ❌; different threat
-  model (VM boundary), out of thesis.
+  model, out of thesis.
 - **Authorization plugins / policy point** ❓ → deferred to the
   server/reconciler era (D9); no plugin interface ever.
 - **Engine API / SDKs** ❓ → reconciler era (D9).
 - **Remote contexts / `--host`** ❓ → ssh is the transport; sugar ⏳.
-- **`docker mcp`** ❓ → ❌ irrelevant to the runtime; ecosystem tooling
-  can sit on `cix` CLI output.
+- **`docker mcp`** ❓ → ❌ irrelevant to the runtime.
 - **Capabilities coverage beyond NET_BIND_SERVICE** ❓ → grow
-  capability-by-capability with dogfood (devices.md mints the next two); never a
-  raw `--cap-add`.
-- **userns honesty note** ❓ → keep the ledger's honesty wording; a
-  hardening comparison doc is worthwhile when security review era
-  starts.
+  claim-by-claim with dogfood (CIP-78 minted gpu/device); never a raw
+  `--cap-add`.
 
 ## Era-parked (decided deferrals, no action now)
 
@@ -87,18 +72,14 @@ Probe directive spelling: `READINESS`/`LIVENESS` proposed (health §4.1).
   attestation exchange formats (+ Scout-class analysis on closures).
 - **Networking era** (D26/D27/D49): bridge/DNS, finer isolation,
   network objects/drivers, `--hostname/--dns/--ip`, per-netns sysctls,
-  port remapping/NAT & bind-address policy.
+  port remapping/NAT & bind-address policy, the filtered resolver copy
+  (CIP-84 §5).
 - **Compose v1+** (D30 ledger): replicas/scale, resource limits (slice
   properties), configs objects, reusable top-level objects, live
   `update`.
 
-## Errors found during the sweep
+## Errors found during the sweep — fixed
 
-- docs/docker.md row "registry mirrors" appears twice (§index and
-  §distribution) with different dispositions (🔁 D35 vs 🔁 D6 + ❓) —
-  needs merging into one row citing D35.
-- docs/migrate.md `LABEL` row says "record display metadata as an open
-  gap" — stale: D54 decided it; should cite D54.
-- docs/corpus.md §4.1 still calls health "the most-demanded deferral →
-  schedule early" without pointing at the now-existing proposal — add a
-  health.md pointer once that decision lands.
+All three fixed 2026-08-01: the duplicate "registry mirrors" row in
+docker.md merged (the D35 row stands), migrate.md's `LABEL` row cites
+D54, corpus.md §4.1 points at CIP-79.

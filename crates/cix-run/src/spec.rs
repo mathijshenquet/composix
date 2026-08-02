@@ -101,6 +101,16 @@ pub struct Dirs {
     #[serde(default)]
     pub config: Vec<PathBuf>,
     pub run: Option<Vec<PathBuf>>,
+    #[serde(default)]
+    pub data: Vec<DataDir>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct DataDir {
+    pub path: PathBuf,
+    #[serde(default)]
+    pub ro: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -266,23 +276,31 @@ impl Service {
             }
         }
 
-        let mut seen: Vec<&Path> = Vec::new();
+        let mut seen: BTreeSet<&Path> = BTreeSet::new();
         for (role, root, paths) in self.dirs.roles() {
             for path in paths {
                 validate_app_path(role, root, path)?;
-                for other in &seen {
-                    if path.starts_with(other) || other.starts_with(path) {
-                        bail!(
-                            "directory paths {} and {} overlap",
-                            other.display(),
-                            path.display()
-                        );
-                    }
+                if !seen.insert(path) {
+                    bail!(
+                        "directory path {} is declared more than once",
+                        path.display()
+                    );
                 }
-                seen.push(path);
             }
         }
-        validate_mounts(self.mounts.as_deref().unwrap_or_default(), &seen)?;
+        for data in &self.dirs.data {
+            validate_absolute_clean_path(&data.path, "DIR path")?;
+            if !seen.insert(&data.path) {
+                bail!(
+                    "directory path {} is declared more than once",
+                    data.path.display()
+                );
+            }
+        }
+        validate_mounts(
+            self.mounts.as_deref().unwrap_or_default(),
+            &seen.into_iter().collect::<Vec<_>>(),
+        )?;
         self.validate_capabilities()?;
         self.validate_kind(kind)?;
         Ok(())
@@ -306,6 +324,7 @@ impl Service {
                 }
                 if !self.dirs.logs.is_empty()
                     || !self.dirs.config.is_empty()
+                    || !self.dirs.data.is_empty()
                     || self
                         .dirs
                         .run
@@ -550,16 +569,8 @@ fn is_env_continue(value: u8) -> bool {
 
 fn validate_app_path(role: &str, root: &str, path: &Path) -> Result<()> {
     validate_absolute_clean_path(path, &format!("{role} directory"))?;
-    let relative = path.strip_prefix(root).ok();
-    let is_one_component = relative.is_some_and(|relative| {
-        let mut components = relative.components();
-        matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
-    });
-    if !is_one_component {
-        bail!(
-            "{role} directory {} must be exactly one component under {root}",
-            path.display()
-        );
+    if role == "config" && path.strip_prefix(root).is_err() {
+        bail!("{role} directory {} must be under {root}", path.display());
     }
     Ok(())
 }
@@ -634,5 +645,32 @@ mod tests {
         let item = tempfile::tempdir().unwrap();
         let error = Spec::load(item.path()).unwrap_err().to_string();
         assert!(error.contains("manifest-less ITEM (D68)"), "{error}");
+    }
+
+    #[test]
+    fn directories_allow_arbitrary_clean_paths_and_reject_duplicates() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["bin/app"],
+                "dirs": {
+                    "state": ["/srv/app/state"],
+                    "cache": ["/app/cache"],
+                    "logs": ["/app/logs"],
+                    "run": ["/tmp/app/run"],
+                    "data": [{"path": "/media", "ro": true}, {"path": "/consume", "ro": false}]
+                }
+            }"#,
+        )
+        .unwrap();
+        assert!(spec.select_service(None).unwrap().1.dirs.data[0].ro);
+
+        for json in [
+            r#"{"cixManifest":0,"start":["bin/app"],"dirs":{"logs":["relative"]}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"dirs":{"run":["/tmp/../app"]}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"dirs":{"state":["/same"],"data":[{"path":"/same","ro":false}]}}"#,
+        ] {
+            assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
+        }
     }
 }

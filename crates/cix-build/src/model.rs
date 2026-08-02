@@ -274,6 +274,7 @@ pub struct Dirs {
     pub logs: BTreeSet<String>,
     pub config: BTreeSet<String>,
     pub run: BTreeSet<String>,
+    pub data: BTreeMap<String, bool>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

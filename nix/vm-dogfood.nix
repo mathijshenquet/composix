@@ -58,6 +58,28 @@ let
     }
     EOF
   '';
+  logsProbe = pkgs.runCommand "logs-probe-cix" { } ''
+    mkdir -p "$out/bin"
+    cat > "$out/bin/logs-probe" <<'EOF'
+    #!${pkgs.runtimeShell}
+    set -eu
+    marker=/app/logs/restart-marker
+    if test -e "$marker"; then
+      test "$( ${pkgs.coreutils}/bin/cat "$marker")" = persists
+    else
+      printf '%s\n' persists > "$marker"
+    fi
+    exec ${pkgs.coreutils}/bin/sleep 300
+    EOF
+    chmod +x "$out/bin/logs-probe"
+    cat > "$out/cix-manifest.json" <<'EOF'
+    {
+      "cixManifest": 0,
+      "start": ["bin/logs-probe"],
+      "dirs": {"logs": ["/app/logs"]}
+    }
+    EOF
+  '';
   nodeApp = pkgs.runCommand "node-app-cix" { } ''
     mkdir -p $out/bin $out/app
     ln -s ${pkgs.nodejs}/bin/node $out/bin/node
@@ -113,6 +135,25 @@ pkgs.testers.runNixOSTest {
 
   testScript = ''
     start_all()
+    logs_item = machine.succeed("nix-store --add ${logsProbe}").strip()
+    logs_unit = machine.succeed("cix run " + logs_item + " --detach").strip()
+    machine.succeed("systemctl is-active " + logs_unit)
+    logs_base = logs_unit.removesuffix(".service").rsplit("-", 1)[0]
+    logs_marker = "/var/log/" + logs_base + "/app/logs/restart-marker"
+    machine.wait_until_succeeds("test -f " + logs_marker + " && grep -Fx persists " + logs_marker)
+    machine.succeed("systemctl show " + logs_unit + " --property=Environment --value | grep -F 'LOGS_DIRECTORY=/app/logs'")
+    machine.succeed("systemctl stop " + logs_unit)
+    logs_restart = machine.succeed("cix run " + logs_item + " --detach").strip()
+    machine.succeed("systemctl is-active " + logs_restart)
+    machine.succeed("grep -Fx persists " + logs_marker)
+    machine.succeed("systemctl stop " + logs_restart)
+    logs_degraded = machine.succeed("CIX_PRIVATE_PIDS_PROBE=unsupported cix run " + logs_item + " --detach").strip()
+    machine.succeed("systemctl is-active " + logs_degraded)
+    machine.succeed("systemctl show " + logs_degraded + " --property=PrivatePIDs --value | grep -Fx no")
+    machine.succeed("stat -c %a " + logs_marker.rsplit("/", 1)[0] + " | grep -Fx 733")
+    machine.succeed("grep -Fx persists " + logs_marker)
+    machine.succeed("systemctl stop " + logs_degraded)
+
     pid_probe = machine.succeed("nix-store --add ${pidProbe}").strip()
     pid_unit = machine.succeed("cix run " + pid_probe + " --detach").strip()
     pid_root = "/run/cix/gcroots/" + pid_unit + ".root"
@@ -152,8 +193,10 @@ pkgs.testers.runNixOSTest {
 
     redis_item = machine.succeed("nix-store --add ${redis}").strip()
     redis_unit = machine.succeed("cix run " + redis_item + " --detach").strip()
+    redis_base = redis_unit.removesuffix(".service").rsplit("-", 1)[0]
+    redis_socket = "/run/" + redis_base + "/run/redis/redis.sock"
     machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -h 127.0.0.1 -p 6379 PING | grep -Fx PONG")
-    machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -s /run/redis/redis.sock PING | grep -Fx PONG")
+    machine.wait_until_succeeds("${pkgs.redis}/bin/redis-cli -s " + redis_socket + " PING | grep -Fx PONG")
     machine.succeed("cix ps | grep -F " + redis_unit)
     machine.succeed("systemctl stop " + redis_unit)
 

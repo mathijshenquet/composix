@@ -30,7 +30,7 @@ PORT http = $PORT
 LISTENER admin
 STATEDIR /var/lib/web
 	CACHEDIR /var/cache/web
-LOGSDIR /var/log/web
+LOGDIR /var/log/web
 CONFIGDIR /etc/web
 RUNDIR /run/web
 CLAIM jit
@@ -385,7 +385,7 @@ START /bin/true \
     #[test]
     fn role_directory_directives_and_claim_are_hard_migrations() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGSDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nCLAIM jit\nCLAIM egress\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /var/lib/web\nCACHEDIR /var/cache/web\nLOGDIR /var/log/web\nCONFIGDIR /etc/web\nRUNDIR /run/web\nCLAIM jit\nCLAIM egress\n",
         )
         .unwrap();
         let dirs = &parsed.artifacts["web"].service.dirs;
@@ -400,7 +400,7 @@ START /bin/true \
         );
         for (directive, replacement, anchor) in [
             ("STATE /var/lib/web", "STATEDIR", "#role-dirs"),
-            ("LOGS /var/log/web", "LOGSDIR", "#role-dirs"),
+            ("LOGS /var/log/web", "LOGDIR", "#role-dirs"),
             ("CONFIG /etc/web", "CONFIGDIR", "#role-dirs"),
             ("JIT", "CLAIM jit", "#claims"),
             ("EGRESS", "CLAIM egress", "#claims"),
@@ -419,13 +419,48 @@ START /bin/true \
     }
 
     #[test]
+    fn directories_accept_arbitrary_paths_and_dir_modes() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /srv/web/state\nCACHEDIR /app/cache\nLOGDIR /app/logs\nRUNDIR /tmp/web/run\nDIR /media:ro\nDIR /consume:rw\nDIR /scratch\n",
+        )
+        .unwrap();
+        let dirs = &parsed.artifacts["web"].service.dirs;
+        assert!(dirs.state.contains("/srv/web/state"));
+        assert!(dirs.cache.contains("/app/cache"));
+        assert!(dirs.logs.contains("/app/logs"));
+        assert!(dirs.run.contains("/tmp/web/run"));
+        assert_eq!(dirs.data.get("/media"), Some(&true));
+        assert_eq!(dirs.data.get("/consume"), Some(&false));
+        assert_eq!(dirs.data.get("/scratch"), Some(&false));
+
+        for declaration in [
+            "STATEDIR relative",
+            "DIR /data/../escape",
+            "DIR /data:other",
+        ] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n{declaration}\n"
+            ))
+            .unwrap_err();
+            assert_eq!(error.line, 4, "{declaration}: {error}");
+        }
+
+        let duplicate = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /shared\nDIR /shared:ro\n",
+        )
+        .unwrap_err();
+        assert_eq!(duplicate.line, 5);
+        assert!(duplicate.message.contains("duplicated"), "{duplicate}");
+    }
+
+    #[test]
     fn app_rejects_service_only_surface_at_the_directive_line() {
         for (directive, message) in [
             ("PORT http = 8080", "PORT is not allowed inside APP"),
             ("LISTENER http", "LISTENER is not allowed inside APP"),
             ("JIT", "replace it with CLAIM jit"),
             ("START_PRE /bin/true", "START_PRE is not allowed inside APP"),
-            ("LOGSDIR /var/log/job", "LOGSDIR is not allowed inside APP"),
+            ("LOGDIR /var/log/job", "LOGDIR is not allowed inside APP"),
             ("CONFIGDIR /etc/job", "CONFIGDIR is not allowed inside APP"),
             ("RUNDIR /run/job", "RUNDIR is not allowed inside APP"),
             ("PATH bin", "PATH was removed; use ENV PATH = <value>"),
@@ -455,7 +490,7 @@ START /bin/true \
             "LISTENER http",
             "STATEDIR /var/lib/data",
             "CACHEDIR /var/cache/data",
-            "LOGSDIR /var/log/data",
+            "LOGDIR /var/log/data",
             "CONFIGDIR /etc/data",
             "RUNDIR /run/data",
             "CLAIM egress",

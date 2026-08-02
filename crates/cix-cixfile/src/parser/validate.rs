@@ -859,25 +859,37 @@ pub(super) fn validate_copy_relative_path(
     validate_relative_path(value, label, line, source)
 }
 
-pub(super) fn validate_role_path(
-    value: &str,
-    root: &str,
-    role: &str,
+pub(super) fn parse_directory_declaration<'a>(
+    directive: &str,
+    value: &'a str,
     line: usize,
     source: &str,
-) -> Result<(), ParseError> {
-    let path = Path::new(value);
-    let relative = path.strip_prefix(root).ok();
-    let one_component = relative.is_some_and(|relative| {
-        let mut components = relative.components();
-        matches!(components.next(), Some(Component::Normal(_))) && components.next().is_none()
-    });
-    if !one_component {
+) -> Result<(&'a str, bool), ParseError> {
+    reject_build_interpolation(value, "directory path", line, source)?;
+    reject_runtime_variable(value, "directory path", line, source)?;
+    let (path, ro) = if directive == "DIR" {
+        match value.rsplit_once(':') {
+            Some((path, "ro")) => (path, true),
+            Some((path, "rw")) => (path, false),
+            Some(_) => {
+                return Err(ParseError::new(line, source, "DIR mode must be :ro or :rw"));
+            }
+            None => (value, false),
+        }
+    } else {
+        (value, false)
+    };
+    let path = Path::new(path);
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+    {
         return Err(ParseError::new(
             line,
             source,
-            format!("{role} directory must be exactly one component under {root}"),
+            format!("{directive} path must be absolute and contain no '.' or '..' components"),
         ));
     }
-    Ok(())
+    Ok((path.to_str().expect("Cixfile paths are UTF-8"), ro))
 }

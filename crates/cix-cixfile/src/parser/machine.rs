@@ -186,8 +186,15 @@ impl Parser<'_> {
                 "ENV" => self.env(line_number, source, arguments)?,
                 "PORT" => self.port(line_number, source, arguments)?,
                 "LISTENER" => self.listener(line_number, source, arguments)?,
-                "STATEDIR" | "CACHEDIR" | "LOGSDIR" | "CONFIGDIR" | "RUNDIR" => {
+                "STATEDIR" | "CACHEDIR" | "LOGDIR" | "CONFIGDIR" | "RUNDIR" | "DIR" => {
                     self.directory(directive, line_number, source, arguments)?
+                }
+                "DATADIR" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "DIR declares operator-supplied data; materialization arrives with compose (docs/cixfile.md#role-dirs); for a cix-managed dir pick a role: STATEDIR/CACHEDIR/LOGDIR/RUNDIR",
+                    ));
                 }
                 "EXEC" | "SETUP" | "STATE" | "LOGS" | "CONFIG" | "JIT" | "EGRESS" | "OUTBOUND"
                 | "GRANT" => {

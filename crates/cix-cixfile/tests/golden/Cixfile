@@ -8,7 +8,9 @@ ENV TOKEN secret
 PORT http = $PORT
 STATEDIR /var/lib/app
 CACHEDIR /var/cache/app
-LOGSDIR /var/log/app
+LOGDIR /var/log/app
 CONFIGDIR /etc/app
 RUNDIR /run/app
+DIR /consume
+DIR /media:ro
 CLAIM jit

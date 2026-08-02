@@ -900,7 +900,7 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   **Addendum (2026-07-30 session close, Mathijs): `STATE` → `STATEDIR`** —
   completing the family consistency D52 started (mirrors `StateDirectory=` as
   CACHEDIR/RUNDIR mirror theirs). Sub-question resolved (2026-07-31, Mathijs:
-  "eens"): LOGS and CONFIG follow — `LOGSDIR` (mirrors `LogsDirectory=`) and
+  "eens"): LOGS and CONFIG follow — `LOGDIR` (mirrors `LogsDirectory=`) and
   `CONFIGDIR` (mirrors `ConfigurationDirectory=`); the whole role-dir family
   now spells systemd's names. Directive-level flip only, manifest role keys
   unchanged (same as the STATE→STATEDIR flip). Rides a micro-round after

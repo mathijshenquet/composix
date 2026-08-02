@@ -107,9 +107,9 @@ gosu/su-exec/tini/uid-999 boilerplate: ceremony our substrate deletes.
 Ranked by frequency × how squarely it hits us:
 
 1. **Health wiring** — 10/18 compose files + probes in essentially every k8s chart.
-   D30 deferred it; the wild says it's the most-demanded deferral. → schedule early in
-   the compose-tree wave (`health` exists in the manifest since v1; the missing part is
-   compose *ordering/readiness* semantics).
+   D30 deferred it; the wild says it's the most-demanded deferral. → **decided:
+   CIP-79** (READINESS/LIVENESS on notify/watchdog; the health-ordering graph is
+   banned — readiness folds into structural edges).
 2. **Operator host-binds** (env-interpolated paths, watch-dirs) — Immich, Paperless,
    Mastodon. Already ⏳ in the ledger; second-most demanded.
 3. **Shared-rw directory between services** (Mastodon web+sidekiq, Penpot assets) —

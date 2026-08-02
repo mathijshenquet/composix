@@ -1,5 +1,88 @@
 # composix work log
 
+## 2026-08-02 night (CIPs 82–84 adopted; dirs leg 1 landed after a caught fix round)
+
+- **Adopted**: CIP-82 dirs (claims model — every dir declaration is a
+  claim; decorated roles = cix-satisfiable dispositions; undecorated
+  `DIR` = operator-supplied, after DATADIR/CLAIM-mount/CLAIM-data all
+  lost the spelling debate; overlay backing with FULL host mirror kills
+  the D11 root restriction, alias branch, and state-N indices;
+  lifecycle table normative; recreate refused; explicit idmap
+  acknowledgment); CIP-83 observability (journald projection:
+  LogExtraFields selectors incl. CIX_ITEM, cix logs/stats, exit-cause
+  mapping with the 200–245 table, opt-in logNamespace — compose-only,
+  first recorded CIP-77 exception); CIP-84 closed-root (mandatory
+  hermetic RootDirectory, no rawdog; **whole-store ro** — Mathijs's
+  reference-scanner argument beat closure-only binds; residuals:
+  scanner-escapes → lint candidate, runtime-supplied paths →
+  gc-coherence note; closure-binds/RootImage recorded as tightenings).
+- **systemd.exec read integrally** (4381 lines, v257.9) at Mathijs's
+  request: BindLogSockets dissolves the closed-root logging edge,
+  PrivateUsers shrinks NSS to a three-line passwd, RootImage+dm-verity
+  as store-posture tightening, LogNamespace/LogExtraFields powering
+  CIP-83, JoinsNamespaceOf/NetworkNamespacePath confirming D43/D49,
+  ExecPaths W^X candidate, exit-code table for cix debug.
+- **Merged**: track/dirs (`7d69fd9`, terra ×2 — CIP-82 leg 1). The
+  INDEPENDENT gate re-run caught two real bugs terra's green missed:
+  226/NAMESPACE (bind destination uncreatable in the ro root — missing
+  TemporaryFileSystem per top component) and EACCES on the D36 degraded
+  fallback (ownership machinery not reaching the mirror). Fix round
+  `c6b9367` repaired both + tests the degraded path; second independent
+  re-run green; CI green. Re-verification convention: two catches today
+  (this + the start EXEC fixtures).
+- **In flight**: track/obs (CIP-83, terra). Ledger cleanup landed:
+  open-questions.md rewritten post-wave, the three ledger errors fixed
+  (dup mirrors row, LABEL→D54, corpus→CIP-79). Checked: ITEM in
+  migrate.md is correct (D68 revived it; not drift).
+- **Open with Mathijs**: the 14 one-line dispositions + ARG re-marking
+  (docs/open-questions.md).
+- **Queue**: obs merge → devices impl (CLAIM gpu/device + SHM,
+  Immich/Frigate) → health impl (READINESS/LIVENESS prober; sol) →
+  closed-root phase 1 audit gate → CIP-82 leg 2 (compose
+  materializations, cix clean/purge) → D70 overlay universes + wallos →
+  tourvm → hardening-audit pass (systemd.exec set).
+
+## 2026-08-01 evening (the CIP wave: process born, 75–81 adopted, four tracks landed)
+
+- **CIP process adopted** (Mathijs): docs/cips/, drafts by name, adopted
+  by number continuing the D-sequence, v0 in-place amendments, Decision
+  sections at adoption. Rules in docs/cips/README.md. New decisions go
+  through CIPs; D1–74 stay citable.
+- **Adopted**: CIP-75 timers (compose `schedule:` raw OnCalendar),
+  CIP-76 devloop (`cix watch`, sync ❌ forever), CIP-77 run-unary-compose
+  (run = compose with one anonymous member; translation-quality guard),
+  CIP-78 devices (CLAIM vocabulary — GRANT renamed; `CLAIM gpu`,
+  `CLAIM device /dev/x`, `SHM`), CIP-79 health (READINESS/LIVENESS on
+  notify/watchdog; health graph banned; probe types http/tcp/notify),
+  CIP-80 exec-naming (EXEC→START, SETUP→START_PRE), CIP-81 secrets
+  (SECRET/LoadCredential file-only; fetch tokens with direnv-shaped
+  host-side consent — the lock-whitelist died in a 4× turn-over).
+- **Merged implementations** (terra ×4, each gate independently re-run):
+  track/claim (`d2d5033`), track/watch (`2733649`), track/timers
+  (`322b19c`), track/start (`2c44ecc`). Fingerprints d74→d78→d80.
+- **Drafts open**: dirs (r3 + a chat round that will become r4: dir
+  declarations unify as claims; overlay-backing
+  `/var/log/<unit>/<declared-path>`, kills the D11 root restriction and
+  state-N indices; DATADIR dies in favor of CLAIM mount), closed-root
+  (mandatory hermetic RootDirectory per Mathijs — no rawdog dial;
+  store-posture and NSS mechanism open).
+- **CI incidents**: timer gc-root test raced (PartOf-propagated cleanup
+  is async; fixed with wait_until_succeeds, `b79e441`); start sweep
+  missed two inline EXEC fixtures in build.rs lib tests — terra claimed
+  workspace tests green while they failed deterministically (THIRD terra
+  false-green; independent re-runs remain non-negotiable). Also: my own
+  gate command piped through tail and swallowed the failure —
+  gate-scripts-fail-loud applies to the orchestrator too.
+- Ops: devenv.lock now tracked (Mathijs); stale conflict marker removed
+  from cixfile LOG (`2f699b9`); inventory doc: docs/open-questions.md.
+- **Open with Mathijs**: dirs r4 go/no-go (incl. host-mirror
+  strip-question), closed-root draft read (§4.1 store posture, §4.4
+  --user), the 17 one-line ledger dispositions batch.
+- **Queue next**: health implementation (READINESS/LIVENESS prober —
+  biggest; sol candidate), devices implementation (CLAIM gpu/device +
+  SHM, Immich/Frigate dogfood), closed-root phase 1 audit gate after
+  adoption, D70 overlay universes + wallos rewrite, tourvm.
+
 ## 2026-08-01 midday (fmt + leaks landed; CI-red root-caused; health design open)
 
 - **CI red on main root-caused and fixed** (`547662b`, orchestrator
