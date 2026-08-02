@@ -1,5 +1,25 @@
 # compose track log
 
+- 2026-08-02 UTC — Committed the completed CIP-90 leg-B track (`Add machine-readable cix ps output`). It adds public `cix ps --json`, one shared `PsRow` renderer, JSON-backed tour filtering, the universal env boundary lint, the golden/doc/ledger updates, and the documented fixed-listener mutex justification. Full matrix remains the orchestrator gate.
+
+- 2026-08-02 UTC — Final focused VM receipts: `scenario-observability` exited 0 after 58.94s and `scenario-tree` exited 0 after 64.37s. Final tour regeneration exited 0; boundary lint, `! rg 'set_var|remove_var' crates --glob '*.rs'`, and the no-`CIX_*`-reader compose grep all returned clean. A real `cix ps --json | jq` smoke returned an array. Final diff is limited to this track’s compose/CLI/tour/docs/lint/log files; ready to commit. The orchestrator still owns the required full `nix flake check -L` matrix.
+
+- 2026-08-02 UTC — `cargo fmt --all -- --check`, `cix fmt --check examples`, `scripts/check-cli-env-boundary.sh`, and warning-denied `cargo clippy --workspace --all-targets` pass. Synchronous `devenv shell -- cargo test --workspace` also passed, including the regenerated-tour drift/determinism suite and 43 cix-compose tests. Next: focused `scenario-observability` and `scenario-tree` VM checks, then final regen/diff and commit.
+
+- 2026-08-02 UTC — Formatting, example formatting, and boundary lint passed. Warning-denied workspace clippy caught five needless borrows in the new table width calls (the renderer already receives `&[PsRow]`); corrected them. This invalidates the prior tour receipt because code changed, so regenerate/drift will be repeated after clippy passes.
+
+- 2026-08-02 UTC — Tour regenerated synchronously and the full parallel `devenv shell -- cargo test -p cix --test tour` passed (4 passed, 1 intentional ignored; 75.03s). The retained lock serializes the real fixed-port/user-manager resource, while its old table parser is gone: `sh_ps_units` executes `cix ps --json`, deserializes `PsRow`, filters by unit identity, and calls the production table renderer. Next: workspace formatting, warning-denied clippy, workspace tests, and the two declared VM scenarios.
+
+- 2026-08-02 UTC — Correction: proj1's manifest declares a build-time fixed port, so the CLI correctly rejects the attempted `-p` override. The mutex therefore guards a real non-env shared resource: tour renderers use the one user manager and the documented fixed host listener. Restored `TOUR_RENDER_LOCK` with the required site-local justification comment, while retaining the substantive CIP-90 change (JSON structural filtering plus shared table renderer). Next: regenerate and drift-check under that documented serialization.
+
+- 2026-08-02 UTC — Unlocked tour drift run correctly failed: three parallel renderers all started the proj1 fixture on host port 18084, so one renderer could observe another's server while its own unit had already exited. The obsolete render mutex had been masking that host-global collision. Replaced it with the existing atomically allocated per-render listener port via the public `-p http=…` override; also normalized transient-run `service` to its stable logical name rather than leaking the generated nonce into the table/JSON/docs. Next: regenerate and rerun the tour in parallel.
+
+- 2026-08-02 UTC — Focused `devenv shell -- cargo test -p cix-compose -p cix --lib` passed 43 compose tests and the cix lib target; the boundary lint also passed after its allowlist removal. The receipt exposed one new unused `fmt::Write` result warning, so this is not a clean gate yet; added the explicit infallible-string write expectation. Next: warning-denied clippy and tour regenerate/drift.
+
+- 2026-08-02 UTC — First focused compile caught one mechanical borrow omission in the new row sort (`String::cmp` needed `&right.manager`); fixed before any test receipt. No behavior defect observed. Next: rerun focused compose/cix tests and boundary lint.
+
+- 2026-08-02 UTC — Started CIP-90 hygiene leg B. Read the accepted CIP and track spec; `cix-compose` has no `std::env`/`CIX_*` reads left, so the boundary-lint compose allowlist is stale. `cix ps` currently builds structured rows only transiently before rendering, while the tour reparses its columns. Plan: promote those rows to the public `--json` surface, render the table from them, make the tour filter the JSON then call that shared renderer, delete `TOUR_RENDER_LOCK`, add golden coverage, then run the declared focused and full agent gates.
+
 - 2026-08-02 UTC — Synchronous receipt: `devenv shell -- nix build
   .#checks.x86_64-linux.scenario-netns -L` exited 0 after 112.95s of VM script time. It covered
   two pods using the same internal port, FD-direct and proxyd publication, allowed and suppressed

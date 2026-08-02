@@ -1,7 +1,10 @@
-use std::process::{Command, Output};
+use std::{
+    fmt::Write as _,
+    process::{Command, Output},
+};
 
 use anyhow::{bail, Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 struct ListedUnit {
@@ -11,15 +14,28 @@ struct ListedUnit {
     description: String,
 }
 
-struct Row {
-    manager: &'static str,
-    composite: String,
-    service: String,
-    unit: ListedUnit,
-    result: String,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PsRow {
+    pub manager: String,
+    pub composite: String,
+    pub service: String,
+    pub unit: String,
+    pub state: String,
+    pub result: String,
+    pub description: String,
 }
 
-pub fn ps() -> Result<()> {
+pub fn ps(json: bool) -> Result<()> {
+    let rows = rows()?;
+    if json {
+        println!("{}", render_ps_json(&rows)?);
+    } else {
+        println!("{}", render_ps_table(&rows));
+    }
+    Ok(())
+}
+
+fn rows() -> Result<Vec<PsRow>> {
     let mut rows = Vec::new();
     let mut errors = Vec::new();
     for (manager, user) in [("system", false), ("user", true)] {
@@ -31,12 +47,14 @@ pub fn ps() -> Result<()> {
                     let result = systemctl_value(user, &unit.unit, "Result")
                         .map(|result| crate::result_label(&result).to_owned())
                         .unwrap_or_else(|_| "-".into());
-                    rows.push(Row {
-                        manager,
+                    rows.push(PsRow {
+                        manager: manager.into(),
                         composite,
                         service,
-                        unit,
+                        unit: unit.unit,
+                        state: format!("{}/{}", unit.active, unit.sub),
                         result,
+                        description: unit.description,
                     });
                 }
             }
@@ -49,45 +67,48 @@ pub fn ps() -> Result<()> {
     for error in errors {
         eprintln!("warning: could not list {error}");
     }
-    if !rows
-        .iter()
-        .any(|row| !matches!(row.composite.as_str(), "-" | "run"))
-    {
-        return cix_run::runtime::ps();
-    }
     rows.sort_by(|left, right| {
         left.manager
-            .cmp(right.manager)
+            .cmp(&right.manager)
             .then_with(|| left.composite.cmp(&right.composite))
             .then_with(|| left.service.cmp(&right.service))
-            .then_with(|| left.unit.unit.cmp(&right.unit.unit))
+            .then_with(|| left.unit.cmp(&right.unit))
     });
+    Ok(rows)
+}
 
-    let manager_width = width(&rows, 7, |row| row.manager.len());
-    let composite_width = width(&rows, 9, |row| row.composite.len());
-    let service_width = width(&rows, 7, |row| row.service.len());
-    let unit_width = width(&rows, 4, |row| row.unit.unit.len());
-    let result_width = width(&rows, 6, |row| row.result.len());
-    println!(
+pub fn render_ps_json(rows: &[PsRow]) -> Result<String> {
+    serde_json::to_string_pretty(rows).context("serializing cix ps JSON")
+}
+
+pub fn render_ps_table(rows: &[PsRow]) -> String {
+    let manager_width = width(rows, 7, |row| row.manager.len());
+    let composite_width = width(rows, 9, |row| row.composite.len());
+    let service_width = width(rows, 7, |row| row.service.len());
+    let unit_width = width(rows, 4, |row| row.unit.len());
+    let result_width = width(rows, 6, |row| row.result.len());
+    let mut table = format!(
         "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  DESCRIPTION",
         "MANAGER", "COMPOSITE", "SERVICE", "UNIT", "STATE", "RESULT"
     );
     for row in rows {
-        println!(
-            "{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  {}",
+        write!(
+            table,
+            "\n{:<manager_width$}  {:<composite_width$}  {:<service_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  {}",
             row.manager,
             row.composite,
             row.service,
-            row.unit.unit,
-            format!("{}/{}", row.unit.active, row.unit.sub),
+            row.unit,
+            row.state,
             row.result,
-            row.unit.description,
-        );
+            row.description,
+        )
+        .expect("writing cix ps table row");
     }
-    Ok(())
+    table
 }
 
-fn width(rows: &[Row], minimum: usize, value: impl Fn(&Row) -> usize) -> usize {
+fn width(rows: &[PsRow], minimum: usize, value: impl Fn(&PsRow) -> usize) -> usize {
     rows.iter().map(value).max().unwrap_or(minimum).max(minimum)
 }
 
@@ -137,7 +158,7 @@ fn grouping(user: bool, unit: &str) -> Result<(String, String)> {
         return Ok(("-".into(), service_label("-", &service_unit)));
     };
     if composite == "run" {
-        return Ok(("-".into(), service_label("run", &service_unit)));
+        return Ok(("-".into(), run_service_label(&service_unit)));
     }
     Ok((
         composite.to_owned(),
@@ -154,6 +175,17 @@ fn service_label(composite: &str, unit: &str) -> String {
         .strip_prefix("edge-")
         .map(|edge| format!("edge/{edge}"))
         .unwrap_or_else(|| value.to_owned())
+}
+
+fn run_service_label(unit: &str) -> String {
+    let label = service_label("run", unit);
+    label
+        .rsplit_once('-')
+        .filter(|(_, nonce)| {
+            nonce.len() == 24 && nonce.bytes().all(|byte| byte.is_ascii_hexdigit())
+        })
+        .map(|(service, _)| service.to_owned())
+        .unwrap_or(label)
 }
 
 fn systemctl_value(user: bool, unit: &str, property: &str) -> Result<String> {
@@ -205,7 +237,7 @@ fn command_error(output: &Output) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::service_label;
+    use super::{render_ps_json, render_ps_table, run_service_label, service_label, PsRow};
 
     #[test]
     fn labels_compose_services_and_edges() {
@@ -213,6 +245,41 @@ mod tests {
         assert_eq!(
             service_label("stack", "cix-stack-edge-database.service"),
             "edge/database"
+        );
+        assert_eq!(
+            run_service_label("cix-run-tour-app-0123456789abcdeffedcba98.service"),
+            "tour-app"
+        );
+    }
+
+    #[test]
+    fn json_output_is_a_stable_golden_view_of_table_rows() {
+        let rows = vec![PsRow {
+            manager: "user".into(),
+            composite: "stack".into(),
+            service: "web".into(),
+            unit: "cix-stack-web.service".into(),
+            state: "active/running".into(),
+            result: "success".into(),
+            description: "stack/web".into(),
+        }];
+        assert_eq!(
+            render_ps_json(&rows).unwrap(),
+            r#"[
+  {
+    "manager": "user",
+    "composite": "stack",
+    "service": "web",
+    "unit": "cix-stack-web.service",
+    "state": "active/running",
+    "result": "success",
+    "description": "stack/web"
+  }
+]"#
+        );
+        assert_eq!(
+            render_ps_table(&rows),
+            "MANAGER  COMPOSITE  SERVICE  UNIT                   STATE       RESULT   DESCRIPTION\nuser     stack      web      cix-stack-web.service  active/running  success  stack/web"
         );
     }
 }

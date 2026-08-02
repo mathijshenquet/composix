@@ -121,7 +121,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`attach`](https://docs.docker.com/reference/cli/docker/container/attach/) | 🔁 journal streaming | stdin/TTY attachment. |
 | [`stop`](https://docs.docker.com/reference/cli/docker/container/stop/) / [`kill`](https://docs.docker.com/reference/cli/docker/container/kill/) / signals | ✅ `systemctl stop`; custom stop signal/timeouts ⏳ (future manifest field) | — |
 | [`rm` / `--rm`](https://docs.docker.com/reference/cli/docker/container/rm/) | 🔁 transient units self-collect | — |
-| [`ps`](https://docs.docker.com/reference/cli/docker/container/ls/) | ✅ `cix ps` includes the native systemd RESULT (including the watchdog diagnosis) | Docker's container IDs and separate health status. |
+| [`ps`](https://docs.docker.com/reference/cli/docker/container/ls/) | ✅ `cix ps` includes the native systemd RESULT (including the watchdog diagnosis); `cix ps --json` exposes those same rows for tools. | Docker's container IDs and separate health status. |
 | [`stats`](https://docs.docker.com/reference/cli/docker/container/stats/) / [`top`](https://docs.docker.com/reference/cli/docker/container/top/) | 🔁 `cix stats` provides one accounting snapshot (memory, CPU, tasks, IO/IP); live observation is `systemd-cgtop`. | Docker's streaming interactive table and process `top` view. |
 | per-app log retention | 🔁 compose `logNamespace: true` gives `cix-<compose>` its own journald namespace and retention configuration | Per-service policy fields; namespace creation is an opt-in operational shift, not cix-managed retention. |
 | [`update` (live resource limits)](https://docs.docker.com/reference/cli/docker/container/update/) | ⏳ compose era (limits are operator config) | Live resource updates. |
@@ -233,7 +233,8 @@ shape for an APP.
 
 Every generated service stamps indexed journald fields: compose members carry
 `CIX_COMPOSITE`, `CIX_SERVICE`, and `CIX_ITEM`; transient runs carry `CIX_RUN` and
-`CIX_ITEM`. `cix ps` reports the native systemd result, while `cix inspect --runtime` also
+`CIX_ITEM`. `cix ps` reports the native systemd result; `cix ps --json` serializes the same
+rows for tools, while `cix inspect --runtime` also
 reports its invocation ID and exit status. Systemd spawn failures 200–245 are diagnosed by their
 sandbox setup step; `watchdog` reads as “liveness watchdog missed”.
 

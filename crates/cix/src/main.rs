@@ -128,7 +128,7 @@ fn main() -> anyhow::Result<()> {
         Command::IndexGroup { command } => {
             command.run(&cix_index::Store::open(state_directory.clone())?)
         }
-        Command::Run(cix_run::cli::Command::Ps) => cix_compose::ps(),
+        Command::Run(cix_run::cli::Command::Ps { json }) => cix_compose::ps(json),
         Command::Run(
             command @ cix_run::cli::Command::Run {
                 compose: Some(_),

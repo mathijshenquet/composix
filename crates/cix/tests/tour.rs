@@ -37,6 +37,8 @@ const PROJ1_FILES: &[&str] = &[
     "rust/worker/src/main.rs",
 ];
 static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
+// The proj1 chapter runs its documented fixed-port service in the shared user manager and host
+// network namespace. Rendering concurrently would make one chapter observe another's listener.
 static TOUR_RENDER_LOCK: Mutex<()> = Mutex::new(());
 
 struct Server {
@@ -108,9 +110,23 @@ impl Doc {
         self.sh_in("$", &state_dir, command, expect_success)
     }
 
-    fn sh_units(&mut self, command: &str, expect_success: bool, unit_names: &[String]) -> String {
+    fn sh_ps_units(&mut self, expect_success: bool, unit_names: &[String]) -> String {
         let state_dir = self.state_dir.clone();
-        self.sh_in_with_unit_filter("$", &state_dir, command, expect_success, Some(unit_names))
+        let output = self.run(&state_dir, "cix ps --json", expect_success);
+        let raw = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let rows: Vec<cix_compose::PsRow> = serde_json::from_str(&raw)
+            .unwrap_or_else(|error| panic!("cix ps --json emitted invalid JSON: {error}\n{raw}"));
+        let rows = rows
+            .into_iter()
+            .filter(|row| unit_names.iter().any(|name| name == &row.unit))
+            .collect::<Vec<_>>();
+        let displayed = cix_compose::render_ps_table(&rows);
+        self.record("$", "cix ps", &displayed);
+        displayed
     }
 
     fn sh_in(
@@ -120,30 +136,20 @@ impl Doc {
         command: &str,
         expect_success: bool,
     ) -> String {
-        self.sh_in_with_unit_filter(prompt, state_dir, command, expect_success, None)
-    }
-
-    fn sh_in_with_unit_filter(
-        &mut self,
-        prompt: &str,
-        state_dir: &Path,
-        command: &str,
-        expect_success: bool,
-        unit_names: Option<&[String]>,
-    ) -> String {
         let output = self.run(state_dir, command, expect_success);
         let raw = format!(
             "{}{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
+        self.record(prompt, command, &raw);
+        raw
+    }
 
+    fn record(&mut self, prompt: &str, command: &str, output: &str) {
         let displayed_command = normalize(command, &self.base);
         writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
-        let displayed_output = unit_names
-            .map(|unit_names| filter_unit_listing(&raw, unit_names))
-            .unwrap_or_else(|| raw.clone());
-        let normalized = normalize(&displayed_output, &self.base);
+        let normalized = normalize(output, &self.base);
         if !normalized.is_empty() {
             self.text.push_str(&normalized);
             if !normalized.ends_with('\n') {
@@ -151,7 +157,6 @@ impl Doc {
             }
         }
         writeln!(self.text, "```\n").expect("writing transcript");
-        raw
     }
 
     fn run(&self, state_dir: &Path, command: &str, expect_success: bool) -> std::process::Output {
@@ -188,52 +193,6 @@ impl Doc {
     fn finish(self) -> String {
         self.text
     }
-}
-
-fn filter_unit_listing(raw: &str, unit_names: &[String]) -> String {
-    let rows = raw
-        .lines()
-        .filter_map(|line| {
-            let mut fields = line.split_whitespace();
-            let manager = fields.next()?;
-            let fields = fields.collect::<Vec<_>>();
-            let unit_index = fields
-                .iter()
-                .position(|field| unit_names.iter().any(|name| name == field))?;
-            let unit = *fields.get(unit_index)?;
-            Some((
-                manager,
-                unit,
-                *fields.get(unit_index + 1)?,
-                *fields.get(unit_index + 2)?,
-                fields[(unit_index + 3)..].join(" "),
-            ))
-        })
-        .collect::<Vec<_>>();
-    let unit_width = rows
-        .iter()
-        .map(|(_, unit, _, _, _)| unit.len())
-        .max()
-        .unwrap_or(4)
-        .max(4);
-    let result_width = rows
-        .iter()
-        .map(|(_, _, _, result, _)| result.len())
-        .max()
-        .unwrap_or(6)
-        .max(6);
-    let mut listing = format!(
-        "{:<7}  {:<unit_width$}  {:<10}  {:<result_width$}  DESCRIPTION",
-        "MANAGER", "UNIT", "STATE", "RESULT"
-    );
-    for (manager, unit, state, result, description) in rows {
-        write!(
-            listing,
-            "\n{manager:<7}  {unit:<unit_width$}  {state:<10}  {result:<result_width$}  {description}"
-        )
-        .expect("writing filtered unit listing");
-    }
-    listing
 }
 
 fn test_tmp_dir() -> PathBuf {
@@ -736,10 +695,9 @@ START /bin/true
         name: unit_name.clone(),
     };
     let own_units = [unit_name.clone()];
-    let running = doc.sh_units("cix ps", true, &own_units);
-    let displayed_running = filter_unit_listing(&running, &own_units);
-    assert!(displayed_running.contains(&unit_name));
-    assert!(displayed_running.contains("active/running"));
+    let running = doc.sh_ps_units(true, &own_units);
+    assert!(running.contains(&unit_name));
+    assert!(running.contains("active/running"));
 
     doc.para("## Debug");
     doc.para("`cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.");
@@ -751,7 +709,7 @@ START /bin/true
     assert!(debugged.contains("cix debug --user is degraded"));
 
     doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    let stopped = doc.sh_units("cix ps", true, &own_units);
+    let stopped = doc.sh_ps_units(true, &own_units);
     assert!(!stopped.contains(&unit_name));
     doc.finish()
 }

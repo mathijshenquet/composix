@@ -17,7 +17,7 @@ pub use resolve::{load_and_check, CheckResult, UpdateRequest};
 pub use runtime::{check, clean, diff, down, rollback, up};
 
 pub use observability::{logs, result_label, stats, LogsOptions};
-pub use ps::ps;
+pub use ps::{ps, render_ps_table, PsRow};
 
 pub(crate) fn unit_path(path: &str) -> String {
     path.bytes().fold(String::new(), |mut escaped, byte| {
