@@ -45,10 +45,24 @@ pub struct Service {
     pub network: Option<Network>,
     // `grants` is reserved for the future compose-side loosening field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub claims: Vec<String>,
+    pub claims: Vec<Claim>,
+    pub shm: Option<String>,
     pub jit: Option<bool>,
     #[serde(default)]
     pub egress: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Claim {
+    Named(String),
+    Device(DeviceClaim),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceClaim {
+    pub device: PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -343,9 +357,22 @@ impl Service {
     }
 
     pub fn has_claim(&self, claim: &str) -> bool {
-        self.claims.iter().any(|declared| declared == claim)
+        self.claims
+            .iter()
+            .any(|declared| matches!(declared, Claim::Named(name) if name == claim))
             || (claim == "jit" && self.jit == Some(true))
             || (claim == "egress" && self.egress)
+    }
+
+    pub fn device_claims(&self) -> impl Iterator<Item = &Path> {
+        self.claims.iter().filter_map(|claim| match claim {
+            Claim::Device(device) => Some(device.device.as_path()),
+            Claim::Named(_) => None,
+        })
+    }
+
+    pub fn has_device_claim(&self) -> bool {
+        self.has_claim("gpu") || self.device_claims().next().is_some()
     }
 
     fn validate_capabilities(&self) -> Result<()> {
@@ -354,15 +381,78 @@ impl Service {
         }
         let mut seen = BTreeSet::new();
         for claim in &self.claims {
-            if !matches!(claim.as_str(), "jit" | "egress") {
-                bail!("unknown claim {claim:?}; supported claims: jit, egress");
-            }
-            if !seen.insert(claim) {
+            let key = match claim {
+                Claim::Named(name) => {
+                    if !matches!(name.as_str(), "jit" | "egress" | "gpu") {
+                        bail!("unknown claim {name:?}; supported claims: jit, egress, gpu, device");
+                    }
+                    name.clone()
+                }
+                Claim::Device(device) => {
+                    validate_device_path(&device.device)?;
+                    format!("device:{}", device.device.display())
+                }
+            };
+            if !seen.insert(key) {
                 bail!("claim {claim:?} is declared more than once");
             }
         }
+        if let Some(shm) = &self.shm {
+            validate_systemd_size(shm)?;
+        }
         Ok(())
     }
+}
+
+fn validate_device_path(path: &Path) -> Result<()> {
+    if !path.is_absolute() || path == Path::new("/dev") || !path.starts_with("/dev") {
+        bail!(
+            "device claim {} must be an absolute path under /dev",
+            path.display()
+        );
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+    {
+        bail!(
+            "device claim {} must not contain '.' or '..' components",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+pub fn validate_systemd_size(size: &str) -> Result<()> {
+    let digits = size.bytes().take_while(u8::is_ascii_digit).count();
+    let suffix = size.get(digits..).unwrap_or_default().to_ascii_uppercase();
+    let valid = digits > 0
+        && matches!(
+            suffix.as_str(),
+            "" | "B"
+                | "K"
+                | "KB"
+                | "KIB"
+                | "M"
+                | "MB"
+                | "MIB"
+                | "G"
+                | "GB"
+                | "GIB"
+                | "T"
+                | "TB"
+                | "TIB"
+                | "P"
+                | "PB"
+                | "PIB"
+                | "E"
+                | "EB"
+                | "EIB"
+        );
+    if !valid {
+        bail!("size {size:?} must use systemd size syntax, for example 64M or 1G");
+    }
+    Ok(())
 }
 
 impl Serialize for Spec {
@@ -629,6 +719,31 @@ mod tests {
             r#"{"cixManifest":0,"start":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
             r#"{"cixManifest":0,"start":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
             r#"{"cixManifest":0,"services":{}}"#,
+        ] {
+            assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
+        }
+    }
+
+    #[test]
+    fn validates_device_claim_forms_and_shm_sizes() {
+        let accepted = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"claims":["gpu",{"device":"/dev/video0"}],"shm":"256M"}"#,
+        )
+        .unwrap();
+        let service = accepted.select_service(None).unwrap().1;
+        assert!(service.has_claim("gpu"));
+        assert_eq!(
+            service.device_claims().collect::<Vec<_>>(),
+            [Path::new("/dev/video0")]
+        );
+
+        for json in [
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"device":"ttyUSB0"}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"device":"/dev/null","extra":true}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"gpu":"/dev/dri"}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":["gpu","gpu"]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"shm":"-1G"}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"shm":"1Z"}"#,
         ] {
             assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
         }

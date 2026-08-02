@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::ffi::CStr;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Component, Path};
 
 use anyhow::{bail, Context, Result};
@@ -253,6 +255,7 @@ pub(crate) fn build_unit_with_options(
         properties.push(("ProtectHome".into(), "yes".into()));
         properties.push(("PrivateTmp".into(), "yes".into()));
         properties.push(("PrivatePIDs".into(), "yes".into()));
+        add_device_policy(&mut properties, service)?;
     }
     properties.extend([
         ("NoNewPrivileges".into(), "yes".into()),
@@ -294,6 +297,9 @@ pub(crate) fn build_unit_with_options(
         properties.push(("PrivateNetwork".into(), "yes".into()));
     }
     add_socket_bind_restrictions(&mut properties, service, config);
+    if let Some(shm) = &service.shm {
+        properties.push(("TemporaryFileSystem".into(), format!("/dev/shm:size={shm}")));
+    }
     if let Some(start_pre) = &service.start_pre {
         let start_pre = resolved_argv(output, "start_pre", start_pre, &item_env)?;
         properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
@@ -326,6 +332,63 @@ pub(crate) fn build_unit_with_options(
         argv,
         degradations,
     })
+}
+
+fn add_device_policy(properties: &mut Vec<(String, String)>, service: &Service) -> Result<()> {
+    if !service.has_device_claim() {
+        properties.push(("PrivateDevices".into(), "yes".into()));
+        return Ok(());
+    }
+
+    properties.push(("DevicePolicy".into(), "closed".into()));
+    let mut groups = BTreeSet::new();
+    if service.has_claim("gpu") {
+        properties.push(("DeviceAllow".into(), "/dev/dri rwm".into()));
+        groups.extend(["render".to_owned(), "video".to_owned()]);
+    }
+    for device in service.device_claims() {
+        properties.push(("DeviceAllow".into(), format!("{} rwm", device.display())));
+        if let Some(group) = device_group(device)? {
+            groups.insert(group);
+        }
+    }
+    if !groups.is_empty() {
+        properties.push((
+            "SupplementaryGroups".into(),
+            groups.into_iter().collect::<Vec<_>>().join(" "),
+        ));
+    }
+    Ok(())
+}
+
+fn device_group(device: &Path) -> Result<Option<String>> {
+    let metadata = match std::fs::metadata(device) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!(
+                "warning: claimed device {} is absent while generating the unit; no owning group was added and activation will fail until the hardware is present",
+                device.display()
+            );
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("statting claimed device {}", device.display()))
+        }
+    };
+    let group = unsafe { libc::getgrgid(metadata.gid()) };
+    if group.is_null() {
+        eprintln!(
+            "warning: claimed device {} has gid {} with no resolvable group; no supplementary group was added",
+            device.display(),
+            metadata.gid()
+        );
+        return Ok(None);
+    }
+    let name = unsafe { CStr::from_ptr((*group).gr_name) }
+        .to_str()
+        .context("claimed device group name is not valid UTF-8")?;
+    Ok((!name.is_empty()).then(|| name.to_owned()))
 }
 
 fn apply_host_capabilities(
@@ -934,6 +997,53 @@ mod tests {
         )
         .unwrap();
         assert!(!actual.contains("MemoryDenyWriteExecute"), "{actual}");
+    }
+
+    #[test]
+    fn device_claims_replace_private_devices_with_a_closed_allow_list() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"claims":["gpu",{"device":"/dev/null"}],"shm":"128M"}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        for expected in [
+            "DevicePolicy=closed",
+            "DeviceAllow=/dev/dri rwm",
+            "DeviceAllow=/dev/null rwm",
+            "SupplementaryGroups=render root video",
+            "TemporaryFileSystem=/dev/shm:size=128M",
+        ] {
+            assert!(actual.contains(expected), "missing {expected} in {actual}");
+        }
+        assert!(!actual.contains("PrivateDevices="), "{actual}");
+    }
+
+    #[test]
+    fn ordinary_units_keep_private_devices() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"]}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(actual.contains("PrivateDevices=yes"), "{actual}");
     }
 
     #[test]

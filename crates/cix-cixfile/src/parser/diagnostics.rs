@@ -26,6 +26,7 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "CONFIGDIR",
     "RUNDIR",
     "CLAIM",
+    "SHM",
 ];
 
 struct Migration {

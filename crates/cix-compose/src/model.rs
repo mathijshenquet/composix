@@ -35,6 +35,8 @@ pub struct ComposeService {
     pub persistent: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jitter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shm: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -123,6 +125,10 @@ impl Compose {
                 && (service.persistent.is_some() || service.jitter.is_some())
             {
                 bail!("services.{name}: persistent and jitter require schedule");
+            }
+            if let Some(shm) = &service.shm {
+                cix_run::spec::validate_systemd_size(shm)
+                    .with_context(|| format!("services.{name}.shm"))?;
             }
         }
         for (name, edge) in &self.edges {
@@ -267,5 +273,35 @@ mod tests {
         )
         .unwrap();
         assert!(Compose::load(&path).unwrap().log_namespace);
+    }
+
+    #[test]
+    fn shm_is_validated_and_grants_remains_reserved() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"api":{"item":"x:v1","shm":"128M"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            Compose::load(&path).unwrap().services["api"].shm.as_deref(),
+            Some("128M")
+        );
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"api":{"item":"x:v1","shm":"bad"}}}"#,
+        )
+        .unwrap();
+        assert!(Compose::load(&path).is_err());
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"x","services":{"api":{"item":"x:v1","grants":["gpu"]}}}"#,
+        )
+        .unwrap();
+        assert!(Compose::load(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("grants"));
     }
 }
