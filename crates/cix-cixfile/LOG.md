@@ -1887,3 +1887,122 @@
   pushed; `git ls-remote origin refs/heads/track/corpusstyle` was empty at the
   audit instant. No implementation, documentation, generation, focused receipt,
   or agent-side gate work remains.
+
+- 2026-08-02T19:34:42Z — Fix round started after the orchestrator's closed-root
+  inventory assertion exposed Mastodon as the 21st unclassified corpus case.
+  The audit's current Renovate treatment proves that its corpus contracts are
+  reproducibly reconstructed rather than rebuilt through Cixfile, but it does
+  not exercise compose. `cix up --closed-root` is already phase-1 behavior, so
+  claiming compose support is pending would be false; auditing only Mastodon's
+  Redis member would also duplicate existing coverage without proving this
+  migration. Chose the stronger honest classification: reconstruct all six
+  checked-in item manifests and mounts, activate the actual compose topology
+  under closed root, and probe Unix edges, shared-rw state, credential delivery,
+  readiness, native watchdogs, and the scheduled cleanup member. Next: add that
+  focused VM contract, run it synchronously, then rerun the migration check.
+
+- 2026-08-02T19:46:05Z — First synchronous focused VM run correctly failed
+  (`nix build .#checks.x86_64-linux.scenario-closedroot-audit -L`, exit 1)
+  after all pre-existing unary audits passed. The full Mastodon activation
+  exposed two real hidden host-root dependencies: Redis inherited the NixOS
+  host locale and could not configure it inside the sealed root; PostgreSQL's
+  ELF `initdb` internally invokes `postgres -V` through `/bin/sh`, which the
+  closed root intentionally omits, so first-run initialization failed before
+  the consumers. This was not a missing Nix closure: both executables use the
+  same store dynamic loader, the item references the PostgreSQL closure, and an
+  equivalent host-root init succeeded. Fixing the migration contract itself:
+  declare Redis's C locale, and explicitly item-mount nixpkgs bash at `/bin/sh`
+  for PostgreSQL's otherwise-hidden initdb requirement. The audit will retain
+  the no-shell assertion for every other member and require PostgreSQL's shell
+  to be a declared read-only item mount. Next: rebuild locks, rerun the VM, then
+  run the ordinary-root migration check required by the fix round.
+
+- 2026-08-02T19:48:33Z — The first rerun stopped early (exit 1) because a
+  mechanical scenario edit accidentally added Mastodon's `/bin/sh` declaration
+  to the pre-existing PostgreSQL pack manifest while placing its source only in
+  the Mastodon item. This was a test-fixture wiring error, not a behavior
+  result: cix correctly rejected the pack's declared-but-absent mount before
+  reaching Mastodon. Restored the pack manifest and moved the mount declaration
+  to the intended Mastodon manifest; next: re-evaluate and rerun synchronously.
+
+- 2026-08-02T19:53:29Z — Third synchronous focused VM run reached the complete
+  Mastodon stack: explicit `/bin/sh` made first-run PostgreSQL initialization
+  succeed, the C locale made Redis ready, and the Python web/sidekiq consumers
+  both authenticated over the projected Unix edges. Streaming alone failed in
+  START_PRE, with the same scheduled cleanup shell command failing transiently.
+  Root cause was the test fixture's secret writer: it omitted a final newline,
+  while both shell consumers intentionally use `IFS= read -r` under `set -e`;
+  the ordinary check writes a newline and the Python consumers tolerate either
+  form. Corrected the VM fixture to reproduce the real secret byte shape. Next:
+  rerun the full focused scenario synchronously and require exit 0.
+
+- 2026-08-02T19:59:45Z — Fourth synchronous focused VM run brought the entire
+  six-member Mastodon compose up successfully under closed roots: PostgreSQL
+  initialized, Redis became ready, web and sidekiq authenticated over both
+  projected Unix-socket edges, streaming served through nginx, and the cleanup
+  timer fired. The test then failed only because it looked for the declared
+  `/bin/sh` mount in the host-visible staging directory. Item mounts are
+  systemd namespace bind mounts, so their targets need not exist in that host
+  view. Retaining the real contract assertion on the unit's
+  `BindReadOnlyPaths=...:/bin/sh`; the service's successful `initdb` execution
+  is the behavioral proof that the mount was usable inside the namespace.
+  Next: rerun the focused scenario synchronously and require exit 0.
+
+- 2026-08-02T20:05:45Z — Fifth synchronous focused VM run again brought all six
+  members up and passed every closed-root boundary assertion, including the
+  PostgreSQL unit's declared `/bin/sh` bind. It then failed on an assertion that
+  expected `systemctl show --property=LoadCredential` to expose the directive;
+  systemd does not publish that setting as a runtime show property here. The
+  web process had already authenticated with the credential, but to retain
+  structural coverage as well, changed the assertion to inspect the installed
+  unit with `systemctl cat` for the exact `LoadCredential=` directive. Next:
+  rerun the focused scenario synchronously and require exit 0.
+
+- 2026-08-02T20:12:29Z — Sixth synchronous focused VM run passed (exit 0):
+  `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit -L`. Mastodon is honestly in
+  `auditedCorpus`: the VM ran all six members in sealed roots and verified the
+  declared PostgreSQL shell bind, absence of an ambient shell elsewhere,
+  credential directive plus behavioral use, both Unix edges, shared state,
+  readiness and watchdog survival, scheduled cleanup, member-scoped logs,
+  purge, and removal of every root. The required ordinary `check.sh cix` then
+  failed synchronously (exit 1) because the locked streaming item still
+  existed but its manifest's external nginx store path had been collected;
+  systemd reported `203/EXEC`. This is the already-recorded zero-reference/
+  distribution gap, and the cached build did not re-realize the missing
+  dependency. Changed the integration harness to explicitly `--update-lock`
+  every member build so its runtime paths are realized before activation.
+  Next: rerun `check.sh cix` synchronously and require exit 0.
+
+- 2026-08-02T20:13:37Z — The immediate harness rerun failed before building
+  (exit 1): clap interpreted the positional member path as the optional value
+  of a bare `--update-lock`, leaving the repository root as the default build
+  directory. Made the intended pin refresh unambiguous with
+  `--update-lock=pkgs`; next: rerun `check.sh cix` synchronously.
+
+- 2026-08-02T20:14:52Z — Final ordinary-root receipt passed synchronously
+  (exit 0): `devenv shell -- ./corpus/migrate/mastodon/check.sh cix`, including
+  its EXIT teardown. All six members built, the two-edge compose activated,
+  readiness delay, credential, shared-rw markers, watchdog survival, timer,
+  scoped logs, and purge passed. Explicit stability follow-up refreshed all six
+  members again with `cix build --update-lock=pkgs`; exit 0 and checksum diff
+  showed no byte change in any lock. Updated the receipt and corpus ledger to
+  record Mastodon as the 21st migration and as a full-compose CIP-84 audited
+  contract. Next: regenerate/drift-check corpus docs, inspect changes, and
+  commit every task artifact except this LOG.
+
+- 2026-08-02T20:18:38Z — Final verification/commit audit complete. Corpus
+  browser regeneration passed and the non-ignored corpus suite passed 4/4,
+  including deterministic generation and committed-page drift. `cargo fmt
+  --all -- --check`, focused `cix fmt --check`, `bash -n check.sh`,
+  `git diff --check`, and evaluation of the final closed-root check derivation
+  all exited 0. The available pinned nixfmt wanted to reformat hundreds of
+  pre-existing scenario lines; discarded that unrelated churn and retained the
+  exact green-tested source snapshot, whose existing style is unchanged outside
+  the new audit. Next: stage the ten task artifacts explicitly without this
+  LOG, inspect the index, and commit on `track/mastodon`.
+
+- 2026-08-02T20:19:08Z — Committed the fix round as `cd4f9b1` (`test: audit
+  Mastodon under closed roots`). The commit contains exactly ten task
+  artifacts; this append-only LOG remains the only unstaged worktree change as
+  required. No open implementation items remain for this fix round.
