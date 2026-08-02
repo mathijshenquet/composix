@@ -716,6 +716,7 @@ START /bin/true
     let consumer_lock = doc.sh("cat prebuilt/Cixfile.lock", true);
     assert!(consumer_lock.contains("\"artifacts\""));
     assert!(consumer_lock.contains("tour/tour-assets:v1"));
+    assert!(consumer_lock.contains("\"outputs\""));
 
     doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one version-0 service definition, its executable, and any capabilities or writable directories it declares.");
     let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
