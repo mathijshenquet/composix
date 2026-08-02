@@ -661,6 +661,7 @@ START /bin/true
 #[test]
 fn newly_consumed_path_reruns_the_chain_and_extends_its_record() {
     let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile.lock"),
         format!(
@@ -689,7 +690,7 @@ COPY ${{build}}/one /one
         tag: None,
         cold: false,
         allow_secret: false,
-        workspace_directory: test_workspace_directory(),
+        workspace_directory: workspace.path().to_owned(),
         state_directory: test_state_directory(),
     })
     .unwrap();
@@ -709,7 +710,7 @@ COPY ${{build}}/one /one
         tag: None,
         cold: false,
         allow_secret: false,
-        workspace_directory: test_workspace_directory(),
+        workspace_directory: workspace.path().to_owned(),
         state_directory: test_state_directory(),
     })
     .unwrap();
@@ -1106,6 +1107,7 @@ START /bin/true
 #[test]
 fn warm_rerun_starts_on_its_builder_end_state_while_cold_does_not() {
     let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("source"), "v1\n").unwrap();
     fs::write(
         directory.path().join("Cixfile"),
@@ -1137,7 +1139,7 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
-        workspace_directory: test_workspace_directory(),
+        workspace_directory: workspace.path().to_owned(),
         state_directory: test_state_directory(),
     })
     .unwrap();
@@ -1153,7 +1155,7 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
-        workspace_directory: test_workspace_directory(),
+        workspace_directory: workspace.path().to_owned(),
         state_directory: test_state_directory(),
     })
     .unwrap();
@@ -1168,7 +1170,7 @@ START /bin/true
         tag: None,
         cold: true,
         allow_secret: false,
-        workspace_directory: test_workspace_directory(),
+        workspace_directory: workspace.path().to_owned(),
         state_directory: test_state_directory(),
     })
     .unwrap_err()
