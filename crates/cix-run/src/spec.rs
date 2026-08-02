@@ -35,6 +35,8 @@ pub struct Service {
     #[serde(default)]
     pub env: BTreeMap<String, Env>,
     #[serde(default)]
+    pub secrets: BTreeMap<String, Secret>,
+    #[serde(default)]
     pub ports: BTreeMap<String, Port>,
     /// Named systemd socket-activation file descriptors accepted by this service.
     #[serde(default)]
@@ -76,6 +78,13 @@ pub struct Env {
     pub required: bool,
     #[serde(default)]
     pub secret: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Secret {
+    #[serde(rename = "as")]
+    pub as_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -287,6 +296,18 @@ impl Service {
 
         for name in self.env.keys() {
             validate_env_name(name)?;
+        }
+        for (name, secret) in &self.secrets {
+            validate_name("secret", name)?;
+            if let Some(as_env) = &secret.as_env {
+                validate_env_name(as_env)?;
+                if !as_env.ends_with("_FILE") {
+                    bail!("secret {name:?} AS variable {as_env:?} must end in _FILE; it carries a credential path, never a secret value");
+                }
+                if self.env.contains_key(as_env) {
+                    bail!("secret {name:?} AS variable {as_env:?} conflicts with declared env");
+                }
+            }
         }
 
         for (name, port) in &self.ports {

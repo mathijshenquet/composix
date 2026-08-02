@@ -58,8 +58,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
+| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
+| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
 | `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -157,6 +157,41 @@ Shell comments inside the body belong to the shell. `${…}` remains build-time 
 use `$${…}` when the shell itself must receive a braced expansion.
 
 <a id="formatting"></a>
+
+### Runtime credentials
+
+`SECRET <name> [AS <VAR_FILE>]` declares a runtime credential need on a SERVICE or APP.
+It names no value and is delivered only when compose supplies that name. The process reads
+`$CREDENTIALS_DIRECTORY/<name>`; `AS` sets the given `_FILE` variable to that same path, for
+images that already support the conventional `PASSWORD_FILE` shape. Raw secret environment
+variables are deliberately refused.
+
+FETCH credentials are host-local too: `~/.config/cix/credentials` (or
+`$CREDENTIALS_DIRECTORY/credentials` for a cix unit) maps a token name to a narrow URL pattern
+and credential file. On a matching concrete FETCH URL cix asks for per-project, per-token,
+per-prefix consent; `cix build --allow-secret` is the non-interactive CI form and
+`cix credentials revoke <token>` removes remembered consent. Neither Cixfiles nor locks name
+tokens, and credential files never enter the store.
+
+### Compose credentials
+
+The compose document owns values, while item manifests own credential needs. Supply each
+declared name exactly once at top level, using either an absolute plaintext file or an absolute
+systemd-encrypted credential file:
+
+```json
+{
+  "secrets": { "db-password": { "file": "/etc/cix/db-password" } },
+  "services": { "database": { "item": "example/db:v1" } }
+}
+```
+
+Only services that declare `SECRET db-password` receive `LoadCredential=db-password:…`; an
+`encrypted` source uses `LoadCredentialEncrypted=`. `cix compose check` rejects a missing
+declared source and warns loudly about a supplied source that no item consumes. On `cix up`, a
+salted HMAC fingerprint detects a changed source and restarts only its consumers. Use
+`cix run --compose FILE` (or `-` for stdin) for the same complete compose path; direct run
+options cannot inject credentials.
 
 ## Formatting
 

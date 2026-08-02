@@ -100,6 +100,7 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let original_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
@@ -114,6 +115,7 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
 

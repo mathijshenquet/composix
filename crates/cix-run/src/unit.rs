@@ -318,6 +318,11 @@ pub(crate) fn build_unit_with_options(
         .iter()
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect::<Vec<_>>();
+    for (name, secret) in &service.secrets {
+        if let Some(as_env) = &secret.as_env {
+            environment.push((as_env.clone(), format!("%d/{name}")));
+        }
+    }
     add_directory_environment(&mut environment, &service.dirs);
     if mode != UnitMode::System {
         environment.push((
@@ -331,13 +336,18 @@ pub(crate) fn build_unit_with_options(
 
     properties.extend(options.extra_properties.iter().cloned());
     let degradations = apply_host_capabilities(&mut properties, mode, capabilities);
-    let text = render(
+    let mut text = render(
         service_name,
         &argv,
         &environment,
         &properties,
         &options.unit_properties,
     );
+    for secret in service.secrets.values() {
+        if let Some(as_env) = &secret.as_env {
+            text = text.replace(&format!("{as_env}=%%d/"), &format!("{as_env}=%d/"));
+        }
+    }
     Ok(CompiledUnit {
         name: options.naming.unit.clone(),
         target: options.naming.target.clone(),
@@ -925,6 +935,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(actual, include_str!("../tests/fixtures/full-system.unit"));
+    }
+
+    #[test]
+    fn secret_paths_are_projected_in_system_and_user_units() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"secrets":{"db-password":{"as":"DB_PASSWORD_FILE"},"api-key":{}}}"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        for mode in [UnitMode::System, UnitMode::UserFull] {
+            let unit = compile_unit(
+                Path::new("/nix/store/00000000000000000000000000000000-app"),
+                "app",
+                service,
+                &config,
+                mode,
+                &UnitCompileOptions::cix_run("app"),
+            )
+            .unwrap();
+            assert!(
+                unit.text
+                    .contains("Environment=\"DB_PASSWORD_FILE=%d/db-password\""),
+                "{}",
+                unit.text
+            );
+            assert!(!unit.text.contains("DB_PASSWORD="), "{}", unit.text);
+        }
     }
 
     #[test]

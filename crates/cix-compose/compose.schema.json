@@ -19,6 +19,11 @@
       "type": "object",
       "propertyNames": {"$ref": "#/$defs/name"},
       "additionalProperties": {"$ref": "#/$defs/edge"}
+    },
+    "secrets": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/name"},
+      "additionalProperties": {"$ref": "#/$defs/secret"}
     }
   },
   "$defs": {
@@ -64,6 +69,18 @@
         {"required": ["host"]},
         {"required": ["shared"]},
         {"required": ["as"]}
+      ]
+    },
+    "secret": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "file": {"$ref": "#/$defs/absolutePath"},
+        "encrypted": {"$ref": "#/$defs/absolutePath"}
+      },
+      "oneOf": [
+        {"required": ["file"]},
+        {"required": ["encrypted"]}
       ]
     },
     "endpoint": {

@@ -764,3 +764,26 @@ fn from_lock_metadata_is_a_builder_env_template() {
             if matches!(value.parts.as_slice(), [TemplatePart::InputMetadata { namespace, attribute, .. }] if namespace == "src" && attribute == "rev")
     ));
 }
+
+#[test]
+fn secret_declares_a_credential_name_and_optional_file_environment() {
+    let parsed = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSECRET db-password AS DB_PASSWORD_FILE\nSECRET api-key\nSTART /bin/true\n",
+    )
+    .unwrap();
+    assert_eq!(
+        parsed.artifacts["app"].service.secrets["db-password"]
+            .as_env
+            .as_deref(),
+        Some("DB_PASSWORD_FILE")
+    );
+    assert_eq!(
+        parsed.artifacts["app"].service.secrets["api-key"].as_env,
+        None
+    );
+    let error = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSECRET db AS DB_PASSWORD\nSTART /bin/true\n",
+    )
+    .unwrap_err();
+    assert!(error.message.contains("_FILE"), "{error}");
+}

@@ -17,6 +17,15 @@ pub struct Compose {
     pub log_namespace: bool,
     #[serde(default)]
     pub edges: BTreeMap<String, Edge>,
+    #[serde(default)]
+    pub secrets: BTreeMap<String, SecretSource>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct SecretSource {
+    pub file: Option<PathBuf>,
+    pub encrypted: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -222,6 +231,24 @@ impl Compose {
                         shared,
                     )?;
                 }
+            }
+        }
+        for (name, source) in &self.secrets {
+            validate_name(&format!("secrets.{name}"), name)?;
+            match (&source.file, &source.encrypted) {
+                (Some(_), None) | (None, Some(_)) => {}
+                (Some(_), Some(_)) => {
+                    bail!("secrets.{name}: file and encrypted are mutually exclusive")
+                }
+                (None, None) => bail!("secrets.{name}: declare exactly one of file or encrypted"),
+            }
+            let path = source
+                .file
+                .as_ref()
+                .or(source.encrypted.as_ref())
+                .expect("validated source");
+            if !path.is_absolute() {
+                bail!("secrets.{name}: source path must be absolute");
             }
         }
         for (name, edge) in &self.edges {
@@ -549,5 +576,40 @@ mod tests {
         .unwrap();
         let error = Compose::load(&path).unwrap_err().to_string();
         assert!(error.contains("mutually exclusive"), "{error}");
+    }
+
+    #[test]
+    fn secret_sources_accept_one_absolute_file_or_encrypted_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"composeVersion":1,"name":"demo","services":{"web":{"item":"demo:v1"}},"secrets":{"plain":{"file":"/etc/cix/plain"},"sealed":{"encrypted":"/etc/cix/sealed"}}}"#,
+        )
+        .unwrap();
+        let loaded = Compose::load(&path).unwrap();
+        assert_eq!(
+            loaded.secrets["plain"].file,
+            Some(PathBuf::from("/etc/cix/plain"))
+        );
+        assert_eq!(
+            loaded.secrets["sealed"].encrypted,
+            Some(PathBuf::from("/etc/cix/sealed"))
+        );
+
+        for invalid in [
+            r#"{"file":"relative"}"#,
+            r#"{"file":"/etc/cix/plain","encrypted":"/etc/cix/sealed"}"#,
+            r#"{}"#,
+        ] {
+            fs::write(
+                &path,
+                format!(
+                    r#"{{"composeVersion":1,"name":"demo","services":{{"web":{{"item":"demo:v1"}}}},"secrets":{{"db":{invalid}}}}}"#
+                ),
+            )
+            .unwrap();
+            assert!(Compose::load(&path).is_err(), "{invalid}");
+        }
     }
 }

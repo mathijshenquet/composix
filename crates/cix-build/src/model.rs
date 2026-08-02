@@ -240,9 +240,15 @@ pub struct Service {
     pub listeners: BTreeSet<String>,
     pub readiness: Option<Readiness>,
     pub liveness: Option<Liveness>,
+    pub secrets: BTreeMap<String, Secret>,
     pub dirs: Dirs,
     pub claims: BTreeSet<Claim>,
     pub shm: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Secret {
+    pub as_env: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -282,6 +288,7 @@ impl Service {
             listeners: BTreeSet::new(),
             readiness: None,
             liveness: None,
+            secrets: BTreeMap::new(),
             dirs: Dirs::default(),
             claims: BTreeSet::new(),
             shm: None,

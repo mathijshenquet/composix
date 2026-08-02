@@ -690,6 +690,60 @@ impl Parser<'_> {
         Ok(())
     }
 
+    pub(super) fn secret(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "SECRET",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
+        let fields = arguments.split_whitespace().collect::<Vec<_>>();
+        let (name, as_env) = match fields.as_slice() {
+            [name] => (*name, None),
+            [name, "AS", environment] => {
+                validate_env_name(environment, line, source)?;
+                if !environment.ends_with("_FILE") {
+                    return Err(ParseError::new(
+                        line,
+                        source,
+                        "SECRET AS variable must end in _FILE; it receives a credential path, never a secret value",
+                    ));
+                }
+                (*name, Some((*environment).to_owned()))
+            }
+            _ => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "SECRET syntax is SECRET <name> [AS <VAR_FILE>]",
+                ));
+            }
+        };
+        validate_name("secret", name, line, source)?;
+        let artifact_name = self
+            .current_artifact_name("SECRET", line, source)?
+            .to_owned();
+        let service = &mut self
+            .artifacts
+            .get_mut(&artifact_name)
+            .expect("current artifact exists")
+            .service;
+        if service.secrets.contains_key(name) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("SECRET {name:?} is already declared"),
+            ));
+        }
+        service.secrets.insert(name.to_owned(), Secret { as_env });
+        Ok(())
+    }
+
     pub(super) fn port(
         &mut self,
         line: usize,

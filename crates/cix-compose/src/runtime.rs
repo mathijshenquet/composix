@@ -1,7 +1,7 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
-    io::{self, ErrorKind, Write},
+    io::{self, ErrorKind, Read, Write},
     os::unix::fs::symlink,
     path::{Path, PathBuf},
     process::{Command, Output},
@@ -9,6 +9,9 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use cix_run::capabilities::HostCapabilities;
+use hmac::{Hmac, Mac};
+use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 use crate::{
     build_generation,
@@ -20,6 +23,15 @@ use crate::{
 const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
 const GC_ROOT_DIRECTORY: &str = "/var/lib/cix-compose/gcroots";
 const UNIT_DIRECTORY: &str = "/etc/systemd/system";
+const SECRET_STATE_DIRECTORY: &str = "/var/lib/cix-compose";
+
+#[derive(Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SecretState {
+    salt: Vec<u8>,
+    #[serde(default)]
+    fingerprints: BTreeMap<String, String>,
+}
 
 pub fn check(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
@@ -56,6 +68,7 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let checked = load_and_check(compose_path, update)?;
     warn_check_warnings(&checked);
     validate_host_backing_exists(&checked)?;
+    let (secret_state, rotated) = secret_state(&checked)?;
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
     let capabilities = HostCapabilities::probe()?;
@@ -64,7 +77,13 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     let old = current_generation(&checked.compose.name)?;
     register_generation_gc_roots(&checked.compose.name, &built.store_path, &built.manifest)?;
     set_profile(&checked.compose.name, &built.store_path)?;
-    activate_generation(&checked.compose.name, old.as_deref(), &built.store_path)?;
+    activate_generation(
+        &checked.compose.name,
+        old.as_deref(),
+        &built.store_path,
+        &rotated,
+    )?;
+    save_secret_state(&checked.compose.name, &secret_state)?;
     println!(
         "activated {} from {}",
         checked.compose.name,
@@ -81,6 +100,25 @@ fn warn_check_warnings(checked: &crate::CheckResult) {
 
 fn validate_host_backing_exists(checked: &crate::CheckResult) -> Result<()> {
     for (service, checked_service) in &checked.services {
+        for (name, source) in &checked_service.secrets {
+            let path = source
+                .file
+                .as_ref()
+                .or(source.encrypted.as_ref())
+                .expect("validated source");
+            let metadata = fs::metadata(path).with_context(|| {
+                format!(
+                    "services.{service}.secrets.{name}: source {} must pre-exist",
+                    path.display()
+                )
+            })?;
+            if !metadata.is_file() {
+                bail!(
+                    "services.{service}.secrets.{name}: source {} must be a file",
+                    path.display()
+                );
+            }
+        }
         for claim in &checked_service.directories {
             let crate::resolve::DirectoryBacking::Host { path, .. } = &claim.backing else {
                 continue;
@@ -102,6 +140,74 @@ fn validate_host_backing_exists(checked: &crate::CheckResult) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn secret_state(checked: &crate::CheckResult) -> Result<(SecretState, BTreeSet<String>)> {
+    let path = secret_state_path(&checked.compose.name);
+    let mut state = match fs::read(&path) {
+        Ok(bytes) => {
+            serde_json::from_slice(&bytes).context("parsing composite secret rotation state")?
+        }
+        Err(error) if error.kind() == ErrorKind::NotFound => SecretState::default(),
+        Err(error) => return Err(error).context("reading composite secret rotation state"),
+    };
+    if state.salt.is_empty() {
+        state.salt = random_salt()?;
+    }
+    let mut fingerprints = BTreeMap::new();
+    let mut rotated = BTreeSet::new();
+    for (service, checked_service) in &checked.services {
+        for (name, source) in &checked_service.secrets {
+            let path = source
+                .file
+                .as_ref()
+                .or(source.encrypted.as_ref())
+                .expect("validated source");
+            let contents = fs::read(path)
+                .with_context(|| format!("reading services.{service}.secrets.{name}"))?;
+            let mut mac = Hmac::<Sha256>::new_from_slice(&state.salt)
+                .expect("HMAC accepts arbitrary key length");
+            mac.update(&contents);
+            let fingerprint = hex(&mac.finalize().into_bytes());
+            let key = format!("{service}/{name}");
+            if state
+                .fingerprints
+                .get(&key)
+                .is_some_and(|old| old != &fingerprint)
+            {
+                rotated.insert(service.clone());
+            }
+            fingerprints.insert(key, fingerprint);
+        }
+    }
+    state.fingerprints = fingerprints;
+    Ok((state, rotated))
+}
+
+fn save_secret_state(name: &str, state: &SecretState) -> Result<()> {
+    let path = secret_state_path(name);
+    let parent = path.parent().expect("composite state has parent");
+    fs::create_dir_all(parent).context("creating composite secret state directory")?;
+    let temporary =
+        tempfile::NamedTempFile::new_in(parent).context("creating composite secret state")?;
+    serde_json::to_writer(temporary.reopen()?, state)?;
+    fs::rename(temporary.path(), path).context("saving composite secret state")
+}
+
+fn secret_state_path(name: &str) -> PathBuf {
+    Path::new(SECRET_STATE_DIRECTORY)
+        .join(name)
+        .join("secrets.json")
+}
+
+fn random_salt() -> Result<Vec<u8>> {
+    let mut bytes = vec![0_u8; 32];
+    std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+    Ok(bytes)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn warn_degradations(manifest: &Manifest) {
@@ -140,7 +246,7 @@ pub fn rollback(name: &str) -> Result<()> {
     if old == new {
         bail!("composite {name:?} has no previous generation");
     }
-    activate_generation(name, Some(&old), &new)?;
+    activate_generation(name, Some(&old), &new, &BTreeSet::new())?;
     println!("rolled back {name} to {}", new.display());
     Ok(())
 }
@@ -274,7 +380,12 @@ fn remove_owned_paths(paths: &[PathBuf]) -> Result<()> {
     Ok(())
 }
 
-fn activate_generation(name: &str, old: Option<&Path>, new: &Path) -> Result<()> {
+fn activate_generation(
+    name: &str,
+    old: Option<&Path>,
+    new: &Path,
+    rotated_secrets: &BTreeSet<String>,
+) -> Result<()> {
     let new_manifest = load_manifest(new)?;
     if new_manifest.name != name {
         bail!(
@@ -310,23 +421,34 @@ fn activate_generation(name: &str, old: Option<&Path>, new: &Path) -> Result<()>
         for unit in &changes.changed {
             match new_manifest.units[unit].kind {
                 UnitKind::Edge | UnitKind::Socket | UnitKind::Timer => {
-                    infrastructure.push(unit.as_str())
+                    infrastructure.push(unit.clone())
                 }
                 UnitKind::Service if !new_manifest.units[unit].scheduled => {
-                    services.push(unit.as_str())
+                    services.push(unit.clone())
                 }
                 UnitKind::Service => {}
                 UnitKind::Slice | UnitKind::Target => {}
             }
         }
+        for service in rotated_secrets {
+            let unit = format!("cix-{name}-{service}.service");
+            if new_manifest
+                .units
+                .get(&unit)
+                .is_some_and(|entry| entry.kind == UnitKind::Service && !entry.scheduled)
+                && !services.contains(&unit)
+            {
+                services.push(unit);
+            }
+        }
         if !infrastructure.is_empty() {
             let mut arguments = vec!["restart"];
-            arguments.extend(infrastructure);
+            arguments.extend(infrastructure.iter().map(String::as_str));
             systemctl(&arguments)?;
         }
         if !services.is_empty() {
             let mut arguments = vec!["restart"];
-            arguments.extend(services);
+            arguments.extend(services.iter().map(String::as_str));
             systemctl(&arguments)?;
         }
     }

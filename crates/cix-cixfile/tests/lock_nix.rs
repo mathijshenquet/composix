@@ -203,6 +203,7 @@ fn overlay_edits_change_builder_keys_without_repinning_the_base() {
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     };
     build(&options).unwrap();
     let first: LockFile =
@@ -346,6 +347,7 @@ START /bin/output
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let output = &output[0].store_path;
@@ -365,6 +367,7 @@ START /bin/output
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
@@ -406,6 +409,7 @@ START /bin/true
             update_lock: None,
             tag: None,
             cold: false,
+            allow_secret: false,
         },
         &[],
         None,
@@ -469,6 +473,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(output.len(), 2);
@@ -499,6 +504,7 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -536,6 +542,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -551,6 +558,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let head = fs::read_to_string(PathBuf::from(&output[0].store_path).join("head")).unwrap();
@@ -594,6 +602,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -611,6 +620,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -649,6 +659,7 @@ COPY ${{build}}/one /one
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -666,6 +677,7 @@ COPY ${{build}}/one /one
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -718,6 +730,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let lock: LockFile =
@@ -736,6 +749,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: true,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -771,6 +785,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let output = build(&BuildOptions {
@@ -778,6 +793,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: true,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -816,6 +832,7 @@ COPY ${{build}}/result /result
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     };
     build(&options).unwrap();
     fs::write(
@@ -869,6 +886,7 @@ START /bin/true
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     let first_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
@@ -877,6 +895,7 @@ START /bin/true
         update_lock: Some("build".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -943,6 +962,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -956,6 +976,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1008,6 +1029,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
 
@@ -1017,6 +1039,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1058,6 +1081,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1071,6 +1095,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1083,6 +1108,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: true,
+        allow_secret: false,
     })
     .unwrap_err()
     .to_string();
@@ -1156,6 +1182,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap_err()
     .to_string();
@@ -1188,6 +1215,7 @@ EOF
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap()
     .remove(0)
@@ -1229,6 +1257,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1253,6 +1282,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1265,6 +1295,7 @@ START /bin/true
         update_lock: Some("source".into()),
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap();
     assert_eq!(
@@ -1289,6 +1320,7 @@ START /bin/true
         update_lock: None,
         tag: None,
         cold: false,
+        allow_secret: false,
     })
     .unwrap_err()
     .to_string();
