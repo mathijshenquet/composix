@@ -805,26 +805,115 @@ impl Parser<'_> {
             source,
             &[ArtifactKind::Service, ArtifactKind::App],
         )?;
-        let fields = exact_fields(arguments, 1, line, source, "CLAIM <jit|egress>")?;
-        if !matches!(fields[0], "jit" | "egress") {
-            return Err(ParseError::new(
-                line,
-                source,
-                format!(
-                    "unknown CLAIM capability {:?}; supported capabilities: jit, egress",
-                    fields[0]
-                ),
-            ));
-        }
+        let fields = arguments.split_whitespace().collect::<Vec<_>>();
+        let claim = match fields.as_slice() {
+            ["jit" | "egress" | "gpu"] => Claim::Named(fields[0].to_owned()),
+            ["device", device] => {
+                Self::validate_device_path(device, line, source)?;
+                Claim::Device((*device).to_owned())
+            }
+            _ => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "CLAIM requires one of: jit, egress, gpu, or device /dev/<node>",
+                ))
+            }
+        };
         let service = self.current_service_mut("CLAIM", line, source)?;
-        if !service.claims.insert(fields[0].to_owned()) {
+        if !service.claims.insert(claim.clone()) {
             return Err(ParseError::new(
                 line,
                 source,
                 format!(
                     "CLAIM {:?} is already declared for this artifact",
-                    fields[0]
+                    match claim {
+                        Claim::Named(name) => name,
+                        Claim::Device(path) => format!("device {path}"),
+                    }
                 ),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn shm(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "SHM",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
+        let fields = exact_fields(arguments, 1, line, source, "SHM <size>")?;
+        Self::validate_systemd_size(fields[0], line, source)?;
+        let service = self.current_service_mut("SHM", line, source)?;
+        if service.shm.replace(fields[0].to_owned()).is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "SHM is already declared for this artifact",
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_device_path(path: &str, line: usize, source: &str) -> Result<(), ParseError> {
+        let path = std::path::Path::new(path);
+        if !path.is_absolute()
+            || path == std::path::Path::new("/dev")
+            || !path.starts_with("/dev")
+            || path.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::CurDir | std::path::Component::ParentDir
+                )
+            })
+        {
+            return Err(ParseError::new(
+                line,
+                source,
+                "CLAIM device requires a clean absolute path under /dev",
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_systemd_size(size: &str, line: usize, source: &str) -> Result<(), ParseError> {
+        let digits = size.bytes().take_while(u8::is_ascii_digit).count();
+        let suffix = size.get(digits..).unwrap_or_default().to_ascii_uppercase();
+        let valid = digits > 0
+            && matches!(
+                suffix.as_str(),
+                "" | "B"
+                    | "K"
+                    | "KB"
+                    | "KIB"
+                    | "M"
+                    | "MB"
+                    | "MIB"
+                    | "G"
+                    | "GB"
+                    | "GIB"
+                    | "T"
+                    | "TB"
+                    | "TIB"
+                    | "P"
+                    | "PB"
+                    | "PIB"
+                    | "E"
+                    | "EB"
+                    | "EIB"
+            );
+        if !valid {
+            return Err(ParseError::new(
+                line,
+                source,
+                "SHM size must use systemd size syntax, for example 64M or 1G",
             ));
         }
         Ok(())

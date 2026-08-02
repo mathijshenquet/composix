@@ -6,8 +6,8 @@ use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
 use crate::{
-    Artifact, Assembly, BuildStep, Builder, Cixfile, Copy, InputKind, InputLock, LockFile, Port,
-    Service, Template, TemplatePart,
+    Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, InputKind, InputLock, LockFile,
+    Port, Service, Template, TemplatePart,
 };
 
 fn bare_command(arguments: &[Template]) -> Option<String> {
@@ -626,10 +626,13 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
             service
                 .claims
                 .iter()
-                .map(|claim| nix_string(claim))
+                .map(nix_claim)
                 .collect::<Vec<_>>()
                 .join(" ")
         )?;
+    }
+    if let Some(shm) = &service.shm {
+        write!(output, " shm = {};", nix_string(shm))?;
     }
     output.push_str(" }");
     Ok(output)
@@ -945,10 +948,30 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     if !service.claims.is_empty() {
         value.insert(
             "claims".into(),
-            Value::Array(service.claims.iter().cloned().map(Value::String).collect()),
+            Value::Array(service.claims.iter().map(literal_claim).collect()),
         );
     }
+    if let Some(shm) = &service.shm {
+        value.insert("shm".into(), Value::String(shm.clone()));
+    }
     Ok(Value::Object(value))
+}
+
+fn nix_claim(claim: &Claim) -> String {
+    match claim {
+        Claim::Named(name) => nix_string(name),
+        Claim::Device(path) => format!("{{ device = {}; }}", nix_string(path)),
+    }
+}
+
+fn literal_claim(claim: &Claim) -> Value {
+    match claim {
+        Claim::Named(name) => Value::String(name.clone()),
+        Claim::Device(path) => Value::Object(Map::from_iter([(
+            "device".into(),
+            Value::String(path.clone()),
+        )])),
+    }
 }
 
 fn literal_dirs(service: &Service) -> Map<String, Value> {

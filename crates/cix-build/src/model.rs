@@ -235,7 +235,14 @@ pub struct Service {
     pub ports: BTreeMap<String, Port>,
     pub listeners: BTreeSet<String>,
     pub dirs: Dirs,
-    pub claims: BTreeSet<String>,
+    pub claims: BTreeSet<Claim>,
+    pub shm: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum Claim {
+    Named(String),
+    Device(String),
 }
 
 impl Service {
@@ -250,6 +257,7 @@ impl Service {
             listeners: BTreeSet::new(),
             dirs: Dirs::default(),
             claims: BTreeSet::new(),
+            shm: None,
         }
     }
 }
