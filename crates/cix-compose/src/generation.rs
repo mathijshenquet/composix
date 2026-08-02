@@ -466,6 +466,7 @@ fn render_units(
                 claims
                     .iter()
                     .map(|claim| claim.group.as_str())
+                    .chain(directory_groups.iter().map(String::as_str))
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>()
@@ -1651,7 +1652,26 @@ mod tests {
         assert!(web.contains("BindPaths=/tank/web:/run/app:idmap"), "{web}");
         assert!(web.contains("RequiresMountsFor=/tank/web"), "{web}");
         assert!(web.contains("UMask=0002"), "{web}");
+        let shared_group = shared_group("stack", "uploads");
+        assert!(
+            web.lines().any(|line| {
+                line.strip_prefix("SupplementaryGroups=")
+                    .is_some_and(|groups| {
+                        groups.split_whitespace().any(|group| group == shared_group)
+                    })
+            }),
+            "{web}"
+        );
         let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        assert!(
+            worker.lines().any(|line| {
+                line.strip_prefix("SupplementaryGroups=")
+                    .is_some_and(|groups| {
+                        groups.split_whitespace().any(|group| group == shared_group)
+                    })
+            }),
+            "{worker}"
+        );
         assert!(
             worker.contains("CacheDirectory=cix-stack-worker cix-stack-worker/var/lib/app"),
             "{worker}"
