@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>whoami — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / whoami</nav>
+  <h1>whoami</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ named Go builder + direct service contract · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build and bounded HTTP probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>FROM golang:1-alpine AS builder
+
+RUN apk --no-cache --no-progress add git ca-certificates tzdata make \
+    &amp;&amp; update-ca-certificates \
+    &amp;&amp; rm -rf /var/cache/apk/*
+
+WORKDIR /go/whoami
+
+# Download go modules
+COPY go.mod .
+COPY go.sum .
+RUN GO111MODULE=on GOPROXY=https://proxy.golang.org go mod download
+
+COPY . .
+
+RUN make build
+
+# Create a minimal container to run a Golang static binary
+FROM scratch
+
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /go/whoami/whoami .
+
+ENTRYPOINT [&quot;/whoami&quot;]
+EXPOSE 80
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.go} ${pkgs.gnumake} ${pkgs.cacert}
+  ENV GOMODCACHE = $PWD/.gomodcache
+  # Each networked stage is independently pinned; RUN only consumes its snapshot.
+  FETCH git clone https://github.com/traefik/whoami.git .
+  FETCH go mod download
+  RUN make build
+
+SERVICE whoami
+  COPY ${build}/whoami /bin/whoami
+  START whoami
+  PORT http = 80
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/whoami</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

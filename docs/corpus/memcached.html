@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>memcached — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / memcached</nav>
+  <h1>memcached</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build and protocol version probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;apply-templates.sh&quot;
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
+
+FROM alpine:3.24
+
+# add our user and group first to make sure their IDs get assigned consistently, regardless of whatever dependencies get added
+RUN set -eux; \
+	addgroup -g 11211 memcache; \
+	adduser -D -u 11211 -G memcache memcache
+
+# ensure SASL&#39;s &quot;libplain.so&quot; is installed as per https://github.com/memcached/memcached/wiki/SASLHowto
+RUN apk add --no-cache libsasl
+
+ENV MEMCACHED_VERSION 1.6.45
+ENV MEMCACHED_URL https://memcached.org/files/memcached-1.6.45.tar.gz
+ENV MEMCACHED_SHA1 45038980ea7045a548b9b5b5125ef7116312a768
+
+RUN set -eux; \
+	\
+	apk add --no-cache --virtual .build-deps \
+		ca-certificates \
+		coreutils \
+		cyrus-sasl-dev \
+		dpkg-dev dpkg \
+		gcc \
+		libc-dev \
+		libevent-dev \
+		linux-headers \
+		make \
+		openssl \
+		openssl-dev \
+		perl \
+		perl-io-socket-ssl \
+		perl-utils \
+	; \
+	\
+	wget -O memcached.tar.gz &quot;$MEMCACHED_URL&quot;; \
+	echo &quot;$MEMCACHED_SHA1  memcached.tar.gz&quot; | sha1sum -c -; \
+	mkdir -p /usr/src/memcached; \
+	tar -xzf memcached.tar.gz -C /usr/src/memcached --strip-components=1; \
+	rm memcached.tar.gz; \
+	\
+	cd /usr/src/memcached; \
+	\
+	gnuArch=&quot;$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)&quot;; \
+# https://github.com/memcached/memcached/issues/1220#issuecomment-2770251664: on arm32, we need to override the upstream alignment check (which fails to detect the need for alignment on arm32v6+ on our hardware for some reason, which then causes us to fail the tests 😭)
+	case &quot;$gnuArch&quot; in \
+		arm-*abihf) export ac_cv_c_alignment=need ;; \
+	esac; \
+	./configure \
+		--build=&quot;$gnuArch&quot; \
+		--enable-extstore \
+		--enable-proxy \
+		--enable-sasl \
+		--enable-sasl-pwdb \
+		--enable-tls \
+	; \
+	nproc=&quot;$(nproc)&quot;; \
+	make -j &quot;$nproc&quot;; \
+	\
+# try the tests in parallel first, but many of them are resource-intensive, so fall back to serial
+	make test PARALLEL=&quot;$nproc&quot; || make test; \
+	\
+	make install; \
+	\
+	cd /; \
+	rm -rf /usr/src/memcached; \
+	\
+	runDeps=&quot;$( \
+		scanelf --needed --nobanner --format &#39;%n#p&#39; --recursive /usr/local \
+			| tr &#39;,&#39; &#39;\n&#39; \
+			| sort -u \
+			| awk &#39;system(&quot;[ -e /usr/local/lib/&quot; $1 &quot; ]&quot;) == 0 { next } { print &quot;so:&quot; $1 }&#39; \
+	)&quot;; \
+	apk add --no-network --virtual .memcached-rundeps $runDeps; \
+	apk del --no-network .build-deps; \
+	\
+	memcached -V
+
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN ln -s usr/local/bin/docker-entrypoint.sh /entrypoint.sh # backwards compat
+ENTRYPOINT [&quot;docker-entrypoint.sh&quot;]
+
+USER memcache
+EXPOSE 11211
+CMD [&quot;memcached&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE memcached
+  LINK ${pkgs.memcached}/bin/memcached /bin/memcached
+  START memcached -l 0.0.0.0
+  PORT memcached = 11211
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/memcached</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tomcat — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / tomcat</nav>
+  <h1>tomcat</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ complete package tree + idempotent setup · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build and bounded HTTP reachability probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>#
+# NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;apply-templates.sh&quot;
+#
+# PLEASE DO NOT EDIT IT DIRECTLY.
+#
+
+FROM eclipse-temurin:21-jre-noble
+
+ENV CATALINA_HOME /usr/local/tomcat
+ENV PATH $CATALINA_HOME/bin:$PATH
+RUN mkdir -p &quot;$CATALINA_HOME&quot;
+WORKDIR $CATALINA_HOME
+
+# let &quot;Tomcat Native&quot; live somewhere isolated
+ENV TOMCAT_NATIVE_LIBDIR $CATALINA_HOME/native-jni-lib
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$TOMCAT_NATIVE_LIBDIR
+
+ENV TOMCAT_MAJOR 10
+ENV TOMCAT_VERSION 10.1.57
+ENV TOMCAT_SHA512 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
+
+COPY --from=tomcat:10.1.57-jdk21-temurin-noble $CATALINA_HOME $CATALINA_HOME
+RUN set -eux; \
+	apt-get update; \
+	xargs -rt apt-get install -y --no-install-recommends &lt; &quot;$TOMCAT_NATIVE_LIBDIR/.dependencies.txt&quot;; \
+	rm -rf /var/lib/apt/lists/*
+
+# verify Tomcat Native is working properly
+RUN set -eux; \
+	nativeLines=&quot;$(catalina.sh configtest 2&gt;&amp;1)&quot;; \
+	nativeLines=&quot;$(echo &quot;$nativeLines&quot; | grep &#39;Apache Tomcat Native&#39;)&quot;; \
+	nativeLines=&quot;$(echo &quot;$nativeLines&quot; | sort -u)&quot;; \
+	if ! echo &quot;$nativeLines&quot; | grep -E &#39;INFO: Loaded( APR based)? Apache Tomcat Native library&#39; &gt;&amp;2; then \
+		echo &gt;&amp;2 &quot;$nativeLines&quot;; \
+		exit 1; \
+	fi
+
+EXPOSE 8080
+
+# upstream eclipse-temurin-provided entrypoint script caused https://github.com/docker-library/tomcat/issues/77 to come back as https://github.com/docker-library/tomcat/issues/302; use &quot;/entrypoint.sh&quot; at your own risk
+ENTRYPOINT []
+
+CMD [&quot;catalina.sh&quot;, &quot;run&quot;]
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE tomcat
+  COPY ${pkgs.coreutils} /coreutils
+  COPY ${pkgs.gnused} /gnused
+  COPY ${pkgs.tomcat10} /tomcat
+  COPY ${pkgs.jdk21_headless} /jre
+  COPY setup.sh /bin/tomcat-setup
+  LINK ${pkgs.tomcat10}/bin/catalina.sh /bin/catalina.sh
+  STATEDIR /var/lib/tomcat
+  LOGDIR /var/log/tomcat
+  RUNDIR /run/tomcat
+  ENV CATALINA_HOME = /tomcat
+  ENV CATALINA_BASE = /var/lib/tomcat
+  ENV CATALINA_TMPDIR = /run/tomcat
+  ENV JRE_HOME = /jre
+  ENV PATH = /coreutils/bin:/gnused/bin:/bin
+  START_PRE tomcat-setup
+  START catalina.sh run
+  PORT http = 8080
+CLAIM jit
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/tomcat</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

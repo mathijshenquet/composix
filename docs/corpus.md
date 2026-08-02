@@ -3,7 +3,9 @@
 Status: surveyed 2026-07-30; regraded 2026-08-02 after the D47/D74 and
 CIP-75/76/80/82/83 implementation wave. Grading is maintained per-track from
 this sweep onward. Ledger-style sibling of docs/docker.md: docker.md maps
-*features*, this maps *real artifacts*.
+*features*, this maps *real artifacts*. **[Browse every checked-in migration
+side by side](corpus/index.html)**: upstream on the left, Cixfile/Nix and
+compose artifacts on the right, with the receipt scope attached.
 
 > **Honesty caveat (Mathijs's review): the Evidence column distinguishes a
 > reading-based `desk` grade from a `receipt` produced in the cited round. A
@@ -18,6 +20,36 @@ Ribbons:
 - ⏳ blocked on a recorded-but-unbuilt decision (D-number)
 - ❌ outside the thesis (with the honest why)
 - Effort = S/M/L/XL: Cixfile+compose lines plus thinking, for a competent adopter.
+
+## The living migration corpus (20)
+
+These are the checked-in conversions under `corpus/migrate/`, not a second
+historical grade set. The ribbon describes the whole conversion represented by
+the receipt; “receipt” still proves only the named build/runtime probe. Open any
+case in the [side-by-side browser](corpus/index.html).
+
+| # | Case | What the receipt establishes | Ribbon | Effort | Evidence |
+|---:|---|---|---|:---:|---|
+| 1 | Adminer | Cix build and login-page probe pass; dynamic design/plugin entrypoint behavior is outside the probe | 🔶 base service passes; optional runtime mutation remains unconverted | S | [receipt](../corpus/migrate/adminer/receipt.md) |
+| 2 | Caddy | Cix build and HTTP probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/caddy/receipt.md) |
+| 3 | Directus | Docker passes; Cix reaches an FHS-loader-dependent native binary and fails the build | 🔶 blocked on the native-binary/FHS loader gap | M | [receipt](../corpus/migrate/directus/receipt.md) |
+| 4 | Dozzle | Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API | ❌ Docker-control-plane workload; build receipt is non-green | M | [receipt](../corpus/migrate/dozzle/receipt.md) |
+| 5 | Echo Server | Cix offline build and bounded HTTP probe pass | ✅ named builders + pinned package-manager fetch | M | [receipt](../corpus/migrate/echo-server/receipt.md) |
+| 6 | Excalidraw | Docker and Cix HTTP probes pass; declarative health remains absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/excalidraw/receipt.md) |
+| 7 | Filestash | Docker passes; Cix stops at unavailable static-library linkage | 🔶 package/static-link composition gap | L | [receipt](../corpus/migrate/filestash/receipt.md) |
+| 8 | Memcached | Cix build and protocol version probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/memcached/receipt.md) |
+| 9 | NATS | Cix build and monitoring health probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/nats/receipt.md) |
+| 10 | nginx | Cix build, HTTP request, and indexed journald query pass | ✅ package selection + native logging projection | S | [receipt](../corpus/migrate/nginx/receipt.md) |
+| 11 | Parse Server | Stable pinned Cix build passes; Mongo-backed runtime was not exercised | 🔶 build-only receipt; runtime/config path remains open | M | [receipt](../corpus/migrate/parse-server/receipt.md) |
+| 12 | phpMyAdmin | Cix build and login-page probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/phpmyadmin/receipt.md) |
+| 13 | Redis | Cix build, direct `/data` state projection, and PING pass | ✅ package selection + arbitrary-path state | S | [receipt](../corpus/migrate/redis/receipt.md) |
+| 14 | Renovate | Cix timer activation, execution, and indexed logs pass; token/config delivery is unconverted | 🔶 schedule/logging pass; credentials await CIP-81 implementation | S | [receipt](../corpus/migrate/renovate/receipt.md) |
+| 15 | Tomcat | Cix build and bounded HTTP reachability probe pass | ✅ complete package tree + idempotent setup | S | [receipt](../corpus/migrate/tomcat/receipt.md) |
+| 16 | Traefik | Cix build and ping endpoint pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/traefik/receipt.md) |
+| 17 | Verdaccio | Cix Corepack/pnpm build sequence fails before producing an item | 🔶 package-manager build remains non-green | M | [receipt](../corpus/migrate/verdaccio/receipt.md) |
+| 18 | Wallos | Docker and Cix health probes pass through the `.nix` escape hatch; declarative health is absent | 🔶 runtime passes; health awaits CIP-79 implementation | M | [receipt](../corpus/migrate/wallos/receipt.md) |
+| 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
+| 20 | Whoami | Cix build and bounded HTTP probe pass | ✅ named Go builder + direct service contract | M | [receipt](../corpus/migrate/whoami/receipt.md) |
 
 ## 1. Compose files in the wild (18)
 
@@ -64,7 +96,7 @@ CIP-82 operator materialization).
 | 8 | [node-exporter DaemonSet](https://raw.githubusercontent.com/prometheus-community/helm-charts/main/charts/prometheus-node-exporter/templates/daemonset.yaml) | one observer per node reading /proc,/sys | ⏳ operator `DIR :ro` declarations exist, but host materialization is queued; per-node = per-host root | S | desk |
 | 9 | [ingress-nginx](https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/charts/ingress-nginx/templates/controller-deployment.yaml) | control loop watching cluster API | ❌ different world — our host edge is binds/publishes, not an API-watching proxy; HPA/PDB n/a | — | desk |
 | 10 | [Istio Bookinfo](https://raw.githubusercontent.com/istio/istio/master/samples/bookinfo/platform/kube/bookinfo.yaml) | 4 microservices with identities; mesh by injection | services ✅; pod/tree colocation ⏳ CIP-85/86 implementation; mesh policy ⏳ D27; injection-as-mechanism ❌ (we declare) | M | desk |
-| 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | 🔶 APP `schedule`/persistent timer and indexed logs pass; token/config delivery was not converted | S | [receipt (timer/log only)](../corpus/regrade/renovate/receipt.md) |
+| 11 | [Renovate CronJob](https://raw.githubusercontent.com/renovatebot/helm-charts/main/charts/renovate/templates/cronjob.yaml) | run batch on schedule with token + config | 🔶 APP `schedule`/persistent timer and indexed logs pass; token/config delivery was not converted | S | [receipt (timer/log only)](../corpus/migrate/renovate/receipt.md) |
 | 12 | [Airflow scheduler](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/scheduler/scheduler-deployment.yaml) | don't start before DB schema; synced DAG dir | wait-init → built `START_PRE`/ordering 🔶; git-sync sidecar vs repin remains a content-model mismatch | M | desk |
 | 13 | [Airflow migrate Job](https://raw.githubusercontent.com/apache/airflow/main/chart/templates/jobs/migrate-database-job.yaml) | run migration once per upgrade | 🔶 built `START_PRE` covers cold start; migrate-on-upgrade hook remains a design question | M | desk |
 | 14 | [cert-manager](https://raw.githubusercontent.com/cert-manager/cert-manager/master/deploy/charts/cert-manager/templates/deployment.yaml) | three control loops + CRDs, no "app" at all | ❌ different world; the *need* (cert provisioning) returns later via credentials story | — | desk |
@@ -104,43 +136,32 @@ checksummed curl → FETCH (and the three unverified downloads in the corpus —
 grafana, keycloak — would be *forced* honest by FETCH's TOFU pin). Universal
 gosu/su-exec/tini/uid-999 boilerplate: ceremony our substrate deletes.
 
-## 4. What the wild demands (cross-corpus triage)
+## 4. Open gaps at a glance (ranked cross-corpus demands)
 
-Ranked by frequency × how squarely it hits us:
+This is the short answer to “what is still open?” Rows are named as
+`Compose n`, `Kubernetes n`, and `Dockerfile n` from the three tables above.
+“Designed—unbuilt” means the model is settled in the cited CIP but the named
+corpus rows still lack the implementation.
 
-1. **Health wiring — ⏳ implementation.** Ten of 18 compose files plus probes in
-   essentially every k8s chart keep this first. CIP-79 has settled the model
-   (`READINESS`/`LIVENESS`, notify/watchdog, no health graph), but the directives and
-   prober are not built yet.
-2. **Operator host-binds — ⏳ materialization.** Immich, Paperless, and Mastodon can
-   now declare operator content with `DIR`; CIP-82's compose `host:`/`as:` machinery
-   is decided but not implemented. Declaration alone does not mount bytes.
-3. **Shared-rw directories — ⏳ materialization.** Mastodon web+sidekiq and Penpot
-   assets are no longer a design gap: CIP-82 specifies hermetic `shared:` surfaces,
-   stable groups, and role agreement. The compose leg is still queued.
-4. **Timers/CronJob — ✅ met.** CIP-75's APP `schedule` emits a paired systemd timer;
-   the [Renovate-shaped receipt](../corpus/regrade/renovate/receipt.md) proves raw
-   `OnCalendar`, persistence, execution, and indexed logs. There is deliberately no
-   cron translation layer.
-5. **Operational logs — ✅ met.** CIP-83 stamps artifact/composite/service selectors,
-   and `cix logs`/`stats` project journald/systemd without a parallel daemon or log
-   store. The same Renovate receipt exercises the invocation-scoped query.
-6. **Artifact dev loop — ✅ met, sync refused.** `cix watch` warm-rebuilds changed
-   local members and selectively restarts them. Live source synchronization remains a
-   deliberate non-feature; framework hot reload belongs in `nix develop`.
-7. **Migrate-on-upgrade hook.** Helm hook-Jobs and Airflow still need an event-driven
-   generation hook; built `START_PRE` covers cold start, not exactly-on-upgrade work.
-8. **Network segmentation & talks-to.** Six of 18 named networks, `internal:true`, and
-   k8s NetworkPolicy still land on D26/D27.
-9. **Profiles/variants.** Sentry profiles and Paperless variants remain D46-shaped;
-   the compose selection surface is not implemented.
-10. **Build secrets.** Playwright's secret npmrc and private registries remain outside
-   FETCH; a credential must reach the fetch without entering a memo key or store item.
-11. **The ❌ class is coherent**: docker-socket orchestration (Authentik worker,
-   Nextcloud AIO), API-watching controllers (ingress-nginx, cert-manager), injection
-   meshes, runtime-mutating entrypoints (wordpress). All are *competing control planes
-   or overlay-root assumptions*, not features — the honest answer is composix's own
-   surface (reconciler, publishes, D27, items+state-dirs), never emulation.
+| Rank | Demand | Status | Rows blocked or proving it |
+|---:|---|---|---|
+| 1 | Health wiring | **Designed—unbuilt ([CIP-79](cips/0079-health.html))** | Compose 6, 7, 9, 14; Kubernetes 2, 10 |
+| 2 | Operator host-binds | **Designed—unbuilt ([CIP-82](cips/0082-dirs.html), compose materialization)** | Compose 2, 7, 8, 14; Kubernetes 8 |
+| 3 | Shared-rw directories | **Designed—unbuilt ([CIP-82](cips/0082-dirs.html), compose materialization)** | Compose 9, 10 |
+| 4 | Timers / CronJob | **Met ([CIP-75](cips/0075-timers.html))** | Kubernetes 11; [Renovate receipt](../corpus/migrate/renovate/receipt.md) |
+| 5 | Operational logs | **Met ([CIP-83](cips/0083-observability.html))** | Dockerfile 3; Kubernetes 11 |
+| 6 | Artifact dev loop | **Met; source sync refused ([CIP-76](cips/0076-devloop.html))** | Compose 3 |
+| 7 | Migrate-on-upgrade hook | **Designed—unbuilt ([CIP-75](cips/0075-timers.html), event-driven D48f leg)** | Compose 11; Kubernetes 12, 13 |
+| 8 | Network segmentation and talks-to | **Designed—unbuilt ([CIP-86](cips/0086-netns.html))** | Compose 4, 9; Kubernetes 2, 5, 10 |
+| 9 | Profiles and variants | **Designed—unbuilt ([CIP-85](cips/0085-compose-tree.html), D46 family surface)** | Compose 8, 15; Dockerfile 7, 12, 13, 15 |
+| 10 | Build and runtime secrets | **Designed—unbuilt ([CIP-81](cips/0081-secrets.html))** | Dockerfile 11; Kubernetes 3, 4, 6, 11 |
+| 11 | Competing control planes and mutable overlay roots | **Refused** | Compose 12, 16; Kubernetes 9, 14; Dockerfile 16 |
+
+The met rows have deliberate boundaries: timers accept native `OnCalendar`
+rather than translating cron; logs stay in journald; `cix watch` always runs a
+real rebuilt artifact. The refused class is equally deliberate: Docker-socket
+orchestration, API-watching controllers, injection meshes, and runtime-mutating
+webroots are other control planes or filesystem models, not missing emulation.
 
 ## 5. Example candidates (borderline cases worth adopting into examples/)
 
@@ -154,7 +175,7 @@ Ranked by frequency × how squarely it hits us:
 - **Pi-hole** remains useful, but it is a gap-finder rather than a pure capability win:
   NET_ADMIN/SYS_TIME/SYS_NICE have no native semantic claims today.
 - **Renovate-shaped cron batch** is retired as an example candidate: the focused
-  [corpus receipt](../corpus/regrade/renovate/receipt.md) now covers timer generation,
+  [corpus receipt](../corpus/migrate/renovate/receipt.md) now covers timer generation,
   execution, and logs. A future full example would be about CIP-81 credentials, not
   timers.
 - **Gitea-shaped build** (proj2 candidate): go+pnpm dual-ecosystem compile with cache

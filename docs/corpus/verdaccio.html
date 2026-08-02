@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>verdaccio — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / verdaccio</nav>
+  <h1>verdaccio</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 package-manager build remains non-green · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix Corepack/pnpm build sequence fails before producing an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/verdaccio/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/verdaccio/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>FROM --platform=${BUILDPLATFORM:-linux/amd64} node:24-alpine AS builder
+
+ENV NODE_ENV=development \
+    VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
+
+RUN apk --no-cache add ca-certificates g++ gcc libgcc libstdc++ linux-headers make python3
+
+WORKDIR /opt/verdaccio-build
+COPY . .
+
+RUN npm -g i corepack &amp;&amp; \
+    corepack install &amp;&amp; \
+    pnpm config set registry $VERDACCIO_BUILD_REGISTRY &amp;&amp; \
+    pnpm install --frozen-lockfile --ignore-scripts &amp;&amp; \
+    pnpm run build &amp;&amp; \
+    pnpm --filter verdaccio --prod --legacy deploy /opt/verdaccio-deploy
+
+FROM node:24-alpine
+LABEL maintainer=&quot;https://github.com/verdaccio&quot;
+
+ENV VERDACCIO_APPDIR=/opt/verdaccio \
+    VERDACCIO_USER_NAME=verdaccio \
+    VERDACCIO_USER_UID=10001 \
+    VERDACCIO_PORT=4873 \
+    VERDACCIO_PROTOCOL=http \
+    VERDACCIO_ADDRESS=[::]
+ENV PATH=$VERDACCIO_APPDIR/docker-bin:$PATH \
+    HOME=$VERDACCIO_APPDIR
+
+WORKDIR $VERDACCIO_APPDIR
+
+RUN apk --no-cache add openssl dumb-init &amp;&amp; \
+    mkdir -p /verdaccio/storage /verdaccio/plugins /verdaccio/conf
+
+COPY --from=builder /opt/verdaccio-deploy ./
+COPY docker-bin ./docker-bin
+COPY packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
+
+RUN adduser -u $VERDACCIO_USER_UID -S -D -h $VERDACCIO_APPDIR -g &quot;$VERDACCIO_USER_NAME user&quot; -s /sbin/nologin $VERDACCIO_USER_NAME &amp;&amp; \
+    chmod -R +x $VERDACCIO_APPDIR/bin $VERDACCIO_APPDIR/docker-bin &amp;&amp; \
+    chown -R $VERDACCIO_USER_UID:root /verdaccio/storage /verdaccio/conf &amp;&amp; \
+    chmod -R g=u /verdaccio/storage /verdaccio/conf /etc/passwd
+
+USER $VERDACCIO_USER_UID
+
+EXPOSE $VERDACCIO_PORT
+
+VOLUME /verdaccio/storage
+
+ENTRYPOINT [&quot;uid_entrypoint&quot;]
+
+CMD $VERDACCIO_APPDIR/bin/verdaccio --config /verdaccio/conf/config.yaml --listen $VERDACCIO_PROTOCOL://$VERDACCIO_ADDRESS:$VERDACCIO_PORT
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
+  ENV COREPACK_HOME = $PWD/.corepack
+  COPY ${src}/context/ .
+  FETCH corepack install
+  RUN pnpm config set store-dir $PWD/.pnpm-store
+  FETCH pnpm fetch --frozen-lockfile
+  RUN pnpm install --offline --frozen-lockfile --ignore-scripts
+  RUN pnpm run build
+  RUN pnpm --filter verdaccio --prod --legacy deploy deploy
+  COPY ${src}/context/packages/config/src/conf/docker.yaml config.yaml
+  RUN sed -e &#39;s@/verdaccio/storage@/var/lib/verdaccio@g&#39; -e &#39;s@/verdaccio/plugins@/var/lib/verdaccio/plugins@g&#39; config.yaml &gt; config.cix.yaml
+
+SERVICE verdaccio
+  COPY ${build}/deploy /app
+  COPY ${build}/config.cix.yaml /etc/verdaccio/config.yaml
+  STATEDIR /var/lib/verdaccio
+  LINK ${pkgs.nodejs_24}/bin/node /bin/node
+  START node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
+  PORT http = 4873
+  CLAIM jit
+  CLAIM egress
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/verdaccio</code>. Do not edit this page by hand.</footer>
+</body>
+</html>
