@@ -110,3 +110,8 @@ to whatever the audit proves.
 
 - 2026-08-02: drafted from the step-2 sweep; 4× turn-over same day;
   adopted same day.
+- 2026-08-02: leg 1 landed: unit feature assemblers and FETCH consent gained
+  owned modules; the 2000-LOC tripwire and crate maps landed. D72 audit proved
+  manifests accept exactly v0; the unreachable single-input lock migration and
+  no-live-state index-sidecar migration were removed. Committed legacy FETCH
+  and memo entries remain current persisted corpus state until regenerated.

@@ -202,11 +202,6 @@ pub struct ConsumedPath {
 }
 
 #[derive(Deserialize)]
-struct LegacyLockFile {
-    nixpkgs: InputLock,
-}
-
-#[derive(Deserialize)]
 struct FlakeMetadata {
     locked: LockedMetadata,
     url: String,
@@ -280,12 +275,8 @@ where
         }
     }
 
-    let mut migrated = false;
     let existing = match fs::read(path) {
-        Ok(contents) => {
-            migrated = serde_json::from_slice::<LockFile>(&contents).is_err();
-            Some(read_lock(&contents, inputs)?)
-        }
+        Ok(contents) => Some(read_lock(&contents)?),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => {
             return Err(error).with_context(|| format!("reading lock file {}", path.display()))
@@ -337,34 +328,16 @@ where
     lock.artifacts
         .retain(|reference, _| artifact_refs.contains(reference.as_str()));
     lock.validate_for(inputs)?;
-    if changed || was_missing || migrated {
+    if changed || was_missing {
         write_lock(path, &lock)?;
     }
     Ok(lock)
 }
 
-fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFile> {
-    if let Ok(lock) = serde_json::from_slice::<LockFile>(contents) {
-        return Ok(lock);
-    }
-    let legacy: LegacyLockFile = serde_json::from_slice(contents).context("parsing lock file")?;
-    let remote = inputs
-        .iter()
-        .filter(|(_, input)| !input.is_local())
-        .collect::<Vec<_>>();
-    if remote.len() != 1 {
-        bail!("legacy single-input Cixfile.lock needs exactly one FROM input to migrate");
-    }
-    let name = remote[0].0.clone();
-    Ok(LockFile {
-        inputs: BTreeMap::from([(name, legacy.nixpkgs)]),
-        artifacts: BTreeMap::new(),
-        fetches: BTreeMap::new(),
-        memo: BTreeMap::new(),
-        step_memo: BTreeMap::new(),
-        dev_envs: BTreeMap::new(),
-        outputs: BTreeMap::new(),
-    })
+fn read_lock(contents: &[u8]) -> Result<LockFile> {
+    serde_json::from_slice(contents).context(
+        "parsing Cixfile.lock; this alpha only accepts the current lock shape, rebuild with the current cix",
+    )
 }
 
 fn resolve_artifact(reference: &str) -> Result<ArtifactPin> {
@@ -785,29 +758,20 @@ mod tests {
     }
 
     #[test]
-    fn migrates_a_legacy_single_input_lock_and_writes_the_new_shape() {
+    fn legacy_single_input_lock_is_refused_with_a_rebuild_hint() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("Cixfile.lock");
         fs::write(&path, r#"{"nixpkgs":{"url":"github:NixOS/nixpkgs/nixos-unstable","rev":"one","narHash":"sha256-one"}}"#).unwrap();
-        let declared = BTreeMap::from([(
-            "pkgs".into(),
-            Input {
-                url: DEFAULT_NIXPKGS_URL.into(),
-                kind: crate::InputKind::PackageUniverse,
-                overlays: Vec::new(),
-                line: 1,
-            },
-        )]);
-        let lock = ensure_lock_with(
+        let error = ensure_lock_with(
             &path,
-            &declared,
+            &inputs(),
             None,
-            |_, _| panic!("must migrate without resolving"),
+            |_, _| unreachable!(),
             |_| unreachable!(),
         )
-        .unwrap();
-        assert_eq!(lock.inputs["pkgs"].rev, "one");
-        assert!(fs::read_to_string(path).unwrap().contains("\"inputs\""));
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("rebuild with the current cix"));
     }
 
     #[test]

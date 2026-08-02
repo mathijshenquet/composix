@@ -17,7 +17,7 @@ built now. Everything may change.
 | part | what | status |
 | --- | --- | --- |
 | **index** | `cix tag` / `serve` / `pull` — mutable names over immutable store paths; the ref is literally a URL | working |
-| **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (manifest v5; reads v1–v5) |
+| **manifest + run** | `cix-manifest.json`, a capability contract compiled to hardened systemd units; `cix run` | working (alpha manifest v0 only; rebuild non-zero manifests) |
 | **Cixfile** | dockerfile-shaped authoring without writing nix; builders for build work and explicit service/app artifacts | working (v1) |
 | **compose** | `compose.json` composites: tracked tags, unix-socket edges, atomic rollback via nix profiles | in progress |
 
