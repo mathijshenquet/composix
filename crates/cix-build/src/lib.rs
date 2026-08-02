@@ -10,6 +10,25 @@
 //! credential consent; `trace` owns read-set capture; `lock` owns persisted
 //! pins and memo records. New build feature strata belong in their own module.
 
+/// Whether `CIX timing …` instrumentation lines are emitted on stderr.
+/// Opt-in via the CIX_TIMING env var so the measurement harness gets its
+/// receipts while ordinary build output (and the generated tour) stays clean.
+// Process-wide instrumentation flag: a OnceLock static is the canonical
+// acceptable use per AGENTS.md (read-once env, no mutation after init).
+pub(crate) fn timing_enabled() -> bool {
+    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var_os("CIX_TIMING").is_some())
+}
+
+macro_rules! cix_timing {
+    ($($arg:tt)*) => {
+        if $crate::timing_enabled() {
+            eprintln!($($arg)*);
+        }
+    };
+}
+pub(crate) use cix_timing;
+
 mod build_chain;
 mod codegen;
 mod fetch;

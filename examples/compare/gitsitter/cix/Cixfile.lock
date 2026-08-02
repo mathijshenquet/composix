@@ -3,22 +3,31 @@
     "pkgs": {
       "url": "github:NixOS/nixpkgs/9cf7092bdd603554bd8b63c216e8943cf9b12512",
       "rev": "9cf7092bdd603554bd8b63c216e8943cf9b12512",
-      "narHash": "sha256-9tpvMGFteZnd3gRQZFlRCohVpqooygFuy9yjuyRL2C0="
+      "narHash": "sha256-9tpvMGFteZnd3gRQZFlRCohVpqooygFuy9yjuyRL2C0=",
+      "lastModified": 1773840656
     },
     "src": {
       "url": "github:mathijshenquet/gitsitter",
       "rev": "29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd",
-      "narHash": "sha256-fe5j7cpObzeAatIfIyxNPPY0/gjqpY/0EK3aR92u15k="
+      "narHash": "sha256-fe5j7cpObzeAatIfIyxNPPY0/gjqpY/0EK3aR92u15k=",
+      "lastModified": 1782456179
     }
   },
   "fetches": {
-    "builder:build:2-595c14795daa": {
+    "builder:build:2-6c46b57a1539": {
       "paths": {
-        "target/release/gitsitter": "sha256-cS9eoDK4UPpjt0gTrcyke8nCZZ4bmet9CckbFO7SiUk="
+        "target/release/gitsitter": "sha256-NywkGX47LrMn8I/2vzkBO2476pSUUV2tSm8UHfu2EUE="
       }
     }
   },
   "devEnvs": {
+    "3474b0704a45ed4889fa2f0a263b90facc822cfba4f32b43b609c79403370689:18a6d4d47b9fe002b608432ae9a247ee79bdbbaf4ba0e40c17319eaec2d21334": {
+      "environment": {
+        "PKG_CONFIG_PATH": "/nix/store/pg04l21ca5xaif9hplyi09lhqxbipkcx-bash-interactive-5.3p9-dev/lib/pkgconfig:/nix/store/zw11j5a7rz1cfyqp1gncm0hsnwdhf54a-libgit2-1.9.2-dev/lib/pkgconfig:/nix/store/1p14m1hrdkykyxs0l6wg7y29ahppcnsr-openssl-3.6.1-dev/lib/pkgconfig:/nix/store/5j4mx4vckmmms2spy8x8kqjxcb12kpf5-sqlite-3.51.2-dev/lib/pkgconfig",
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/xz51wpr8fwvyrwz32z7b13b229d1v8p6-nss-cacert-3.119.1/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/0550j0i8bmzxbcnzrg1g51zigj7y12ih-bash-interactive-5.3p9/share:/nix/store/p96faw8wiwi10cy94hr42gzmiapv15fm-cargo-1.93.0/share:/nix/store/1nv3i8mpypy3d516f4pd95m0w72r73jy-pkg-config-wrapper-0.29.2/share:/nix/store/590yx3aynyhs48jyk8ip37fk1mjqfhkb-patchelf-0.15.2/share"
+      }
+    },
     "9cf7092bdd603554bd8b63c216e8943cf9b12512:18a6d4d47b9fe002b608432ae9a247ee79bdbbaf4ba0e40c17319eaec2d21334": {
       "environment": {
         "PKG_CONFIG_PATH": "/nix/store/pg04l21ca5xaif9hplyi09lhqxbipkcx-bash-interactive-5.3p9-dev/lib/pkgconfig:/nix/store/zw11j5a7rz1cfyqp1gncm0hsnwdhf54a-libgit2-1.9.2-dev/lib/pkgconfig:/nix/store/1p14m1hrdkykyxs0l6wg7y29ahppcnsr-openssl-3.6.1-dev/lib/pkgconfig:/nix/store/5j4mx4vckmmms2spy8x8kqjxcb12kpf5-sqlite-3.51.2-dev/lib/pkgconfig",

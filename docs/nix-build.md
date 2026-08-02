@@ -159,7 +159,7 @@ The measured matrix was:
 | --- | ---: | ---: | ---: |
 | Upstream flake | 0.07 s | 28.82 s | 30.64 s |
 | crane | 0.64 s | 37.81 s | 16.46 s |
-| Cixfile | 0.34 s (2026-08-02) | 26.94 s | 84.83 s (2026-08-02) |
+| Cixfile | 0.07 s (2026-08-02) | 26.94 s | 8.31 s (2026-08-02) |
 
 ### No-op
 
@@ -170,13 +170,13 @@ redirected to `/dev/null`.
 ```console
 upstream_noop_seconds=0.07
 crane_noop_seconds=0.64
-cix_readset_noop_seconds=0.34
+cix_readset_noop_seconds=0.07
 ```
 
-This Cix receipt was re-measured on 2026-08-02 on the same host with the full
-memo hit already present. Its `--stats` result reported zero Nix subprocesses
-and all four builder directives as `memo-hit`. The upstream and crane
-measurements retain their original dates.
+This Cix receipt was re-measured on 2026-08-02 (post trace-overhead round) on
+the same host with the full memo hit already present. Its `--stats` result
+reported zero Nix subprocesses and zero executed steps. The upstream and
+crane measurements retain their original dates.
 
 ### Subject-cold
 
@@ -230,17 +230,27 @@ patch, and times each rebuild:
 $ examples/compare/gitsitter/measure-warm.sh
 upstream_warm_change_seconds=30.64
 crane_warm_change_seconds=16.46
-cix_readset_warm_change_seconds=84.83
+cix_readset_warm_change_seconds=8.31
 ```
 
-The Cix invocation also emitted this work receipt (abridged only to the two
-command steps):
+The Cix number is the 2026-08-02 post-trace-overhead measurement (repeat runs
+on the same quiet host: 8.54 s and 8.73 s). The Cix invocation also emitted
+this work receipt (abridged only to the two command steps):
 
 ```console
-BUILDER build step 3 FETCH memo hit b44d21f4bfdc
-BUILDER build step 4 RUN executed (32419 ms)
-{"stats":{"nixSubprocesses":11,"steps":[{"kind":"FETCH","name":"build:3","status":"memo-hit"},{"kind":"RUN","name":"build:4","status":"executed"}]}}
+BUILDER build step 3 FETCH memo hit 5bbd3f90629a
+BUILDER build step 4 RUN executed
+{"stats":{"nixSubprocesses":9,"steps":[{"kind":"FETCH","name":"build:3","status":"memo-hit"},{"kind":"RUN","name":"build:4","status":"executed"}]}}
 ```
+
+Of the 8.31 s, about 5.9 s is cargo's own floor on this fixture: gitsitter's
+`build.rs` declares `cargo:rerun-if-changed=.git/HEAD`, the staged source has
+no `.git`, and cargo treats a missing rerun-if-changed file as permanently
+stale, so build.rs + lib + bin recompile on every build — a no-Cix control
+build in an identical sandbox takes 5.97 s for the same edit (and 5.9 s for a
+no-op). The measured run compiled exactly one cargo unit, rehashed zero
+read-set bytes (fingerprint fast-path), and spent 0.28 s total across its
+nine Nix subprocesses.
 
 The production Cixfile intentionally demonstrates a GitHub source binder.
 For a controlled editable-source measurement, the script copies that Cixfile
@@ -256,9 +266,12 @@ The result shows the intended boundaries. Upstream's one derivation rebuilds
 all crates. Crane reuses `cargoArtifacts`. The copy-everything Cixfile reuses
 the networked vendoring step because its trace contains manifest and lock
 content but only existence probes for Rust sources; RUN then uses its previous
-end-state. Complete ptrace capture plus read hashing and delta storage made
-this measured edit substantially slower than the pre-CIP receipt. Neither
-result is a claim about arbitrary projects or clean builds.
+end-state, and — since the 2026-08-02 trace-overhead round — staging and
+replay preserve the inodes and mtimes of unchanged files, so cargo's own
+fingerprints stay warm and only the edited unit recompiles. Capture remains
+complete (file contents, directory listings, negative lookups, and writes are
+all recorded via seccomp-BPF-filtered ptrace). Neither result is a claim
+about arbitrary projects or clean builds.
 
 ## Output size and the missing-reference receipt
 

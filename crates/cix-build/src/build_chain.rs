@@ -23,7 +23,7 @@ use crate::{
     MemoEntry, StepChange, StepMemo, Template, TemplatePart, VolatilePath,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct BuildContext {
     offers: Vec<String>,
@@ -107,6 +107,12 @@ struct Attribution {
 #[serde(deny_unknown_fields)]
 struct WorkspaceState {
     step_keys: Vec<String>,
+    /// Step memos whose outputs this workspace already holds, by memo owner →
+    /// memo key. Trusted the same way `step_keys` is for the rerun prefix: a
+    /// matching entry lets a memo hit skip re-materializing outputs that the
+    /// previous build in this workspace already applied or produced.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    materialized_memos: BTreeMap<String, String>,
 }
 
 struct FetchProbe {
@@ -477,7 +483,11 @@ fn execute_top_fetch(
             context.commands.len()
         );
     }
-    realize_fetch_offers(cixfile, name, directory, lock, system, binders)?;
+    // Store paths are complete by store invariant (the ensure_store_path
+    // assumption); realization is only needed when an offer is missing.
+    if context.offers.iter().any(|path| !Path::new(path).exists()) {
+        realize_fetch_offers(cixfile, name, directory, lock, system, binders)?;
+    }
     let offered_closure = query_closure(&context.offers)?;
     let shell = find_shell(&context.imports)?;
     let environment = build_environment(context.environment.clone());
@@ -650,6 +660,7 @@ fn execute_top_fetch(
     let mut changes =
         trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
     retain_nonvolatile_reads(&mut reads, &step_volatile);
+    trace::record_workspace_fingerprints(work.path(), &mut reads, &observations.writes)?;
     changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
     let step_output = (!changes.is_empty())
         .then(|| add_step_output_snapshot(work.path(), &changes, &step_volatile))
@@ -741,7 +752,11 @@ fn execute_builder(
     let offered_closure = if context.offers.is_empty() {
         BTreeSet::new()
     } else {
-        realize_builder_offers(cixfile, builder_name, directory, lock, system, binders)?;
+        // Store paths are complete by store invariant (the ensure_store_path
+        // assumption); realization is only needed when an offer is missing.
+        if context.offers.iter().any(|path| !Path::new(path).exists()) {
+            realize_builder_offers(cixfile, builder_name, directory, lock, system, binders)?;
+        }
         query_closure(&context.offers)?
     };
     let shell = if command_count == 0 {
@@ -779,6 +794,7 @@ fn execute_builder(
         .collect::<Vec<_>>();
     let mut export_prelude = BTreeMap::new();
     install_declared_expectations(builder_name, builder, &context.commands, lock);
+    let chain_key_started = Instant::now();
     let existing_keys = builder_chain_keys(
         builder_name,
         builder,
@@ -787,6 +803,10 @@ fn execute_builder(
         &environment,
         lock,
     )?;
+    crate::cix_timing!(
+        "CIX timing chain-keys phase=initial wall_ms={}",
+        chain_key_started.elapsed().as_millis()
+    );
     let existing_key = existing_keys.as_ref().map(|keys| {
         keys.last()
             .cloned()
@@ -813,11 +833,12 @@ fn execute_builder(
     let persistent = (!cold)
         .then(|| workspace_paths(directory, builder_name))
         .transpose()?;
-    let prior_keys = persistent
+    let prior_state = persistent
         .as_ref()
         .and_then(|paths| load_workspace_state(&paths.2))
-        .map(|state| state.step_keys)
         .unwrap_or_default();
+    let prior_keys = prior_state.step_keys;
+    let mut materialized_memos = prior_state.materialized_memos;
     let first_changed = existing_keys.as_ref().map_or(0, |keys| {
         keys.iter()
             .zip(&prior_keys)
@@ -880,6 +901,7 @@ fn execute_builder(
             BuildStep::Copy(copy) => {
                 let resolved_source = &context.copies[copy_index];
                 copy_index += 1;
+                let staging_started = Instant::now();
                 stage_input(
                     Path::new(resolved_source),
                     &copy.dst,
@@ -889,6 +911,11 @@ fn execute_builder(
                 .with_context(|| {
                     format!("line {}: COPY failed\n  | {:?}", copy.line, copy.source)
                 })?;
+                crate::cix_timing!(
+                    "CIX timing COPY step={} wall_ms={}",
+                    index + 1,
+                    staging_started.elapsed().as_millis()
+                );
                 eprintln!(
                     "BUILDER {builder_name} step {} COPY {} -> {}",
                     index + 1,
@@ -958,10 +985,20 @@ fn execute_builder(
                         continue;
                     }
                 }
-                if !cold && !update_fetch_pins && !newly_consumed_paths {
+                let mut known_reads = None;
+                if !cold && !update_fetch_pins {
                     if let Some(memo) = recorded_memo.clone() {
-                        if step_memo_matches(&memo, &workdir)? {
-                            apply_step_memo(&memo, &workdir)?;
+                        let (matches, current) = validate_step_memo(&memo, &workdir)?;
+                        known_reads = Some(current);
+                        if !newly_consumed_paths && matches {
+                            if materialized_memos.get(&memo_owner) == Some(&memo_key) {
+                                crate::cix_timing!(
+                                    "CIX timing memo-apply skipped=workspace-already-materialized"
+                                );
+                            } else {
+                                apply_step_memo(&memo, &workdir)?;
+                                materialized_memos.insert(memo_owner.clone(), memo_key.clone());
+                            }
                             eprintln!(
                                 "BUILDER {builder_name} step {} {kind} memo hit {}",
                                 index + 1,
@@ -972,7 +1009,12 @@ fn execute_builder(
                         }
                     }
                 }
+                let snapshot_started = Instant::now();
                 let trace_before = copied_snapshot(&workdir)?;
+                crate::cix_timing!(
+                    "CIX timing workspace-snapshot phase=before-command wall_ms={}",
+                    snapshot_started.elapsed().as_millis()
+                );
                 let probe_before = (is_fetch
                     && update_fetch_pins
                     && matches!(step, BuildStep::Fetch { expected: None, .. }))
@@ -1000,7 +1042,21 @@ fn execute_builder(
                         .as_slice(),
                 )
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
-                let mut reads = trace::read_dependencies(trace_before.path(), &observations)?;
+                let read_set_started = Instant::now();
+                let empty_reads = BTreeMap::new();
+                let (mut reads, recording_metrics) = trace::read_dependencies_with_known(
+                    trace_before.path(),
+                    &observations,
+                    known_reads.as_ref().unwrap_or(&empty_reads),
+                )?;
+                crate::cix_timing!(
+                    "CIX timing trace-read-set reused={} hashed_files={} hashed_bytes={} hashed_directories={} wall_ms={}",
+                    recording_metrics.reused,
+                    recording_metrics.hashed_files,
+                    recording_metrics.hashed_bytes,
+                    recording_metrics.hashed_directories,
+                    read_set_started.elapsed().as_millis()
+                );
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
                 let mut step_volatile = BTreeSet::new();
                 if is_fetch {
@@ -1057,27 +1113,70 @@ fn execute_builder(
                     fetch_snapshots
                         .insert(id, (expected.is_some(), Some(snapshot.clone()), volatile));
                 }
+                let changes_started = Instant::now();
                 let mut changes =
                     trace::filesystem_changes(trace_before.path(), &workdir, &observations.writes)?;
+                crate::cix_timing!(
+                    "CIX timing workspace-delta wall_ms={}",
+                    changes_started.elapsed().as_millis()
+                );
                 if let Some(previous) = &recorded_memo {
                     retain_replay_roots(previous, &workdir, &mut changes)?;
                 }
                 retain_nonvolatile_reads(&mut reads, &step_volatile);
+                trace::record_workspace_fingerprints(&workdir, &mut reads, &observations.writes)?;
                 changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
                 if cold {
                     if let Some(recorded) = &recorded_memo {
                         compare_cold_read_sets(recorded, &reads, *line, source)?;
                     }
+                    trace_before.close()?;
                 } else {
-                    let output_snapshot = if changes.is_empty() {
-                        None
-                    } else {
-                        Some(add_step_output_snapshot(
-                            &workdir,
-                            &changes,
-                            &step_volatile,
-                        )?)
-                    };
+                    // Parallel independent I/O: removing the workspace-sized
+                    // pre-command probe snapshot and store-adding the output
+                    // delta touch disjoint trees and share no state; both
+                    // results are joined synchronously before the memo lands.
+                    let (output_snapshot, closed) = std::thread::scope(|scope| {
+                        let closer = scope.spawn(|| {
+                            let cleanup_started = Instant::now();
+                            let result = trace_before.close();
+                            crate::cix_timing!(
+                                "CIX timing probe-cleanup wall_ms={}",
+                                cleanup_started.elapsed().as_millis()
+                            );
+                            result
+                        });
+                        // FETCH memos stay constructive (replay is what makes
+                        // pins and --cold work without the network); RUN memos
+                        // are verifying-only: re-executing a RUN in its warm
+                        // workspace is exactly the cheap path this feature
+                        // optimizes, while snapshotting its result would
+                        // store-add the entire warm output tree (measured:
+                        // 512 MiB of target/ per one-line gitsitter edit) on
+                        // every executed step. Read capture is unaffected.
+                        // (Mathijs, 2026-08-02, coarse-grain prompt in chat.)
+                        let output_snapshot = if changes.is_empty() || !is_fetch {
+                            Ok(None)
+                        } else {
+                            let output_snapshot_started = Instant::now();
+                            let snapshot =
+                                add_step_output_snapshot(&workdir, &changes, &step_volatile);
+                            crate::cix_timing!(
+                                "CIX timing output-snapshot wall_ms={}",
+                                output_snapshot_started.elapsed().as_millis()
+                            );
+                            snapshot.map(Some)
+                        };
+                        (
+                            output_snapshot,
+                            closer
+                                .join()
+                                .expect("probe snapshot cleanup thread panicked"),
+                        )
+                    });
+                    let output_snapshot = output_snapshot?;
+                    closed?;
+                    materialized_memos.insert(memo_owner.clone(), memo_key.clone());
                     lock.step_memo.insert(
                         memo_owner,
                         StepMemo {
@@ -1088,7 +1187,6 @@ fn execute_builder(
                         },
                     );
                 }
-                trace_before.close()?;
                 eprintln!(
                     "BUILDER {builder_name} step {} {kind} executed ({} ms)",
                     index + 1,
@@ -1116,6 +1214,7 @@ fn execute_builder(
             lock.fetches.insert(id, refreshed);
         }
     }
+    let chain_key_started = Instant::now();
     let step_keys = builder_chain_keys(
         builder_name,
         builder,
@@ -1125,6 +1224,10 @@ fn execute_builder(
         lock,
     )?
     .context("builder chain still has an unpinned FETCH after execution")?;
+    crate::cix_timing!(
+        "CIX timing chain-keys phase=final wall_ms={}",
+        chain_key_started.elapsed().as_millis()
+    );
     let key = step_keys
         .last()
         .cloned()
@@ -1139,6 +1242,7 @@ fn execute_builder(
             &persistent.2,
             &WorkspaceState {
                 step_keys: step_keys.clone(),
+                materialized_memos,
             },
         )?;
     }
@@ -1560,16 +1664,25 @@ fn step_memo_key(request: StepMemoKeyRequest<'_>) -> Result<String> {
     ))?))
 }
 
-fn step_memo_matches(memo: &StepMemo, workspace: &Path) -> Result<bool> {
-    if !memo.changes.is_empty() {
+fn validate_step_memo(
+    memo: &StepMemo,
+    workspace: &Path,
+) -> Result<(bool, BTreeMap<String, crate::ReadDependency>)> {
+    let replayable = if !memo.changes.is_empty() {
         let Some(snapshot) = memo.output_snapshot.as_deref() else {
-            return Ok(false);
+            return Ok((false, trace::current_dependencies(workspace, &memo.reads)?));
         };
-        if !ensure_store_path(snapshot)? {
-            return Ok(false);
-        }
-    }
-    Ok(trace::current_dependencies(workspace, &memo.reads)? == memo.reads)
+        ensure_store_path(snapshot)?
+    } else {
+        true
+    };
+    let (current, metrics) = trace::current_dependencies_with_metrics(workspace, &memo.reads)?;
+    crate::cix_timing!(
+        "CIX timing memo-validation rehashed_files={} rehashed_bytes={}",
+        metrics.rehashed_files,
+        metrics.rehashed_bytes
+    );
+    Ok((replayable && current == memo.reads, current))
 }
 
 fn apply_step_memo(memo: &StepMemo, workspace: &Path) -> Result<()> {
@@ -1598,12 +1711,24 @@ fn apply_step_memo(memo: &StepMemo, workspace: &Path) -> Result<()> {
         .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
     present.sort_by_key(|path| path.matches('/').count());
+    let apply_started = Instant::now();
+    let mut synced = Vec::<&str>::new();
     for relative in present {
-        let destination = workspace.join(relative);
-        remove_path_if_present(&destination)?;
-        copy_node(&snapshot.join(relative), &destination)?;
-        make_writable(&destination)?;
+        if synced.iter().any(|parent| {
+            relative
+                .strip_prefix(*parent)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        }) {
+            continue;
+        }
+        sync_replay_node(&snapshot.join(relative), &workspace.join(relative))?;
+        synced.push(relative);
     }
+    crate::cix_timing!(
+        "CIX timing memo-apply roots={} wall_ms={}",
+        synced.len(),
+        apply_started.elapsed().as_millis()
+    );
     for (relative, change) in &memo.changes {
         let StepChange::Directory { mode } = change else {
             continue;
@@ -2202,6 +2327,10 @@ fn sync_node(
             copy_node(new, workspace)
         }
         (None, Some(_), true) | (None, None, _) | (Some(_), _, false) => Ok(()),
+        // Unchanged staged input: leave the workspace node untouched so its
+        // inode and mtime survive restaging (cargo-style mtime fingerprints
+        // and the memo-validation fastpath both depend on this stability).
+        (Some(old), Some(new), true) if nodes_equal(old, new)? => Ok(()),
         (Some(old), Some(new), true) if old.is_dir() && new.is_dir() && workspace.is_dir() => {
             sync_directories(Some(old), new, workspace, first_application)
         }
@@ -2221,6 +2350,48 @@ fn sync_node(
             Ok(())
         }
         _ => Ok(()),
+    }
+}
+
+/// Reconcile a workspace node with a memo output snapshot node, producing the
+/// same end state as remove-and-recopy while leaving already-identical nodes
+/// untouched so their inodes and mtimes stay stable across warm replays
+/// (cargo-style mtime fingerprints and memo-validation fingerprints both
+/// depend on that stability). Extra workspace entries under a replayed
+/// directory are removed, exactly as the wholesale copy did.
+fn sync_replay_node(source: &Path, destination: &Path) -> Result<()> {
+    let source_meta = fs::symlink_metadata(source)?;
+    let destination_meta = fs::symlink_metadata(destination).ok();
+    if source_meta.is_dir() && !source_meta.file_type().is_symlink() {
+        match &destination_meta {
+            Some(existing) if existing.is_dir() && !existing.file_type().is_symlink() => {
+                let mut names = BTreeSet::new();
+                for entry in fs::read_dir(source)? {
+                    names.insert(entry?.file_name());
+                }
+                for entry in fs::read_dir(destination)? {
+                    let name = entry?.file_name();
+                    if !names.contains(&name) {
+                        remove_path_if_present(&destination.join(name))?;
+                    }
+                }
+                for name in names {
+                    sync_replay_node(&source.join(&name), &destination.join(&name))?;
+                }
+                Ok(())
+            }
+            _ => {
+                remove_path_if_present(destination)?;
+                copy_node(source, destination)?;
+                make_writable(destination)
+            }
+        }
+    } else if destination_meta.is_some() && nodes_equal(source, destination)? {
+        Ok(())
+    } else {
+        remove_path_if_present(destination)?;
+        copy_node(source, destination)?;
+        make_writable(destination)
     }
 }
 
@@ -2333,7 +2504,139 @@ fn resolve_builder_context(
 ) -> Result<BuildContext> {
     let expression =
         generate_builder_context_nix(cixfile, builder, directory, lock, system, snapshots)?;
-    eval_context(&expression)
+    if let Some(context) = cached_context(&expression, directory)? {
+        return Ok(context);
+    }
+    let context = eval_context(&expression)?;
+    cache_context(&expression, directory, &context)?;
+    Ok(context)
+}
+
+/// The generated context expression is byte-stable across source edits (the
+/// source enters it only as a `builtins.path` literal of a fixed directory
+/// path), so its evaluation result is reusable as long as every resolved
+/// store path still exists — except `copies` entries rooted in the source,
+/// which move with the source content. Those are re-rooted by store-adding
+/// the source directory (`nix store add --mode nar` computes the identical
+/// path to `builtins.path`). Expressions whose results depend on source
+/// content beyond that root (hashFile interpolations, project-local
+/// overlays) never take this fastpath.
+fn context_source_dependent(expression: &str) -> bool {
+    expression.contains("builtins.hashFile") || expression.contains("overlay = import")
+}
+
+fn context_cache_file(expression: &str) -> Result<Option<PathBuf>> {
+    let base = if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
+        PathBuf::from(path)
+    } else if let Some(home) = std::env::var_os("HOME") {
+        PathBuf::from(home).join(".cache")
+    } else {
+        return Ok(None);
+    };
+    Ok(Some(
+        base.join("cix/context-cache")
+            .join(hex_hash(expression.as_bytes())),
+    ))
+}
+
+#[derive(Serialize, Deserialize)]
+struct CachedContext {
+    source_root: Option<String>,
+    context: BuildContext,
+}
+
+fn cached_context(expression: &str, directory: &Path) -> Result<Option<BuildContext>> {
+    if context_source_dependent(expression) {
+        return Ok(None);
+    }
+    let Some(file) = context_cache_file(expression)? else {
+        return Ok(None);
+    };
+    let Some(cached) = fs::read(&file)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<CachedContext>(&bytes).ok())
+    else {
+        return Ok(None);
+    };
+    let mut context = cached.context;
+    if let Some(old_root) = cached.source_root.as_deref() {
+        let new_root = add_source_root(directory)?;
+        for copy in &mut context.copies {
+            if let Some(suffix) = copy.strip_prefix(old_root) {
+                *copy = format!("{new_root}{suffix}");
+            }
+        }
+    }
+    let complete = context
+        .offers
+        .iter()
+        .chain(&context.imports)
+        .chain(&context.copies)
+        .map(|path| trim_copy_suffix(path))
+        .all(|path| Path::new(path).exists());
+    if !complete {
+        return Ok(None);
+    }
+    Ok(Some(context))
+}
+
+fn cache_context(expression: &str, directory: &Path, context: &BuildContext) -> Result<()> {
+    if context_source_dependent(expression) {
+        return Ok(());
+    }
+    let Some(file) = context_cache_file(expression)? else {
+        return Ok(());
+    };
+    let source_root = if context
+        .copies
+        .iter()
+        .any(|copy| copy.contains("-cix-source"))
+    {
+        Some(add_source_root(directory)?)
+    } else {
+        None
+    };
+    let parent = file.parent().expect("context cache file has a parent");
+    fs::create_dir_all(parent)
+        .with_context(|| format!("creating context cache {}", parent.display()))?;
+    let payload = serde_json::to_vec(&CachedContext {
+        source_root,
+        context: context.clone(),
+    })?;
+    let temporary = file.with_extension("next");
+    fs::write(&temporary, payload)
+        .with_context(|| format!("writing context cache {}", temporary.display()))?;
+    fs::rename(&temporary, &file)
+        .with_context(|| format!("recording context cache {}", file.display()))?;
+    Ok(())
+}
+
+fn add_source_root(directory: &Path) -> Result<String> {
+    let directory = directory
+        .canonicalize()
+        .with_context(|| format!("resolving Cixfile source {}", directory.display()))?;
+    let path = directory
+        .to_str()
+        .context("Cixfile source directory is not UTF-8")?;
+    let added = cix_common::nix(&[
+        "store",
+        "add",
+        "--mode",
+        "nar",
+        "--name",
+        "cix-source",
+        path,
+    ])?;
+    added
+        .lines()
+        .last()
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .context("nix store add did not return a source store path")
+}
+
+fn trim_copy_suffix(path: &str) -> &str {
+    path.strip_suffix('/').unwrap_or(path)
 }
 
 fn resolve_fetch_context(
@@ -2445,7 +2748,7 @@ fn run_sandbox(
     let trace_path = trace_directory.path().join("syscalls");
     let mut process = Command::new("strace");
     process
-        .args(["-f", "-qq", "-yy", "-s", "0", "-e"])
+        .args(["-f", "--seccomp-bpf", "-qq", "-yy", "-s", "0", "-e"])
         .arg("trace=%file,getdents,getdents64,chdir,fchdir,clone,clone3,fork,vfork")
         .arg("-o")
         .arg(&trace_path)

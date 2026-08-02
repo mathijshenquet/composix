@@ -174,14 +174,47 @@ pub struct StepMemo {
     pub changes: BTreeMap<String, StepChange>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum ReadDependency {
-    File { hash: String },
+    File {
+        hash: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fingerprint: Option<FileFingerprint>,
+    },
     FileExists,
-    Directory { hash: String },
+    Directory {
+        hash: String,
+    },
     DirectoryExists,
     Absent,
+}
+
+impl PartialEq for ReadDependency {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::File { hash: left, .. }, Self::File { hash: right, .. }) => left == right,
+            (Self::FileExists, Self::FileExists)
+            | (Self::DirectoryExists, Self::DirectoryExists)
+            | (Self::Absent, Self::Absent) => true,
+            (Self::Directory { hash: left }, Self::Directory { hash: right }) => left == right,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for ReadDependency {}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FileFingerprint {
+    pub dev: u64,
+    pub inode: u64,
+    #[serde(rename = "mtimeNs")]
+    pub mtime_ns: i64,
+    pub size: u64,
+    pub len: u64,
+    pub mode: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
