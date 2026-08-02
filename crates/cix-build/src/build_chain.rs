@@ -1038,6 +1038,11 @@ fn execute_builder(
                 }
                 if is_fetch && !cold {
                     if let Some(memo) = &superseded_memo {
+                        crate::cix_timing!(
+                            "CIX timing fetch-revert owner={} key={}",
+                            memo_owner,
+                            short_key(&memo.key)
+                        );
                         revert_step_writes(memo, &workdir)?;
                     }
                 }
