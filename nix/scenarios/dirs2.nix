@@ -17,22 +17,22 @@ let
   host = item "scenario-dirs2-host" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/var/lib/host"],"data":[{"path":"/media","ro":false}]}}
   '' ''
-    mkdir -p /var/lib/host /media
-    touch /var/lib/host/host-state /media/host-media
+    ${pkgs.coreutils}/bin/mkdir -p /var/lib/host /media
+    ${pkgs.coreutils}/bin/touch /var/lib/host/host-state /media/host-media
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   private = item "scenario-dirs2-private" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/var/lib/private"],"cache":["/var/cache/private"]}}
   '' ''
-    mkdir -p /var/lib/private /var/cache/private
-    touch /var/lib/private/survives /var/cache/private/expendable
+    ${pkgs.coreutils}/bin/mkdir -p /var/lib/private /var/cache/private
+    ${pkgs.coreutils}/bin/touch /var/lib/private/survives /var/cache/private/expendable
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   shared = side: item "scenario-dirs2-shared-${side}" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/var/lib/shared"]}}
   '' ''
-    mkdir -p /var/lib/shared
-    touch /var/lib/shared/${side}
+    ${pkgs.coreutils}/bin/mkdir -p /var/lib/shared
+    ${pkgs.coreutils}/bin/touch /var/lib/shared/${side}
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   compose = pkgs.writeText "scenario-dirs2.json" ''
@@ -88,6 +88,8 @@ scenario.node ''
       machine.succeed("test $(systemctl show " + unit + ".service -p NRestarts --value) = 0")
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=cache")
+  machine.succeed("test $(systemctl show cix-dirs2-private.service -p ActiveState --value) = inactive")
+  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-left.service cix-dirs2-right.service")
   machine.succeed("test ! -e /var/cache/cix-dirs2-private/var/cache/private/expendable")
   status, refusal = machine.execute("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=state 2>&1")
   assert status != 0

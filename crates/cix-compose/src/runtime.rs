@@ -214,6 +214,9 @@ pub fn clean(name: &str, what: CleanWhat) -> Result<()> {
         .map(|(service, _)| format!("cix-{name}-{service}.service"))
         .collect::<Vec<_>>();
     if !units.is_empty() {
+        let mut stop_arguments = vec!["stop"];
+        stop_arguments.extend(units.iter().map(String::as_str));
+        systemctl(&stop_arguments)?;
         let mut arguments = vec!["clean", "--what", systemd_what];
         arguments.extend(units.iter().map(String::as_str));
         systemctl(&arguments)?;
