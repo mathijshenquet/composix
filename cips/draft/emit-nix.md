@@ -84,6 +84,42 @@ a normal sandboxed derivation over (sources, FODs, the versioned cix
 skeleton). Emitted semantics are the COLD path by definition — the
 underlay/warm world stays cix-side.
 
+**Tier 1b — the in-nixpkgs form** (assume cix itself is packaged in
+nixpkgs). `buildNpmPackage`/`importCargoLock`-shaped in-tree builder:
+
+```nix
+# pkgs/by-name/gi/gitsitter/package.nix
+{ lib, buildCixPackage, fetchFromGitHub }:
+buildCixPackage rec {
+  pname = "gitsitter"; version = "0.2.1";
+  src = fetchFromGitHub { owner = "mathijshenquet"; repo = "gitsitter";
+                          tag = "v${version}"; hash = "sha256-…"; };
+  cixLock = "${src}/Cixfile.lock";   # upstream ships its own lock
+  item = "gitsitter";
+  meta.license = lib.licenses.mit;
+}
+```
+
+Two structural upgrades over tier 1:
+
+- **The lock can live UPSTREAM.** `importCargoLock` already builds
+  per-crate FODs in pure eval from the packaged project's own
+  Cargo.lock; `buildCixPackage` is that, generalized to every
+  ecosystem at once. Packaging collapses to "point at the repo" —
+  six lines, no vendored metadata in nixpkgs, because the project
+  carries its own machine-verifiable build+fetch description with
+  per-path pins. (No IFD anywhere: the lock is a committed file in
+  `src`, eval reads data, never build outputs.)
+- **Adversarial turn 3 dissolves.** With cix in nixpkgs there is no
+  emitter mirroring the sandbox: the builder runs `cix build --cold`
+  INSIDE the derivation (cold never fetches, D69e — the FODs supply
+  the FETCH snapshots, cix replays offline). One implementation, no
+  byte-identity shadow to maintain. The residual engineering question
+  moves: cix's inner sandbox (bubblewrap/userns) must run nested
+  inside the nix build sandbox, or grow a mode that trusts the outer
+  nix sandbox for isolation and only arranges the filesystem view —
+  that mode is the honest open item of this tier.
+
 **Tier 2 — `cix build --emit-nix <dir>` (generated standalone nix,
 cix-free at build time).** Same graph, written out as boring committed
 `.nix` — the form nixpkgs-upstream could take today (IFD is banned
