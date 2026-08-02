@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::DirectoryRole,
-    resolve::{CheckResult, DirectoryBacking, DirectoryClaim},
+    resolve::{CheckResult, DirectoryBacking, DirectoryClaim, PublishKind},
     unit_path,
 };
 
@@ -24,6 +24,10 @@ pub struct Manifest {
     pub name: String,
     pub units: BTreeMap<String, ManifestUnit>,
     pub services: BTreeMap<String, ManifestService>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pods: BTreeMap<String, ManifestPod>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub network_files: BTreeSet<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub closed_root: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -55,6 +59,8 @@ pub enum UnitKind {
     Timer,
     Edge,
     Socket,
+    Netns,
+    Proxy,
     Slice,
     Target,
 }
@@ -73,6 +79,22 @@ pub struct ManifestService {
     pub shm: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub directories: Vec<ManifestDirectory>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ManifestPod {
+    pub unit: String,
+    pub namespace: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub members: BTreeSet<String>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct PodLease {
+    pub host: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -113,16 +135,36 @@ pub fn build_generation_with_closed_root(
     capabilities: &HostCapabilities,
     closed_root: bool,
 ) -> Result<BuiltGeneration> {
+    build_generation_with_leases(
+        checked,
+        compose_path,
+        capabilities,
+        closed_root,
+        &default_leases(checked),
+        Path::new("/etc/resolv.conf"),
+    )
+}
+
+pub(crate) fn build_generation_with_leases(
+    checked: &CheckResult,
+    compose_path: &Path,
+    capabilities: &HostCapabilities,
+    closed_root: bool,
+    leases: &BTreeMap<String, PodLease>,
+    resolver_source: &Path,
+) -> Result<BuiltGeneration> {
     let temporary = tempfile::tempdir().context("creating compose generation workspace")?;
     let generation = temporary
         .path()
         .join(format!("cix-compose-{}-generation", checked.compose.name));
-    let manifest = render_generation_with_closed_root(
+    let manifest = render_generation_with_leases(
         checked,
         compose_path,
         &generation,
         capabilities,
         closed_root,
+        leases,
+        resolver_source,
     )?;
     let generation_text = generation.to_string_lossy().into_owned();
     let output = cix_common::nix(&["store", "add-path", &generation_text])
@@ -150,15 +192,37 @@ pub fn render_generation_with_closed_root(
     capabilities: &HostCapabilities,
     closed_root: bool,
 ) -> Result<Manifest> {
+    render_generation_with_leases(
+        checked,
+        compose_path,
+        generation,
+        capabilities,
+        closed_root,
+        &default_leases(checked),
+        Path::new("/etc/resolv.conf"),
+    )
+}
+
+fn render_generation_with_leases(
+    checked: &CheckResult,
+    compose_path: &Path,
+    generation: &Path,
+    capabilities: &HostCapabilities,
+    closed_root: bool,
+    leases: &BTreeMap<String, PodLease>,
+    resolver_source: &Path,
+) -> Result<Manifest> {
     let units_dir = generation.join("units");
     let sysusers_dir = generation.join("sysusers.d");
+    let network_dir = generation.join("network");
     fs::create_dir_all(&units_dir)?;
     fs::create_dir_all(&sysusers_dir)?;
+    fs::create_dir_all(&network_dir)?;
     let _ = compose_path;
     write_json(&generation.join("compose.json"), &checked.compose)?;
     write_json(&generation.join("cix.lock"), &checked.lock)?;
 
-    let rendered = render_units(checked, capabilities, closed_root)?;
+    let rendered = render_units(checked, capabilities, closed_root, leases, resolver_source)?;
     for (name, text) in &rendered.units {
         fs::write(units_dir.join(name), text)
             .with_context(|| format!("writing generated unit {name}"))?;
@@ -167,12 +231,17 @@ pub fn render_generation_with_closed_root(
         sysusers_dir.join(format!("cix-{}.conf", checked.compose.name)),
         rendered.sysusers,
     )?;
+    for (name, text) in &rendered.network_files {
+        fs::write(network_dir.join(name), text)
+            .with_context(|| format!("writing generated networkd fragment {name}"))?;
+    }
     write_json(&generation.join("manifest.json"), &rendered.manifest)?;
     Ok(rendered.manifest)
 }
 
 struct Rendered {
     units: BTreeMap<String, String>,
+    network_files: BTreeMap<String, String>,
     sysusers: String,
     manifest: Manifest,
 }
@@ -181,18 +250,85 @@ fn render_units(
     checked: &CheckResult,
     capabilities: &HostCapabilities,
     closed_root: bool,
+    leases: &BTreeMap<String, PodLease>,
+    resolver_source: &Path,
 ) -> Result<Rendered> {
     let composite = &checked.compose.name;
     let target = format!("cix-{composite}.target");
     let prefix = format!("cix-{composite}");
     let mut units = BTreeMap::new();
     let mut manifest_units = BTreeMap::new();
+    let mut network_files = BTreeMap::new();
     let mut service_edges: BTreeMap<&str, Vec<EdgeClaim>> = BTreeMap::new();
     let mut sysusers = String::new();
     let mut target_wants = BTreeSet::new();
     let mut target_after = BTreeSet::new();
     let mut degradations = Vec::new();
     let shared = collect_shared_directories(checked);
+    let mut manifest_pods = BTreeMap::new();
+
+    if checked.pods.values().any(|pod| pod.egress) {
+        let bridge_fragment = format!("80-{prefix}-cix0");
+        network_files.insert(
+            format!("{bridge_fragment}.netdev"),
+            "[NetDev]\nName=cix0\nKind=bridge\n".into(),
+        );
+        network_files.insert(
+            format!("{bridge_fragment}.network"),
+            "[Match]\nName=cix0\n\n[Network]\nAddress=10.231.0.1/16\nIPMasquerade=ipv4\nIPv4Forwarding=yes\nLinkLocalAddressing=no\nConfigureWithoutCarrier=yes\n".into(),
+        );
+    }
+    for (pod_path, pod) in &checked.pods {
+        let namespace = namespace_name(composite, pod_path);
+        let unit = netns_unit_name(composite, pod_path);
+        let members = checked
+            .services
+            .iter()
+            .filter(|(_, service)| service.pod.as_deref() == Some(pod_path.as_str()))
+            .map(|(service, _)| service_unit_name(composite, service))
+            .collect::<Vec<_>>();
+        let lease = pod
+            .egress
+            .then(|| {
+                leases
+                    .get(pod_path)
+                    .copied()
+                    .context("missing egress IPAM lease")
+            })
+            .transpose()?;
+        if lease.is_some() {
+            let host_link = veth_name(composite, pod_path, 'h');
+            network_files.insert(
+                format!("80-{host_link}.network"),
+                format!(
+                    "[Match]\nName={host_link}\n\n[Network]\nBridge=cix0\nLinkLocalAddressing=no\n"
+                ),
+            );
+        }
+        units.insert(
+            unit.clone(),
+            render_netns_unit(pod_path, &namespace, &target, &members, lease, composite),
+        );
+        manifest_units.insert(
+            unit.clone(),
+            ManifestUnit {
+                kind: UnitKind::Netns,
+                service: None,
+                scheduled: false,
+            },
+        );
+        target_wants.insert(unit.clone());
+        target_after.insert(unit.clone());
+        manifest_pods.insert(
+            pod_path.clone(),
+            ManifestPod {
+                unit,
+                namespace,
+                address: lease.map(|lease| pod_address(lease).to_string()),
+                members: members.into_iter().collect(),
+            },
+        );
+    }
 
     for (name, shared) in &shared {
         let unit = format!("{prefix}-shared-{}.service", unit_path(name));
@@ -216,7 +352,7 @@ fn render_units(
 
     for (edge_name, edge) in &checked.edges {
         let edge_unit = format!("{prefix}-edge-{}.service", unit_path(edge_name));
-        let runtime = format!("{prefix}-edge-{}", unit_path(edge_name));
+        let runtime = format!("{prefix}-edge-{}", filesystem_segment(edge_name));
         let group = edge_group(composite, edge_name);
         sysusers.push_str(&format!("g {group} - -\n"));
         let members = std::iter::once(edge.producer.child.as_str())
@@ -278,6 +414,26 @@ fn render_units(
             .unwrap_or_default();
         let mut extra_properties = Vec::new();
         let mut unit_properties = Vec::new();
+        let pod_unit = checked_service.pod.as_ref().map(|pod| {
+            let namespace = namespace_name(composite, pod);
+            extra_properties.push((
+                "NetworkNamespacePath".into(),
+                format!("/run/netns/{namespace}"),
+            ));
+            if !checked_service.egress {
+                extra_properties.extend([
+                    ("IPAddressAllow".into(), "localhost".into()),
+                    ("IPAddressDeny".into(), "any".into()),
+                ]);
+            }
+            netns_unit_name(composite, pod)
+        });
+        if checked_service.pod.is_some() && checked_service.egress && !closed_root {
+            extra_properties.push((
+                "BindReadOnlyPaths".into(),
+                format!("{}:/etc/resolv.conf", resolver_source.display()),
+            ));
+        }
         if checked.compose.log_namespace {
             extra_properties.push(("LogNamespace".into(), format!("cix-{composite}")));
         }
@@ -365,12 +521,36 @@ fn render_units(
             .listeners
             .keys()
             .map(|listener| format!("{prefix}-{service_segment}-{listener}.socket"))
+            .chain(
+                checked
+                    .publishes
+                    .iter()
+                    .filter(|published| {
+                        published.service == *service_name
+                            && published.kind == PublishKind::Listener
+                    })
+                    .map(|published| publish_socket_name(composite, published)),
+            )
+            .collect::<BTreeSet<_>>()
+            .into_iter()
             .collect::<Vec<_>>();
         if !sockets.is_empty() {
             extra_properties.push(("Sockets".into(), sockets.join(" ")));
         }
         let mut compiled_service =
             private_service(&checked_service.spec, &checked_service.directories);
+        if checked_service.pod.is_some() {
+            compiled_service.network = Some(cix_run::spec::Network::Host);
+        }
+        compiled_service.claims.retain(
+            |claim| !matches!(claim, cix_run::spec::Claim::Named(name) if name == "egress"),
+        );
+        compiled_service.egress = false;
+        if checked_service.egress {
+            compiled_service
+                .claims
+                .push(cix_run::spec::Claim::Named("egress".into()));
+        }
         if let Some(shm) = &declaration.shm {
             compiled_service.shm = Some(shm.clone());
         }
@@ -409,7 +589,16 @@ fn render_units(
                 ],
                 probe_binary: None,
                 closed_root: closed_root
-                    .then(|| options_for_unit(&service_unit, false))
+                    .then(|| {
+                        let options = options_for_unit(&service_unit, false)?;
+                        Ok::<_, anyhow::Error>(
+                            if checked_service.pod.is_some() && checked_service.egress {
+                                options.with_resolver_source(resolver_source)
+                            } else {
+                                options
+                            },
+                        )
+                    })
                     .transpose()?,
             },
             capabilities,
@@ -429,6 +618,7 @@ fn render_units(
             .iter()
             .map(|claim| claim.unit.clone())
             .chain(sockets.iter().cloned())
+            .chain(pod_unit.iter().cloned())
             .chain(
                 unit_properties
                     .iter()
@@ -519,6 +709,60 @@ fn render_units(
         );
     }
 
+    for published in &checked.publishes {
+        let socket = publish_socket_name(composite, published);
+        let service = service_unit_name(composite, &published.service);
+        match published.kind {
+            PublishKind::Listener => {
+                units.insert(
+                    socket.clone(),
+                    render_socket_unit(&published.surface, &service, &target, &published.address),
+                );
+            }
+            PublishKind::Port { target: port } => {
+                let proxy = format!(
+                    "{prefix}-publish-{}-proxy.service",
+                    unit_path(&published.name)
+                );
+                let netns = netns_unit_name(composite, &published.pod);
+                let namespace = namespace_name(composite, &published.pod);
+                units.insert(
+                    socket.clone(),
+                    render_socket_unit(&published.surface, &proxy, &target, &published.address),
+                );
+                units.insert(
+                    proxy.clone(),
+                    render_proxy_unit(
+                        &published.name,
+                        &socket,
+                        &netns,
+                        &namespace,
+                        &target,
+                        &group_slice_name(composite, parent_path(&published.service)),
+                        port,
+                    ),
+                );
+                manifest_units.insert(
+                    proxy,
+                    ManifestUnit {
+                        kind: UnitKind::Proxy,
+                        service: Some(published.service.clone()),
+                        scheduled: false,
+                    },
+                );
+            }
+        }
+        manifest_units.insert(
+            socket.clone(),
+            ManifestUnit {
+                kind: UnitKind::Socket,
+                service: Some(published.service.clone()),
+                scheduled: false,
+            },
+        );
+        target_wants.insert(socket);
+    }
+
     for group_path in &checked.groups {
         let group_slice = group_slice_name(composite, group_path);
         let description = if group_path.is_empty() {
@@ -554,11 +798,14 @@ fn render_units(
 
     Ok(Rendered {
         units,
+        network_files: network_files.clone(),
         sysusers,
         manifest: Manifest {
             name: composite.clone(),
             units: manifest_units,
             services: manifest_services,
+            pods: manifest_pods,
+            network_files: network_files.keys().cloned().collect(),
             closed_root,
             degradations,
         },
@@ -587,6 +834,17 @@ fn edge_group(composite: &str, edge: &str) -> String {
     format!("cix-e-{hash:016x}")
 }
 
+fn filesystem_segment(value: &str) -> String {
+    value.bytes().fold(String::new(), |mut encoded, byte| {
+        if byte.is_ascii_alphanumeric() {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("_{byte:02x}"));
+        }
+        encoded
+    })
+}
+
 fn render_edge_unit(
     edge: &str,
     target: &str,
@@ -610,6 +868,112 @@ fn render_socket_unit(
     format!(
         "[Unit]\nDescription=cix compose listener: {listener} for {service}\nPartOf={target}\nBefore={service}\n\n[Socket]\nListenStream={address}\nFileDescriptorName={listener}\nService={service}\n"
     )
+}
+
+fn publish_socket_name(composite: &str, published: &crate::resolve::CheckedPublish) -> String {
+    format!(
+        "cix-{composite}-publish-{}.socket",
+        unit_path(&published.name)
+    )
+}
+
+fn render_proxy_unit(
+    name: &str,
+    socket: &str,
+    netns: &str,
+    namespace: &str,
+    target: &str,
+    slice: &str,
+    port: u16,
+) -> String {
+    format!(
+        "[Unit]\nDescription=cix compose published port proxy: {name}\nPartOf={target}\nRequires={netns} {socket}\nAfter={netns} {socket}\nJoinsNamespaceOf={netns}\n\n[Service]\nType=notify\nSlice={slice}\nNetworkNamespacePath=/run/netns/{namespace}\nExecStart=/run/current-system/systemd/lib/systemd/systemd-socket-proxyd 127.0.0.1:{port}\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nProtectHome=yes\nRestrictAddressFamilies=AF_INET AF_INET6\n"
+    )
+}
+
+fn render_netns_unit(
+    path: &str,
+    namespace: &str,
+    target: &str,
+    members: &[String],
+    lease: Option<PodLease>,
+    composite: &str,
+) -> String {
+    let description = if path.is_empty() { "root" } else { path };
+    let before = if members.is_empty() {
+        String::new()
+    } else {
+        format!("Before={}\n", members.join(" "))
+    };
+    let mut start = format!(
+        "/run/current-system/sw/bin/mkdir -p /run/netns; if ! /run/current-system/sw/bin/ip netns list | /run/current-system/sw/bin/grep -q \"^{} \"; then /run/current-system/sw/bin/ip netns add {}; fi; /run/current-system/sw/bin/ip -n {} link set lo up",
+        namespace, namespace, namespace
+    );
+    let mut after = String::new();
+    let mut requires = String::new();
+    if let Some(lease) = lease {
+        let host = veth_name(composite, path, 'h');
+        let peer = veth_name(composite, path, 'p');
+        let address = pod_address(lease);
+        start.push_str(&format!(
+            "; n=0; while ! /run/current-system/sw/bin/ip link show cix0 >/dev/null 2>&1; do n=$((n + 1)); test $n -lt 100; /run/current-system/sw/bin/sleep 0.1; done; /run/current-system/sw/bin/ip link delete {host} 2>/dev/null || true; /run/current-system/sw/bin/ip link add {host} type veth peer name {peer}; /run/current-system/sw/bin/ip link set {peer} netns {namespace}; /run/current-system/sw/bin/ip -n {namespace} link set {peer} addrgenmode none; /run/current-system/sw/bin/ip -n {namespace} address replace {address}/16 dev {peer}; /run/current-system/sw/bin/ip -n {namespace} link set {peer} up; /run/current-system/sw/bin/ip link set {host} master cix0; /run/current-system/sw/bin/ip link set {host} up; /run/current-system/sw/bin/ip -n {namespace} route replace default via 10.231.0.1"
+        ));
+        after.push_str("After=systemd-networkd.service\n");
+        requires.push_str("Requires=systemd-networkd.service\n");
+    }
+    format!(
+        "[Unit]\nDescription=cix compose network namespace: {description}\nPartOf={target}\n{before}{requires}{after}\n[Service]\nType=oneshot\nRemainAfterExit=yes\nSlice={}.slice\nExecStart=/bin/sh -ec '{start}'\nExecStop=/bin/sh -ec '/run/current-system/sw/bin/ip link delete {} 2>/dev/null || true; /run/current-system/sw/bin/ip netns delete {namespace}'\n",
+        target.trim_end_matches(".target"),
+        veth_name(composite, path, 'h')
+    )
+}
+
+fn namespace_name(composite: &str, path: &str) -> String {
+    if path.is_empty() {
+        format!("cix-{composite}-netns")
+    } else {
+        format!("cix-{composite}-{}-netns", filesystem_segment(path))
+    }
+}
+
+fn netns_unit_name(composite: &str, path: &str) -> String {
+    if path.is_empty() {
+        format!("cix-{composite}-netns.service")
+    } else {
+        format!("cix-{composite}-{}-netns.service", unit_path(path))
+    }
+}
+
+fn veth_name(composite: &str, path: &str, side: char) -> String {
+    format!("cx{:08x}{side}", stable_hash(composite, path) as u32)
+}
+
+fn pod_address(lease: PodLease) -> std::net::Ipv4Addr {
+    let [high, low] = lease.host.to_be_bytes();
+    std::net::Ipv4Addr::new(10, 231, high, low)
+}
+
+fn default_leases(checked: &CheckResult) -> BTreeMap<String, PodLease> {
+    checked
+        .pods
+        .iter()
+        .filter(|(_, pod)| pod.egress)
+        .enumerate()
+        .map(|(index, (path, _))| {
+            (
+                path.clone(),
+                PodLease {
+                    host: u16::try_from(index + 2).expect("compose pod count fits IPv4 IPAM"),
+                },
+            )
+        })
+        .collect()
+}
+
+fn parent_path(path: &str) -> &str {
+    path.rsplit_once('/')
+        .map(|(parent, _)| parent)
+        .unwrap_or("")
 }
 
 fn render_timer_unit(
@@ -895,6 +1259,7 @@ mod tests {
             persistent: None,
             jitter: None,
             shm: None,
+            egress: None,
         };
         let worker_declaration = ComposeService {
             item: "worker:v1".into(),
@@ -907,6 +1272,7 @@ mod tests {
             persistent: None,
             jitter: None,
             shm: None,
+            egress: None,
         };
         let edges = BTreeMap::from([(
             "shared".into(),
@@ -929,7 +1295,7 @@ mod tests {
             secrets: BTreeMap::new(),
             edges: edges.clone(),
             network: None,
-            publish: None,
+            publish: BTreeMap::new(),
         };
         let lock = Lock {
             paths: BTreeMap::from([
@@ -957,6 +1323,8 @@ mod tests {
             warnings: Vec::new(),
             edges,
             groups: BTreeSet::from([String::new()]),
+            pods: BTreeMap::new(),
+            publishes: Vec::new(),
             services: BTreeMap::from([
                 (
                     "web".into(),
@@ -974,6 +1342,8 @@ mod tests {
                         }],
                         secrets: BTreeMap::new(),
                         declaration: web_declaration,
+                        pod: None,
+                        egress: false,
                     },
                 ),
                 (
@@ -1001,6 +1371,8 @@ mod tests {
                         ],
                         secrets: BTreeMap::new(),
                         declaration: worker_declaration,
+                        pod: None,
+                        egress: false,
                     },
                 ),
             ]),
@@ -1012,13 +1384,15 @@ mod tests {
     fn small_composite_units_match_golden_files() {
         let (directory, checked, compose_path) = fixture();
         let generation = directory.path().join("generation");
-        render_generation(
+        let manifest = render_generation(
             &checked,
             &compose_path,
             &generation,
             &HostCapabilities::all_supported(),
         )
         .unwrap();
+        assert!(manifest.pods.is_empty());
+        assert!(manifest.network_files.is_empty());
         for name in [
             "cix-stack-web.service",
             "cix-stack-edge-shared.service",
@@ -1033,6 +1407,48 @@ mod tests {
         }
         let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
         assert!(!web.contains("RuntimeDirectory="));
+        assert!(!web.contains("NetworkNamespacePath="));
+    }
+
+    #[test]
+    fn edge_runtime_paths_do_not_reuse_systemd_unit_escaping() {
+        let (directory, mut checked, compose_path) = fixture();
+        let edge = checked.edges.remove("shared").unwrap();
+        checked.edges.insert("cross-boundary".into(), edge);
+        let generation = directory.path().join("hyphenated-edge-generation");
+        render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+
+        let owner =
+            fs::read_to_string(generation.join(r"units/cix-stack-edge-cross\x2dboundary.service"))
+                .unwrap();
+        assert!(
+            owner.contains("RuntimeDirectory=cix-stack-edge-cross_2dboundary"),
+            "{owner}"
+        );
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(
+            web.contains("BindPaths=/run/cix-stack-edge-cross_2dboundary:/run/app:rbind"),
+            "{web}"
+        );
+    }
+
+    #[test]
+    fn namespace_paths_do_not_reuse_systemd_unit_escaping() {
+        assert_ne!(
+            namespace_name("stack", "a-b"),
+            namespace_name("stack", "a/b")
+        );
+        assert_eq!(
+            netns_unit_name("stack", "a-b"),
+            r"cix-stack-a\x2db-netns.service"
+        );
+        assert_eq!(namespace_name("stack", "a-b"), "cix-stack-a_2db-netns");
     }
 
     #[test]
@@ -1236,7 +1652,26 @@ mod tests {
         assert!(web.contains("BindPaths=/tank/web:/run/app:idmap"), "{web}");
         assert!(web.contains("RequiresMountsFor=/tank/web"), "{web}");
         assert!(web.contains("UMask=0002"), "{web}");
+        let shared_group = shared_group("stack", "uploads");
+        assert!(
+            web.lines().any(|line| {
+                line.strip_prefix("SupplementaryGroups=")
+                    .is_some_and(|groups| {
+                        groups.split_whitespace().any(|group| group == shared_group)
+                    })
+            }),
+            "{web}"
+        );
         let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        assert!(
+            worker.lines().any(|line| {
+                line.strip_prefix("SupplementaryGroups=")
+                    .is_some_and(|groups| {
+                        groups.split_whitespace().any(|group| group == shared_group)
+                    })
+            }),
+            "{worker}"
+        );
         assert!(
             worker.contains("CacheDirectory=cix-stack-worker cix-stack-worker/var/lib/app"),
             "{worker}"
@@ -1367,5 +1802,104 @@ mod tests {
         let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
         assert!(web.contains("LogExtraFields=CIX_COMPOSITE=stack CIX_SERVICE=web CIX_ITEM=/nix/store/00000000000000000000000000000000-web"), "{web}");
         assert!(web.contains("LogNamespace=cix-stack"), "{web}");
+    }
+
+    #[test]
+    fn pod_units_attach_members_render_egress_and_choose_publish_tiers() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked.pods.insert(
+            String::new(),
+            crate::resolve::CheckedPod {
+                path: String::new(),
+                egress: true,
+            },
+        );
+        for service in checked.services.values_mut() {
+            service.pod = Some(String::new());
+            service.config.listeners.clear();
+        }
+        checked.services.get_mut("worker").unwrap().egress = true;
+        checked.publishes = vec![
+            crate::resolve::CheckedPublish {
+                name: "fd".into(),
+                service: "web".into(),
+                surface: "http".into(),
+                address: "127.0.0.1:18080".parse().unwrap(),
+                pod: String::new(),
+                kind: PublishKind::Listener,
+            },
+            crate::resolve::CheckedPublish {
+                name: "tcp".into(),
+                service: "worker".into(),
+                surface: "http".into(),
+                address: "127.0.0.1:18081".parse().unwrap(),
+                pod: String::new(),
+                kind: PublishKind::Port { target: 8080 },
+            },
+        ];
+        let generation = directory.path().join("generation-pod");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+
+        let netns = fs::read_to_string(generation.join("units/cix-stack-netns.service")).unwrap();
+        assert!(netns.contains("ip netns add cix-stack-netns"), "{netns}");
+        assert!(
+            netns.contains("route replace default via 10.231.0.1"),
+            "{netns}"
+        );
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(
+            web.contains("NetworkNamespacePath=/run/netns/cix-stack-netns"),
+            "{web}"
+        );
+        assert!(web.contains("IPAddressDeny=any"), "{web}");
+        let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        assert!(
+            worker.contains("NetworkNamespacePath=/run/netns/cix-stack-netns"),
+            "{worker}"
+        );
+        assert!(!worker.contains("IPAddressDeny=any"), "{worker}");
+        assert!(
+            worker.contains("BindReadOnlyPaths=/etc/resolv.conf:/etc/resolv.conf"),
+            "{worker}"
+        );
+        let fd = fs::read_to_string(generation.join("units/cix-stack-publish-fd.socket")).unwrap();
+        assert!(fd.contains("Service=cix-stack-web.service"), "{fd}");
+        let proxy =
+            fs::read_to_string(generation.join("units/cix-stack-publish-tcp-proxy.service"))
+                .unwrap();
+        let fixture = |name: &str| {
+            fs::read_to_string(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures")
+                    .join(name),
+            )
+            .unwrap()
+        };
+        assert_eq!(netns, fixture("cix-stack-netns.service"));
+        assert_eq!(web, fixture("cix-stack-web-pod.service"));
+        assert_eq!(proxy, fixture("cix-stack-publish-tcp-proxy.service"));
+        assert_eq!(
+            fs::read_to_string(generation.join("network/80-cix-stack-cix0.network")).unwrap(),
+            fixture("80-cix-stack-cix0.network")
+        );
+        assert_eq!(
+            fs::read_to_string(generation.join("network/80-cxaed6a92dh.network")).unwrap(),
+            fixture("80-cxaed6a92dh.network")
+        );
+        assert!(
+            proxy.contains("systemd-socket-proxyd 127.0.0.1:8080"),
+            "{proxy}"
+        );
+        assert!(
+            proxy.contains("JoinsNamespaceOf=cix-stack-netns.service"),
+            "{proxy}"
+        );
+        assert!(manifest.network_files.contains("80-cix-stack-cix0.network"));
     }
 }

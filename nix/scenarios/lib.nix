@@ -136,10 +136,11 @@ let
     }
   '';
 
-  node = script: pkgs.testers.runNixOSTest {
+  nodeWith = extraConfig: script: pkgs.testers.runNixOSTest {
     name = "scenario";
     nodes.machine = { ... }: {
-      environment.systemPackages = [ cix pkgs.curl pkgs.jq pkgs.procps pkgs.systemd ];
+      imports = [ extraConfig ];
+      environment.systemPackages = [ cix pkgs.curl pkgs.iproute2 pkgs.jq pkgs.procps pkgs.systemd ];
       environment.variables.NIX_CONFIG = "experimental-features = nix-command flakes";
       networking.useDHCP = false;
       networking.interfaces.eth0.useDHCP = false;
@@ -154,7 +155,9 @@ let
       ${script}
     '';
   };
+
+  node = nodeWith { };
 in
 {
-  inherit api compose composeFile db job node timerComposeFile trackedComposeFile;
+  inherit api compose composeFile db job node nodeWith timerComposeFile trackedComposeFile;
 }

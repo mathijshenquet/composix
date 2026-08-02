@@ -8,15 +8,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub fn tag(installable: &str, target: &str, upstream: Option<String>) -> Result<()> {
-    let store = Store::open()?;
+pub fn tag(store: &Store, installable: &str, target: &str, upstream: Option<String>) -> Result<()> {
     let reference = Ref::parse(target)?;
     if reference.root_url.is_some() && upstream.is_none() {
         bail!(
            "qualified names denote remote state; tags are bare. To publish, tag on the box that serves (see docs/design.md \"The org workflow\")."
        );
     }
-    let path = resolved_path(&store, installable)?;
+    let path = resolved_path(store, installable)?;
     let output = path_info(&path)?;
     let system = current_system()?;
     let mut metadata = store.load(&reference)?.unwrap_or_else(|| TagMetadata {
@@ -37,8 +36,7 @@ pub fn tag(installable: &str, target: &str, upstream: Option<String>) -> Result<
     store.publish(&reference.name, &reference.tag, metadata)
 }
 
-pub fn untag(target: &str) -> Result<()> {
-    let store = Store::open()?;
+pub fn untag(store: &Store, target: &str) -> Result<()> {
     let reference = Ref::parse(target)?;
     if !store.yank(&reference.name, &reference.tag)? {
         bail!("tag `{}` does not exist", reference.display());
@@ -105,12 +103,11 @@ impl Store {
     }
 }
 
-pub fn history(name: &str) -> Result<Vec<HistoryEntry>> {
-    Store::open()?.history(name)
+pub fn history(store: &Store, name: &str) -> Result<Vec<HistoryEntry>> {
+    store.history(name)
 }
 
-pub fn list(prefix: Option<&str>, long: bool) -> Result<String> {
-    let store = Store::open()?;
+pub fn list(store: &Store, prefix: Option<&str>, long: bool) -> Result<String> {
     let system = current_system()?;
     let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     Ok(render_list(store.all()?, prefix, long, &system, now))
@@ -190,7 +187,7 @@ pub(crate) fn render_list(
 }
 
 /// Resolve an artifact without discarding the index entry that named it.
-pub fn inspect_artifact(installable: &str) -> Result<Artifact> {
+pub fn inspect_artifact(store: &Store, installable: &str) -> Result<Artifact> {
     if installable.starts_with("/nix/store/") {
         return Ok(Artifact {
             output: path_info(installable)?,
@@ -218,7 +215,6 @@ pub fn inspect_artifact(installable: &str) -> Result<Artifact> {
                 }),
             });
         }
-        let store = Store::open()?;
         if let Some(metadata) = store.load(&reference)? {
             let system = current_system()?;
             let output = metadata

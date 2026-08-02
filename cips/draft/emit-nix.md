@@ -58,6 +58,23 @@ ITEM gitsitter
   COPY ${build}/target/release/gitsitter /bin/gitsitter
 ```
 
+**Prior art addendum — dream2nix**, the closest existing attempt at
+"one tool, all ecosystems": per-ecosystem *translators* parse
+ecosystem lockfiles into a normalized **dream-lock** (JSON dependency
+graph with per-package sources+hashes; impure resolvers get a
+committed, regenerable lock), and per-ecosystem *builders* consume it
+into granular per-dependency FODs, all wired through the NixOS module
+system since v1. The structural difference: dream2nix maintains N
+translators + M builders because it works from what metadata
+*promises*; cix observes what the build *did* — one mechanism, zero
+ecosystem knowledge, which is why it also covers resolver-less and
+mid-build-fetching ecosystems dream2nix has no translator for. What
+dream2nix does better and this CIP should steal or consciously
+refuse: per-dependency granularity (their npm/crate = one FOD each →
+finer cache-hits and per-package overrides; our FETCH snapshot = one
+FOD per fetch step — coarser, simpler) and a first-class override
+story. Recorded as an open question below.
+
 ## 3. The bridge, in three tiers
 
 **Tier 1 — `cix-lib.buildCixfile` (flake library, no generated files,
@@ -83,6 +100,70 @@ exactly the consumed set, `outputHash` from the lock; the RUN becomes
 a normal sandboxed derivation over (sources, FODs, the versioned cix
 skeleton). Emitted semantics are the COLD path by definition — the
 underlay/warm world stays cix-side.
+
+**Tier 1b — the in-nixpkgs form** (assume cix itself is packaged in
+nixpkgs). `buildNpmPackage`/`importCargoLock`-shaped in-tree builder:
+
+```nix
+# pkgs/by-name/gi/gitsitter/package.nix
+{ lib, buildCixPackage, fetchFromGitHub }:
+buildCixPackage rec {
+  pname = "gitsitter"; version = "0.2.1";
+  src = fetchFromGitHub { owner = "mathijshenquet"; repo = "gitsitter";
+                          tag = "v${version}"; hash = "sha256-…"; };
+  cixLock = "${src}/Cixfile.lock";   # upstream ships its own lock
+  item = "gitsitter";
+  meta.license = lib.licenses.mit;
+}
+```
+
+Two structural upgrades over tier 1:
+
+- **The lock can live UPSTREAM.** `importCargoLock` already builds
+  per-crate FODs in pure eval from the packaged project's own
+  Cargo.lock; `buildCixPackage` is that, generalized to every
+  ecosystem at once. Packaging collapses to "point at the repo" —
+  six lines, no vendored metadata in nixpkgs, because the project
+  carries its own machine-verifiable build+fetch description with
+  per-path pins. (No IFD anywhere: the lock is a committed file in
+  `src`, eval reads data, never build outputs.)
+- **Adversarial turn 3 dissolves.** With cix in nixpkgs there is no
+  emitter mirroring the sandbox: the builder runs `cix build --cold`
+  INSIDE the derivation (cold never fetches, D69e — the FODs supply
+  the FETCH snapshots, cix replays offline). One implementation, no
+  byte-identity shadow to maintain. The residual engineering question
+  moves: cix's inner sandbox (bubblewrap/userns) must run nested
+  inside the nix build sandbox, or grow a mode that trusts the outer
+  nix sandbox for isolation and only arranges the filesystem view —
+  that mode is the honest open item of this tier.
+
+**The pure-build cut** (what composix-without-compose-and-pack IS,
+precisely — the seam tier 1b exposes): the D41/D68 line turns out to
+be the product boundary. `BUILDER` blocks + `ITEM` outputs are the
+complete build product — manifest-less store trees, which is exactly
+what a nixpkgs package is. `SERVICE`/`APP` = the same build product
+PLUS a runtime contract carried as data in the tree. So the cut is
+not a fork but a projection:
+
+- **What nixpkgs consumes**: Cixfile parser + builder engine + lock +
+  `--cold` replay + ITEM assembly. No index (nixpkgs IS the
+  distribution), no unit generation, no compose — the entire runtime
+  half is absent, not stubbed. Concretely a crate seam:
+  cix-build + the cixfile parser, with the manifest/spec dependency
+  feature-gated to ITEM-only.
+- **What rides along for free**: a SERVICE built through the same
+  builder still emits its manifest as inert data — which is the
+  D68+D65 composed-ITEM route: a NixOS module could later consume
+  that manifest and generate units nixpkgs-side. The runtime thesis
+  re-enters as an optional consumer of data, never as a build
+  dependency.
+- **The strategic read**: the build half is independently valuable to
+  people who will never run a cix service — an adoption funnel
+  (meet cix as "the *2nix killer", discover the runtime later), at
+  the cost of maintaining a public builder seam for non-cix
+  consumers. The thesis stays intact because the coupling was always
+  one-directional: closed-root needs closure-complete builds; builds
+  never needed the runtime.
 
 **Tier 2 — `cix build --emit-nix <dir>` (generated standalone nix,
 cix-free at build time).** Same graph, written out as boring committed
@@ -183,3 +264,8 @@ subprocess/cost table should confirm where the DX win concentrates.
 2. `cix vendor -- <cmd>` in v1 scope or horizon?
 3. Is the checksum cross-check (turn 2) a FETCH feature independent of
    this CIP? (It hardens plain cix too — arguably split it out.)
+4. Granularity (the dream2nix lesson): stay at one-FOD-per-FETCH-step
+   (simple, ecosystem-blind) or split observed fetches per logical
+   dependency where the consumed set decomposes naturally (finer
+   cache-hits, per-dep overrides, but it reintroduces ecosystem
+   awareness through the back door)?

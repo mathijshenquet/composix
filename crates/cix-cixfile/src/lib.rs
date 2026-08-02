@@ -20,4 +20,14 @@ pub use cix_build::{
     Input, InputKind, Liveness, Port, Probe, Readiness, Secret, Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};
-pub use watch::watch;
+pub use watch::{watch, WatchOptions};
+
+pub fn default_workspace_directory() -> std::path::PathBuf {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".cache"))
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from(".cache"))
+        .join("cix/workspaces")
+}

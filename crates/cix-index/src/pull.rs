@@ -87,7 +87,7 @@ pub(crate) fn fetch_output(reference: &Ref, entry: &Entry, output: &Output) -> R
 ///
 /// Qualified refs are resolved directly against the index and fetched from an advertised
 /// substituter when necessary. Unlike [`pull`], this does not create a local mirror tag.
-pub fn resolve(reference: &str) -> Result<Output> {
+pub fn resolve_with(store: &Store, reference: &str) -> Result<Output> {
     if reference.starts_with("/nix/store/") {
         return path_info(reference);
     }
@@ -104,7 +104,6 @@ pub fn resolve(reference: &str) -> Result<Output> {
         fetch_output(&reference, &entry, &output)?;
         return Ok(output);
     }
-    let store = Store::open()?;
     let metadata = store
         .load(&reference)?
         .with_context(|| format!("local tag `{}` does not exist", reference.display()))?;
@@ -123,14 +122,24 @@ pub fn resolve(reference: &str) -> Result<Output> {
     Ok(output)
 }
 
-fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {
+pub fn resolve(reference: &str) -> Result<Output> {
+    let root = std::env::var_os("XDG_STATE_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".local/state"))
+        })
+        .unwrap_or_else(|| std::path::PathBuf::from(".local/state"))
+        .join("cix");
+    resolve_with(&Store::open(root)?, reference)
+}
+
+fn pull_one(store: &Store, remote: &Ref, local: &Ref) -> Result<bool> {
     let entry = resolve_remote(remote)?;
     let system = current_system()?;
     let output = entry
         .outputs
         .get(&system)
         .with_context(|| format!("remote `{}` has no output for {system}", remote.display()))?;
-    let store = Store::open()?;
     if store
         .load(local)?
         .and_then(|metadata| metadata.entry.outputs.get(&system).cloned())
@@ -140,6 +149,7 @@ fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {
     }
     fetch_output(remote, &entry, output)?;
     tag(
+        store,
         &output.store_path,
         &local.display(),
         remote.root_url.clone(),
@@ -147,7 +157,7 @@ fn pull_one(remote: &Ref, local: &Ref) -> Result<bool> {
     Ok(true)
 }
 
-pub fn pull(reference: Option<&str>, as_ref: Option<&str>) -> Result<usize> {
+pub fn pull(store: &Store, reference: Option<&str>, as_ref: Option<&str>) -> Result<usize> {
     match reference {
         Some(input) => {
             let remote = Ref::parse(input)?;
@@ -158,13 +168,12 @@ pub fn pull(reference: Option<&str>, as_ref: Option<&str>) -> Result<usize> {
                 Some(alias) => Ref::parse(alias)?,
                 None => remote.clone(),
             };
-            Ok(usize::from(pull_one(&remote, &local)?))
+            Ok(usize::from(pull_one(store, &remote, &local)?))
         }
         None => {
             if as_ref.is_some() {
                 bail!("--as requires a remote ref");
             }
-            let store = Store::open()?;
             let mut changed = 0;
             for metadata in store.all()? {
                 let Some(upstream) = metadata.upstream else {
@@ -173,7 +182,7 @@ pub fn pull(reference: Option<&str>, as_ref: Option<&str>) -> Result<usize> {
                 let local = Ref::parse(&metadata.reference)?;
                 let mut remote = local.clone();
                 remote.root_url = Some(upstream);
-                changed += usize::from(pull_one(&remote, &local)?);
+                changed += usize::from(pull_one(store, &remote, &local)?);
             }
             Ok(changed)
         }

@@ -1,0 +1,36 @@
+[Unit]
+Description=cix run: web
+PartOf=cix-stack.target
+Requires=cix-stack-edge-shared.service cix-stack-netns.service cix-stack-publish-fd.socket
+After=cix-stack-edge-shared.service cix-stack-netns.service cix-stack-publish-fd.socket cix-stack-worker.service
+
+[Service]
+Type=exec
+Slice=cix-stack.slice
+LogExtraFields=CIX_COMPOSITE=stack CIX_SERVICE=web CIX_ITEM=/nix/store/00000000000000000000000000000000-web
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivatePIDs=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+RestrictSUIDSGID=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SocketBindDeny=any
+NetworkNamespacePath=/run/netns/cix-stack-netns
+IPAddressAllow=localhost
+IPAddressDeny=any
+SupplementaryGroups=cix-e-564848da9e662aec
+UMask=0007
+BindPaths=/run/cix-stack-edge-shared:/run/app:rbind
+Sockets=cix-stack-publish-fd.socket
+ExecStart="/nix/store/00000000000000000000000000000000-app/bin/app"

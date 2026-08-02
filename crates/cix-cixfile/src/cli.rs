@@ -33,6 +33,9 @@ pub enum Command {
         /// Emit stable machine-readable per-step execution statistics.
         #[arg(long)]
         stats: bool,
+        /// Directory containing persistent BUILDER workspaces.
+        #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = crate::default_workspace_directory())]
+        workspace_directory: PathBuf,
     },
     /// Format Cixfiles.
     Fmt {
@@ -46,11 +49,13 @@ pub enum Command {
     Watch {
         #[arg(default_value = ".")]
         path: PathBuf,
+        #[command(flatten)]
+        options: WatchArgs,
     },
 }
 
 impl Command {
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, state_directory: &std::path::Path) -> anyhow::Result<()> {
         match self {
             Self::Build {
                 dir,
@@ -61,6 +66,7 @@ impl Command {
                 allow_secret,
                 no_cache,
                 stats,
+                workspace_directory,
             } => {
                 if no_cache {
                     eprintln!("warning: --no-cache is deprecated; use --cold");
@@ -72,6 +78,8 @@ impl Command {
                     tag: None,
                     cold: cold || no_cache,
                     allow_secret,
+                    workspace_directory,
+                    state_directory: state_directory.to_owned(),
                 };
                 let (items, build_stats) = crate::build_family_with_stats(
                     &options,
@@ -109,9 +117,26 @@ impl Command {
                 Ok(())
             }
             Self::Fmt { paths, check } => format_paths(paths, check),
-            Self::Watch { path } => crate::watch(&path),
+            Self::Watch { path, options } => crate::watch(
+                &path,
+                crate::WatchOptions {
+                    workspace_directory: options.workspace_directory,
+                    debounce: std::time::Duration::from_millis(options.debounce_ms),
+                    state_directory: state_directory.to_owned(),
+                },
+            ),
         }
     }
+}
+
+#[derive(clap::Args)]
+pub struct WatchArgs {
+    /// Directory containing persistent BUILDER workspaces.
+    #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = crate::default_workspace_directory())]
+    workspace_directory: PathBuf,
+    /// Delay in milliseconds before rebuilding a burst of changes.
+    #[arg(long, env = "CIX_WATCH_DEBOUNCE_MS", default_value_t = 300)]
+    debounce_ms: u64,
 }
 
 fn format_paths(paths: Vec<PathBuf>, check: bool) -> anyhow::Result<()> {

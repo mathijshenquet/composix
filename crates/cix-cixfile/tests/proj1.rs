@@ -1,9 +1,7 @@
-use std::ffi::OsString;
 use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::thread;
 
 use cix_cixfile::{build, build_with_stats, parse, BuildOptions, BuildStats, BuiltItem, LockFile};
@@ -21,38 +19,13 @@ const PROJECT_FILES: &[&str] = &[
     "rust/worker/src/main.rs",
 ];
 
-static WORKSPACE_DIRECTORY: Mutex<()> = Mutex::new(());
-
-struct WorkspaceDirectory {
-    previous: Option<OsString>,
-}
-
-impl WorkspaceDirectory {
-    fn set(path: &Path) -> Self {
-        let previous = std::env::var_os("CIX_BUILD_WORKSPACE_DIR");
-        std::env::set_var("CIX_BUILD_WORKSPACE_DIR", path);
-        Self { previous }
-    }
-}
-
-impl Drop for WorkspaceDirectory {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(path) => std::env::set_var("CIX_BUILD_WORKSPACE_DIR", path),
-            None => std::env::remove_var("CIX_BUILD_WORKSPACE_DIR"),
-        }
-    }
-}
-
 #[test]
 fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
-    let _workspace_directory_lock = WORKSPACE_DIRECTORY.lock().unwrap();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = root.join("examples/build/proj1");
     let temporary = tempfile::tempdir().unwrap();
     copy_project(&source, temporary.path());
     let workspace_base = temporary.path().join("workspaces");
-    let _workspace_directory = WorkspaceDirectory::set(&workspace_base);
     let mut clean_lock = load_lock(temporary.path());
     clean_lock.fetches.clear();
     clean_lock.memo.clear();
@@ -65,7 +38,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     let parsed = parse(&fs::read_to_string(temporary.path().join("Cixfile")).unwrap()).unwrap();
     assert_eq!(parsed.artifact_order, ["proj1-api", "proj1-worker"]);
 
-    let first = run_build(temporary.path(), false);
+    let first = run_build(temporary.path(), &workspace_base, false);
     assert_items_are_minimal_and_v0(&first);
     let first_lock = load_lock(temporary.path());
     assert_eq!(first_lock.memo.len(), 1);
@@ -73,7 +46,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     let workspace = only_workspace(&workspace_base);
     assert!(workspace.join("work/target/.cix-warm").is_file());
 
-    let unchanged = run_build(temporary.path(), false);
+    let unchanged = run_build(temporary.path(), &workspace_base, false);
     assert_eq!(unchanged, first);
     assert_eq!(load_lock(temporary.path()).memo.len(), 1);
 
@@ -84,7 +57,7 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
         worker.replace("proj1-worker", "proj1-worker-edited"),
     )
     .unwrap();
-    let edited = run_build(temporary.path(), false);
+    let edited = run_build(temporary.path(), &workspace_base, false);
     assert_eq!(path(&edited, "proj1-api"), path(&first, "proj1-api"));
     assert_ne!(path(&edited, "proj1-worker"), path(&first, "proj1-worker"));
     let edited_lock = load_lock(temporary.path());
@@ -97,6 +70,8 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
         tag: None,
         cold: true,
         allow_secret: false,
+        workspace_directory: workspace_base.clone(),
+        state_directory: temporary.path().join("state"),
     })
     .expect_err("the cold audit must reject the warm-only workspace read");
     let cold_error = format!("{cold_error:#}");
@@ -104,14 +79,13 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     assert_consumed_binaries(&load_lock(temporary.path()));
 
     fs::remove_dir_all(&workspace).unwrap();
-    let after_wipe = run_build(temporary.path(), false);
+    let after_wipe = run_build(temporary.path(), &workspace_base, false);
     assert_eq!(after_wipe, edited);
     assert!(!workspace.exists());
 }
 
 #[test]
 fn local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence() {
-    let _workspace_directory_lock = WORKSPACE_DIRECTORY.lock().unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();
     let server = thread::spawn(move || {
@@ -142,13 +116,14 @@ fn local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence() {
     let lock = root.join("examples/pack/nginx/Cixfile.lock");
     fs::copy(lock, temporary.path().join("Cixfile.lock")).unwrap();
     let workspace = tempfile::tempdir().unwrap();
-    let _workspace_directory = WorkspaceDirectory::set(workspace.path());
     let options = BuildOptions {
         directory: temporary.path().to_owned(),
         update_lock: None,
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: workspace.path().to_owned(),
+        state_directory: temporary.path().join("state"),
     };
     let (first, _) = build_with_stats(&options).unwrap();
     let (repeat, stats) = build_with_stats(&options).unwrap();
@@ -201,13 +176,15 @@ fn status<'a>(stats: &'a BuildStats, kind: &str) -> &'a str {
         .status
 }
 
-fn run_build(directory: &Path, cold: bool) -> Vec<BuiltItem> {
+fn run_build(directory: &Path, workspace_directory: &Path, cold: bool) -> Vec<BuiltItem> {
     build(&BuildOptions {
         directory: directory.to_owned(),
         update_lock: None,
         tag: None,
         cold,
         allow_secret: false,
+        workspace_directory: workspace_directory.to_owned(),
+        state_directory: directory.join("state"),
     })
     .unwrap()
 }

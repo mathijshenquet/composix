@@ -23,6 +23,16 @@ impl ResolvedConfig {
         Self::resolve_inner(service, env_overrides, port_overrides, true)
     }
 
+    /// Resolve compose input while allowing a listener to receive its host binding from a
+    /// containing group's published surface.
+    pub fn resolve_compose(
+        service: &Service,
+        env_overrides: &[String],
+        port_overrides: &[String],
+    ) -> Result<Self> {
+        Self::resolve_inner(service, env_overrides, port_overrides, false)
+    }
+
     pub(crate) fn resolve_debug(service: &Service, env_overrides: &[String]) -> Result<Self> {
         Self::resolve_inner(service, env_overrides, &[], false)
     }
