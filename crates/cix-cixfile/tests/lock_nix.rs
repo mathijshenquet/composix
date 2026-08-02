@@ -143,6 +143,90 @@ START hello
 }
 
 #[test]
+fn overlays_apply_in_order_and_bad_overlay_reports_the_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("first.nix"),
+        "final: prev: { cixOverlayFirst = prev.hello; }\n",
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("second.nix"),
+        "final: prev: { cixOverlaySecond = final.cixOverlayFirst; }\n",
+    )
+    .unwrap();
+    let cixfile = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./first.nix OVERLAY ./second.nix AS pkgs\nSERVICE fixture\nLINK ${pkgs.cixOverlaySecond}/bin/hello /bin/hello\nSTART hello\n",
+    )
+    .unwrap();
+    let expression = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    assert!(expression.find("/first.nix").unwrap() < expression.find("/second.nix").unwrap());
+    let output = build_expression(&expression).unwrap();
+    assert!(output.join("bin/hello").exists());
+
+    fs::write(directory.path().join("second.nix"), "{}\n").unwrap();
+    let malformed = generate_nix(
+        &cixfile,
+        directory.path(),
+        &committed_lock(),
+        "x86_64-linux",
+    )
+    .unwrap();
+    let error = build_expression(&malformed).unwrap_err().to_string();
+    assert!(error.contains("./second.nix"), "{error}");
+    assert!(error.contains("final: prev"), "{error}");
+}
+
+#[test]
+fn overlay_edits_change_builder_keys_without_repinning_the_base() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        "FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./overlay.nix AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nRUN printf first > out\nSERVICE app\nCOPY ${build}/out /out\nSTART /bin/true\n",
+    )
+    .unwrap();
+    fs::write(directory.path().join("overlay.nix"), "final: prev: {}\n").unwrap();
+    let lock = committed_lock();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
+    )
+    .unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    };
+    build(&options).unwrap();
+    let first: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    fs::write(
+        directory.path().join("overlay.nix"),
+        "final: prev: { cixOverlayMarker = prev.hello; }\n",
+    )
+    .unwrap();
+    build(&options).unwrap();
+    let second: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(
+        first.inputs, second.inputs,
+        "only --update-lock moves a base pin"
+    );
+    assert_eq!(
+        second.memo.len(),
+        2,
+        "overlay content changes the chain key"
+    );
+}
+
+#[test]
 fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
@@ -355,10 +439,10 @@ fn fetch_expect_matches_in_both_forms_and_records_the_declared_hash() {
         directory.path().join("Cixfile"),
         format!(
             r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FETCH ingredient EXPECT {expected} ${{pkgs.coreutils}}/bin/printf 'fixed\n' > payload
+FETCH ingredient ${{pkgs.coreutils}}/bin/printf 'fixed\n' > payload EXPECT {expected}
 BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
-FETCH EXPECT {expected} printf 'fixed\n' > payload
+FETCH printf 'fixed\n' > payload EXPECT {expected}
 SERVICE top
 COPY ${{ingredient}}/payload /payload
 START /bin/true
@@ -399,7 +483,7 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ${pkgs.coreutils}/bin/printf payload > payload\nSERVICE app\nCOPY ${ingredient}/payload /payload\nSTART /bin/true\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf payload > payload EXPECT sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nSERVICE app\nCOPY ${ingredient}/payload /payload\nSTART /bin/true\n",
     )
     .unwrap();
     fs::write(
@@ -835,7 +919,7 @@ FROM . AS src
 BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 COPY ${{src}}/manifest manifest
-FETCH EXPECT {expected} printf 'fixed\n' > payload
+FETCH printf 'fixed\n' > payload EXPECT {expected}
 COPY ${{src}}/source source
 RUN cp source output
 SERVICE result
@@ -902,7 +986,7 @@ BUILDER build
 IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
 RUN printf 'present\n' > required
 RUN {middle}
-FETCH EXPECT {expected} test -f required
+FETCH test -f required EXPECT {expected}
 SERVICE result
 COPY ${{build}}/required /required
 START /bin/true

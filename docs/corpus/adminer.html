@@ -106,7 +106,7 @@ FROM . AS src
 # The output hash pins the complete fetched work directory, not just the upstream file.
 BUILDER adminer_src
   IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.cacert}
-  FETCH EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ= curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php
+  FETCH curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=
 
 SERVICE adminer
   COPY ${src}/context/index.php /index.php

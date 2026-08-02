@@ -75,7 +75,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 70301797fe03 -> /nix/store/…-cix-build-view
+BUILDER build memo miss a768d903b60e -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -104,7 +104,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 7485901cbed2 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 42ab542fff36 -> /nix/store/…-cix-build-view
 ```
 
 `--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.
@@ -115,7 +115,7 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 7485901cbed2 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 42ab542fff36 -> /nix/store/…-cix-build-view
 ```
 
 A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.

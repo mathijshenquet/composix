@@ -35,7 +35,7 @@ case $mode in
     printf 'PASS docker\n'
     ;;
   cix)
-    item=$(timeout 1200 nix-build default.nix --no-out-link)
+    item=$(timeout 1200 "$cix" build "$root#wallos")
     printf 'cix item %s\n' "$item"
     unit=$(timeout 30 sudo -n "$cix" run --detach "$item" | tail -n1)
     printf 'cix unit %s\n' "$unit"

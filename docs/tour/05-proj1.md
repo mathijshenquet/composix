@@ -86,7 +86,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 31e430f1b126 -> /nix/store/…-cix-build-view
+BUILDER build memo miss fa6901d7c5d2 -> /nix/store/…-cix-build-view
 ```
 
 Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.
@@ -109,7 +109,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss e069bff7d1da -> /nix/store/…-cix-build-view
+BUILDER build memo miss ba097839547f -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -125,7 +125,7 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss e069bff7d1da -> /nix/store/…-cix-build-view
+BUILDER build memo miss ba097839547f -> /nix/store/…-cix-build-view
 ```
 
 ```sh

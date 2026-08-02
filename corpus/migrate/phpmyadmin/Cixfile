@@ -2,7 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER build
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.xz} ${pkgs.cacert}
-  FETCH EXPECT sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE= curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz
+  FETCH curl --fail --location --output phpMyAdmin-5.2.3-all-languages.tar.xz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.xz EXPECT sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=
   RUN mkdir app && tar -xJf phpMyAdmin-5.2.3-all-languages.tar.xz --strip-components=1 -C app
 
 SERVICE phpmyadmin

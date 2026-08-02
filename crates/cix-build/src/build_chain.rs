@@ -28,6 +28,8 @@ struct BuildContext {
     commands: Vec<String>,
     copies: Vec<String>,
     environment: BTreeMap<String, String>,
+    #[serde(rename = "universeIdentities")]
+    universe_identities: BTreeMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -40,6 +42,7 @@ struct StepKeyRequest<'a> {
     declared_sources: &'a [String],
     environment: &'a BTreeMap<String, String>,
     fetch_pin: Option<String>,
+    universe_identities: &'a [String],
 }
 
 #[derive(Serialize)]
@@ -63,7 +66,7 @@ enum TemplateKeyPart<'a> {
 const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
 // Bump this when codegen-relevant Cixfile semantics change without a package
 // version bump.  It keeps memo keys isolated across concurrently-built checkouts.
-const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d80-v1");
+const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d80-v2");
 
 #[derive(Clone, Debug, Default)]
 struct NeededPath {
@@ -198,7 +201,19 @@ fn execute_top_fetch(
     }
     let existing_pin = lock.fetches.get(name).map(FetchPin::key);
     let existing_key = existing_pin
-        .map(|pin| top_fetch_chain_key(command, &offered_closure, &environment, &pin))
+        .map(|pin| {
+            top_fetch_chain_key(
+                command,
+                &offered_closure,
+                &environment,
+                &pin,
+                &context
+                    .universe_identities
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        })
         .transpose()?;
     if cold && !force {
         let pin = lock.fetches.get(name).with_context(|| {
@@ -207,7 +222,17 @@ fn execute_top_fetch(
         let snapshot = replay_fetch_snapshot(directory, name, pin)?;
         verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
         let paths = store_consumed_paths(Path::new(&snapshot), &needed)?;
-        let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin.key())?;
+        let key = top_fetch_chain_key(
+            command,
+            &offered_closure,
+            &environment,
+            &pin.key(),
+            &context
+                .universe_identities
+                .values()
+                .cloned()
+                .collect::<Vec<_>>(),
+        )?;
         lock.memo.insert(key.clone(), memo_entry(paths.clone()));
         let view = materialize_view(&paths)?;
         eprintln!(
@@ -310,7 +335,17 @@ fn execute_top_fetch(
     cache_fetch_snapshot(directory, name, &refreshed, &snapshot)?;
     lock.fetches.insert(name.to_owned(), refreshed);
     let pin = lock.fetches[name].key();
-    let key = top_fetch_chain_key(command, &offered_closure, &environment, &pin)?;
+    let key = top_fetch_chain_key(
+        command,
+        &offered_closure,
+        &environment,
+        &pin,
+        &context
+            .universe_identities
+            .values()
+            .cloned()
+            .collect::<Vec<_>>(),
+    )?;
     let paths = store_consumed_paths(work.path(), &needed)?;
     lock.memo.insert(key.clone(), memo_entry(paths.clone()));
     let view = materialize_view(&paths)?;
@@ -389,6 +424,7 @@ fn execute_builder(
         system,
         binders,
         &context.imports,
+        &context.universe_identities,
     )?;
     environment.extend(context.environment.clone());
     environment = build_environment(environment);
@@ -696,6 +732,7 @@ fn vendored_dev_environment(
     system: &str,
     snapshots: &BTreeMap<String, String>,
     imports: &[String],
+    universe_identities: &BTreeMap<String, String>,
 ) -> Result<BTreeMap<String, String>> {
     if imports.is_empty() {
         return Ok(BTreeMap::new());
@@ -706,8 +743,10 @@ fn vendored_dev_environment(
         .find(|(_, input)| input.kind == crate::InputKind::PackageUniverse)
         .map(|(name, _)| name)
         .context("BUILDER IMPORT needs a package-universe FROM")?;
-    let revision = &lock.inputs[universe].rev;
-    let key = format!("{revision}:{}", hex_hash(imports.join("\0").as_bytes()));
+    let identity = universe_identities
+        .get(universe)
+        .context("package universe identity was not resolved")?;
+    let key = format!("{identity}:{}", hex_hash(imports.join("\0").as_bytes()));
     if let Some(snapshot) = lock.dev_envs.get(&key) {
         let environment = filter_development_environment(&snapshot.environment);
         if environment != snapshot.environment {
@@ -722,7 +761,7 @@ fn vendored_dev_environment(
     }
     let expression =
         generate_builder_dev_env_nix(cixfile, builder_name, directory, lock, system, snapshots)?;
-    let raw = cix_common::nix(&["print-dev-env", "--json", "--expr", &expression])
+    let raw = cix_common::nix(&["print-dev-env", "--impure", "--json", "--expr", &expression])
         .context("capturing nixpkgs development environment for IMPORT")?;
     let document: serde_json::Value =
         serde_json::from_str(&raw).context("parsing nix print-dev-env JSON")?;
@@ -957,6 +996,11 @@ fn builder_chain_keys(
     let mut keys = Vec::with_capacity(builder.steps.len());
     let mut command_index = 0;
     let mut copy_index = 0;
+    let universe_identities = context
+        .universe_identities
+        .values()
+        .cloned()
+        .collect::<Vec<_>>();
     for (index, step) in builder.steps.iter().enumerate() {
         let (kind, arguments, sources, fetch_pin) = match step {
             BuildStep::Env { name, value, .. } => {
@@ -1001,6 +1045,7 @@ fn builder_chain_keys(
             declared_sources: &sources,
             environment: &environment,
             fetch_pin,
+            universe_identities: &universe_identities,
         })?;
         keys.push(predecessor.clone());
     }
@@ -1043,6 +1088,7 @@ fn top_fetch_chain_key(
     offered_closure: &BTreeSet<String>,
     environment: &BTreeMap<String, String>,
     pin: &str,
+    universe_identities: &[String],
 ) -> Result<String> {
     step_key(StepKeyRequest {
         kind: "FETCH",
@@ -1053,6 +1099,7 @@ fn top_fetch_chain_key(
         declared_sources: &[],
         environment,
         fetch_pin: Some(pin.to_owned()),
+        universe_identities,
     })
 }
 
@@ -2159,6 +2206,7 @@ mod tests {
             declared_sources: &[],
             environment: &environment,
             fetch_pin: None,
+            universe_identities: &[],
         })
         .unwrap();
         assert_eq!(
@@ -2172,6 +2220,7 @@ mod tests {
                 declared_sources: &[],
                 environment: &environment,
                 fetch_pin: None,
+                universe_identities: &[],
             })
             .unwrap()
         );
@@ -2186,6 +2235,7 @@ mod tests {
                 declared_sources: &[],
                 environment: &environment,
                 fetch_pin: None,
+                universe_identities: &[],
             })
             .unwrap()
         );
@@ -2202,6 +2252,7 @@ mod tests {
                 declared_sources: &[],
                 environment: &changed_environment,
                 fetch_pin: None,
+                universe_identities: &[],
             })
             .unwrap()
         );
@@ -2216,6 +2267,7 @@ mod tests {
                 declared_sources: &[],
                 environment: &environment,
                 fetch_pin: None,
+                universe_identities: &[],
             })
             .unwrap()
         );
@@ -2230,6 +2282,7 @@ mod tests {
                 declared_sources: &[],
                 environment: &environment,
                 fetch_pin: None,
+                universe_identities: &[],
             })
             .unwrap()
         );
@@ -2248,6 +2301,7 @@ mod tests {
             declared_sources: &["sha256-source-one".into()],
             environment: &environment,
             fetch_pin: None,
+            universe_identities: &[],
         })
         .unwrap();
         let after = step_key(StepKeyRequest {
@@ -2259,12 +2313,13 @@ mod tests {
             declared_sources: &["sha256-source-two".into()],
             environment: &environment,
             fetch_pin: None,
+            universe_identities: &[],
         })
         .unwrap();
         assert_ne!(before, after);
         assert_ne!(
-            top_fetch_chain_key("fetch", &offered, &environment, "sha256-one").unwrap(),
-            top_fetch_chain_key("fetch", &offered, &environment, "sha256-two").unwrap()
+            top_fetch_chain_key("fetch", &offered, &environment, "sha256-one", &[]).unwrap(),
+            top_fetch_chain_key("fetch", &offered, &environment, "sha256-two", &[]).unwrap()
         );
     }
 
@@ -2318,6 +2373,7 @@ mod tests {
             declared_sources: &[],
             environment: &environment,
             fetch_pin: None,
+            universe_identities: &[],
         })
         .unwrap();
         let two_first = step_key(StepKeyRequest {
@@ -2329,9 +2385,53 @@ mod tests {
             declared_sources: &[],
             environment: &environment,
             fetch_pin: None,
+            universe_identities: &[],
         })
         .unwrap();
         assert_ne!(one_first, two_first);
+    }
+
+    #[test]
+    fn ordered_overlay_identity_participates_in_chain_keys() {
+        let environment = BTreeMap::new();
+        let base = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "true",
+            offered_closure: &BTreeSet::new(),
+            ordered_imports: &[],
+            predecessor: "previous",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+            universe_identities: &["base:one:overlay:a".into()],
+        })
+        .unwrap();
+        let changed_overlay = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "true",
+            offered_closure: &BTreeSet::new(),
+            ordered_imports: &[],
+            predecessor: "previous",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+            universe_identities: &["base:one:overlay:b".into()],
+        })
+        .unwrap();
+        let moved_base = step_key(StepKeyRequest {
+            kind: "RUN",
+            arguments: "true",
+            offered_closure: &BTreeSet::new(),
+            ordered_imports: &[],
+            predecessor: "previous",
+            declared_sources: &[],
+            environment: &environment,
+            fetch_pin: None,
+            universe_identities: &["base:two:overlay:a".into()],
+        })
+        .unwrap();
+        assert_ne!(base, changed_overlay);
+        assert_ne!(base, moved_base);
     }
 
     #[test]

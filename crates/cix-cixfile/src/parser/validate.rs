@@ -567,24 +567,18 @@ pub(super) fn parse_fetch_expect<'a>(
     line: usize,
     source: &str,
 ) -> Result<(Option<String>, &'a str), ParseError> {
-    let Some(remainder) = arguments.strip_prefix("EXPECT") else {
-        return Ok((None, arguments));
-    };
-    if remainder
-        .chars()
-        .next()
-        .is_some_and(|character| !character.is_whitespace())
-    {
-        return Ok((None, arguments));
-    }
-    let remainder = remainder.trim_start();
-    let (hash, command) = remainder.split_once(char::is_whitespace).ok_or_else(|| {
-        ParseError::new(
+    let fields = arguments.split_whitespace().collect::<Vec<_>>();
+    if fields.first() == Some(&"EXPECT") {
+        return Err(ParseError::new(
             line,
             source,
-            "FETCH EXPECT requires a hash and command: EXPECT <sri-hash> <command…>",
-        )
-    })?;
+            "leading FETCH EXPECT was removed; write FETCH <command…> EXPECT <sri-hash>",
+        ));
+    }
+    if fields.len() < 3 || fields[fields.len() - 2] != "EXPECT" {
+        return Ok((None, arguments));
+    }
+    let hash = fields[fields.len() - 1];
     if !hash.starts_with("sha256-") || hash.len() == "sha256-".len() {
         return Err(ParseError::new(
             line,
@@ -592,12 +586,15 @@ pub(super) fn parse_fetch_expect<'a>(
             format!("FETCH EXPECT hash must be an SRI sha256 hash, got {hash:?}"),
         ));
     }
-    let command = command.trim();
+    let tail = arguments
+        .rfind("EXPECT")
+        .expect("penultimate EXPECT exists");
+    let command = arguments[..tail].trim_end();
     if command.is_empty() {
         return Err(ParseError::new(
             line,
             source,
-            "FETCH EXPECT requires a command after the hash",
+            "FETCH EXPECT requires a command before the trailing hash",
         ));
     }
     Ok((Some(hash.to_owned()), command))

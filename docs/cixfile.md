@@ -48,10 +48,10 @@ Prelude declarations come first:
 
 | declaration | meaning |
 | --- | --- |
-| `FROM <flakeref> AS <name>` | bind a locked package universe or source tree |
+| `FROM <flakeref> [OVERLAY <./file.nix>…] AS <name>` | bind a locked package universe or source tree |
 | `FROM <index-ref:tag> AS <name>` | bind a lock-pinned cix item as a source tree |
 | `FROM . AS <name>` | optionally name the Cixfile directory; it is local input and is not lock-pinned |
-| `FETCH <name> [EXPECT <sri-hash>] <command…>` | run a networked command in an empty workdir and bind its pinned output |
+| `FETCH <name> <command…> [EXPECT <sri-hash>]` | run a networked command in an empty workdir and bind its pinned output |
 
 Blocks then declare work and outputs:
 
@@ -189,6 +189,25 @@ Other remote trees are source binders:
 FROM github:owner/project/v1.2.3 AS upstream
 ```
 
+For a project-local package customization, attach one or more ordered overlays to a package
+universe:
+
+```dockerfile
+FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
+```
+
+Each overlay is a checked-in `final: prev: { ... }` Nix function. cix imports the locked base
+with nixpkgs' native `overlays` argument, so every `${pkgs.*}` reference observes the same
+fixpoint. The base must accept that argument; an error suggests wrapping it or using a full
+universe tree. Overlay files cannot reference Cixfile binders. Their ordered content hashes join
+the base pin in builder keys and vendored development-environment snapshots; editing an overlay
+is therefore an ordinary source edit, while `--update-lock pkgs` moves only the base pin.
+
+Multiple universes remain legal, but putting packages from differently overlaid worlds into one
+item deliberately reopens world skew. Keep one project world where practical. `OVERLAY` is the
+local convenience form; an organisation-owned full universe tree remains the general D65 form,
+and composed items remain the distribution form.
+
 The third FROM input is an explicit-tag index ref:
 
 ```dockerfile
@@ -313,10 +332,10 @@ the lock, lets `--cold` restore the complete FETCH workspace without making vola
 part of `Cixfile.lock`. First use of an additional consumed path is reported and recorded as a
 fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately fetches twice, reports
 differing file names and sizes, and records those volatile-file facts in the lock; it never
-silently removes them. Add `EXPECT <sri-hash>` before the command to keep a whole-workdir author
+silently removes them. Add trailing `EXPECT <sri-hash>` after the command to keep a whole-workdir author
 integrity assertion instead: this removes the first-use trust window and reports declared versus
 actual on a mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the
-declared hash.
+declared hash. The former leading form is rejected with this migration.
 
 When a FETCH leaves at least 16 MiB outside the downstream-consumed paths, cix prints an
 informational size note. It never changes the build result or turns into a failure; it is a prompt
