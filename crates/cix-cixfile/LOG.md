@@ -1,5 +1,89 @@
 # Cixfile track work log
 
+- 2026-08-02T13:00:00Z — Began the requested ergo fix round 2 on
+  `track/ergo` at `61ca217`. The independent gate reports
+  `proj1_multi_item_cache_selectivity_and_clean_rebuild` creates two builder
+  workspaces after `fb7df76`; the specification requires a synchronous
+  before/after reproduction and a fix that excludes prior-run output data from
+  chain/workspace keys. The devenv configuration is present. Next: isolate the
+  exact test on `fb7df76^` and `fb7df76`, then trace the key inputs.
+
+- 2026-08-02T13:12:00Z — Completed the prescribed detached before/after
+  reproduction synchronously. After stashing only this journal, both
+  `fb7df76^` (`e851b0e`) and `fb7df76` passed
+  `devenv shell -- cargo test -p cix-cixfile --test proj1
+  proj1_multi_item_cache_selectivity_and_clean_rebuild -- --exact --nocapture`
+  (0, 5.63s and 5.69s); the workspace identity stayed one directory in both.
+  The purported suspect commit changes only `crates/cix/tests/tour.rs` and its
+  generated page, not build/key code. Source inspection also shows
+  `build_fingerprint` explicitly hashes only inputs, artifacts, fetches, and
+  dev environments—not `memo` or `outputs`—and `workspace_identity` hashes
+  only canonical directory plus builder. The likely varying input is the
+  process-global `CIX_BUILD_WORKSPACE_DIR`: the two concurrently scheduled
+  `proj1.rs` tests each overwrite it. The output restore shortens one test and
+  changes the race timing, explaining the gate-only failure. Next: reproduce
+  under the full test binary/workspace and eliminate the global environment
+  race at the test support seam.
+
+- 2026-08-02T13:24:00Z — Reproduced the gate-only failure synchronously with
+  `devenv shell -- cargo test -p cix-cixfile --test proj1 -- --nocapture`
+  (exit 101): its parallel tests switched `CIX_BUILD_WORKSPACE_DIR` between
+  two temporary roots, so the proj1 assertion saw two builder identities under
+  its own base. Fixed the varying input rather than changing the assertion:
+  `proj1.rs` now serializes that process-global override and restores its prior
+  value. Added `build::tests::output_receipts_do_not_change_the_build_fingerprint`,
+  which proves distinct prior-run `OutputReceipt` values leave the source/output
+  cache fingerprint unchanged. Exact focused unit test, concurrent two-test
+  proj1 binary, and formatter check all pass synchronously. Next: review the
+  scoped diff, run the remaining mandated gate sequence, then commit source and
+  test changes (leaving this journal unstaged).
+
+- 2026-08-02T13:32:00Z — The first broad gate stage is synchronously green:
+  `devenv shell -- cargo run -- fmt --check examples`, warning-denied
+  workspace/all-target clippy, and serial `devenv shell -- cargo test
+  --workspace -- --test-threads=1` all exited 0. The workspace suite includes
+  both proj1 tests under their normal shared binary scheduling; the isolated
+  new fingerprint guard and a second concurrent proj1-binary run had already
+  passed. Next: regenerate and drift-check the tour, repeat its deterministic
+  check, then run the track-ending full flake check.
+
+- 2026-08-02T13:46:00Z — Ignored tour regeneration, zero-diff
+  `git diff --exit-code -- docs/tour`, and the committed-document test all
+  passed. Its first deterministic renderer attempt then caught a stale
+  workspace-marker timing failure (`workspace-state: cold` at the expected
+  warm step); the test's own end-of-scenario `rm -rf` removed the isolated
+  `target/test-tmp/.workspaces-run` state. Two fresh exact deterministic runs
+  subsequently passed synchronously (about 24s each). This does not affect the
+  output-key repair—the reproduced proj1 cause is independently the test
+  process environment race—but it is recorded rather than hidden. Next: stage
+  only the two source/test files for the flake source snapshot, run the full
+  required flake gate, then commit if green.
+
+- 2026-08-02T14:08:00Z — The track-ending `devenv shell -- nix flake check
+  -L` is green with a synchronous, explicit `flake-check-exit=0`. The initial
+  run built the staged candidate and completed the 70-check VM tier, but its
+  voluminous stream exceeded the tool buffer before an exit status could be
+  observed, so it was deliberately not counted. The exact rerun retained its
+  log in `/tmp/composix-ergo-fix2-flake-check.log`, reported all 70 candidate
+  outputs as previously built, and exited 0. All required fmt, examples fmt,
+  clippy, serial workspace, proj1, tour regeneration/drift, and two fresh tour
+  deterministic checks are now green. Next: final staged-scope audit and
+  commit only the implementation/test files; retain this append-only journal
+  unstaged.
+
+- 2026-08-02T14:10:00Z — Committed the green repair as `7917186` (`fix:
+  stabilize builder workspace regression`), containing only
+  `crates/cix-cixfile/src/build.rs` and `crates/cix-cixfile/tests/proj1.rs`.
+  The completed-output regression proves receipts do not affect the build
+  fingerprint; the concurrently executed proj1 fixtures no longer race their
+  process-global workspace root. Next: final diff/status audit; this journal
+  remains deliberately unstaged per AGENTS.md.
+
+- 2026-08-02T14:11:00Z — Final audit passed: `git diff --check` and
+  `git diff --exit-code -- docs/tour` both exited 0; `7917186` is HEAD and
+  `crates/cix-cixfile/LOG.md` is the sole uncommitted path. This requested
+  fix round is complete.
+
 - 2026-08-02T12:00:00Z — Started the requested ergo semantic-fix round on
   `track/ergo` at `e851b0e`. Read the complete spec, current project journal,
   and this crate journal. The merged tree already contains CIP-88's
