@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>filestash — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / filestash</nav>
+  <h1>filestash</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 package/static-link composition gap · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Docker passes; Cix stops at unavailable static-library linkage · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code># STEP1: CLONE THE CODE
+FROM alpine/git as builder_prepare
+WORKDIR /home/
+ARG GIT_REPO=https://github.com/mickael-kerjean/filestash
+ARG GIT_BRANCH=master
+RUN git clone --depth 1 --single-branch --branch ${GIT_BRANCH} ${GIT_REPO}
+
+# STEP2: BUILD BACKEND
+FROM golang:1.26-trixie AS builder_backend
+WORKDIR /home/filestash/
+COPY --from=builder_prepare /home/filestash/ .
+RUN apt-get update &gt; /dev/null &amp;&amp; \
+    apt-get install -y curl make &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
+    apt-get install -y libjpeg-dev libtiff-dev libpng-dev libwebp-dev libraw-dev libheif-dev libgif-dev libvips-dev &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
+    apt-get install -y libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libswresample-dev libswscale-dev libavutil-dev &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
+    make init &amp;&amp; \
+    make build &amp;&amp; \
+    mkdir -p ./dist/data/state/config/ &amp;&amp; \
+    cp config/config.json ./dist/data/state/config/config.json
+
+# STEP3: BUILD PROD IMAGE
+FROM debian:stable-slim
+MAINTAINER mickael@kerjean.me
+WORKDIR /app/
+COPY --from=builder_backend /home/filestash/dist/ .
+RUN apt-get update &gt; /dev/null &amp;&amp; \
+    apt-get -y upgrade &gt; /dev/null &amp;&amp; \
+    apt-get install -y --no-install-recommends ca-certificates curl ffmpeg libbrotli1 poppler-utils &amp;&amp; \
+    useradd filestash &amp;&amp; \
+    chown -R filestash:filestash /app/ &amp;&amp; \
+    find /app/data/ -type d -exec chmod 770 {} \; &amp;&amp; \
+    find /app/data/ -type f -exec chmod 760 {} \; &amp;&amp; \
+    chmod 730 /app/filestash &amp;&amp; \
+    rm -rf /var/lib/apt/lists/* &amp;&amp; \
+    rm -rf /tmp/*
+
+USER filestash
+CMD [&quot;/app/filestash&quot;]
+EXPOSE 8334
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go_1_26} ${pkgs.gnumake} \
+    ${pkgs.gcc} ${pkgs.pkg-config} ${pkgs.cacert} ${pkgs.libjpeg} \
+    ${pkgs.libtiff} ${pkgs.libpng} ${pkgs.libwebp} ${pkgs.libraw} \
+    ${pkgs.libheif} ${pkgs.giflib} ${pkgs.vips} ${pkgs.ffmpeg} \
+    ${pkgs.glib} ${pkgs.lcms2} ${pkgs.zlib} ${pkgs.brotli} \
+    ${pkgs.brotli.dev} ${pkgs.libjpeg.dev} ${pkgs.libpng.dev} \
+    ${pkgs.libraw.dev} \
+    ${pkgs.ffmpeg.dev} ${pkgs.glib.dev} ${pkgs.gcc.cc.lib} \
+    ${pkgs.pkgsStatic.libjpeg.out} ${pkgs.pkgsStatic.libpng.out} \
+    ${pkgs.pkgsStatic.libwebp} ${pkgs.pkgsStatic.libraw.lib} \
+    ${pkgs.pkgsStatic.lcms2.out} ${pkgs.pkgsStatic.zlib.out}
+ENV GOMODCACHE = $PWD/.gomodcache
+COPY ${src}/context/ .
+FETCH go mod download &amp;&amp; go generate -x ./server/...
+RUN CPATH=${pkgs.brotli.dev}/include:${pkgs.libjpeg.dev}/include:${pkgs.libpng.dev}/include:${pkgs.libwebp}/include:${pkgs.libraw.dev}/include:${pkgs.giflib}/include \
+    LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib \
+    PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig \
+    go build --tags fts5 -o dist/filestash cmd/main.go
+
+SERVICE filestash
+COPY ${build}/dist/filestash /bin/filestash
+COPY ${src}/context/config/config.json /share/filestash-config.json
+COPY setup.sh /bin/filestash-setup
+LINK ${pkgs.ffmpeg}/bin/ffmpeg /bin/ffmpeg
+LINK ${pkgs.ffmpeg}/bin/ffprobe /bin/ffprobe
+LINK ${pkgs.poppler-utils}/bin/pdftotext /bin/pdftotext
+LINK ${pkgs.poppler-utils}/bin/pdfinfo /bin/pdfinfo
+START_PRE filestash-setup
+START filestash
+ENV FILESTASH_PATH = /var/lib/filestash
+ENV FILESTASH_PORT = 18094
+PORT http = $FILESTASH_PORT
+STATEDIR /var/lib/filestash
+CLAIM egress
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/filestash</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

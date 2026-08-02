@@ -1,0 +1,2 @@
+line 4: unknown directive "LIVELINESS"; did you mean LIVENESS?
+  | "LIVELINESS http :8080/livez EVERY 10s"

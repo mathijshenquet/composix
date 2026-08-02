@@ -19,6 +19,8 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "ENV",
     "PORT",
     "LISTENER",
+    "READINESS",
+    "LIVENESS",
     "STATEDIR",
     "CACHEDIR",
     "LOGDIR",
@@ -26,6 +28,7 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "CONFIGDIR",
     "RUNDIR",
     "CLAIM",
+    "SHM",
 ];
 
 struct Migration {

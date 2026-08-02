@@ -11,7 +11,10 @@ use cix_run::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::resolve::CheckResult;
+use crate::{
+    model::DirectoryRole,
+    resolve::{CheckResult, DirectoryBacking, DirectoryClaim},
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -62,6 +65,28 @@ pub struct ManifestService {
     pub item_service: String,
     pub store_path: String,
     pub nar_hash: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shm: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub directories: Vec<ManifestDirectory>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ManifestDirectory {
+    pub path: PathBuf,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<DirectoryRole>,
+    pub backing: DirectoryBackingKind,
+    pub host_path: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum DirectoryBackingKind {
+    Private,
+    Host,
+    Shared,
 }
 
 #[derive(Clone, Debug)]
@@ -100,8 +125,8 @@ pub fn render_generation(
     let sysusers_dir = generation.join("sysusers.d");
     fs::create_dir_all(&units_dir)?;
     fs::create_dir_all(&sysusers_dir)?;
-    fs::copy(compose_path, generation.join("compose.json"))
-        .with_context(|| format!("copying {}", compose_path.display()))?;
+    let _ = compose_path;
+    write_json(&generation.join("compose.json"), &checked.compose)?;
     write_json(&generation.join("cix.lock"), &checked.lock)?;
 
     let rendered = render_units(checked, capabilities)?;
@@ -135,6 +160,27 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
     let mut target_wants = BTreeSet::new();
     let mut target_after = BTreeSet::new();
     let mut degradations = Vec::new();
+    let shared = collect_shared_directories(checked);
+
+    for (name, shared) in &shared {
+        let unit = format!("{prefix}-shared-{name}.service");
+        let group = shared_group(composite, name);
+        sysusers.push_str(&format!("g {group} - -\n"));
+        units.insert(
+            unit.clone(),
+            render_shared_directory_unit(name, &target, &shared.host_path, &group, &shared.members),
+        );
+        manifest_units.insert(
+            unit.clone(),
+            ManifestUnit {
+                kind: UnitKind::Edge,
+                service: None,
+                scheduled: false,
+            },
+        );
+        target_wants.insert(unit.clone());
+        target_after.insert(unit);
+    }
 
     for (edge_name, edge) in &checked.compose.edges {
         let edge_unit = format!("{prefix}-edge-{edge_name}.service");
@@ -167,6 +213,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .or_default()
             .push(EdgeClaim {
                 unit: edge_unit.clone(),
+                dependency: None,
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: edge.producer.path.display().to_string(),
@@ -174,6 +221,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         for (consumer, config) in &edge.consumers {
             service_edges.entry(consumer).or_default().push(EdgeClaim {
                 unit: edge_unit.clone(),
+                dependency: Some(format!("{prefix}-{}.service", edge.producer.service)),
                 group: group.clone(),
                 source: format!("/run/{runtime}"),
                 destination: config
@@ -195,26 +243,72 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .cloned()
             .unwrap_or_default();
         let mut extra_properties = Vec::new();
+        let mut unit_properties = Vec::new();
         if checked.compose.log_namespace {
             extra_properties.push(("LogNamespace".into(), format!("cix-{composite}")));
         }
-        if !claims.is_empty() {
+        let directory_groups = checked_service
+            .directories
+            .iter()
+            .filter_map(|claim| match &claim.backing {
+                DirectoryBacking::Shared { name } => Some(shared_group(composite, name)),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        if !claims.is_empty() || !directory_groups.is_empty() {
             extra_properties.push((
                 "SupplementaryGroups".into(),
                 claims
                     .iter()
                     .map(|claim| claim.group.as_str())
+                    .chain(directory_groups.iter().map(String::as_str))
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>()
                     .join(" "),
             ));
-            extra_properties.push(("UMask".into(), "0007".into()));
+            extra_properties.push((
+                "UMask".into(),
+                if directory_groups.is_empty() {
+                    "0007"
+                } else {
+                    "0002"
+                }
+                .into(),
+            ));
             for claim in &claims {
                 extra_properties.push((
                     "BindPaths".into(),
                     format!("{}:{}:rbind", claim.source, claim.destination),
                 ));
+            }
+        }
+        for claim in &checked_service.directories {
+            match &claim.backing {
+                DirectoryBacking::Private => {}
+                DirectoryBacking::Host { path, idmap } => {
+                    let value = bind_value(path, &claim.path, *idmap);
+                    extra_properties.push((
+                        if claim.writable {
+                            "BindPaths"
+                        } else {
+                            "BindReadOnlyPaths"
+                        }
+                        .into(),
+                        value,
+                    ));
+                    unit_properties.push(("RequiresMountsFor".into(), path.display().to_string()));
+                }
+                DirectoryBacking::Shared { name } => {
+                    let shared = &shared[name];
+                    extra_properties.push((
+                        "BindPaths".into(),
+                        bind_value(&shared.host_path, &claim.path, false),
+                    ));
+                    let unit = format!("{prefix}-shared-{name}.service");
+                    unit_properties.push(("Requires".into(), unit.clone()));
+                    unit_properties.push(("After".into(), unit));
+                }
             }
         }
         let sockets = checked_service
@@ -226,7 +320,18 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
         if !sockets.is_empty() {
             extra_properties.push(("Sockets".into(), sockets.join(" ")));
         }
-        let mut compiled_service = checked_service.spec.clone();
+        let mut compiled_service =
+            private_service(&checked_service.spec, &checked_service.directories);
+        if let Some(shm) = &declaration.shm {
+            compiled_service.shm = Some(shm.clone());
+        }
+        if let Some(identity) = &declaration.identity {
+            extra_properties.extend([
+                ("DynamicUser".into(), "no".into()),
+                ("User".into(), identity.clone()),
+                ("Group".into(), identity.clone()),
+            ]);
+        }
         if let Some(run_paths) = &mut compiled_service.dirs.run {
             run_paths.retain(|path| {
                 !claims
@@ -248,10 +353,12 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                     directory_prefix: prefix.clone(),
                 },
                 extra_properties,
+                unit_properties: Vec::new(),
                 log_fields: vec![
                     ("CIX_COMPOSITE".into(), composite.clone()),
                     ("CIX_SERVICE".into(), service_name.clone()),
                 ],
+                probe_binary: None,
             },
             capabilities,
         )
@@ -270,8 +377,28 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .iter()
             .map(|claim| claim.unit.clone())
             .chain(sockets.iter().cloned())
+            .chain(
+                unit_properties
+                    .iter()
+                    .filter_map(|(name, value)| (name == "Requires").then_some(value.clone())),
+            )
             .collect::<BTreeSet<_>>();
-        let text = add_unit_dependencies(&compiled.text, &target, &requires);
+        let after = requires
+            .iter()
+            .cloned()
+            .chain(claims.iter().filter_map(|claim| claim.dependency.clone()))
+            .chain(
+                unit_properties
+                    .iter()
+                    .filter_map(|(name, value)| (name == "After").then_some(value.clone())),
+            )
+            .collect::<BTreeSet<_>>();
+        let unit_properties = unit_properties
+            .into_iter()
+            .filter(|(name, _)| name != "Requires" && name != "After")
+            .collect::<Vec<_>>();
+        let text =
+            add_unit_dependencies(&compiled.text, &target, &requires, &after, &unit_properties);
         units.insert(service_unit.clone(), text);
         manifest_units.insert(
             service_unit.clone(),
@@ -330,6 +457,12 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                 item_service: checked_service.item_service.clone(),
                 store_path: locked.store_path.clone(),
                 nar_hash: locked.nar_hash.clone(),
+                shm: compiled_service.shm,
+                directories: checked_service
+                    .directories
+                    .iter()
+                    .map(|claim| manifest_directory(composite, service_name, claim))
+                    .collect(),
             },
         );
     }
@@ -374,6 +507,7 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
 #[derive(Clone)]
 struct EdgeClaim {
     unit: String,
+    dependency: Option<String>,
     group: String,
     source: String,
     destination: String,
@@ -437,17 +571,179 @@ fn render_timer_unit(
     text
 }
 
-fn add_unit_dependencies(text: &str, target: &str, requires: &BTreeSet<String>) -> String {
+fn add_unit_dependencies(
+    text: &str,
+    target: &str,
+    requires: &BTreeSet<String>,
+    after: &BTreeSet<String>,
+    extra: &[(String, String)],
+) -> String {
     let mut properties = format!("PartOf={target}\n");
     if !requires.is_empty() {
         let requires = requires.iter().cloned().collect::<Vec<_>>().join(" ");
-        properties.push_str(&format!("Requires={requires}\nAfter={requires}\n"));
+        properties.push_str(&format!("Requires={requires}\n"));
+    }
+    if !after.is_empty() {
+        let after = after.iter().cloned().collect::<Vec<_>>().join(" ");
+        properties.push_str(&format!("After={after}\n"));
+    }
+    for (name, value) in extra {
+        properties.push_str(&format!("{name}={value}\n"));
     }
     text.replacen(
         "\n\n[Service]\n",
         &format!("\n{properties}\n[Service]\n"),
         1,
     )
+}
+
+struct SharedDirectory {
+    host_path: PathBuf,
+    members: Vec<String>,
+}
+
+fn collect_shared_directories(checked: &CheckResult) -> BTreeMap<String, SharedDirectory> {
+    let mut shared = BTreeMap::new();
+    for (service, checked_service) in &checked.services {
+        for claim in &checked_service.directories {
+            let DirectoryBacking::Shared { name } = &claim.backing else {
+                continue;
+            };
+            let entry = shared
+                .entry(name.clone())
+                .or_insert_with(|| SharedDirectory {
+                    host_path: shared_host_path(&checked.compose.name, name),
+                    members: Vec::new(),
+                });
+            entry
+                .members
+                .push(format!("cix-{}-{service}.service", checked.compose.name));
+        }
+    }
+    for entry in shared.values_mut() {
+        entry.members.sort();
+        entry.members.dedup();
+    }
+    shared
+}
+
+fn private_service(
+    service: &cix_run::spec::Service,
+    claims: &[DirectoryClaim],
+) -> cix_run::spec::Service {
+    let mut private = service.clone();
+    private.dirs.state.clear();
+    private.dirs.cache.clear();
+    private.dirs.logs.clear();
+    private.dirs.config.clear();
+    private.dirs.run = None;
+    private.dirs.data.clear();
+    for claim in claims {
+        if claim.backing != DirectoryBacking::Private {
+            continue;
+        }
+        match claim.role {
+            Some(DirectoryRole::State) => private.dirs.state.push(claim.path.clone()),
+            Some(DirectoryRole::Cache) => private.dirs.cache.push(claim.path.clone()),
+            Some(DirectoryRole::Logs) => private.dirs.logs.push(claim.path.clone()),
+            Some(DirectoryRole::Config) => private.dirs.config.push(claim.path.clone()),
+            Some(DirectoryRole::Run) => private
+                .dirs
+                .run
+                .get_or_insert_with(Vec::new)
+                .push(claim.path.clone()),
+            None => unreachable!("DIR cannot retain private backing"),
+        }
+    }
+    private
+}
+
+fn bind_value(source: &Path, destination: &Path, idmap: bool) -> String {
+    let mut value = format!("{}:{}", source.display(), destination.display());
+    if idmap {
+        value.push_str(":idmap");
+    }
+    value
+}
+
+fn shared_group(composite: &str, name: &str) -> String {
+    format!("cix-s-{:016x}", stable_hash(composite, name))
+}
+
+fn shared_host_path(composite: &str, name: &str) -> PathBuf {
+    Path::new("/var/lib/cix-compose")
+        .join(composite)
+        .join("shared")
+        .join(name)
+}
+
+fn stable_hash(composite: &str, name: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in composite
+        .bytes()
+        .chain(std::iter::once(0))
+        .chain(name.bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
+fn render_shared_directory_unit(
+    name: &str,
+    target: &str,
+    host_path: &Path,
+    group: &str,
+    members: &[String],
+) -> String {
+    let relative = host_path
+        .strip_prefix("/var/lib")
+        .expect("shared path is below /var/lib")
+        .display();
+    format!(
+        "[Unit]\nDescription=cix compose shared directory: {name}\nPartOf={target}\nBefore={}\n\n[Service]\nType=oneshot\nSlice={}.slice\nExecStart=/bin/sh -c true\nRemainAfterExit=yes\nGroup={group}\nStateDirectory={relative}\nStateDirectoryMode=2770\nUMask=0002\n",
+        members.join(" "),
+        target.trim_end_matches(".target")
+    )
+}
+
+fn manifest_directory(composite: &str, service: &str, claim: &DirectoryClaim) -> ManifestDirectory {
+    let (backing, host_path) = match &claim.backing {
+        DirectoryBacking::Private => (
+            DirectoryBackingKind::Private,
+            private_host_path(
+                composite,
+                service,
+                claim.role.expect("private role"),
+                &claim.path,
+            ),
+        ),
+        DirectoryBacking::Host { path, .. } => (DirectoryBackingKind::Host, path.clone()),
+        DirectoryBacking::Shared { name } => (
+            DirectoryBackingKind::Shared,
+            shared_host_path(composite, name),
+        ),
+    };
+    ManifestDirectory {
+        path: claim.path.clone(),
+        role: claim.role,
+        backing,
+        host_path,
+    }
+}
+
+fn private_host_path(composite: &str, service: &str, role: DirectoryRole, path: &Path) -> PathBuf {
+    let root = match role {
+        DirectoryRole::State => "/var/lib",
+        DirectoryRole::Cache => "/var/cache",
+        DirectoryRole::Logs => "/var/log",
+        DirectoryRole::Config => "/etc",
+        DirectoryRole::Run => "/run",
+    };
+    Path::new(root)
+        .join(format!("cix-{composite}-{service}"))
+        .join(path.strip_prefix("/").expect("validated absolute path"))
 }
 
 fn render_target(composite: &str, wants: &BTreeSet<String>, after: &BTreeSet<String>) -> String {
@@ -516,9 +812,12 @@ mod tests {
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),
+                        dirs: BTreeMap::new(),
+                        identity: None,
                         schedule: None,
                         persistent: None,
                         jitter: None,
+                        shm: None,
                     },
                 ),
                 (
@@ -528,9 +827,12 @@ mod tests {
                         update: UpdatePolicy::Pin,
                         env: BTreeMap::new(),
                         bind: BTreeMap::new(),
+                        dirs: BTreeMap::new(),
+                        identity: None,
                         schedule: None,
                         persistent: None,
                         jitter: None,
+                        shm: None,
                     },
                 ),
             ]),
@@ -569,6 +871,7 @@ mod tests {
         let checked = CheckResult {
             compose,
             lock,
+            warnings: Vec::new(),
             services: BTreeMap::from([
                 (
                     "web".into(),
@@ -577,6 +880,13 @@ mod tests {
                         item_service: "app".into(),
                         spec: web_service,
                         config: web_config,
+                        directories: vec![DirectoryClaim {
+                            path: "/run/app".into(),
+                            declared_role: Some(DirectoryRole::Run),
+                            role: Some(DirectoryRole::Run),
+                            writable: true,
+                            backing: DirectoryBacking::Private,
+                        }],
                     },
                 ),
                 (
@@ -586,6 +896,22 @@ mod tests {
                         item_service: "app".into(),
                         spec: worker_service,
                         config: worker_config,
+                        directories: vec![
+                            DirectoryClaim {
+                                path: "/run/app".into(),
+                                declared_role: Some(DirectoryRole::Run),
+                                role: Some(DirectoryRole::Run),
+                                writable: true,
+                                backing: DirectoryBacking::Private,
+                            },
+                            DirectoryClaim {
+                                path: "/var/lib/app".into(),
+                                declared_role: Some(DirectoryRole::State),
+                                role: Some(DirectoryRole::State),
+                                writable: true,
+                                backing: DirectoryBacking::Private,
+                            },
+                        ],
                     },
                 ),
             ]),
@@ -665,6 +991,116 @@ mod tests {
         )
         .unwrap();
         assert_eq!(timer, expected);
+    }
+
+    #[test]
+    fn compose_shm_override_wins_over_the_item() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked.compose.services.get_mut("web").unwrap().shm = Some("96M".into());
+        let generation = directory.path().join("generation");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let unit = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(
+            unit.contains("TemporaryFileSystem=/dev/shm:size=96M"),
+            "{unit}"
+        );
+        assert_eq!(manifest.services["web"].shm.as_deref(), Some("96M"));
+    }
+
+    #[test]
+    fn host_shared_and_reclassified_directories_render_their_distinct_mechanisms() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked.compose.services.get_mut("web").unwrap().identity = Some("hostuser".into());
+        checked.services.get_mut("web").unwrap().directories = vec![
+            DirectoryClaim {
+                path: "/run/app".into(),
+                declared_role: Some(DirectoryRole::Run),
+                role: Some(DirectoryRole::Run),
+                writable: true,
+                backing: DirectoryBacking::Host {
+                    path: "/tank/web".into(),
+                    idmap: true,
+                },
+            },
+            DirectoryClaim {
+                path: "/var/lib/web-shared".into(),
+                declared_role: Some(DirectoryRole::State),
+                role: Some(DirectoryRole::State),
+                writable: true,
+                backing: DirectoryBacking::Shared {
+                    name: "uploads".into(),
+                },
+            },
+        ];
+        checked.services.get_mut("worker").unwrap().directories = vec![
+            DirectoryClaim {
+                path: "/run/app".into(),
+                declared_role: Some(DirectoryRole::Run),
+                role: Some(DirectoryRole::Run),
+                writable: true,
+                backing: DirectoryBacking::Private,
+            },
+            DirectoryClaim {
+                path: "/var/lib/app".into(),
+                declared_role: Some(DirectoryRole::State),
+                role: Some(DirectoryRole::Cache),
+                writable: true,
+                backing: DirectoryBacking::Private,
+            },
+            DirectoryClaim {
+                path: "/var/lib/worker-shared".into(),
+                declared_role: Some(DirectoryRole::State),
+                role: Some(DirectoryRole::State),
+                writable: true,
+                backing: DirectoryBacking::Shared {
+                    name: "uploads".into(),
+                },
+            },
+        ];
+        let generation = directory.path().join("generation");
+        let manifest = render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(web.contains("User=hostuser"), "{web}");
+        assert!(web.contains("DynamicUser=no"), "{web}");
+        assert!(web.contains("BindPaths=/tank/web:/run/app:idmap"), "{web}");
+        assert!(web.contains("RequiresMountsFor=/tank/web"), "{web}");
+        assert!(web.contains("UMask=0002"), "{web}");
+        let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
+        assert!(
+            worker.contains("CacheDirectory=cix-stack-worker cix-stack-worker/var/lib/app"),
+            "{worker}"
+        );
+        assert!(
+            !worker.contains("StateDirectory=cix-stack-worker cix-stack-worker/var/lib/app"),
+            "{worker}"
+        );
+        let shared =
+            fs::read_to_string(generation.join("units/cix-stack-shared-uploads.service")).unwrap();
+        assert!(
+            shared.contains("StateDirectory=cix-compose/stack/shared/uploads"),
+            "{shared}"
+        );
+        assert!(shared.contains("StateDirectoryMode=2770"), "{shared}");
+        assert!(manifest.services["web"]
+            .directories
+            .iter()
+            .any(|directory| directory.backing == DirectoryBackingKind::Host));
+        assert!(manifest.services["worker"]
+            .directories
+            .iter()
+            .any(|directory| directory.backing == DirectoryBackingKind::Shared));
     }
 
     #[test]

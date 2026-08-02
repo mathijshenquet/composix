@@ -21,3 +21,7 @@ EOF
   START /bin/bash -c 'echo  hi'
   ENV MODE = production
   PORT http = 8080
+  READINESS http :8080/healthz IN 90s
+  LIVENESS notify EVERY 10s
+  CLAIM gpu
+  SHM 256M

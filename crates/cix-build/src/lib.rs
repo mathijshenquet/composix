@@ -21,6 +21,6 @@ pub use lock::{
     FetchPin, InputLock, LockFile, MemoEntry, OutputReceipt, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 pub use model::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, Dirs, Env, Fetch, Input,
-    InputKind, Port, Service, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
+    Input, InputKind, Liveness, Port, Probe, Readiness, Service, Template, TemplatePart,
 };

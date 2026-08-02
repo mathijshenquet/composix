@@ -1,0 +1,5 @@
+# grade: problem=pass line=4 fix=pass docs=n/a
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+SERVICE web
+LIVELINESS http :8080/livez EVERY 10s
+START /bin/true

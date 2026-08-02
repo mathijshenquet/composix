@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>traefik — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
+    a { color: #2878c7; }
+    .crumbs, .status, .source { color: #667085; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
+    .file { margin-top: 1rem; }
+    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
+    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    footer { margin-top: 2rem; color: #667085; }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / traefik</nav>
+  <h1>traefik</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Cix build and ping endpoint pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/traefik/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/traefik/SOURCE">Pinned upstream source notes</a></p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code>FROM alpine:3.22
+RUN apk --no-cache add ca-certificates tzdata
+RUN set -ex; \
+	apkArch=&quot;$(apk --print-arch)&quot;; \
+	case &quot;$apkArch&quot; in \
+		armhf) arch=&#39;armv6&#39; ;; \
+		aarch64) arch=&#39;arm64&#39; ;; \
+		x86_64) arch=&#39;amd64&#39; ;; \
+		riscv64) arch=&#39;riscv64&#39; ;; \
+		s390x) arch=&#39;s390x&#39; ;; \
+		ppc64le) arch=&#39;ppc64le&#39; ;; \
+		*) echo &gt;&amp;2 &quot;error: unsupported architecture: $apkArch&quot;; exit 1 ;; \
+	esac; \
+	wget --quiet -O /tmp/traefik.tar.gz &quot;https://github.com/traefik/traefik/releases/download/v3.5.6/traefik_v3.5.6_linux_$arch.tar.gz&quot;; \
+	tar xzvf /tmp/traefik.tar.gz -C /usr/local/bin traefik; \
+	rm -f /tmp/traefik.tar.gz; \
+	chmod +x /usr/local/bin/traefik
+COPY entrypoint.sh /
+EXPOSE 80
+ENTRYPOINT [&quot;/entrypoint.sh&quot;]
+CMD [&quot;traefik&quot;]
+
+# Metadata
+LABEL org.opencontainers.image.vendor=&quot;Traefik Labs&quot; \
+    org.opencontainers.image.url=&quot;https://traefik.io&quot; \
+    org.opencontainers.image.source=&quot;https://github.com/traefik/traefik&quot; \
+    org.opencontainers.image.title=&quot;Traefik&quot; \
+    org.opencontainers.image.description=&quot;A modern reverse-proxy&quot; \
+    org.opencontainers.image.version=&quot;v3.5.6&quot; \
+    org.opencontainers.image.documentation=&quot;https://docs.traefik.io&quot;
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE traefik
+  LINK ${pkgs.traefik}/bin/traefik /bin/traefik
+  START traefik --ping=true
+  PORT http = 80
+  PORT monitor = 8080
+</code></pre>
+      </section>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/traefik</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

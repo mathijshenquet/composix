@@ -2,7 +2,7 @@
 Description=cix run: web
 PartOf=cix-stack.target
 Requires=cix-stack-edge-shared.service cix-stack-web-http.socket
-After=cix-stack-edge-shared.service cix-stack-web-http.socket
+After=cix-stack-edge-shared.service cix-stack-web-http.socket cix-stack-worker.service
 
 [Service]
 Type=exec
@@ -13,6 +13,7 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 PrivatePIDs=yes
+PrivateDevices=yes
 NoNewPrivileges=yes
 RestrictSUIDSGID=yes
 ProtectKernelTunables=yes

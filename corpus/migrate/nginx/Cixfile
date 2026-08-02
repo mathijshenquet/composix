@@ -3,6 +3,5 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE nginx
   LOGDIR /var/log/nginx
   RUNDIR /run/nginx
-  LINK ${pkgs.nginx}/bin/nginx /bin/nginx
-  START nginx -g 'daemon off;'
+  START ${pkgs.nginx}/bin/nginx -g 'daemon off; error_log stderr info;'
   PORT http = 80

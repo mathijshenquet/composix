@@ -1,13 +1,31 @@
 # nginx migration receipt
 
-Cix refresh: 2026-08-01. Language generation: D56–D64 (`LOGDIR`, explicit artifact `bin/`, and quote-aware `START`).
+Cix refresh: 2026-08-02. The current conversion uses a locked store executable,
+quote-aware `START`, the service's real `LOGDIR`, and explicit stderr logging.
 
 Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
 
-## `./check.sh cix`
+## 2026-08-02 build, runtime, and log projection
 
 ```text
-cix item /nix/store/xlnmhf6gwsl8c41q7f8iq241vgs5r102-cix-item-nginx
+target/debug/cix build -t regrade corpus/migrate/nginx
+/nix/store/s35rsvbhr2hi9qmm1wpj4bibgl3nssvz-cix-item-nginx
+target/debug/cix compose check .dev/scratch/regrade/nginx-compose.json
+compose corpus-nginx: 1 services, 0 edges, valid
+sudo env PATH="$PATH" target/debug/cix up \
+  .dev/scratch/regrade/nginx-compose.json --update='*'
+activated corpus-nginx from \
+  /nix/store/ih1xx84mpvnwggfwwdcaqkhc0qvysqw6-cix-compose-corpus-nginx-generation
+curl --fail --silent http://127.0.0.1:80/
+target/debug/cix logs corpus-nginx/nginx \
+  --invocation e7e0b1a98d454881b8d5e7ec3ec5be04 -n 30
+nginx/1.30.4
+start worker process 1302377
 ```
 
-Exit status: 0. The HTTP probe passed; `-g 'daemon off;'` is now one argv word.
+Exit status: 0. The HTTP probe passed; `-g 'daemon off; error_log stderr
+info;'` remained one argv word. `cix logs` printed and executed the equivalent
+indexed `journalctl` query using `CIX_COMPOSITE`, `CIX_SERVICE`, and the current
+invocation ID. Runtime used the existing D36 PrivatePIDs fallback. Docker mode
+and upstream version parity were not re-verified. Cleanup used `cix down` and
+removed both temporary tags.

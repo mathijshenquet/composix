@@ -5,11 +5,11 @@ for new decisions.
 
 ## Process
 
-- **Drafts** live in `docs/cips/draft/<name>.md` — name only, no number.
+- **Drafts** live in `cips/draft/<name>.md` — name only, no number.
   Anyone (usually the orchestrator) writes one when a design question
   surfaces; the author posts Mathijs the full GitHub URL.
 - **Adoption** is Mathijs's call. On adoption the file moves to
-  `docs/cips/<NNNN>-<name>.md`; numbering continues the design.md
+  `cips/accepted/<NNNN>-<name>.md`; numbering continues the design.md
   D-sequence (D74 was the last D-number, so the first CIP is **CIP-75**,
   filename `0075-<name>.md`) — one unambiguous citation sequence across
   both eras.

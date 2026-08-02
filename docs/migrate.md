@@ -197,7 +197,9 @@ ENV PORT = 8080 required
 PORT http = $PORT
 ```
 
-Declare role directories by their systemd meaning:
+Declare role directories by their systemd meaning. Their paths may be any clean
+absolute application path; cix mirrors the full path under a unit-scoped systemd
+directory root and binds it back into the service:
 
 - `STATEDIR /var/lib/app` for durable state;
 - `CACHEDIR /var/cache/app` for disposable runtime cache;
@@ -207,7 +209,11 @@ Declare role directories by their systemd meaning:
 
 Prefer stdout/stderr over a log directory when the application supports it. `APP` permits
 only `STATEDIR` and `CACHEDIR`; it has no ports, listeners, setup hook, or log/config/run role
-directories.
+directories. Use undecorated `DIR /media:ro` only for pre-existing operator-supplied
+content. Compose maps it through explicit `host:`/`shared:`/`as:` materialization:
+host backing must pre-exist and use a declared static identity, while shared backing
+is compose-local and group-managed. `.env` interpolation is read only from the
+compose file's own directory; credentials do not travel through that route.
 
 Capabilities are explicit and closed: `CLAIM egress` declares outbound networking and
 `CLAIM jit` relaxes systemd's memory-write/execute prohibition. Put one claim on each line.
@@ -266,11 +272,13 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `START` argv; use quote-aware words | `START` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
-| `VOLUME /data` | Use `STATEDIR` (or another role) for cix-managed private data; use `DIR /data` when the operator supplies the content | `DIR` materialization (`host:`, `shared:`, `as:`) arrives with compose; it is not an empty private volume. |
+| `VOLUME /data` | Use `STATEDIR /data` (or another role) for cix-managed private data; use `DIR /data` only when the operator supplies the content | Compose `as:` can change lifecycle treatment loudly when it makes data less durable; `DIR` never becomes an empty private volume. |
+| bind mount / Compose host path | Declare the in-service path and map it with `dirs: {"/path": {"host": "/operator/path"}}` plus `identity` | The host directory must pre-exist; cix never creates/chowns it. Read-only follows the declaration; idmapped ownership requires explicit `idmap: true`. |
 | `USER`, `gosu`, `su-exec`, or `tini` | Delete them; DynamicUser and systemd provide identity, privilege drop, supervision, and reaping | A workload requiring a fixed uid/gid or startup `chown` has an identity/ownership requirement that must be reported, not hand-waved away. |
 | outbound access or JIT loosening | `CLAIM egress` or `CLAIM jit` | Those are the only current claims. Raw capabilities, devices, and privileged mode are not expressible. |
-| `HEALTHCHECK` | Preserve the probe semantics for the future D48 health edge | Health is designed as a probe plus explicit consumers (ordering/restart/convergence), not one container-status bit, and is not implemented yet. Mark the migration incomplete rather than dropping the check silently. |
+| `HEALTHCHECK` | Translate its consumer intent to `READINESS http\|tcp\|notify ... IN ...` and/or `LIVENESS http\|tcp\|notify ... EVERY ...`; replace curl-shaped exec checks with native HTTP/TCP probes | There is no generic exec probe and no separate health-gated dependency graph: structural edges wait for readiness. A check that cannot become http/tcp/notify remains an explicit migration gap. |
 | cron, crontab, or Kubernetes `CronJob` | Build the work as an `APP`, then put `schedule: "<OnCalendar>"` on its compose member | Rewrite the schedule as systemd `OnCalendar=` and check it with `systemd-analyze calendar`; composix never translates cron syntax. Add explicit `persistent: true` or `jitter: "<duration>"` only when wanted. |
+| stdout/stderr, log symlinks, or a logging driver | Write stdout/stderr and read it with `cix logs <compose>[/<service>]`; use `LOGDIR` only when the process truly writes files | CIP-83 stamps indexed journald selectors and provides `cix logs`/`stats`. Logging drivers remain deliberately refused; forwarding and retention belong to journald (optionally a compose `logNamespace`). |
 | bind-mounting `/var/run/docker.sock` or another host control socket | **No faithful conversion: ❌** | Composix deliberately provides no Docker-API/host-socket capability. Do not replace it with outbound network access. |
 | build secrets, SSH mounts, or credentials copied into an image | **No native Cixfile conversion yet: ❌** | Never place secrets in a `COPY`, `ENV`, `RUN`, lock, or store artifact. Use the `.nix` escape hatch only if it preserves secret non-persistence, otherwise report the gap. |
 | `LABEL` | Drop provenance labels | Lock and closure receipts supersede hand-written source/version claims. Display annotations are designed, deliberately unbuilt (D54). |

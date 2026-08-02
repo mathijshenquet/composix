@@ -1,12 +1,14 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::path::{Component, Path};
+use std::ffi::CStr;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
 use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
-use crate::spec::{Dirs, Protocol, Service};
+use crate::spec::{format_duration, parse_duration, Dirs, Probe, ProbeType, Protocol, Service};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnitMode {
@@ -60,8 +62,14 @@ pub struct UnitCompileOptions {
     pub naming: UnitNaming,
     /// Additional systemd service properties appended after cix-run's own properties.
     pub extra_properties: Vec<(String, String)>,
+    /// Additional [Unit] properties such as RequiresMountsFor for host backing.
+    pub unit_properties: Vec<(String, String)>,
     /// Indexed journald fields identifying the cix owner of this unit.
     pub log_fields: Vec<(String, String)>,
+    /// Exact cix executable used by native readiness/liveness adapters.
+    ///
+    /// Production callers normally leave this unset so it resolves to the running binary.
+    pub probe_binary: Option<PathBuf>,
 }
 
 impl UnitCompileOptions {
@@ -70,7 +78,9 @@ impl UnitCompileOptions {
         Self {
             naming: UnitNaming::cix_run(service_name),
             extra_properties: Vec::new(),
+            unit_properties: Vec::new(),
             log_fields: vec![("CIX_RUN".into(), format!("cix-run-{service_name}.service"))],
+            probe_binary: None,
         }
     }
 }
@@ -253,6 +263,7 @@ pub(crate) fn build_unit_with_options(
         properties.push(("ProtectHome".into(), "yes".into()));
         properties.push(("PrivateTmp".into(), "yes".into()));
         properties.push(("PrivatePIDs".into(), "yes".into()));
+        add_device_policy(&mut properties, service)?;
     }
     properties.extend([
         ("NoNewPrivileges".into(), "yes".into()),
@@ -294,10 +305,14 @@ pub(crate) fn build_unit_with_options(
         properties.push(("PrivateNetwork".into(), "yes".into()));
     }
     add_socket_bind_restrictions(&mut properties, service, config);
+    if let Some(shm) = &service.shm {
+        properties.push(("TemporaryFileSystem".into(), format!("/dev/shm:size={shm}")));
+    }
     if let Some(start_pre) = &service.start_pre {
         let start_pre = resolved_argv(output, "start_pre", start_pre, &item_env)?;
         properties.push(("ExecStartPre".into(), exec_command(&start_pre)));
     }
+    add_health_properties(&mut properties, service, options)?;
 
     let mut environment = item_env
         .iter()
@@ -316,7 +331,13 @@ pub(crate) fn build_unit_with_options(
 
     properties.extend(options.extra_properties.iter().cloned());
     let degradations = apply_host_capabilities(&mut properties, mode, capabilities);
-    let text = render(service_name, &argv, &environment, &properties);
+    let text = render(
+        service_name,
+        &argv,
+        &environment,
+        &properties,
+        &options.unit_properties,
+    );
     Ok(CompiledUnit {
         name: options.naming.unit.clone(),
         target: options.naming.target.clone(),
@@ -326,6 +347,153 @@ pub(crate) fn build_unit_with_options(
         argv,
         degradations,
     })
+}
+
+fn add_health_properties(
+    properties: &mut Vec<(String, String)>,
+    service: &Service,
+    options: &UnitCompileOptions,
+) -> Result<()> {
+    if let Some(readiness) = &service.readiness {
+        if readiness.probe.probe_type == ProbeType::Notify {
+            properties
+                .iter_mut()
+                .find(|(name, _)| name == "Type")
+                .expect("Type property exists")
+                .1 = "notify".into();
+        } else {
+            properties.push((
+                "ExecStartPost".into(),
+                probe_command(options, "await", &readiness.probe, None)?,
+            ));
+        }
+        properties.push(("TimeoutStartSec".into(), readiness.timeout.clone()));
+        properties.push(("TimeoutStopSec".into(), readiness.timeout.clone()));
+    }
+
+    if service.liveness.is_some()
+        && service
+            .readiness
+            .as_ref()
+            .is_some_and(|readiness| readiness.probe.probe_type != ProbeType::Notify)
+    {
+        properties.push(("NotifyAccess".into(), "all".into()));
+    }
+
+    if let Some(liveness) = &service.liveness {
+        let interval = parse_duration(&liveness.interval).context("invalid liveness interval")?;
+        let watchdog = interval
+            .checked_mul(3)
+            .context("liveness watchdog window is too large")?;
+        properties.push(("WatchdogSec".into(), format_duration(watchdog)));
+        if liveness.probe.probe_type != ProbeType::Notify {
+            if !properties.iter().any(|(name, _)| name == "NotifyAccess") {
+                properties.push(("NotifyAccess".into(), "all".into()));
+            }
+            properties.push((
+                "ExecStartPost".into(),
+                probe_command(options, "pinger", &liveness.probe, Some(&liveness.interval))?,
+            ));
+        }
+        properties.extend([
+            ("Restart".into(), "on-failure".into()),
+            ("RestartSec".into(), liveness.interval.clone()),
+            ("StartLimitIntervalSec".into(), "5min".into()),
+            ("StartLimitBurst".into(), "5".into()),
+        ]);
+    }
+    Ok(())
+}
+
+fn probe_command(
+    options: &UnitCompileOptions,
+    mode: &str,
+    probe: &Probe,
+    interval: Option<&str>,
+) -> Result<String> {
+    let binary = options
+        .probe_binary
+        .clone()
+        .map(Ok)
+        .unwrap_or_else(std::env::current_exe)
+        .context("resolving the cix binary for a native health probe")?;
+    if !binary.is_absolute() {
+        bail!("cix probe binary {} is not absolute", binary.display());
+    }
+    let probe_type = match probe.probe_type {
+        ProbeType::Http => "http",
+        ProbeType::Tcp => "tcp",
+        ProbeType::Notify => bail!("notify probes do not use the cix probe adapter"),
+    };
+    let target = probe.target.as_deref().expect("validated adapter target");
+    let mut command = vec![
+        binary.to_string_lossy().into_owned(),
+        "probe".into(),
+        mode.into(),
+        probe_type.into(),
+        target.into(),
+    ];
+    if let Some(interval) = interval {
+        command.extend(["--every".into(), interval.into()]);
+    }
+    Ok(exec_command(&command))
+}
+
+fn add_device_policy(properties: &mut Vec<(String, String)>, service: &Service) -> Result<()> {
+    if !service.has_device_claim() {
+        properties.push(("PrivateDevices".into(), "yes".into()));
+        return Ok(());
+    }
+
+    properties.push(("DevicePolicy".into(), "closed".into()));
+    let mut groups = BTreeSet::new();
+    if service.has_claim("gpu") {
+        properties.push(("DeviceAllow".into(), "/dev/dri rwm".into()));
+        groups.extend(["render".to_owned(), "video".to_owned()]);
+    }
+    for device in service.device_claims() {
+        properties.push(("DeviceAllow".into(), format!("{} rwm", device.display())));
+        if let Some(group) = device_group(device)? {
+            groups.insert(group);
+        }
+    }
+    if !groups.is_empty() {
+        properties.push((
+            "SupplementaryGroups".into(),
+            groups.into_iter().collect::<Vec<_>>().join(" "),
+        ));
+    }
+    Ok(())
+}
+
+fn device_group(device: &Path) -> Result<Option<String>> {
+    let metadata = match std::fs::metadata(device) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            eprintln!(
+                "warning: claimed device {} is absent while generating the unit; no owning group was added and activation will fail until the hardware is present",
+                device.display()
+            );
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("statting claimed device {}", device.display()))
+        }
+    };
+    let group = unsafe { libc::getgrgid(metadata.gid()) };
+    if group.is_null() {
+        eprintln!(
+            "warning: claimed device {} has gid {} with no resolvable group; no supplementary group was added",
+            device.display(),
+            metadata.gid()
+        );
+        return Ok(None);
+    }
+    let name = unsafe { CStr::from_ptr((*group).gr_name) }
+        .to_str()
+        .context("claimed device group name is not valid UTF-8")?;
+    Ok((!name.is_empty()).then(|| name.to_owned()))
 }
 
 fn apply_host_capabilities(
@@ -340,41 +508,56 @@ fn apply_host_capabilities(
         "ConfigurationDirectory",
     ];
 
-    if mode != UnitMode::System
-        || !properties
+    let mut degradations = Vec::new();
+
+    if mode == UnitMode::System
+        && properties
             .iter()
             .any(|(name, value)| name == "DynamicUser" && value == "yes")
-        || !properties
+        && properties
             .iter()
             .any(|(name, value)| name == "PrivatePIDs" && value == "yes")
-        || !properties
+        && properties
             .iter()
             .any(|(name, _)| PERSISTENT_DIRECTORIES.contains(&name.as_str()))
     {
-        return Vec::new();
-    }
-
-    let Some(reason) = capabilities
-        .private_pids_with_persistent_directories
-        .unsupported_reason()
-    else {
-        return Vec::new();
-    };
-    properties.retain(|(name, _)| name != "PrivatePIDs");
-    for (name, value) in properties.iter_mut() {
-        if matches!(
-            name.as_str(),
-            "StateDirectoryMode" | "CacheDirectoryMode" | "LogsDirectoryMode"
-        ) {
-            // Without PrivatePIDs, systemd cannot retain the managed directory's
-            // ID-mapped view. The private host backing still confines this view.
-            *value = "0733".into();
+        if let Some(reason) = capabilities
+            .private_pids_with_persistent_directories
+            .unsupported_reason()
+        {
+            properties.retain(|(name, _)| name != "PrivatePIDs");
+            for (name, value) in properties.iter_mut() {
+                if matches!(
+                    name.as_str(),
+                    "StateDirectoryMode" | "CacheDirectoryMode" | "LogsDirectoryMode"
+                ) {
+                    // Without PrivatePIDs, systemd cannot retain the managed directory's
+                    // ID-mapped view. The private host backing still confines this view.
+                    *value = "0733".into();
+                }
+            }
+            degradations.push(UnitDegradation {
+                property: "PrivatePIDs=yes".into(),
+                reason: reason.into(),
+            });
         }
     }
-    vec![UnitDegradation {
-        property: "PrivatePIDs=yes".into(),
-        reason: reason.into(),
-    }]
+
+    if mode == UnitMode::UserFull
+        && properties
+            .iter()
+            .any(|(name, value)| name == "PrivateDevices" && value == "yes")
+    {
+        if let Some(reason) = capabilities.user_private_devices.unsupported_reason() {
+            properties.retain(|(name, _)| name != "PrivateDevices");
+            degradations.push(UnitDegradation {
+                property: "PrivateDevices=yes".into(),
+                reason: reason.into(),
+            });
+        }
+    }
+
+    degradations
 }
 
 fn add_socket_bind_restrictions(
@@ -622,12 +805,32 @@ fn render(
     argv: &[String],
     environment: &[(String, String)],
     properties: &[(String, String)],
+    unit_properties: &[(String, String)],
 ) -> String {
     let mut output = format!(
-        "[Unit]\nDescription={}\n\n[Service]\n",
+        "[Unit]\nDescription={}\n",
         unit_value(&format!("cix run: {service_name}"))
     );
+    for (name, value) in unit_properties {
+        output.push_str(name);
+        output.push('=');
+        output.push_str(value);
+        output.push('\n');
+    }
+    for (name, value) in properties
+        .iter()
+        .filter(|(name, _)| name.starts_with("StartLimit"))
+    {
+        output.push_str(name);
+        output.push('=');
+        output.push_str(value);
+        output.push('\n');
+    }
+    output.push_str("\n[Service]\n");
     for (name, value) in properties {
+        if name.starts_with("StartLimit") {
+            continue;
+        }
         output.push_str(name);
         output.push('=');
         output.push_str(value);
@@ -725,6 +928,151 @@ mod tests {
     }
 
     #[test]
+    fn health_property_snapshots_cover_every_probe_consumer_and_mode() {
+        for consumer in ["readiness", "liveness"] {
+            for probe_type in ["notify", "http", "tcp"] {
+                for mode in [UnitMode::System, UnitMode::UserFull] {
+                    let target = match probe_type {
+                        "http" => r#", "target": ":8080/healthz""#,
+                        "tcp" => r#", "target": ":5432""#,
+                        "notify" => "",
+                        _ => unreachable!(),
+                    };
+                    let duration = if consumer == "readiness" {
+                        r#""timeout": "90s""#
+                    } else {
+                        r#""interval": "10s""#
+                    };
+                    let spec = Spec::from_slice(
+                        format!(
+                            r#"{{"cixManifest":0,"start":["bin/app"],"{consumer}":{{"type":"{probe_type}"{target},{duration}}}}}"#
+                        )
+                        .as_bytes(),
+                    )
+                    .unwrap();
+                    let service = service(&spec);
+                    let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+                    let mut options = UnitCompileOptions::cix_run("app");
+                    options.probe_binary =
+                        Some("/nix/store/11111111111111111111111111111111-cix/bin/cix".into());
+                    let compiled = compile_unit(
+                        Path::new("/nix/store/00000000000000000000000000000000-app"),
+                        "app",
+                        service,
+                        &config,
+                        mode,
+                        &options,
+                    )
+                    .unwrap();
+                    let actual = compiled
+                        .properties
+                        .iter()
+                        .filter(|(name, _)| {
+                            matches!(
+                                name.as_str(),
+                                "Type"
+                                    | "ExecStartPost"
+                                    | "TimeoutStartSec"
+                                    | "TimeoutStopSec"
+                                    | "WatchdogSec"
+                                    | "NotifyAccess"
+                                    | "Restart"
+                                    | "RestartSec"
+                                    | "StartLimitIntervalSec"
+                                    | "StartLimitBurst"
+                            )
+                        })
+                        .map(|(name, value)| format!("{name}={value}\n"))
+                        .collect::<String>();
+                    let expected = health_snapshot(consumer, probe_type, mode);
+                    assert_eq!(actual, expected, "{consumer}/{probe_type}/{mode:?}");
+                }
+            }
+        }
+    }
+
+    fn health_snapshot(consumer: &str, probe_type: &str, mode: UnitMode) -> &'static str {
+        match (consumer, probe_type, mode) {
+            ("readiness", "notify", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-notify-system.unit")
+            }
+            ("readiness", "notify", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-notify-user.unit")
+            }
+            ("readiness", "http", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-http-system.unit")
+            }
+            ("readiness", "http", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-http-user.unit")
+            }
+            ("readiness", "tcp", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-readiness-tcp-system.unit")
+            }
+            ("readiness", "tcp", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-readiness-tcp-user.unit")
+            }
+            ("liveness", "notify", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-notify-system.unit")
+            }
+            ("liveness", "notify", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-notify-user.unit")
+            }
+            ("liveness", "http", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-http-system.unit")
+            }
+            ("liveness", "http", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-http-user.unit")
+            }
+            ("liveness", "tcp", UnitMode::System) => {
+                include_str!("../tests/fixtures/health-liveness-tcp-system.unit")
+            }
+            ("liveness", "tcp", UnitMode::UserFull) => {
+                include_str!("../tests/fixtures/health-liveness-tcp-user.unit")
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn restart_policy_is_emitted_only_for_liveness_declarations() {
+        for (field, has_restart) in [
+            ("", false),
+            (r#", "readiness":{"type":"notify","timeout":"10s"}"#, false),
+            (r#", "liveness":{"type":"notify","interval":"10s"}"#, true),
+        ] {
+            let spec = Spec::from_slice(
+                format!(r#"{{"cixManifest":0,"start":["bin/app"]{field}}}"#).as_bytes(),
+            )
+            .unwrap();
+            let service = service(&spec);
+            let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+            let compiled = compile_unit(
+                Path::new("/nix/store/00000000000000000000000000000000-app"),
+                "app",
+                service,
+                &config,
+                UnitMode::System,
+                &UnitCompileOptions::cix_run("app"),
+            )
+            .unwrap();
+            assert_eq!(
+                compiled
+                    .properties
+                    .iter()
+                    .any(|(name, _)| name == "Restart"),
+                has_restart
+            );
+            assert_eq!(
+                compiled
+                    .properties
+                    .iter()
+                    .any(|(name, _)| name.starts_with("StartLimit")),
+                has_restart
+            );
+        }
+    }
+
+    #[test]
     fn no_declared_network_is_private() {
         let spec = Spec::from_slice(include_bytes!("../tests/fixtures/minimal-spec.json")).unwrap();
         let service = service(&spec);
@@ -790,6 +1138,33 @@ mod tests {
         assert!(compiled.text.contains("PrivatePIDs=yes"));
         assert!(compiled.text.contains("StateDirectoryMode=0700"));
         assert!(compiled.degradations.is_empty());
+    }
+
+    #[test]
+    fn unsupported_user_host_drops_private_devices_once() {
+        let (spec, config) = fixture();
+        let capabilities = HostCapabilities::user_private_devices_unsupported(
+            "synthetic user-manager realization failure",
+        );
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service(&spec),
+            &config,
+            UnitMode::UserFull,
+            &UnitCompileOptions::cix_run("web"),
+            &capabilities,
+        )
+        .unwrap();
+
+        assert!(!compiled.text.contains("PrivateDevices="));
+        assert_eq!(
+            compiled.degradations,
+            vec![UnitDegradation {
+                property: "PrivateDevices=yes".into(),
+                reason: "synthetic user-manager realization failure".into(),
+            }]
+        );
     }
 
     #[test]
@@ -937,6 +1312,53 @@ mod tests {
     }
 
     #[test]
+    fn device_claims_replace_private_devices_with_a_closed_allow_list() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"],"claims":["gpu",{"device":"/dev/null"}],"shm":"128M"}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        for expected in [
+            "DevicePolicy=closed",
+            "DeviceAllow=/dev/dri rwm",
+            "DeviceAllow=/dev/null rwm",
+            "SupplementaryGroups=render root video",
+            "TemporaryFileSystem=/dev/shm:size=128M",
+        ] {
+            assert!(actual.contains(expected), "missing {expected} in {actual}");
+        }
+        assert!(!actual.contains("PrivateDevices="), "{actual}");
+    }
+
+    #[test]
+    fn ordinary_units_keep_private_devices() {
+        let spec = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["/nix/store/00000000000000000000000000000000-worker/bin/worker"]}"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let actual = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-worker"),
+            "worker",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(actual.contains("PrivateDevices=yes"), "{actual}");
+    }
+
+    #[test]
     fn item_bin_default_is_projected_into_the_run_unit_environment() {
         let spec = Spec::from_slice(
             br#"{"cixManifest":0,"start":["bin/app"],"env":{"PATH":{"default":"bin"}}}"#,
@@ -1036,10 +1458,12 @@ mod tests {
                     directory_prefix: "cix-mycomp".into(),
                 },
                 extra_properties: vec![("SupplementaryGroups".into(), "cix-edge".into())],
+                unit_properties: Vec::new(),
                 log_fields: vec![
                     ("CIX_COMPOSITE".into(), "mycomp".into()),
                     ("CIX_SERVICE".into(), "web".into()),
                 ],
+                probe_binary: None,
             },
         )
         .unwrap();

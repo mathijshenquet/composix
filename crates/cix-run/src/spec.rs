@@ -41,14 +41,29 @@ pub struct Service {
     pub listeners: BTreeMap<String, Listener>,
     #[serde(default)]
     pub dirs: Dirs,
-    pub health: Option<Health>,
+    pub readiness: Option<Readiness>,
+    pub liveness: Option<Liveness>,
     pub network: Option<Network>,
     // `grants` is reserved for the future compose-side loosening field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub claims: Vec<String>,
+    pub claims: Vec<Claim>,
+    pub shm: Option<String>,
     pub jit: Option<bool>,
     #[serde(default)]
     pub egress: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Claim {
+    Named(String),
+    Device(DeviceClaim),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct DeviceClaim {
+    pub device: PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -113,11 +128,37 @@ pub struct DataDir {
     pub ro: bool,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct Health {
-    pub exec: Vec<String>,
+pub struct Readiness {
+    #[serde(flatten)]
+    pub probe: Probe,
+    pub timeout: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Liveness {
+    #[serde(flatten)]
+    pub probe: Probe,
     pub interval: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Probe {
+    #[serde(rename = "type")]
+    pub probe_type: ProbeType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ProbeType {
+    Http,
+    Tcp,
+    Notify,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -143,6 +184,11 @@ impl Spec {
             .cloned()
             .context("cix-manifest.json must be a JSON object")?;
         body.remove("cixManifest");
+        if body.contains_key("health") {
+            bail!(
+                "manifest field \"health\" is obsolete; replace it with typed \"readiness\" and/or \"liveness\" probes (http, tcp, or notify)"
+            );
+        }
         let kind = body
             .remove("kind")
             .map(serde_json::from_value)
@@ -224,11 +270,19 @@ impl Service {
         if let Some(start_pre) = &self.start_pre {
             validate_command("start_pre", start_pre, &self.env)?;
         }
-        if let Some(health) = &self.health {
-            validate_command("health.exec", &health.exec, &self.env)?;
-            if health.interval.is_empty() {
-                bail!("health.interval must not be empty");
-            }
+        if let Some(readiness) = &self.readiness {
+            readiness
+                .probe
+                .validate()
+                .context("readiness probe is invalid")?;
+            parse_duration(&readiness.timeout).context("readiness.timeout is invalid")?;
+        }
+        if let Some(liveness) = &self.liveness {
+            liveness
+                .probe
+                .validate()
+                .context("liveness probe is invalid")?;
+            parse_duration(&liveness.interval).context("liveness.interval is invalid")?;
         }
 
         for name in self.env.keys() {
@@ -319,9 +373,6 @@ impl Service {
                 if !self.listeners.is_empty() {
                     bail!("kind app must not declare listeners (D47)");
                 }
-                if self.health.is_some() {
-                    bail!("kind app must not declare health (D47)");
-                }
                 if !self.dirs.logs.is_empty()
                     || !self.dirs.config.is_empty()
                     || !self.dirs.data.is_empty()
@@ -343,9 +394,22 @@ impl Service {
     }
 
     pub fn has_claim(&self, claim: &str) -> bool {
-        self.claims.iter().any(|declared| declared == claim)
+        self.claims
+            .iter()
+            .any(|declared| matches!(declared, Claim::Named(name) if name == claim))
             || (claim == "jit" && self.jit == Some(true))
             || (claim == "egress" && self.egress)
+    }
+
+    pub fn device_claims(&self) -> impl Iterator<Item = &Path> {
+        self.claims.iter().filter_map(|claim| match claim {
+            Claim::Device(device) => Some(device.device.as_path()),
+            Claim::Named(_) => None,
+        })
+    }
+
+    pub fn has_device_claim(&self) -> bool {
+        self.has_claim("gpu") || self.device_claims().next().is_some()
     }
 
     fn validate_capabilities(&self) -> Result<()> {
@@ -354,15 +418,165 @@ impl Service {
         }
         let mut seen = BTreeSet::new();
         for claim in &self.claims {
-            if !matches!(claim.as_str(), "jit" | "egress") {
-                bail!("unknown claim {claim:?}; supported claims: jit, egress");
-            }
-            if !seen.insert(claim) {
+            let key = match claim {
+                Claim::Named(name) => {
+                    if !matches!(name.as_str(), "jit" | "egress" | "gpu") {
+                        bail!("unknown claim {name:?}; supported claims: jit, egress, gpu, device");
+                    }
+                    name.clone()
+                }
+                Claim::Device(device) => {
+                    validate_device_path(&device.device)?;
+                    format!("device:{}", device.device.display())
+                }
+            };
+            if !seen.insert(key) {
                 bail!("claim {claim:?} is declared more than once");
             }
         }
+        if let Some(shm) = &self.shm {
+            validate_systemd_size(shm)?;
+        }
         Ok(())
     }
+}
+
+impl Probe {
+    fn validate(&self) -> Result<()> {
+        match (self.probe_type, self.target.as_deref()) {
+            (ProbeType::Notify, None) => Ok(()),
+            (ProbeType::Notify, Some(_)) => bail!("notify probes must not declare target"),
+            (ProbeType::Http, Some(target)) => validate_http_target(target),
+            (ProbeType::Tcp, Some(target)) => validate_tcp_target(target),
+            (ProbeType::Http | ProbeType::Tcp, None) => {
+                bail!("http and tcp probes must declare target")
+            }
+        }
+    }
+}
+
+pub fn parse_duration(value: &str) -> Result<std::time::Duration> {
+    let digits = value.bytes().take_while(u8::is_ascii_digit).count();
+    let amount = value
+        .get(..digits)
+        .filter(|amount| !amount.is_empty())
+        .context("duration must start with a positive integer")?
+        .parse::<u64>()
+        .context("duration is too large")?;
+    if amount == 0 {
+        bail!("duration must be greater than zero");
+    }
+    let unit = value.get(digits..).unwrap_or_default();
+    let milliseconds = match unit {
+        "ms" => Some(amount),
+        "s" => amount.checked_mul(1_000),
+        "m" | "min" => amount.checked_mul(60_000),
+        "h" => amount.checked_mul(3_600_000),
+        "d" => amount.checked_mul(86_400_000),
+        _ => bail!("duration must use ms, s, min, m, h, or d, for example 500ms or 10s"),
+    }
+    .context("duration is too large")?;
+    Ok(std::time::Duration::from_millis(milliseconds))
+}
+
+pub fn format_duration(value: std::time::Duration) -> String {
+    if value.subsec_millis() == 0 {
+        format!("{}s", value.as_secs())
+    } else {
+        format!("{}ms", value.as_millis())
+    }
+}
+
+fn validate_http_target(target: &str) -> Result<()> {
+    let (authority, _) = target
+        .split_once('/')
+        .with_context(|| "http target must include an absolute path, for example :8080/healthz")?;
+    validate_authority(authority)?;
+    if target.contains(['\0', '\n', '\r', ' ']) {
+        bail!("http target must not contain whitespace, NUL, or newlines");
+    }
+    Ok(())
+}
+
+fn validate_tcp_target(target: &str) -> Result<()> {
+    if target.contains('/') {
+        bail!("tcp target must be host:port without a path, for example :5432");
+    }
+    validate_authority(target)
+}
+
+fn validate_authority(authority: &str) -> Result<()> {
+    if authority.contains(['\0', '\n', '\r', ' ', '/']) {
+        bail!("probe target {authority:?} must be host:port");
+    }
+    let port = if let Some(port) = authority.strip_prefix(':') {
+        port
+    } else if authority.starts_with('[') {
+        authority
+            .split_once("]:")
+            .filter(|(host, _)| host.len() > 1)
+            .map(|(_, port)| port)
+            .with_context(|| format!("probe target {authority:?} must be [ipv6]:port"))?
+    } else {
+        authority
+            .rsplit_once(':')
+            .filter(|(host, _)| !host.is_empty())
+            .map(|(_, port)| port)
+            .with_context(|| format!("probe target {authority:?} must be host:port"))?
+    };
+    parse_port(port).with_context(|| format!("probe target {authority:?} has an invalid port"))?;
+    Ok(())
+}
+
+fn validate_device_path(path: &Path) -> Result<()> {
+    if !path.is_absolute() || path == Path::new("/dev") || !path.starts_with("/dev") {
+        bail!(
+            "device claim {} must be an absolute path under /dev",
+            path.display()
+        );
+    }
+    if path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir | Component::CurDir))
+    {
+        bail!(
+            "device claim {} must not contain '.' or '..' components",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+pub fn validate_systemd_size(size: &str) -> Result<()> {
+    let digits = size.bytes().take_while(u8::is_ascii_digit).count();
+    let suffix = size.get(digits..).unwrap_or_default().to_ascii_uppercase();
+    let valid = digits > 0
+        && matches!(
+            suffix.as_str(),
+            "" | "B"
+                | "K"
+                | "KB"
+                | "KIB"
+                | "M"
+                | "MB"
+                | "MIB"
+                | "G"
+                | "GB"
+                | "GIB"
+                | "T"
+                | "TB"
+                | "TIB"
+                | "P"
+                | "PB"
+                | "PIB"
+                | "E"
+                | "EB"
+                | "EIB"
+        );
+    if !valid {
+        bail!("size {size:?} must use systemd size syntax, for example 64M or 1G");
+    }
+    Ok(())
 }
 
 impl Serialize for Spec {
@@ -629,6 +843,79 @@ mod tests {
             r#"{"cixManifest":0,"start":["bin/app"],"listeners":{"dns":{"type":"datagram"}}}"#,
             r#"{"cixManifest":0,"start":["bin/app"],"ports":{"http":{"protocol":"tcp"}}}"#,
             r#"{"cixManifest":0,"services":{}}"#,
+        ] {
+            assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
+        }
+    }
+
+    #[test]
+    fn health_schema_is_typed_and_refuses_the_v0_exec_shape_with_a_migration() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["bin/app"],
+                "readiness": {"type": "http", "target": ":8080/healthz", "timeout": "90s"},
+                "liveness": {"type": "tcp", "target": ":8080", "interval": "10s"}
+            }"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        assert_eq!(
+            service.readiness.as_ref().unwrap().probe.probe_type,
+            ProbeType::Http
+        );
+        assert_eq!(
+            service.liveness.as_ref().unwrap().probe.probe_type,
+            ProbeType::Tcp
+        );
+
+        let error = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"health":{"exec":["bin/check"],"interval":"30s"}}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("field \"health\" is obsolete"), "{error}");
+        assert!(error.contains("readiness"), "{error}");
+        assert!(error.contains("liveness"), "{error}");
+    }
+
+    #[test]
+    fn health_schema_validates_probe_targets_and_durations() {
+        for json in [
+            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"notify","target":":8080","timeout":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"http","timeout":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"http","target":":8080","timeout":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":":8080/path","interval":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":":0","interval":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"notify","interval":"0s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"exec","interval":"10s"}}"#,
+        ] {
+            assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
+        }
+        assert_eq!(format_duration(parse_duration("500ms").unwrap()), "500ms");
+        assert_eq!(format_duration(parse_duration("2min").unwrap()), "120s");
+    }
+
+    #[test]
+    fn validates_device_claim_forms_and_shm_sizes() {
+        let accepted = Spec::from_slice(
+            br#"{"cixManifest":0,"start":["bin/app"],"claims":["gpu",{"device":"/dev/video0"}],"shm":"256M"}"#,
+        )
+        .unwrap();
+        let service = accepted.select_service(None).unwrap().1;
+        assert!(service.has_claim("gpu"));
+        assert_eq!(
+            service.device_claims().collect::<Vec<_>>(),
+            [Path::new("/dev/video0")]
+        );
+
+        for json in [
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"device":"ttyUSB0"}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"device":"/dev/null","extra":true}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":[{"gpu":"/dev/dri"}]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"claims":["gpu","gpu"]}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"shm":"-1G"}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"shm":"1Z"}"#,
         ] {
             assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
         }

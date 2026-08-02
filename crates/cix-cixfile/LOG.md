@@ -1,5 +1,109 @@
 # Cixfile track work log
 
+- 2026-08-02T07:51:00Z — Committed the complete scoped regrade as `778bf54`
+  (`docs: regrade corpus after feature wave`): 13 files, including the three
+  empirical receipts, 51-row evidence-class sweep, refreshed migration and
+  Docker gap ledgers, both rebuilt migration samples, and deterministic tour
+  drift. The final fence audit confirmed that corpus rows 7/17 retained their
+  mechanism cells and the devices-owned Docker rows are byte-unchanged. Only
+  this required journal remains modified and deliberately uncommitted.
+
+- 2026-08-02T07:50:00Z — Final gate is green. The complete serial workspace
+  suite passed with `devenv shell -- cargo test --workspace --
+  --test-threads=1`, including the committed-tour and deterministic-tour
+  checks. The track-ending `devenv shell -- nix flake check -L` evaluated 61
+  checks and exited 0; the Linux VM reports were green for `vm-dogfood`,
+  `scenario-update-repin`, `scenario-observability`, `scenario-lifecycle`,
+  `scenario-side-by-side`, `compose-fallback-vm`, and
+  `scenario-gc-survival`. Expected TCG and D36 PrivatePIDs fallback warnings
+  did not fail assertions. Final `git diff --cached --check` and `git diff
+  --check` pass. All deliverables are staged while this required task journal
+  remains deliberately unstaged per repository policy. Next: audit the staged
+  fence one last time and commit the complete regrade.
+
+- 2026-08-02T07:42:00Z — Gate through tour is green after one caught
+  generated-doc drift. Exact passes: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -- fmt --check examples`; focused cix fmt checks
+  for the three changed/new corpus Cixfiles; `git diff --check`; and `devenv
+  shell -- cargo clippy --workspace --all-targets -- -D warnings`. The first
+  parallel `devenv shell -- cargo test --workspace` passed all non-tour groups
+  but failed `tour_matches_committed_document`: current generation renders the
+  first Chapter 3 `cix ps` as its empty-table projection, while the committed
+  page retained the earlier service row. After clearing stale user-manager
+  failed units, the required ignored regeneration passed twice with the same
+  one-hunk doc update. Focused committed-document then passed, and
+  `generated_tour_is_deterministic` passed twice serially. This is accepted
+  generated drift, not hand-edited prose. Next: obtain a complete serial
+  workspace-test pass, then run the full `nix flake check -L` gate.
+
+- 2026-08-02T07:36:00Z — Added the grade-flipping logging receipt rather
+  than leaving nginx desk-only. Updated its stale bare START to the locked
+  `${pkgs.nginx}` executable and set `error_log stderr info` in the existing
+  quote-aware `-g` argv. Exact successful repro: `target/debug/cix build -t
+  regrade corpus/migrate/nginx` produced
+  `/nix/store/s35rsvbhr2hi9qmm1wpj4bibgl3nssvz-cix-item-nginx`; a scratch
+  compose check passed; root tag + `sudo env PATH="$PATH" target/debug/cix up
+  .dev/scratch/regrade/nginx-compose.json --update='*'` activated generation
+  `/nix/store/ih1xx84mpvnwggfwwdcaqkhc0qvysqw6-cix-compose-corpus-nginx-generation`;
+  bounded HTTP GET passed; invocation-scoped `cix logs corpus-nginx/nginx`
+  returned nginx startup and request records through CIX_COMPOSITE/CIX_SERVICE.
+  Service RESULT remained success under the expected D36 fallback. Down and
+  both tag cleanups passed. The updated nginx receipt has the exact transcript;
+  its corpus row is now receipt-backed. Next: final diff review and full gate.
+
+- 2026-08-02T07:31:00Z — Completed the ledger rewrite. `docs/corpus.md`
+  now has an Evidence column on all 51 ribbons, a 2026-08-02 maintained-per-track
+  status, re-ranked met/queued demands, and refreshed candidate dispositions.
+  Redis and the narrow Renovate timer/log shape were the receipts at this
+  milestone; nginx was added next, leaving 48 rows explicitly `desk`. `docs/migrate.md` now
+  distinguishes arbitrary role backing from queued `DIR` materialization,
+  teaches current START/CLAIM/CIP-79/schedule/logging translations, and keeps
+  unbuilt health/host binds incomplete. `docs/docker.md` now reflects CIP-79,
+  CIP-81, CIP-82 lifecycle/materialization, CIP-83, and the Docker/Nix profile
+  homonym honestly. Devices-owned corpus mechanism cells 7/17 and docker
+  `--device`/`--gpus`/`--shm-size`/`--group-add`/tmpfs rows are byte-untouched;
+  their regrade is pending CIP-78 impl (in flight). Exact docs-sample proof:
+  extracted both complete code fences to ignored `.dev/scratch/regrade`, two
+  `awk ... | diff -u` comparisons passed byte-for-byte, then `devenv shell --
+  target/debug/cix build .dev/scratch/regrade/dissolve` produced
+  `/nix/store/dn8hl026i2b11qpwh8pyl8dls40gi3jy-cix-item-web` and the same command
+  for `fetch` produced
+  `/nix/store/5c6f9kz9z18m91sjf9fz3kj02d9yhy08-cix-item-readme` after its declared
+  EXPECT fetch. Deliberately not re-verified: the other 49 corpus ports, any
+  Docker side, health probes (CIP-79 queued), operator/shared compose dirs
+  (CIP-82 leg 2 queued), Renovate credentials/config, and the devices fence.
+  Next: format/review the scoped diff, then run the complete required gate.
+
+- 2026-08-02T07:20:00Z — Empirical subset milestone: updated the existing
+  Redis migration to preserve Docker's `/data` path as `STATEDIR /data`, then
+  ran `devenv shell -- cargo build -p cix`, `target/debug/cix build
+  corpus/migrate/redis#redis`, a root transient run, bounded TCP PING, and
+  `cix inspect --runtime`. Final item
+  `/nix/store/0zd94c03qk3gddgg01cwaznwgcywiap2-cix-item-redis` returned `+PONG`;
+  inspect showed `/var/lib/private/cix-run-redis/data`, proving CIP-82 leg 1's
+  full mirror. The first attempt also caught a stale bare START path, corrected
+  to the locked store executable. Added a Renovate-shaped APP/compose fixture:
+  build and `systemd-analyze calendar daily` passed; `cix compose check` passed;
+  root activation with the corrected `--update='*'` lock produced active
+  `cix-corpus-renovate-renovate.timer` with `OnCalendar=daily` and
+  `Persistent=true`. Its first run caught the real Node W^X need; after `CLAIM
+  jit`, the current invocation exited 0 and `cix logs ... --invocation ...`
+  returned Renovate `43.214.1` through the indexed selectors. The exact
+  successful/failure transcript and limits are in both receipts. Temporary
+  compose units and root/user tags were removed. Next: finish the three ledger
+  rewrites, independently rebuild both migrate.md samples, and record the rows
+  deliberately left as desk grades.
+
+- 2026-08-02T07:00:00Z — Started track/regrade on the clean `track/regrade`
+  branch. Read the current project journal, authoritative design registry,
+  complete track spec, this crate journal, and the current corpus/migrate/docker
+  ledgers. The devenv/direnv environment is active. Scope is a one-time honest
+  regrade after D47/D74 and CIP-75/76/80/82/83, with explicit desk-vs-receipt
+  evidence, a small grade-flipping empirical subset, refreshed demands/example
+  candidates, and no edits to devices-owned corpus rows 7/17 or docker device,
+  GPU, shm, group-add, or tmpfs rows. Next: inventory stale claims, choose the
+  empirical subset, and build/run the cheapest representative conversions.
+
 - 2026-08-02T02:30:00Z — Committed CIP-88 as `0fec3ce` (`feat: improve
   builder ergonomics`). The commit includes stats, completed-output receipts,
   vendored builder dev environments, lock metadata interpolation, gitsitter
@@ -1135,3 +1239,64 @@
   adoption `d9077bc` and formatter implementation `7f99aa7`, track/fmt is
   complete. Worktree is clean; the temporary `/dev/shm/cixfmt-key.eCexDX`
   acceptance workspace and generated `devenv.lock` have been removed.
+- 2026-08-02T08:17:41Z — Started `.dev/specs/track-corpusweb.md` on
+  `track/corpusweb`. Read the current project journal, authoritative design
+  registry, complete track spec, and this crate journal. Scope is the corpus
+  fold, a sharpened open-gaps ledger, and a deterministic self-contained HTML
+  corpus browser generated beside (but independent of) the tour harness. The
+  concurrency fence excludes `docs/tour/` and `crates/cix-run`; both will stay
+  untouched. `crates/cix-cixfile/LOG.md` is tracked in this worktree despite
+  the shared ignored-log convention, so this task journal will remain
+  uncommitted. Next: inventory the corpus/ledger shape and existing generator
+  test conventions, then implement the fold and browser model.
+
+- 2026-08-02T08:43:00Z — Folded the isolated Renovate regrade into the
+  living `corpus/migrate/renovate` layout and removed `corpus/regrade/`.
+  Added SOURCE notes pinned to renovatebot/helm-charts revision
+  `f953571cd7d10fd301799192dbaf18c55bd1dad0`, the verbatim upstream CronJob
+  template, and a bounded check that covers the cix build, native calendar
+  parse, and compose validation without host activation; the existing timer,
+  run, and indexed-log receipt remains the stronger runtime proof. Added the
+  independent `crates/cix/tests/corpus.rs` generator and generated 21
+  self-contained pages (index + 20 cases), including Wallos's D4 `default.nix`
+  escape-hatch case. The first run caught an ambiguous receipt link in the new
+  four-column gap table; restricting ribbon extraction to the six-column
+  survey evidence cell fixed it. Exact focused pass: `devenv shell -- cargo
+  test -p cix --test corpus -- --ignored generate_corpus_browser --nocapture`.
+  Next: inspect the rendered artifacts and link/ribbon projections, run normal
+  drift/determinism plus the Renovate static check, then begin the full gate.
+
+- 2026-08-02T09:02:00Z — Focused review and all pre-flake gates are green.
+  Added a six-column living-corpus ledger for all 20 cases after the first HTML
+  review showed that 17 receipt-bearing migrations had no explicit wild-survey
+  ribbon; the generator now hard-fails when any cix-bearing case lacks a ledger
+  ribbon/evidence row. Case pages project that row's empirical summary as the
+  requested receipt-status line. Exact passes: Renovate `check.sh` (same locked
+  item, calendar parse, compose validation); `devenv shell -- cargo fmt --all
+  --check`; `devenv shell -- cargo run -- fmt --check examples`; warning-denied
+  workspace/all-target clippy after correcting one `write!` newline lint;
+  `devenv shell -- cargo test --workspace`; corpus regeneration plus normal
+  drift/determinism; tour regeneration, zero `docs/tour` diff, committed-tour
+  match, and deterministic-tour test. The staged fence contains neither
+  `docs/tour/` nor `crates/cix-run/`; only this LOG remains unstaged. Next: run
+  the required full `devenv shell -- nix flake check -L`, then final audit and
+  commit.
+
+- 2026-08-02T08:38:05Z — Required final gate and scope audit are green.
+  `devenv shell -- nix flake check -L` exited 0 across its complete 64-check
+  matrix, including `scenario-update-repin`, `scenario-observability`,
+  `scenario-devices`, `scenario-gc-survival`, `scenario-side-by-side`,
+  `compose-fallback-vm`, `scenario-lifecycle`, and `vm-dogfood`. Expected TCG
+  fallback and D36 PrivatePIDs probe messages did not fail the checks. Final
+  `git diff --cached --check`, `git diff --check`, and the committed-tour diff
+  are clean; no live `corpus/regrade` reference remains outside historical
+  logs/specs, and the staged fence still excludes `docs/tour/` and
+  `crates/cix-run/`. Next: commit the staged track deliverables while leaving
+  this required task journal unstaged.
+
+- 2026-08-02T08:38:30Z — Committed the complete corpusweb track as `2d1794e`
+  (`docs: add migration corpus browser`): Renovate's migration fold and proof,
+  the complete status/gap ledger, the independent deterministic corpus browser
+  generator and 21 generated pages, and documentation entry points. This
+  append-only task journal is the sole remaining worktree modification and is
+  intentionally uncommitted per the track instructions.

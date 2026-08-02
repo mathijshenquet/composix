@@ -928,3 +928,84 @@ pub(super) fn parse_directory_declaration<'a>(
     }
     Ok((path.to_str().expect("Cixfile paths are UTF-8"), ro))
 }
+
+pub(super) fn validate_probe_duration(
+    value: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    let digits = value.bytes().take_while(u8::is_ascii_digit).count();
+    let amount = value
+        .get(..digits)
+        .and_then(|value| value.parse::<u64>().ok());
+    let unit = value.get(digits..).unwrap_or_default();
+    if !amount.is_some_and(|amount| amount > 0)
+        || !matches!(unit, "ms" | "s" | "m" | "min" | "h" | "d")
+    {
+        return Err(ParseError::new(
+            line,
+            source,
+            "probe duration must be positive and use ms, s, min, m, h, or d, for example 500ms or 10s",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn validate_http_probe_target(
+    target: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    let Some((authority, _)) = target.split_once('/') else {
+        return Err(ParseError::new(
+            line,
+            source,
+            "http probe target must include an absolute path, for example :8080/healthz",
+        ));
+    };
+    validate_probe_authority(authority, line, source)
+}
+
+pub(super) fn validate_tcp_probe_target(
+    target: &str,
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    if target.contains('/') {
+        return Err(ParseError::new(
+            line,
+            source,
+            "tcp probe target must be host:port without a path, for example :5432",
+        ));
+    }
+    validate_probe_authority(target, line, source)
+}
+
+fn validate_probe_authority(authority: &str, line: usize, source: &str) -> Result<(), ParseError> {
+    let port = if let Some(port) = authority.strip_prefix(':') {
+        Some(port)
+    } else if authority.starts_with('[') {
+        authority
+            .split_once("]:")
+            .filter(|(host, _)| host.len() > 1)
+            .map(|(_, port)| port)
+    } else {
+        authority
+            .rsplit_once(':')
+            .filter(|(host, _)| !host.is_empty())
+            .map(|(_, port)| port)
+    };
+    if authority.contains(['\0', '\n', '\r', ' ', '/'])
+        || !port.is_some_and(|port| {
+            port.parse::<u16>()
+                .is_ok_and(|port| (1..=u16::MAX).contains(&port))
+        })
+    {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("probe target {authority:?} must be host:port"),
+        ));
+    }
+    Ok(())
+}

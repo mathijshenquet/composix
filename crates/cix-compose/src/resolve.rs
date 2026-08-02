@@ -11,7 +11,9 @@ use cix_run::{
     spec::{ManifestKind, Service},
 };
 
-use crate::model::{Compose, Lock, LockedService, UpdatePolicy};
+use crate::model::{
+    Compose, DirectoryMaterialization, DirectoryRole, Lock, LockedService, UpdatePolicy,
+};
 
 #[derive(Clone, Debug, Default)]
 pub enum UpdateRequest {
@@ -28,6 +30,24 @@ pub struct CheckedService {
     pub item_service: String,
     pub spec: Service,
     pub config: ResolvedConfig,
+    pub directories: Vec<DirectoryClaim>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DirectoryClaim {
+    pub path: PathBuf,
+    /// `None` denotes the undecorated manifest `DIR` claim.
+    pub declared_role: Option<DirectoryRole>,
+    pub role: Option<DirectoryRole>,
+    pub writable: bool,
+    pub backing: DirectoryBacking,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DirectoryBacking {
+    Private,
+    Host { path: PathBuf, idmap: bool },
+    Shared { name: String },
 }
 
 #[derive(Clone, Debug)]
@@ -35,6 +55,7 @@ pub struct CheckResult {
     pub compose: Compose,
     pub lock: Lock,
     pub services: BTreeMap<String, CheckedService>,
+    pub warnings: Vec<String>,
 }
 
 pub fn load_and_check(compose_path: &Path, update: UpdateRequest) -> Result<CheckResult> {
@@ -78,6 +99,7 @@ fn check_with_calendar(
     validate_edge_references(compose)?;
     let lock = resolve_lock(compose, existing, update, resolver)?;
     let mut services = BTreeMap::new();
+    let mut warnings = Vec::new();
     for (name, declaration) in &compose.services {
         let locked = &lock.services[name];
         let store_path = PathBuf::from(&locked.store_path);
@@ -87,6 +109,7 @@ fn check_with_calendar(
         let (item_service, service) = spec.select_service(None).with_context(|| {
             format!("services.{name}.item: D41 requires the resolved item to contain one service")
         })?;
+        reject_secret_env_delivery(name, declaration)?;
         let env = declaration
             .env
             .iter()
@@ -99,6 +122,7 @@ fn check_with_calendar(
             .collect::<Vec<_>>();
         let config = ResolvedConfig::resolve(service, &env, &bindings)
             .with_context(|| format!("services.{name}"))?;
+        let directories = materialize_directories(name, declaration, service, &mut warnings)?;
         services.insert(
             name.clone(),
             CheckedService {
@@ -106,16 +130,252 @@ fn check_with_calendar(
                 item_service: item_service.to_owned(),
                 spec: service.clone(),
                 config,
+                directories,
             },
         );
     }
     validate_edges(compose, &services)?;
     validate_collisions(&services)?;
+    validate_shared_directories(&services)?;
     Ok(CheckResult {
         compose: compose.clone(),
         lock,
         services,
+        warnings,
     })
+}
+
+fn reject_secret_env_delivery(
+    service_name: &str,
+    declaration: &crate::model::ComposeService,
+) -> Result<()> {
+    for name in declaration.env.keys() {
+        let upper = name.to_ascii_uppercase();
+        if [
+            "SECRET",
+            "TOKEN",
+            "PASSWORD",
+            "CREDENTIAL",
+            "PRIVATE_KEY",
+            "API_KEY",
+        ]
+        .iter()
+        .any(|needle| upper.contains(needle))
+        {
+            bail!(
+                "services.{service_name}.env.{name}: secret-shaped values must use CIP-81 credentials, not compose env or .env"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn materialize_directories(
+    service_name: &str,
+    declaration: &crate::model::ComposeService,
+    service: &Service,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<DirectoryClaim>> {
+    let mut declared = BTreeMap::new();
+    for (role, paths) in [
+        (DirectoryRole::State, service.dirs.state.as_slice()),
+        (DirectoryRole::Cache, service.dirs.cache.as_slice()),
+        (DirectoryRole::Logs, service.dirs.logs.as_slice()),
+        (DirectoryRole::Config, service.dirs.config.as_slice()),
+        (
+            DirectoryRole::Run,
+            service.dirs.run.as_deref().unwrap_or_default(),
+        ),
+    ] {
+        for path in paths {
+            declared.insert(path.clone(), (Some(role), true));
+        }
+    }
+    for data in &service.dirs.data {
+        declared.insert(data.path.clone(), (None, !data.ro));
+    }
+
+    let mut claims = Vec::new();
+    for (path, (declared_role, writable)) in &declared {
+        let materialization = declaration.dirs.get(path);
+        if declared_role.is_none() && materialization.is_none() {
+            bail!(
+                "services.{service_name}.dirs.{}: DIR declares operator-supplied data; provide host or shared backing, or for a cix-managed dir pick STATEDIR/CACHEDIR/LOGDIR/RUNDIR",
+                path.display()
+            );
+        }
+        if materialization.is_some_and(|materialization| materialization.write) {
+            bail!(
+                "services.{service_name}.dirs.{}.write: write is only for an undeclared extra operator bind",
+                path.display()
+            );
+        }
+        claims.push(directory_claim(
+            service_name,
+            path,
+            *declared_role,
+            *writable,
+            materialization,
+            declaration.identity.as_deref(),
+            warnings,
+        )?);
+    }
+
+    for (path, materialization) in &declaration.dirs {
+        if declared.contains_key(path) {
+            continue;
+        }
+        if materialization.shared.is_some()
+            || materialization.role.is_some()
+            || materialization.idmap
+        {
+            bail!(
+                "services.{service_name}.dirs.{}: undeclared extra binds may only use host and optional write: true",
+                path.display()
+            );
+        }
+        let host = materialization
+            .host
+            .as_ref()
+            .expect("model requires a backing");
+        if declaration.identity.is_none() {
+            bail!(
+                "services.{service_name}.dirs.{}.host: host backing requires a declared static identity (D48d)",
+                path.display()
+            );
+        }
+        warnings.push(format!(
+            "services.{service_name}.dirs.{}: undeclared operator host bind is {} (CIP-82)",
+            path.display(),
+            if materialization.write {
+                "read-write"
+            } else {
+                "read-only"
+            }
+        ));
+        claims.push(DirectoryClaim {
+            path: path.clone(),
+            declared_role: None,
+            role: None,
+            writable: materialization.write,
+            backing: DirectoryBacking::Host {
+                path: host.clone(),
+                idmap: false,
+            },
+        });
+    }
+    Ok(claims)
+}
+
+fn directory_claim(
+    service_name: &str,
+    path: &Path,
+    declared_role: Option<DirectoryRole>,
+    writable: bool,
+    materialization: Option<&DirectoryMaterialization>,
+    identity: Option<&str>,
+    warnings: &mut Vec<String>,
+) -> Result<DirectoryClaim> {
+    let role = materialization
+        .and_then(|materialization| materialization.role)
+        .or(declared_role);
+    if let (Some(from), Some(to)) = (declared_role, role) {
+        if from != to && role_rank(to) < role_rank(from) {
+            warnings.push(format!(
+                "services.{service_name}.dirs.{}: LOUD durability degradation: {} is treated as {} (CIP-82/D49a)",
+                path.display(),
+                role_name(from),
+                role_name(to)
+            ));
+        }
+    }
+    let backing = match materialization {
+        None => DirectoryBacking::Private,
+        Some(materialization) if materialization.host.is_some() => {
+            if identity.is_none() {
+                bail!(
+                    "services.{service_name}.dirs.{}.host: host backing requires a declared static identity (D48d)",
+                    path.display()
+                );
+            }
+            DirectoryBacking::Host {
+                path: materialization.host.clone().expect("checked above"),
+                idmap: materialization.idmap,
+            }
+        }
+        Some(materialization) if materialization.shared.is_some() => {
+            if !writable {
+                bail!(
+                    "services.{service_name}.dirs.{}: a read-only DIR cannot be a shared writable surface",
+                    path.display()
+                );
+            }
+            if !matches!(role, Some(DirectoryRole::State) | None) {
+                bail!(
+                    "services.{service_name}.dirs.{}.shared: shared is only valid on STATEDIR or DIR in v0",
+                    path.display()
+                );
+            }
+            DirectoryBacking::Shared {
+                name: materialization.shared.clone().expect("checked above"),
+            }
+        }
+        Some(_) => DirectoryBacking::Private,
+    };
+    Ok(DirectoryClaim {
+        path: path.to_owned(),
+        declared_role,
+        role,
+        writable,
+        backing,
+    })
+}
+
+fn validate_shared_directories(services: &BTreeMap<String, CheckedService>) -> Result<()> {
+    type SharedMembers<'a> = (Option<DirectoryRole>, Vec<(&'a str, &'a Path)>);
+    let mut shared: BTreeMap<&str, SharedMembers<'_>> = BTreeMap::new();
+    for (service, checked) in services {
+        for claim in &checked.directories {
+            let DirectoryBacking::Shared { name } = &claim.backing else {
+                continue;
+            };
+            if claim.declared_role.is_none() && claim.role.is_none() {
+                // This is the valid undecorated DIR spelling; retain its distinct role.
+            }
+            let entry = shared
+                .entry(name)
+                .or_insert_with(|| (claim.role, Vec::new()));
+            if entry.0 != claim.role {
+                bail!(
+                    "shared {name:?}: members disagree on role ({} at services.{service}.dirs.{})",
+                    entry.0.map(role_name).unwrap_or("DIR"),
+                    claim.path.display()
+                );
+            }
+            entry.1.push((service, &claim.path));
+        }
+    }
+    Ok(())
+}
+
+fn role_rank(role: DirectoryRole) -> u8 {
+    match role {
+        DirectoryRole::State => 4,
+        DirectoryRole::Logs => 3,
+        DirectoryRole::Config => 3,
+        DirectoryRole::Cache => 2,
+        DirectoryRole::Run => 1,
+    }
+}
+
+fn role_name(role: DirectoryRole) -> &'static str {
+    match role {
+        DirectoryRole::State => "STATEDIR",
+        DirectoryRole::Cache => "CACHEDIR",
+        DirectoryRole::Logs => "LOGDIR",
+        DirectoryRole::Config => "CONFIGDIR",
+        DirectoryRole::Run => "RUNDIR",
+    }
 }
 
 fn validate_schedule(
@@ -628,5 +888,56 @@ mod tests {
             .to_string();
             assert!(error.contains("collides"), "{error}");
         }
+    }
+
+    #[test]
+    fn directory_checks_require_identity_and_make_degradation_loud() {
+        let directory = tempfile::tempdir().unwrap();
+        let item = write_item(
+            directory.path(),
+            "item",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"dirs":{"state":["/var/lib/app"],"cache":["/var/cache/app"],"data":[{"path":"/media","ro":false}]}"#,
+            ),
+        );
+        let resolver = |_reference: &str| Ok(output(&item, "item"));
+        let host_without_identity = compose(
+            r#"{"web":{"item":"item:v1","dirs":{"/var/lib/app":{"host":"/srv/app"},"/media":{"host":"/srv/media"}}}}"#,
+            "{}",
+        );
+        let error = check_with(
+            &host_without_identity,
+            &Lock::default(),
+            &UpdateRequest::None,
+            &resolver,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("static identity"), "{error}");
+
+        let degraded = compose(
+            r#"{"web":{"item":"item:v1","identity":"operator","dirs":{"/var/lib/app":{"as":"cache"},"/media":{"shared":"uploads"}}}}"#,
+            "{}",
+        );
+        let checked =
+            check_with(&degraded, &Lock::default(), &UpdateRequest::None, &resolver).unwrap();
+        assert!(checked
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("LOUD durability degradation")));
+
+        let bad_shared = compose(
+            r#"{"web":{"item":"item:v1","dirs":{"/var/lib/app":{"shared":"uploads"},"/media":{"shared":"uploads"}}}}"#,
+            "{}",
+        );
+        let error = check_with(
+            &bad_shared,
+            &Lock::default(),
+            &UpdateRequest::None,
+            &resolver,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("members disagree on role"), "{error}");
     }
 }

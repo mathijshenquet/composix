@@ -352,3 +352,118 @@
   only cix-run source/tests/log and the two VM assertions;
   pre-existing generated `devenv.lock` remains intentionally unstaged. The
   commit is the handoff point for track/dirs.
+
+## track/devices
+
+- 2026-08-02 00:50 UTC — Started CIP-78 devices on `track/devices`. Read
+  AGENTS.md, `.dev/specs/track-devices.md`, authoritative CIP-78 §§3/5,
+  `.dev/LOG.md`, and the active cix-run/cixfile/compose surfaces. Existing
+  claims are strings in both runner and Cixfile model, so this track needs a
+  typed parameterized device form while retaining bare `jit`, `egress`, and
+  `gpu`. Mechanical reading to document: a device-claiming unit replaces
+  `PrivateDevices=` with `DevicePolicy=closed` plus an allow-list; non-claiming
+  units retain today's `PrivateDevices=` posture. Next: implement manifest and
+  Cixfile validation/model first, then unit compilation, compose override,
+  example/scenario, docs, and the full gate.
+
+- 2026-08-02 07:20 UTC — Implemented the manifest/Cixfile/compiler/compose
+  slice. Claims are now bare `jit`/`egress`/`gpu` strings or strict
+  `{ "device": "/dev/..." }` objects; `SHM` and `shm` validate a systemd-style
+  size. Device claims emit `DevicePolicy=closed` and individual `DeviceAllow=`
+  entries in place of the now-explicit normal `PrivateDevices=yes`; gpu adds
+  `video render`, and literal devices stat their owner group (with a warning,
+  not a generation failure, if absent). Compose's `shm` wins, persists as an
+  effective manifest value, and diff names the SHM change; `grants` remains
+  strict-schema rejected/reserved. Focused `cargo fmt` plus cix-run, cixfile,
+  and compose suites are green (48 cix-run / 24 compose tests). Added the
+  Frigate-shaped example and the new VM scenario; its NixOS build is running.
+  Next: finish the VM proof, inspect the complete diff, and run the required
+  full gate.
+
+- 2026-08-02 07:48 UTC — The focused `scenario-devices` VM check passes:
+  the service starts with a closed allow-list containing `/dev/dri` and the
+  literal node, has `video`/`render`, lacks `PrivateDevices`, and sees its
+  64 MiB `/dev/shm`. Replaced its unreliable journal polling with an
+  active-after-two-seconds assertion, so the probe's preceding device and SHM
+  assertions remain decisive. Final gates are green: `cargo fmt --check`,
+  `cix fmt --check examples`, warning-denied workspace clippy, workspace
+  tests, regenerated+checked tour, and `devenv shell -- nix flake check -L`
+  (including all VM scenarios). Next: stage the final log, review, and commit.
+
+## track/devfix
+
+- 2026-08-02 08:22 UTC — Started the CI repair from `.dev/specs/track-devfix.md` on `track/devfix`. Read AGENTS.md, `.dev/LOG.md`, D13/D36, the current cix-run capability/compiler/runtime paths, and the devices merge. Evidence first: this host matches the CI policy surface (`kernel.apparmor_restrict_unprivileged_userns = 1`, AppArmor loaded). A non-collected user-manager scratch service with `PrivateDevices=yes` was accepted asynchronously by `systemd-run --user`, then journalled `Failed to drop capabilities: Operation not permitted` and `Failed at step CAPABILITIES spawning /bin/sh`, status `218/CAPABILITIES`; it was collected before `cix ps` could list it. This verifies the hypothesized detached-unit disappearance, though the concrete systemd setup step here is CAPABILITIES rather than 226/NAMESPACE. Next: add an evidence-bearing user-manager PrivateDevices probe and route unsupported UserFull compilation through structured degradation, including the synchronous retry path.
+
+- 2026-08-02 08:32 UTC — Added `CIX_PRIVATE_DEVICES_PROBE`/`HostCapabilities::probe_user`, which realizes a collected, waited `systemd-run --user PrivateDevices=yes /bin/sh -c true` control unit and treats the observed 218/CAPABILITIES/setup-policy class as unsupported while rejecting unexpected failures. UserFull claim-less run, scheduled-app, and debug units now compile through it; only an unsupported probe drops `PrivateDevices=yes` as a `UnitDegradation`, with a D13 warning normalized out of the tour. Claiming-device units do not pay this probe because they use `DevicePolicy=closed` rather than `PrivateDevices`. The existing synchronous capability retry now also removes `PrivateDevices`, covering a probe/start race. `devenv shell -- cargo fmt --all` and `devenv shell -- cargo test -p cix-run` pass (49 unit, 2 projection, 1 user integration). Next: exercise the generated tour on both normal and forced-unsupported paths, then run the remaining gates.
+
+- 2026-08-02 08:48 UTC — Tour verification uncovered a separate stale presentation adapter: `filter_unit_listing` still parsed the old five-column `cix ps` output and therefore hid the active row that its raw-output assertion had already observed. It now locates the explicitly-owned unit field, asserts `active/running`, and the updated generated chapter commits that row. The detected AppArmor path and `CIX_PRIVATE_DEVICES_PROBE=unsupported` both pass `tour_matches_committed_document`; `HostCapabilities::all_supported` preserves the property in the compiler test, covering the capable class. Next: run the complete prescribed gate.
+
+- 2026-08-02 09:10 UTC — Final gates: `devenv shell -- cargo fmt --all --check`, `devenv shell -- cargo run -p cix -- fmt --check examples`, and `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings` pass. `cargo test -p cix-run` passes 50 unit tests plus both projection tests and the user integration; the full workspace suite was rerun after a stale warm-workspace tour failure, and its isolated previously failing tour test passes. Fresh tour generation and exact drift checking pass on the detected AppArmor host and with `CIX_PRIVATE_DEVICES_PROBE=unsupported`. The required `devenv shell -- nix flake check -L` ran all 64 checks (including VM dogfood, devices, compose fallback, and scenarios) and its immediate cached rerun reported every check previously built, exit 0. CI remains the final verdict for the actual GitHub runner class. Next: final diff audit and commit.
+
+## track/health
+
+- 2026-08-02 08:20 UTC — Started the complete CIP-79 health track on
+  `track/health`. Read `.dev/specs/track-health.md`, adopted CIP-79 §§3/5,
+  the current project and cix-run logs, and the active design/ledger hits.
+  The branch is clean and the worktree-local direnv/devenv environment is
+  allowed. Fixed scope: replace the v0 `health {exec, interval}` manifest
+  shape with typed readiness/liveness; add Cixfile parse/fmt and migration
+  diagnostics; compile native notify/watchdog and cix http/tcp adapters;
+  reject health-conditioned compose edges; prove rollout, structural-edge,
+  and restart behavior in `nix/scenarios/health.nix`; update docs/ledgers;
+  finish with the full prescribed gate and commit. Next: map the exact model,
+  parser, CLI, generator, compose-schema, snapshot, and scenario seams.
+
+- 2026-08-02 09:05 UTC — Implemented the schema/language/compiler/prober slice.
+  Bare manifests now carry strict typed `readiness`/`liveness` fields and give
+  the removed `health {exec, interval}` field an explicit migration refusal.
+  Cixfile accepts http/tcp/notify with IN/EVERY on SERVICE and APP, round-trips
+  through fmt/codegen, and has the mandated `LIVELINESS` suggestion snapshot.
+  Unit compilation maps notify readiness to `Type=notify`, adapters to exact
+  cix-binary `ExecStartPost` commands, liveness to a 3× watchdog plus an
+  all-cgroup resident pinger, and restart/StartLimit policy only on declaring
+  units. Twelve system/user × consumer × probe property snapshots cover the
+  matrix. The std-only prober has TCP, HTTP-status, retry, and sd_notify tests.
+  Compose now rejects health-condition vocabulary at every edge level and makes
+  consumers require/After their structural producer so producer readiness gates
+  their start. Focused repros are green: `devenv shell -- cargo test -p cix-run
+  --lib`; `devenv shell -- cargo test -p cix-cixfile --lib --tests`; `devenv
+  shell -- cargo test -p cix-build --lib`; `devenv shell -- cargo test -p
+  cix-compose`. Added `scenario-health`; next: run and fix the live VM proof.
+
+- 2026-08-02 09:20 UTC — The live VM integration pass proved the successful
+  path (cix up blocks through delayed HTTP readiness; a structural consumer
+  starts afterward) and exposed three systemd boundary details now fixed:
+  adapter readiness feeds the watchdog during startup; StartLimit keys render
+  in `[Unit]`; and compose activation checks failed member jobs after the
+  target transaction so readiness timeout is a loud `cix up` failure. Failed
+  startup cleanup is bounded by the readiness budget. Structural consumers
+  now require the edge setup unit but only order `After=` their producer, so a
+  liveness restart does not stop unrelated consumer lifetime. The watchdog VM
+  has since proved the 3× window, native no-curl/no-shell adapter commands,
+  watchdog result, pinger journal mapping, and restart into a second healthy
+  instance; its final cleanup rerun is in progress after making the fixture's
+  consumer explicitly SIGTERM-responsive. Updated cixfile/migration docs plus
+  Docker and corpus ledgers. Next: land the focused VM green result, then run
+  the full prescribed gate.
+
+- 2026-08-02 09:35 UTC — Focused VM is fully green with `devenv shell -- nix
+  build .#checks.x86_64-linux.scenario-health --no-link -L` (78.90s test
+  script): delayed readiness, structural ordering, failed rollout, watchdog
+  restart/recovery, native-prober unit text, and teardown all passed. The
+  non-flake gates are green with exact repros: `devenv shell -- cargo fmt
+  --all --check`; `devenv shell -- cargo run -p cix -- fmt --check examples`;
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`;
+  `devenv shell -- cargo test --workspace`; and `devenv shell -- cargo test -p
+  cix --test tour -- --ignored generate_tour` followed by a clean unstaged
+  `git diff --exit-code -- docs/tour` against the staged generated transcript.
+  The only tour change is the intended inspect projection replacing
+  `health:null` with `readiness:null`/`liveness:null`. Next: required final
+  `devenv shell -- nix flake check -L`, then audit and commit.
+
+- 2026-08-02 09:40 UTC — CIP-79 implementation is complete. The required final
+  gate `devenv shell -- nix flake check -L` passed all 67 checks, including
+  `scenario-health`, the existing scenario suite, and `vm-dogfood`; the health
+  scenario also passed while competing with the full parallel VM load. Final
+  audit found no whitespace errors or unrelated worktree changes. The track is
+  ready to commit; next step is orchestrator re-verification and merge.

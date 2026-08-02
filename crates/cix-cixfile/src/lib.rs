@@ -15,8 +15,8 @@ pub use cix_build::{
     LockFile, MemoEntry, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 pub use cix_build::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Copy, Dirs, Env, Fetch, Input,
-    InputKind, Port, Service, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
+    Input, InputKind, Liveness, Port, Probe, Readiness, Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};
 pub use watch::watch;

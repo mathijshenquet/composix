@@ -1,5 +1,10 @@
 #[derive(clap::Subcommand)]
 pub enum Command {
+    /// Run cix's native HTTP/TCP readiness and watchdog adapters.
+    Probe {
+        #[command(subcommand)]
+        command: crate::probe::Command,
+    },
     /// Run a manifested service as a transient systemd unit.
     Run {
         /// Store path or flake installable, optionally with `#service`.
@@ -12,6 +17,12 @@ pub enum Command {
         /// Override a named port (`NAME=PORT`) or bind a listener (`NAME=ADDR:PORT`).
         #[arg(short = 'p', long = "port", value_name = "NAME=VALUE")]
         port: Vec<String>,
+        /// Materialize a declared directory (`/path=host:/host/path`, `shared:name`, or `as:state`; `host-idmap:` explicitly acknowledges idmapping).
+        #[arg(long = "dir", value_name = "PATH=MATERIALIZATION")]
+        dirs: Vec<String>,
+        /// Stable host identity required by host-backed directories.
+        #[arg(long)]
+        identity: Option<String>,
         /// Print the transient unit name and return without following logs.
         #[arg(long)]
         detach: bool,
@@ -57,10 +68,13 @@ pub enum Command {
 impl Command {
     pub fn run(self) -> anyhow::Result<()> {
         match self {
+            Self::Probe { command } => command.run(),
             Self::Run {
                 installable,
                 env,
                 port,
+                dirs,
+                identity,
                 detach,
                 schedule,
                 user,
@@ -68,6 +82,8 @@ impl Command {
                 installable,
                 env,
                 port,
+                dirs,
+                identity,
                 detach,
                 schedule,
                 user,

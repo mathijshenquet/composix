@@ -1,0 +1,8 @@
+Type=exec
+WatchdogSec=30s
+NotifyAccess=all
+ExecStartPost="/nix/store/11111111111111111111111111111111-cix/bin/cix" "probe" "pinger" "http" ":8080/healthz" "--every" "10s"
+Restart=on-failure
+RestartSec=10s
+StartLimitIntervalSec=5min
+StartLimitBurst=5

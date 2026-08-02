@@ -396,7 +396,7 @@ START /bin/true \
         assert!(dirs.run.contains("/run/web"));
         assert_eq!(
             parsed.artifacts["web"].service.claims,
-            BTreeSet::from(["egress".into(), "jit".into()])
+            BTreeSet::from([Claim::Named("egress".into()), Claim::Named("jit".into()),])
         );
         for (directive, replacement, anchor) in [
             ("STATE /var/lib/web", "STATEDIR", "#role-dirs"),
@@ -416,6 +416,112 @@ START /bin/true \
         let unknown =
             parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nCLAIM all\n").unwrap_err();
         assert!(unknown.message.contains("jit, egress"), "{unknown}");
+    }
+
+    #[test]
+    fn device_gpu_and_shm_claims_are_strict() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE detector\nSTART /bin/true\nCLAIM gpu\nCLAIM device /dev/video0\nSHM 256M\n",
+        )
+        .unwrap();
+        let service = &parsed.artifacts["detector"].service;
+        assert!(service.claims.contains(&Claim::Named("gpu".into())));
+        assert!(service
+            .claims
+            .contains(&Claim::Device("/dev/video0".into())));
+        assert_eq!(service.shm.as_deref(), Some("256M"));
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&parsed).unwrap()).unwrap();
+        assert_eq!(
+            manifest["claims"],
+            serde_json::json!(["gpu", {"device": "/dev/video0"}])
+        );
+        assert_eq!(manifest["shm"], "256M");
+
+        for directive in [
+            "CLAIM device ttyUSB0",
+            "CLAIM device /dev/../etc/passwd",
+            "CLAIM device /tmp/device",
+            "CLAIM gpu extra",
+            "SHM -1G",
+            "SHM 1Z",
+            "SHM 1G extra",
+        ] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE detector\nSTART /bin/true\n{directive}\n"
+            ))
+            .unwrap_err();
+            assert_eq!(error.line, 4, "{directive}: {error}");
+        }
+    }
+
+    #[test]
+    fn readiness_and_liveness_parse_all_probe_forms_and_emit_typed_fields() {
+        for (readiness, liveness, readiness_type, liveness_type) in [
+            (
+                "READINESS http :8080/healthz IN 90s",
+                "LIVENESS tcp :8080 EVERY 10s",
+                "http",
+                "tcp",
+            ),
+            (
+                "READINESS tcp :5432 IN 60s",
+                "LIVENESS http :5432/livez EVERY 5s",
+                "tcp",
+                "http",
+            ),
+            (
+                "READINESS notify IN 30s",
+                "LIVENESS notify EVERY 2s",
+                "notify",
+                "notify",
+            ),
+        ] {
+            let parsed = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n{readiness}\n{liveness}\n"
+            ))
+            .unwrap();
+            let service = &parsed.artifacts["web"].service;
+            assert!(service.readiness.is_some());
+            assert!(service.liveness.is_some());
+            let manifest: serde_json::Value =
+                serde_json::from_str(&generate_spec_json(&parsed).unwrap()).unwrap();
+            assert_eq!(manifest["readiness"]["type"], readiness_type);
+            assert_eq!(manifest["liveness"]["type"], liveness_type);
+        }
+
+        let app = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP migrate\nSTART /bin/true\nREADINESS notify IN 30s\nLIVENESS notify EVERY 2s\n",
+        )
+        .unwrap();
+        assert!(app.artifacts["migrate"].service.readiness.is_some());
+    }
+
+    #[test]
+    fn health_directives_reject_exec_malformed_targets_wrong_markers_and_duplicates() {
+        for directive in [
+            "READINESS exec bin/check IN 10s",
+            "READINESS http :8080 IN 10s",
+            "READINESS tcp :5432/health IN 10s",
+            "READINESS notify EVERY 10s",
+            "LIVENESS notify IN 10s",
+            "LIVENESS notify EVERY 0s",
+            "LIVENESS grpc :5000 EVERY 10s",
+        ] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n{directive}\n"
+            ))
+            .unwrap_err();
+            assert_eq!(error.line, 4, "{directive}: {error}");
+        }
+        let duplicate = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nREADINESS notify IN 10s\nREADINESS tcp :5432 IN 10s\n",
+        )
+        .unwrap_err();
+        assert!(
+            duplicate.message.contains("already declared"),
+            "{duplicate}"
+        );
     }
 
     #[test]
