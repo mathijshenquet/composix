@@ -90,6 +90,11 @@
       };
       lib.withSpec = composixLib.withSpec;
       checks.${system} = {
+        source-size = pkgs.runCommand "composix-source-size" { } ''
+          cd ${self}
+          ${pkgs.bash}/bin/bash ${./scripts/check-source-size.sh}
+          touch "$out"
+        '';
         compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         scenario-lifecycle = import ./nix/scenarios/lifecycle.nix { inherit pkgs cix; };

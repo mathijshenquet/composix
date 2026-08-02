@@ -125,6 +125,15 @@ Adopted as recommended. The open-question dispositions (Mathijs,
 ## Changelog
 
 - 2026-08-02: drafted and adopted same day.
+- 2026-08-02 (performance criterion, Mathijs): a warm one-line edit on
+  the gitsitter compare must land around ~8–9s; above that the feature
+  is ORANGE, and if it cannot beat crane's 16.46s the CIP itself is in
+  question — early cutoff that loses the warm-edit race buys only UX.
+  First post-landing measurement: 84.83s (complete ptrace capture +
+  read hashing + delta storage on executed steps) against the old
+  layer-split 7.46s. A trace-overhead reduction track owns this bar;
+  any completeness-vs-speed trade that would relax §3's capture
+  requirements is a finding for Mathijs, never a unilateral change.
 
 ## Regression surface (design, for the eventual track)
 

@@ -1,5 +1,54 @@
 # Cixfile track work log
 
+- 2026-08-02T17:05:00Z — Track implementation and agent gate complete on
+  `track/thin1`: commits `52adf3e` (unit pure move), `a7f3b25` (FETCH
+  consent move), `961d626` (tripwire + compat audit), and `62ea95d`
+  (test-scoped imports). Synchronous receipts: `cargo fmt --all --check`;
+  `cargo run -- fmt --check examples`; warning-denied
+  `cargo clippy --workspace --all-targets -- -D warnings`; serial
+  `cargo test --workspace -- --test-threads=1` (rerun with terminal status
+  captured in `/tmp/composix-thin1-workspace-test.log`); ignored tour
+  regeneration plus zero `docs/tour` diff and committed-tour test; focused
+  `nix build .#checks.x86_64-linux.vm-dogfood -L --no-link` (terminal status
+  captured in `/tmp/composix-thin1-vm-dogfood.log`); and flake-integrated
+  `nix build .#checks.x86_64-linux.source-size --no-link`. The first tour
+  generation hit the pre-existing intermittent proj1 workspace race (missing
+  Cargo fingerprint directory); the immediate fresh rerun passed with no
+  generated drift, so it is recorded but not attributed to this refactor.
+  Final audit next; this required journal stays unstaged.
+
+- 2026-08-02T16:35:00Z — CIP-89 coupling/audit checkpoint. `fetch.rs` now
+  owns ConsentStore and exposes only command-scoped credentials, but the
+  memo/workspace code still mutually depends on conductor-local trace,
+  sandbox, and store helpers; per §4 turn 1 I stopped rather than inventing a
+  fake narrow boundary. The tripwire therefore names `build_chain.rs` visibly
+  as a grandfathered conductor with this reason. Compat inventory: deleted the
+  unreachable `LegacyLockFile { nixpkgs }` reader (no committed locks match);
+  deleted index `tags/` sidecar migration after confirming no live
+  `~/.local/state/cix/tags` and no committed state; it now teaches regeneration.
+  Retained FetchPin whole-tree and storePath forms plus MemoEntry old output
+  fields because 15 committed locks contain them (including corpus legacy
+  FETCH/memo records). Exact focused checks: source-size tripwire, cix-build
+  24 tests, cix-index 8 tests all passed synchronously. Next: commit the pure
+  FETCH move separately, then complete docs/gates and commit the audit.
+
+- 2026-08-02T16:12:00Z — Pure-move unit stratum complete: health,
+  device-policy, and managed-directory assembly now live in dedicated modules;
+  `unit.rs` still calls them at the original property-order positions. Their
+  module contracts make ordering authority explicit in the conductor. Exact
+  proof: `cargo fmt --all --check && cargo test -p cix-run --lib` (69 passed),
+  plus `git diff --check`, all synchronous. Next: commit this isolated move,
+  then split build-chain's owned strata.
+
+- 2026-08-02T16:00:00Z — Started `track/thin1` for CIP-89 leg 1. Read the
+  complete track spec, current project/crate journals, CIP-89 including all
+  four amended turns, D72, and the active environment (direnv/devenv is
+  active). Scope: quiet cix-build/cix-run/cix-index owned-type thinning;
+  explicit compatibility audit; module maps and 2000-LOC hard tripwire;
+  docs/README/CIP changelog. cix-compose is expressly out of scope. Next:
+  inventory the exact build-chain, unit, lock, and refs seams before making
+  pure-move commits.
+
 - 2026-08-02T15:30:00Z — Committed the complete green overlay track as
   `d4a9990` (`feat: add overlay package universes`). It contains only the
   scoped implementation, migrations, lock, generated corpus/tour pages,
