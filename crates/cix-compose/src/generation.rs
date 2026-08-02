@@ -195,6 +195,9 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
             .cloned()
             .unwrap_or_default();
         let mut extra_properties = Vec::new();
+        if checked.compose.log_namespace {
+            extra_properties.push(("LogNamespace".into(), format!("cix-{composite}")));
+        }
         if !claims.is_empty() {
             extra_properties.push((
                 "SupplementaryGroups".into(),
@@ -245,6 +248,10 @@ fn render_units(checked: &CheckResult, capabilities: &HostCapabilities) -> Resul
                     directory_prefix: prefix.clone(),
                 },
                 extra_properties,
+                log_fields: vec![
+                    ("CIX_COMPOSITE".into(), composite.clone()),
+                    ("CIX_SERVICE".into(), service_name.clone()),
+                ],
             },
             capabilities,
         )
@@ -527,6 +534,7 @@ mod tests {
                     },
                 ),
             ]),
+            log_namespace: false,
             edges: BTreeMap::from([(
                 "shared".into(),
                 Edge {
@@ -747,5 +755,22 @@ mod tests {
         assert!(manifest.degradations.is_empty());
         let worker = fs::read_to_string(generation.join("units/cix-stack-worker.service")).unwrap();
         assert!(worker.contains("PrivatePIDs=yes"));
+    }
+
+    #[test]
+    fn compose_services_stamp_selectors_and_opt_into_a_log_namespace() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked.compose.log_namespace = true;
+        let generation = directory.path().join("generation");
+        render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let web = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(web.contains("LogExtraFields=CIX_COMPOSITE=stack CIX_SERVICE=web CIX_ITEM=/nix/store/00000000000000000000000000000000-web"), "{web}");
+        assert!(web.contains("LogNamespace=cix-stack"), "{web}");
     }
 }

@@ -4,6 +4,7 @@ Description=cix run: worker
 [Service]
 Type=exec
 Slice=cix-run.slice
+LogExtraFields=CIX_RUN=cix-run-worker.service CIX_ITEM=/nix/store/00000000000000000000000000000000-worker
 DynamicUser=yes
 ProtectSystem=strict
 ProtectHome=yes

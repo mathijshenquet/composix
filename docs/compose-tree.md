@@ -192,6 +192,15 @@ A **parametric compose** makes a tag family computable: `my-app:$tag` ≡ compos
   build all items, tag `my-frontend:v1.2.5 … my-app:v1.2.5`, one atomic table move per
   name. ("I update my monorepo to v1.2.5 and the whole bunch is published.")
 
+## 6a. Operational journal boundary (CIP-83)
+
+`logNamespace: true` is a compose-level opt-in. It compiles every member to
+`LogNamespace=cix-<compose>`, which gives that composite a dedicated `systemd-journald@`
+instance and therefore its own retention configuration. This is an operational boundary, not an
+application capability: operators query it with `journalctl --namespace=cix-<compose>` and own
+its retention policy. `cix logs` supplies that namespace transparently. Unary `cix run` has no
+matching flag.
+
 ## 7. Prior work (schools and what they taught us)
 
 - **k8s core**: merged everything into one API schema with no sealed intermediates → the

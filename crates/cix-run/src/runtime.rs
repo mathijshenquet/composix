@@ -222,6 +222,7 @@ fn start_scheduled_app(
     let timer_text = format!(
         "[Unit]\nDescription=cix scheduled app: {app_name}\nRequires={root_service}\nAfter={root_service}\n\n[Timer]\nOnCalendar={schedule}\nUnit={service}\n"
     );
+    let definition = with_log_unit_name(definition, &service);
     let service_text = definition.text.replacen(
         "\n\n[Service]\n",
         &format!("\nPartOf={timer}\n\n[Service]\n"),
@@ -507,7 +508,8 @@ fn start_with_listeners(
     config: &ResolvedConfig,
     definition: &UnitDefinition,
 ) -> Result<()> {
-    let (definition, gc_root) = definition_with_gc_root(name, user, output, definition)?;
+    let definition = with_log_unit_name(definition, name);
+    let (definition, gc_root) = definition_with_gc_root(name, user, output, &definition)?;
     if config.listeners.is_empty() {
         let result = start_once(name, user, &definition);
         if result.is_err() {
@@ -686,6 +688,44 @@ fn with_listener_dependencies(definition: &UnitDefinition, sockets: &[String]) -
         1,
     );
     definition.text.push_str(&format!("Sockets={sockets}\n"));
+    definition
+}
+
+fn with_log_unit_name(definition: &UnitDefinition, unit: &str) -> UnitDefinition {
+    let mut definition = definition.clone();
+    let replacement = format!("CIX_RUN={unit}");
+    if let Some((_, value)) = definition
+        .properties
+        .iter_mut()
+        .find(|(property, _)| property == "LogExtraFields")
+    {
+        *value = value
+            .split_whitespace()
+            .map(|field| {
+                if field.starts_with("CIX_RUN=") {
+                    replacement.as_str()
+                } else {
+                    field
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+    }
+    if let Some(start) = definition.text.find("LogExtraFields=") {
+        let end = definition.text[start..]
+            .find('\n')
+            .map(|offset| start + offset)
+            .unwrap_or(definition.text.len());
+        let value = definition
+            .properties
+            .iter()
+            .find(|(property, _)| property == "LogExtraFields")
+            .map(|(_, value)| value)
+            .expect("LogExtraFields property exists");
+        definition
+            .text
+            .replace_range(start..end, &format!("LogExtraFields={value}"));
+    }
     definition
 }
 
@@ -891,7 +931,8 @@ fn run_transient_app(
     output: &Path,
     definition: &UnitDefinition,
 ) -> Result<ForegroundResult> {
-    let (definition, gc_root) = definition_with_gc_root(name, user, output, definition)?;
+    let definition = with_log_unit_name(definition, name);
+    let (definition, gc_root) = definition_with_gc_root(name, user, output, &definition)?;
     let result = run_transient_foreground_with_type(name, user, &definition, false, "oneshot");
     remove_gc_root(gc_root.as_ref());
     result
@@ -1337,18 +1378,27 @@ pub fn ps() -> Result<()> {
         .max()
         .unwrap_or(4)
         .max(4);
+    let results = rows
+        .iter()
+        .map(|(manager, unit)| {
+            systemctl_value(*manager == "user", &unit.unit, "Result")
+                .map(|result| result_label(&result).to_owned())
+                .unwrap_or_else(|_| "-".into())
+        })
+        .collect::<Vec<_>>();
+    let result_width = results.iter().map(String::len).max().unwrap_or(6).max(6);
     println!(
-        "{:<manager_width$}  {:<unit_width$}  {:<10}  DESCRIPTION",
-        "MANAGER", "UNIT", "STATE"
+        "{:<manager_width$}  {:<unit_width$}  {:<10}  {:<result_width$}  DESCRIPTION",
+        "MANAGER", "UNIT", "STATE", "RESULT"
     );
-    for (manager, unit) in rows {
+    for ((manager, unit), result) in rows.into_iter().zip(results) {
         let description = if unit.unit.ends_with(".socket") {
             socket_description(manager == "user", &unit.unit).unwrap_or(unit.description)
         } else {
             unit.description
         };
         println!(
-            "{manager:<manager_width$}  {:<unit_width$}  {:<10}  {}",
+            "{manager:<manager_width$}  {:<unit_width$}  {:<10}  {result:<result_width$}  {}",
             unit.unit,
             format!("{}/{}", unit.active, unit.sub),
             description
@@ -1370,6 +1420,14 @@ fn socket_description(user: bool, unit: &str) -> Result<String> {
         .find_map(|line| line.strip_prefix("Service="))
         .context("socket unit has no Service")?;
     Ok(format!("listening {listen} -> {service}"))
+}
+
+fn result_label(result: &str) -> &str {
+    if result == "watchdog" {
+        "liveness watchdog missed"
+    } else {
+        result
+    }
 }
 
 fn list_units(user: bool) -> Result<Vec<ListedUnit>> {

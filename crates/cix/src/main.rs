@@ -25,6 +25,27 @@ struct Inspect {
     user: bool,
 }
 
+#[derive(Args)]
+struct Logs {
+    /// Composite name, optionally followed by /service.
+    target: String,
+    /// Follow the journal.
+    #[arg(short = 'f')]
+    follow: bool,
+    /// Show entries since this journalctl timestamp.
+    #[arg(long)]
+    since: Option<String>,
+    /// Show this many journal entries.
+    #[arg(short = 'n')]
+    lines: Option<u32>,
+    /// Restrict output to one systemd invocation ID.
+    #[arg(long)]
+    invocation: Option<String>,
+    /// Print the equivalent journalctl command without running it.
+    #[arg(long)]
+    explain: bool,
+}
+
 /// composix: a docker-shaped toolkit on nix + systemd.
 #[derive(Parser)]
 #[command(name = "cix", version)]
@@ -37,6 +58,10 @@ struct Cli {
 enum Command {
     /// Inspect an artifact or a running cix service.
     Inspect(Inspect),
+    /// Read cix service logs from journald.
+    Logs(Logs),
+    /// Read one accounting snapshot from systemd; use systemd-cgtop for a live view.
+    Stats,
     #[command(flatten)]
     Cixfile(cix_cixfile::cli::Command),
     #[command(flatten)]
@@ -56,6 +81,15 @@ enum Command {
 fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Inspect(options) => inspect(options),
+        Command::Logs(options) => cix_compose::logs(cix_compose::LogsOptions {
+            target: options.target,
+            follow: options.follow,
+            since: options.since,
+            lines: options.lines,
+            invocation: options.invocation,
+            explain: options.explain,
+        }),
+        Command::Stats => cix_compose::stats(),
         Command::Cixfile(cmd) => cmd.run(),
         Command::Compose(cmd) => cmd.run(),
         Command::Index(cmd) => cmd.run(),
@@ -88,6 +122,7 @@ struct RuntimeInspection {
     service: String,
     state: RuntimeState,
     main_pid: u32,
+    invocation_id: String,
     exit_cause: ExitCause,
     properties: BTreeMap<String, String>,
     ports: Vec<String>,
@@ -109,6 +144,7 @@ struct ExitCause {
     result: String,
     code: String,
     status: String,
+    diagnosis: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -256,6 +292,7 @@ fn inspect_runtime(
         "Result",
         "ExecMainCode",
         "ExecMainStatus",
+        "InvocationID",
     ];
     names.extend(GENERATED_PROPERTIES);
     let values = systemctl_properties(user, &target.unit, &names)?;
@@ -283,10 +320,12 @@ fn inspect_runtime(
             sub: property("SubState"),
         },
         main_pid,
+        invocation_id: property("InvocationID"),
         exit_cause: ExitCause {
-            result: property("Result"),
+            result: cix_compose::result_label(&property("Result")).to_owned(),
             code: property("ExecMainCode"),
             status: property("ExecMainStatus"),
+            diagnosis: spawn_exit_diagnosis(&property("ExecMainStatus")).map(str::to_owned),
         },
         ports: property("SocketBindAllow")
             .split_whitespace()
@@ -425,9 +464,18 @@ fn render_runtime(inspection: &RuntimeInspection, human: bool) -> anyhow::Result
         inspection.state.load, inspection.state.active, inspection.state.sub
     );
     println!("main pid       {}", inspection.main_pid);
+    println!("invocation id  {}", inspection.invocation_id);
     println!(
-        "exit cause     {}/{}/{}",
-        inspection.exit_cause.result, inspection.exit_cause.code, inspection.exit_cause.status
+        "exit cause     {}/{}/{}{}",
+        inspection.exit_cause.result,
+        inspection.exit_cause.code,
+        inspection.exit_cause.status,
+        inspection
+            .exit_cause
+            .diagnosis
+            .as_deref()
+            .map(|diagnosis| format!(" ({diagnosis})"))
+            .unwrap_or_default(),
     );
     if !inspection.ports.is_empty() {
         println!("ports          {}", inspection.ports.join(","));
@@ -436,6 +484,59 @@ fn render_runtime(inspection: &RuntimeInspection, human: bool) -> anyhow::Result
         println!("{role} dirs     {}", paths.join(","));
     }
     Ok(())
+}
+
+fn spawn_exit_diagnosis(status: &str) -> Option<&'static str> {
+    let status = status.parse::<u16>().ok()?;
+    Some(match status {
+        200 => "working-directory setup failed",
+        201 => "scheduling priority setup failed",
+        202 => "file-descriptor setup failed",
+        203 => "exec failed",
+        204 => "memory setup failed",
+        205 => "resource-limit setup failed",
+        206 => "OOM-score setup failed",
+        207 => "signal-mask setup failed",
+        208 => "standard-input setup failed",
+        209 => "standard-output setup failed",
+        210 => "chroot setup failed",
+        211 => "I/O-priority setup failed",
+        212 => "timer-slack setup failed",
+        213 => "secure-bits setup failed",
+        214 => "scheduler setup failed",
+        215 => "CPU-affinity setup failed",
+        216 => "group setup failed",
+        217 => "user setup failed",
+        218 => "capability setup failed",
+        219 => "cgroup setup failed",
+        220 => "session setup failed",
+        221 => "confirmation failed",
+        222 => "standard-error setup failed",
+        223 => "reserved systemd spawn failure",
+        224 => "PAM setup failed",
+        225 => "network setup failed",
+        226 => "namespace setup failed",
+        227 => "no-new-privileges setup failed",
+        228 => "seccomp setup failed",
+        229 => "SELinux context setup failed",
+        230 => "personality setup failed",
+        231 => "AppArmor setup failed",
+        232 => "address-family setup failed",
+        233 => "runtime-directory setup failed",
+        234 => "reserved systemd spawn failure",
+        235 => "ownership setup failed",
+        236 => "SMACK label setup failed",
+        237 => "keyring setup failed",
+        238 => "state-directory setup failed",
+        239 => "cache-directory setup failed",
+        240 => "logs-directory setup failed",
+        241 => "configuration-directory setup failed",
+        242 => "NUMA-policy setup failed",
+        243 => "credentials setup failed",
+        244 => "BPF setup failed",
+        245 => "KSM setup failed",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -508,10 +609,12 @@ mod tests {
                 sub: "running".into(),
             },
             main_pid: 123,
+            invocation_id: "0123456789abcdef0123456789abcdef".into(),
             exit_cause: ExitCause {
                 result: "success".into(),
                 code: "exited".into(),
                 status: "0".into(),
+                diagnosis: None,
             },
             properties: BTreeMap::new(),
             ports: vec!["tcp:8080".into()],
@@ -530,6 +633,16 @@ mod tests {
         assert_eq!(
             serde_json::to_value(&runtime).unwrap()["exitCause"]["result"],
             "success"
+        );
+    }
+
+    #[test]
+    fn maps_systemd_spawn_exit_codes() {
+        assert_eq!(spawn_exit_diagnosis("226"), Some("namespace setup failed"));
+        assert_eq!(spawn_exit_diagnosis("245"), Some("KSM setup failed"));
+        assert_eq!(
+            spawn_exit_diagnosis("223"),
+            Some("reserved systemd spawn failure")
         );
     }
 }
