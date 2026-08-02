@@ -1,44 +1,62 @@
-# track/health — health wiring for compose (corpus demand #1)
+# track/health — CIP-79: READINESS/LIVENESS on native systemd
 
-STATUS: design-position spec. Hard choices pending Mathijs (marked ⚖); do not launch
-until D-numbered. Corpus evidence: 10/18 wild compose files use healthchecks, 6 gate
-startup on `condition: service_healthy`; probes are in essentially every k8s chart.
-The manifest has carried `health` (exec + interval) since v1 — what is missing is
-compose *semantics* for it.
+(Supersedes the pre-CIP design-position spec that lived here; CIP-79 is
+the D-number it was waiting for, and it changed the mechanics: watchdog
+instead of timer units, LIVENESS as restart opt-in.)
 
-## Design position
+Read AGENTS.md first. Authoritative: docs/cips/0079-health.md (§3 + §5
+Decision; it amends D48(c)). This is the biggest open implementation —
+you have latitude on internal structure; the external contract below is
+fixed. Work in `.worktrees/health` on branch `track/health`. Keep
+`crates/cix-run/LOG.md` current. NOTE: track/devfix runs concurrently
+in crates/cix-run (capability probe + PrivateDevices degradation) and
+track/ergo in crates/cix-cixfile (FROM attrs, lock env) — expect a
+main-merge before your gate; keep your parser additions and unit-gen
+changes cleanly separated from those seams.
 
-Two mechanisms, both compiled from the existing manifest `health` field:
+1. **Directives** (Cixfile, on SERVICE/APP):
+   `READINESS http :8080/healthz IN 90s` | `READINESS tcp :5432 IN 60s`
+   | `READINESS notify IN 90s`; `LIVENESS http :8080/livez EVERY 10s` |
+   `LIVENESS tcp ... EVERY ...` | `LIVENESS notify EVERY 10s`. Probe
+   types http/tcp/notify ONLY (no exec — YAGNI'd in the CIP). Manifest
+   fields replace the v0 `health {exec, interval}` shape (D72: schema
+   moves freely; migration-grade refusal of the old field). fmt
+   support; parser diagnostics in house style; the CIP-mandated
+   `LIVELINESS → did you mean LIVENESS` suggestion fixture.
+2. **Compilation**:
+   - `READINESS notify` → `Type=notify`; probe forms → unit stays
+     `Type=exec` + `ExecStartPost=<cix probe await ...>` blocking until
+     first success; `IN` → `TimeoutStartSec=`.
+   - `LIVENESS notify` → `WatchdogSec=` (window = 3× EVERY, fixed);
+     probe forms → a cgroup-resident `cix probe` pinger translating
+     probe success into `WATCHDOG=1` (`NotifyAccess=all`). Declaring
+     LIVENESS is the restart opt-in: emit `Restart=`/StartLimit
+     properties on exactly the liveness-declaring units.
+   - `cix probe` subcommand: native http/tcp prober (no curl, no
+     shell), await mode and resident-pinger mode. Keep its closure
+     footprint zero beyond the cix binary itself.
+3. **Ban enforced**: compose schema rejects any health-condition
+   vocabulary on edges (there is none to accept — assert the refusal
+   with a schema test); ordering-follows-readiness comes free via
+   structural edges (`After=` waits on start-job completion) — prove it
+   in the VM scenario.
+4. **`cix up` rollout semantics**: activation waits on start-job
+   completion, so a failing READINESS surfaces as a failed `cix up` —
+   assert this (rollout-status for free, per CIP).
+5. **Docs**: docs/docker.md HEALTHCHECK + `condition: service_healthy`
+   rows (❌ graph, ✅ probes honestly); docs/cixfile.md directive docs;
+   docs/corpus.md rows blocked on CIP-79 re-graded per the ledger
+   convention (desk unless you produce a receipt); tour touch only if a
+   shown transcript changes.
+6. **Tests**: parser + fmt round-trips; unit-gen snapshot fixtures
+   (notify/http/tcp × readiness/liveness × system/user modes); prober
+   unit tests; new `nix/scenarios/health.nix`: a member with http
+   READINESS + LIVENESS comes up, `cix up` blocks-then-succeeds, a
+   deliberately failing readiness makes `cix up` fail loudly, a hung
+   member misses its watchdog and systemd restarts it (journal shows
+   the CIP-83 exit-cause mapping "liveness watchdog missed").
 
-1. **Readiness (startup gating)** — a service with `health` is not "started" until
-   its first probe passes: generate `ExecStartPost=` running the probe in a bounded
-   retry loop (timeout → unit fails startup). Dependents keep plain `After=` — no new
-   compose surface, `depends_on: service_healthy` semantics fall out of systemd
-   ordering. `cix up` therefore blocks on health, and a failed generation switch
-   surfaces at up-time, not discovery-time.
-2. **Liveness (periodic)** — a generated `cix-<path>-<svc>-health.timer` + `.service`
-   running the probe on the manifest interval; consecutive-failure threshold N →
-   action.
-
-## Resolved (D48c + 07-30 follow-up — Mathijs's rounds)
-
-- **Vocabulary: "health" is dropped entirely** (Mathijs: k8s had it right). The
-  manifest/compose fields are `liveness` and `readiness` — named for their consumers;
-  the legacy `health` manifest field migrates. "Real health is application-layer" is
-  a doc sentence, not a feature.
-
-- **Health is an edge to a consumer, not a property.** k8s names probes by consumer
-  (liveness→restart, readiness→traffic, startup→boot-gate) and keeps deep/business
-  health at the application layer — we adopt both stances. Our consumers: `cix up`
-  convergence, restart policy, dependent ordering (no traffic layer, so readiness ≈
-  ordering). Manifest declares the probe; compose declares which consumers use it.
-- **Unhealthy action**: per-service policy field, DEFAULT report-only (restarts that
-  mask crash-loops are docker's least honest habit); restart-after-N is opt-in.
-- **Readiness does not gate the listener fd handoff in v0**: for fd-tier services,
-  activation IS the readiness signal; the gap is documented, not machinerized.
-
-## Scope & gate
-
-crates/cix-run (unit generation) + cix-compose; scenario tier gets a lifecycle
-assertion (healthy gating observable; unhealthy → policy action). Full workspace +
-scenario gates.
+Gate: fmt / `cargo run -- fmt --check examples` / warning-denied
+clippy / workspace tests / tour regen + drift / full
+`devenv shell -- nix flake check -L`. Exact repros in the LOG. Commit
+on this branch when green.
