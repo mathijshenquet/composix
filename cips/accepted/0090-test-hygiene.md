@@ -75,3 +75,13 @@ clap boundary become a denied pattern in the gate.
 
 - 2026-08-02: drafted from the step-2 sweep; reshaped same day to
   boundary-config on Mathijs's review; adopted same day.
+- 2026-08-02 (same day, shared-state amendment): inventory ran clean —
+  zero Arc/Rc/Mutex/RwLock in production src; four atomics (two
+  signal-handler INTERRUPTED flags, duplicated across watch.rs and
+  runtime.rs — unify in cix-common; the --stats subprocess counter;
+  a borderline NONCE_COUNTER — make it an injected generator); three
+  test RefCells (idiomatic mocks, fine); two test Mutexes
+  (TOUR_RENDER_LOCK, WORKSPACE_DIRECTORY) which this CIP's
+  boundary-config work must make REDUNDANT and delete, not keep.
+  Standing review rule recorded in AGENTS.md: shared ownership /
+  interior mutability requires a stated justification at the site.
