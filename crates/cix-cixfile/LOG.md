@@ -1,5 +1,49 @@
 # Cixfile track work log
 
+- 2026-08-02T02:30:00Z — Committed CIP-88 as `0fec3ce` (`feat: improve
+  builder ergonomics`). The commit includes stats, completed-output receipts,
+  vendored builder dev environments, lock metadata interpolation, gitsitter
+  simplification, hermetic regression coverage, and refreshed documentation.
+  The prescribed format, examples, clippy, workspace, tour, and full flake
+  gates are green; `git diff --check HEAD` is clean. This task journal remains
+  deliberately unstaged; no other worktree changes remain.
+
+- 2026-08-02T00:20:00Z — Mapped the current build path for CIP-88. The
+  full-hit path currently resolves Nix contexts before consulting memo entries,
+  and hashes/re-adds immutable store paths; the implementation will add a
+  lock-recorded completed-output fast path, invocation stats, vendored
+  `print-dev-env` snapshots, and lock metadata interpolation without changing
+  the concurrent parser work for CLAIM/SHM. Next: implement the lock/model
+  seams, then exercise focused tests before the full gate.
+
+- 2026-08-02T01:15:00Z — Implemented the CIP-88 core: `--stats` JSON,
+  in-process host-system detection, completed-output receipts for a zero-Nix
+  full hit, lock-resolved FROM metadata, IMPORT dev-env snapshots, and the
+  16-MiB informational FETCH-complement note. The simplified gitsitter
+  fixture builds with `${src.rev}` and the vendored `PKG_CONFIG_PATH`; a warm
+  receipt reported zero Nix subprocesses. Added a local-HTTP FETCH regression
+  proving normal/repeat/`--cold` convergence and the no-op assertion. Focused
+  parser and mini-fixture tests are green. Next: format/docs review, broader
+  workspace checks, prescribed tour/flake gate, then commit.
+
+- 2026-08-02T02:20:00Z — Final verification is green: `cargo fmt --all
+  --check`; `cargo run -- fmt --check examples`; warning-denied workspace
+  clippy; serial workspace tests; tour regeneration, committed-doc drift, and
+  deterministic rerun; and `devenv shell -- nix flake check -L` (full VM
+  fleet, expected KVM→TCG fallback). The first combined workspace run exposed
+  the known shared tour renderer path; regeneration and serial reruns passed.
+  A duplicate flake invocation was stopped while the original completed. Final
+  `git diff --check` is clean. Next: stage scoped changes except this ignored
+  journal, commit on `track/ergo`, then verify the commit.
+
+- 2026-08-02T00:00:00Z — Started track/ergo (CIP-88). Read AGENTS.md, the
+  session journal, complete track specification, and authoritative CIP-88.
+  Scope: `cix build --stats`, zero-subprocess full memo hits, automatic
+  pkg-config paths, FROM lock metadata interpolation, simplified gitsitter
+  fixture, hermetic regression, docs, full prescribed gate, and a scoped
+  commit. The requested journal is tracked on this branch despite the global
+  ignore preference; it will remain deliberately unstaged.
+
 - 2026-08-01T22:15:00Z — Committed the complete CIP-80 sweep as `cd6cd99`
   (`feat: rename exec to start`). The commit has 140 scoped files and leaves
   this journal deliberately unstaged; `git status` contains no other worktree
