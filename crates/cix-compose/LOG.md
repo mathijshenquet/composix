@@ -538,3 +538,45 @@
   with this required journal deliberately left unstaged and uncommitted. No agent-side
   work remains; the orchestrator's independent full `nix flake check -L` matrix is the
   next gate per project policy.
+
+- 2026-08-02 19:21 UTC — Opened the orchestrator's `scenario-dirs2` fix round. The
+  merged netns source still renders shared setup and `UMask=0002`, while shared
+  consumers cannot write and host/private materializations work. Source comparison
+  isolates a suspicious netns change: `c89e3d3` removed the pre-track
+  `.chain(directory_groups.iter().map(String::as_str))` from `SupplementaryGroups`,
+  leaving pure shared-directory consumers with an empty supplementary-group value.
+  Next: capture current and pre-netns (`0abd4a3`) effective unit properties plus
+  shared-root ownership inside the VM before applying the repair.
+
+- 2026-08-02 19:27 UTC — In-VM differential diagnosis confirmed the single-property
+  regression. Current `left`/`right`: dynamic primary groups and `UMask=0002`, but
+  `SupplementaryGroups=`; shared root was correctly `drwxrws--- root:994`
+  (`root:cix-s-ac0bd075d978a7f3`) and empty. Pre-netns `0abd4a3` under the identical
+  root: `SupplementaryGroups=cix-s-ac0bd075d978a7f3` for both members, with `left` and
+  `right` created as `0664` and inheriting that group. Restored the lost union of edge
+  and shared-directory groups and added assertions for both shared members to the
+  existing generation test. Next: focused Rust verification, then synchronous dirs2
+  and netns VM receipts.
+
+- 2026-08-02 19:29 UTC — Fixed `scenario-dirs2` completed synchronously: all four
+  member units became active without restarts, both shared `left`/`right` files
+  appeared, the shared root remained mode `2770`, and cleanup/purge assertions
+  passed. The first post-fix build could not launch because the Nix store had only
+  about 1 GiB free; a bounded `nix store gc --max 10737418240` removed 10 GiB of
+  unreferenced rebuildable paths, after which the VM receipt passed. Next: run the
+  required synchronous `scenario-netns` receipt.
+
+- 2026-08-02 19:33 UTC — Fixed `scenario-netns` completed synchronously with exit 0;
+  pod-local and published listeners, DNS/egress policy, cross-boundary Unix edges,
+  closed-root rerun, rollback, stable IPAM, and final namespace/unit cleanup all
+  passed. Required focused VM gates are green. Next: final crate-level test and diff
+  review, then commit only the source/test repair (leave this LOG unstaged).
+
+- 2026-08-02 19:33 UTC — Fix committed as `b94457d` (`Restore compose shared
+  directory groups`). Final receipts: `cargo fmt --all --check`; warning-denied
+  workspace clippy; focused shared-directory generation regression test; full
+  `cargo test -p cix-compose` (42 unit + 2 integration); synchronous
+  `scenario-dirs2`; synchronous `scenario-netns` — all exit 0. The two rebuilt VM
+  closures filled the store again and the first final LOG append failed; restored the
+  journal from its committed baseline plus every fix-round entry after another bounded
+  10 GiB Nix GC. Only this assigned append-only LOG remains unstaged.
