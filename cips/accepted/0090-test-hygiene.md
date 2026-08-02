@@ -1,8 +1,6 @@
 # Test hygiene — the two failure classes today's incidents proved
 
-Status: **draft** (2026-08-02, drive-progress step-2 sweep). Both
-items are generalizations of failures that actually bit today —
-evidence-backed, not speculative.
+Status: **CIP-90, adopted 2026-08-02** (Mathijs). Decision in §5.
 
 ## 1. The problem
 
@@ -62,3 +60,18 @@ One hygiene track:
    the tour harness get a private hook? Draft leans public `--json`:
    docker precedent (`--format json`), zero extra surface beyond
    serialization.
+
+## 5. Decision
+
+Adopted as recommended, with Mathijs's sharpening recorded: use clap
+LITERALLY — the boundary config is clap derive structs carrying
+`env = "CIX_…"` attributes (arg > env > default for free); good
+libraries are preferred over hand-rolling, explicitly also as a DX
+stance. `cix ps --json` is the public machine surface the tour
+consumes (docker `--format json` precedent). Env reads outside the
+clap boundary become a denied pattern in the gate.
+
+## Changelog
+
+- 2026-08-02: drafted from the step-2 sweep; reshaped same day to
+  boundary-config on Mathijs's review; adopted same day.

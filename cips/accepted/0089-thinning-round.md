@@ -1,8 +1,7 @@
 # Thinning round — measured hotspots + alpha-compat deletions
 
-Status: **draft** (2026-08-02, drive-progress step-2 sweep; complexity-
-monster method: measure, decompose along strata, delete speculative
-compat in alpha).
+Status: **CIP-89, adopted 2026-08-02** (Mathijs, after the requested
+4× turn-over in §4). Decision in §6.
 
 ## 1. The problem — measured
 
@@ -94,3 +93,20 @@ crude, but it converts silent regrowth into a visible decision.
 1. Tripwire threshold (2000 LOC?) and whether it hard-fails or warns.
 2. Does the manifest version story deserve one line of decision
    (e.g. "alpha reads exactly version 0") recorded as a D72 note?
+
+## 6. Decision
+
+Adopted: §3 as amended by all four turns (owned-type splits with
+narrow interfaces; quiet-crate precondition with pure-move commits;
+evidence-classified compat audit preferring regenerate-in-alpha;
+module map + growth tripwire). Open-question fills (orchestrator,
+amendable): tripwire at 2000 LOC, hard-fail in the agent gate with the
+module map as the pointer — raising the threshold is a visible edit to
+the check, never silent. The manifest-version line is produced by the
+audit itself and recorded as a D72 note; the README claim is corrected
+to whatever the audit proves.
+
+## Changelog
+
+- 2026-08-02: drafted from the step-2 sweep; 4× turn-over same day;
+  adopted same day.
