@@ -107,14 +107,13 @@ IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.pkg-config} \
     ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert} \
     ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
     ${pkgs.sqlite} ${pkgs.sqlite.dev}
-ENV GIT_COMMIT_HASH = 29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd
+ENV GIT_COMMIT_HASH = ${src.rev}
 COPY ${src}/Cargo.toml Cargo.toml
 COPY ${src}/Cargo.lock Cargo.lock
-FETCH cargo vendor --locked vendor > cargo-vendor-config.toml && rm -rf .cargo
-RUN mkdir -p .cargo && cp cargo-vendor-config.toml .cargo/config.toml
+FETCH mkdir -p .cargo && cargo vendor --locked vendor > .cargo/config.toml
 COPY ${src}/build.rs build.rs
 COPY ${src}/src/ src
-RUN PKG_CONFIG_PATH=${pkgs.openssl.dev}/lib/pkgconfig:${pkgs.libgit2.dev}/lib/pkgconfig:${pkgs.sqlite.dev}/lib/pkgconfig cargo build --release --locked --offline
+RUN cargo build --release --locked --offline
 
 ITEM gitsitter
 COPY ${build}/target/release/gitsitter /bin/gitsitter
@@ -127,7 +126,7 @@ for its explanatory comment:
 $ for f in "$upstream/flake.nix" examples/compare/gitsitter/crane/flake.nix examples/compare/gitsitter/cix/Cixfile; do awk 'NF && $1 !~ /^#/' "$f" | wc -l; done
 38
 30
-17
+16
 ```
 
 LOC is only an authoring-weight proxy. The upstream author must understand a
@@ -163,7 +162,7 @@ The measured matrix was:
 | --- | ---: | ---: | ---: |
 | Upstream flake | 0.07 s | 28.82 s | 30.64 s |
 | crane | 0.64 s | 37.81 s | 16.46 s |
-| Cixfile | 1.13 s | 26.94 s | 7.46 s (2026-08-01) |
+| Cixfile | 0.00 s (2026-08-02) | 26.94 s | 7.46 s (2026-08-01) |
 
 ### No-op
 
@@ -174,11 +173,13 @@ redirected to `/dev/null`.
 ```console
 upstream_noop_seconds=0.07
 crane_noop_seconds=0.64
-cix_noop_seconds=1.13
+cix_noop_seconds=0.00
 ```
 
-Here the ordinary upstream flake is decisively cheapest. Cix's memo and lock
-work is observable even when there is no build work to do.
+This Cix receipt was re-measured on 2026-08-02 on the same host and binary with
+the full memo hit already present; `/usr/bin/time` rounded below one hundredth
+of a second. Its `--stats` result also reported zero Nix subprocesses and no
+executed steps. The upstream and crane measurements retain their original dates.
 
 ### Subject-cold
 
@@ -297,8 +298,10 @@ the same bytes as one another:
 | Cixfile | normal, repeat, and `--cold` builds converged | `/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter`, NAR hash `sha256:1mxy5zc081vywv0d2zj9n6i6kashlrrk83fk0z40vz0khfkmf73a` |
 
 Cix initially used `cargo fetch`; its fetched Cargo home was not byte-stable.
-The committed fixture instead uses `cargo vendor` and removes Cargo's mutable
-home before the step snapshot, making the normal/`--cold` bridge reproducible.
+The committed fixture now writes Cargo's vendor configuration directly during
+the networked FETCH, while the IMPORT-derived environment supplies pkg-config
+search paths. Normal, repeat, and `--cold` builds converge without a `.cargo`
+cleanup-and-restore dance.
 
 There is a second uncomfortable result. Crane's shipped final derivation
 passed `--check`, but its roughly 154 MiB internal `gitsitter-deps` Cargo
@@ -358,7 +361,7 @@ final package.
 
 Use a Cixfile when Docker-shaped ordered build steps, an explicit networked
 `FETCH`, and a fast stateful edit loop are more valuable than exposing a
-derivation. It was 17 logical lines and shortened this measured warm edit
+derivation. It is 16 logical lines and shortened this measured warm edit
 relative to upstream, while normal versus `--cold` output identity held after
 vendoring was normalized.
 The price is the D67 boundary: distribution uses the Cix index rather than

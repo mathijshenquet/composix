@@ -89,7 +89,9 @@ fn binder_names<'a>(templates: impl IntoIterator<Item = &'a Template>) -> BTreeS
         .flat_map(|template| &template.parts)
         .filter_map(|part| match part {
             TemplatePart::Binder { name, .. } => Some(name.clone()),
-            TemplatePart::Literal(_) | TemplatePart::Package { .. } => None,
+            TemplatePart::Literal(_)
+            | TemplatePart::Package { .. }
+            | TemplatePart::InputMetadata { .. } => None,
         })
         .collect()
 }
@@ -143,7 +145,7 @@ impl Builder {
 pub enum BuildStep {
     Env {
         name: String,
-        value: String,
+        value: Template,
         line: usize,
         source: String,
     },
@@ -331,7 +333,9 @@ impl Template {
         for part in &self.parts {
             match part {
                 TemplatePart::Literal(part) => value.push_str(part),
-                TemplatePart::Package { .. } | TemplatePart::Binder { .. } => return None,
+                TemplatePart::Package { .. }
+                | TemplatePart::Binder { .. }
+                | TemplatePart::InputMetadata { .. } => return None,
             }
         }
         Some(value)
@@ -365,6 +369,18 @@ impl Template {
                             name: right_name, ..
                         },
                     ) => left_name == right_name,
+                    (
+                        TemplatePart::InputMetadata {
+                            namespace: left_namespace,
+                            attribute: left_attribute,
+                            ..
+                        },
+                        TemplatePart::InputMetadata {
+                            namespace: right_namespace,
+                            attribute: right_attribute,
+                            ..
+                        },
+                    ) => left_namespace == right_namespace && left_attribute == right_attribute,
                     _ => false,
                 })
     }
@@ -380,6 +396,11 @@ pub enum TemplatePart {
     },
     Binder {
         name: String,
+        line: usize,
+    },
+    InputMetadata {
+        namespace: String,
+        attribute: String,
         line: usize,
     },
 }

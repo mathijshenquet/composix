@@ -556,7 +556,7 @@ impl Parser<'_> {
         arguments: &str,
     ) -> Result<(), ParseError> {
         if matches!(self.current, Some(CurrentBlock::Builder(_))) {
-            let fields = exact_fields(arguments, 3, line, source, "ENV <name> = <plain-value>")?;
+            let fields = exact_fields(arguments, 3, line, source, "ENV <name> = <value>")?;
             validate_env_name(fields[0], line, source)?;
             if fields[1] != "=" {
                 return Err(ParseError::new(
@@ -565,21 +565,15 @@ impl Parser<'_> {
                     "builder ENV name must be followed by '='",
                 ));
             }
-            if fields[2].contains("${") {
-                return Err(ParseError::new(
-                    line,
-                    source,
-                    "builder ENV values are plain text and do not support build-time interpolation",
-                ));
-            }
             let name = self.current_builder_name("ENV", line, source)?.to_owned();
+            let value = self.build_template(fields[2], line, source, false)?;
             self.builders
                 .get_mut(&name)
                 .expect("current builder exists")
                 .steps
                 .push(BuildStep::Env {
                     name: fields[0].to_owned(),
-                    value: fields[2].to_owned(),
+                    value,
                     line,
                     source: source.to_owned(),
                 });

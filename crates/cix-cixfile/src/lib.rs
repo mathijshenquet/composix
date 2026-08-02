@@ -6,7 +6,10 @@ pub mod fmt;
 mod parser;
 mod watch;
 
-pub use build::{build, build_family, BuildOptions, BuiltItem};
+pub use build::{
+    build, build_family, build_family_with_stats, build_with_stats, BuildOptions, BuildStats,
+    BuiltItem, StepStat,
+};
 pub use cix_build::{
     ensure_lock, generate_nix, generate_spec_json, ArtifactPin, ConsumedPath, FetchPin, InputLock,
     LockFile, MemoEntry, VolatilePath, DEFAULT_NIXPKGS_URL,

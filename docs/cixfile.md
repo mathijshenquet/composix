@@ -211,7 +211,12 @@ other FROM token must be a valid index ref with an explicit `:tag`. There is no 
 An untagged `family/web-vault` therefore gives the same `:latest is not a thing here` error as
 the rest of the index surface.
 
-The lock records remote revisions/NAR hashes and cix-item store paths/NAR hashes. `FROM .` and
+The lock records remote revisions/NAR hashes and cix-item store paths/NAR hashes. A locked FROM
+binder also exposes `${name.rev}`, `${name.shortRev}`, `${name.revCount}`, `${name.narHash}`,
+`${name.lastModified}`, and `${name.lastModifiedDate}` where the pin supplies them. These are
+resolved from `Cixfile.lock` before execution, so they enter ordinary step keys. Local tree
+binders may expose dirty facts when derivable; a missing fact is a line-numbered error that lists
+the attributes available on that binding. `FROM .` and
 the implicit local context are not pinned: the content of each declared COPY source enters its
 builder's chain key. `$VAR` remains runtime environment syntax and is valid in `START` and
 `START_PRE`; `${…}` is resolved while building. Copied file content is always verbatim.
@@ -252,6 +257,14 @@ argument. Unterminated quotes are line-numbered errors.
 collisions. Bare builder commands resolve through `/bin`; IMPORTed package closures and
 explicit package references are the only store paths offered to the sandbox. Import
 `${pkgs.cacert}` when a FETCH needs public TLS roots. RUN remains networkless.
+
+On the first build for an ordered IMPORT set, cix asks the pinned nixpkgs for its development
+environment and snapshots the deterministic store-path variables in `Cixfile.lock`. The fixed
+sandbox values (`PATH`, `HOME`, `TMPDIR`, locale, timestamp, and timezone) still win; stdenv
+control variables are dropped. Later builds reuse the snapshot without invoking Nix. This means
+native package conventions such as `PKG_CONFIG_PATH` are supplied automatically: import
+`${pkgs.pkg-config}` and the relevant library packages (including their `.dev` outputs), then run
+the build command directly rather than spelling a manual pkg-config path.
 
 The fixed skeleton adds exactly one alias: `/usr/bin/env` points to `/bin/env`. This lets
 tool-generated `#!/usr/bin/env bash` (or similar) launchers work when an IMPORT supplies
@@ -304,6 +317,17 @@ silently removes them. Add `EXPECT <sri-hash>` before the command to keep a whol
 integrity assertion instead: this removes the first-use trust window and reports declared versus
 actual on a mismatch. `--update-lock` is intentionally rejected for EXPECT fetches; change the
 declared hash.
+
+When a FETCH leaves at least 16 MiB outside the downstream-consumed paths, cix prints an
+informational size note. It never changes the build result or turns into a failure; it is a prompt
+to keep a large workspace intentional.
+
+### Build statistics
+
+`cix build --stats` returns the normal item result together with a stable JSON `stats` object.
+Each entry has a `name`, `kind`, and `status` (`executed` or `memo-hit`), while
+`nixSubprocesses` totals Nix child processes for that invocation. A full memo hit reports every
+step as `memo-hit` and `nixSubprocesses: 0`; this is the assertion channel for the no-op floor.
 
 <a id="artifact-kinds"></a>
 

@@ -1,5 +1,155 @@
 # Cixfile track work log
 
+- 2026-08-02T13:00:00Z — Began the requested ergo fix round 2 on
+  `track/ergo` at `61ca217`. The independent gate reports
+  `proj1_multi_item_cache_selectivity_and_clean_rebuild` creates two builder
+  workspaces after `fb7df76`; the specification requires a synchronous
+  before/after reproduction and a fix that excludes prior-run output data from
+  chain/workspace keys. The devenv configuration is present. Next: isolate the
+  exact test on `fb7df76^` and `fb7df76`, then trace the key inputs.
+
+- 2026-08-02T13:12:00Z — Completed the prescribed detached before/after
+  reproduction synchronously. After stashing only this journal, both
+  `fb7df76^` (`e851b0e`) and `fb7df76` passed
+  `devenv shell -- cargo test -p cix-cixfile --test proj1
+  proj1_multi_item_cache_selectivity_and_clean_rebuild -- --exact --nocapture`
+  (0, 5.63s and 5.69s); the workspace identity stayed one directory in both.
+  The purported suspect commit changes only `crates/cix/tests/tour.rs` and its
+  generated page, not build/key code. Source inspection also shows
+  `build_fingerprint` explicitly hashes only inputs, artifacts, fetches, and
+  dev environments—not `memo` or `outputs`—and `workspace_identity` hashes
+  only canonical directory plus builder. The likely varying input is the
+  process-global `CIX_BUILD_WORKSPACE_DIR`: the two concurrently scheduled
+  `proj1.rs` tests each overwrite it. The output restore shortens one test and
+  changes the race timing, explaining the gate-only failure. Next: reproduce
+  under the full test binary/workspace and eliminate the global environment
+  race at the test support seam.
+
+- 2026-08-02T13:24:00Z — Reproduced the gate-only failure synchronously with
+  `devenv shell -- cargo test -p cix-cixfile --test proj1 -- --nocapture`
+  (exit 101): its parallel tests switched `CIX_BUILD_WORKSPACE_DIR` between
+  two temporary roots, so the proj1 assertion saw two builder identities under
+  its own base. Fixed the varying input rather than changing the assertion:
+  `proj1.rs` now serializes that process-global override and restores its prior
+  value. Added `build::tests::output_receipts_do_not_change_the_build_fingerprint`,
+  which proves distinct prior-run `OutputReceipt` values leave the source/output
+  cache fingerprint unchanged. Exact focused unit test, concurrent two-test
+  proj1 binary, and formatter check all pass synchronously. Next: review the
+  scoped diff, run the remaining mandated gate sequence, then commit source and
+  test changes (leaving this journal unstaged).
+
+- 2026-08-02T13:32:00Z — The first broad gate stage is synchronously green:
+  `devenv shell -- cargo run -- fmt --check examples`, warning-denied
+  workspace/all-target clippy, and serial `devenv shell -- cargo test
+  --workspace -- --test-threads=1` all exited 0. The workspace suite includes
+  both proj1 tests under their normal shared binary scheduling; the isolated
+  new fingerprint guard and a second concurrent proj1-binary run had already
+  passed. Next: regenerate and drift-check the tour, repeat its deterministic
+  check, then run the track-ending full flake check.
+
+- 2026-08-02T13:46:00Z — Ignored tour regeneration, zero-diff
+  `git diff --exit-code -- docs/tour`, and the committed-document test all
+  passed. Its first deterministic renderer attempt then caught a stale
+  workspace-marker timing failure (`workspace-state: cold` at the expected
+  warm step); the test's own end-of-scenario `rm -rf` removed the isolated
+  `target/test-tmp/.workspaces-run` state. Two fresh exact deterministic runs
+  subsequently passed synchronously (about 24s each). This does not affect the
+  output-key repair—the reproduced proj1 cause is independently the test
+  process environment race—but it is recorded rather than hidden. Next: stage
+  only the two source/test files for the flake source snapshot, run the full
+  required flake gate, then commit if green.
+
+- 2026-08-02T14:08:00Z — The track-ending `devenv shell -- nix flake check
+  -L` is green with a synchronous, explicit `flake-check-exit=0`. The initial
+  run built the staged candidate and completed the 70-check VM tier, but its
+  voluminous stream exceeded the tool buffer before an exit status could be
+  observed, so it was deliberately not counted. The exact rerun retained its
+  log in `/tmp/composix-ergo-fix2-flake-check.log`, reported all 70 candidate
+  outputs as previously built, and exited 0. All required fmt, examples fmt,
+  clippy, serial workspace, proj1, tour regeneration/drift, and two fresh tour
+  deterministic checks are now green. Next: final staged-scope audit and
+  commit only the implementation/test files; retain this append-only journal
+  unstaged.
+
+- 2026-08-02T14:10:00Z — Committed the green repair as `7917186` (`fix:
+  stabilize builder workspace regression`), containing only
+  `crates/cix-cixfile/src/build.rs` and `crates/cix-cixfile/tests/proj1.rs`.
+  The completed-output regression proves receipts do not affect the build
+  fingerprint; the concurrently executed proj1 fixtures no longer race their
+  process-global workspace root. Next: final diff/status audit; this journal
+  remains deliberately unstaged per AGENTS.md.
+
+- 2026-08-02T14:11:00Z — Final audit passed: `git diff --check` and
+  `git diff --exit-code -- docs/tour` both exited 0; `7917186` is HEAD and
+  `crates/cix-cixfile/LOG.md` is the sole uncommitted path. This requested
+  fix round is complete.
+
+- 2026-08-02T12:00:00Z — Started the requested ergo semantic-fix round on
+  `track/ergo` at `e851b0e`. Read the complete spec, current project journal,
+  and this crate journal. The merged tree already contains CIP-88's
+  `LockFile.outputs` model and writer, but Chapter 3 currently disagrees with
+  main in two directions: it adds the outputs receipt and loses the live
+  `cix ps` row. Next: reproduce deterministic tour generation, capture the
+  user-manager/probe failure synchronously, then reconcile the actual writer
+  and runtime seams with regression coverage before the full gate.
+
+- 2026-08-02T12:08:00Z — Reproduced `devenv shell -- cargo test -p cix --test
+  tour -- --ignored generate_tour --nocapture` synchronously (exit 0). It
+  rewrote Chapter 3 with the expected active user unit; the prebuilt lock
+  retained the additive `outputs.copied-greeting = { sourceHash, storePath }`
+  receipt, confirming the CIP-88 writer/reader seam is intact. Journal
+  evidence identifies the apparent run failure precisely: the PrivateDevices
+  probe exits `218/CAPABILITIES`, HostCapabilities drops only
+  `PrivateDevices`; the full user unit then exits `226/NAMESPACE`; its existing
+  namespace-degraded retry starts successfully. The actual lost row was the
+  tour filter's stale assumption that UNIT is column two. Observability's
+  COMPOSITE/SERVICE projection can precede it; the merged filter locates the
+  known unit anywhere in the row and generation now retains `active/running`.
+  Added the missing direct assertion that the rendered consumer lock contains
+  `outputs`, so both the writer shape and the generated receipt are guarded.
+  Next: focused tests and deterministic tour drift, then the prescribed gate.
+
+- 2026-08-02T12:12:00Z — Focused verification is green: formatter check,
+  committed-tour suite, and a second exact deterministic tour run all exited
+  0. Committed the scoped repair as `fb7df76` (`fix: preserve ergo tour
+  receipts`): Chapter 3 now records the real active row, and the tour asserts
+  its regenerated tagged-item lock contains `outputs`. Immediately after the
+  commit, `git diff --exit-code -- docs/tour` exited 0. Only this required
+  uncommitted task journal remains. Next: prescribed examples formatter,
+  warning-denied clippy, workspace tests, regeneration/drift, and full flake
+  gate.
+
+- 2026-08-02T12:24:00Z — Prescribed examples formatting and
+  warning-denied workspace/all-target clippy both exited 0. The first serial
+  workspace run exposed an intermittent existing proj1-tour assertion
+  (`workspace-state: cold` after the source edit), which poisoned that
+  renderer process's mutex; it is not a PrivateDevices or output-lock
+  regression. A fresh exact deterministic-tour run and the isolated
+  foreign-user-unit test both exited 0, and the complete serial workspace
+  rerun proceeded through the same suite. Fresh ignored regeneration,
+  `git diff --exit-code -- docs/tour`, and the committed-document test all
+  exited 0; the second exact deterministic invocation was already proven at
+  12:12. Next: full synchronous `devenv shell -- nix flake check -L`, then
+  final scope/status audit and a journal-only closing entry.
+
+- 2026-08-02T12:38:00Z — Final gates are green with synchronous observed
+  status: the repeat serial `devenv shell -- cargo test --workspace --
+  --test-threads=1` exited 0 (including tour, real-Nix lock, user-run, and
+  doc tests), and the final `devenv shell -- nix flake check -L` exited 0 over
+  all 71 checks, including vm-dogfood, compose fallback, health, dirs2,
+  devices, lifecycle, observability, update/repin, side-by-side, and GC
+  survival. The flake's expected KVM→TCG fallback occurred; an ignored
+  eval-cache SQLite-busy warning did not affect the result. Prior formatter,
+  examples formatter, warning-denied clippy, fresh tour generation, committed
+  tour drift, and deterministic-tour checks are all recorded above. Final
+  scope audit next: only this required, intentionally uncommitted journal
+  should differ from `fb7df76`.
+
+- 2026-08-02T12:40:00Z — Final audit passed: `git diff --check` and
+  `git diff --exit-code -- docs/tour` both exit 0; `fb7df76` is HEAD and the
+  sole worktree modification is this intentionally uncommitted track journal.
+  The requested ergo fix round is complete.
+
 - 2026-08-02T07:51:00Z — Committed the complete scoped regrade as `778bf54`
   (`docs: regrade corpus after feature wave`): 13 files, including the three
   empirical receipts, 51-row evidence-class sweep, refreshed migration and
@@ -103,6 +253,50 @@
   candidates, and no edits to devices-owned corpus rows 7/17 or docker device,
   GPU, shm, group-add, or tmpfs rows. Next: inventory stale claims, choose the
   empirical subset, and build/run the cheapest representative conversions.
+
+- 2026-08-02T02:30:00Z — Committed CIP-88 as `0fec3ce` (`feat: improve
+  builder ergonomics`). The commit includes stats, completed-output receipts,
+  vendored builder dev environments, lock metadata interpolation, gitsitter
+  simplification, hermetic regression coverage, and refreshed documentation.
+  The prescribed format, examples, clippy, workspace, tour, and full flake
+  gates are green; `git diff --check HEAD` is clean. This task journal remains
+  deliberately unstaged; no other worktree changes remain.
+
+- 2026-08-02T00:20:00Z — Mapped the current build path for CIP-88. The
+  full-hit path currently resolves Nix contexts before consulting memo entries,
+  and hashes/re-adds immutable store paths; the implementation will add a
+  lock-recorded completed-output fast path, invocation stats, vendored
+  `print-dev-env` snapshots, and lock metadata interpolation without changing
+  the concurrent parser work for CLAIM/SHM. Next: implement the lock/model
+  seams, then exercise focused tests before the full gate.
+
+- 2026-08-02T01:15:00Z — Implemented the CIP-88 core: `--stats` JSON,
+  in-process host-system detection, completed-output receipts for a zero-Nix
+  full hit, lock-resolved FROM metadata, IMPORT dev-env snapshots, and the
+  16-MiB informational FETCH-complement note. The simplified gitsitter
+  fixture builds with `${src.rev}` and the vendored `PKG_CONFIG_PATH`; a warm
+  receipt reported zero Nix subprocesses. Added a local-HTTP FETCH regression
+  proving normal/repeat/`--cold` convergence and the no-op assertion. Focused
+  parser and mini-fixture tests are green. Next: format/docs review, broader
+  workspace checks, prescribed tour/flake gate, then commit.
+
+- 2026-08-02T02:20:00Z — Final verification is green: `cargo fmt --all
+  --check`; `cargo run -- fmt --check examples`; warning-denied workspace
+  clippy; serial workspace tests; tour regeneration, committed-doc drift, and
+  deterministic rerun; and `devenv shell -- nix flake check -L` (full VM
+  fleet, expected KVM→TCG fallback). The first combined workspace run exposed
+  the known shared tour renderer path; regeneration and serial reruns passed.
+  A duplicate flake invocation was stopped while the original completed. Final
+  `git diff --check` is clean. Next: stage scoped changes except this ignored
+  journal, commit on `track/ergo`, then verify the commit.
+
+- 2026-08-02T00:00:00Z — Started track/ergo (CIP-88). Read AGENTS.md, the
+  session journal, complete track specification, and authoritative CIP-88.
+  Scope: `cix build --stats`, zero-subprocess full memo hits, automatic
+  pkg-config paths, FROM lock metadata interpolation, simplified gitsitter
+  fixture, hermetic regression, docs, full prescribed gate, and a scoped
+  commit. The requested journal is tracked on this branch despite the global
+  ignore preference; it will remain deliberately unstaged.
 
 - 2026-08-01T22:15:00Z — Committed the complete CIP-80 sweep as `cd6cd99`
   (`feat: rename exec to start`). The commit has 140 scoped files and leaves

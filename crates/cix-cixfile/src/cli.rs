@@ -27,6 +27,9 @@ pub enum Command {
         /// Deprecated alias for --cold.
         #[arg(long)]
         no_cache: bool,
+        /// Emit stable machine-readable per-step execution statistics.
+        #[arg(long)]
+        stats: bool,
     },
     /// Format Cixfiles.
     Fmt {
@@ -53,6 +56,7 @@ impl Command {
                 update_lock,
                 cold,
                 no_cache,
+                stats,
             } => {
                 if no_cache {
                     eprintln!("warning: --no-cache is deprecated; use --cold");
@@ -64,16 +68,38 @@ impl Command {
                     tag: None,
                     cold: cold || no_cache,
                 };
-                let items =
-                    crate::build_family(&options, &tag, namespace.as_deref(), selector.as_deref())?;
+                let (items, build_stats) = crate::build_family_with_stats(
+                    &options,
+                    &tag,
+                    namespace.as_deref(),
+                    selector.as_deref(),
+                )?;
                 if selector.is_some() {
-                    println!("{}", items[0].store_path);
+                    if stats {
+                        println!(
+                            "{}",
+                            serde_json::to_string(
+                                &serde_json::json!({ "item": items[0].store_path, "stats": build_stats })
+                            )?
+                        );
+                    } else {
+                        println!("{}", items[0].store_path);
+                    }
                 } else {
                     let members = items
                         .into_iter()
                         .map(|item| (item.name, item.store_path))
                         .collect::<BTreeMap<_, _>>();
-                    println!("{}", serde_json::to_string(&members)?);
+                    if stats {
+                        println!(
+                            "{}",
+                            serde_json::to_string(
+                                &serde_json::json!({ "items": members, "stats": build_stats })
+                            )?
+                        );
+                    } else {
+                        println!("{}", serde_json::to_string(&members)?);
+                    }
                 }
                 Ok(())
             }

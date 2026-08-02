@@ -86,7 +86,7 @@ fn same_builder(left: &Builder, right: &Builder) -> bool {
                         value: right_value,
                         ..
                     },
-                ) => left_name == right_name && left_value == right_value,
+                ) => left_name == right_name && same_template(left_value, right_value),
                 (BuildStep::Copy(left), BuildStep::Copy(right)) => same_copy(left, right),
                 (
                     BuildStep::Fetch {
@@ -224,6 +224,18 @@ fn same_template(left: &Template, right: &Template) -> bool {
                         name: right_name, ..
                     },
                 ) => left_name == right_name,
+                (
+                    TemplatePart::InputMetadata {
+                        namespace: left_namespace,
+                        attribute: left_attribute,
+                        ..
+                    },
+                    TemplatePart::InputMetadata {
+                        namespace: right_namespace,
+                        attribute: right_attribute,
+                        ..
+                    },
+                ) => left_namespace == right_namespace && left_attribute == right_attribute,
                 _ => false,
             })
 }

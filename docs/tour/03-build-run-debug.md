@@ -106,6 +106,12 @@ $ cat prebuilt/Cixfile.lock
       "storePath": "/nix/store/…-cix-item-tour-assets",
       "narHash": "sha256-Zav/GPnMh1fTIW3HoM20hjbFGlBbdrr35lNlXrdaf7U="
     }
+  },
+  "outputs": {
+    "copied-greeting": {
+      "sourceHash": "bec8433f28845bd49a9b9d09cdbb9bf4de29a8d35c31b230bbbebfad13e95e7b",
+      "storePath": "/nix/store/…-cix-item-copied-greeting"
+    }
   }
 }
 ```

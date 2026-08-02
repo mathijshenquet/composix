@@ -12,12 +12,13 @@ mod seccomp;
 
 pub use build_chain::execute;
 pub use codegen::{
-    generate_builder_context_nix, generate_builder_offer_nix, generate_fetch_context_nix,
-    generate_fetch_offer_nix, generate_nix, generate_nix_with_snapshots, generate_spec_json,
+    generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
+    generate_fetch_context_nix, generate_fetch_offer_nix, generate_nix,
+    generate_nix_with_snapshots, generate_spec_json,
 };
 pub use lock::{
-    ensure_lock, save_lock, ArtifactPin, ConsumedPath, FetchPin, InputLock, LockFile, MemoEntry,
-    VolatilePath, DEFAULT_NIXPKGS_URL,
+    ensure_lock, resolve_input_metadata, save_lock, ArtifactPin, ConsumedPath, DevEnvironment,
+    FetchPin, InputLock, LockFile, MemoEntry, OutputReceipt, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 pub use model::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,

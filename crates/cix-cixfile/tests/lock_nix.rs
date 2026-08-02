@@ -19,6 +19,8 @@ fn committed_lock() -> LockFile {
         artifacts: std::collections::BTreeMap::new(),
         fetches: std::collections::BTreeMap::new(),
         memo: std::collections::BTreeMap::new(),
+        dev_envs: std::collections::BTreeMap::new(),
+        outputs: std::collections::BTreeMap::new(),
     }
 }
 

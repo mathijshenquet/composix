@@ -82,8 +82,8 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
     lock.memo.clear();
     let clean_lock = format!("{}\n", serde_json::to_string_pretty(&lock).unwrap());
 
-    let original_workspace = directory.path().join("original-workspaces");
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", &original_workspace);
+    let original_workspace = tempfile::tempdir().unwrap();
+    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", original_workspace.path());
     fs::write(directory.path().join("Cixfile.lock"), &clean_lock).unwrap();
     build(&BuildOptions {
         directory: directory.path().to_owned(),
@@ -96,8 +96,8 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
 
     let formatted = fmt::format(COPY_KEYING_FIXTURE).unwrap();
     fs::write(directory.path().join("Cixfile"), formatted).unwrap();
-    let formatted_workspace = directory.path().join("formatted-workspaces");
-    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", &formatted_workspace);
+    let formatted_workspace = tempfile::tempdir().unwrap();
+    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", formatted_workspace.path());
     fs::write(directory.path().join("Cixfile.lock"), clean_lock).unwrap();
     build(&BuildOptions {
         directory: directory.path().to_owned(),

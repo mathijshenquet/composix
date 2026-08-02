@@ -11,13 +11,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::codegen::{
-    generate_builder_context_nix, generate_builder_offer_nix, generate_fetch_context_nix,
-    generate_fetch_offer_nix,
+    generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
+    generate_fetch_context_nix, generate_fetch_offer_nix,
 };
 use crate::seccomp;
 use crate::{
-    BuildStep, Builder, Cixfile, ConsumedPath, Copy, Fetch, FetchPin, LockFile, MemoEntry,
-    Template, TemplatePart, VolatilePath,
+    BuildStep, Builder, Cixfile, ConsumedPath, Copy, DevEnvironment, Fetch, FetchPin, LockFile,
+    MemoEntry, Template, TemplatePart, VolatilePath,
 };
 
 #[derive(Debug, Deserialize)]
@@ -297,6 +297,7 @@ fn execute_top_fetch(
     }
     let snapshot = add_store_object(work.path(), "cix-fetch-snapshot")?;
     let actual_paths = fetch_path_hashes(work.path(), &needed)?;
+    report_unconsumed_complement(name, work.path(), &needed);
     let pin = lock.fetches.get(name).cloned();
     let refreshed = refresh_fetch_pin(
         pin.as_ref(),
@@ -380,7 +381,17 @@ fn execute_builder(
     } else {
         None
     };
-    let mut environment = build_environment(context.environment.clone());
+    let mut environment = vendored_dev_environment(
+        cixfile,
+        builder_name,
+        directory,
+        lock,
+        system,
+        binders,
+        &context.imports,
+    )?;
+    environment.extend(context.environment.clone());
+    environment = build_environment(environment);
     let mut export_prelude = BTreeMap::new();
     install_declared_expectations(builder_name, builder, &context.commands, lock);
     let existing_keys = builder_chain_keys(
@@ -464,8 +475,11 @@ fn execute_builder(
                 line,
                 source,
             } => {
+                let value = value
+                    .literal_value()
+                    .context("builder ENV metadata was not resolved")?;
                 environment.insert(name.clone(), value.clone());
-                export_prelude.insert(name.clone(), value.clone());
+                export_prelude.insert(name.clone(), value);
                 eprintln!(
                     "BUILDER {builder_name} step {} ENV {name} declared (line {line}: {source})",
                     index + 1
@@ -609,6 +623,7 @@ fn execute_builder(
     }
     if !fetch_snapshots.is_empty() {
         let actual_paths = fetch_path_hashes(&workdir, &needed)?;
+        report_unconsumed_complement(builder_name, &workdir, &needed);
         for (id, (expected, snapshot, volatile)) in fetch_snapshots {
             let refreshed = refresh_fetch_pin(
                 lock.fetches.get(&id),
@@ -670,6 +685,150 @@ fn build_environment(mut environment: BTreeMap<String, String>) -> BTreeMap<Stri
     environment.insert("TMPDIR".into(), "/tmp".into());
     environment.insert("TZ".into(), "UTC".into());
     environment
+}
+
+#[allow(clippy::too_many_arguments)]
+fn vendored_dev_environment(
+    cixfile: &Cixfile,
+    builder_name: &str,
+    directory: &Path,
+    lock: &mut LockFile,
+    system: &str,
+    snapshots: &BTreeMap<String, String>,
+    imports: &[String],
+) -> Result<BTreeMap<String, String>> {
+    if imports.is_empty() {
+        return Ok(BTreeMap::new());
+    }
+    let universe = cixfile
+        .inputs
+        .iter()
+        .find(|(_, input)| input.kind == crate::InputKind::PackageUniverse)
+        .map(|(name, _)| name)
+        .context("BUILDER IMPORT needs a package-universe FROM")?;
+    let revision = &lock.inputs[universe].rev;
+    let key = format!("{revision}:{}", hex_hash(imports.join("\0").as_bytes()));
+    if let Some(snapshot) = lock.dev_envs.get(&key) {
+        let environment = filter_development_environment(&snapshot.environment);
+        if environment != snapshot.environment {
+            lock.dev_envs.insert(
+                key,
+                DevEnvironment {
+                    environment: environment.clone(),
+                },
+            );
+        }
+        return Ok(environment);
+    }
+    let expression =
+        generate_builder_dev_env_nix(cixfile, builder_name, directory, lock, system, snapshots)?;
+    let raw = cix_common::nix(&["print-dev-env", "--json", "--expr", &expression])
+        .context("capturing nixpkgs development environment for IMPORT")?;
+    let document: serde_json::Value =
+        serde_json::from_str(&raw).context("parsing nix print-dev-env JSON")?;
+    let raw_environment = document
+        .get("variables")
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|variables| variables.iter())
+        .filter_map(|(name, variable)| {
+            variable
+                .get("value")?
+                .as_str()
+                .map(|value| (name.clone(), value.to_owned()))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let environment = filter_development_environment(&raw_environment);
+    lock.dev_envs.insert(
+        key,
+        DevEnvironment {
+            environment: environment.clone(),
+        },
+    );
+    Ok(environment)
+}
+
+fn filter_development_environment(
+    environment: &BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    environment
+        .iter()
+        .filter(|(name, value)| {
+            value.contains("/nix/store/")
+                && !value.contains(char::is_whitespace)
+                && !skeleton_environment_variable(name)
+                && development_search_variable(name)
+        })
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
+}
+
+fn skeleton_environment_variable(name: &str) -> bool {
+    matches!(
+        name,
+        "BASH"
+            | "CONFIG_SHELL"
+            | "HOME"
+            | "HOST_PATH"
+            | "LC_ALL"
+            | "PATH"
+            | "SHELL"
+            | "SOURCE_DATE_EPOCH"
+            | "SSL_CERT_FILE"
+            | "TMPDIR"
+            | "TZ"
+    ) || name.starts_with("NIX_")
+        || name.starts_with("stdenv")
+        || name.ends_with("Phase")
+        || name.ends_with("Hooks")
+}
+
+fn development_search_variable(name: &str) -> bool {
+    name.ends_with("_PATH")
+        || name.ends_with("_DIRS")
+        || matches!(
+            name,
+            "PKG_CONFIG_PATH" | "CMAKE_PREFIX_PATH" | "SYSTEM_CERTIFICATE_PATH"
+        )
+}
+
+fn report_unconsumed_complement(
+    name: &str,
+    workspace: &Path,
+    needed: &BTreeMap<String, NeededPath>,
+) {
+    const THRESHOLD_BYTES: u64 = 16 * 1024 * 1024;
+    let total = tree_size(workspace).unwrap_or(0);
+    let consumed = needed
+        .keys()
+        .map(|path| {
+            let source = if path == "." {
+                workspace.to_owned()
+            } else {
+                workspace.join(path)
+            };
+            tree_size(&source).unwrap_or(0)
+        })
+        .sum::<u64>();
+    let complement = total.saturating_sub(consumed.min(total));
+    if complement >= THRESHOLD_BYTES {
+        eprintln!(
+            "note: FETCH {name} leaves {} MiB unconsumed of {} MiB in its workspace; only COPY-reachable paths enter the pin",
+            complement / (1024 * 1024),
+            total / (1024 * 1024),
+        );
+    }
+}
+
+fn tree_size(path: &Path) -> Result<u64> {
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.is_dir() {
+        return Ok(metadata.len());
+    }
+    fs::read_dir(path)?.try_fold(0u64, |total, entry| {
+        let entry = entry?;
+        Ok(total.saturating_add(tree_size(&entry.path())?))
+    })
 }
 
 fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, NeededPath>> {
@@ -801,6 +960,9 @@ fn builder_chain_keys(
     for (index, step) in builder.steps.iter().enumerate() {
         let (kind, arguments, sources, fetch_pin) = match step {
             BuildStep::Env { name, value, .. } => {
+                let value = value
+                    .literal_value()
+                    .context("builder ENV metadata was not resolved")?;
                 environment.insert(name.clone(), value.clone());
                 ("ENV", format!("{name}={value}"), Vec::new(), None)
             }
@@ -861,6 +1023,13 @@ fn copy_key_arguments(copy: &Copy) -> Result<String> {
                 attrpath,
             },
             TemplatePart::Binder { name, .. } => TemplateKeyPart::Binder(name),
+            TemplatePart::InputMetadata {
+                namespace,
+                attribute,
+                ..
+            } => {
+                unreachable!("unresolved FROM metadata {namespace}.{attribute}")
+            }
         })
         .collect();
     Ok(serde_json::to_string(&CopyKey {
@@ -1431,6 +1600,7 @@ fn ensure_store_path(path: &str) -> Result<bool> {
     if Path::new(path).exists() {
         return Ok(true);
     }
+    cix_common::record_nix_subprocess();
     let output = Command::new("nix-store")
         .args(["--realise", path])
         .output()
@@ -1509,6 +1679,7 @@ fn realize_offers(expression: &str) -> Result<()> {
 }
 
 fn query_closure(offers: &[String]) -> Result<BTreeSet<String>> {
+    cix_common::record_nix_subprocess();
     let output = Command::new("nix-store")
         .args(["--query", "--requisites"])
         .args(offers)
