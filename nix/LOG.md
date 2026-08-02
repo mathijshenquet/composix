@@ -105,3 +105,58 @@
   --exit-code -- docs/tour` (zero tour diff). `git diff --check` is clean. Nix
   again emitted only its ignored eval-cache SQLite-busy warning during the GC and
   observability evaluations; both derivations completed successfully.
+
+- 2026-08-02T14:27:00Z: Started `track/vmslim` from spec. Scope is strictly
+  shared NixOS scenario VM plumbing (`nix/scenarios/lib.nix` and compatible
+  shared imports); fenced from `crates/cix-run` and scenario assertions. Next:
+  warm the cix package, identify the complete scenario set, then record a
+  synchronous per-scenario baseline using `/usr/bin/time`.
+
+- 2026-08-02T14:42:00Z: Baseline measurement in progress. `cix` was warmed
+  successfully with `devenv shell -- nix build .#packages.x86_64-linux.cix
+  --no-link -L`. The first two forced actual VM runs (the ordinary no-link
+  test output is cacheable, so already-valid checks need `--rebuild` to
+  execute) passed synchronously: lifecycle 196.56s; side-by-side 251.55s.
+  Both expose the same dominant shared-harness cost: the non-cooperative db
+  fixture waits for the NixOS manager's default 90s stop timeout on each
+  `cix down`. Candidate to measure after the full baseline: a harness-only
+  `DefaultTimeoutStopSec` override, along with documentation/profile knobs.
+
+- 2026-08-02T15:15:00Z: Complete synchronous `/usr/bin/time` baseline and
+  final sweep (all `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-<name> --no-link -L`, one VM at a time):
+
+  | scenario | before | after |
+  | --- | ---: | ---: |
+  | lifecycle | 196.56s | 106.94s |
+  | side-by-side | 251.55s | 73.78s |
+  | update-repin | 196.48s | 72.14s |
+  | gc-survival | 179.60s | 81.92s |
+  | observability | 156.55s | 55.71s |
+  | devices | 141.68s | 46.72s |
+  | health | 86.45s | 91.58s |
+  | secrets | 76.25s | 71.35s |
+  | dirs2 | 160.39s | 74.95s |
+  | **total** | **1445.51s** | **675.09s** |
+
+  The retained shared-harness change is
+  `systemd.settings.Manager.DefaultTimeoutStopSec = "1s"`. It removes the
+  irrelevant default 90s wait for deliberately non-cooperative fixture
+  processes during scenario teardown, while preserving every assertion and
+  all scenario semantics. The standalone lifecycle comparison was 196.56s to
+  80.09s (59.3%). `documentation.enable = false` plus
+  `system.switch.enable = false` was tried against health and was slower
+  (116.26s versus 86.45s), so both were reverted. The final sweep was briefly
+  interrupted by root filesystem exhaustion; `nix-store --gc --max-freed
+  10737418240` synchronously reclaimed 10.2GiB of unrooted store artifacts,
+  then the full final sweep above passed. Next: Rust/tour gates and commit.
+
+- 2026-08-02T15:34:00Z: Gate and commit complete. Synchronous successes:
+  `cargo fmt --all --check`; `cargo run -- fmt --check examples`; `cargo
+  clippy --workspace --all-targets -- -D warnings`; `cargo test --workspace`;
+  `cargo test --test tour -- --ignored generate_tour`; `git diff --exit-code
+  -- docs/tour`; and `git diff --check`. The final timed scenario sweep was
+  green for all nine checks (table above). Scenario-script diff is empty;
+  only `nix/scenarios/lib.nix` changed. Committed as `7f792a7` (`Slim shared
+  VM scenario teardown`). `nix/LOG.md` is intentionally left unstaged per
+  the track-journal convention, although this repository currently tracks it.
