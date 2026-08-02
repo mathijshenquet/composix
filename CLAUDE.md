@@ -28,5 +28,7 @@ announced in chat as it starts (Mathijs watches via /rc).
    the only output of this step: prospecting never starts implementation on
    its own authority. (One ontology: everything prospective is a CIP draft.)
 
-Idle-state: when step 1 is empty and step 2's sweep has already run this
-activation, the correct action is nothing — say so and wait.
+Idle-state: when step 1 is empty and step 2's sweep has already run since
+the last merged branch, the correct action is nothing — say so and wait.
+(Every merge re-arms one step-2 sweep: the codebase changed, so there may
+be new unblockers to spot.)
