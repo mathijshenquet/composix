@@ -1,5 +1,17 @@
 # cix-run work log
 
+- 2026-08-02 UTC — FENCE LIFTED follow-up: fast-forwarded `origin/main` at
+  `d82a4c5` (netns), then threaded the already-resolved index store through
+  the narrow compose check/diff/up seam. This preserves the netns code while
+  restoring the tour's isolated state fixture without reintroducing an env
+  read in cix-index. Commit `dbf02f9` contains the leg. Synchronous receipts:
+  `devenv shell -- cargo test --workspace` passed; `devenv shell -- cargo fmt
+  --all` and `devenv shell -- cargo run -- fmt --check examples` passed;
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`
+  passed; `scripts/check-cli-env-boundary.sh` passed; and explicit tour
+  regeneration plus its normal drift suite passed. Focused vm-dogfood remains
+  to be run before an independent merge gate.
+
 - 2026-08-02 UTC — Full `devenv shell -- cargo test --workspace` reached the
   tour and failed there: the untouched cix-compose resolver still invokes the
   legacy index resolver, which now uses only the default state path and thus
