@@ -58,6 +58,23 @@ ITEM gitsitter
   COPY ${build}/target/release/gitsitter /bin/gitsitter
 ```
 
+**Prior art addendum — dream2nix**, the closest existing attempt at
+"one tool, all ecosystems": per-ecosystem *translators* parse
+ecosystem lockfiles into a normalized **dream-lock** (JSON dependency
+graph with per-package sources+hashes; impure resolvers get a
+committed, regenerable lock), and per-ecosystem *builders* consume it
+into granular per-dependency FODs, all wired through the NixOS module
+system since v1. The structural difference: dream2nix maintains N
+translators + M builders because it works from what metadata
+*promises*; cix observes what the build *did* — one mechanism, zero
+ecosystem knowledge, which is why it also covers resolver-less and
+mid-build-fetching ecosystems dream2nix has no translator for. What
+dream2nix does better and this CIP should steal or consciously
+refuse: per-dependency granularity (their npm/crate = one FOD each →
+finer cache-hits and per-package overrides; our FETCH snapshot = one
+FOD per fetch step — coarser, simpler) and a first-class override
+story. Recorded as an open question below.
+
 ## 3. The bridge, in three tiers
 
 **Tier 1 — `cix-lib.buildCixfile` (flake library, no generated files,
@@ -247,3 +264,8 @@ subprocess/cost table should confirm where the DX win concentrates.
 2. `cix vendor -- <cmd>` in v1 scope or horizon?
 3. Is the checksum cross-check (turn 2) a FETCH feature independent of
    this CIP? (It hardens plain cix too — arguably split it out.)
+4. Granularity (the dream2nix lesson): stay at one-FOD-per-FETCH-step
+   (simple, ecosystem-blind) or split observed fetches per logical
+   dependency where the consumed set decomposes naturally (finer
+   cache-hits, per-dep overrides, but it reintroduces ecosystem
+   awareness through the back door)?
