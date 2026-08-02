@@ -1,0 +1,5 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+APP renovate
+  START ${pkgs.renovate}/bin/renovate --version
+  CLAIM jit

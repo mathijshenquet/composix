@@ -1,0 +1,11 @@
+{
+  "composeVersion": 1,
+  "name": "corpus-renovate",
+  "services": {
+    "renovate": {
+      "item": "renovate:regrade",
+      "schedule": "daily",
+      "persistent": true
+    }
+  }
+}

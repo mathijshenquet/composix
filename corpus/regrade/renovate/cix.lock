@@ -1,0 +1,9 @@
+{
+  "services": {
+    "renovate": {
+      "ref": "renovate:regrade",
+      "storePath": "/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate",
+      "narHash": "sha256-Qi+o5oZLaPTgX61h99Rx53GWcDWO2rWJoLs0mN5bzgg="
+    }
+  }
+}
