@@ -1,5 +1,80 @@
 # compose track log
 
+- 2026-08-02 UTC — Synchronous receipt: `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-netns -L` exited 0 after 112.95s of VM script time. It covered
+  two pods using the same internal port, FD-direct and proxyd publication, allowed and suppressed
+  egress, closed-root resolver availability, service address filtering, link-local absence,
+  v1→v2 activation, rollback to v1, reactivation to v2 with the same persisted IPAM lease, and
+  complete namespace/unit teardown. Next: finish golden snapshots and the decision/gap ledgers,
+  then run every declared track gate together.
+
+- 2026-08-02 UTC — The live VM synchronously passed both pod-local fixed-port servers, both
+  publish tiers, egress allow/deny, FD inheritance across the namespace boundary, and link-local
+  absence. Its second closed-root update exposed a scenario-only stale ownership problem: the
+  egress probe persisted an observation file across changing `DynamicUser` identities. The probe
+  now correctly declares that ephemeral result as a runtime directory so generation replacement
+  and rollback test netns lifecycle rather than state-file ownership. Next: rerun through update,
+  rollback, stable IPAM, and teardown.
+
+- 2026-08-02 UTC — Correction to the prior live-debug entry: the Unix pathname-edge failure is
+  pre-existing mount-namespace behavior outside this track, not missing activation directory
+  creation. The exploratory edge-unit change is reverted. `scenario-netns` now exercises the
+  required cross-boundary case through a host socket-activated listener whose file descriptor is
+  inherited by a service inside the pod namespace, while the established edge fixtures remain
+  byte-for-byte unchanged. Generated networkd fragments also explicitly disable link-local
+  addressing on the bridge and host veths. Next: rerun the complete netns lifecycle scenario.
+
+- 2026-08-02 UTC — Live namespace startup debugging found two shell/lifecycle facts hidden by
+  fixture-level unit assertions. The netns discovery grep had inner single quotes inside the
+  unit's single-quoted `sh -c` program; it now uses safe double quotes and an explicit `if`, so
+  `dash -e` cannot terminate before `ip netns add`. The cross-boundary Unix-edge phase also
+  exposed that activation cleaned edge mountpoints on down but never created them on up;
+  activation now creates every validated edge destination before systemd starts the edge unit.
+  The VM keeps Unix-edge/netns coverage and then performs a separate closed-root phase for the
+  resolver bind, avoiding dependence on closed-root edge mount ordering. Next: rerun the full
+  scenario through services, veths, both publish tiers, rollback, stable IPAM, and teardown.
+
+- 2026-08-02 UTC — The first two synchronous `scenario-netns` receipts caught focused harness and
+  lifecycle defects before the gate: systemd rejected escaped hyphens in closed-root directory
+  unit names, so the scenario now uses safe member names, and its minimal NixOS node had no
+  `systemd-networkd.service`, so `nodeWith` enables networkd only for this scenario. Review also
+  caught IPAM allocation mistakenly placed in read-only `diff`; allocation is now root-only in
+  `up`, while `diff` retains deterministic generation without persistent writes. The second VM
+  reached generation activation and failed exactly at the absent networkd unit, confirming the
+  generated unit graph itself loaded. Next: rerun the focused VM with networkd and persisted
+  leases, then harden any live namespace/veth/proxy behavior it exposes.
+
+- 2026-08-02 UTC — The strict model and checked-tree core are implemented and focused compose
+  tests pass. `network` accepts only `"pod"`; nearest-pod ancestry is recorded per leaf (including
+  pod-in-pod), port collision checks are namespace-scoped, `egress` follows D49's manifest default
+  plus silent tightening/loud loosening override, and recursive `publish` surface resolution
+  distinguishes listeners from fixed ports. Generation now emits named-netns lifecycle units,
+  `NetworkNamespacePath`, loopback-only per-service address policy, fd-direct host sockets,
+  proxyd fallbacks, and networkd bridge/veth fragments. Egress leases live in persistent cix
+  IPAM state and are embedded into generations, so rollback cannot reallocate them. The first
+  40-test compose run is green, including nearest-ancestor and both publish-tier coverage. Next:
+  build the live `scenario-netns`, use its failures to harden activation/networkd timing and
+  teardown, then finish snapshots/docs and the complete focused gate.
+
+- 2026-08-02 UTC — Mapped the tree resolver, generation compiler, activation/profile lifecycle,
+  cix-run hardening compiler, and NixOS scenario harness. The existing listener socket units are
+  already the fd-first primitive: they bind in the host manager and can activate a member attached
+  with `NetworkNamespacePath`. Fixed ports need the distinct proxyd unit. I will carry pod
+  ownership and exported surfaces through recursive resolution, keep podless `ResolvedConfig` and
+  unit generation on their exact existing path, persist egress leases outside generations, and
+  install generation-owned networkd fragments alongside units so rollback changes mechanics but
+  not allocation state. Next: land the strict schema/model and checked-tree representation with
+  unit tests before rendering any systemd artifacts.
+
+- 2026-08-02 UTC — Started `track/netns` from `.dev/specs/track-netns.md`. Read the
+  repository instructions, current session state, authoritative CIP-86, D43/D49, and the
+  existing compose journal; confirmed a clean `track/netns` branch with the devenv active.
+  Scope is the complete pod-network realization: nearest-ancestor namespace ownership,
+  generated lifecycle/attachment/publish units, claim-gated veth egress with persisted IPAM,
+  unchanged podless output and fd/edge behavior, honest docs/ledgers, the focused VM roster,
+  and a commit. Next: map the tree compiler, generation/runtime state seams, and scenario
+  harness, then implement the schema and checked model before systemd realization.
+
 - 2026-08-02 UTC — Committed the complete CIP-85 leg-1 implementation as `a21c46a`
   (`Implement CIP-85 compose trees`). The required compose journal is intentionally the sole
   remaining worktree change. No full-matrix claim is made: that gate belongs to the orchestrator.
@@ -387,3 +462,79 @@
   check -L` completed all 70 flake checks, including the repaired
   `scenario-dirs2` under the full parallel VM load. The committed fix will be
   intentionally limited to the scenario and this track journal.
+
+- 2026-08-02 18:39 UTC — The literal Unix edge added to `scenario-netns` exposed a
+  pre-existing hyphenated-edge bug: unit-name escaping (`cross\\x2dboundary`) was
+  reused as a runtime-directory spelling, so systemd created the decoded path for
+  the edge owner while cix-run escaped the backslash again in member BindPaths.
+  Split filesystem-safe edge segments from unit escaping and added a focused
+  generation regression. Next: rerun compose tests and the focused netns VM before
+  the complete declared gate.
+
+- 2026-08-02 18:43 UTC — Corrected focused receipts are green: all 41 compose unit
+  tests plus both compose example tests passed, and synchronous `devenv shell -- nix
+  build .#checks.x86_64-linux.scenario-netns -L` exited 0 after 121.51 seconds. The
+  VM directly observed same-port isolation in two pods, fd and fixed-port host
+  publication, a Unix edge from a pod consumer to its host producer, egress
+  allow/deny, closed-root resolver projection, stable leases through update and
+  rollback, no cix0 IPv6 link-local address, namespace teardown, and unit cleanup.
+  Next: audit the complete diff/spec, regenerate corpus and tour artifacts, then run
+  the remaining formatting, clippy, workspace, and focused compatibility gates.
+
+- 2026-08-02 18:54 UTC — Tightened the resolver and link-local proof after auditing
+  the first green scenario: compose now projects systemd-resolved's uplink resolver
+  file when available (including into closed roots), and the VM performs a real DNS
+  query against a test resolver before its egress connection. Pod peers disable IPv6
+  address generation, and the VM asserts no scope-link IPv6 address on cix0 or either
+  side of each pod connection. The final corrected synchronous
+  `devenv shell -- nix build .#checks.x86_64-linux.scenario-netns -L` receipt exited
+  0 after 134.56 seconds, also covering same-port isolation, fd/fixed publication,
+  a literal Unix edge across the namespace boundary, egress filtering, closed root,
+  stable rollback leases, and teardown. Next: regenerate derived docs and run the
+  complete declared track gate.
+
+- 2026-08-02 18:56 UTC — Regenerated the corpus browser and executable tour with
+  their ignored generator tests. Both generators passed, and `git diff --exit-code
+  -- docs/tour` confirmed no tour drift; the corpus HTML also remained unchanged.
+  Next: formatting, examples formatting, warning-denied clippy, and workspace tests.
+
+- 2026-08-02 18:59 UTC — `cargo fmt --all --check` and `cix fmt --check examples`
+  passed. The first warning-denied workspace clippy run caught the resolver traversal's
+  nine-argument helper; consolidated its traversal inputs into `GroupWalk` and reran
+  formatting plus `cargo clippy --workspace --all-targets -- -D warnings`, both green.
+  Next: full workspace tests and the three focused VM checks.
+
+- 2026-08-02 19:01 UTC — `devenv shell -- cargo test --workspace` completed
+  synchronously with every non-ignored unit, integration, corpus-drift, tour-drift,
+  and doc test green. Next: build the focused netns, compose-tree, and fallback VM
+  checks together against the final source.
+
+- 2026-08-02 19:04 UTC — The synchronous combined focused gate
+  `devenv shell -- nix build .#checks.x86_64-linux.scenario-netns
+  .#checks.x86_64-linux.scenario-tree .#checks.x86_64-linux.compose-fallback-vm
+  -L` exited 0. The tree VM finished in 72.73s and netns in 137.87s; the fallback
+  VM completed in the same successful build. This is the final-source receipt after
+  the `GroupWalk` clippy refactor. Next: final spec/diff audit, stage everything
+  except this journal, and commit the green track.
+
+- 2026-08-02 19:10 UTC — Final contract audit found and corrected two consistency
+  issues before staging: schema now limits `publish.child` to the direct-child name
+  required by D43's one-boundary-at-a-time climbing, while slash-qualified edge
+  endpoints remain supported; and named-netns filesystem paths no longer reuse systemd
+  unit escaping, preventing `a-b` from aliasing nested `a/b`. Added the latter collision
+  regression and recorded the distinct netns unit in the generation manifest. The full
+  final-source fmt/examples-fmt/clippy/workspace gates are green (42 compose tests).
+  Next: repeat the combined focused VM receipt after these audit fixes.
+
+- 2026-08-02 19:13 UTC — Final exact-source focused receipt is green: the combined
+  `nix build` for `scenario-netns`, `scenario-tree`, and `compose-fallback-vm`
+  synchronously exited 0; `scenario-netns` finished in 141.28s. Together with the
+  immediately preceding regenerated tour/corpus, fmt, examples fmt, warning-denied
+  clippy, and full workspace-test receipts, the declared agent gate is complete.
+  Next: index audit and commit, deliberately leaving this journal unstaged.
+
+- 2026-08-02 19:14 UTC — Committed the complete green track as `c89e3d3`
+  (`Implement CIP-86 pod networking`): 21 tracked implementation/docs/test files,
+  with this required journal deliberately left unstaged and uncommitted. No agent-side
+  work remains; the orchestrator's independent full `nix flake check -L` matrix is the
+  next gate per project policy.
