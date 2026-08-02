@@ -86,7 +86,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 31e430f1b126 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 4dc66bdba055 -> /nix/store/…-cix-build-view
 ```
 
 Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.
@@ -109,7 +109,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss e069bff7d1da -> /nix/store/…-cix-build-view
+BUILDER build memo miss 82daecda0590 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -117,20 +117,14 @@ $ test /nix/store/…-cix-item-proj1-api = /nix/store/…-cix-item-proj1-api && 
 api item unchanged: yes
 ```
 
-A sampled `--cold` rebuild uses an empty workspace. The marker says cold, and per-path comparison proves both selected binaries—and therefore both item paths—are byte-identical.
+A sampled `--cold` rebuild uses an empty workspace and checks the RUN's traced inputs before accepting its outputs. This fixture deliberately reads warm Cargo state and its marker, so the audit reports the first warm/cold read-set difference instead of silently accepting output coincidence.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .
-{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
-BUILDER build step 2 RUN executed
-BUILDER build memo miss e069bff7d1da -> /nix/store/…-cix-build-view
-```
-
-```sh
-$ test /nix/store/…-cix-item-proj1-api = /nix/store/…-cix-item-proj1-api && test /nix/store/…-cix-item-proj1-worker = /nix/store/…-cix-item-proj1-worker && echo 'item paths byte-identical: yes'
-item paths byte-identical: yes
+Error: line 8: recorded read set differs between warm and cold at ".cargo" (warm Some(DirectoryExists), cold Some(Absent))
+  | "  RUN <<BUILD"
 ```
 
 The warm workspace remains disposable. Delete it and the unchanged chain replays the two recorded binaries without changing either item.

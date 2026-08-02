@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -15,9 +16,10 @@ use crate::codegen::{
     generate_fetch_context_nix, generate_fetch_offer_nix,
 };
 use crate::seccomp;
+use crate::trace;
 use crate::{
     BuildStep, Builder, Cixfile, ConsumedPath, Copy, DevEnvironment, Fetch, FetchPin, LockFile,
-    MemoEntry, Template, TemplatePart, VolatilePath,
+    MemoEntry, StepChange, StepMemo, Template, TemplatePart, VolatilePath,
 };
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +45,18 @@ struct StepKeyRequest<'a> {
 }
 
 #[derive(Serialize)]
+struct StepMemoKeyRequest<'a> {
+    builder: &'a str,
+    index: usize,
+    kind: &'a str,
+    directive: &'a str,
+    arguments: &'a str,
+    offered_closure: &'a BTreeSet<String>,
+    ordered_imports: &'a [String],
+    environment: &'a BTreeMap<String, String>,
+}
+
+#[derive(Serialize)]
 struct CopyKey<'a> {
     src: Vec<TemplateKeyPart<'a>>,
     dst: &'a str,
@@ -63,7 +77,14 @@ enum TemplateKeyPart<'a> {
 const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
 // Bump this when codegen-relevant Cixfile semantics change without a package
 // version bump.  It keeps memo keys isolated across concurrently-built checkouts.
-const CODEGEN_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d80-v1");
+const CODEGEN_FINGERPRINT: &str = crate::BUILDER_FINGERPRINT;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutedStep {
+    pub name: String,
+    pub kind: String,
+    pub executed: bool,
+}
 
 #[derive(Clone, Debug, Default)]
 struct NeededPath {
@@ -124,12 +145,13 @@ pub fn execute(
     system: &str,
     update: Option<&str>,
     cold: bool,
-) -> Result<BTreeMap<String, String>> {
+) -> Result<(BTreeMap<String, String>, Vec<ExecutedStep>)> {
     let needed = consumed_paths(cixfile);
     let mut binders = BTreeMap::new();
+    let mut executed_steps = Vec::new();
     for name in &cixfile.fetch_order {
         let fetch = &cixfile.fetches[name];
-        let view = execute_top_fetch(
+        let (view, executed) = execute_top_fetch(
             cixfile,
             name,
             fetch,
@@ -142,10 +164,15 @@ pub fn execute(
             cold,
         )?;
         binders.insert(name.clone(), view);
+        executed_steps.push(ExecutedStep {
+            name: name.clone(),
+            kind: "FETCH".into(),
+            executed,
+        });
     }
     for name in &cixfile.builder_order {
         let builder = &cixfile.builders[name];
-        let view = execute_builder(
+        let (view, mut executed) = execute_builder(
             cixfile,
             name,
             builder,
@@ -158,8 +185,9 @@ pub fn execute(
             cold,
         )?;
         binders.insert(name.clone(), view);
+        executed_steps.append(&mut executed);
     }
-    Ok(binders)
+    Ok((binders, executed_steps))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -174,7 +202,7 @@ fn execute_top_fetch(
     mut needed: BTreeMap<String, NeededPath>,
     force: bool,
     cold: bool,
-) -> Result<String> {
+) -> Result<(String, bool)> {
     if let Some(expected) = &fetch.expected {
         if lock.fetches.get(name).map(|pin| &pin.nar_hash) != Some(expected) {
             lock.fetches
@@ -193,6 +221,17 @@ fn execute_top_fetch(
     let shell = find_shell(&context.imports)?;
     let environment = build_environment(context.environment.clone());
     let command = &context.commands[0];
+    let trace_key = step_memo_key(StepMemoKeyRequest {
+        builder: name,
+        index: 0,
+        kind: "FETCH",
+        directive: &fetch.source,
+        arguments: command,
+        offered_closure: &offered_closure,
+        ordered_imports: &context.imports,
+        environment: &environment,
+    })?;
+    let trace_owner = format!("fetch:{name}");
     if needed.is_empty() {
         needed.insert(".".into(), NeededPath::default());
     }
@@ -201,6 +240,14 @@ fn execute_top_fetch(
         .map(|pin| top_fetch_chain_key(command, &offered_closure, &environment, &pin))
         .transpose()?;
     if cold && !force {
+        if let Some(memo) = lock
+            .step_memo
+            .get(&trace_owner)
+            .filter(|memo| memo.key == trace_key)
+        {
+            let empty = tempfile::tempdir().context("creating cold top-level FETCH audit root")?;
+            verify_cold_read_set(memo, empty.path(), fetch.line, &fetch.source)?;
+        }
         let pin = lock.fetches.get(name).with_context(|| {
             format!("FETCH {name} has no pin to replay; --cold never refetches")
         })?;
@@ -214,7 +261,7 @@ fn execute_top_fetch(
             "FETCH {name} replayed pinned snapshot {} -> {view}",
             short_key(&key)
         );
-        return Ok(view);
+        return Ok((view, false));
     }
     if !force {
         if let Some(key) = &existing_key {
@@ -229,7 +276,7 @@ fn execute_top_fetch(
                     })?;
                 let view = materialize_view(&entry.paths)?;
                 eprintln!("FETCH {name} memo hit {} -> {view}", short_key(key));
-                return Ok(view);
+                return Ok((view, false));
             }
         }
     }
@@ -237,8 +284,9 @@ fn execute_top_fetch(
         .prefix("cix-fetch-work-")
         .tempdir()
         .context("creating top-level FETCH workdir")?;
+    let trace_before = copied_snapshot(work.path())?;
     let started = Instant::now();
-    run_sandbox(
+    let observations = run_sandbox(
         work.path(),
         &shell,
         command,
@@ -254,6 +302,7 @@ fn execute_top_fetch(
             fetch.line, fetch.source
         )
     })?;
+    let mut step_volatile = BTreeSet::new();
     let volatile = if force && fetch.expected.is_none() {
         let first = copied_snapshot(work.path())?;
         let empty = tempfile::tempdir()?;
@@ -276,6 +325,7 @@ fn execute_top_fetch(
         })?;
         let observed_volatile = volatile_paths(first.path(), work.path())?;
         report_volatile(name, &observed_volatile);
+        step_volatile.extend(observed_volatile.keys().cloned());
         replace_workspace_tree(first.path(), work.path())?;
         let volatile = consumed_volatile_paths(observed_volatile, &needed);
         first.close()?;
@@ -296,6 +346,24 @@ fn execute_top_fetch(
         lock.fetches.insert(name.to_owned(), FetchPin::automatic());
     }
     let snapshot = add_store_object(work.path(), "cix-fetch-snapshot")?;
+    let mut reads = trace::read_dependencies(trace_before.path(), &observations)?;
+    let mut changes =
+        trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
+    retain_nonvolatile_reads(&mut reads, &step_volatile);
+    changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+    let step_output = (!changes.is_empty())
+        .then(|| add_step_output_snapshot(work.path(), &changes, &step_volatile))
+        .transpose()?;
+    lock.step_memo.insert(
+        trace_owner,
+        StepMemo {
+            key: trace_key,
+            reads,
+            output_snapshot: step_output,
+            changes,
+        },
+    );
+    trace_before.close()?;
     let actual_paths = fetch_path_hashes(work.path(), &needed)?;
     report_unconsumed_complement(name, work.path(), &needed);
     let pin = lock.fetches.get(name).cloned();
@@ -320,7 +388,7 @@ fn execute_top_fetch(
         wall_ms,
         view
     );
-    Ok(view)
+    Ok((view, true))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -335,7 +403,7 @@ fn execute_builder(
     needed: BTreeMap<String, NeededPath>,
     update_fetch_pins: bool,
     cold: bool,
-) -> Result<String> {
+) -> Result<(String, Vec<ExecutedStep>)> {
     let command_count = builder
         .steps
         .iter()
@@ -407,6 +475,11 @@ fn execute_builder(
             .cloned()
             .unwrap_or_else(|| hex_hash(format!("BUILDER\0{builder_name}").as_bytes()))
     });
+    let newly_consumed_paths = existing_key.as_ref().is_some_and(|key| {
+        lock.memo
+            .get(key)
+            .is_some_and(|entry| needed.keys().any(|path| !entry.paths.contains_key(path)))
+    });
     if !cold && !update_fetch_pins {
         if let Some(key) = &existing_key {
             if memo_has_paths(lock.memo.get(key), &needed)? {
@@ -415,7 +488,7 @@ fn execute_builder(
                     "BUILDER {builder_name} memo hit {} -> {view}",
                     short_key(key)
                 );
-                return Ok(view);
+                return Ok((view, builder_step_results(builder_name, builder, false)));
             }
         }
     }
@@ -465,6 +538,7 @@ fn execute_builder(
 
     let mut command_index = 0;
     let mut copy_index = 0;
+    let mut step_results = Vec::with_capacity(builder.steps.len());
     let mut fetch_snapshots =
         BTreeMap::<String, (bool, Option<String>, BTreeMap<String, VolatilePath>)>::new();
     for (index, step) in builder.steps.iter().enumerate() {
@@ -484,6 +558,7 @@ fn execute_builder(
                     "BUILDER {builder_name} step {} ENV {name} declared (line {line}: {source})",
                     index + 1
                 );
+                step_results.push(executed_step(builder_name, index, "ENV", true));
             }
             BuildStep::Copy(copy) => {
                 let resolved_source = &context.copies[copy_index];
@@ -503,6 +578,7 @@ fn execute_builder(
                     resolved_source,
                     copy.dst
                 );
+                step_results.push(executed_step(builder_name, index, "COPY", true));
             }
             BuildStep::Fetch { line, source, .. } | BuildStep::Run { line, source, .. } => {
                 let command = &context.commands[command_index];
@@ -512,49 +588,80 @@ fn execute_builder(
                         "BUILDER {builder_name} step {} reused from persistent workspace",
                         index + 1
                     );
+                    let kind = if matches!(step, BuildStep::Fetch { .. }) {
+                        "FETCH"
+                    } else {
+                        "RUN"
+                    };
+                    step_results.push(executed_step(builder_name, index, kind, false));
                     continue;
                 }
                 let is_fetch = matches!(step, BuildStep::Fetch { .. });
                 let kind = if is_fetch { "FETCH" } else { "RUN" };
+                let memo_key = step_memo_key(StepMemoKeyRequest {
+                    builder: builder_name,
+                    index,
+                    kind,
+                    directive: source,
+                    arguments: command,
+                    offered_closure: &offered_closure,
+                    ordered_imports: &context.imports,
+                    environment: &environment,
+                })?;
+                let memo_owner = format!("builder:{builder_name}:{index}");
+                let recorded_memo = lock
+                    .step_memo
+                    .get(&memo_owner)
+                    .filter(|memo| memo.key == memo_key)
+                    .cloned();
                 let fetch_id = is_fetch
                     .then(|| format!("builder:{builder_name}:{}", fetch_id(index, command)));
                 if let Some(id) = &fetch_id {
                     if cold {
+                        if let Some(memo) = &recorded_memo {
+                            verify_cold_read_set(memo, &workdir, *line, source)?;
+                        }
                         let pin = lock.fetches.get(id).with_context(|| {
                             format!(
                                 "BUILDER {builder_name} FETCH has no pin to replay; --cold never refetches"
                             )
                         })?;
-                        let snapshot = replay_fetch_snapshot(directory, id, pin)?;
-                        restore_snapshot(Path::new(&snapshot), &workdir)?;
-                        fetch_snapshots.insert(
-                            id.clone(),
-                            (
-                                matches!(
-                                    step,
-                                    BuildStep::Fetch {
-                                        expected: Some(_),
-                                        ..
-                                    }
-                                ),
-                                None,
-                                pin.volatile.clone(),
-                            ),
-                        );
+                        if let Some(memo) = &recorded_memo {
+                            apply_step_memo(memo, &workdir)?;
+                        } else {
+                            let snapshot = replay_fetch_snapshot(directory, id, pin)?;
+                            restore_snapshot(Path::new(&snapshot), &workdir)?;
+                        }
                         eprintln!(
                             "BUILDER {builder_name} step {} FETCH replayed pinned snapshot",
                             index + 1
                         );
+                        step_results.push(executed_step(builder_name, index, kind, false));
                         continue;
                     }
                 }
+                if !cold && !update_fetch_pins && !newly_consumed_paths {
+                    if let Some(memo) = recorded_memo.clone() {
+                        if step_memo_matches(&memo, &workdir)? {
+                            apply_step_memo(&memo, &workdir)?;
+                            eprintln!(
+                                "BUILDER {builder_name} step {} {kind} memo hit {}",
+                                index + 1,
+                                short_key(&memo_key)
+                            );
+                            step_results.push(executed_step(builder_name, index, kind, false));
+                            continue;
+                        }
+                    }
+                }
+                let trace_before = copied_snapshot(&workdir)?;
                 let probe_before = (is_fetch
                     && update_fetch_pins
                     && matches!(step, BuildStep::Fetch { expected: None, .. }))
                 .then(|| copied_snapshot(&workdir))
                 .transpose()?;
                 let started = Instant::now();
-                run_sandbox(
+                let observations = run_sandbox(
                     &workdir,
                     shell.as_deref().expect("command steps have a shell"),
                     command,
@@ -565,13 +672,15 @@ fn execute_builder(
                     if is_fetch { None } else { run_network },
                 )
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
+                let mut reads = trace::read_dependencies(trace_before.path(), &observations)?;
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                let mut step_volatile = BTreeSet::new();
                 if is_fetch {
                     let id = fetch_id.expect("FETCH has an id");
                     let volatile = if let Some(before) = probe_before {
                         let first = copied_snapshot(&workdir)?;
                         replace_workspace_tree(before.path(), &workdir)?;
-                        run_sandbox(
+                        let _ = run_sandbox(
                             &workdir,
                             shell.as_deref().expect("command steps have a shell"),
                             command,
@@ -586,6 +695,7 @@ fn execute_builder(
                         })?;
                         let observed_volatile = volatile_paths(first.path(), &workdir)?;
                         report_volatile(&id, &observed_volatile);
+                        step_volatile.extend(observed_volatile.keys().cloned());
                         replace_workspace_tree(first.path(), &workdir)?;
                         before.close()?;
                         let volatile = consumed_volatile_paths(observed_volatile, &needed);
@@ -611,13 +721,47 @@ fn execute_builder(
                         lock.fetches.insert(id.clone(), FetchPin::automatic());
                     }
                     let snapshot = add_store_object(&workdir, "cix-fetch-snapshot")?;
-                    fetch_snapshots.insert(id, (expected.is_some(), Some(snapshot), volatile));
+                    fetch_snapshots
+                        .insert(id, (expected.is_some(), Some(snapshot.clone()), volatile));
                 }
+                let mut changes =
+                    trace::filesystem_changes(trace_before.path(), &workdir, &observations.writes)?;
+                if let Some(previous) = &recorded_memo {
+                    retain_replay_roots(previous, &workdir, &mut changes)?;
+                }
+                retain_nonvolatile_reads(&mut reads, &step_volatile);
+                changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+                if cold {
+                    if let Some(recorded) = &recorded_memo {
+                        compare_cold_read_sets(recorded, &reads, *line, source)?;
+                    }
+                } else {
+                    let output_snapshot = if changes.is_empty() {
+                        None
+                    } else {
+                        Some(add_step_output_snapshot(
+                            &workdir,
+                            &changes,
+                            &step_volatile,
+                        )?)
+                    };
+                    lock.step_memo.insert(
+                        memo_owner,
+                        StepMemo {
+                            key: memo_key,
+                            reads,
+                            output_snapshot,
+                            changes,
+                        },
+                    );
+                }
+                trace_before.close()?;
                 eprintln!(
                     "BUILDER {builder_name} step {} {kind} executed ({} ms)",
                     index + 1,
                     wall_ms
                 );
+                step_results.push(executed_step(builder_name, index, kind, true));
             }
         }
     }
@@ -670,7 +814,7 @@ fn execute_builder(
         "BUILDER {builder_name} memo miss {} -> {view}",
         short_key(&key)
     );
-    Ok(view)
+    Ok((view, step_results))
 }
 
 fn build_environment(mut environment: BTreeMap<String, String>) -> BTreeMap<String, String> {
@@ -1062,6 +1206,227 @@ fn step_key(request: StepKeyRequest<'_>) -> Result<String> {
         SANDBOX_SKELETON,
         request,
     ))?))
+}
+
+fn step_memo_key(request: StepMemoKeyRequest<'_>) -> Result<String> {
+    Ok(hex_hash(&serde_json::to_vec(&(
+        CODEGEN_FINGERPRINT,
+        SANDBOX_SKELETON,
+        request,
+    ))?))
+}
+
+fn step_memo_matches(memo: &StepMemo, workspace: &Path) -> Result<bool> {
+    if !memo.changes.is_empty() {
+        let Some(snapshot) = memo.output_snapshot.as_deref() else {
+            return Ok(false);
+        };
+        if !ensure_store_path(snapshot)? {
+            return Ok(false);
+        }
+    }
+    Ok(trace::current_dependencies(workspace, &memo.reads)? == memo.reads)
+}
+
+fn apply_step_memo(memo: &StepMemo, workspace: &Path) -> Result<()> {
+    if memo.changes.is_empty() {
+        return Ok(());
+    }
+    let snapshot = Path::new(
+        memo.output_snapshot
+            .as_deref()
+            .context("step memo with filesystem changes has no output snapshot")?,
+    );
+    let mut absent = memo
+        .changes
+        .iter()
+        .filter(|(_, change)| matches!(change, StepChange::Absent))
+        .map(|(path, _)| path.as_str())
+        .collect::<Vec<_>>();
+    absent.sort_by_key(|path| std::cmp::Reverse(path.matches('/').count()));
+    for relative in absent {
+        remove_path_if_present(&workspace.join(relative))?;
+    }
+    let mut present = memo
+        .changes
+        .iter()
+        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .map(|(path, _)| path.as_str())
+        .collect::<Vec<_>>();
+    present.sort_by_key(|path| path.matches('/').count());
+    for relative in present {
+        let destination = workspace.join(relative);
+        remove_path_if_present(&destination)?;
+        copy_node(&snapshot.join(relative), &destination)?;
+        make_writable(&destination)?;
+    }
+    for (relative, change) in &memo.changes {
+        let StepChange::Directory { mode } = change else {
+            continue;
+        };
+        let path = if relative == "." {
+            workspace.to_owned()
+        } else {
+            workspace.join(relative)
+        };
+        fs::set_permissions(path, fs::Permissions::from_mode(*mode))?;
+    }
+    Ok(())
+}
+
+fn add_step_output_snapshot(
+    workspace: &Path,
+    changes: &BTreeMap<String, StepChange>,
+    excluded: &BTreeSet<String>,
+) -> Result<String> {
+    let delta = tempfile::Builder::new()
+        .prefix("cix-step-delta-")
+        .tempdir()
+        .context("creating step output delta")?;
+    let mut present = changes
+        .iter()
+        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .map(|(path, _)| path.as_str())
+        .collect::<Vec<_>>();
+    present.sort_by_key(|path| path.matches('/').count());
+    let mut copied = Vec::<&str>::new();
+    for relative in present {
+        if copied.iter().any(|parent| {
+            relative
+                .strip_prefix(*parent)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+        }) {
+            continue;
+        }
+        copy_node(&workspace.join(relative), &delta.path().join(relative))?;
+        copied.push(relative);
+    }
+    for relative in excluded {
+        remove_path_if_present(&delta.path().join(relative))?;
+    }
+    add_store_object(delta.path(), "cix-step-output")
+}
+
+fn retain_nonvolatile_reads(
+    reads: &mut BTreeMap<String, crate::ReadDependency>,
+    volatile: &BTreeSet<String>,
+) {
+    reads.retain(|path, _| {
+        !volatile.iter().any(|volatile_path| {
+            volatile_path == path
+                || volatile_path
+                    .strip_prefix(path)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+    });
+}
+
+fn retain_replay_roots(
+    previous: &StepMemo,
+    workspace: &Path,
+    changes: &mut BTreeMap<String, StepChange>,
+) -> Result<()> {
+    for (root, previous_change) in &previous.changes {
+        let path = workspace.join(root);
+        match (previous_change, fs::symlink_metadata(&path)) {
+            (StepChange::Present, Ok(_)) => {
+                changes.retain(|candidate, _| !same_or_descendant(candidate, root));
+                changes.insert(root.clone(), StepChange::Present);
+            }
+            (StepChange::Present | StepChange::Absent, Err(error))
+                if error.kind() == io::ErrorKind::NotFound =>
+            {
+                changes.insert(root.clone(), StepChange::Absent);
+            }
+            (StepChange::Directory { mode }, Ok(metadata)) if metadata.is_dir() => {
+                changes.insert(root.clone(), StepChange::Directory { mode: *mode });
+            }
+            (_, Ok(_)) => {}
+            (_, Err(error)) => return Err(error.into()),
+        }
+    }
+    Ok(())
+}
+
+fn same_or_descendant(candidate: &str, root: &str) -> bool {
+    candidate == root
+        || candidate
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with('/'))
+}
+
+fn path_overlaps_any(path: &str, paths: &BTreeSet<String>) -> bool {
+    paths.iter().any(|other| {
+        path == other
+            || path
+                .strip_prefix(other)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+            || other
+                .strip_prefix(path)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+    })
+}
+
+fn verify_cold_read_set(
+    memo: &StepMemo,
+    workspace: &Path,
+    line: usize,
+    source: &str,
+) -> Result<()> {
+    let current = trace::current_dependencies(workspace, &memo.reads)?;
+    compare_cold_read_sets(memo, &current, line, source)
+}
+
+fn compare_cold_read_sets(
+    memo: &StepMemo,
+    cold: &BTreeMap<String, crate::ReadDependency>,
+    line: usize,
+    source: &str,
+) -> Result<()> {
+    if memo.reads == *cold {
+        return Ok(());
+    }
+    let path = memo
+        .reads
+        .keys()
+        .chain(cold.keys())
+        .find(|path| memo.reads.get(*path) != cold.get(*path))
+        .map(String::as_str)
+        .unwrap_or("<unknown>");
+    bail!(
+        "line {line}: recorded read set differs between warm and cold at {path:?} (warm {:?}, cold {:?})\n  | {source:?}",
+        memo.reads.get(path),
+        cold.get(path)
+    )
+}
+
+fn executed_step(builder: &str, index: usize, kind: &str, executed: bool) -> ExecutedStep {
+    ExecutedStep {
+        name: format!("{builder}:{}", index + 1),
+        kind: kind.into(),
+        executed,
+    }
+}
+
+fn builder_step_results(
+    builder_name: &str,
+    builder: &Builder,
+    executed: bool,
+) -> Vec<ExecutedStep> {
+    builder
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(index, step)| {
+            let kind = match step {
+                BuildStep::Env { .. } => "ENV",
+                BuildStep::Copy(_) => "COPY",
+                BuildStep::Fetch { .. } => "FETCH",
+                BuildStep::Run { .. } => "RUN",
+            };
+            executed_step(builder_name, index, kind, executed)
+        })
+        .collect()
 }
 
 fn memo_has_paths(
@@ -1574,7 +1939,13 @@ fn copy_node(source: &Path, destination: &Path) -> Result<()> {
 
 fn make_writable(path: &Path) -> Result<()> {
     let root_metadata = fs::symlink_metadata(path)?;
-    if !root_metadata.is_dir() || root_metadata.file_type().is_symlink() {
+    if root_metadata.file_type().is_symlink() {
+        return Ok(());
+    }
+    if !root_metadata.is_dir() {
+        let mut permissions = root_metadata.permissions();
+        permissions.set_mode(permissions.mode() | 0o200);
+        fs::set_permissions(path, permissions)?;
         return Ok(());
     }
     for entry in fs::read_dir(path)? {
@@ -1719,10 +2090,21 @@ fn run_sandbox(
     offered_closure: &BTreeSet<String>,
     imports: &[String],
     run_network: Option<RunNetwork>,
-) -> Result<()> {
+) -> Result<trace::Capture> {
     let import_union = prepare_import_union(imports, run_network.is_none())?;
     let env_is_missing = !import_union.path().join("bin/env").is_file();
-    let mut process = Command::new("bwrap");
+    let trace_directory = tempfile::Builder::new()
+        .prefix("cix-read-trace-")
+        .tempdir()
+        .context("creating read trace directory")?;
+    let trace_path = trace_directory.path().join("syscalls");
+    let mut process = Command::new("strace");
+    process
+        .args(["-f", "-qq", "-yy", "-s", "0", "-e"])
+        .arg("trace=%file,getdents,getdents64,chdir,fchdir,clone,clone3,fork,vfork")
+        .arg("-o")
+        .arg(&trace_path)
+        .args(["--", "bwrap"]);
     process.args([
         "--die-with-parent",
         "--new-session",
@@ -1739,11 +2121,14 @@ fn run_sandbox(
     if run_network == Some(RunNetwork::Namespace) {
         process.arg("--unshare-net");
     }
-    let _seccomp_filter = if run_network == Some(RunNetwork::SocketFilter) {
-        Some(seccomp::attach_socket_filter(&mut process)?)
+    let seccomp_filter = if run_network == Some(RunNetwork::SocketFilter) {
+        Some(seccomp::prepare_socket_filter(&mut process)?)
     } else {
         None
     };
+    if let Some(filter) = &seccomp_filter {
+        process.arg("--seccomp").arg(filter.as_raw_fd().to_string());
+    }
     process.args(["--dir", "/nix", "--dir", "/nix/store"]);
     process.args(["--dir", "/usr", "--dir", "/usr/bin"]);
     process.args(["--symlink", "/bin/env", "/usr/bin/env"]);
@@ -1786,7 +2171,7 @@ fn run_sandbox(
         .args(["-c", &shell_program, "cix-build", command])
         .output()
         .context(
-            "starting bubblewrap sandbox; this host may restrict unprivileged user namespaces",
+            "starting traced bubblewrap sandbox; this host must permit ptrace and unprivileged user namespaces",
         )?;
     io::stderr().write_all(&output.stdout)?;
     io::stderr().write_all(&output.stderr)?;
@@ -1804,7 +2189,9 @@ fn run_sandbox(
         }
         bail!("{failure}");
     }
-    Ok(())
+    let trace_text = fs::read_to_string(&trace_path)
+        .with_context(|| format!("reading syscall trace {}", trace_path.display()))?;
+    Ok(trace::parse(&trace_text))
 }
 
 fn prepare_import_union(

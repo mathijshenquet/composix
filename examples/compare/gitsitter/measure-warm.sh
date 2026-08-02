@@ -34,18 +34,25 @@ cat "$bench_root/upstream.time"
 cat "$bench_root/crane.time"
 
 cp -R "$example_root/cix" "$bench_root/cix"
-cp "$upstream_src/Cargo.toml" "$upstream_src/Cargo.lock" \
-  "$upstream_src/build.rs" "$bench_root/cix/"
-cp -R "$upstream_src/src" "$bench_root/cix/src"
+cp -R "$upstream_src"/. "$bench_root/cix/"
 chmod -R u+w "$bench_root/cix"
 sed -i 's|^FROM github:mathijshenquet/gitsitter AS src$|FROM . AS src|' \
   "$bench_root/cix/Cixfile"
-jq 'del(.memo)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
+sed -i 's|^  ENV GIT_COMMIT_HASH = ${src.rev}$|  ENV GIT_COMMIT_HASH = 29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd|' \
+  "$bench_root/cix/Cixfile"
+jq 'del(.memo, .outputs)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
+mv "$bench_root/Cixfile.lock" "$bench_root/cix/Cixfile.lock"
+CIX_BUILD_WORKSPACE_DIR="$bench_root/workspaces" \
+  "$cix_bin" build "$bench_root/cix#gitsitter" >/dev/null 2>&1
+jq 'del(.memo, .outputs)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
 mv "$bench_root/Cixfile.lock" "$bench_root/cix/Cixfile.lock"
 CIX_BUILD_WORKSPACE_DIR="$bench_root/workspaces" \
   "$cix_bin" build "$bench_root/cix#gitsitter" >/dev/null 2>&1
 patch -s -d "$bench_root/cix" -p1 < "$example_root/warm.patch"
-/usr/bin/time -o "$bench_root/cix.time" -f 'cix_warm_change_seconds=%e' \
+/usr/bin/time -o "$bench_root/cix.time" -f 'cix_readset_warm_change_seconds=%e' \
   env CIX_BUILD_WORKSPACE_DIR="$bench_root/workspaces" \
-  "$cix_bin" build "$bench_root/cix#gitsitter" >/dev/null 2>&1
+  "$cix_bin" build --stats "$bench_root/cix#gitsitter" \
+  >"$bench_root/cix.stats" 2>/dev/null
 cat "$bench_root/cix.time"
+jq -c '{stats: {nixSubprocesses: .stats.nixSubprocesses, steps: [.stats.steps[] | select(.kind == "FETCH" or .kind == "RUN")]}}' \
+  "$bench_root/cix.stats"

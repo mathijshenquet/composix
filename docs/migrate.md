@@ -129,8 +129,10 @@ Prefer directory copies when the directory moves as one unit:
 COPY ${src}/rust/ .
 ```
 
-Enumerate files only to create a deliberate memo boundary, such as dependency manifests
-before source. Artifact consumers should copy narrow builder outputs:
+Copy the source directory as a unit by default. FETCH and RUN key on their traced reads, so an
+unrelated source edit does not invalidate a manifest-reading dependency fetch. Enumerating
+manifests before source is only an optimization for pathological read sets or very large staging
+trees. Artifact consumers should still copy narrow builder outputs:
 `COPY ${build}/target/release/server /bin/server`. Copying `${build}/` wholesale makes every
 left-behind byte part of that consumer.
 

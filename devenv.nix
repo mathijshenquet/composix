@@ -6,5 +6,6 @@
   packages = [
     pkgs.bubblewrap
     pkgs.cargo-watch
+    pkgs.strace
   ];
 }

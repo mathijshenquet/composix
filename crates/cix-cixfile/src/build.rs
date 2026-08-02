@@ -153,7 +153,7 @@ pub fn build_family_with_stats(
         }
     }
     let system = cix_common::current_system()?;
-    let snapshots = execute(
+    let execution = execute(
         &cixfile,
         &directory,
         &mut lock,
@@ -162,7 +162,7 @@ pub fn build_family_with_stats(
         options.cold,
     );
     save_lock(&lock_path, &lock)?;
-    let snapshots = snapshots?;
+    let (snapshots, executed_steps) = execution?;
     let mut outputs = Vec::new();
     for name in &cixfile.artifact_order {
         let expression =
@@ -196,7 +196,18 @@ pub fn build_family_with_stats(
     Ok((
         outputs,
         BuildStats {
-            steps: step_stats(&cixfile, "executed"),
+            steps: executed_steps
+                .into_iter()
+                .map(|step| StepStat {
+                    name: step.name,
+                    kind: step.kind,
+                    status: if step.executed {
+                        "executed"
+                    } else {
+                        "memo-hit"
+                    },
+                })
+                .collect(),
             nix_subprocesses: cix_common::nix_subprocess_count(),
         },
     ))
@@ -238,6 +249,7 @@ fn source_tree_hash(directory: &std::path::Path) -> Result<String> {
 
 fn build_fingerprint(directory: &std::path::Path, lock: &cix_build::LockFile) -> Result<String> {
     let mut digest = Sha256::new();
+    digest.update(cix_build::BUILDER_FINGERPRINT.as_bytes());
     digest.update(source_tree_hash(directory)?.as_bytes());
     digest.update(serde_json::to_vec(&(
         &lock.inputs,
@@ -437,6 +449,7 @@ mod tests {
             artifacts: BTreeMap::new(),
             fetches: BTreeMap::new(),
             memo: BTreeMap::new(),
+            step_memo: BTreeMap::new(),
             dev_envs: BTreeMap::new(),
             outputs: BTreeMap::new(),
         };

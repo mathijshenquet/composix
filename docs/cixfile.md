@@ -1,8 +1,9 @@
 # The Cixfile
 
-*Status: D47 blocks and binders through D65 plus CIP-79 health are implemented: named persistent builders,
-narrow consumed-path records, package IMPORT unions, declared or TOFU-pinned network fetches,
-directive continuations, RUN heredocs, and full-line comments.*
+*Status: D47 blocks and binders through D65, CIP-79 health, and CIP-87 read-set keying are
+implemented: named persistent builders, constructive step traces, narrow consumed-path records,
+package IMPORT unions, declared or TOFU-pinned network fetches, directive continuations, RUN
+heredocs, and full-line comments.*
 
 A Cixfile turns a directory into one or more composix artifacts. It is Dockerfile-shaped, so
 the common operations are recognizable, but its boundaries are explicit: builders do
@@ -102,9 +103,10 @@ Prefer one directory COPY when its contents move as a unit:
 COPY ${src}/rust/ .
 ```
 
-Enumerate files only when the separation deliberately creates a memo boundary, such as
-copying dependency manifests before source. Structural globs such as `**/Cargo.toml` are not
-implemented; the known manifest-first cases are already expressible without a glob language.
+Copy the whole source tree by default. FETCH and RUN memo entries record the paths they actually
+read, so a source-only edit does not invalidate a dependency-fetch step that read only manifests.
+Manifest-first enumeration remains an optimization for pathological read sets or especially
+large staging trees; structural globs such as `**/Cargo.toml` are not implemented.
 
 There is no magic `${build}` namespace and `TAKE` is gone. A migrated file should name its
 builder, normally `BUILDER build`, and use `COPY ${build}/path /destination`. The parser emits
@@ -225,18 +227,17 @@ builder's chain key. `$VAR` remains runtime environment syntax and is valid in `
 
 ## Builders, `IMPORT`, `RUN`, and `FETCH`
 
-Each `BUILDER` has a persistent workspace. Its directives form a pure key chain, and later
-blocks consume named paths from the tree it leaves behind:
+Each `BUILDER` has a persistent workspace. Later blocks consume named paths from the tree it
+leaves behind:
 
 ```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
 BUILDER compile
 IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.gcc} ${pkgs.cacert}
-COPY Cargo.toml Cargo.toml
-COPY Cargo.lock Cargo.lock
+COPY ${src}/ .
 FETCH cargo fetch --locked
-COPY src/ src
 RUN <<BUILD
 cargo build --release --locked --offline
 BUILD
@@ -271,17 +272,24 @@ tool-generated `#!/usr/bin/env bash` (or similar) launchers work when an IMPORT 
 `env`, typically `${pkgs.coreutils}`; it deliberately dangles otherwise. No other `/usr`
 content is present.
 
-Every step key hashes its directive and resolved arguments, the ordered imports and offered
-closure, the predecessor key, the versioned fixed sandbox skeleton and environment, COPY source
-hashes, and any FETCH pin.
-It never hashes workspace bytes. The environment is cleared and rebuilt with `PATH=/bin`,
+FETCH and RUN use constructive traces. Their static memo identity hashes the directive text,
+resolved arguments, declared environment, ordered imports and offered closure, and the versioned
+fixed sandbox skeleton—not the predecessor key or workspace bytes. The dynamic part records each
+workspace path the command read: file content, file or directory existence for metadata-only
+probes, directory entry lists, and absent-path probes. Lookup rehashes exactly that recorded read
+set, so unrelated workspace changes are early-cut off. A miss executes the command under `strace`, records a fresh
+single latest trace, and stores its filesystem delta for exact replay. COPY source hashes and the
+old predecessor chain remains only the persistent-workspace lineage and final-receipt address.
+
+The environment is cleared and rebuilt with `PATH=/bin`,
 `SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt`, `HOME=/work`, `SOURCE_DATE_EPOCH=1`, `TZ=UTC`,
 `LC_ALL=C`, `TMPDIR=/tmp`, and umask 022. The certificate path becomes readable only when an
 IMPORT supplies it; composix does not import a CA package implicitly.
 
 Declared COPY inputs are staged fresh on every execution, including deletions. A non-cold
-re-run starts from that builder's own last end-state, then executes the changed step and its
-successors over it. Files written by build commands therefore persist in the workspace, so
+re-run starts from that builder's own last end-state, then validates each affected command's
+recorded reads; hits replay only that command's writes and misses execute. Files written by build
+commands therefore persist in the workspace, so
 ordinary `target/`, `node_modules/`, and similar incremental state are warm by default. Nothing
 is excluded from keys by a cache declaration because workspace bytes never enter keys. `CACHE`
 was removed; delete old CACHE lines. Workspaces are scoped to one project and builder name, with
@@ -290,15 +298,16 @@ no cross-builder or cross-project reuse.
 Warm results are path-dependent: `build(A→B)` can differ from `build(B)` when deleted sources or
 dependencies survive as ghost files in the underlay. Removing a workspace with `rm -rf` is always
 safe: it drops that underlay and makes the next run clean. `cix build --cold` is the clean truth;
-it starts with an empty workspace and audits the consumed outputs against the warm result.
+it starts with an empty workspace, audits each recorded read set against the clean replay, and
+audits the consumed outputs against the warm result. A divergence names the directive and line.
 
 The lock memo maps a final chain key to each path an artifact-bound COPY consumes, including
 that path's content hash and store object. A memo hit materializes only those paths. Adding a
 new consumed path forces the builder to run so it can be recorded. `cix build --cold` compares
 every consumed path with the warm result; a
-mismatch names the exact COPY and Cixfile line. It replays already pinned FETCH snapshots and
-never contacts the network: cold proves builder reproducibility, while trust in fetched bytes
-is the FETCH pin. `--no-cache` remains a deprecated alias for `--cold`.
+mismatch names the exact COPY and Cixfile line. It replays already pinned FETCH deltas and never
+contacts the network: cold proves builder reproducibility, while trust in fetched bytes is the
+FETCH pin. `--no-cache` remains a deprecated alias for `--cold`.
 
 There are two intentionally different fetch forms:
 
@@ -309,9 +318,9 @@ There are two intentionally different fetch forms:
 Both are the only network-enabled build steps. An automatic lock pin records only a map of the
 paths downstream consumers actually use; incidental cache files outside that set do not make a
 build flap. A local Nix-store replay cache, keyed by that stable pin rather than serialized into
-the lock, lets `--cold` restore the complete FETCH workspace without making volatile cache bytes
-part of `Cixfile.lock`. First use of an additional consumed path is reported and recorded as a
-fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately fetches twice, reports
+the lock, lets `--cold` replay FETCH outputs without
+making volatile cache bytes part of `Cixfile.lock`. First use of an additional top-level consumed
+path is reported and recorded as a fresh pin entry. `cix build --update-lock <fetch-or-builder>` deliberately fetches twice, reports
 differing file names and sizes, and records those volatile-file facts in the lock; it never
 silently removes them. Add `EXPECT <sri-hash>` before the command to keep a whole-workdir author
 integrity assertion instead: this removes the first-use trust window and reports declared versus

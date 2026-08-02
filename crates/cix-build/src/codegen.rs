@@ -1181,6 +1181,7 @@ mod tests {
             artifacts: BTreeMap::new(),
             fetches: BTreeMap::new(),
             memo: BTreeMap::new(),
+            step_memo: BTreeMap::new(),
             dev_envs: BTreeMap::new(),
             outputs: BTreeMap::new(),
         }

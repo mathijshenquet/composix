@@ -7,11 +7,8 @@ BUILDER build
       ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
       ${pkgs.sqlite} ${pkgs.sqlite.dev}
   ENV GIT_COMMIT_HASH = ${src.rev}
-  COPY ${src}/Cargo.toml Cargo.toml
-  COPY ${src}/Cargo.lock Cargo.lock
-  FETCH mkdir -p .cargo && cargo vendor --locked vendor > .cargo/config.toml
-  COPY ${src}/build.rs build.rs
-  COPY ${src}/src/ src
+  COPY ${src}/ .
+  FETCH mkdir -p .cargo && CARGO_TARGET_DIR=/tmp/cix-vendor-target cargo vendor --locked vendor > .cargo/config.toml
   RUN cargo build --release --locked --offline
 
 ITEM gitsitter

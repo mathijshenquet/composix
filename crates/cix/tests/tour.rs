@@ -811,7 +811,7 @@ START app
     assert!(cixfile.contains("RUN <<BUILD"));
     doc.sh("cat Cixfile.lock", true);
 
-    doc.para("IMPORT makes bare tools available through the read-only `/bin` union. The chain key contains the command, imports, predecessor, environment, and declared COPY bytes—but never workspace bytes. The SERVICE consumes only two narrow paths from `${build}`.");
+    doc.para("IMPORT makes bare tools available through the read-only `/bin` union. A command memo combines its directive, imports, environment, and sandbox version with the workspace paths it actually read; unrelated COPY bytes do not invalidate it. The SERVICE consumes only two narrow paths from `${build}`.");
     let first = doc.sh(
         "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
         true,
@@ -843,14 +843,16 @@ START app
     assert!(warm.contains("workspace-state: warm"), "{warm}");
     let warm_path = built_store_path(&warm, "-cix-item-run-tour");
 
-    doc.para("`--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.");
+    doc.para("`--cold` samples the same chain with an empty workspace and now audits the command's read set as well as its selected outputs. This RUN deliberately reads the warm-only marker, so the audit identifies that path-dependent input and fails at the source line.");
     let cold = doc.sh(
         "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .",
-        true,
+        false,
     );
     assert!(cold.contains("workspace-state: cold"), "{cold}");
-    let cold_path = built_store_path(&cold, "-cix-item-run-tour");
-    assert_eq!(warm_path, cold_path);
+    assert!(
+        cold.contains("recorded read set differs between warm and cold"),
+        "{cold}"
+    );
 
     doc.para("A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.");
     doc.sh("rm -rf ../.workspaces-run", true);
@@ -859,7 +861,7 @@ START app
         true,
     );
     assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
-    assert_eq!(built_store_path(&wiped, "-cix-item-run-tour"), cold_path);
+    assert_eq!(built_store_path(&wiped, "-cix-item-run-tour"), warm_path);
     doc.finish()
 }
 
@@ -1031,22 +1033,16 @@ fn chapter_proj1() -> String {
     );
     assert_eq!(unchanged.trim(), "api item unchanged: yes");
 
-    doc.para("A sampled `--cold` rebuild uses an empty workspace. The marker says cold, and per-path comparison proves both selected binaries—and therefore both item paths—are byte-identical.");
+    doc.para("A sampled `--cold` rebuild uses an empty workspace and checks the RUN's traced inputs before accepting its outputs. This fixture deliberately reads warm Cargo state and its marker, so the audit reports the first warm/cold read-set difference instead of silently accepting output coincidence.");
     let clean = doc.sh(
         "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .",
-        true,
+        false,
     );
-    assert!(clean.contains("BUILDER build memo miss"), "{clean}");
     assert!(clean.contains("workspace-state: cold"), "{clean}");
-    let clean_api = proj1_item_path(&clean, "proj1-api");
-    let clean_worker = proj1_item_path(&clean, "proj1-worker");
-    let identical = doc.sh(
-        &format!(
-            "test {clean_api} = {edited_api} && test {clean_worker} = {edited_worker} && echo 'item paths byte-identical: yes'"
-        ),
-        true,
+    assert!(
+        clean.contains("recorded read set differs between warm and cold"),
+        "{clean}"
     );
-    assert_eq!(identical.trim(), "item paths byte-identical: yes");
 
     doc.para("The warm workspace remains disposable. Delete it and the unchanged chain replays the two recorded binaries without changing either item.");
     doc.sh("rm -rf ../.workspaces-proj1", true);
@@ -1055,8 +1051,8 @@ fn chapter_proj1() -> String {
         true,
     );
     assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
-    assert_eq!(proj1_item_path(&wiped, "proj1-api"), clean_api);
-    assert_eq!(proj1_item_path(&wiped, "proj1-worker"), clean_worker);
+    assert_eq!(proj1_item_path(&wiped, "proj1-api"), edited_api);
+    assert_eq!(proj1_item_path(&wiped, "proj1-worker"), edited_worker);
 
     let started = doc.sh("cix run proj1/proj1-api:v1 --user --detach", true);
     let unit_name = started

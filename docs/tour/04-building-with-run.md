@@ -66,7 +66,7 @@ $ cat Cixfile.lock
 }
 ```
 
-IMPORT makes bare tools available through the read-only `/bin` union. The chain key contains the command, imports, predecessor, environment, and declared COPY bytes—but never workspace bytes. The SERVICE consumes only two narrow paths from `${build}`.
+IMPORT makes bare tools available through the read-only `/bin` union. A command memo combines its directive, imports, environment, and sandbox version with the workspace paths it actually read; unrelated COPY bytes do not invalidate it. The SERVICE consumes only two narrow paths from `${build}`.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .
@@ -75,7 +75,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 70301797fe03 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 9cc7aeb7442c -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -104,18 +104,17 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 7485901cbed2 -> /nix/store/…-cix-build-view
+BUILDER build memo miss e0530c3c342c -> /nix/store/…-cix-build-view
 ```
 
-`--cold` samples the same chain with an empty workspace and compares each consumed path. The marker says cold, while the artifact is byte-identical.
+`--cold` samples the same chain with an empty workspace and now audits the command's read set as well as its selected outputs. This RUN deliberately reads the warm-only marker, so the audit identifies that path-dependent input and fails at the source line.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .
-{"run-tour":"/nix/store/…-cix-item-run-tour"}
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
-BUILDER build step 2 RUN executed
-BUILDER build memo miss 7485901cbed2 -> /nix/store/…-cix-build-view
+Error: line 7: recorded read set differs between warm and cold at "result" (warm Some(DirectoryExists), cold None)
+  | "RUN <<BUILD"
 ```
 
 A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.

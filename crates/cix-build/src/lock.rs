@@ -22,6 +22,12 @@ pub struct LockFile {
     pub memo: BTreeMap<String, MemoEntry>,
     #[serde(
         default,
+        rename = "stepMemo",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub step_memo: BTreeMap<String, StepMemo>,
+    #[serde(
+        default,
         rename = "devEnvs",
         skip_serializing_if = "BTreeMap::is_empty"
     )]
@@ -155,6 +161,39 @@ pub struct MemoEntry {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct StepMemo {
+    pub key: String,
+    pub reads: BTreeMap<String, ReadDependency>,
+    #[serde(
+        rename = "outputSnapshot",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub output_snapshot: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub changes: BTreeMap<String, StepChange>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum ReadDependency {
+    File { hash: String },
+    FileExists,
+    Directory { hash: String },
+    DirectoryExists,
+    Absent,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum StepChange {
+    Present,
+    Absent,
+    Directory { mode: u32 },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConsumedPath {
     #[serde(rename = "narHash")]
     pub nar_hash: String,
@@ -258,6 +297,7 @@ where
         artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
+        step_memo: BTreeMap::new(),
         dev_envs: BTreeMap::new(),
         outputs: BTreeMap::new(),
     });
@@ -321,6 +361,7 @@ fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFi
         artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
+        step_memo: BTreeMap::new(),
         dev_envs: BTreeMap::new(),
         outputs: BTreeMap::new(),
     })

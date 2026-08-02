@@ -80,14 +80,13 @@ fn filter_bytes() -> Vec<u8> {
     bytes
 }
 
-pub(crate) fn attach_socket_filter(command: &mut Command) -> Result<File> {
+pub(crate) fn prepare_socket_filter(command: &mut Command) -> Result<File> {
     let mut file = tempfile::tempfile().context("creating RUN seccomp filter file")?;
     file.write_all(&filter_bytes())
         .context("writing RUN seccomp filter")?;
     file.rewind().context("rewinding RUN seccomp filter")?;
     let fd = file.as_raw_fd();
 
-    command.arg("--seccomp").arg(fd.to_string());
     unsafe {
         command.pre_exec(move || {
             let flags = libc::fcntl(fd, libc::F_GETFD);

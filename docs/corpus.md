@@ -129,9 +129,9 @@ CIP-82 operator materialization.
 interpreter, pin the tarball, create the uid, wire gosu/tini, symlink logs) is exactly
 what nixpkgs + DynamicUser + systemd + journald already do; migrating these means
 porting runtime config, not the build. The *modern app-build class maps 1:1 onto
-D47/D71*: multi-stage → named builders, `COPY --from` → binder-rooted COPY,
+D47/D71/CIP-87*: multi-stage → named builders, `COPY --from` → binder-rooted COPY,
 `--mount=type=cache` (in every modern build, in zero official images) → the persistent
-builder underlay (with `--cold` as the clean audit),
+builder underlay plus traced early cutoff (with `--cold` as the clean read/output audit),
 checksummed curl → FETCH (and the three unverified downloads in the corpus — pytorch,
 grafana, keycloak — would be *forced* honest by FETCH's TOFU pin). Universal
 gosu/su-exec/tini/uid-999 boilerplate: ceremony our substrate deletes.
