@@ -259,3 +259,50 @@
   selective API restart, unchanged DB activation, rollback, and complete unit removal.
   Its existing DB process required systemd's bounded stop timeout and SIGKILL during
   `down`, after which the scenario completed successfully.
+
+- 2026-08-02 UTC — Started CIP-82 leg 2 from `.dev/specs/track-dirs2.md` on
+  `track/dirs2`. Read AGENTS.md, the current session journal, authoritative
+  CIP-82 (§3 materialization/host seam/lifecycle and §5 rulings), and the
+  compose/runtime/unit/scenario seams. Scope is compose-side `host`/`shared`/
+  `as` materializations, own-directory `.env` identity, clean/purge/recreate,
+  cix-run parity, docs ledgers, the dirs2 VM scenario, all gates, and a commit.
+  Chosen explicit idmapped-host acknowledgment spelling: `idmap: true` inside
+  a `host` materialization; host backing otherwise refuses idmapping. Next:
+  add strict model/check normalization before extending generation/runtime.
+
+- 2026-08-02 UTC — Implemented the first complete compose-side slice. The strict
+  per-service `dirs` map now supports `host`, `shared`, and `as`; `identity` is
+  mandatory for host backing; the explicit foreign-data acknowledgement is
+  `idmap: true`; and extra undeclared host binds stay loud/read-only by default.
+  Own-directory `.env` interpolation is serialized into the generation, while
+  secret-shaped env delivery is refused. Generation creates stable shared-group
+  units (setgid + `UMask=0002`), host `RequiresMountsFor=`/binds, private-role
+  reclassification, and lifecycle metadata. Added clean/purge/recreate behavior
+  and an initial dirs2 NixOS scenario. Focused compose/run tests are green. Next:
+  run the VM scenario, repair live-systemd findings, then finish run/docs/tour and
+  full gate.
+
+- 2026-08-02 UTC — Completed cix-run `--dir`/`--identity` parity and the docs
+  ledger/migration edits. `cargo fmt`, focused compose/run tests, and workspace
+  clippy have passed. The tour generator initially failed in `chapter_proj1`
+  with a cold second workspace and removed its generated pages; restored those
+  test-owned pages from HEAD, reproduced through the deterministic renderer,
+  then regenerated successfully with no `docs/tour` diff. Next: stage the dirs2
+  scenario correction, run the explicit VM receipt, then the required full flake
+  check and commit (keeping this journal unstaged).
+
+- 2026-08-02 UTC — Verified the complete dirs2 delivery. `nix build
+  .#checks.x86_64-linux.scenario-dirs2 --no-link -L` passed; the VM exercised
+  host persistence, shared-group/setgid materialization, loud state→cache
+  degradation, safe cache clean, state-clean refusal, and purge ownership.
+  Final receipts are green: `cargo fmt --all --check`; `cargo run -- fmt --check
+  examples`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo
+  test --workspace`; regenerated tour with no diff; and `devenv shell -- nix
+  flake check -L` (a quiet repeat confirmed its exit status after the verbose
+  VM stream detached). Next: stage implementation only, inspect, commit.
+
+- 2026-08-02 UTC — Committed the CIP-82 leg-2 implementation as `666cf74`
+  (`Implement CIP-82 compose directories`). The journal is intentionally the
+  sole unstaged worktree change. Exact final gate receipt: `devenv shell -- nix
+  flake check -L` passed after all direct Rust, tour, formatting, and dirs2 VM
+  receipts listed above.
