@@ -1,5 +1,32 @@
 # compose track log
 
+- 2026-08-01 UTC — Final gate green. Exact workspace receipt: `devenv shell -- bash -c
+  'cargo fmt --all --check && cargo run -- fmt --check examples && cargo clippy --workspace
+  --all-targets -- -D warnings && cargo test --workspace'`; tour regeneration plus
+  `git diff --exit-code -- docs/tour` passed after staging its intended generated update; the
+  final `devenv shell -- nix flake check -L` completed all checks green (including every VM
+  scenario, vm-dogfood, and scenario-observability). The implementation is staged; this required
+  journal remains intentionally unstaged. Next: commit the CIP-83 track.
+
+- 2026-08-01 UTC — Integration receipt: `cargo test -p cix-run --test system_projection` passed
+  (including exact transient `CIX_RUN=<nonce unit>`/`CIX_ITEM` properties) and
+  `nix build .#checks.x86_64-linux.scenario-observability --no-link -L` passed. The scenario
+  proves the raw `journalctl CIX_COMPOSITE=observe` selector, `cix logs`, RESULT header, and
+  stats row against a real member log. Regenerated the one tour page showing `cix ps`; the
+  tour formatter now preserves the new RESULT column. Next: inspect staged diff, run all required
+  workspace/tour gates and the full flake check, then commit.
+
+- 2026-08-01 UTC — Implemented the first CIP-83 slice and ran focused Rust tests. Generated
+  compose services now receive `LogExtraFields=CIX_COMPOSITE=… CIX_SERVICE=… CIX_ITEM=…`; cix-run
+  receives the analogous `CIX_RUN` field and runtime starts replace it with the exact nonce unit.
+  `logNamespace: true` is strict compose schema/model input and renders `LogNamespace=cix-<comp>`.
+  Added native `logs`/`stats` projections, RESULT columns, inspect exit/invocation data and the
+  complete 200–245 diagnosis map. Focused `cargo test -p cix-run -p cix-compose -p cix --lib`
+  passes after snapshot updates. Next: compile the binary/integration test, complete scenario and
+  docs verification, then run the full prescribed gate.
+
+- 2026-08-01 UTC — Started track/obs (CIP-83 observability projection). Read AGENTS.md, session and compose journals, the complete track spec, and authoritative CIP-83. Scope: stamped journald selector fields; `logs`/`stats`; runtime result/exit diagnostics in `ps`/`inspect`; compose-only `logNamespace`; docs, unit/CLI/VM coverage; full prescribed gate and a commit. The branch is clean and `devenv`/Cargo are available. Next: map the existing CLI, unit compiler, compose model/generation/runtime, and scenario seams before implementation.
+
 - 2026-08-01 UTC — Committed the complete CIP-75 implementation as `2301094`
   (`feat(compose): add systemd timer schedules`). The only remaining worktree change is
   this required, intentionally unstaged task journal.
