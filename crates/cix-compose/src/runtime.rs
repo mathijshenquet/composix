@@ -47,8 +47,8 @@ struct IpamState {
     leases: BTreeMap<String, PodLease>,
 }
 
-pub fn check(compose_path: &Path) -> Result<()> {
-    let checked = load_and_check(compose_path, UpdateRequest::None)?;
+pub fn check(store: &cix_index::Store, compose_path: &Path) -> Result<()> {
+    let checked = load_and_check(store, compose_path, UpdateRequest::None)?;
     warn_check_warnings(&checked);
     println!(
         "compose {}: {} services, {} edges, valid",
@@ -59,8 +59,8 @@ pub fn check(compose_path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn diff(compose_path: &Path, closed_root: bool) -> Result<()> {
-    let checked = load_and_check(compose_path, UpdateRequest::None)?;
+pub fn diff(store: &cix_index::Store, compose_path: &Path, closed_root: bool) -> Result<()> {
+    let checked = load_and_check(store, compose_path, UpdateRequest::None)?;
     warn_check_warnings(&checked);
     let old = current_generation(&checked.compose.name)?;
     let old_manifest = old.as_deref().map(load_manifest).transpose()?;
@@ -78,9 +78,14 @@ pub fn diff(compose_path: &Path, closed_root: bool) -> Result<()> {
     Ok(())
 }
 
-pub fn up(compose_path: &Path, update: UpdateRequest, closed_root: bool) -> Result<()> {
+pub fn up(
+    store: &cix_index::Store,
+    compose_path: &Path,
+    update: UpdateRequest,
+    closed_root: bool,
+) -> Result<()> {
     require_root("cix up")?;
-    let checked = load_and_check(compose_path, update)?;
+    let checked = load_and_check(store, compose_path, update)?;
     warn_check_warnings(&checked);
     validate_host_backing_exists(&checked)?;
     let (secret_state, rotated) = secret_state(&checked)?;

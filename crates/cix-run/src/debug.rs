@@ -17,6 +17,7 @@ pub struct DebugOptions {
     pub env: Vec<String>,
     pub user: bool,
     pub command: Vec<String>,
+    pub state_directory: std::path::PathBuf,
 }
 
 pub fn debug(options: DebugOptions) -> Result<()> {
@@ -31,7 +32,7 @@ pub fn debug(options: DebugOptions) -> Result<()> {
         );
     }
 
-    let target = resolve_service(&options.installable)?;
+    let target = resolve_service(&options.state_directory, &options.installable)?;
     let mut config = ResolvedConfig::resolve_debug(&target.service, &options.env)?;
     config.env = config.item_environment(&target.output)?;
     if !target.service.listeners.is_empty() {

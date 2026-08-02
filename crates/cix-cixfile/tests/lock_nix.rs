@@ -5,6 +5,14 @@ use std::process::Command;
 
 use cix_cixfile::{build, build_family, generate_nix, parse, ArtifactPin, BuildOptions, LockFile};
 
+fn test_workspace_directory() -> PathBuf {
+    tempfile::tempdir().unwrap().keep()
+}
+
+fn test_state_directory() -> PathBuf {
+    tempfile::tempdir().unwrap().keep()
+}
+
 fn committed_lock() -> LockFile {
     let input = serde_json::from_value(
         serde_json::from_str::<serde_json::Value>(include_str!(
@@ -205,6 +213,8 @@ fn overlay_edits_change_builder_keys_without_repinning_the_base() {
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     };
     build(&options).unwrap();
     let first: LockFile =
@@ -349,6 +359,8 @@ START /bin/output
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let output = &output[0].store_path;
@@ -369,6 +381,8 @@ START /bin/output
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
@@ -411,6 +425,8 @@ START /bin/true
             tag: None,
             cold: false,
             allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+            state_directory: test_state_directory(),
         },
         &[],
         None,
@@ -475,6 +491,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(output.len(), 2);
@@ -506,6 +524,8 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -544,6 +564,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -560,6 +582,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let head = fs::read_to_string(PathBuf::from(&output[0].store_path).join("head")).unwrap();
@@ -604,6 +628,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -622,6 +648,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -661,6 +689,8 @@ COPY ${{build}}/one /one
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -679,6 +709,8 @@ COPY ${{build}}/one /one
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -732,6 +764,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let lock: LockFile =
@@ -751,6 +785,8 @@ START /bin/true
         tag: None,
         cold: true,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -787,6 +823,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let output = build(&BuildOptions {
@@ -795,6 +833,8 @@ START /bin/true
         tag: None,
         cold: true,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -834,6 +874,8 @@ COPY ${{build}}/result /result
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     };
     build(&options).unwrap();
     fs::write(
@@ -888,6 +930,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     let first_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
@@ -897,6 +941,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -964,6 +1010,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -978,6 +1026,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1031,6 +1081,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
 
@@ -1041,6 +1093,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1083,6 +1137,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1097,6 +1153,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1110,6 +1168,8 @@ START /bin/true
         tag: None,
         cold: true,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap_err()
     .to_string();
@@ -1158,7 +1218,7 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
 #[test]
 fn cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash() {
     let state = tempfile::tempdir().unwrap();
-    std::env::set_var("CIX_STATE_DIR", state.path());
+    let store = cix_index::Store::open(state.path().to_owned()).unwrap();
 
     let missing = tempfile::tempdir().unwrap();
     fs::write(
@@ -1185,6 +1245,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: state.path().to_owned(),
     })
     .unwrap_err()
     .to_string();
@@ -1218,6 +1280,8 @@ EOF
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: state.path().to_owned(),
     })
     .unwrap()
     .remove(0)
@@ -1233,7 +1297,7 @@ EOF
         "{manifest_error}"
     );
     assert!(manifest_error.contains("SERVICE/APP"), "{manifest_error}");
-    cix_index::tag(&producer_output, "family/source:v1", None).unwrap();
+    cix_index::tag(&store, &producer_output, "family/source:v1", None).unwrap();
 
     let consumer = tempfile::tempdir().unwrap();
     fs::write(
@@ -1260,6 +1324,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: state.path().to_owned(),
     })
     .unwrap();
     assert_eq!(
@@ -1277,7 +1343,7 @@ START /bin/true
         .unwrap()
         .trim()
         .to_owned();
-    cix_index::tag(&moved, "family/source:v1", None).unwrap();
+    cix_index::tag(&store, &moved, "family/source:v1", None).unwrap();
 
     let pinned = build(&BuildOptions {
         directory: consumer.path().to_owned(),
@@ -1285,6 +1351,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: state.path().to_owned(),
     })
     .unwrap();
     assert_eq!(
@@ -1298,6 +1366,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: state.path().to_owned(),
     })
     .unwrap();
     assert_eq!(
@@ -1323,6 +1393,8 @@ START /bin/true
         tag: None,
         cold: false,
         allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
     })
     .unwrap_err()
     .to_string();

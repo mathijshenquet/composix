@@ -90,14 +90,18 @@ pub struct CheckResult {
     pub warnings: Vec<String>,
 }
 
-pub fn load_and_check(compose_path: &Path, update: UpdateRequest) -> Result<CheckResult> {
+pub fn load_and_check(
+    store: &cix_index::Store,
+    compose_path: &Path,
+    update: UpdateRequest,
+) -> Result<CheckResult> {
     let compose = Compose::load(compose_path)?;
     let existing = Lock::load_optional(&Compose::lock_path(compose_path))?.unwrap_or_default();
     check_with_calendar(
         &compose,
         &existing,
         &update,
-        &cix_index::resolve,
+        &|reference| cix_index::resolve_with(store, reference),
         &validate_calendar,
     )
 }

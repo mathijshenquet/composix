@@ -105,14 +105,14 @@ pub enum ComposeCommand {
 }
 
 impl Command {
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, store: &cix_index::Store) -> anyhow::Result<()> {
         match self {
             Self::Compose {
                 command: ComposeCommand::Check { file },
-            } => crate::check(&file),
+            } => crate::check(store, &file),
             Self::Compose {
                 command: ComposeCommand::Diff { file, closed_root },
-            } => crate::diff(&file, closed_root),
+            } => crate::diff(store, &file, closed_root),
             Self::Root {
                 command: RootCommand::Add {
                     path,
@@ -145,7 +145,7 @@ impl Command {
                     Some("*") => UpdateRequest::All,
                     Some(path) => UpdateRequest::Path(path.to_owned()),
                 };
-                crate::up(&file, update, closed_root)
+                crate::up(store, &file, update, closed_root)
             }
             Self::Down { name, purge, yes } => {
                 let name = match name {

@@ -5,12 +5,16 @@
 //! `nix` subprocess helpers) live here.
 
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+// Process-wide instrumentation deliberately shares this counter across Nix helpers.
 static NIX_SUBPROCESS_COUNT: AtomicU64 = AtomicU64::new(0);
+
+// Signal handlers can only communicate with foreground loops through an atomic flag.
+pub static INTERRUPTED: AtomicBool = AtomicBool::new(false);
 
 pub fn reset_nix_subprocess_count() {
     NIX_SUBPROCESS_COUNT.store(0, Ordering::Relaxed);

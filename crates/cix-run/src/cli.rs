@@ -78,7 +78,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, state_directory: &std::path::Path) -> anyhow::Result<()> {
         match self {
             Self::Probe { command } => command.run(),
             Self::Run {
@@ -106,6 +106,7 @@ impl Command {
                     schedule,
                     closed_root,
                     user,
+                    state_directory: state_directory.to_owned(),
                 })
             }
             Self::Debug {
@@ -118,6 +119,7 @@ impl Command {
                 env,
                 user,
                 command,
+                state_directory: state_directory.to_owned(),
             }),
             Self::Exec {
                 target,

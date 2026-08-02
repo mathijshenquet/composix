@@ -1,5 +1,32 @@
 # cix-run work log
 
+- 2026-08-02 UTC — Full `devenv shell -- cargo test --workspace` reached the
+  tour and failed there: the untouched cix-compose resolver still invokes the
+  legacy index resolver, which now uses only the default state path and thus
+  cannot see the tour's `CIX_STATE_DIR` fixture. This confirms the parallel
+  fence is a real dependency: preserving compose's environment boundary
+  requires the leg-B compose configuration plumbing, rather than reintroducing
+  an index-library environment read. No green/commit claimed; all earlier
+  no-run, fmt, and source-boundary receipts remain valid.
+
+- 2026-08-02 UTC — CIP-90 plumbing round: clap now has the `env` feature;
+  state and builder-workspace paths are explicit CLI/config values and flow into
+  index/build/run APIs; owned tests construct those paths directly, removing
+  the proj1 workspace mutex and all owned `set_var`/`remove_var` calls. The
+  shared watch/runtime interrupt flags now use the one justified cix-common
+  atomic. Added `scripts/check-cli-env-boundary.sh` and documented precedence.
+  Synchronous receipts so far: `devenv shell -- cargo fmt --all`, `devenv
+  shell -- cargo test --workspace --no-run`, and the new boundary script pass.
+  Next: finish capability-probe/nonce injection, execute runtime tests and the
+  full focused gate, then commit.
+
+- 2026-08-02 UTC — Started `track/hygiene-a` (CIP-90 leg A). Read
+  `AGENTS.md`, the current `.dev/LOG.md`, CIP-90 §3.1/§5 including its
+  shared-state amendment, and the assigned spec. The devenv Rust toolchain is
+  active. Scope excludes `cix-compose`; next is a complete inventory of owned
+  CIX environment reads, test mutation, signal flags, nonce generation, and
+  their CLI/config call paths before moving configuration to clap boundaries.
+
 - 2026-07-31 18:14 UTC — Final local cleanup: stopped the explicit empty
   system `cix-run.slice` with `sudo -n systemctl stop cix-run.slice`, then
   stopped the user slice and cleared collected historical failures with

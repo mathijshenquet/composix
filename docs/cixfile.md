@@ -557,6 +557,14 @@ Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family
 
+## Configuration
+
+CLI flags take precedence over their matching `CIX_*` environment variables,
+which in turn take precedence over the documented defaults. In particular,
+`--workspace-directory`/`CIX_BUILD_WORKSPACE_DIR` selects persistent builder
+workspaces and `--state-directory`/`CIX_STATE_DIR` selects local index state.
+Configuration is resolved at the CLI boundary before build and runtime code run.
+
 `SERVICE`, `APP`, and `ITEM` names are the declared member names. They are not bytes in the
 generated manifest or tree: the same source can be forked, promoted, or tagged under another
 family without a rebuild. `cix build .` prints only a stable JSON member map, even for one
