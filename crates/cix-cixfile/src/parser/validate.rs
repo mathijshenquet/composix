@@ -178,6 +178,18 @@ pub(super) fn build_template(
             let close = index + 2 + close_offset;
             let reference = &input[index + 2..close];
             if let Some((namespace, attrpath)) = reference.split_once('.') {
+                if inputs.contains_key(namespace) && is_input_metadata(attrpath) {
+                    if !literal.is_empty() {
+                        parts.push(TemplatePart::Literal(std::mem::take(&mut literal)));
+                    }
+                    parts.push(TemplatePart::InputMetadata {
+                        namespace: namespace.to_owned(),
+                        attribute: attrpath.to_owned(),
+                        line,
+                    });
+                    index = close + 1;
+                    continue;
+                }
                 let Some(input) = inputs.get(namespace) else {
                     if names.contains_key(namespace) {
                         return Err(ParseError::new(
@@ -344,8 +356,31 @@ pub(super) fn append_template(target: &mut Template, source: Template) {
             TemplatePart::Binder { name, line } => {
                 target.parts.push(TemplatePart::Binder { name, line })
             }
+            TemplatePart::InputMetadata {
+                namespace,
+                attribute,
+                line,
+            } => target.parts.push(TemplatePart::InputMetadata {
+                namespace,
+                attribute,
+                line,
+            }),
         }
     }
+}
+
+fn is_input_metadata(attribute: &str) -> bool {
+    matches!(
+        attribute,
+        "rev"
+            | "shortRev"
+            | "revCount"
+            | "narHash"
+            | "lastModified"
+            | "lastModifiedDate"
+            | "dirtyRev"
+            | "dirtyShortRev"
+    )
 }
 
 pub(super) fn push_literal(template: &mut Template, value: &str) {

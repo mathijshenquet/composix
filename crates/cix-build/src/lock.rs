@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{Input, InputKind};
+use crate::{Assembly, BuildStep, Cixfile, Input, InputKind, Template, TemplatePart};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -20,6 +20,14 @@ pub struct LockFile {
     pub fetches: BTreeMap<String, FetchPin>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub memo: BTreeMap<String, MemoEntry>,
+    #[serde(
+        default,
+        rename = "devEnvs",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub dev_envs: BTreeMap<String, DevEnvironment>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub outputs: BTreeMap<String, OutputReceipt>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -29,6 +37,29 @@ pub struct InputLock {
     pub rev: String,
     #[serde(rename = "narHash")]
     pub nar_hash: String,
+    #[serde(rename = "revCount", default, skip_serializing_if = "Option::is_none")]
+    pub rev_count: Option<u64>,
+    #[serde(
+        rename = "lastModified",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub last_modified: Option<u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DevEnvironment {
+    pub environment: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutputReceipt {
+    #[serde(rename = "sourceHash")]
+    pub source_hash: String,
+    #[serde(rename = "storePath")]
+    pub store_path: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -152,6 +183,9 @@ struct LockedMetadata {
     #[serde(default)]
     #[serde(rename = "lastModified")]
     last_modified: Option<u64>,
+    #[serde(default)]
+    #[serde(rename = "revCount")]
+    rev_count: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -224,6 +258,8 @@ where
         artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
+        dev_envs: BTreeMap::new(),
+        outputs: BTreeMap::new(),
     });
     let mut changed = false;
     for (name, input) in inputs {
@@ -285,6 +321,8 @@ fn read_lock(contents: &[u8], inputs: &BTreeMap<String, Input>) -> Result<LockFi
         artifacts: BTreeMap::new(),
         fetches: BTreeMap::new(),
         memo: BTreeMap::new(),
+        dev_envs: BTreeMap::new(),
+        outputs: BTreeMap::new(),
     })
 }
 
@@ -332,6 +370,153 @@ pub fn save_lock(path: &Path, lock: &LockFile) -> Result<()> {
     write_lock(path, lock)
 }
 
+/// Replaces `${from.attribute}` parts with the immutable values in the lock.
+/// Keeping the resolved value in the template makes it part of all existing keys.
+pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<()> {
+    let inputs = cixfile.inputs.clone();
+    for fetch in cixfile.fetches.values_mut() {
+        resolve_template_metadata(&mut fetch.command, &inputs, lock)?;
+    }
+    for builder in cixfile.builders.values_mut() {
+        for import in &mut builder.imports {
+            resolve_template_metadata(import, &inputs, lock)?;
+        }
+        for step in &mut builder.steps {
+            match step {
+                BuildStep::Copy(copy) => resolve_template_metadata(&mut copy.src, &inputs, lock)?,
+                BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+                    resolve_template_metadata(command, &inputs, lock)?
+                }
+                BuildStep::Env { value, .. } => resolve_template_metadata(value, &inputs, lock)?,
+            }
+        }
+    }
+    for artifact in cixfile.artifacts.values_mut() {
+        for copy in &mut artifact.copies {
+            resolve_template_metadata(&mut copy.src, &inputs, lock)?;
+        }
+        for assembly in &mut artifact.assembly {
+            match assembly {
+                Assembly::File { contents, .. } => {
+                    resolve_template_metadata(contents, &inputs, lock)?
+                }
+                Assembly::Link { target, .. } => resolve_template_metadata(target, &inputs, lock)?,
+            }
+        }
+        for command in &mut artifact.service.start {
+            resolve_template_metadata(command, &inputs, lock)?;
+        }
+        for command in artifact.service.start_pre.iter_mut().flatten() {
+            resolve_template_metadata(command, &inputs, lock)?;
+        }
+        for env in artifact.service.env.values_mut() {
+            if let Some(default) = &mut env.default {
+                resolve_template_metadata(default, &inputs, lock)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn resolve_template_metadata(
+    template: &mut Template,
+    inputs: &BTreeMap<String, Input>,
+    lock: &LockFile,
+) -> Result<()> {
+    for part in &mut template.parts {
+        let TemplatePart::InputMetadata {
+            namespace,
+            attribute,
+            line,
+        } = part
+        else {
+            continue;
+        };
+        let value = input_metadata(inputs, lock, namespace, attribute).with_context(|| {
+            format!("Cixfile line {line}: FROM metadata ${{{namespace}.{attribute}}}")
+        })?;
+        *part = TemplatePart::Literal(value);
+    }
+    Ok(())
+}
+
+fn input_metadata(
+    inputs: &BTreeMap<String, Input>,
+    lock: &LockFile,
+    namespace: &str,
+    attribute: &str,
+) -> Result<String> {
+    let input = inputs.get(namespace).context("unknown FROM binding")?;
+    let (value, available) = if input.kind == InputKind::Artifact {
+        let pin = lock
+            .artifacts
+            .get(&input.url)
+            .context("missing cix-item lock pin")?;
+        (
+            (attribute == "narHash").then(|| pin.nar_hash.clone()),
+            vec!["narHash"],
+        )
+    } else if input.is_local() {
+        (None, Vec::new())
+    } else {
+        let pin = lock
+            .inputs
+            .get(namespace)
+            .context("missing FROM lock pin")?;
+        let short = pin.rev.chars().take(7).collect::<String>();
+        let date = pin.last_modified.map(last_modified_date);
+        let value = match attribute {
+            "rev" => Some(pin.rev.clone()),
+            "shortRev" => Some(short),
+            "narHash" => Some(pin.nar_hash.clone()),
+            "revCount" => pin.rev_count.map(|value| value.to_string()),
+            "lastModified" => pin.last_modified.map(|value| value.to_string()),
+            "lastModifiedDate" => date,
+            _ => None,
+        };
+        let mut available = vec!["rev", "shortRev", "narHash"];
+        if pin.rev_count.is_some() {
+            available.push("revCount");
+        }
+        if pin.last_modified.is_some() {
+            available.extend(["lastModified", "lastModifiedDate"]);
+        }
+        (value, available)
+    };
+    value.with_context(|| {
+        format!(
+            "binding {namespace:?} cannot supply {attribute:?}; available attributes: {}",
+            if available.is_empty() {
+                "(none)".into()
+            } else {
+                available.join(", ")
+            }
+        )
+    })
+}
+
+fn last_modified_date(seconds: u64) -> String {
+    // Nix's flake metadata uses UTC seconds and exposes this YYYYMMDDhhmmss shape.
+    let days = (seconds / 86_400) as i64;
+    let time = seconds % 86_400;
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let year = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = mp + if mp < 10 { 3 } else { -9 };
+    let year = year + if month <= 2 { 1 } else { 0 };
+    format!(
+        "{year:04}{month:02}{day:02}{:02}{:02}{:02}",
+        time / 3_600,
+        (time / 60) % 60,
+        time % 60
+    )
+}
+
 fn resolve_input(url: &str, refresh: bool) -> Result<InputLock> {
     let mut arguments = vec!["flake", "metadata", "--json"];
     if refresh {
@@ -353,6 +538,8 @@ fn resolve_input(url: &str, refresh: bool) -> Result<InputLock> {
             .or_else(|| metadata.locked.last_modified.map(|value| value.to_string()))
             .context("nix did not report a revision or lastModified pin for FROM input")?,
         nar_hash,
+        rev_count: metadata.locked.rev_count,
+        last_modified: metadata.locked.last_modified,
     })
 }
 
@@ -506,6 +693,8 @@ mod tests {
             url: url.into(),
             rev: revision.into(),
             nar_hash: "sha256-one".into(),
+            rev_count: None,
+            last_modified: None,
         }
     }
 

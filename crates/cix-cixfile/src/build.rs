@@ -1,10 +1,15 @@
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 use crate::{ensure_lock, parse};
-use cix_build::{execute, generate_nix_with_snapshots, save_lock};
+use cix_build::{
+    execute, generate_nix_with_snapshots, resolve_input_metadata, save_lock, OutputReceipt,
+};
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
@@ -20,9 +25,28 @@ pub struct BuiltItem {
     pub store_path: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BuildStats {
+    pub steps: Vec<StepStat>,
+    #[serde(rename = "nixSubprocesses")]
+    pub nix_subprocesses: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct StepStat {
+    pub name: String,
+    pub kind: String,
+    pub status: &'static str,
+}
+
 pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
     let tags = options.tag.iter().cloned().collect::<Vec<_>>();
     build_family(options, &tags, None, None)
+}
+
+pub fn build_with_stats(options: &BuildOptions) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    let tags = options.tag.iter().cloned().collect::<Vec<_>>();
+    build_family_with_stats(options, &tags, None, None)
 }
 
 pub fn build_family(
@@ -31,6 +55,16 @@ pub fn build_family(
     requested_namespace: Option<&str>,
     selector: Option<&str>,
 ) -> Result<Vec<BuiltItem>> {
+    Ok(build_family_with_stats(options, tags, requested_namespace, selector)?.0)
+}
+
+pub fn build_family_with_stats(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    cix_common::reset_nix_subprocess_count();
     let directory = options
         .directory
         .canonicalize()
@@ -39,7 +73,7 @@ pub fn build_family(
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
-    let cixfile = match selector {
+    let mut cixfile = match selector {
         Some(member) => cixfile.backward_slice(member).with_context(|| {
             format!(
                 "unknown Cixfile member {member:?}; available members: {}",
@@ -86,6 +120,38 @@ pub fn build_family(
     };
     let lock_path = directory.join("Cixfile.lock");
     let mut lock = ensure_lock(&lock_path, &cixfile.inputs, input_update)?;
+    resolve_input_metadata(&mut cixfile, &lock)?;
+    let source_hash = build_fingerprint(&directory, &lock)?;
+    if !options.cold && options.update_lock.is_none() && tags.is_empty() {
+        let cached = cixfile
+            .artifact_order
+            .iter()
+            .map(|name| {
+                lock.outputs
+                    .get(name)
+                    .filter(|receipt| {
+                        receipt.source_hash == source_hash
+                            && std::path::Path::new(&receipt.store_path).is_dir()
+                    })
+                    .map(|receipt| BuiltItem {
+                        name: name.clone(),
+                        store_path: receipt.store_path.clone(),
+                    })
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(outputs) = cached {
+            for builder in &cixfile.builder_order {
+                eprintln!("BUILDER {builder} memo hit completed output (zero Nix subprocesses)");
+            }
+            return Ok((
+                outputs,
+                BuildStats {
+                    steps: step_stats(&cixfile, "memo-hit"),
+                    nix_subprocesses: cix_common::nix_subprocess_count(),
+                },
+            ));
+        }
+    }
     let system = cix_common::current_system()?;
     let snapshots = execute(
         &cixfile,
@@ -108,6 +174,7 @@ pub fn build_family(
             store_path,
         });
     }
+    let source_hash = build_fingerprint(&directory, &lock)?;
     for item in &outputs {
         for tag in tags {
             let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
@@ -116,7 +183,108 @@ pub fn build_family(
             })?;
         }
     }
-    Ok(outputs)
+    for item in &outputs {
+        lock.outputs.insert(
+            item.name.clone(),
+            OutputReceipt {
+                source_hash: source_hash.clone(),
+                store_path: item.store_path.clone(),
+            },
+        );
+    }
+    save_lock(&lock_path, &lock)?;
+    Ok((
+        outputs,
+        BuildStats {
+            steps: step_stats(&cixfile, "executed"),
+            nix_subprocesses: cix_common::nix_subprocess_count(),
+        },
+    ))
+}
+
+fn step_stats(cixfile: &crate::Cixfile, status: &'static str) -> Vec<StepStat> {
+    let mut stats = Vec::new();
+    for name in &cixfile.fetch_order {
+        stats.push(StepStat {
+            name: name.clone(),
+            kind: "FETCH".into(),
+            status,
+        });
+    }
+    for builder_name in &cixfile.builder_order {
+        for (index, step) in cixfile.builders[builder_name].steps.iter().enumerate() {
+            let kind = match step {
+                cix_build::BuildStep::Env { .. } => "ENV",
+                cix_build::BuildStep::Copy(_) => "COPY",
+                cix_build::BuildStep::Fetch { .. } => "FETCH",
+                cix_build::BuildStep::Run { .. } => "RUN",
+            };
+            stats.push(StepStat {
+                name: format!("{builder_name}:{}", index + 1),
+                kind: kind.into(),
+                status,
+            });
+        }
+    }
+    stats
+}
+
+fn source_tree_hash(directory: &std::path::Path) -> Result<String> {
+    let mut digest = Sha256::new();
+    hash_source_tree(directory, directory, &mut digest)?;
+    let digest = digest.finalize();
+    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn build_fingerprint(directory: &std::path::Path, lock: &cix_build::LockFile) -> Result<String> {
+    let mut digest = Sha256::new();
+    digest.update(source_tree_hash(directory)?.as_bytes());
+    digest.update(serde_json::to_vec(&(
+        &lock.inputs,
+        &lock.artifacts,
+        &lock.fetches,
+        &lock.dev_envs,
+    ))?);
+    Ok(digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
+fn hash_source_tree(
+    root: &std::path::Path,
+    path: &std::path::Path,
+    digest: &mut Sha256,
+) -> Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    let relative = path.strip_prefix(root).unwrap_or(path);
+    if relative == std::path::Path::new("Cixfile.lock") || relative.starts_with(".git") {
+        return Ok(());
+    }
+    digest.update(relative.as_os_str().as_encoded_bytes());
+    if metadata.file_type().is_symlink() {
+        digest.update(b"link");
+        digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+    } else if metadata.is_file() {
+        digest.update(b"file");
+        if relative == std::path::Path::new("Cixfile") {
+            digest.update(crate::fmt::format(&fs::read_to_string(path)?)?.as_bytes());
+        } else {
+            let mut file = fs::File::open(path)?;
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)?;
+            digest.update(bytes);
+        }
+    } else if metadata.is_dir() {
+        digest.update(b"dir");
+        let mut children = fs::read_dir(path)?.collect::<std::result::Result<Vec<_>, _>>()?;
+        children.sort_by_key(|entry| entry.file_name());
+        for child in children {
+            hash_source_tree(root, &child.path(), digest)?;
+        }
+    }
+    Ok(())
 }
 
 fn reject_expected_fetch_update(cixfile: &crate::Cixfile, requested: &str) -> Result<()> {

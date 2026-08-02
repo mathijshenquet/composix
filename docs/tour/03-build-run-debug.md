@@ -106,6 +106,12 @@ $ cat prebuilt/Cixfile.lock
       "storePath": "/nix/store/…-cix-item-tour-assets",
       "narHash": "sha256-Zav/GPnMh1fTIW3HoM20hjbFGlBbdrr35lNlXrdaf7U="
     }
+  },
+  "outputs": {
+    "copied-greeting": {
+      "sourceHash": "bec8433f28845bd49a9b9d09cdbb9bf4de29a8d35c31b230bbbebfad13e95e7b",
+      "storePath": "/nix/store/…-cix-item-copied-greeting"
+    }
   }
 }
 ```
@@ -129,8 +135,7 @@ warning: --user is degraded development mode; the system manager with DynamicUse
 
 ```sh
 $ cix ps
-MANAGER  UNIT                                        STATE       RESULT   DESCRIPTION
-user     cix-run-tour-app-NONCE.service  active/running  success  /nix/store/…-bash-interactive-5.3p15/bin/sh /nix/store/…-cix-source/tour-app /nix/store/…-coreutils-9.11/bin/sleep 300
+MANAGER  UNIT  STATE       RESULT  DESCRIPTION
 ```
 
 ## Debug

@@ -261,6 +261,35 @@ pub fn generate_builder_offer_nix(
     Ok(expression)
 }
 
+pub fn generate_builder_dev_env_nix(
+    cixfile: &Cixfile,
+    builder_name: &str,
+    source_dir: &Path,
+    lock: &LockFile,
+    system: &str,
+    snapshots: &BTreeMap<String, String>,
+) -> Result<String> {
+    let builder = cixfile
+        .builders
+        .get(builder_name)
+        .with_context(|| format!("unknown BUILDER {builder_name:?}"))?;
+    let source_dir = source_dir.canonicalize()?;
+    let primary = primary_namespace(cixfile)?;
+    let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
+    let imports = package_references(builder.imports.iter());
+    writeln!(
+        expression,
+        "in universes.{}.mkShell {{ packages = [ {} ]; }}",
+        nix_attr(primary),
+        imports
+            .iter()
+            .map(|(namespace, attrpath)| package_expression(namespace, attrpath))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )?;
+    Ok(expression)
+}
+
 pub fn generate_fetch_context_nix(
     cixfile: &Cixfile,
     fetch_name: &str,
@@ -725,6 +754,17 @@ fn nix_template(template: &Template) -> String {
                 output.push_str(&nix_attr(name));
                 output.push('}');
             }
+            TemplatePart::InputMetadata {
+                namespace,
+                attribute,
+                line,
+            } => {
+                output.push_str("${builtins.throw ");
+                output.push_str(&nix_string(&format!(
+                    "Cixfile line {line}: FROM metadata {namespace}.{attribute} was not resolved from Cixfile.lock"
+                )));
+                output.push('}');
+            }
         }
     }
     output.push('"');
@@ -1053,11 +1093,15 @@ mod tests {
                     url: "github:NixOS/nixpkgs/nixos-unstable".into(),
                     rev: "0123456789abcdef".into(),
                     nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
+                    rev_count: None,
+                    last_modified: None,
                 },
             )]),
             artifacts: BTreeMap::new(),
             fetches: BTreeMap::new(),
             memo: BTreeMap::new(),
+            dev_envs: BTreeMap::new(),
+            outputs: BTreeMap::new(),
         }
     }
 
@@ -1169,6 +1213,8 @@ mod tests {
                 url: "github:owner/repository/deadbeef".into(),
                 rev: "deadbeef".into(),
                 nar_hash: "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=".into(),
+                rev_count: None,
+                last_modified: None,
             },
         );
         let nix = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux").unwrap();

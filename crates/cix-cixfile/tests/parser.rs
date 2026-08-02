@@ -362,7 +362,7 @@ START /bin/true \
         .unwrap();
         assert!(matches!(
             &parsed.builders["build"].steps[0],
-            BuildStep::Env { name, value, .. } if name == "COREPACK_HOME" && value == "$PWD/.corepack"
+            BuildStep::Env { name, value, .. } if name == "COREPACK_HOME" && value.literal_value().as_deref() == Some("$PWD/.corepack")
         ));
         assert_eq!(
             parsed.artifacts["web"].service.start[2]
@@ -614,4 +614,19 @@ START /bin/true \
             "{import}"
         );
     }
+}
+
+use cix_cixfile::{parse, BuildStep, TemplatePart};
+
+#[test]
+fn from_lock_metadata_is_a_builder_env_template() {
+    let parsed = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/rev AS src\nBUILDER build\nIMPORT ${pkgs.bash}\nENV GIT_COMMIT_HASH = ${src.rev}\nRUN true\nITEM app\nCOPY ${build}/out /out\n",
+    )
+    .unwrap();
+    assert!(matches!(
+        &parsed.builders["build"].steps[0],
+        BuildStep::Env { value, .. }
+            if matches!(value.parts.as_slice(), [TemplatePart::InputMetadata { namespace, attribute, .. }] if namespace == "src" && attribute == "rev")
+    ));
 }

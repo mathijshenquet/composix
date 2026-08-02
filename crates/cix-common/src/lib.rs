@@ -5,9 +5,24 @@
 //! `nix` subprocess helpers) live here.
 
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+
+static NIX_SUBPROCESS_COUNT: AtomicU64 = AtomicU64::new(0);
+
+pub fn reset_nix_subprocess_count() {
+    NIX_SUBPROCESS_COUNT.store(0, Ordering::Relaxed);
+}
+
+pub fn nix_subprocess_count() -> u64 {
+    NIX_SUBPROCESS_COUNT.load(Ordering::Relaxed)
+}
+
+pub fn record_nix_subprocess() {
+    NIX_SUBPROCESS_COUNT.fetch_add(1, Ordering::Relaxed);
+}
 
 /// A Docker-shaped cix name. `root_url` is an identity, rather than a socket.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -94,6 +109,7 @@ fn valid_part(part: &str) -> bool {
 
 /// Runs `nix`, returning stdout and carrying both stderr and command context on failure.
 pub fn nix(args: &[&str]) -> Result<String> {
+    record_nix_subprocess();
     let output = Command::new("nix")
         .args(args)
         .output()
@@ -110,15 +126,19 @@ pub fn nix(args: &[&str]) -> Result<String> {
 }
 
 pub fn current_system() -> Result<String> {
-    Ok(nix(&[
-        "eval",
-        "--impure",
-        "--raw",
-        "--expr",
-        "builtins.currentSystem",
-    ])?
-    .trim()
-    .to_owned())
+    let architecture = match std::env::consts::ARCH {
+        "x86_64" => "x86_64",
+        "aarch64" => "aarch64",
+        architecture => {
+            bail!("unsupported host architecture {architecture:?} for Nix system detection")
+        }
+    };
+    let os = match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "darwin",
+        os => bail!("unsupported host OS {os:?} for Nix system detection"),
+    };
+    Ok(format!("{architecture}-{os}"))
 }
 
 pub fn build_installable(installable: &str) -> Result<String> {

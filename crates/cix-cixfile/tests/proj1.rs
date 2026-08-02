@@ -1,7 +1,10 @@
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
+use std::thread;
 
-use cix_cixfile::{build, parse, BuildOptions, BuiltItem, LockFile};
+use cix_cixfile::{build, build_with_stats, parse, BuildOptions, BuiltItem, LockFile};
 
 const PROJECT_FILES: &[&str] = &[
     "Cixfile",
@@ -70,6 +73,67 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
     let after_wipe = run_build(temporary.path(), false);
     assert_eq!(after_wipe, edited);
     assert!(!workspace.exists());
+}
+
+#[test]
+fn local_fetch_fixture_has_a_zero_subprocess_noop_and_cold_convergence() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = [0; 1024];
+        let _ = stream.read(&mut request).unwrap();
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello\n")
+            .unwrap();
+    });
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let temporary = tempfile::tempdir().unwrap();
+    fs::write(
+        temporary.path().join("Cixfile"),
+        format!(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH web ${{pkgs.curl}}/bin/curl -fsS http://{address} > payload\nBUILDER build\nIMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}\nCOPY ${{web}}/payload payload\nRUN cp payload out\nITEM app\nCOPY ${{build}}/out /out\n"
+        ),
+    )
+    .unwrap();
+    let lock = root.join("examples/pack/nginx/Cixfile.lock");
+    fs::copy(lock, temporary.path().join("Cixfile.lock")).unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    std::env::set_var("CIX_BUILD_WORKSPACE_DIR", workspace.path());
+    let options = BuildOptions {
+        directory: temporary.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+    };
+    let (first, _) = build_with_stats(&options).unwrap();
+    server.join().unwrap();
+    let (repeat, stats) = build_with_stats(&options).unwrap();
+    assert_eq!(repeat, first);
+    assert_eq!(stats.nix_subprocesses, 0);
+    assert!(stats.steps.iter().all(|step| step.status == "memo-hit"));
+
+    let cixfile = temporary.path().join("Cixfile");
+    fs::write(
+        &cixfile,
+        fs::read_to_string(&cixfile).unwrap().replace(
+            "RUN cp payload out",
+            "RUN test -f payload && cp payload out",
+        ),
+    )
+    .unwrap();
+    let (_, edited) = build_with_stats(&options).unwrap();
+    assert!(edited
+        .steps
+        .iter()
+        .any(|step| step.kind == "RUN" && step.status == "executed"));
+
+    let cold = build(&BuildOptions {
+        cold: true,
+        ..options
+    })
+    .unwrap();
+    assert_eq!(cold, first);
 }
 
 fn run_build(directory: &Path, cold: bool) -> Vec<BuiltItem> {
