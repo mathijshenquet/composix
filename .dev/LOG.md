@@ -1,5 +1,54 @@
 # composix work log
 
+## 2026-08-02 late (HANDOFF — context clear imminent; successor runbook)
+
+Everything below is resumable from files alone. Conventions live in
+AGENTS.md + CLAUDE.md (goal registry) + auto-memory; the standing cycle
+is: agent done → commit its journal → merge main into track → orchestrator
+full gate (`.dev/gate-template.sh <worktree> <out-prefix>`, now TRACKED) →
+merge --no-ff to main with the house message style → gitsitter auto-pushes
+→ `gh run watch` the ci workflow → close the herdr workspace.
+
+- **IN FLIGHT 1 — track/thin2** (CIP-89 leg 2, terra, DONE and journal
+  committed at `caae4fd`-style; branch head has 5 commits incl. the
+  shared-directory newline fix): my full gate was RUNNING at context
+  clear (output in the old session scratchpad; if unreadable, simply
+  re-run `.dev/gate-template.sh /home/mathijs/worktrees/composix/track-thin2 /tmp/gate-thin2`).
+  On GATE-ALL-GREEN: merge with message "Merge track/thin2: CIP-89 leg 2 —
+  compose strata pass (terra; …)", CI watch, `herdr workspace close w24`,
+  add CIP-89 changelog line "leg 2 landed".
+- **IN FLIGHT 2 — track/fetchself** (CIP-87 self-observation rule,
+  terra, still WORKING in herdr pane w23:p1, agent name `fetchself`).
+  Wait: `herdr wait agent-status w23:p1 --status done` (+ a blocked
+  watch). On done: read the pane tail + LOG, commit journal, then the
+  standing cycle. Acceptance per spec `.dev/specs/track-fetchself.md`:
+  four conditions verbatim, two-prime workaround removed, cold control
+  green, warm bench ≈8.3s held, a/b same-memo-scope regression test.
+- **AFTER BOTH LAND (Mathijs's standing request)**: nix GC + roots
+  audit — FIRST `nix-store --gc --print-roots | grep -v ^/proc`,
+  classify (home-manager generations, devenv/direnv per-worktree roots
+  incl. corpses of removed worktrees, cix item roots, result
+  symlinks), report the classes, THEN `nix-collect-garbage` (plain, not
+  -d without asking), report freed. Never GC while a gate/benchmark
+  runs (lesson: a mid-measurement GC corrupted a benchmark pin today).
+  Also candidates: ~/.cache/cix (12G) after confirming no warm
+  workspaces in use.
+- **THEN**: append the final landings to the board-clearing LOG entry
+  above (thin2 + fetchself merge hashes, CI verdicts), close remaining
+  herdr workspaces, and send Mathijs ONE PushNotification day-closed
+  summary (he is asleep; only push failure-needing-action otherwise).
+- **Open with Mathijs (remind at next session start, package
+  actionably)**: the 14 one-line dispositions + ARG re-marking
+  (docs/open-questions.md — propose as 14 yes/no lines); adoption of
+  drafts: emit-nix, file-from, test-pyramid (all in cips/draft/).
+- **Goal state**: /goal drive-progress was ACTIVE (session-scoped, dies
+  with the session); its substance is covered by the
+  drive-cips-to-implementation memory — re-activation is Mathijs's
+  call. Board status at handoff: every adopted CIP implemented and
+  CI-green except the two in-flight tracks above.
+- **herdr fleet at handoff**: w23 (fetchself, working), w24 (thin2,
+  idle — close after merge). All other workspaces closed.
+
 ## 2026-08-02 (the board-clearing day: every adopted CIP implemented; herdr C2; fable's first crack)
 
 - **Merged, all CI-green** (order): obs/CIP-83 (`f4f39cc`); devices/CIP-78
