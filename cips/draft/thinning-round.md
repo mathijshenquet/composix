@@ -51,10 +51,46 @@ One thinning track, no behavior change, snapshot-tests as the proof:
    teaching-error stays (that is UX, not compat); silent old-format
    ACCEPTANCE goes.
 
-## 4. Open questions
+## 4. The 4× turn-over (requested; each turn amends §3)
 
-1. Timing: one track now, or hold until netns lands so the compose
-   pass rides along? (Draft leans: build_chain+unit.rs now — they are
-   stable; compose pass as a second leg.)
+**Turn 1 — "file splits are cosmetic; the coupling stays."** Moving
+115 functions into four files that all mutate one build-context
+struct reproduces the tangle with extra imports. *Survives as:* the
+split is defined by OWNED TYPES with narrow interfaces
+(`ConsentStore`, `MemoStore`, `Workspace`), the conductor composes
+them; a stratum that cannot get a narrow interface has revealed real
+coupling — that finding is surfaced, not papered over. Acceptance is
+each module's contract stated in a doc comment, not a line count.
+
+**Turn 2 — "refactor-under-parallel-tracks is a merge bomb."** Today's
+seven-conflict merge is the proof; reorganizing a file while a track
+flies makes every future fix round conflict against moved code.
+*Survives as:* hard precondition — thinning runs only when NO track is
+in flight in that crate; pure-move commits (rename-detectable)
+strictly separated from any behavior change. This also answers the old
+timing question: cix-build and cix-run are quiet now (netns lives in
+cix-compose), the compose pass waits for netns.
+
+**Turn 3 — "deleting compat can delete correctness."** Alpha owes no
+compat to external users, but PERSISTED artifacts are real: index
+state on live hosts, committed corpus/example locks, warm memos. A
+legacy reader may be load-bearing for state that exists. *Survives
+as:* the audit classifies every compat branch by which persisted
+artifact still exercises it (grep the committed locks; check the live
+index format), deletes only what provably nothing reachable uses, and
+where old state blocks deletion prefers regenerate-in-alpha
+(wipe/fingerprint-bump precedent) over keeping the reader.
+
+**Turn 4 — "thinning without a growth rule is a treadmill."** Agents
+append to big files because it is the path of least resistance; the
+next six tracks would re-fatten build_chain. *Survives as:* the module
+map is recorded in the crate (doc comment) + one AGENTS.md line ("new
+feature strata get new modules"), and a cheap warn-tripwire in the
+gate: any src file crossing 2000 LOC fails with a pointer to the map —
+crude, but it converts silent regrowth into a visible decision.
+
+## 5. Open questions
+
+1. Tripwire threshold (2000 LOC?) and whether it hard-fails or warns.
 2. Does the manifest version story deserve one line of decision
    (e.g. "alpha reads exactly version 0") recorded as a D72 note?

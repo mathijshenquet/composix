@@ -34,12 +34,20 @@ inputs; they never mutate process state another test can observe.
 
 One hygiene track:
 
-1. **Env-global sweep**: for each set_var/remove_var site, either
-   inject the value (parameterize like `find_path_program_in`) or —
-   where the code under test genuinely reads the env — serialize via
-   a shared mutex AND restore under a drop-guard. Add a clippy-style
-   deny (a small custom lint or a CI grep) refusing new
-   `std::env::set_var` in test code without the guard.
+1. **Config at the absolute boundary** (Mathijs's design, clap-shaped;
+   supersedes the earlier inject-or-mutex option — global state is
+   avoided at all costs, so mutex-guarding the symptom is out):
+   every `CIX_*` environment variable is resolved exactly ONCE, at
+   the CLI boundary, into a config struct with clap's precedence
+   (explicit arg > env var > default — clap's `env` feature gives
+   this for free on existing flags). Library and runtime code take
+   values from the struct and NEVER read the environment;
+   `std::env::var("CIX_…")` outside the boundary module becomes a
+   denied pattern (CI grep or custom lint). Tests construct the
+   config directly — `set_var` disappears from the test suite
+   entirely rather than being guarded. Sweep the existing sites
+   (CIX_STATE_DIR, CIX_BUILD_WORKSPACE_DIR, CIX_PRIVATE_DEVICES_PROBE,
+   the index test vars, watch.rs) into fields.
 2. **Tour structural reads**: the tour keeps rendering human tables
    (that IS the documentation), but the harness's assertions/filters
    consume `cix ps --json`-shaped output (the CIP-83 machinery
