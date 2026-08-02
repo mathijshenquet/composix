@@ -62,6 +62,8 @@ pub struct UnitCompileOptions {
     pub naming: UnitNaming,
     /// Additional systemd service properties appended after cix-run's own properties.
     pub extra_properties: Vec<(String, String)>,
+    /// Additional [Unit] properties such as RequiresMountsFor for host backing.
+    pub unit_properties: Vec<(String, String)>,
     /// Indexed journald fields identifying the cix owner of this unit.
     pub log_fields: Vec<(String, String)>,
     /// Exact cix executable used by native readiness/liveness adapters.
@@ -76,6 +78,7 @@ impl UnitCompileOptions {
         Self {
             naming: UnitNaming::cix_run(service_name),
             extra_properties: Vec::new(),
+            unit_properties: Vec::new(),
             log_fields: vec![("CIX_RUN".into(), format!("cix-run-{service_name}.service"))],
             probe_binary: None,
         }
@@ -328,7 +331,13 @@ pub(crate) fn build_unit_with_options(
 
     properties.extend(options.extra_properties.iter().cloned());
     let degradations = apply_host_capabilities(&mut properties, mode, capabilities);
-    let text = render(service_name, &argv, &environment, &properties);
+    let text = render(
+        service_name,
+        &argv,
+        &environment,
+        &properties,
+        &options.unit_properties,
+    );
     Ok(CompiledUnit {
         name: options.naming.unit.clone(),
         target: options.naming.target.clone(),
@@ -796,11 +805,18 @@ fn render(
     argv: &[String],
     environment: &[(String, String)],
     properties: &[(String, String)],
+    unit_properties: &[(String, String)],
 ) -> String {
     let mut output = format!(
         "[Unit]\nDescription={}\n",
         unit_value(&format!("cix run: {service_name}"))
     );
+    for (name, value) in unit_properties {
+        output.push_str(name);
+        output.push('=');
+        output.push_str(value);
+        output.push('\n');
+    }
     for (name, value) in properties
         .iter()
         .filter(|(name, _)| name.starts_with("StartLimit"))
@@ -1442,6 +1458,7 @@ mod tests {
                     directory_prefix: "cix-mycomp".into(),
                 },
                 extra_properties: vec![("SupplementaryGroups".into(), "cix-edge".into())],
+                unit_properties: Vec::new(),
                 log_fields: vec![
                     ("CIX_COMPOSITE".into(), "mycomp".into()),
                     ("CIX_SERVICE".into(), "web".into()),

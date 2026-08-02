@@ -48,9 +48,10 @@ schedule:
   to systemd start-job readiness and watchdog restart, with native cix HTTP/TCP adapters.
   A separate health-gated dependency graph is explicitly rejected; structural edges wait
   for readiness through ordinary systemd ordering.
-- **Directory declaration is ahead of deployment materialization.** CIP-82 leg 1 ships
-  arbitrary-path role directories and `DIR` declarations. Compose `host:`/`shared:`/`as:`,
-  `.env`, and `cix clean`/purge are later legs; a declared `DIR` alone mounts nothing.
+- **Directory declarations now carry deployment materialization.** CIP-82 maps declared
+  paths through compose `host:`/`shared:`/`as:` entries, resolves interpolation only from
+  the compose directory's `.env`, and gives cache/log/state a deliberate clean/purge contract.
+  `DIR` still has no private default: it requires operator host or shared backing.
 - **The operational verb set is deliberately a projection.** `cix logs`, `ps`, `inspect`, and
   `stats` read journald/systemd state; they hold no parallel database or daemon. Each prints or
   documents its raw equivalent, so operators can move freely between the cix and systemd
@@ -111,7 +112,7 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 | [`run`](https://docs.docker.com/reference/cli/docker/container/run/) | ✅ `cix run` (transient hardened unit) | — |
 | [`-e` environment](https://docs.docker.com/reference/cli/docker/container/run/#env) | ✅ declared string environment + validated `-e` (D21) | — |
 | [`-p` port publish](https://docs.docker.com/reference/cli/docker/container/run/#publish) | 🔁 D24 compiles declared ports to kernel-enforced `SocketBindAllow=`/`SocketBindDeny=`; v3 `cix run -p name=addr` binds a listener through a transient socket unit (D29; `crates/cix-run/tests/system_projection.rs`). This is stronger than Docker's metadata-only `EXPOSE`, but host networking has no NAT. | ❓ No Docker-style remapping/NAT, port inventory, or collision management; ordinary declared ports have no policy-level bind-address choice. |
-| [`-v` / `--mount`](https://docs.docker.com/engine/storage/bind-mounts/) | 🔁 cix-managed private data is a role dir (`STATEDIR`, `CACHEDIR`, `LOGDIR`, or `RUNDIR`); operator-supplied content is declared with `DIR`. D22 sparse item paths remain read-only projections. | Compose `host:`/`shared:`/`as:` materialization is queued; `DIR` declaration alone does not mount content. |
+| [`-v` / `--mount`](https://docs.docker.com/engine/storage/bind-mounts/) | ✅ cix-managed private data is a role dir; `DIR` is supplied through strict compose `host:` or `shared:` backing, and `as:` changes only its lifecycle treatment. `cix run --dir` mirrors host/reclassification flags. | No Docker mount grammar, copy-up, anonymous volumes, or mount propagation vocabulary. |
 | [`--restart` policies](https://docs.docker.com/engine/containers/start-containers-automatically/) | 🔁 declaring `LIVENESS` is an explicit restart opt-in: cix emits a fixed bounded `Restart=on-failure`/`RestartSec=`/start-limit policy around systemd's watchdog | No Docker policy-name compatibility or per-service restart tuning. |
 | [`HEALTHCHECK` / health status](https://docs.docker.com/reference/dockerfile/#healthcheck) | ✅ CIP-79 splits the consumers into `READINESS` and `LIVENESS`; native notify or cix-owned HTTP/TCP probes compile to systemd readiness/watchdog behavior, and the health VM proves rollout failure plus watchdog recovery | No generic exec probe or standalone health-status bit. Docker's `condition: service_healthy` graph is deliberately rejected; structural edges wait for readiness. |
 | [`logs`](https://docs.docker.com/reference/cli/docker/container/logs/) | 🔁 `cix logs <compose>[/<service>]` is an indexed `journalctl CIX_COMPOSITE=… CIX_SERVICE=…` projection; `-f`, `--since`, `-n`, and `--invocation` translate directly. `cix logs --explain` prints the raw command. | No stdin/TTY attachment or separate cix log store. |
@@ -172,12 +173,12 @@ Claims made elsewhere in this ledger that need measurements or documents before 
 
 | docker | disposition | still missing |
 | --- | --- | --- |
-| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ⏳ CIP-82 defines named, hermetic `shared:` writable surfaces for declared `STATEDIR`/`DIR` paths; compose materialization is queued | No generic Docker volume object, copy-up/`volume-subpath`, backup/restore, quota, snapshots, encryption, or shipped sharing yet. |
-| [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ⏳ `DIR /path[:ro]` declaration is built; CIP-82 `host:` backing and identity rules are decided | Compose materialization, pre-existence checks, static-identity enforcement, and explicit idmap acknowledgment are not implemented. |
+| [named volumes (including service sharing)](https://docs.docker.com/engine/storage/volumes/) | ✅ compose-local `shared:` surfaces are hermetic across declared `STATEDIR`/`DIR` members, with a stable group, setgid mode, and `UMask=0002`. | No generic Docker volume object, copy-up/`volume-subpath`, backup/restore, quota, snapshots, encryption, or cross-composite volume catalog. |
+| [bind mounts (host paths in)](https://docs.docker.com/engine/storage/bind-mounts/) | ✅ `host:` binds pre-existing paths only, uses role-derived read-only/write behavior, requires a declared static `identity`, and never creates or chowns operator paths. `idmap: true` is the explicit acknowledgement for identity mapping. | No SELinux relabel flags, propagation modes, or arbitrary Docker mount syntax. |
 | [tmpfs mounts](https://docs.docker.com/engine/storage/tmpfs/) | 🔶 `PrivateTmp` plus sized private `/dev/shm` through `SHM`; arbitrary tmpfs destinations remain unbuilt. | Arbitrary destination, modes, and swap policy. |
 | [volume drivers / plugins](https://docs.docker.com/engine/extend/plugins_volume/) | ❌ filesystems are the host's business | Portable Compose declarations for remote, encrypted, cloud, clustered, and vendor storage backends; a driver interface. |
-| [`volume prune`](https://docs.docker.com/reference/cli/docker/volume/prune/) / [`volume update`](https://docs.docker.com/reference/cli/docker/volume/update/) | 🔁 CIP-82 defines role-specific clean/purge behavior and loud durability reclassification | `cix clean`/purge and ownership/path preview are queued; Nix GC never cleans mutable role data. |
-| [`volume create` / `inspect` / `ls` / `rm`](https://docs.docker.com/reference/cli/docker/volume/) | 🔁 private role roots are unit-scoped; CIP-82 `shared:` supplies compose-local identity rather than a global volume object | Materialization and lifecycle commands are queued; there is deliberately no standalone Docker-compatible volume catalog. |
+| [`volume prune`](https://docs.docker.com/reference/cli/docker/volume/prune/) / [`volume update`](https://docs.docker.com/reference/cli/docker/volume/update/) | 🔁 `cix clean --what=cache` removes expendable cache, logs are explicit opt-in, and state/DIR/shared are refused; `cix down --purge` confirms exact cix-owned private/shared paths. | Nix GC never cleans mutable role data; no generic volume mutation API. |
+| [`volume create` / `inspect` / `ls` / `rm`](https://docs.docker.com/reference/cli/docker/volume/) | 🔁 private roots are unit-scoped and `shared:` is compose-local rather than a global object. | There is deliberately no standalone Docker-compatible volume catalog. |
 
 ## 5. Networking (coarse — the biggest *conscious* gap)
 
@@ -262,7 +263,7 @@ owner; cix has no logging-driver fields.
 | [`watch` (dev mode)](https://docs.docker.com/compose/how-tos/file-watch/) | ✅ `cix watch` warm-rebuilds changed local members and selectively restarts changed services; source sync is ❌ because it makes the live service diverge from its artifact | Docker's `sync`/`sync+restart` actions; framework hot reload belongs in `nix develop`. |
 | [profiles](https://docs.docker.com/reference/compose-file/profiles/) | ⏳ no Docker Compose service-profile selection exists; the Nix profile used for rollback is an unrelated homonym | Service selection, dependency validation, and profile-aware locking. |
 | [`configs` top-level element](https://docs.docker.com/reference/compose-file/configs/) | ⏳ no compose config object in v0 | Top-level config objects, `ConfigurationDirectory=` materialization, ownership/mode, and attachment semantics. |
-| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | ⏳ v0's named Unix edges are shipped; CIP-82 defines compose-local `shared:` directory identity and CIP-81 file credentials, both awaiting implementation | Generic external objects, networks, configs, and lifecycle; shipped shared directories and secrets. |
+| [networks, volumes, secrets, configs as reusable top-level objects](https://docs.docker.com/reference/compose-file/) | 🔶 v0 ships named Unix edges and compose-local `shared:` directory identity; credentials and generic top-level objects remain separate work. | Generic external objects, networks, configs, and CIP-81 credential delivery. |
 | [`version` marker (obsolete)](https://docs.docker.com/reference/compose-file/version-and-name/#version-top-level-element-obsolete) | ❌ | — |
 
 ## 7. Daemon & platform

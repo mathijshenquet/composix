@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeSet,
     fs,
-    io::ErrorKind,
+    io::{self, ErrorKind, Write},
     os::unix::fs::symlink,
     path::{Path, PathBuf},
     process::{Command, Output},
@@ -12,7 +12,8 @@ use cix_run::capabilities::HostCapabilities;
 
 use crate::{
     build_generation,
-    generation::{Manifest, UnitKind},
+    cli::CleanWhat,
+    generation::{DirectoryBackingKind, Manifest, UnitKind},
     load_and_check, Compose, UpdateRequest,
 };
 
@@ -22,6 +23,7 @@ const UNIT_DIRECTORY: &str = "/etc/systemd/system";
 
 pub fn check(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
+    warn_check_warnings(&checked);
     println!(
         "compose {}: {} services, {} edges, valid",
         checked.compose.name,
@@ -33,6 +35,7 @@ pub fn check(compose_path: &Path) -> Result<()> {
 
 pub fn diff(compose_path: &Path) -> Result<()> {
     let checked = load_and_check(compose_path, UpdateRequest::None)?;
+    warn_check_warnings(&checked);
     let old = current_generation(&checked.compose.name)?;
     let old_manifest = old.as_deref().map(load_manifest).transpose()?;
     let capabilities = capabilities_for_diff(old_manifest.as_ref());
@@ -51,6 +54,8 @@ pub fn diff(compose_path: &Path) -> Result<()> {
 pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
     require_root("cix up")?;
     let checked = load_and_check(compose_path, update)?;
+    warn_check_warnings(&checked);
+    validate_host_backing_exists(&checked)?;
     let lock_path = Compose::lock_path(compose_path);
     checked.lock.write(&lock_path)?;
     let capabilities = HostCapabilities::probe()?;
@@ -65,6 +70,37 @@ pub fn up(compose_path: &Path, update: UpdateRequest) -> Result<()> {
         checked.compose.name,
         built.store_path.display()
     );
+    Ok(())
+}
+
+fn warn_check_warnings(checked: &crate::CheckResult) {
+    for warning in &checked.warnings {
+        eprintln!("warning: {warning}");
+    }
+}
+
+fn validate_host_backing_exists(checked: &crate::CheckResult) -> Result<()> {
+    for (service, checked_service) in &checked.services {
+        for claim in &checked_service.directories {
+            let crate::resolve::DirectoryBacking::Host { path, .. } = &claim.backing else {
+                continue;
+            };
+            let metadata = fs::metadata(path).with_context(|| {
+                format!(
+                    "services.{service}.dirs.{}: host backing {} must pre-exist; cix never creates or chowns operator paths",
+                    claim.path.display(),
+                    path.display()
+                )
+            })?;
+            if !metadata.is_dir() {
+                bail!(
+                    "services.{service}.dirs.{}: host backing {} must be a directory",
+                    claim.path.display(),
+                    path.display()
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -109,12 +145,16 @@ pub fn rollback(name: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn down(name: &str) -> Result<()> {
+pub fn down(name: &str, purge: bool, yes: bool) -> Result<()> {
     require_root("cix down")?;
     validate_composite_name(name)?;
     let generation =
         current_generation(name)?.with_context(|| format!("composite {name:?} has no profile"))?;
     let manifest = load_manifest(&generation)?;
+    if purge {
+        let paths = purge_paths(&manifest);
+        confirm_purge(name, &paths, yes)?;
+    }
     let target = format!("cix-{name}.target");
     let _ = systemctl(&["stop", &target]);
     let mut units = manifest.units.keys().cloned().collect::<Vec<_>>();
@@ -129,7 +169,108 @@ pub fn down(name: &str) -> Result<()> {
     }
     systemctl(&["daemon-reload"])?;
     cleanup_edge_destinations(&generation)?;
-    println!("stopped {name}; profile retained");
+    if purge {
+        remove_owned_paths(&purge_paths(&manifest))?;
+        println!("stopped {name}; purged cix-owned private and shared role data; profile retained");
+    } else {
+        println!("stopped {name}; profile retained");
+    }
+    Ok(())
+}
+
+pub fn clean(name: &str, what: CleanWhat) -> Result<()> {
+    require_root("cix clean")?;
+    validate_composite_name(name)?;
+    let generation =
+        current_generation(name)?.with_context(|| format!("composite {name:?} has no profile"))?;
+    let manifest = load_manifest(&generation)?;
+    let (role, systemd_what) = match what {
+        CleanWhat::Cache => (Some(crate::model::DirectoryRole::Cache), "cache"),
+        CleanWhat::Logs => (Some(crate::model::DirectoryRole::Logs), "logs"),
+        CleanWhat::State => {
+            bail!(
+                "refusing to clean STATEDIR: durable state is not expendable; use cix down {name} --purge --yes to remove this composite's cix-owned private state"
+            )
+        }
+        CleanWhat::Dir => {
+            bail!(
+                "refusing to clean DIR: DIR is operator-supplied data; remove it with the operator's own lifecycle tooling"
+            )
+        }
+        CleanWhat::Shared => {
+            bail!(
+                "refusing to clean shared data: shared surfaces are durable; use cix down {name} --purge --yes to remove this composite"
+            )
+        }
+    };
+    let units = manifest
+        .services
+        .iter()
+        .filter(|(_, service)| {
+            service.directories.iter().any(|directory| {
+                directory.role == role && directory.backing == DirectoryBackingKind::Private
+            })
+        })
+        .map(|(service, _)| format!("cix-{name}-{service}.service"))
+        .collect::<Vec<_>>();
+    if !units.is_empty() {
+        let mut stop_arguments = vec!["stop"];
+        stop_arguments.extend(units.iter().map(String::as_str));
+        systemctl(&stop_arguments)?;
+        let mut arguments = vec!["clean", "--what", systemd_what];
+        arguments.extend(units.iter().map(String::as_str));
+        systemctl(&arguments)?;
+    }
+    println!("cleaned {systemd_what} directories for {name}");
+    Ok(())
+}
+
+fn purge_paths(manifest: &Manifest) -> Vec<PathBuf> {
+    manifest
+        .services
+        .values()
+        .flat_map(|service| service.directories.iter())
+        .filter(|directory| {
+            matches!(
+                directory.backing,
+                DirectoryBackingKind::Private | DirectoryBackingKind::Shared
+            )
+        })
+        .map(|directory| directory.host_path.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn confirm_purge(name: &str, paths: &[PathBuf], yes: bool) -> Result<()> {
+    println!("cix down {name} --purge will remove these cix-owned paths:");
+    for path in paths {
+        println!("  {}", path.display());
+    }
+    if yes {
+        return Ok(());
+    }
+    eprint!("Type {name} to confirm purge: ");
+    io::stderr().flush()?;
+    let mut confirmation = String::new();
+    io::stdin().read_line(&mut confirmation)?;
+    if confirmation.trim() != name {
+        bail!("purge not confirmed; no paths were removed");
+    }
+    Ok(())
+}
+
+fn remove_owned_paths(paths: &[PathBuf]) -> Result<()> {
+    for path in paths {
+        match fs::remove_dir_all(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("purging cix-owned directory {}", path.display()))
+            }
+        }
+    }
     Ok(())
 }
 
@@ -604,6 +745,7 @@ mod tests {
                     store_path: service_path.into(),
                     nar_hash: service_path.into(),
                     shm: None,
+                    directories: Vec::new(),
                 },
             )]),
             degradations: Vec::new(),
