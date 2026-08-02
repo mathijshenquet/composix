@@ -1010,21 +1010,36 @@ fn gc_root_cleanup_command(link: &Path, user: bool, store_only: bool) -> Result<
 
 fn find_path_program(name: &str, store_only: bool) -> Result<PathBuf> {
     let path = std::env::var_os("PATH").context("PATH is not set")?;
-    for directory in std::env::split_paths(&path) {
+    find_path_program_in(
+        name,
+        store_only.then_some(Path::new("/nix/store")),
+        std::env::split_paths(&path),
+    )
+}
+
+fn find_path_program_in(
+    name: &str,
+    required_prefix: Option<&Path>,
+    directories: impl IntoIterator<Item = PathBuf>,
+) -> Result<PathBuf> {
+    for directory in directories {
         let candidate = directory.join(name);
         if candidate.is_file() {
-            if !store_only {
+            let Some(prefix) = required_prefix else {
                 return Ok(candidate);
-            }
+            };
             let resolved_directory = fs::canonicalize(&directory)
                 .with_context(|| format!("resolving {}", directory.display()))?;
             let resolved = resolved_directory.join(name);
-            if resolved.starts_with("/nix/store") && resolved.is_file() {
+            if resolved.starts_with(prefix) && resolved.is_file() {
                 return Ok(resolved);
             }
         }
     }
-    let location = if store_only { " in /nix/store" } else { "" };
+    let location = match required_prefix {
+        Some(prefix) => format!(" in {}", prefix.display()),
+        None => String::new(),
+    };
     bail!("could not find {name}{location} on PATH for GC-root cleanup")
 }
 
@@ -1886,8 +1901,15 @@ mod tests {
 
     #[test]
     fn resolves_store_cleanup_tools_for_closed_roots() {
-        let rm = find_path_program("rm", true).unwrap();
-        assert!(rm.starts_with("/nix/store"), "{}", rm.display());
+        // Hermetic: fabricate a store-like prefix so the assertion does not
+        // depend on the ambient PATH carrying nix-store coreutils (CI hosts
+        // resolve rm to /usr/bin/rm).
+        let store = tempfile::tempdir().unwrap();
+        let bin = store.path().join("fakepkg/bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join("rm"), b"#!/bin/sh\n").unwrap();
+        let rm = find_path_program_in("rm", Some(store.path()), vec![bin.clone()]).unwrap();
+        assert!(rm.starts_with(store.path()), "{}", rm.display());
         assert_eq!(rm.file_name().unwrap(), "rm");
     }
 
