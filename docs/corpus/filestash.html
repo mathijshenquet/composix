@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>filestash — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,18 +46,18 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code># STEP1: CLONE THE CODE
-FROM alpine/git as builder_prepare
-WORKDIR /home/
-ARG GIT_REPO=https://github.com/mickael-kerjean/filestash
-ARG GIT_BRANCH=master
-RUN git clone --depth 1 --single-branch --branch ${GIT_BRANCH} ${GIT_REPO}
+        <pre><code><span class="tok-comment"># STEP1: CLONE THE CODE</span>
+<span class="tok-directive">FROM</span> alpine/git as builder_prepare
+<span class="tok-directive">WORKDIR</span> /home/
+<span class="tok-directive">ARG</span> GIT_REPO=https://github.com/mickael-kerjean/filestash
+<span class="tok-directive">ARG</span> GIT_BRANCH=master
+<span class="tok-directive">RUN</span> git clone --depth 1 --single-branch --branch <span class="tok-interpolation">${GIT_BRANCH}</span> <span class="tok-interpolation">${GIT_REPO}</span>
 
-# STEP2: BUILD BACKEND
-FROM golang:1.26-trixie AS builder_backend
-WORKDIR /home/filestash/
-COPY --from=builder_prepare /home/filestash/ .
-RUN apt-get update &gt; /dev/null &amp;&amp; \
+<span class="tok-comment"># STEP2: BUILD BACKEND</span>
+<span class="tok-directive">FROM</span> golang:1.26-trixie AS builder_backend
+<span class="tok-directive">WORKDIR</span> /home/filestash/
+<span class="tok-directive">COPY</span> --from=builder_prepare /home/filestash/ .
+<span class="tok-directive">RUN</span> apt-get update &gt; /dev/null &amp;&amp; \
     apt-get install -y curl make &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
     apt-get install -y libjpeg-dev libtiff-dev libpng-dev libwebp-dev libraw-dev libheif-dev libgif-dev libvips-dev &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
     apt-get install -y libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libswresample-dev libswscale-dev libavutil-dev &gt; /dev/null 2&gt;&amp;1 &amp;&amp; \
@@ -52,12 +66,12 @@ RUN apt-get update &gt; /dev/null &amp;&amp; \
     mkdir -p ./dist/data/state/config/ &amp;&amp; \
     cp config/config.json ./dist/data/state/config/config.json
 
-# STEP3: BUILD PROD IMAGE
-FROM debian:stable-slim
-MAINTAINER mickael@kerjean.me
-WORKDIR /app/
-COPY --from=builder_backend /home/filestash/dist/ .
-RUN apt-get update &gt; /dev/null &amp;&amp; \
+<span class="tok-comment"># STEP3: BUILD PROD IMAGE</span>
+<span class="tok-directive">FROM</span> debian:stable-slim
+<span class="tok-directive">MAINTAINER</span> mickael@kerjean.me
+<span class="tok-directive">WORKDIR</span> /app/
+<span class="tok-directive">COPY</span> --from=builder_backend /home/filestash/dist/ .
+<span class="tok-directive">RUN</span> apt-get update &gt; /dev/null &amp;&amp; \
     apt-get -y upgrade &gt; /dev/null &amp;&amp; \
     apt-get install -y --no-install-recommends ca-certificates curl ffmpeg libbrotli1 poppler-utils &amp;&amp; \
     useradd filestash &amp;&amp; \
@@ -68,9 +82,9 @@ RUN apt-get update &gt; /dev/null &amp;&amp; \
     rm -rf /var/lib/apt/lists/* &amp;&amp; \
     rm -rf /tmp/*
 
-USER filestash
-CMD [&quot;/app/filestash&quot;]
-EXPOSE 8334
+<span class="tok-directive">USER</span> filestash
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;/app/filestash&quot;</span>]
+<span class="tok-directive">EXPOSE</span> 8334
 </code></pre>
       </section>
     </section>
@@ -78,44 +92,54 @@ EXPOSE 8334
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go_1_26} ${pkgs.gnumake} \
-    ${pkgs.gcc} ${pkgs.pkg-config} ${pkgs.cacert} ${pkgs.libjpeg} \
-    ${pkgs.libtiff} ${pkgs.libpng} ${pkgs.libwebp} ${pkgs.libraw} \
-    ${pkgs.libheif} ${pkgs.giflib} ${pkgs.vips} ${pkgs.ffmpeg} \
-    ${pkgs.glib} ${pkgs.lcms2} ${pkgs.zlib} ${pkgs.brotli} \
-    ${pkgs.brotli.dev} ${pkgs.libjpeg.dev} ${pkgs.libpng.dev} \
-    ${pkgs.libraw.dev} \
-    ${pkgs.ffmpeg.dev} ${pkgs.glib.dev} ${pkgs.gcc.cc.lib} \
-    ${pkgs.pkgsStatic.libjpeg.out} ${pkgs.pkgsStatic.libpng.out} \
-    ${pkgs.pkgsStatic.libwebp} ${pkgs.pkgsStatic.libraw.lib} \
-    ${pkgs.pkgsStatic.lcms2.out} ${pkgs.pkgsStatic.zlib.out}
-ENV GOMODCACHE = $PWD/.gomodcache
-COPY ${src}/context/ .
-FETCH go mod download &amp;&amp; go generate -x ./server/...
-RUN CPATH=${pkgs.brotli.dev}/include:${pkgs.libjpeg.dev}/include:${pkgs.libpng.dev}/include:${pkgs.libwebp}/include:${pkgs.libraw.dev}/include:${pkgs.giflib}/include \
-    LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib \
-    PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig \
-    go build --tags fts5 -o dist/filestash cmd/main.go
+<span class="tok-directive">BUILDER</span> build
+<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> \
+    <span class="tok-directive">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.libjpeg}</span> \
+    <span class="tok-directive">${pkgs.libtiff}</span> <span class="tok-interpolation">${pkgs.libpng}</span> <span class="tok-interpolation">${pkgs.libwebp}</span> <span class="tok-interpolation">${pkgs.libraw}</span> \
+    <span class="tok-directive">${pkgs.libheif}</span> <span class="tok-interpolation">${pkgs.giflib}</span> <span class="tok-interpolation">${pkgs.vips}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> \
+    <span class="tok-directive">${pkgs.glib}</span> <span class="tok-interpolation">${pkgs.lcms2}</span> <span class="tok-interpolation">${pkgs.zlib}</span> <span class="tok-interpolation">${pkgs.brotli}</span> \
+    <span class="tok-directive">${pkgs.brotli.dev}</span> <span class="tok-interpolation">${pkgs.libjpeg.dev}</span> <span class="tok-interpolation">${pkgs.libpng.dev}</span> \
+    <span class="tok-directive">${pkgs.libraw.dev}</span> \
+    <span class="tok-directive">${pkgs.ffmpeg.dev}</span> <span class="tok-interpolation">${pkgs.glib.dev}</span> <span class="tok-interpolation">${pkgs.gcc.cc.lib}</span> \
+    <span class="tok-directive">${pkgs.pkgsStatic.libjpeg.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libpng.out}</span> \
+    <span class="tok-directive">${pkgs.pkgsStatic.libwebp}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libraw.lib}</span> \
+    <span class="tok-directive">${pkgs.pkgsStatic.lcms2.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.zlib.out}</span>
+<span class="tok-directive">ENV</span> GOMODCACHE = $PWD/.gomodcache
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+<span class="tok-directive">FETCH</span> go mod download &amp;&amp; go generate -x ./server/...
+<span class="tok-directive">RUN</span> CPATH=<span class="tok-interpolation">${pkgs.brotli.dev}</span>/include:<span class="tok-interpolation">${pkgs.libjpeg.dev}</span>/include:<span class="tok-interpolation">${pkgs.libpng.dev}</span>/include:<span class="tok-interpolation">${pkgs.libwebp}</span>/include:<span class="tok-interpolation">${pkgs.libraw.dev}</span>/include:<span class="tok-interpolation">${pkgs.giflib}</span>/include \
+    <span class="tok-directive">LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib</span> \
+    <span class="tok-directive">PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig</span> \
+    <span class="tok-directive">go</span> build --tags fts5 -o dist/filestash cmd/main.go
 
-SERVICE filestash
-COPY ${build}/dist/filestash /bin/filestash
-COPY ${src}/context/config/config.json /share/filestash-config.json
-COPY setup.sh /bin/filestash-setup
-LINK ${pkgs.ffmpeg}/bin/ffmpeg /bin/ffmpeg
-LINK ${pkgs.ffmpeg}/bin/ffprobe /bin/ffprobe
-LINK ${pkgs.poppler-utils}/bin/pdftotext /bin/pdftotext
-LINK ${pkgs.poppler-utils}/bin/pdfinfo /bin/pdfinfo
-START_PRE filestash-setup
-START filestash
-ENV FILESTASH_PATH = /var/lib/filestash
-ENV FILESTASH_PORT = 18094
-PORT http = $FILESTASH_PORT
-STATEDIR /var/lib/filestash
-CLAIM egress
+<span class="tok-directive">SERVICE</span> filestash
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist/filestash /bin/filestash
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/config/config.json /share/filestash-config.json
+<span class="tok-directive">COPY</span> setup.sh /bin/filestash-setup
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffmpeg /bin/ffmpeg
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffprobe /bin/ffprobe
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdftotext /bin/pdftotext
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdfinfo /bin/pdfinfo
+<span class="tok-directive">START_PRE</span> filestash-setup
+<span class="tok-directive">START</span> filestash
+<span class="tok-directive">ENV</span> FILESTASH_PATH = /var/lib/filestash
+<span class="tok-directive">ENV</span> FILESTASH_PORT = 18094
+<span class="tok-directive">PORT</span> http = $FILESTASH_PORT
+<span class="tok-directive">STATEDIR</span> /var/lib/filestash
+<span class="tok-directive">CLAIM</span> egress
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>setup.sh</h3>
+        <pre><code>#!/bin/sh
+set -eu
+mkdir -p /var/lib/filestash/state/config
+if [ ! -e /var/lib/filestash/state/config/config.json ]; then
+  cp /share/filestash-config.json /var/lib/filestash/state/config/config.json
+fi
 </code></pre>
       </section>
     </section>

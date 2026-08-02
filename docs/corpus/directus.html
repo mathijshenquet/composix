@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>directus — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,57 +46,57 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code># syntax=docker/dockerfile:1.4
+        <pre><code><span class="tok-comment"># syntax=docker/dockerfile:1.4</span>
 
-ARG NODE_VERSION=22
+<span class="tok-directive">ARG</span> NODE_VERSION=22
 
-####################################################################################################
-## Build Packages
+<span class="tok-comment">####################################################################################################</span>
+<span class="tok-comment">## Build Packages</span>
 
-FROM node:${NODE_VERSION}-alpine AS builder
+<span class="tok-directive">FROM</span> node:<span class="tok-interpolation">${NODE_VERSION}</span>-alpine AS builder
 
-RUN apk --no-cache add python3 py3-setuptools build-base
+<span class="tok-directive">RUN</span> apk --no-cache add python3 py3-setuptools build-base
 
-WORKDIR /directus
+<span class="tok-directive">WORKDIR</span> /directus
 
-COPY package.json .
-RUN corepack enable &amp;&amp; corepack prepare
+<span class="tok-directive">COPY</span> package.json .
+<span class="tok-directive">RUN</span> corepack enable &amp;&amp; corepack prepare
 
-# Deploy as &#39;node&#39; user to match pnpm setups in production image
-# (see https://github.com/directus/directus/issues/23822)
-RUN chown node:node .
-USER node
+<span class="tok-comment"># Deploy as &#39;node&#39; user to match pnpm setups in production image</span>
+<span class="tok-comment"># (see https://github.com/directus/directus/issues/23822)</span>
+<span class="tok-directive">RUN</span> chown node:node .
+<span class="tok-directive">USER</span> node
 
-ENV NODE_OPTIONS=--max-old-space-size=8192
+<span class="tok-directive">ENV</span> NODE_OPTIONS=--max-old-space-size=8192
 
-COPY pnpm-lock.yaml .
-RUN pnpm fetch
+<span class="tok-directive">COPY</span> pnpm-lock.yaml .
+<span class="tok-directive">RUN</span> pnpm fetch
 
-COPY --chown=node:node . .
-RUN &lt;&lt;EOF
-	set -ex
-	pnpm install --recursive --offline --frozen-lockfile
-	npm_config_workspace_concurrency=2 pnpm run build
-	pnpm --filter directus deploy --legacy --prod dist
-	cd dist
-	# Regenerate package.json file with essential fields only
-	# (see https://github.com/directus/directus/issues/20338)
-	node -e &#39;
-		const f = &quot;package.json&quot;, {name, version, type, exports, bin} = require(`./${f}`), {packageManager} = require(`../${f}`);
-		fs.writeFileSync(f, JSON.stringify({name, version, type, exports, bin, packageManager}, null, 2));
-	&#39;
-	mkdir -p database extensions uploads
-EOF
+<span class="tok-directive">COPY</span> --chown=node:node . .
+<span class="tok-directive">RUN</span> &lt;&lt;EOF
+	<span class="tok-directive">set</span> -ex
+	<span class="tok-directive">pnpm</span> install --recursive --offline --frozen-lockfile
+	<span class="tok-directive">npm_config_workspace_concurrency=2</span> pnpm run build
+	<span class="tok-directive">pnpm</span> --filter directus deploy --legacy --prod dist
+	<span class="tok-directive">cd</span> dist
+	<span class="tok-comment"># Regenerate package.json file with essential fields only</span>
+	<span class="tok-comment"># (see https://github.com/directus/directus/issues/20338)</span>
+	<span class="tok-directive">node</span> -e <span class="tok-string">&#39;</span>
+		<span class="tok-directive">const</span> f = <span class="tok-string">&quot;package.json&quot;</span>, {name, version, type, exports, bin} = require(`./<span class="tok-interpolation">${f}</span>`), {packageManager} = require(`../<span class="tok-interpolation">${f}</span>`);
+		<span class="tok-directive">fs.writeFileSync(f,</span> JSON.stringify({name, version, type, exports, bin, packageManager}, null, 2));
+	<span class="tok-directive">&#39;</span>
+	<span class="tok-directive">mkdir</span> -p database extensions uploads
+<span class="tok-directive">EOF</span>
 
-####################################################################################################
-## Create Production Image
+<span class="tok-comment">####################################################################################################</span>
+<span class="tok-comment">## Create Production Image</span>
 
-FROM node:${NODE_VERSION}-alpine AS runtime
+<span class="tok-directive">FROM</span> node:<span class="tok-interpolation">${NODE_VERSION}</span>-alpine AS runtime
 
-# Apply outstanding OS-level security patches (openssl, zlib, busybox, ...).
-# Install pm2, then purge npm, npx, corepack, and the npm cache from the
-# final image.
-RUN apk --no-cache upgrade \
+<span class="tok-comment"># Apply outstanding OS-level security patches (openssl, zlib, busybox, ...).</span>
+<span class="tok-comment"># Install pm2, then purge npm, npx, corepack, and the npm cache from the</span>
+<span class="tok-comment"># final image.</span>
+<span class="tok-directive">RUN</span> apk --no-cache upgrade \
 	&amp;&amp; npm install --global pm2@6 \
 	&amp;&amp; rm -rf \
 		/usr/local/lib/node_modules/npm \
@@ -92,22 +106,22 @@ RUN apk --no-cache upgrade \
 		/usr/local/bin/corepack \
 		/root/.npm
 
-USER node
+<span class="tok-directive">USER</span> node
 
-WORKDIR /directus
+<span class="tok-directive">WORKDIR</span> /directus
 
-ENV \
-	DB_CLIENT=&quot;sqlite3&quot; \
-	DB_FILENAME=&quot;/directus/database/database.sqlite&quot; \
-	NODE_ENV=&quot;production&quot; \
-	NPM_CONFIG_UPDATE_NOTIFIER=&quot;false&quot;
+<span class="tok-directive">ENV</span> \
+	DB_CLIENT=<span class="tok-string">&quot;sqlite3&quot;</span> \
+	DB_FILENAME=<span class="tok-string">&quot;/directus/database/database.sqlite&quot;</span> \
+	NODE_ENV=<span class="tok-string">&quot;production&quot;</span> \
+	NPM_CONFIG_UPDATE_NOTIFIER=<span class="tok-string">&quot;false&quot;</span>
 
-COPY --from=builder --chown=node:node /directus/ecosystem.config.cjs .
-COPY --from=builder --chown=node:node /directus/dist .
+<span class="tok-directive">COPY</span> --from=builder --chown=node:node /directus/ecosystem.config.cjs .
+<span class="tok-directive">COPY</span> --from=builder --chown=node:node /directus/dist .
 
-EXPOSE 8055
+<span class="tok-directive">EXPOSE</span> 8055
 
-CMD : \
+<span class="tok-directive">CMD</span> : \
 	&amp;&amp; node cli.js bootstrap \
 	&amp;&amp; pm2-runtime start ecosystem.config.cjs \
 	;
@@ -118,42 +132,42 @@ CMD : \
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.pnpm} \
-    ${pkgs.gnused} ${pkgs.python311} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.cacert}
-ENV NODE_OPTIONS = --max-old-space-size=8192
-ENV npm_config_workspace_concurrency = 2
-COPY ${src}/context/ .
-FETCH pnpm fetch
-RUN pnpm install --recursive --offline --frozen-lockfile
-RUN pnpm run build
-RUN pnpm --filter directus deploy --legacy --prod dist
-RUN &lt;&lt;ASSEMBLE
-cd dist
-node -e &#39;const f=&quot;package.json&quot;,{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))&#39;
-mkdir -p database extensions uploads
-rm -rf database extensions uploads
-ln -s /var/lib/directus/database database
-ln -s /var/lib/directus/extensions extensions
-ln -s /var/lib/directus/uploads uploads
-ASSEMBLE
+<span class="tok-directive">BUILDER</span> build
+<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> \
+    <span class="tok-directive">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+<span class="tok-directive">ENV</span> NODE_OPTIONS = --max-old-space-size=8192
+<span class="tok-directive">ENV</span> npm_config_workspace_concurrency = 2
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+<span class="tok-directive">FETCH</span> pnpm fetch
+<span class="tok-directive">RUN</span> pnpm install --recursive --offline --frozen-lockfile
+<span class="tok-directive">RUN</span> pnpm run build
+<span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod dist
+<span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
+<span class="tok-heredoc">cd dist</span>
+<span class="tok-heredoc">node -e &#39;const f=&quot;package.json&quot;,{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))&#39;</span>
+<span class="tok-heredoc">mkdir -p database extensions uploads</span>
+<span class="tok-heredoc">rm -rf database extensions uploads</span>
+<span class="tok-heredoc">ln -s /var/lib/directus/database database</span>
+<span class="tok-heredoc">ln -s /var/lib/directus/extensions extensions</span>
+<span class="tok-heredoc">ln -s /var/lib/directus/uploads uploads</span>
+<span class="tok-directive">ASSEMBLE</span>
 
-SERVICE directus
-COPY ${build}/dist /directus
-LINK ${pkgs.nodejs_22}/bin/node /bin/node
-START_PRE node /directus/cli.js bootstrap
-START node /directus/cli.js start
-ENV DB_CLIENT = sqlite3
-ENV DB_FILENAME = /directus/database/database.sqlite
-ENV NODE_ENV = production
-ENV PORT = 18093
-PORT http = $PORT
-STATEDIR /var/lib/directus
-CLAIM egress
-CLAIM jit
+<span class="tok-directive">SERVICE</span> directus
+<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist /directus
+<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>/bin/node /bin/node
+<span class="tok-directive">START_PRE</span> node /directus/cli.js bootstrap
+<span class="tok-directive">START</span> node /directus/cli.js start
+<span class="tok-directive">ENV</span> DB_CLIENT = sqlite3
+<span class="tok-directive">ENV</span> DB_FILENAME = /directus/database/database.sqlite
+<span class="tok-directive">ENV</span> NODE_ENV = production
+<span class="tok-directive">ENV</span> PORT = 18093
+<span class="tok-directive">PORT</span> http = $PORT
+<span class="tok-directive">STATEDIR</span> /var/lib/directus
+<span class="tok-directive">CLAIM</span> egress
+<span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
     </section>

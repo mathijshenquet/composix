@@ -4,16 +4,24 @@ FROM . AS src
 BUILDER app
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
   COPY ${src}/context/ app
-  RUN cd app && rm -rf Dockerfile nginx.conf nginx.default.conf startup.sh db images/uploads/logos && mkdir -p images/uploads && ln -s /var/lib/wallos/db db && ln -s /var/lib/wallos/logos images/uploads/logos && sed 's#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g' cronjobs > cronjobs.cix && mv cronjobs.cix cronjobs
+  RUN rm -rf app/Dockerfile app/nginx.conf app/nginx.default.conf app/startup.sh app/db app/images/uploads/logos
+  RUN mkdir -p app/images/uploads
+  RUN ln -s /var/lib/wallos/db app/db
+  RUN ln -s /var/lib/wallos/logos app/images/uploads/logos
+  RUN sed 's#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g' app/cronjobs > app/cronjobs.cix
+  RUN mv app/cronjobs.cix app/cronjobs
 
 SERVICE wallos
   COPY ${app}/app /var/www/html
+  COPY setup.sh /bin/setup
+  COPY start.sh /bin/start
   LINK ${pkgs.bash}/bin/bash /bin/bash
   LINK ${pkgs.coreutils}/bin/mkdir /bin/mkdir
   LINK ${pkgs.php}/bin/php /bin/php
   LINK ${pkgs.php}/bin/php-fpm /bin/php-fpm
   LINK ${pkgs.nginx}/bin/nginx /bin/nginx
   LINK ${pkgs.supercronic}/bin/supercronic /bin/supercronic
+  # Kept inline until FILE … FROM because the config pair includes package interpolation.
   FILE /etc/php-fpm.conf <<PHP
 [global]
 error_log = /var/log/wallos/php-fpm.log
@@ -63,35 +71,6 @@ http {
   }
 }
 NGINX
-  FILE /bin/setup <<SETUP
-set -eu
-mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
-cd /var/www/html
-php endpoints/cronjobs/createdatabase.php
-php endpoints/db/migrate.php
-php endpoints/cronjobs/updatenextpayment.php
-php endpoints/cronjobs/updateexchange.php
-php endpoints/cronjobs/checkforupdates.php
-SETUP
-  FILE /bin/start <<START
-set -eu
-php_pid=
-cron_pid=
-nginx_pid=
-cleanup() {
-  test -z "$nginx_pid" || kill -QUIT "$nginx_pid" 2>/dev/null || true
-  test -z "$php_pid" || kill -QUIT "$php_pid" 2>/dev/null || true
-  test -z "$cron_pid" || kill -TERM "$cron_pid" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM QUIT
-php-fpm -y /etc/php-fpm.conf -F &
-php_pid=$!
-supercronic /var/www/html/cronjobs &
-cron_pid=$!
-nginx -c /etc/nginx.conf -e stderr &
-nginx_pid=$!
-wait -n "$php_pid" "$cron_pid" "$nginx_pid"
-START
   START ${pkgs.bash}/bin/bash /bin/start
   START_PRE ${pkgs.bash}/bin/bash /bin/setup
   STATEDIR /var/lib/wallos/db

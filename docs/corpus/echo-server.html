@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>echo-server — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,42 +46,42 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code>FROM --platform=$BUILDPLATFORM node:lts-alpine AS build
-WORKDIR /build
-COPY package.json .
-COPY package-lock.json .
-RUN npm install
-COPY . .
-RUN npm run build
+        <pre><code><span class="tok-directive">FROM</span> --platform=$BUILDPLATFORM node:lts-alpine AS build
+<span class="tok-directive">WORKDIR</span> /build
+<span class="tok-directive">COPY</span> package.json .
+<span class="tok-directive">COPY</span> package-lock.json .
+<span class="tok-directive">RUN</span> npm install
+<span class="tok-directive">COPY</span> . .
+<span class="tok-directive">RUN</span> npm run build
 
-FROM node:lts-alpine
-WORKDIR /app
-COPY --from=build /build/src/global.json .
-COPY --from=build /build/dist/webserver.js .
+<span class="tok-directive">FROM</span> node:lts-alpine
+<span class="tok-directive">WORKDIR</span> /app
+<span class="tok-directive">COPY</span> --from=build /build/src/global.json .
+<span class="tok-directive">COPY</span> --from=build /build/dist/webserver.js .
 
-ENTRYPOINT [ &quot;node&quot;, &quot;webserver&quot; ]</code></pre>
+<span class="tok-directive">ENTRYPOINT</span> [ <span class="tok-string">&quot;node&quot;</span>, <span class="tok-string">&quot;webserver&quot;</span> ]</code></pre>
       </section>
     </section>
     <section class="column">
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.cacert}
-  ENV NPM_CONFIG_CACHE = $PWD/.npm
-  FETCH git clone https://github.com/Ealenn/Echo-Server.git . &amp;&amp; git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac
-  FETCH npm ci --ignore-scripts --no-audit --no-fund
-  RUN npm ci --offline --ignore-scripts --no-audit --no-fund &amp;&amp; npm run build
+<span class="tok-directive">BUILDER</span> build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.nodejs}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> NPM_CONFIG_CACHE = $PWD/.npm
+  <span class="tok-directive">FETCH</span> git clone https://github.com/Ealenn/Echo-Server.git . &amp;&amp; git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac
+  <span class="tok-directive">FETCH</span> npm ci --ignore-scripts --no-audit --no-fund
+  <span class="tok-directive">RUN</span> npm ci --offline --ignore-scripts --no-audit --no-fund &amp;&amp; npm run build
 
-SERVICE echo-server
-  COPY ${build}/src/global.json /global.json
-  COPY ${build}/dist/webserver.js /webserver.js
-  LINK ${pkgs.nodejs}/bin/node /bin/node
-  START node webserver.js
-  PORT http = 80
-  CLAIM jit
+<span class="tok-directive">SERVICE</span> echo-server
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/src/global.json /global.json
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist/webserver.js /webserver.js
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs}</span>/bin/node /bin/node
+  <span class="tok-directive">START</span> node webserver.js
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
     </section>

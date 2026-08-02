@@ -1645,3 +1645,92 @@
   track/readset`). Parents are readset `f9a870c` and main `857d185`; no merge
   state or implementation work remains. Per AGENTS.md, this task LOG and
   main's cix-run task LOG remain intentionally unstaged.
+
+- 2026-08-02T14:59:42Z — Started `track/corpusstyle` at `c3821fe`. Read the
+  complete track spec, current project journal, authoritative D70/D74 and
+  Cixfile design context, the unadopted `cips/draft/file-from.md`, assigned
+  journal, migration/cixfile teaching docs, Wallos case, and corpus browser
+  generator. The devenv environment is active. Scope is the file-first and
+  readable-RUN authoring canon, a mechanical corpus sweep with a full Wallos
+  exemplar rewrite, generation-time syntax highlighting and tighter laptop
+  typography, all regenerated corpus pages, and synchronous checks for every
+  touched corpus case. Fences: no `crates/cix-run`, `nix/scenarios/lib.nix`,
+  or closed-root/vmslim scenario work. Next: inventory all corpus heredocs and
+  RUN chains, then edit only mechanically safe cases before adding lexer tests.
+
+- 2026-08-02T15:28:00Z — Completed the corpus smell inventory and first
+  implementation round. Wallos was the only case with FILE heredocs and the
+  only RUN exceeding the two-command chain limit; echo-server and phpmyadmin's
+  two-command RUNs already satisfy the canon. Wallos now has six readable
+  read-set-keyed RUNs, real sibling setup/start scripts copied into the item,
+  and an explicit comment retaining its paired config heredocs for package
+  interpolation until the unadopted FILE … FROM draft lands. Migration and
+  Cixfile docs teach the same file-first and RUN-shape rules. The corpus
+  generator now has generation-time Cixfile/Dockerfile/Nix/JSON/YAML lexers,
+  escaped inline spans, restrained light/dark palettes, 13px code, tighter
+  chrome, laptop-safe two-column scrolling, and includes supporting .nix,
+  config, and script files. Rust formatting, Wallos Cixfile formatting, diff
+  hygiene, lexer tests, deterministic rendering, and explicit regeneration all
+  pass; the pre-regeneration drift failure was expected and observed. Next:
+  run `corpus/migrate/wallos/check.sh cix` synchronously, update its receipt and
+  stale health ledger wording, then prove committed browser drift green.
+
+- 2026-08-02T15:10:16Z — Focused behavior and browser receipts are green. The
+  first Wallos check stopped before build because its ignored context fixture
+  was absent; the pinned `../fetch.sh wallos` restored revision `3a7f965…`.
+  The next attempt executed all six rewritten RUNs but failed in a generated
+  manifest derivation because `/` and `/nix/store` had zero available bytes.
+  I moved one exact 974 MiB disposable Nix Git-fetch cache directory, without
+  deleting it, to `/tmp/composix-corpusstyle-nix-gitv3-backup`; this exposed
+  25 GiB of reclaimable sparse allocation and the rerun passed synchronously.
+  Exact receipt: `CIX=…/target/debug/cix ./check.sh cix` exited 0, reused
+  `/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos`, started
+  `cix-run-wallos-18c8059869b7e40c0.service` under the expected D36 fallback,
+  and returned `PASS cix` after `/health.php`. Updated the receipt and stale
+  corpus ribbon to say CIP-79 READINESS is available but undeclared. Fresh
+  browser generation and the complete corpus test binary pass: four normal
+  tests (lexer safety, deterministic output, committed drift) green, one
+  generator ignored. Next: prescribed fmt/examples/clippy/workspace/tour gates.
+
+- 2026-08-02T15:42:00Z — Prescribed broad gates are green from the final
+  generator implementation. `devenv shell -- cargo fmt --all --check` and
+  `devenv shell -- cargo run -- fmt --check examples` exited 0. The first
+  warning-denied clippy pass caught one redundant `trim_start` before
+  `split_whitespace`; removing it is output-neutral, and the exact rerun of
+  `cargo clippy --workspace --all-targets -- -D warnings` exited 0. Full
+  `devenv shell -- cargo test --workspace` exited 0, including corpus drift,
+  lexer safety, deterministic corpus output, tour drift/determinism, real-Nix
+  builder coverage, and all docs tests. Fresh ignored tour regeneration exited
+  0 and `git diff --exit-code -- docs/tour` proved zero drift; exact
+  `tour_matches_committed_document` and `generated_tour_is_deterministic` both
+  passed serially. One attempted cargo invocation with two positional test
+  filters was rejected by cargo before running; each intended exact test was
+  then run separately and passed. Per amended AGENTS.md, the full flake matrix
+  belongs to the orchestrator's independent pre-merge gate, not this agent
+  tier. Next: final corpus/style/fence diff audit, stage all deliverables except
+  this journal, review the candidate, and commit on `track/corpusstyle`.
+
+- 2026-08-02T15:48:00Z — Final staged-scope audit passed. The only retained
+  FILE heredocs in the corpus are Wallos's two explicitly commented config
+  blocks, and no corpus RUN contains more than two `&&` joins. All 21 pages
+  contain inline CSS/spans only: no scripts, external stylesheets, imports, or
+  CSS URLs. The staged fence contains no `crates/cix-run`,
+  `nix/scenarios/lib.nix`, or `docs/tour` changes; `git diff --cached --check`
+  and the unstaged diff check pass. Wallos's lock retains the new semantic
+  builder memo and output source hash, but its generated `stepMemo` was removed
+  before staging because those replay snapshots are host-local memo state (the
+  established CIP-87 fixture convention); `jq empty` confirms valid JSON.
+  Exactly 30 deliverable paths are staged, while this assigned journal remains
+  the sole unstaged tracked path. Next: commit the complete green candidate.
+
+- 2026-08-02T15:50:00Z — Committed the complete track as `4e76da0` (`docs:
+  establish Cixfile corpus style`): authoring canon, Wallos exemplar and lock/
+  receipt, generation-time five-language highlighting, responsive self-contained
+  styling, lexer regressions, ledger correction, and all 21 regenerated pages.
+  Restored the temporarily relocated Nix Git-fetch cache to its exact original
+  path; `/` retains 22 GiB available. Post-commit `git diff --check`, zero
+  `docs/tour` drift, and commit-scope review pass. The worktree differs from
+  `4e76da0` only by this required unstaged journal. The branch was not manually
+  pushed; `git ls-remote origin refs/heads/track/corpusstyle` was empty at the
+  audit instant. No implementation, documentation, generation, focused receipt,
+  or agent-side gate work remains.

@@ -5,20 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dozzle — migration corpus</title>
   <style>
-    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 96rem; margin: 0 auto; padding: 1.5rem; line-height: 1.5; }
-    a { color: #2878c7; }
-    .crumbs, .status, .source { color: #667085; }
-    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-    .column { min-width: 0; border: 1px solid #98a2b3; border-radius: .5rem; padding: 0 1rem 1rem; }
-    .file { margin-top: 1rem; }
-    .file h3 { margin-bottom: .35rem; font-size: 1rem; }
-    pre { box-sizing: border-box; max-width: 100%; margin: 0; padding: 1rem; overflow-x: auto; border-radius: .35rem; background: #111827; color: #f9fafb; white-space: pre; tab-size: 2; }
-    code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: .6rem; border-bottom: 1px solid #98a2b3; text-align: left; vertical-align: top; }
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
-    footer { margin-top: 2rem; color: #667085; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
 </head>
 <body>
@@ -32,76 +46,76 @@
       <h2>Upstream</h2>
       <section class="file">
         <h3>Dockerfile</h3>
-        <pre><code># Build assets
-FROM --platform=$BUILDPLATFORM node:25.9.0-alpine AS node
+        <pre><code><span class="tok-comment"># Build assets</span>
+<span class="tok-directive">FROM</span> --platform=$BUILDPLATFORM node:25.9.0-alpine AS node
 
-RUN npm install -g --force corepack &amp;&amp; corepack enable
+<span class="tok-directive">RUN</span> npm install -g --force corepack &amp;&amp; corepack enable
 
-ENV CI=true
+<span class="tok-directive">ENV</span> CI=true
 
-WORKDIR /build
+<span class="tok-directive">WORKDIR</span> /build
 
-# Install dependencies from lock file
-COPY pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm fetch --ignore-scripts
+<span class="tok-comment"># Install dependencies from lock file</span>
+<span class="tok-directive">COPY</span> pnpm-lock.yaml pnpm-workspace.yaml ./
+<span class="tok-directive">RUN</span> pnpm fetch --ignore-scripts
 
-# Copy package.json and install dependencies
-COPY package.json ./
-RUN pnpm install --offline --ignore-scripts
+<span class="tok-comment"># Copy package.json and install dependencies</span>
+<span class="tok-directive">COPY</span> package.json ./
+<span class="tok-directive">RUN</span> pnpm install --offline --ignore-scripts
 
-# Copy assets and translations to build
-COPY vite.config.ts tsconfig.json .prettierrc.cjs .npmrc ./
-COPY assets ./assets
-COPY locales ./locales
-COPY public ./public
+<span class="tok-comment"># Copy assets and translations to build</span>
+<span class="tok-directive">COPY</span> vite.config.ts tsconfig.json .prettierrc.cjs .npmrc ./
+<span class="tok-directive">COPY</span> assets ./assets
+<span class="tok-directive">COPY</span> locales ./locales
+<span class="tok-directive">COPY</span> public ./public
 
-ARG CLOUD_URL
-ENV CLOUD_URL=$CLOUD_URL
+<span class="tok-directive">ARG</span> CLOUD_URL
+<span class="tok-directive">ENV</span> CLOUD_URL=$CLOUD_URL
 
-# Build assets
-RUN pnpm build
+<span class="tok-comment"># Build assets</span>
+<span class="tok-directive">RUN</span> pnpm build
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+<span class="tok-directive">FROM</span> --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
-RUN apk add --no-cache ca-certificates &amp;&amp; mkdir /dozzle
+<span class="tok-directive">RUN</span> apk add --no-cache ca-certificates &amp;&amp; mkdir /dozzle
 
-WORKDIR /dozzle
+<span class="tok-directive">WORKDIR</span> /dozzle
 
-# Copy go mod files
-COPY go.* ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+<span class="tok-comment"># Copy go mod files</span>
+<span class="tok-directive">COPY</span> go.* ./
+<span class="tok-directive">RUN</span> --mount=type=cache,target=/go/pkg/mod go mod download
 
-# Copy all other files
-COPY internal ./internal
-COPY proto ./proto
-COPY types ./types
-COPY main.go ./
-COPY protos ./protos
-COPY shared_key.pem shared_cert.pem ./
+<span class="tok-comment"># Copy all other files</span>
+<span class="tok-directive">COPY</span> internal ./internal
+<span class="tok-directive">COPY</span> proto ./proto
+<span class="tok-directive">COPY</span> types ./types
+<span class="tok-directive">COPY</span> main.go ./
+<span class="tok-directive">COPY</span> protos ./protos
+<span class="tok-directive">COPY</span> shared_key.pem shared_cert.pem ./
 
-# Copy assets built with node
-COPY --from=node /build/dist ./dist
+<span class="tok-comment"># Copy assets built with node</span>
+<span class="tok-directive">COPY</span> --from=node /build/dist ./dist
 
-# Args
-ARG TAG=dev
-ARG TARGETOS TARGETARCH
+<span class="tok-comment"># Args</span>
+<span class="tok-directive">ARG</span> TAG=dev
+<span class="tok-directive">ARG</span> TARGETOS TARGETARCH
 
-# Build binary
-RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
-  GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags &quot;-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG&quot; -o dozzle
+<span class="tok-comment"># Build binary</span>
+<span class="tok-directive">RUN</span> --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+  GOOS=$TARGETOS GOARCH=$TARGETARCH CGO_ENABLED=0 go build -ldflags <span class="tok-string">&quot;-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG&quot;</span> -o dozzle
 
-RUN mkdir /data
+<span class="tok-directive">RUN</span> mkdir /data
 
-FROM scratch
+<span class="tok-directive">FROM</span> scratch
 
-COPY --from=builder /data /data
-COPY --from=builder /tmp /tmp
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder /dozzle/dozzle /dozzle
+<span class="tok-directive">COPY</span> --from=builder /data /data
+<span class="tok-directive">COPY</span> --from=builder /tmp /tmp
+<span class="tok-directive">COPY</span> --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+<span class="tok-directive">COPY</span> --from=builder /dozzle/dozzle /dozzle
 
-EXPOSE 8080
+<span class="tok-directive">EXPOSE</span> 8080
 
-ENTRYPOINT [&quot;/dozzle&quot;]
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;/dozzle&quot;</span>]
 </code></pre>
       </section>
     </section>
@@ -109,32 +123,32 @@ ENTRYPOINT [&quot;/dozzle&quot;]
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-BUILDER ui
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
-  ENV COREPACK_HOME = $PWD/.corepack
-  COPY ${src}/context/ .
-  FETCH corepack install
-  RUN pnpm config set store-dir $PWD/.pnpm-store
-  FETCH pnpm fetch --ignore-scripts
-  RUN pnpm install --offline --ignore-scripts
-  RUN pnpm build
+<span class="tok-directive">BUILDER</span> ui
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> COREPACK_HOME = $PWD/.corepack
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">FETCH</span> corepack install
+  <span class="tok-directive">RUN</span> pnpm config set store-dir $PWD/.pnpm-store
+  <span class="tok-directive">FETCH</span> pnpm fetch --ignore-scripts
+  <span class="tok-directive">RUN</span> pnpm install --offline --ignore-scripts
+  <span class="tok-directive">RUN</span> pnpm build
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.gcc} ${pkgs.cacert}
-  ENV GOMODCACHE = $PWD/.gomodcache
-  COPY ${src}/context/ .
-  COPY ${ui}/dist dist
-  FETCH go mod download
-  RUN CGO_ENABLED=0 go build -o dozzle
+<span class="tok-directive">BUILDER</span> build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> GOMODCACHE = $PWD/.gomodcache
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${ui}</span>/dist dist
+  <span class="tok-directive">FETCH</span> go mod download
+  <span class="tok-directive">RUN</span> CGO_ENABLED=0 go build -o dozzle
 
-SERVICE dozzle
-  COPY ${build}/dozzle /bin/dozzle
-  STATEDIR /var/lib/dozzle
-  START dozzle
-  PORT http = 8080
+<span class="tok-directive">SERVICE</span> dozzle
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dozzle /bin/dozzle
+  <span class="tok-directive">STATEDIR</span> /var/lib/dozzle
+  <span class="tok-directive">START</span> dozzle
+  <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
     </section>
