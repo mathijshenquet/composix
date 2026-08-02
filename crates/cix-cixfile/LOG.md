@@ -1,5 +1,55 @@
 # Cixfile track work log
 
+- 2026-08-02T15:30:00Z — Committed the complete green overlay track as
+  `d4a9990` (`feat: add overlay package universes`). It contains only the
+  scoped implementation, migrations, lock, generated corpus/tour pages,
+  tests, and docs; this append-only journal remains intentionally unstaged.
+  Final audit next.
+
+- 2026-08-02T15:28:00Z — All prescribed gates are green. `cargo fmt --all
+  --check`, `cargo run -- fmt --check examples`, warning-denied all-target
+  clippy, serial workspace tests, corpus regeneration/drift, and generated-tour
+  determinism passed. Wallos was re-run after its final source/lock update:
+  `./check.sh cix` exited 0 and reported `PASS cix`. The required track-ending
+  `devenv shell -- nix flake check -L` first completed the 70-check VM tier;
+  because that verbose stream truncated before exposing a terminal status, the
+  exact rerun was made synchronously and exited 0, reporting all checks
+  previously built. Next: final staged-scope audit and commit; this journal
+  remains intentionally unstaged.
+
+- 2026-08-02T15:17:00Z — Broad fmt/examples/clippy/serial-workspace gates are
+  green. Tour regeneration correctly exposed expected committed-doc drift in
+  abbreviated chain keys after D70 key semantics; bumped the codegen fingerprint
+  `d80-v1` → `d80-v2` to isolate pre-overlay memos. Next: regenerate and
+  recheck tour drift after that bump, refresh the Wallos lock/receipt once more,
+  then run the mandatory full flake gate.
+
+- 2026-08-02T15:05:00Z — D70 implementation and its focused receipts are
+  green. `FROM … OVERLAY … AS` retains ordered project-local overlay paths,
+  evaluates a functionArgs-checked native Nix overlay fixpoint, keys every
+  build chain and vendored dev environment on base-pin plus ordered overlay
+  content hashes, and leaves `--update-lock` to the base input alone. The
+  parser refuses leading EXPECT with its rewrite; fmt migrates it to trailing,
+  so the parsed declaration—not directive trivia—feeds execution. Exact green
+  checks: cix-build/cix-cixfile unit suites; parser/fmt integration; real-Nix
+  overlay order/malformed-overlay fixture; and real builder proof that an
+  overlay edit creates a second memo key without moving `inputs.pkgs`.
+  Replaced Wallos's `default.nix` with `Cixfile`, `php.nix`, and a checked lock;
+  `CIX=.../target/debug/cix ./check.sh cix` exited 0, built
+  `/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos`, started its
+  system unit, and passed `/health.php`. Corpus browser regeneration and drift
+  test are green. Next: complete the prescribed formatter/clippy/workspace/tour
+  gates, rerun Wallos after the final source changes, then run the full flake
+  check and commit only track files (never this journal).
+
+- 2026-08-02T14:20:00Z — Started `track/overlay` from `81586c5`. Read the
+  complete overlay specification, project journal, D70 authority, and this
+  crate journal. Scope: repeatable ordered `FROM … OVERLAY … AS` universes,
+  additive lock/key identity (including vendored dev-env snapshots), trailing
+  FETCH EXPECT migration/formatting, Wallos conversion and receipt, docs and
+  corpus regeneration. Next: map parser/model/build/lock seams and current
+  Wallos corpus inputs before implementation.
+
 - 2026-08-02T13:00:00Z — Began the requested ergo fix round 2 on
   `track/ergo` at `61ca217`. The independent gate reports
   `proj1_multi_item_cache_selectivity_and_clean_rebuild` creates two builder
@@ -1566,3 +1616,32 @@
   sets`). The worktree now differs from the commit only by this intentionally
   unstaged LOG. No implementation or documentation work remains for the
   track.
+
+- 2026-08-02T14:10:00Z — Resolved the in-progress merge of main's D70 overlay
+  universes and CIP-81 secrets into CIP-87 read-set memoization. The merged
+  executor keeps the read-set `(outputs, ExecutedStep stats)` result while
+  loading one host-local consent manager from `--allow-secret` and passing it
+  only to FETCH execution/probes; RUN remains credential-free. Both chain keys
+  and constructive step-memo static keys now contain the resolved base pin +
+  ordered overlay-hash universe identities, and the vendored dev-environment
+  cache retains that same identity. Credential names/paths remain runtime-only:
+  they are injected directly into the sandbox, never into the declared
+  environment or either key, and the trace parser persists only `/work` reads;
+  its regression now explicitly ignores `/run/cix-credentials/private`.
+  Bumped the combined fingerprint to `d87-v2` so neither parent track's memos
+  can cross the changed semantics. Took the read-set tour side temporarily,
+  then regenerated all tour output from the merged binary. The first requested
+  package-test attempt synchronously exposed one readset fixture constructor
+  missing main's new `allow_secret: false`; fixed it and reran. Green exact
+  receipts: `devenv shell -- cargo test -p cix-build -p cix-cixfile` (25
+  cix-build unit tests plus every cix-cixfile unit/integration/doc test),
+  `devenv shell -- cargo test -p cix --test tour generate_tour -- --ignored
+  --exact`, and the exact `tour_matches_committed_document` and
+  `generated_tour_is_deterministic` drift tests. Next: final index audit and
+  merge commit.
+
+- 2026-08-02T14:11:15Z — Committed the resolved two-parent merge as
+  `568205f9a1bbc07b65f04eafdbbd5bf74cb9ae34` (`Merge main into
+  track/readset`). Parents are readset `f9a870c` and main `857d185`; no merge
+  state or implementation work remains. Per AGENTS.md, this task LOG and
+  main's cix-run task LOG remain intentionally unstaged.
