@@ -50,10 +50,17 @@ jq 'del(.memo, .outputs)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.
 mv "$bench_root/Cixfile.lock" "$bench_root/cix/Cixfile.lock"
 CIX_BUILD_WORKSPACE_DIR="$bench_root/workspaces" \
   "$cix_bin" build "$bench_root/cix#gitsitter" >/dev/null 2>&1
-jq 'del(.memo, .outputs)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
+cp "$bench_root/cix/Cixfile.lock" "$bench_root/warm-prime.lock"
+# Run cold from only the pin: neither recorded step memo is eligible to carry
+# warm self-observation into this control. FETCH therefore restores its pinned
+# snapshot and RUN executes from that reconstructed workspace.
+jq 'del(.memo, .outputs, .stepMemo["builder:build:2"], .stepMemo["builder:build:3"])' \
+  "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
 mv "$bench_root/Cixfile.lock" "$bench_root/cix/Cixfile.lock"
 CIX_BUILD_WORKSPACE_DIR="$bench_root/workspaces" \
-  "$cix_bin" build "$bench_root/cix#gitsitter" >/dev/null 2>&1
+  "$cix_bin" build --cold "$bench_root/cix#gitsitter" >/dev/null 2>&1
+mv "$bench_root/warm-prime.lock" "$bench_root/cix/Cixfile.lock"
+printf 'cix_cold_control=green\n'
 patch -s -d "$bench_root/cix" -p1 < "$example_root/warm.patch"
 profile_bin="$bench_root/cix-profile-bin"
 profile_log="$bench_root/cix-nix-subprocesses.tsv"

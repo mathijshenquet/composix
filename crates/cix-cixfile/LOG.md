@@ -1,5 +1,70 @@
 # Cixfile track work log
 
+- 2026-08-02T23:42:28Z — Committed the steady-state receipt and its explicit
+  revert-branch observability as `b616405` (`docs: distinguish first and
+  steady warm builds`). It contains only the timing marker in cix-build and
+  docs/nix-build.md; this required journal remains deliberately unstaged.
+  Post-commit status is journal-only. Ready for merge review and the
+  orchestrator's full flake-matrix gate.
+
+- 2026-08-02T23:42:28Z — Follow-up steady-state receipt resolved the
+  first-warm/steady-warm comparison. On the completed single-prime fixture,
+  the first one-line edit measured 14.46 s; a second edit measured 8.31 s and
+  a third 8.84 s. All three were FETCH memo hits. The steady receipts record
+  self validation at 0.217 s / 0.216 s; the third also carries the new
+  `fetch-revert` timing marker and it was absent, synchronously proving that
+  a hit did not enter the revert branch. Updated docs/nix-build.md to report
+  first-warm and steady-warm separately. Next: final format/scope checks and
+  commit this receipt without the journal.
+
+- 2026-08-02T23:38:54Z — Committed the completed FETCH self-observation
+  implementation as `5b539d2` (`build: validate fetch self-observation`). The
+  commit contains only cix-build, the real-Nix regression fixture, and the
+  gitsitter measurement harness; this required append-only journal remains
+  deliberately unstaged. `git diff --cached --check` and the post-commit
+  status are clean apart from this journal. Ready for the orchestrator's full
+  flake-matrix verification.
+
+- 2026-08-02T23:38:11Z — Completed the CIP-87 implementation and focused
+  receipts. FETCH output content hashes remain deterministic lockfile data;
+  local workspace metadata fingerprints are only an accelerator and are
+  invalidated when a later traced step changes a FETCH output. Descendant
+  self-reads reuse their already-validated output root instead of re-hashing
+  the vendor tree once per read. The final single-prime gitsitter harness
+  completed its cold control and reports FETCH memo-hit; warm time was 14.46 s
+  (not the historical ~8.3 s), now attributed: FETCH self validation is
+  0.224 s, while the existing RUN path traces 428 MiB in 6.001 s and executes
+  the incremental compile. fmt, examples fmt, warning-denied clippy, focused
+  cix-build and real-Nix lock tests, tour regeneration/drift, and the
+  workspace suite are green; the full flake matrix remains the orchestrator
+  gate. Next: final status/scope audit, commit product files without this
+  required journal.
+
+- 2026-08-02T23:12:00Z — Implemented the CIP-87 self-observation rule in
+  cix-build. A warm FETCH now removes the previous memo's owned outputs before
+  recording a replacement pre-state; FETCH-only validation can accept its own
+  output only when the whole recorded write set matches its constructive
+  content hashes, while cold and RUN validation retain exact ordinary
+  fingerprints. FETCH hits re-apply any root not already proven identical.
+  Newly-created multi-file FETCH trees record their complete root, fixing cold
+  replay of cargo vendor trees. Added focused unit and real-Nix mini-fixture
+  coverage for byte-identical warm/cold lock traces, partial self state,
+  a→b scope, and the pre-`--update-lock` pin mismatch; all passed. The
+  gitsitter harness now has one prime plus a green FETCH-only cold control.
+  The full harness completed synchronously (exit 0) but measured 69.58 s,
+  not ~8.3 s: its explicit timing shows FETCH memo-hit and RUN 13.54 s, with
+  the remaining time currently un-attributed inside output-self validation.
+  Next: complete gate and isolate that performance regression before commit.
+
+- 2026-08-02T22:39:20Z — Started `track/fetchself` from the CIP-87
+  self-observation adoption commit. Read the assigned specification, AGENTS,
+  current journals, and the full adopted amendment. Scope is cix-build's
+  FETCH memo validation/replay path plus the gitsitter measurement harness;
+  `track/thin2` owns cix-compose and will not be touched. The existing
+  tracefast finding confirms the failure is a warm FETCH observing its own
+  prior writes. Next: make the same-memo, content-hash exception constructive
+  and cold-excluded; add the partial/self and a→b adversarial receipts.
+
 - 2026-08-02T21:43:00Z — Committed the complete green docs track as
   `158df29` (`docs: align status with implemented board`): nine fenced prose
   files, 44 insertions and 22 deletions. Post-commit status contains only this

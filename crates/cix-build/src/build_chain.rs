@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{symlink, PermissionsExt};
+use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
@@ -113,6 +113,11 @@ struct WorkspaceState {
     /// previous build in this workspace already applied or produced.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     materialized_memos: BTreeMap<String, String>,
+    /// Local metadata fingerprints for FETCH output roots. These are never a
+    /// substitute for the lockfile's content hashes: a mismatch falls back to
+    /// hashing the recorded output before a self-observation is accepted.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    memo_output_fingerprints: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 struct FetchProbe {
@@ -665,6 +670,7 @@ fn execute_top_fetch(
     retain_nonvolatile_reads(&mut reads, &step_volatile);
     trace::record_workspace_fingerprints(work.path(), &mut reads, &observations.writes)?;
     changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+    let output_hashes = memo_output_hashes(work.path(), &changes)?;
     let step_output = (!changes.is_empty())
         .then(|| add_step_output_snapshot(work.path(), &changes, &step_volatile))
         .transpose()?;
@@ -675,6 +681,7 @@ fn execute_top_fetch(
             reads,
             output_snapshot: step_output,
             changes,
+            output_hashes,
         },
     );
     trace_before.close()?;
@@ -843,6 +850,7 @@ fn execute_builder(
         .unwrap_or_default();
     let prior_keys = prior_state.step_keys;
     let mut materialized_memos = prior_state.materialized_memos;
+    let mut output_fingerprints_by_memo = prior_state.memo_output_fingerprints;
     let first_changed = existing_keys.as_ref().map_or(0, |keys| {
         keys.iter()
             .zip(&prior_keys)
@@ -958,9 +966,9 @@ fn execute_builder(
                     universe_identities: &universe_identities,
                 })?;
                 let memo_owner = format!("builder:{builder_name}:{index}");
-                let recorded_memo = lock
-                    .step_memo
-                    .get(&memo_owner)
+                let superseded_memo = lock.step_memo.get(&memo_owner).cloned();
+                let recorded_memo = superseded_memo
+                    .as_ref()
                     .filter(|memo| memo.key == memo_key)
                     .cloned();
                 let fetch_id = is_fetch
@@ -976,7 +984,7 @@ fn execute_builder(
                             )
                         })?;
                         if let Some(memo) = &recorded_memo {
-                            apply_step_memo(memo, &workdir)?;
+                            apply_step_memo(memo, &workdir, None)?;
                         } else {
                             let snapshot = replay_fetch_snapshot(directory, id, pin)?;
                             restore_snapshot(Path::new(&snapshot), &workdir)?;
@@ -992,15 +1000,30 @@ fn execute_builder(
                 let mut known_reads = None;
                 if !cold && !update_fetch_pins {
                     if let Some(memo) = recorded_memo.clone() {
-                        let (matches, current) = validate_step_memo(&memo, &workdir)?;
+                        let fingerprints = is_fetch
+                            .then(|| output_fingerprints_by_memo.get(&memo_owner))
+                            .flatten()
+                            .filter(|_| materialized_memos.get(&memo_owner) == Some(&memo_key));
+                        let (matches, current) =
+                            validate_step_memo(&memo, &workdir, is_fetch, fingerprints)?;
                         known_reads = Some(current);
                         if !newly_consumed_paths && matches {
-                            if materialized_memos.get(&memo_owner) == Some(&memo_key) {
+                            if is_fetch {
+                                // A FETCH hit is constructive: its full recorded write set is
+                                // re-applied even when this workspace previously held it. That
+                                // keeps the self-read rule below tied to one complete output.
+                                apply_step_memo(&memo, &workdir, fingerprints)?;
+                                materialized_memos.insert(memo_owner.clone(), memo_key.clone());
+                                output_fingerprints_by_memo.insert(
+                                    memo_owner.clone(),
+                                    memo_output_fingerprints(&workdir, &memo.changes)?,
+                                );
+                            } else if materialized_memos.get(&memo_owner) == Some(&memo_key) {
                                 crate::cix_timing!(
                                     "CIX timing memo-apply skipped=workspace-already-materialized"
                                 );
                             } else {
-                                apply_step_memo(&memo, &workdir)?;
+                                apply_step_memo(&memo, &workdir, None)?;
                                 materialized_memos.insert(memo_owner.clone(), memo_key.clone());
                             }
                             eprintln!(
@@ -1011,6 +1034,16 @@ fn execute_builder(
                             step_results.push(executed_step(builder_name, index, kind, false));
                             continue;
                         }
+                    }
+                }
+                if is_fetch && !cold {
+                    if let Some(memo) = &superseded_memo {
+                        crate::cix_timing!(
+                            "CIX timing fetch-revert owner={} key={}",
+                            memo_owner,
+                            short_key(&memo.key)
+                        );
+                        revert_step_writes(memo, &workdir)?;
                     }
                 }
                 let snapshot_started = Instant::now();
@@ -1127,9 +1160,28 @@ fn execute_builder(
                 if let Some(previous) = &recorded_memo {
                     retain_replay_roots(previous, &workdir, &mut changes)?;
                 }
+                if is_fetch {
+                    retain_fetch_output_roots(trace_before.path(), &workdir, &mut changes)?;
+                }
                 retain_nonvolatile_reads(&mut reads, &step_volatile);
                 trace::record_workspace_fingerprints(&workdir, &mut reads, &observations.writes)?;
                 changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+                if !is_fetch {
+                    invalidate_fetch_output_fingerprints(
+                        &mut output_fingerprints_by_memo,
+                        &materialized_memos,
+                        lock,
+                        &changes,
+                    );
+                }
+                let output_hashes = is_fetch
+                    .then(|| memo_output_hashes(&workdir, &changes))
+                    .transpose()?
+                    .unwrap_or_default();
+                let output_fingerprints = is_fetch
+                    .then(|| memo_output_fingerprints(&workdir, &changes))
+                    .transpose()?
+                    .unwrap_or_default();
                 if cold {
                     if let Some(recorded) = &recorded_memo {
                         compare_cold_read_sets(recorded, &reads, *line, source)?;
@@ -1181,6 +1233,9 @@ fn execute_builder(
                     let output_snapshot = output_snapshot?;
                     closed?;
                     materialized_memos.insert(memo_owner.clone(), memo_key.clone());
+                    if is_fetch {
+                        output_fingerprints_by_memo.insert(memo_owner.clone(), output_fingerprints);
+                    }
                     lock.step_memo.insert(
                         memo_owner,
                         StepMemo {
@@ -1188,6 +1243,7 @@ fn execute_builder(
                             reads,
                             output_snapshot,
                             changes,
+                            output_hashes,
                         },
                     );
                 }
@@ -1242,11 +1298,18 @@ fn execute_builder(
     }
     lock.memo.insert(key.clone(), memo_entry(paths.clone()));
     if let Some(persistent) = &persistent {
+        refresh_fetch_output_fingerprints(
+            &mut output_fingerprints_by_memo,
+            &materialized_memos,
+            lock,
+            &workdir,
+        )?;
         save_workspace_state(
             &persistent.2,
             &WorkspaceState {
                 step_keys: step_keys.clone(),
                 materialized_memos,
+                memo_output_fingerprints: output_fingerprints_by_memo,
             },
         )?;
     }
@@ -1256,6 +1319,42 @@ fn execute_builder(
         short_key(&key)
     );
     Ok((view, step_results))
+}
+
+fn invalidate_fetch_output_fingerprints(
+    fingerprints: &mut BTreeMap<String, BTreeMap<String, String>>,
+    materialized: &BTreeMap<String, String>,
+    lock: &LockFile,
+    changes: &BTreeMap<String, StepChange>,
+) {
+    fingerprints.retain(|owner, _| {
+        let Some(memo) = lock.step_memo.get(owner) else {
+            return false;
+        };
+        materialized.get(owner) == Some(&memo.key)
+            && !memo.changes.keys().any(|output| {
+                changes.keys().any(|changed| {
+                    same_or_descendant(output, changed) || same_or_descendant(changed, output)
+                })
+            })
+    });
+}
+
+fn refresh_fetch_output_fingerprints(
+    fingerprints: &mut BTreeMap<String, BTreeMap<String, String>>,
+    materialized: &BTreeMap<String, String>,
+    lock: &LockFile,
+    workspace: &Path,
+) -> Result<()> {
+    for (owner, output_fingerprints) in fingerprints {
+        let Some(memo) = lock.step_memo.get(owner) else {
+            continue;
+        };
+        if materialized.get(owner) == Some(&memo.key) {
+            *output_fingerprints = memo_output_fingerprints(workspace, &memo.changes)?;
+        }
+    }
+    Ok(())
 }
 
 fn build_environment(mut environment: BTreeMap<String, String>) -> BTreeMap<String, String> {
@@ -1671,7 +1770,10 @@ fn step_memo_key(request: StepMemoKeyRequest<'_>) -> Result<String> {
 fn validate_step_memo(
     memo: &StepMemo,
     workspace: &Path,
+    allow_fetch_self_reads: bool,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
 ) -> Result<(bool, BTreeMap<String, crate::ReadDependency>)> {
+    let validation_started = Instant::now();
     let replayable = if !memo.changes.is_empty() {
         let Some(snapshot) = memo.output_snapshot.as_deref() else {
             return Ok((false, trace::current_dependencies(workspace, &memo.reads)?));
@@ -1686,10 +1788,250 @@ fn validate_step_memo(
         metrics.rehashed_files,
         metrics.rehashed_bytes
     );
-    Ok((replayable && current == memo.reads, current))
+    let self_matches = if current == memo.reads || !allow_fetch_self_reads || !replayable {
+        false
+    } else {
+        let self_validation_started = Instant::now();
+        let matches = memo_write_set_matches_workspace(memo, workspace, output_fingerprints)?
+            && memo_self_reads_match(memo, workspace, &current, output_fingerprints)?;
+        crate::cix_timing!(
+            "CIX timing memo-self-validation wall_ms={}",
+            self_validation_started.elapsed().as_millis()
+        );
+        matches
+    };
+    let matches = current == memo.reads || self_matches;
+    crate::cix_timing!(
+        "CIX timing memo-validation total_wall_ms={}",
+        validation_started.elapsed().as_millis()
+    );
+    Ok((replayable && matches, current))
 }
 
-fn apply_step_memo(memo: &StepMemo, workspace: &Path) -> Result<()> {
+/// A FETCH may observe output from its own prior execution only when every
+/// recorded output path still equals that memo's constructive snapshot.
+fn memo_write_set_matches_workspace(
+    memo: &StepMemo,
+    workspace: &Path,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
+) -> Result<bool> {
+    for (path, change) in &memo.changes {
+        let workspace_path = workspace.join(path);
+        match change {
+            StepChange::Absent => match fs::symlink_metadata(&workspace_path) {
+                Ok(_) => return Ok(false),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error.into()),
+            },
+            StepChange::Present | StepChange::Directory { .. } => {
+                if !memo_output_matches_workspace(memo, workspace, path, output_fingerprints)? {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn memo_self_reads_match(
+    memo: &StepMemo,
+    workspace: &Path,
+    current: &BTreeMap<String, crate::ReadDependency>,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
+) -> Result<bool> {
+    for (path, recorded) in &memo.reads {
+        if current.get(path) != Some(recorded)
+            && !memo_path_matches_workspace(memo, workspace, path, output_fingerprints)?
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn memo_path_matches_workspace(
+    memo: &StepMemo,
+    workspace: &Path,
+    path: &str,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
+) -> Result<bool> {
+    let Some(snapshot) = memo.output_snapshot.as_deref() else {
+        return Ok(false);
+    };
+    if !memo
+        .changes
+        .keys()
+        .any(|written| same_or_descendant(path, written) || same_or_descendant(written, path))
+    {
+        return Ok(false);
+    }
+    if let Some((root, _)) = memo
+        .output_hashes
+        .iter()
+        .find(|(root, _)| same_or_descendant(path, root))
+    {
+        return memo_output_matches_workspace(memo, workspace, root, output_fingerprints);
+    }
+    Ok(node_content_hash(&Path::new(snapshot).join(path))?
+        == node_content_hash(&workspace.join(path))?)
+}
+
+fn memo_output_matches_workspace(
+    memo: &StepMemo,
+    workspace: &Path,
+    path: &str,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
+) -> Result<bool> {
+    let Some(expected) = memo.output_hashes.get(path) else {
+        return Ok(false);
+    };
+    let current = workspace.join(path);
+    let fingerprint = node_fingerprint(&current)?;
+    if fingerprint.as_ref().is_some_and(|fingerprint| {
+        output_fingerprints.and_then(|fingerprints| fingerprints.get(path)) == Some(fingerprint)
+    }) {
+        return Ok(true);
+    }
+    crate::cix_timing!(
+        "CIX timing memo-output-fingerprint-miss path={} actual={}",
+        path,
+        fingerprint.as_deref().unwrap_or("<absent>")
+    );
+    Ok(node_content_hash(&current)? == Some(expected.content.clone()))
+}
+
+fn memo_output_hashes(
+    workspace: &Path,
+    changes: &BTreeMap<String, StepChange>,
+) -> Result<BTreeMap<String, crate::OutputHash>> {
+    changes
+        .iter()
+        .filter(|(_, change)| !matches!(change, StepChange::Absent))
+        .map(|(path, _)| {
+            let output = workspace.join(path);
+            Ok((
+                path.clone(),
+                crate::OutputHash {
+                    content: node_content_hash(&output)?.context("memo output disappeared")?,
+                },
+            ))
+        })
+        .collect()
+}
+
+fn memo_output_fingerprints(
+    workspace: &Path,
+    changes: &BTreeMap<String, StepChange>,
+) -> Result<BTreeMap<String, String>> {
+    changes
+        .iter()
+        .filter(|(_, change)| !matches!(change, StepChange::Absent))
+        .map(|(path, _)| {
+            Ok((
+                path.clone(),
+                node_fingerprint(&workspace.join(path))?.context("memo output disappeared")?,
+            ))
+        })
+        .collect()
+}
+
+fn node_content_hash(path: &Path) -> Result<Option<String>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let mut digest = Sha256::new();
+    // Store snapshots are read-only, while the warm workspace must remain
+    // writable; executable bits are the output's only mode-level content.
+    digest.update((metadata.permissions().mode() & 0o111).to_le_bytes());
+    if metadata.file_type().is_symlink() {
+        digest.update(b"symlink\0");
+        digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+    } else if metadata.is_file() {
+        digest.update(b"file\0");
+        let mut file = fs::File::open(path)?;
+        io::copy(&mut file, &mut digest)?;
+    } else if metadata.is_dir() {
+        digest.update(b"directory\0");
+        let mut entries = fs::read_dir(path)?.collect::<io::Result<Vec<_>>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            digest.update(entry.file_name().as_encoded_bytes());
+            digest.update([0]);
+            digest.update(
+                node_content_hash(&entry.path())?
+                    .unwrap_or_default()
+                    .as_bytes(),
+            );
+            digest.update([0]);
+        }
+    } else {
+        bail!(
+            "unsupported special file in memo output: {}",
+            path.display()
+        );
+    }
+    Ok(Some(hex_hash(&digest.finalize())))
+}
+
+fn node_fingerprint(path: &Path) -> Result<Option<String>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    let mut digest = Sha256::new();
+    // This is only the same nonsemantic metadata fast path used for traced
+    // reads. A miss below always rechecks the persisted content hash.
+    digest.update(metadata.dev().to_le_bytes());
+    digest.update(metadata.permissions().mode().to_le_bytes());
+    digest.update(metadata.len().to_le_bytes());
+    digest.update(metadata.ino().to_le_bytes());
+    digest.update(metadata.mtime_nsec().to_le_bytes());
+    if metadata.file_type().is_symlink() {
+        digest.update(b"symlink\0");
+        digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+    } else if metadata.is_file() {
+        digest.update(b"file\0");
+    } else if metadata.is_dir() {
+        digest.update(b"directory\0");
+    } else {
+        bail!(
+            "unsupported special file in memo output: {}",
+            path.display()
+        );
+    }
+    Ok(Some(hex_hash(&digest.finalize())))
+}
+
+fn revert_step_writes(memo: &StepMemo, workspace: &Path) -> Result<()> {
+    let mut paths = memo
+        .changes
+        .iter()
+        .filter(|(_, change)| !matches!(change, StepChange::Absent))
+        .map(|(path, _)| path.as_str())
+        .collect::<Vec<_>>();
+    paths.sort_by_key(|path| path.matches('/').count());
+    let mut reverted = Vec::<&str>::new();
+    for path in paths {
+        if reverted
+            .iter()
+            .any(|parent| same_or_descendant(path, parent))
+        {
+            continue;
+        }
+        remove_path_if_present(&workspace.join(path))?;
+        reverted.push(path);
+    }
+    Ok(())
+}
+
+fn apply_step_memo(
+    memo: &StepMemo,
+    workspace: &Path,
+    output_fingerprints: Option<&BTreeMap<String, String>>,
+) -> Result<()> {
     if memo.changes.is_empty() {
         return Ok(());
     }
@@ -1723,6 +2065,9 @@ fn apply_step_memo(memo: &StepMemo, workspace: &Path) -> Result<()> {
                 .strip_prefix(*parent)
                 .is_some_and(|suffix| suffix.starts_with('/'))
         }) {
+            continue;
+        }
+        if memo_output_matches_workspace(memo, workspace, relative, output_fingerprints)? {
             continue;
         }
         sync_replay_node(&snapshot.join(relative), &workspace.join(relative))?;
@@ -1817,6 +2162,46 @@ fn retain_replay_roots(
             (_, Ok(_)) => {}
             (_, Err(error)) => return Err(error.into()),
         }
+    }
+    Ok(())
+}
+
+/// A FETCH that creates a new top-level tree owns that complete tree, not just
+/// the individual syscalls the tracer happened to observe beneath it. Keeping
+/// that root makes constructive replay—and therefore self-observation—cover
+/// every output file.
+fn retain_fetch_output_roots(
+    before: &Path,
+    workspace: &Path,
+    changes: &mut BTreeMap<String, StepChange>,
+) -> Result<()> {
+    let mut roots = BTreeMap::<String, usize>::new();
+    for path in changes.keys() {
+        if let Some(root) = path.split('/').next() {
+            *roots.entry(root.to_owned()).or_default() += 1;
+        }
+    }
+    for (root, changed_descendants) in roots {
+        if changed_descendants < 2 {
+            continue;
+        }
+        let before_root = before.join(&root);
+        let workspace_root = workspace.join(&root);
+        let absent_before = match fs::symlink_metadata(&before_root) {
+            Ok(_) => false,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => true,
+            Err(error) => return Err(error.into()),
+        };
+        let present_after = match fs::symlink_metadata(&workspace_root) {
+            Ok(_) => true,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+            Err(error) => return Err(error.into()),
+        };
+        if !absent_before || !present_after {
+            continue;
+        }
+        changes.retain(|path, _| !same_or_descendant(path, &root));
+        changes.insert(root, StepChange::Present);
     }
     Ok(())
 }
@@ -3541,6 +3926,169 @@ mod tests {
         assert_eq!(
             error,
             "COPY ${build}/target/release/app (line 17) differs between warm and cold"
+        );
+    }
+
+    #[test]
+    fn fetch_self_read_requires_the_complete_recorded_write_set() {
+        let root = tempfile::tempdir().unwrap();
+        let snapshot = root.path().join("snapshot");
+        let workspace = root.path().join("workspace");
+        fs::create_dir_all(&snapshot).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(snapshot.join("foo"), "first").unwrap();
+        fs::write(snapshot.join("bar"), "second").unwrap();
+        fs::write(workspace.join("foo"), "first").unwrap();
+        let memo = StepMemo {
+            key: "fetch-a".into(),
+            reads: BTreeMap::from([("foo".into(), crate::ReadDependency::Absent)]),
+            output_snapshot: Some(snapshot.to_string_lossy().into_owned()),
+            changes: BTreeMap::from([
+                ("foo".into(), StepChange::Present),
+                ("bar".into(), StepChange::Present),
+            ]),
+            output_hashes: memo_output_hashes(
+                &snapshot,
+                &BTreeMap::from([
+                    ("foo".into(), StepChange::Present),
+                    ("bar".into(), StepChange::Present),
+                ]),
+            )
+            .unwrap(),
+        };
+
+        assert!(!validate_step_memo(&memo, &workspace, true, None).unwrap().0);
+        assert!(verify_cold_read_set(&memo, &workspace, 1, "FETCH a").is_err());
+
+        fs::write(workspace.join("bar"), "second").unwrap();
+        assert!(validate_step_memo(&memo, &workspace, true, None).unwrap().0);
+        assert!(
+            !validate_step_memo(&memo, &workspace, false, None)
+                .unwrap()
+                .0
+        );
+
+        fs::write(workspace.join("foo"), "drifted").unwrap();
+        assert!(!validate_step_memo(&memo, &workspace, true, None).unwrap().0);
+    }
+
+    #[test]
+    fn self_read_exception_never_crosses_memo_owners() {
+        let root = tempfile::tempdir().unwrap();
+        let snapshot = root.path().join("snapshot");
+        let workspace = root.path().join("workspace");
+        fs::create_dir_all(&snapshot).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(snapshot.join("foo"), "a-output").unwrap();
+        fs::write(workspace.join("foo"), "a-output").unwrap();
+        let a = StepMemo {
+            key: "fetch-a".into(),
+            reads: BTreeMap::from([("foo".into(), crate::ReadDependency::Absent)]),
+            output_snapshot: Some(snapshot.to_string_lossy().into_owned()),
+            changes: BTreeMap::from([("foo".into(), StepChange::Present)]),
+            output_hashes: memo_output_hashes(
+                &snapshot,
+                &BTreeMap::from([("foo".into(), StepChange::Present)]),
+            )
+            .unwrap(),
+        };
+        let b = StepMemo {
+            key: "run-b".into(),
+            reads: BTreeMap::from([("foo".into(), crate::ReadDependency::Absent)]),
+            output_snapshot: None,
+            changes: BTreeMap::new(),
+            output_hashes: BTreeMap::new(),
+        };
+
+        assert!(validate_step_memo(&a, &workspace, true, None).unwrap().0);
+        assert!(!validate_step_memo(&b, &workspace, true, None).unwrap().0);
+    }
+
+    #[test]
+    fn a_fetch_self_states_never_allow_b_to_bypass_its_own_fingerprint() {
+        let root = tempfile::tempdir().unwrap();
+        let snapshot = root.path().join("snapshot");
+        let workspace = root.path().join("workspace");
+        fs::create_dir_all(&snapshot).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        fs::write(snapshot.join("foo"), "pinned-a-output").unwrap();
+        fs::write(workspace.join("foo"), "pinned-a-output").unwrap();
+        let a = StepMemo {
+            key: "fetch-a".into(),
+            reads: BTreeMap::from([("foo".into(), crate::ReadDependency::Absent)]),
+            output_snapshot: Some(snapshot.to_string_lossy().into_owned()),
+            changes: BTreeMap::from([("foo".into(), StepChange::Present)]),
+            output_hashes: memo_output_hashes(
+                &snapshot,
+                &BTreeMap::from([("foo".into(), StepChange::Present)]),
+            )
+            .unwrap(),
+        };
+        let b = StepMemo {
+            key: "run-b".into(),
+            reads: BTreeMap::from([("foo".into(), crate::ReadDependency::Absent)]),
+            output_snapshot: None,
+            changes: BTreeMap::new(),
+            output_hashes: BTreeMap::new(),
+        };
+
+        // a may use its own constructive output; b's read is still checked
+        // only against b's recorded fingerprint.
+        assert!(validate_step_memo(&a, &workspace, true, None).unwrap().0);
+        assert!(!validate_step_memo(&b, &workspace, false, None).unwrap().0);
+
+        // If a executes again and its output moves, b remains a miss and the
+        // automatic FETCH pin stays the loud boundary until --update-lock.
+        revert_step_writes(&a, &workspace).unwrap();
+        fs::write(workspace.join("foo"), "drifted-a-output").unwrap();
+        assert!(!validate_step_memo(&a, &workspace, true, None).unwrap().0);
+        assert!(!validate_step_memo(&b, &workspace, false, None).unwrap().0);
+        let error = verify_fetch_pin(
+            Some(&FetchPin::expected("sha256-pinned".into())),
+            Some("sha256-drifted"),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("--update-lock"), "{error}");
+    }
+
+    #[test]
+    fn executing_fetch_reverts_its_superseded_writes_before_tracing() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("foo"), "old fetch output").unwrap();
+        fs::write(root.path().join("kept"), "not fetch-owned").unwrap();
+        let memo = StepMemo {
+            key: "fetch-a".into(),
+            reads: BTreeMap::new(),
+            output_snapshot: None,
+            changes: BTreeMap::from([("foo".into(), StepChange::Present)]),
+            output_hashes: BTreeMap::new(),
+        };
+
+        revert_step_writes(&memo, root.path()).unwrap();
+        assert!(!root.path().join("foo").exists());
+        assert_eq!(
+            fs::read_to_string(root.path().join("kept")).unwrap(),
+            "not fetch-owned"
+        );
+    }
+
+    #[test]
+    fn fetch_records_a_new_output_tree_as_one_constructive_root() {
+        let before = tempfile::tempdir().unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+        fs::create_dir_all(workspace.path().join("vendor/nested")).unwrap();
+        fs::write(workspace.path().join("vendor/first"), "one").unwrap();
+        fs::write(workspace.path().join("vendor/nested/second"), "two").unwrap();
+        let mut changes = BTreeMap::from([
+            ("vendor/first".into(), StepChange::Present),
+            ("vendor/nested/second".into(), StepChange::Present),
+        ]);
+
+        retain_fetch_output_roots(before.path(), workspace.path(), &mut changes).unwrap();
+        assert_eq!(
+            changes,
+            BTreeMap::from([("vendor".into(), StepChange::Present)])
         );
     }
 
