@@ -1,58 +1,38 @@
 # composix work log
 
-## 2026-08-02 late (HANDOFF — context clear imminent; successor runbook)
+## 2026-08-03 early (day closed: board fully landed, GC done)
 
-Everything below is resumable from files alone. Conventions live in
-AGENTS.md + CLAUDE.md (goal registry) + auto-memory; the standing cycle
-is: agent done → commit its journal → merge main into track → orchestrator
-full gate (`.dev/gate-template.sh <worktree> <out-prefix>`, now TRACKED) →
-merge --no-ff to main with the house message style → gitsitter auto-pushes
-→ `gh run watch` the ci workflow → close the herdr workspace.
-
-- **IN FLIGHT 1 — track/thin2** (CIP-89 leg 2, terra, DONE and journal
-  committed at `caae4fd`-style; branch head has 5 commits incl. the
-  shared-directory newline fix): my full gate was RUNNING at context
-  clear (output in the old session scratchpad; if unreadable, simply
-  re-run `.dev/gate-template.sh /home/mathijs/worktrees/composix/track-thin2 /tmp/gate-thin2`).
-  On GATE-ALL-GREEN: merge with message "Merge track/thin2: CIP-89 leg 2 —
-  compose strata pass (terra; …)", CI watch, `herdr workspace close w24`,
-  add CIP-89 changelog line "leg 2 landed".
-- **IN FLIGHT 2 — track/fetchself** (CIP-87 self-observation rule,
-  terra, pane w23:p1): implementation DONE (`5b539d2` — rule, a/b
-  adversarial coverage, cold control green, two-prime removed) but the
-  reported 14.46s warm bench vs the 8.31s CIP receipt is possibly an
-  unlike comparison (single-prime first-warm vs two-prime steady
-  state). A STEADY-STATE measurement round is running (second/third
-  consecutive edit). If ≈8.3s: no regression, docs report first-warm
-  and steady-warm separately, then the standing cycle (journal, main
-  merge, full gate, merge, CI, close w23, CIP-89/87 changelog lines).
-  If materially above: STOP — the number is a CIP criterion; hold the
-  merge for Mathijs unless the attribution shows a trivially fixable
-  self-inflicted cost (the revert must not run on a hit).
-- **AFTER BOTH LAND (Mathijs's standing request)**: nix GC + roots
-  audit — FIRST `nix-store --gc --print-roots | grep -v ^/proc`,
-  classify (home-manager generations, devenv/direnv per-worktree roots
-  incl. corpses of removed worktrees, cix item roots, result
-  symlinks), report the classes, THEN `nix-collect-garbage` (plain, not
-  -d without asking), report freed. Never GC while a gate/benchmark
-  runs (lesson: a mid-measurement GC corrupted a benchmark pin today).
-  Also candidates: ~/.cache/cix (12G) after confirming no warm
-  workspaces in use.
-- **THEN**: append the final landings to the board-clearing LOG entry
-  above (thin2 + fetchself merge hashes, CI verdicts), close remaining
-  herdr workspaces, and send Mathijs ONE PushNotification day-closed
-  summary (he is asleep; only push failure-needing-action otherwise).
-- **Open with Mathijs (remind at next session start, package
-  actionably)**: the 14 one-line dispositions + ARG re-marking
-  (docs/open-questions.md — propose as 14 yes/no lines); adoption of
-  drafts: emit-nix, file-from, test-pyramid (all in cips/draft/).
-- **Goal state**: /goal drive-progress was ACTIVE (session-scoped, dies
-  with the session); its substance is covered by the
-  drive-cips-to-implementation memory — re-activation is Mathijs's
-  call. Board status at handoff: every adopted CIP implemented and
-  CI-green except the two in-flight tracks above.
-- **herdr fleet at handoff**: w23 (fetchself, working), w24 (thin2,
-  idle — close after merge). All other workspaces closed.
+- **track/fetchself MERGED** (`e2402d1`, CI green): CIP-87
+  self-observation rule with all four conditions, a/b adversarial
+  regression, cold control green, two-prime workaround removed. The
+  14.46s scare was an unlike comparison — steady-warm holds at
+  **8.31s / 8.84s**, and the **no-op is now 0.07s** (parity with the
+  raw upstream flake). docs/nix-build.md reports first-warm and
+  steady-warm separately. ~5.9s of steady-warm is gitsitter's own
+  .git/HEAD floor — upstream issue #24 filed; fixing it opens sub-3s.
+- **track/thin2 MERGED** (`658e0df`, CI watch pending at write time):
+  compose strata pass — directories.rs (426) + network.rs (247)
+  extracted as pure moves, publish validation colocated, a shared-dir
+  newline regression caught with an assertion. Gate r1 was starved by
+  an OVERLAPPING full gate (VM boot timeout under shared bounded
+  cores) — **operational rule: never run two full gates
+  concurrently**; r2 solo green.
+- **GC + roots audit done** (Mathijs's request): 1132 non-proc roots —
+  795 censored other-user process roots (untouchable), 149 cix item
+  roots (product-managed, kept), 117 devenv roots (mostly
+  bittensor), 45 home-manager generations (left; `-d` not run
+  unasked), plus composix worktree residue. Removed all 16 merged
+  track worktrees + .worktrees/ergo, then `nix-collect-garbage`:
+  **30,949 paths, 137 GiB freed** (disk 100%→71% across the evening's
+  cleanups). ~/.cache/cix (12G) left untouched — warm workspaces live
+  there; a trim is a fresh-session decision.
+- **Board state**: every adopted CIP (75–90) + D70 implemented, merged,
+  CI-green. Drafts awaiting Mathijs: emit-nix, file-from,
+  test-pyramid. Dispositions batch + ARG re-marking still open with
+  Mathijs — package as 14 yes/no lines next session.
+- Remaining stray worktrees .worktrees/{cigreen2,crunchy,proj1?} are
+  PRE-EXISTING (not from today) — successor: check their branches
+  before touching.
 
 ## 2026-08-02 (the board-clearing day: every adopted CIP implemented; herdr C2; fable's first crack)
 
