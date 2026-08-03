@@ -1,8 +1,21 @@
 //! Compose trees: strict manifests, locked resolution, deterministic generations, and activation.
+//!
+//! ## Module map
+//!
+//! `model` owns strict persisted compose and lock shapes; `resolve` walks the
+//! tree and resolves item references; `directories` owns declared-directory
+//! materialization and its unit projection; `network` owns pod/publication
+//! types, validation, leases, and socket/namespace projections; `generation`
+//! conducts their deterministic unit ordering. `runtime` owns host lifecycle;
+//! `cli`, `observability`, and `ps` own their command projections. Health is
+//! intentionally compiled by `cix-run`, where the manifest-owned health types
+//! live. New compose feature strata belong in their own module.
 
 pub mod cli;
+mod directories;
 mod generation;
 mod model;
+mod network;
 mod observability;
 mod ps;
 mod resolve;

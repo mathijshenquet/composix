@@ -19,10 +19,10 @@ use sha2::Sha256;
 use crate::{
     build_generation_with_closed_root,
     cli::CleanWhat,
-    generation::{
-        build_generation_with_leases, DirectoryBackingKind, Manifest, PodLease, UnitKind,
-    },
-    load_and_check, unit_path, Compose, UpdateRequest,
+    generation::{build_generation_with_leases, DirectoryBackingKind, Manifest, UnitKind},
+    load_and_check,
+    network::PodLease,
+    unit_path, Compose, UpdateRequest,
 };
 
 const PROFILE_DIRECTORY: &str = "/nix/var/nix/profiles";
@@ -149,7 +149,7 @@ fn validate_host_backing_exists(checked: &crate::CheckResult) -> Result<()> {
             }
         }
         for claim in &checked_service.directories {
-            let crate::resolve::DirectoryBacking::Host { path, .. } = &claim.backing else {
+            let crate::directories::DirectoryBacking::Host { path, .. } = &claim.backing else {
                 continue;
             };
             let metadata = fs::metadata(path).with_context(|| {
@@ -379,8 +379,8 @@ pub fn clean(name: &str, what: CleanWhat) -> Result<()> {
         current_generation(name)?.with_context(|| format!("composite {name:?} has no profile"))?;
     let manifest = load_manifest(&generation)?;
     let (role, systemd_what) = match what {
-        CleanWhat::Cache => (Some(crate::model::DirectoryRole::Cache), "cache"),
-        CleanWhat::Logs => (Some(crate::model::DirectoryRole::Logs), "logs"),
+        CleanWhat::Cache => (Some(crate::directories::DirectoryRole::Cache), "cache"),
+        CleanWhat::Logs => (Some(crate::directories::DirectoryRole::Logs), "logs"),
         CleanWhat::State => {
             bail!(
                 "refusing to clean STATEDIR: durable state is not expendable; use cix down {name} --purge --yes to remove this composite's cix-owned private state"
