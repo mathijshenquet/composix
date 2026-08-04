@@ -248,8 +248,10 @@ fn inspect(state_directory: &std::path::Path, options: Inspect) -> anyhow::Resul
         bail!("--user only applies to runtime inspection; add --runtime");
     }
 
-    let artifact_exists = local_artifact_exists(state_directory, &options.target)?;
-    let runtime = if options.artifact {
+    let remote_artifact = is_qualified_remote_ref(&options.target);
+    let artifact_exists =
+        remote_artifact || local_artifact_exists(state_directory, &options.target)?;
+    let runtime = if options.artifact || remote_artifact {
         None
     } else {
         cix_run::exec::select_running_target(&options.target, options.user).ok()
@@ -295,6 +297,12 @@ fn select_world(
     } else {
         Ok(InspectionWorld::Artifact)
     }
+}
+
+fn is_qualified_remote_ref(target: &str) -> bool {
+    cix_common::Ref::parse(target)
+        .ok()
+        .is_some_and(|reference| reference.root_url.is_some())
 }
 
 fn local_artifact_exists(state_directory: &std::path::Path, target: &str) -> anyhow::Result<bool> {
@@ -670,6 +678,12 @@ mod tests {
             .to_string();
         assert!(error.contains("cix inspect --artifact nginx"), "{error}");
         assert!(error.contains("cix inspect --runtime nginx"), "{error}");
+    }
+
+    #[test]
+    fn qualified_refs_select_the_remote_artifact_world() {
+        assert!(is_qualified_remote_ref("localhost:8420/family/member:v1"));
+        assert!(!is_qualified_remote_ref("family/member:v1"));
     }
 
     #[test]

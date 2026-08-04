@@ -64,7 +64,7 @@ pub(crate) fn add_properties(
         let mut bind_values = Vec::new();
         // The managed root is an ownership anchor. Its id-mapped view must
         // exist before the explicit per-path binds project its subpaths.
-        if bind && !user && role != "config" && role != "run" {
+        if bind && !user && role != "run" {
             directory_values.push(managed_base.to_owned());
         }
         for destination in paths {
@@ -110,6 +110,7 @@ pub(crate) fn add_environment(environment: &mut Vec<(String, String)>, dirs: &Di
         ("STATE_DIRECTORY", dirs.state.as_slice()),
         ("CACHE_DIRECTORY", dirs.cache.as_slice()),
         ("LOGS_DIRECTORY", dirs.logs.as_slice()),
+        ("CONFIGURATION_DIRECTORY", dirs.config.as_slice()),
         ("RUNTIME_DIRECTORY", dirs.run.as_deref().unwrap_or_default()),
     ] {
         if !paths.is_empty() {

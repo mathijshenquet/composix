@@ -32,6 +32,15 @@ for new decisions.
   range. First instances: CIP-85 (compose tree, D40–D46) and CIP-86
   (netns realization, D49).
 
+## CIP-light
+
+For small, self-contained questions the four-chapter form is overhead
+(Mathijs, 2026-08-04). A CIP-light is one screen: **Problem** (all
+context inline — a reader needs no other document), **Proposal**,
+**Effort**. Marked `Status: draft, CIP-light`. Lifecycle, numbering on
+adoption, and the strict-inbox rule are identical to full CIPs; a light
+that grows real open questions graduates to the four-chapter form.
+
 ## Template
 
 Four chapters (per Mathijs's format), plus one on adoption:

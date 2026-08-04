@@ -11,8 +11,9 @@ You will inspect a tagged HTTP service with health contracts at the honest rootl
 
 The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.
 
-```sh
-$ cat Cixfile server.py
+#### `Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE web
@@ -32,6 +33,11 @@ START true
 SERVICE observer
 IMPORT ${pkgs.coreutils}
 START sleep 300
+```
+
+#### `server.py`
+
+```python
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class Handler(BaseHTTPRequestHandler):

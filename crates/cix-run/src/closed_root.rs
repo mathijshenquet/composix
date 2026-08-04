@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
+const HOSTS_SKELETON_V1: &str = "127.0.0.1 localhost\n::1 localhost\n";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedRootOptions {
     root_directory: PathBuf,
@@ -84,6 +86,11 @@ pub fn prepare(options: &ClosedRootOptions) -> Result<()> {
         .with_context(|| format!("creating closed-root directory {}", usr_bin.display()))?;
     fs::create_dir_all(&nss)
         .with_context(|| format!("creating closed-root directory {}", nss.display()))?;
+    let hosts = etc.join("hosts");
+    fs::write(&hosts, HOSTS_SKELETON_V1)
+        .with_context(|| format!("writing closed-root hosts skeleton {}", hosts.display()))?;
+    fs::set_permissions(&hosts, fs::Permissions::from_mode(0o444))
+        .with_context(|| format!("sealing closed-root hosts skeleton {}", hosts.display()))?;
     for name in ["passwd", "group"] {
         let path = nss.join(name);
         if !path.exists() {
@@ -231,6 +238,18 @@ mod tests {
 
         assert!(options.gc_root_directory.is_dir());
         assert!(options.root_directory.join("nss/passwd").is_file());
+        assert_eq!(
+            fs::read_to_string(options.root_directory.join("etc/hosts")).unwrap(),
+            HOSTS_SKELETON_V1
+        );
+        assert_eq!(
+            fs::metadata(options.root_directory.join("etc/hosts"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o444
+        );
         assert_eq!(
             fs::read_link(options.root_directory.join("usr/bin/env")).unwrap(),
             Path::new("/bin/env")

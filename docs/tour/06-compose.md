@@ -9,11 +9,24 @@ You will connect two independently built services with a Unix edge and shared st
 
 ## Named listeners are systemd sockets
 
-A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
+A `LISTENER` does not let the process call `socket()` for that port. This canonical Cixfile imports the probe's runtime, copies the checked-in Python script, and declares `LISTENER http`; systemd owns the socket and passes file descriptor 3 to the process.
 
-```sh
-$ cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json
-#!/usr/bin/python3
+#### `listener-fixture/Cixfile`
+
+```dockerfile
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE listener-demo
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY listenfds.py /bin/listenfds
+START listenfds
+LISTENER http
+```
+
+#### `listener-fixture/listenfds.py`
+
+```python
+#!/usr/bin/env python3
 import os
 import socket
 
@@ -34,22 +47,163 @@ while True:
             + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             + b"Connection: close\r\n\r\n" + body
         )
+```
+
+```sh
+$ cix build listener-fixture
+{
+  "listener-demo": "/nix/store/…-cix-item-listener-demo"
+}
+```
+
+#### `cix-manifest.json`
+
+```json
 {
   "cixManifest": 0,
-  "start": [
-    "bin/listenfds"
-  ],
+  "env": {
+    "PATH": {
+      "default": "bin"
+    }
+  },
   "listeners": {
     "http": {
       "type": "stream"
     }
-  }
+  },
+  "mounts": [
+    "/bin/[",
+    "/bin/b2sum",
+    "/bin/base32",
+    "/bin/base64",
+    "/bin/basename",
+    "/bin/basenc",
+    "/bin/cat",
+    "/bin/chcon",
+    "/bin/chgrp",
+    "/bin/chmod",
+    "/bin/chown",
+    "/bin/chroot",
+    "/bin/cksum",
+    "/bin/comm",
+    "/bin/coreutils",
+    "/bin/cp",
+    "/bin/csplit",
+    "/bin/cut",
+    "/bin/date",
+    "/bin/dd",
+    "/bin/df",
+    "/bin/dir",
+    "/bin/dircolors",
+    "/bin/dirname",
+    "/bin/du",
+    "/bin/echo",
+    "/bin/env",
+    "/bin/expand",
+    "/bin/expr",
+    "/bin/factor",
+    "/bin/false",
+    "/bin/fmt",
+    "/bin/fold",
+    "/bin/groups",
+    "/bin/head",
+    "/bin/hostid",
+    "/bin/id",
+    "/bin/idle",
+    "/bin/idle3",
+    "/bin/idle3.14",
+    "/bin/install",
+    "/bin/join",
+    "/bin/kill",
+    "/bin/link",
+    "/bin/listenfds",
+    "/bin/ln",
+    "/bin/logname",
+    "/bin/ls",
+    "/bin/md5sum",
+    "/bin/mkdir",
+    "/bin/mkfifo",
+    "/bin/mknod",
+    "/bin/mktemp",
+    "/bin/mv",
+    "/bin/nice",
+    "/bin/nl",
+    "/bin/nohup",
+    "/bin/nproc",
+    "/bin/numfmt",
+    "/bin/od",
+    "/bin/paste",
+    "/bin/pathchk",
+    "/bin/pinky",
+    "/bin/pr",
+    "/bin/printenv",
+    "/bin/printf",
+    "/bin/ptx",
+    "/bin/pwd",
+    "/bin/pydoc",
+    "/bin/pydoc3",
+    "/bin/pydoc3.14",
+    "/bin/python",
+    "/bin/python-config",
+    "/bin/python3",
+    "/bin/python3-config",
+    "/bin/python3.14",
+    "/bin/python3.14-config",
+    "/bin/readlink",
+    "/bin/realpath",
+    "/bin/rm",
+    "/bin/rmdir",
+    "/bin/runcon",
+    "/bin/seq",
+    "/bin/sha1sum",
+    "/bin/sha224sum",
+    "/bin/sha256sum",
+    "/bin/sha384sum",
+    "/bin/sha512sum",
+    "/bin/shred",
+    "/bin/shuf",
+    "/bin/sleep",
+    "/bin/sort",
+    "/bin/split",
+    "/bin/stat",
+    "/bin/stdbuf",
+    "/bin/stty",
+    "/bin/sum",
+    "/bin/sync",
+    "/bin/tac",
+    "/bin/tail",
+    "/bin/tee",
+    "/bin/test",
+    "/bin/timeout",
+    "/bin/touch",
+    "/bin/tr",
+    "/bin/true",
+    "/bin/truncate",
+    "/bin/tsort",
+    "/bin/tty",
+    "/bin/uname",
+    "/bin/unexpand",
+    "/bin/uniq",
+    "/bin/unlink",
+    "/bin/uptime",
+    "/bin/users",
+    "/bin/vdir",
+    "/bin/wc",
+    "/bin/who",
+    "/bin/whoami",
+    "/bin/yes",
+    "/share/gdb",
+    "/share/man"
+  ],
+  "start": [
+    "bin/listenfds"
+  ]
 }
 ```
 
 ```sh
-$ cix run /nix/store/…-listener-fixture --user -p http=127.0.0.1:8420 --detach
-cix-run-listener-fixture-NONCE.service
+$ cix run /nix/store/…-cix-item-listener-demo --user -p http=127.0.0.1:8420 --detach
+cix-run-listener-demo-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
 
@@ -59,13 +213,14 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop cix-run-listener-fixture-NONCE.service
+$ systemctl --user stop cix-run-listener-demo-NONCE.service
 ```
 
 ## Two items, one operator document
 
-```sh
-$ cat producer/Cixfile consumer/Cixfile
+#### `producer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE producer
@@ -74,6 +229,11 @@ START sleep 300
 ENV VERSION = v1
 STATEDIR /var/lib/shared
 RUNDIR /run/producer
+```
+
+#### `consumer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE consumer
@@ -99,8 +259,9 @@ $ cix build consumer -t v1
 
 The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
 
-```sh
-$ cat compose.json
+#### `compose.json`
+
+```json
 {
   "cixCompose": 1,
   "name": "tour-stack",
@@ -130,8 +291,9 @@ $ cix compose check compose.json
 compose tour-stack: 2 services, 1 edges, valid
 ```
 
-```sh
-$ cat cix.lock
+#### `cix.lock`
+
+```
 {
   "paths": {
     "consumer": {

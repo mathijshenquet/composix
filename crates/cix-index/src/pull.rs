@@ -6,11 +6,13 @@ use anyhow::{anyhow, bail, Context, Result};
 use cix_common::{current_system, nix, Ref};
 use std::path::Path;
 
+const INDEX_MEDIA_TYPE: &str = "application/vnd.cix+json;version=1";
+
 fn endpoint(reference: &Ref, path: &str) -> Result<String> {
     let root = reference
         .root_url
         .as_deref()
-        .context("pull requires a remote root_url")?;
+        .context("remote index resolution requires a root_url")?;
     let scheme = if root.starts_with("localhost") || root.starts_with("127.") {
         "http"
     } else {
@@ -22,15 +24,24 @@ fn endpoint(reference: &Ref, path: &str) -> Result<String> {
 pub(crate) fn resolve_remote(reference: &Ref) -> Result<Entry> {
     let url = endpoint(reference, &format!("/{}:{}", reference.name, reference.tag))?;
     let response = ureq::get(&url)
-        .set("Accept", "application/vnd.cix+json;version=1")
+        .set("Accept", INDEX_MEDIA_TYPE)
         .call()
-        .map_err(|error| anyhow!("resolving {url}: {error}"))?;
-    if response.status() != 200 {
-        bail!("resolving {url} returned HTTP {}", response.status());
+        .map_err(|error| match error {
+            ureq::Error::Status(404, _) => anyhow!("index ref not found at {url} (HTTP 404)"),
+            ureq::Error::Status(status, _) => {
+                anyhow!("index request to {url} returned HTTP {status}")
+            }
+            ureq::Error::Transport(error) => {
+                anyhow!("could not connect to index at {url}: {error}")
+            }
+        })?;
+    let content_type = response.header("Content-Type").unwrap_or_default();
+    if !content_type.starts_with(INDEX_MEDIA_TYPE) {
+        bail!("index at {url} returned a non-cix response (Content-Type `{content_type}`)");
     }
     response
         .into_json()
-        .context("parsing index resolve response")
+        .with_context(|| format!("parsing cix index response from {url}"))
 }
 
 pub(crate) fn fetch_output(reference: &Ref, entry: &Entry, output: &Output) -> Result<()> {

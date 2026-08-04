@@ -19,11 +19,22 @@ check_relative_path() {
 }
 
 fetch() {
-  local name candidate source repo rev context_path temp source_tree excluded
+  local selector axis name candidate source repo rev context_path temp source_tree excluded
 
-  name=$1
-  candidate="$root/$name"
-  source="$root/$name/SOURCE"
+  selector=$1
+  case $selector in
+    */*)
+      axis=${selector%%/*}
+      name=${selector#*/}
+      [[ -n $axis && -n $name && $name != */* ]] || die "invalid candidate '$selector'"
+      ;;
+    *)
+      axis=docker
+      name=$selector
+      ;;
+  esac
+  candidate="$root/$axis/$name"
+  source="$candidate/SOURCE"
 
   [[ -d $candidate ]] || die "unknown candidate '$name'"
   [[ -f $source ]] || die "$name has no SOURCE file"
@@ -61,21 +72,21 @@ fetch() {
   rm -rf -- "$candidate/context"
   mv "$source_tree" "$candidate/context"
   LC_ALL=C find "$candidate/context" -type f -printf '%P\t%s\n' | LC_ALL=C sort > "$candidate/context.files"
-  printf 'fetched %s at %s\n' "$name" "$rev"
+  printf 'fetched %s/%s at %s\n' "$axis" "$name" "$rev"
 }
 
 case ${1:-} in
   --all)
-    [[ $# -eq 1 ]] || die 'usage: ./fetch.sh [--all|<name>]'
+    [[ $# -eq 1 ]] || die 'usage: ./fetch.sh [--all|<name>|<axis>/<name>]'
     while IFS= read -r source; do
       if grep -q '^Context path:' "$source"; then
-        fetch "$(basename "$(dirname "$source")")"
+        fetch "$(basename "$(dirname "$(dirname "$source")")")/$(basename "$(dirname "$source")")"
       fi
-    done < <(find "$root" -mindepth 2 -maxdepth 2 -type f -name SOURCE | sort)
+    done < <(find "$root" -mindepth 3 -maxdepth 3 -type f -name SOURCE | sort)
     ;;
-  '') die 'usage: ./fetch.sh [--all|<name>]' ;;
+  '') die 'usage: ./fetch.sh [--all|<name>|<axis>/<name>]' ;;
   *)
-    [[ $# -eq 1 ]] || die 'usage: ./fetch.sh [--all|<name>]'
+    [[ $# -eq 1 ]] || die 'usage: ./fetch.sh [--all|<name>|<axis>/<name>]'
     fetch "$1"
     ;;
 esac

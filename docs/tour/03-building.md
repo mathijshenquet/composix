@@ -11,8 +11,9 @@ You will build pinned network inputs in persistent workspaces, audit them cold, 
 
 This compact fixture uses both trust modes. `expected` carries the author's whole-tree SRI hash directly in the Cixfile; `resolved` asks cix to fetch twice and record only the downstream-observable path when you explicitly update that lock entry.
 
-```sh
-$ cat fetch-demo/Cixfile
+#### `fetch-demo/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 FETCH expected ${pkgs.coreutils}/bin/printf author-pinned > expected EXPECT sha256-FMDQ1JAsOcmebFh//goocO3F9g7aCK37MJxrDuzvqw8=
@@ -43,8 +44,9 @@ BUILDER assemble step 3 RUN executed
 BUILDER assemble memo miss 996aef633ffd -> /nix/store/…-cix-build-view
 ```
 
-```sh
-$ cat /nix/store/…-cix-item-fetched-result/result
+#### `result`
+
+```
 author-pinnedlock-pinned
 ```
 
@@ -132,8 +134,9 @@ BUILDER assemble memo miss 996aef633ffd -> /nix/store/…-cix-build-view
 
 The next FETCH downloads an ELF whose interpreter is the conventional GNU `/lib64/ld-linux-x86-64.so.2`. The builder imports a shell and core utilities but no libc, so executing the untouched download must fail—and the shown diagnostic is produced by the real trace, not copied into this guide.
 
-```sh
-$ cat fhs-demo/Cixfile
+#### `fhs-demo/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 FETCH native ${pkgs.curl}/bin/curl -fsS http://127.0.0.1:8420/fhs-probe -o fhs-probe EXPECT sha256-1gzOMISEGO2q2/dK8HpOVFArd8ROwzTqw6TmaVloGa8=
@@ -189,8 +192,9 @@ BUILDER native-build step 3 RUN executed
 BUILDER native-build memo miss f5d5a2149974 -> /nix/store/…-cix-build-view
 ```
 
-```sh
-$ cat /nix/store/…-cix-item-native-result/result
+#### `result`
+
+```
 fhs-tour-ok
 ```
 
@@ -198,8 +202,9 @@ fhs-tour-ok
 
 The capstone is a real Cargo workspace. One BUILDER imports its complete pinned toolchain, stages the declared workspace, and runs Cargo offline; two SERVICE blocks consume one release binary each.
 
-```sh
-$ cat proj1/Cixfile
+#### `proj1/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / whoami — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / whoami</nav>
+  <h1>docker / whoami</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime certificate/timezone layout and twin regained; absent upstream context leaves the source build unproved · <strong>Evidence:</strong> runtime probe + cold twin builds</p>
+  <p class="status"><strong>Receipt status:</strong> Both Docker-shaped and dissolved twins build warm/cold and the HTTP probe passes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/whoami/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/whoami/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The supplied pair has no checked-out Go build context, and the attempted source reconstruction hit Cix&#39;s context-free <code>Not a directory</code> builder failure; the primary file therefore uses the nixpkgs binary in the Docker runtime layout rather than proving the upstream source build. → evidence</li>
+      <li>Docker&#39;s scratch-root identity dissolves into Cix&#39;s isolated dynamic service identity; fixed root ownership is not preserved. → case</li>
+    </ul>
+  </aside>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> golang:1-alpine AS builder
+
+<span class="tok-directive">RUN</span> apk --no-cache --no-progress add git ca-certificates tzdata make \
+    &amp;&amp; update-ca-certificates \
+    &amp;&amp; rm -rf /var/cache/apk/*
+
+<span class="tok-directive">WORKDIR</span> /go/whoami
+
+<span class="tok-comment"># Download go modules</span>
+<span class="tok-directive">COPY</span> go.mod .
+<span class="tok-directive">COPY</span> go.sum .
+<span class="tok-directive">RUN</span> GO111MODULE=on GOPROXY=https://proxy.golang.org go mod download
+
+<span class="tok-directive">COPY</span> . .
+
+<span class="tok-directive">RUN</span> make build
+
+<span class="tok-comment"># Create a minimal container to run a Golang static binary</span>
+<span class="tok-directive">FROM</span> scratch
+
+<span class="tok-directive">COPY</span> --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+<span class="tok-directive">COPY</span> --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+<span class="tok-directive">COPY</span> --from=builder /go/whoami/whoami .
+
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;/whoami&quot;</span>]
+<span class="tok-directive">EXPOSE</span> 80
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>https://raw.githubusercontent.com/traefik/whoami/master/Dockerfile
+Fetched: 2026-07-30
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-whoami-0-faithful" name="tabs-whoami-0" type="radio" checked>
+        <label for="tabs-whoami-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-whoami-0-dissolved" name="tabs-whoami-0" type="radio">
+        <label for="tabs-whoami-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+<span class="tok-directive">SERVICE</span> whoami
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.whoami}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.whoami}</span>/bin/whoami /whoami
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tzdata}</span>/share/zoneinfo /usr/share/zoneinfo
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.cacert}</span>/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
+  <span class="tok-directive">START</span> whoami
+  <span class="tok-directive">PORT</span> http = 80
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE whoami
+  IMPORT ${pkgs.whoami}
+  START whoami
+  PORT http = 80
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;whoami&quot;: {
+      &quot;sourceHash&quot;: &quot;90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/1j7fzvgv6izkkhhy73rr9dr45zzwvxp5-cix-item-whoami&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;whoami&quot;: {
+      &quot;sourceHash&quot;: &quot;90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+docker_tag=migrate-whoami-docker
+container=
+unit=
+
+cleanup() {
+  if [[ -n $container ]]; then
+    docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $unit ]]; then
+    sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+}
+trap cleanup EXIT
+trap &#39;exit 1&#39; ERR
+
+probe() {
+  local url=$1
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot;; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    image=$(timeout 240 docker build --quiet --tag &quot;$docker_tag&quot; https://github.com/traefik/whoami.git)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18080:80 &quot;$docker_tag&quot;)
+    probe http://127.0.0.1:18080/
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#whoami&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:80/
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *)
+    echo &quot;usage: $0 {docker|cix}&quot; &gt;&amp;2
+    exit 1
+    ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># whoami migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, bare builder commands, and bare artifact `START`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:bf3c544f03d387bd30e9b8bc2e08bc6b6f4aae80d884822fe43e472844ab5d44`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/5raa2baz0ixyj7lrhqzrcdbpvf8rlj0i-cix-item-whoami
+PASS cix
+```
+
+Exit status: 0. The HTTP probe passed.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: both staged twins built and the supplied HTTP probe exited
+0. The primary item was `/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami`;
+the dissolved item was `/nix/store/1j7fzvgv6izkkhhy73rr9dr45zzwvxp5-cix-item-whoami`.
+
+The assembler observed the same two items from
+`target/debug/cix build corpus/migrate/docker/whoami` and the `--file
+Cixfile.dissolved` twin command, both exit 0. The supplied probe, run
+synchronously from the case directory with this worktree&#39;s `CIX`, exited 0 and
+printed the HTTP request plus `PASS cix`. Repeating both builds with `--cold`
+also exited 0 with the same items. Whoami has no fetched local context, and
+Docker mode was not rerun.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/whoami</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

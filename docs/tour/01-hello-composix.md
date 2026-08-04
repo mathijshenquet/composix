@@ -19,8 +19,9 @@ Production `cix run` projects the item and its writable role directories. A user
 
 Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.
 
-```sh
-$ cat Cixfile index.html nginx.conf
+#### `Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE hello
@@ -31,7 +32,17 @@ START nginx -c /etc/nginx/nginx.conf -e stderr -g 'pid /run/nginx/nginx.pid;'
 PORT http = 18085
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
+```
+
+#### `index.html`
+
+```html
 <h1>hello from your first composix service</h1>
+```
+
+#### `nginx.conf`
+
+```nginx
 daemon off;
 error_log stderr info;
 events { }
@@ -49,8 +60,9 @@ $ cix build .
 }
 ```
 
-```sh
-$ cat /nix/store/…-cix-item-hello/cix-manifest.json
+#### `cix-manifest.json`
+
+```json
 {
   "cixManifest": 0,
   "dirs": {

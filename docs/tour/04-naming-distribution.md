@@ -21,9 +21,15 @@ cix-manifest.json
 message
 ```
 
-```sh
-$ cat my-app-v1/message my-app-v1/cix-manifest.json
+#### `my-app-v1/message`
+
+```
 hello from my app v1
+```
+
+#### `my-app-v1/cix-manifest.json`
+
+```json
 {
   "cixManifest": 0,
   "start": [
@@ -103,7 +109,7 @@ publisher $ curl -s -H 'Accept: application/vnd.cix+json;version=1' http://127.0
   "outputs": {
     "x86_64-linux": {
       "storePath": "/nix/store/…-my-app-v2",
-      "narHash": "sha256-KXXUskqxQDjPHhzCKBZjWcvnl6wuoCuV0/Q0pnNHcBQ="
+      "narHash": "sha256-RjCaiJXTUouWsFOI8t0XLrynb/9J9LsP74fOO2J+ebM="
     }
   },
   "substituters": [
