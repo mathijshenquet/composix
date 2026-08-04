@@ -4221,7 +4221,8 @@ mod tests {
             .filter_map(Result::ok)
             .map(|entry| entry.path().join("bin/bash"))
             .find(|candidate| candidate.is_file())
-            .expect("the Nix test host provides bash");
+            .and_then(|candidate| candidate.canonicalize().ok())
+            .expect("the Nix test host provides a resolvable bash");
         let offer = shell
             .parent()
             .unwrap()

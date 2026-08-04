@@ -179,3 +179,15 @@
   package builds, at the already-known separate `Error: Not a directory (os
   error 20)`. The former Sass loader `spawn … ENOENT` is absent. No corpus
   Cixfile was modified; next is documentation and ledger currency.
+
+- 2026-08-04T10:18:00Z — The broad gate exposed an existing nondeterminism in
+  `socket_filter_is_accepted_by_bubblewrap`: it selected the first
+  `/nix/store/*/bin/bash`, which can now be a cix-item symlink whose target is
+  not a reference in that item's NAR-added closure. The test now canonicalizes
+  the selected executable before deriving the offered package, matching its
+  intent independently of store directory order. Exact focused test and fmt
+  check passed. The first broad-gate retries also exhausted filesystem bytes;
+  only this task's disposable Directus workspaces and local Cargo target were
+  removed, while its acceptance log was retained. Further Cargo work uses the
+  task-owned `/dev/shm/composix-fhspaths-20260804` target; no shared Nix garbage
+  was collected.
