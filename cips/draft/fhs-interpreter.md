@@ -1,8 +1,10 @@
 # fhs-interpreter — downloaded native binaries in bare builders
 
-Status: **draft v2** (2026-08-04; v1 promoted from the corpusgaps sweep,
-v2 rewritten on the track/fhsspike evidence per Mathijs: spike first,
-then concrete syntax proposals).
+Status: **draft v3** (2026-08-04; v1 promoted from the corpusgaps sweep,
+v2 rewritten on the track/fhsspike evidence, v3 after Mathijs's
+structural direction: the build already runs traced in a sandbox — detect
+failed FHS reads there and match them to providers, instead of teaching
+humans a "try build → patch +1" loop; repair stays opt-in via a keyword).
 
 ## 1. The problem
 
@@ -101,23 +103,73 @@ claim-shaped/ambient form doing the repair itself, and claims elsewhere
 in the language grant *capabilities*, not transformations — a
 transformation wearing a claim costume muddies that vocabulary.
 
-**Lean:** (A) immediately (it is true today and the corpus needs it for
-directus regen), (B) as the language feature when a second real case
-arrives — it keeps per-executable explicitness, adds validation the RUN
-pattern cannot (arch/libc refusal, RPATH derivation, lock recording),
-and its glob absorbs the measured brittleness. (C) rejected on phase
-grounds; (D) rejected as claim-vocabulary pollution, though its
-"remaining unpatched ELF" diagnostic idea can ride along with (B).
+**(E) Trace-driven detection — always on, no keyword.** The step already
+runs under the CIP-87 tracer, and that tracer already parses failed opens
+(`= -1 ENOENT` results are recognized in `trace.rs` today) — the spike's
+whole painful discovery phase was information the sandbox had and threw
+away. When a RUN step fails, cix scans the step's trace for (i) `execve`
+ENOENT on a path inside the workdir (the directus `spawn … dart ENOENT`
+shape), (ii) reads of FHS loader paths (`/lib64/ld-*`, `/lib/ld-*`), and
+(iii) failed SONAME opens during dynamic loading. The error then names
+the failing executable, its ELF interpreter, and the missing
+loader/SONAMEs, and matches them against what the builder's IMPORTed
+packages (plus the loader→libc map) provide:
+
+```text
+error: RUN step 6 failed: node_modules/…/dart-sass/src/dart requires the
+  FHS loader /lib64/ld-linux-x86-64.so.2 (not present in a cix builder)
+  and libm.so.6, libc.so.6 — provided by imported ${pkgs.glibc}.
+  Downloaded native binaries need an explicit repair: see FIXUP.
+```
+
+Pure diagnosability (D73 spirit): no semantics change, no opt-in needed,
+and it deletes the loop's discovery half for every ecosystem at once.
+
+**(F) Opt-in bounded auto-repair — the keyword.**
+
+```dockerfile
+FIXUP WITH ${pkgs.glibc} ${pkgs.zlib}
+```
+
+Builder-scoped, opt-in. With the declaration present, a RUN step that
+(E)-detects a repairable downloaded ELF gets it patched automatically —
+interpreter and RPATH — **only from the declared WITH set**: cix maps the
+observed missing loader/SONAMEs to the declared packages' `lib/` trees,
+patches, records the changed file in the lock, and re-runs the step. A
+need no declared package satisfies is a loud refusal naming the SONAME
+(the musl alternate stays safe: no declared musl, no silent mispatch).
+The human loop collapses to "read the (E) diagnostic, declare the
+providers it names"; the iteration moves inside one build step, bounded
+by the declared set instead of ambient search.
+
+**Lean (v3):** (E) unconditionally — it is trace plumbing we largely
+have. (F) as the language feature, replacing v2's manual-target (B):
+target discovery came free from the trace, so the human declares only
+*providers*, which is exactly the dependency fact worth writing down.
+(A) remains the interim teaching until (F) exists; (B)'s validation
+machinery (arch/libc refusal, RPATH derivation, lock recording) survives
+inside (F) as implementation; (C) rejected on phase grounds; (D) rejected
+as claim-vocabulary pollution, though its "remaining unpatched ELF"
+diagnostic rides along in (E).
 
 ## 4. Open questions
 
-- Is one real case enough to build (B) now, or does (A) hold until a
-  second ecosystem (Playwright? node-gyp?) lands in the corpus?
-- Glob semantics in (B): bounded segment wildcards only (`@*`), or full
-  `**`? (Brittleness vs precision — the spike argues for the narrowest
-  glob that survives a lock bump.)
-- Should (B) also cover `--add-needed`/soname rewrites, or is
+- (E) needs the tracer to *retain* negative results long enough to
+  attribute them to the failing step's report — today the `-1 ENOENT`
+  parse exists but negatives are presumably dropped after read-set
+  filtering. Confirm the retention cost is trivial before promising
+  "always on".
+- Provider matching scope: the WITH set and IMPORTed packages are cheap
+  to search; suggesting providers from the whole locked universe needs a
+  nix-index-style SONAME database — defer, or build a small cached index
+  per universe rev?
+- Does (F) re-run the step after patching, or patch-and-continue within
+  the failed step? (Re-run is simpler and keying-safe; measure the cost
+  on the directus case.)
+- Keyword bikeshed: `FIXUP WITH …` vs `FIXUP ELF WITH …`; and does a
+  manual per-target form (v2's B) stay as an escape hatch or is
+  provider-only declaration enough?
+- Should (F) also cover `--add-needed`/soname rewrites, or is
   interpreter+RPATH the honest v0?
-- The musl alternate: refuse-by-default is decided by the evidence, but
-  should the refusal message name the musl loader explicitly to teach
-  the variant problem?
+- The musl alternate: refusal is decided; should the message name the
+  musl loader explicitly to teach the variant problem?
