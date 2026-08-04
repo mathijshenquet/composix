@@ -9,7 +9,7 @@ You will inspect a tagged HTTP service with health contracts at the honest rootl
 
 ## The item owns needs; the operator owns values
 
-The service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The APP beside it has a finite entrypoint and is therefore eligible for timer scheduling.
+The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.
 
 ```sh
 $ cat Cixfile server.py
@@ -28,6 +28,10 @@ LIVENESS http :18086/livez EVERY 2s
 APP cleanup
 IMPORT ${pkgs.coreutils}
 START true
+
+SERVICE observer
+IMPORT ${pkgs.coreutils}
+START sleep 300
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class Handler(BaseHTTPRequestHandler):
@@ -47,7 +51,7 @@ HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
 
 ```sh
 $ cix build . --namespace runtime -t v1
-{"cleanup":"/nix/store/…-cix-item-cleanup","web":"/nix/store/…-cix-item-web"}
+{"cleanup":"/nix/store/…-cix-item-cleanup","observer":"/nix/store/…-cix-item-observer","web":"/nix/store/…-cix-item-web"}
 ```
 
 ## Inspect the item, then cross the system-manager boundary
@@ -67,19 +71,33 @@ warning: cix debug --user is degraded development mode; it does not provide the 
 === cix debug: degraded service sandbox; service=cleanup; identity=caller (--user) ===
 ```
 
+The observer sibling is deliberately small and long-running, so the observability receipts can assert one tour-owned unit. `ps --json` selects that exact unit instead of formatting an ambient table whose widths depend on unrelated units; the `stats` projection keeps the live counters live while asserting their stable manager, composite, and unit identity.
+
 ```sh
-$ cix ps | head -n 1
-MANAGER  COMPOSITE  SERVICE                                                    UNIT                                                       STATE       RESULT     DESCRIPTION
+$ cix run runtime/observer:v1 --user --detach
+cix-run-observer-NONCE.service
+warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
 
 ```sh
-$ cix stats 2>/dev/null | head -n 1
+$ cix ps --json | jq --arg unit 'cix-run-observer-NONCE.service' '.[] | select(.unit == $unit) | {manager, service, unit, state}'
+{
+  "manager": "user",
+  "service": "observer",
+  "unit": "cix-run-observer-NONCE.service",
+  "state": "active/running"
+}
+```
+
+```sh
+$ cix stats 2>/dev/null | awk -v unit='cix-run-observer-NONCE.service' 'NR == 1 || $3 == unit'
 MANAGER  COMPOSITE  SERVICE  MEMORY  CPU  TASKS  IO  IP
+user  run  cix-run-observer-NONCE.service  <live>  <live>  <live>  <live>  <live>
 ```
 
 ```sh
-$ cix logs run/web --explain
-journalctl CIX_COMPOSITE=run CIX_SERVICE=web
+$ cix logs run/observer --explain
+journalctl CIX_COMPOSITE=run CIX_SERVICE=observer
 ```
 
 ## The system-manager guarantees
