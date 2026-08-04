@@ -56,6 +56,18 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   version gate or fix the retention mechanism; see the
   [Mastodon receipt](../corpus/migrate/mastodon/receipt.md#synchronous-receipt).
 
+- **Bare `Error: Not a directory` from cix build** (track/fhsspike,
+  2026-08-04): the patched directus build died with a context-free error
+  after the full pnpm build stream — no path, no step attribution. A
+  diagnosability defect (D73 spirit) and the actual remaining directus
+  blocker; reproduce from the fhsspike branch and give the error its
+  path + step context.
+- **Lock-scale observation** (track/fhsspike, 2026-08-04): the directus
+  builder run grew `Cixfile.lock` by ~148k lines of step observations /
+  dev-env data. Possibly correct-but-heavy CIP-87/88 output on a huge
+  read set; assess whether the lock format needs aggregation before
+  big-ecosystem cases become routine.
+
 ## Proposed one-line dispositions (awaiting Mathijs, batch-blessable)
 
 - **`docker cp`** ❓ → ❌ + docs: role dirs are host paths (CIP-82 makes
