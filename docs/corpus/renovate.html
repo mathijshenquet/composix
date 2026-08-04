@@ -56,9 +56,21 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / renovate</nav>
   <h1>renovate</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 schedule/logging pass; credentials await CIP-81 implementation · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix timer activation, execution, and indexed logs pass; token/config delivery is unconverted · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — no repository work, config/credentials, job-policy parity, or faithful twin · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Sealed-root timer activation, renovate --version, and indexed logs · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@0f63d00 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with CIP-81</p>
+    <ul>
+      <li>The scheduled APP runs only <code>renovate --version</code>; it never performs a repository renovation, so the green timer/log receipt is a mechanism probe rather than an application conversion. → case</li>
+      <li>Repository configuration and tokens are entirely absent even though they are required for useful execution; make that loss prominent wherever the case is summarized. → browser</li>
+      <li>CIP-81 now provides credential files, but the case has not converted the upstream config/secret delivery or demonstrated Renovate consuming it. → case</li>
+      <li>The upstream CronJob&#39;s schedule options, concurrency/deadline/retry policy, cache, command hooks, and pod placement knobs are reduced to hard-coded <code>daily</code> plus persistence without itemized dispositions. → case</li>
+      <li>This nixpkgs-only mechanism demo has no upstream-faithful CronJob twin. → case: add upstream-faithful twin</li>
+      <li>The closed-root receipt proves timer activation, a version command, and indexed logs only; it is not evidence for authenticated repository work. → evidence</li>
+    </ul>
+  </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">

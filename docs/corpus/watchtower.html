@@ -56,9 +56,19 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / watchtower</nav>
   <h1>watchtower</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ competing Docker control plane · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Go build succeeds, but faithful runtime requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ Refused — useful runtime requires Docker&#39;s socket/API and the upstream supply contract is unreproducible · <strong>Evidence:</strong> build</p>
+  <p class="status"><strong>Receipt status:</strong> Cix source build succeeds; Docker&#39;s CI-provided binary is absent · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>A faithful runtime requires Docker&#39;s host socket and control API, which composix deliberately refuses. → refused</li>
+      <li>The upstream Dockerfile consumes a CI-provided <code>watchtower</code> binary absent from the recorded repository context, so its Docker build cannot be reproduced from this pair. → evidence</li>
+      <li>The Cix conversion compiles source instead, a different supply contract that must not stand in for a Dockerfile-faithful twin. → case</li>
+      <li>Copying the built binary into <code>/bin</code> and invoking it by a bare name relies on implicit self-import rather than a declared artifact tool contract. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 170 files, 21075473 bytes</summary>
     <ul class="file-tree">

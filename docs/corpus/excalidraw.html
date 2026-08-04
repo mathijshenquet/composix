@@ -56,9 +56,19 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / excalidraw</nav>
   <h1>excalidraw</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Historical Docker and Cix HTTP probes pass; consumed build tree is not reproducible for closed-root audit · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/excalidraw/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — build environment/layout differ and Docker health is not declared as readiness · <strong>Evidence:</strong> runtime probe (historical)</p>
+  <p class="status"><strong>Receipt status:</strong> Historical Docker and Cix title probes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/excalidraw/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/excalidraw/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-79</p>
+    <ul>
+      <li>Docker&#39;s HTTP <code>HEALTHCHECK</code> is only mirrored by <code>check.sh</code>; regenerate with a native HTTP <code>READINESS</code> now that CIP-79 is built. → case</li>
+      <li>The Docker build supplies <code>NODE_ENV=production</code>, but the Cix builder drops that input without saying whether it is translated or unnecessary. → case</li>
+      <li>Static output moved from <code>/usr/share/nginx/html</code> to <code>/srv/www</code> with a replacement nginx configuration and no stated parity reason. → prompt</li>
+      <li>The orange grade is an evidence limit, not a runtime failure: the historical HTTP probe passed, but its consumed build tree has not been reproduced for the closed-root audit. → evidence</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 1260 files, 55359832 bytes</summary>
     <ul class="file-tree">

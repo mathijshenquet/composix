@@ -56,9 +56,18 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / redis</nav>
   <h1>redis</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + arbitrary-path state · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix build, direct /data state projection, and PING pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/redis/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — upstream version/build/entrypoint parity and a faithful twin are unproved · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Sealed-root direct /data state projection and PING · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/redis/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/redis/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>Direct interpolation of the nixpkgs executable is the clean one-binary style, but it leaves an empty-looking artifact and is the artifact-import draft&#39;s unresolved canon question. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The PING receipt does not establish upstream 7.4.8 parity, its compile-time protected-mode/TLS choices, or entrypoint argument behavior; Docker mode was not rerun. → evidence</li>
+      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 37 files, 122042 bytes</summary>
     <ul class="file-tree">

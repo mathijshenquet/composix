@@ -56,9 +56,20 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / dozzle</nav>
   <h1>dozzle</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ Docker-control-plane workload; build receipt is non-green · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ Refused — useful runtime requires Docker&#39;s socket/API; complete build is also non-green · <strong>Evidence:</strong> build (Cix failure)</p>
+  <p class="status"><strong>Receipt status:</strong> Cix UI build is non-reproducible; a backend-only experiment isolates D69 behavior · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-82</p>
+    <ul>
+      <li>The UI fetch/build produces different consumed bytes across clean runs and the pinned source lacks the Dockerfile&#39;s <code>shared_cert.pem</code>; the page must name both build blockers plainly. → browser</li>
+      <li>Establish a reproducible UI output and source contract before promoting the backend-only D69 experiment to evidence for the complete item. → evidence</li>
+      <li>A faithful runtime requires <code>/var/run/docker.sock</code> and Docker&#39;s control API, which composix deliberately refuses; outbound egress is not a substitute. → refused</li>
+      <li>The upstream writable <code>/data</code> path was silently replaced by <code>/var/lib/dozzle</code>; CIP-82 role paths can mirror <code>/data</code> directly. → prompt</li>
+      <li>Docker&#39;s <code>CLOUD_URL</code> build input and <code>TAG</code> version stamp are omitted without translated/dissolved/gap dispositions. → case</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 514 files, 31733665 bytes</summary>
     <ul class="file-tree">
