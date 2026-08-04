@@ -1,5 +1,13 @@
 # litdoc work log
 
+- 2026-08-04T15:34:33Z — Committed the complete JSON stdout formatting track
+  as `8dba887` (`cix: pretty-print JSON stdout`), including this journal's
+  prior receipts. `git status --short --branch` was clean immediately after.
+  The code changes only CLI stdout rendering and its parser-facing tour
+  harness; no manifest, lock, state, hash, or HTTP API serialization changed.
+  The track is ready for the orchestrator's independent full flake-matrix
+  gate.
+
 - 2026-08-04T15:34:03Z — Final standard agent tier is green with synchronous
   exit-0 receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell --
   cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy
