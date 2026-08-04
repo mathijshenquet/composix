@@ -90,3 +90,10 @@ een fundamentele gap blijkt." Amendments at adoption:
 - 2026-08-02: drafted.
 - 2026-08-04: adopted with the minimal-e2e and progressive-tests
   amendments.
+- 2026-08-04 (evening): progressive leg 1 landed — a derivation-diff VM
+  selector (nix/progressive-vm-check.nix): selection derived from nix's
+  own derivation identity, never hand-picked; measured docs-only 0/13,
+  corpus-only 0/13, one-crate change 13/13, loudly reported, full
+  matrix one flag away. Recorded follow-up: stratify scenario inputs so
+  a code change stops invalidating all 13 closures (the cix package is
+  in every one); the shim itself still waits per §3.5.
