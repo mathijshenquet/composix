@@ -300,3 +300,14 @@
   product has no literal mv/rm image-object verbs, so the prose teaches the
   actual tag/untag model rather than inventing them. Focused generation passed
   synchronously; no ENOSPC.
+
+- 2026-08-04T12:30:00Z — Chapter 5 is implemented and generated as
+  `05-runtime-contract.md`. A real tagged Python HTTP service exercises native
+  readiness/liveness adapters, rootless run, probe, debug, filtered ps, stats,
+  and logs explanation; a real APP produces and activates a user timer with
+  deterministic cleanup. Closed-root write denial, STATEDIR restart
+  persistence, credential delivery/rotation, and watchdog restart are stated
+  as system-manager guarantees with exact closedroot/dirs2/secrets/health VM
+  pointers because this host's user manager rejects mount projection. Narrowed
+  age normalization so declared `10s`/`2s` health durations no longer become
+  fake `0s`. Focused generation passed synchronously; no ENOSPC.

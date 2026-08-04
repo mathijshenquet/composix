@@ -17,6 +17,6 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 4: Naming and distribution](04-naming-distribution.html) — Tag immutable items, manage families, serve a cache, and follow a moving ref.
 
-- [Chapter 5: proj1](05-proj1.html) — Build two services from one Rust workspace and run the API.
+- [Chapter 5: Running: the runtime contract](05-runtime-contract.html) — Run and debug by tag, inspect health and observability, and schedule an APP.
 
 - [Chapter 6: Advanced](06-advanced.html) — Inspect socket activation, then compose a real Cixfile-built service.

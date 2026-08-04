@@ -62,6 +62,31 @@ impl Drop for UserUnit {
     }
 }
 
+struct ScheduledUserUnit {
+    timer: String,
+}
+
+impl Drop for ScheduledUserUnit {
+    fn drop(&mut self) {
+        let _ = Command::new("systemctl")
+            .args(["--user", "stop", &self.timer])
+            .output();
+        let Some(stem) = self.timer.strip_suffix(".timer") else {
+            return;
+        };
+        let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") else {
+            return;
+        };
+        let directory = PathBuf::from(runtime).join("systemd/user");
+        for suffix in [".service", ".timer", "-root.service"] {
+            let _ = fs::remove_file(directory.join(format!("{stem}{suffix}")));
+        }
+        let _ = Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .output();
+    }
+}
+
 struct Doc {
     text: String,
     _temp: tempfile::TempDir,
@@ -209,15 +234,15 @@ fn normalize(raw: &str, base: &Path) -> String {
     let port = Regex::new(r"127\.0\.0\.1:\d+").expect("valid port regex");
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
-    let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
+    let age = Regex::new(r"(?m)(\s{2,})\d+s(\s*)$").expect("valid age regex");
     let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
     let builder_workspace = Regex::new(r"(?m)^BUILDER ([^ ]+) workspace [^\n]+$")
         .expect("valid builder workspace regex");
     let cargo_progress =
         Regex::new(r"(?m)^\s*(?:Compiling [^\n]+|Finished `release` profile[^\n]*)\n?")
             .expect("valid cargo progress regex");
-    let unit_name =
-        Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.service").expect("valid unit name regex");
+    let unit_name = Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.(service|timer)")
+        .expect("valid unit name regex");
     let stale_failed_unit =
         Regex::new(r"(?m)^user\s+cix-run-[a-z][a-z0-9-]*-NONCE\.service\s+failed/failed.*\n?")
             .expect("valid stale unit regex");
@@ -236,12 +261,12 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
-    let normalized = age.replace_all(&normalized, "0s");
+    let normalized = age.replace_all(&normalized, "${1}0s${2}");
     let normalized = build_wall_time.replace_all(&normalized, "");
     let normalized =
         builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
     let normalized = cargo_progress.replace_all(&normalized, "");
-    let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
+    let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.${2}");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
@@ -1132,6 +1157,120 @@ fn chapter_naming_distribution() -> String {
     doc.finish()
 }
 
+fn chapter_runtime_contract() -> String {
+    let mut doc = Doc::new("runtime-contract");
+    fs::write(
+        doc.base.join("server.py"),
+        r#"from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"runtime healthy\n"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        pass
+
+print("runtime service started", flush=True)
+HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
+"#,
+    )
+    .expect("writing runtime HTTP server");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE web
+IMPORT ${pkgs.python3}
+START python3 ${src}/server.py
+PORT http = 18086
+STATEDIR /var/lib/runtime-guide
+SECRET db-password AS DB_PASSWORD_FILE
+READINESS http :18086/healthz IN 10s
+LIVENESS http :18086/livez EVERY 2s
+
+APP cleanup
+IMPORT ${pkgs.coreutils}
+START true
+"#,
+    )
+    .expect("writing runtime Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing runtime lock");
+
+    doc.para("You will run and inspect a tagged HTTP service with health contracts, then schedule a run-to-completion app. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.");
+
+    doc.para("## The item owns needs; the operator owns values");
+    doc.para("The service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The APP beside it has a finite entrypoint and is therefore eligible for timer scheduling.");
+    let source = doc.sh("cat Cixfile server.py", true);
+    assert!(source.contains("STATEDIR /var/lib/runtime-guide"));
+    assert!(source.contains("SECRET db-password AS DB_PASSWORD_FILE"));
+    assert!(source.contains("READINESS http :18086/healthz IN 10s"));
+    assert!(source.contains("LIVENESS http :18086/livez EVERY 2s"));
+    assert!(source.contains("APP cleanup"));
+    let built = doc.sh("cix build . --namespace runtime -t v1", true);
+    assert!(built.contains("\"web\""));
+    assert!(built.contains("\"cleanup\""));
+
+    doc.para("## Run by tag, then debug the same contract");
+    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. This host's user manager takes the loud D13 fallback, but the readiness adapter still holds startup until the real HTTP endpoint answers and the liveness adapter continues probing it.");
+    let started = doc.sh("cix run runtime/web:v1 --user --detach", true);
+    let unit_name = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-web-") && line.ends_with(".service"))
+        .expect("cix run printed the runtime unit")
+        .to_owned();
+    let _unit = UserUnit {
+        name: unit_name.clone(),
+    };
+    wait_for_http("127.0.0.1:18086", "runtime healthy");
+    let response = doc.sh("curl -fsS http://127.0.0.1:18086/healthz", true);
+    assert_eq!(response.trim(), "runtime healthy");
+
+    let debugged = doc.sh(
+        "cix debug runtime/web:v1 --user -- python3 -c 'print(\"debug uses the item package union\")'",
+        true,
+    );
+    assert!(debugged.contains("debug uses the item package union"));
+    assert!(debugged.contains("cix debug --user is degraded"));
+
+    let rows = doc.sh_ps_units(true, std::slice::from_ref(&unit_name));
+    assert!(rows.contains(&unit_name));
+    assert!(rows.contains("active/running"));
+    let stats = doc.sh("cix stats 2>/dev/null | head -n 1", true);
+    assert!(stats.contains("MANAGER  COMPOSITE  SERVICE"));
+    let logs = doc.sh("cix logs run/web --explain", true);
+    assert!(logs.contains("journalctl CIX_COMPOSITE=run CIX_SERVICE=web"));
+
+    doc.para("## The system-manager guarantees");
+    doc.para("The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. This host cannot demonstrate that honestly because its user manager rejects the required mount namespace; the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.");
+    doc.para("`STATEDIR /var/lib/runtime-guide` survives service restarts and belongs to cix until an explicit purge; the item never chooses a host backing path. `SECRET db-password` similarly names no value: compose supplies a root-owned file, systemd projects it below `$CREDENTIALS_DIRECTORY`, and `DB_PASSWORD_FILE` receives only that path. The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.");
+
+    doc.para("## Schedule the APP");
+    doc.para("An APP runs to completion instead of staying active. `--schedule` writes a transient service/timer pair using systemd's `OnCalendar` syntax and prints the timer name; no polling daemon is involved.");
+    let scheduled = doc.sh(
+        "cix run runtime/cleanup:v1 --user --schedule '*-*-* 00:00:00'",
+        true,
+    );
+    let timer = scheduled
+        .lines()
+        .find(|line| line.starts_with("cix-run-cleanup-") && line.ends_with(".timer"))
+        .expect("scheduled APP printed its timer")
+        .to_owned();
+    let _timer = ScheduledUserUnit {
+        timer: timer.clone(),
+    };
+    let active = doc.sh(&format!("systemctl --user is-active {timer}"), true);
+    assert_eq!(active.trim(), "active");
+
+    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
+    doc.para("You now have the complete ownership split: artifacts declare their process needs, compose supplies host policy and secrets, and systemd owns lifecycle, health, logs, timers, and accounting.");
+    doc.finish()
+}
+
 fn chapter_build_run_debug() -> String {
     let mut doc = Doc::new("build-run-debug");
     fs::write(doc.base.join("greeting.txt"), "hello from Cixfile\n")
@@ -1671,10 +1810,11 @@ fn render_tour() -> Vec<GeneratedFile> {
             body: chapter_naming_distribution(),
         },
         Scenario {
-            filename: "05-proj1.md",
-            title: "Chapter 5: proj1",
-            description: "Build two services from one Rust workspace and run the API.",
-            body: chapter_proj1(),
+            filename: "05-runtime-contract.md",
+            title: "Chapter 5: Running: the runtime contract",
+            description:
+                "Run and debug by tag, inspect health and observability, and schedule an APP.",
+            body: chapter_runtime_contract(),
         },
         Scenario {
             filename: "06-advanced.md",

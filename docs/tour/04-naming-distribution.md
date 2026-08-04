@@ -140,4 +140,4 @@ The result is deliberately small: mutable HTTP names select immutable store path
 
 ---
 
-[← Previous](03-building.html) · [Tour index](index.html) · [Next →](05-proj1.html)
+[← Previous](03-building.html) · [Tour index](index.html) · [Next →](05-runtime-contract.html)
