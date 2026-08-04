@@ -2,6 +2,23 @@
 
 ## 2026-08-04 night (train closed: hand-holding tour, defect rounds, k8s axis, progressive selector, all-pretty JSON)
 
+- **Coda (late night): CI-green after a seven-layer hardening tail.**
+  Tour host-independence: cold-cache nix output, manager health-grade
+  probe, unit-unload timeout + reset-failed (failed units never unload
+  on older managers), nix version strings — all made
+  environment-invariant with serial-verified receipts. Then the
+  closed-root roster assert caught ten orphan pre-move context dirs
+  that a broad `git add -A` had committed (old-depth ignore lapsed
+  after the axis restructure) — caught on CI because no local full
+  gate ran post-commit; exactly the designed defense. Draft round 3
+  landed for Mathijs (env-equals, build-args, volatile-fetch v3);
+  CIP-96–99 minted same-day (optional-env, granular-degradation,
+  artifact-root-collision, lock-scale with the 4x coherence check);
+  open-questions moved to cips/. Process lessons reinforced in memory:
+  no pipes on load-bearing exits (bitten twice), no source edits in
+  backgrounded chains (one edit silently lost), broad add -A after
+  restructures is how debris ships.
+
 - **Merged since the evening entry** (order): tourpolish (show_file
   typed blocks; ch6 listener from a real Cixfile); batch1 = corpusk8s
   (corpus/migrate/{docker,k8s} axis, 21 cases moved with history, k8s
