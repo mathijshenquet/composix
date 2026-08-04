@@ -7,90 +7,43 @@ opening another file, or it does not belong here. Resolved work lives
 in `.dev/LOG.md` and the CIP changelogs, not in this file. Design-sized
 questions live in `cips/draft/` — this file only points at them.
 
-## Promoted to CIP drafts (read there; each is self-contained)
+## Open drafts in the inbox (each self-contained)
 
-- [granular-degradation](../cips/draft/granular-degradation.md) — one
-  rejected systemd directive currently drops a whole hardening set
-  (this is why the tour broke on GitHub CI).
-- [lock-scale](../cips/draft/lock-scale.md) — node-ecosystem builds
-  grow Cixfile.lock by 100k–400k lines; compress observations without
-  losing per-dependency reviewability.
-- [volatile-fetch](../cips/draft/volatile-fetch.md) — some fetched
-  content mutates every refetch (API JSON download counters, package-
-  manager caches), making pins time bombs; teach + lint + normalize.
-- [optional-env](../cips/draft/optional-env.md) — no way to declare an
-  ENV that is optional with no default; a worker invented a
-  `__cix_unset__` sentinel, which is the language failing.
-- [artifact-root-collision](../cips/draft/artifact-root-collision.md) —
-  role dirs under the application tree can collide with the artifact's
-  own mount (wallos was forced from `/var/www` to `/app`).
-- [tmp-relocate](../cips/draft/tmp-relocate.md) — cix probes/cold
-  audits leave gigabyte node-trees in /tmp; they exhausted this host's
-  tmpfs inode cap and froze every tool on the machine.
+- [env-equals](draft/env-equals.md) — switch ENV to the `NAME=value`
+  grammar; prior work (bash/dotenv/docker/systemd/make) is unanimous,
+  our spaced form is the outlier.
+- [build-args](draft/build-args.md) — lock-pinned ARG: CLI overrides
+  are recorded in the lock, so file+lock stays the whole truth while
+  Cixfiles become parameterizable.
+- [volatile-fetch v3](draft/volatile-fetch.md) — EXPECT is for stable
+  artifacts only; volatile fetches use TOFU consumed pins + upstream
+  checksums in RUN; diagnostic teaches this on mismatch.
+- [tmp-relocate v2](draft/tmp-relocate.md) — the requested design
+  round: cleanup-on-every-exit is the primary fix (nix-style), big
+  trees go to /var/tmp per systemd's file-hierarchy guidance.
+- [fhs-interpreter → deferred/fixup-elf](deferred/fixup-elf.md),
+  [fetch-checksum-crosscheck](deferred/fetch-checksum-crosscheck.md),
+  [compose-syntax](deferred/compose-syntax.md) — parked by decision.
 
-Also already in your inbox from earlier rounds: none — the draft inbox
-otherwise contains only these six.
+Adopted out of this file today: CIP-96 optional-env (bare `ENV NAME`),
+CIP-97 granular-degradation (batched systemd-analyze verify probe),
+CIP-98 artifact-root-collision (role dirs anywhere, docker-volume
+nesting), CIP-99 lock-scale (subtree aggregation, 4x-checked).
+Implementation tracks for 96–99 are queued.
 
-## Awaiting Mathijs — docker.md ledger dispositions (batch-blessable)
+## Ledger dispositions — blessed 2026-08-04 (application queued)
 
-Each of these is a Docker feature whose ledger row in `docs/docker.md`
-still carries a ❓ (undecided) or ⏳ (recorded-but-unbuilt) marker. The
-proposed verdicts, with context:
-
-- **`docker cp`** (copy files in/out of a running container) →
-  propose ❌. A cix service's writable state lives in role directories,
-  which are ordinary host paths you can reach with `cp`; `cix inspect`
-  prints where they are. There is nothing to tunnel through a daemon.
-- **`--name` (stable container handle)** → propose ⏳. Compose members
-  already have stable names; a `cix run --name` for one-off runs is
-  mechanical sugar on the existing run path — build it when someone
-  actually asks.
-- **`STOPSIGNAL` and stop timeouts** (which signal stops the process,
-  how long to wait before SIGKILL) → propose ⏳, small mechanical
-  track: these map one-to-one onto systemd's `KillSignal=` and
-  `TimeoutStopSec=` unit fields; no design needed. Two corpus cases
-  (adminer, nginx) currently note the upstream signal contract as a
-  gap, so it has a real consumer.
-- **Namespace sharing (`--ipc`, `--pid`, `--uts` between containers)**
-  → propose: pods are the answer, standalone flags stay ❌. The
-  compose tree already realizes shared network namespaces for a
-  subtree ("pods", built in CIP-86); sharing IPC/PID follows the same
-  pod mechanism (systemd's `JoinsNamespaceOf=`) if a case ever needs
-  it, and per-pair ad-hoc sharing flags are refused.
-- **Restart policy knobs** (`--restart=always` etc.) → propose:
-  covered, tuning later. LIVENESS (CIP-79) is the deliberate restart
-  opt-in with a fixed bounded policy; making the interval/burst
-  configurable is compose-mechanical follow-up when a case demands it.
-- **`docker init`** (generates a starter Dockerfile) → propose ⏳:
-  the migrate teaching prompt is our generator today; a `cix init`
-  skeleton belongs to a later tooling era.
-- **`ENV NAME=value` (Docker's no-spaces form)** → propose: keep one
-  grammar, improve the error. Today it is a parse failure; the
-  diagnostic should say "write `ENV NAME = value`" so Docker muscle
-  memory gets a teaching error instead of a second accepted spelling.
-- **Docker Offload** (paid remote builds) → propose ❌: nix remote
-  builders are the native answer.
-- **AppArmor/SELinux label options** → propose: out of manifest scope —
-  that is host security policy; revisit only if a real SELinux-host
-  user appears.
-- **Docker Desktop "Enhanced Container Isolation"** → propose ❌:
-  a desktop-product threat model we do not share.
-- **Authorization plugins** (pluggable allow/deny on engine calls) →
-  propose: no plugin interface ever; policy questions return in the
-  server/reconciler era (the decided deferral of a long-running cix
-  daemon — docs/design.md D9).
-- **Engine API / SDKs** → same reconciler-era deferral as above.
-- **Remote contexts / `DOCKER_HOST`** → propose: ssh is the transport;
-  any sugar is ⏳.
-- **`docker mcp`** → propose ❌: unrelated to the runtime thesis.
-- **Linux capabilities beyond NET_BIND_SERVICE** → propose: grow the
-  `CLAIM` vocabulary case-by-case as dogfood demands (CIP-78 added
-  gpu/device this way); never a raw `--cap-add` passthrough.
-- **`ARG`/build args re-marking** → propose 🔁 (re-marked as "different
-  mechanism"): cix deliberately has no CLI build-arg channel — the
-  Cixfile text itself is the parameter surface (generate or edit it),
-  and parametric composes cover deploy-time variation. The gitea
-  version-stamp pattern gets documented as an idiom, not a mechanism.
+Mathijs blessed the batch with two exceptions, which became their own
+drafts (env-equals, build-args above). The blessed verdicts — docker cp
+❌, --name ⏳, STOPSIGNAL/stop-timeouts ⏳ (small mechanical track:
+KillSignal=/TimeoutStopSec=), namespace-sharing via pods only,
+restart-tuning later, docker init ⏳, Docker Offload ❌,
+AppArmor/SELinux out-of-scope, Desktop ECI ❌, authorization plugins
+never (reconciler era), Engine API reconciler-era, remote contexts via
+ssh, docker mcp ❌, capabilities claim-by-claim — now need their
+docs/docker.md rows re-marked accordingly: queued as one small
+mechanical track (also picks up the STOPSIGNAL implementation, which
+has two corpus consumers).
 
 ## Era-parked (deliberate deferrals — context, then silence)
 
