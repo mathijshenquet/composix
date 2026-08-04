@@ -642,13 +642,14 @@ START /bin/true \
     #[test]
     fn directories_accept_arbitrary_paths_and_dir_modes() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /srv/web/state\nCACHEDIR /app/cache\nLOGDIR /app/logs\nRUNDIR /tmp/web/run\nDIR /media:ro\nDIR /consume:rw\nDIR /scratch\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /srv/web/state\nCACHEDIR /app/cache\nLOGDIR /app/logs\nCONFIGDIR /config/web\nRUNDIR /tmp/web/run\nDIR /media:ro\nDIR /consume:rw\nDIR /scratch\n",
         )
         .unwrap();
         let dirs = &parsed.artifacts["web"].service.dirs;
         assert!(dirs.state.contains("/srv/web/state"));
         assert!(dirs.cache.contains("/app/cache"));
         assert!(dirs.logs.contains("/app/logs"));
+        assert!(dirs.config.contains("/config/web"));
         assert!(dirs.run.contains("/tmp/web/run"));
         assert_eq!(dirs.data.get("/media"), Some(&true));
         assert_eq!(dirs.data.get("/consume"), Some(&false));

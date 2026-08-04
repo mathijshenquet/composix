@@ -897,3 +897,47 @@
   generated corpus pages, and tests are complete. Next: commit the staged
   non-LOG patch; independent re-verification and merge remain for the
   orchestrator.
+
+- 2026-08-04 15:17 UTC — Started track/runfixes after reading its spec, the
+  project journal, the two verified open questions, and CIP-82. CONFIGDIR's
+  `/etc`-only runner validation is the remaining D11-era restriction despite
+  CIP-82's arbitrary-path rule. The implementation now admits arbitrary clean
+  CONFIGDIR paths and gives config the same full-path mirror, bind, and
+  in-namespace environment projection as the other persistent roles. Next:
+  format and test this boundary, then add the focused VM proof and the sealed
+  root localhost skeleton.
+
+- 2026-08-04 15:24 UTC — The CONFIGDIR/unit and closed-root skeleton unit
+  tests pass synchronously (`devenv shell -- cargo test -p cix-run`), as does
+  Nix evaluation of `scenario-dirs2`. The focused VM began but was interrupted
+  when concurrent VMs exhausted the shared `/tmp` inode pool (100%); its Nix
+  process was stopped cleanly and is explicitly not a receipt. The new scenario
+  is ready to prove native `/config/probe`, default localhost, and an item
+  `/etc/hosts` override after inode headroom returns. Docs mark the two
+  exhibiting corpus cases stale for regeneration; no corpus conversion content
+  changed. Next: wait for safe VM capacity, rerun the focused scenario, then
+  complete the declared agent tier and commit the runtime and ledger units.
+
+- 2026-08-04 15:36 UTC — Committed the implementation as `0d92eac` and the
+  ledger/browser regeneration as `9a45b8d`. Synchronous receipts: cargo fmt,
+  examples fmt, warning-denied workspace/all-target clippy, full workspace
+  tests after corpus-browser regeneration, focused cix-run tests, and the
+  Cixfile parser test all pass. Tour generation passes; its foreign-user-unit
+  check flaked once amid shared manager activity and passed on immediate focused
+  retry. Two focused `scenario-dirs2` VM attempts were stopped before a result:
+  each Nix rebuild drove shared `/tmp` inodes to exhaustion (100%, then 97%)
+  while unrelated VM drivers were active. No VM receipt is claimed. The track
+  remains otherwise ready; next is an isolated focused VM retry once `/tmp`
+  inode headroom is restored, followed by a final log commit.
+
+- 2026-08-04 15:51 UTC — Isolated focused receipt is green: `TMPDIR=/var/tmp
+  nice -n 10 devenv shell -- nix build .#checks.x86_64-linux.scenario-dirs2
+  --no-link -L --max-jobs 2 --cores 2` completed with output present, then an
+  immediate identical cached re-realisation exited 0 synchronously. The first
+  real VM exposed a harness bug, not product behavior: FHS `getent` has no
+  loader in a sealed root and journald prefixes messages. The scenario now
+  uses the Nix-store Python resolver under `set -eu` and substring journal
+  matches. Its green service assertions prove writable `/config/probe`, the
+  default versioned localhost skeleton, and an item-provided `/etc/hosts`
+  override. Next: commit this regression correction and final log, then leave
+  the clean committed track for independent orchestration.

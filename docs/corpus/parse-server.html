@@ -56,12 +56,12 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / parse-server</nav>
   <h1>parse-server</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full release layout, state roles, credentials, JIT, and database behavior regained; Node version, probe port, and CONFIGDIR path differ · <strong>Evidence:</strong> runtime probe + cold defect</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full release layout, state roles, credentials, JIT, and database behavior regained; Node version and probe port differ, while the recorded CONFIGDIR deviation is stale pending regeneration · <strong>Evidence:</strong> runtime probe + cold defect</p>
   <p class="status"><strong>Receipt status:</strong> The staged and independent Mongo-backed health probes pass; independent dependency fetches vary and explicit cold replay diverges at node_modules · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CONFIGDIR path freedom</p>
     <ul>
       <li>The locked universe&#39;s supported Node 22 replaces Docker&#39;s exact Node 20.19/Alpine identity. → case</li>
       <li>The service listens on 18091 for the repository probe rather than Docker&#39;s default 1337, and its config role moves from <code>/parse-server/config</code> to <code>/etc/parse-server</code> because the current runner rejects CONFIGDIR outside <code>/etc</code>. → language (<a href="../../../docs/open-questions.md#open-for-agents">recorded CONFIGDIR restriction</a>)</li>

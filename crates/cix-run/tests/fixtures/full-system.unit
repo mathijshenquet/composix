@@ -21,7 +21,7 @@ LogsDirectory=cix-run-web cix-run-web/var/log/log
 LogsDirectoryMode=0700
 BindPaths=/var/log/cix-run-web/var/log/log:/var/log/log
 TemporaryFileSystem=/etc:ro
-ConfigurationDirectory=cix-run-web/etc/config
+ConfigurationDirectory=cix-run-web cix-run-web/etc/config
 ConfigurationDirectoryMode=0700
 BindPaths=/etc/cix-run-web/etc/config:/etc/config
 DynamicUser=yes
@@ -56,3 +56,4 @@ Environment="ROOT=/srv/web"
 Environment="STATE_DIRECTORY=/var/lib/state:/var/lib/uploads"
 Environment="CACHE_DIRECTORY=/var/cache/cache"
 Environment="LOGS_DIRECTORY=/var/log/log"
+Environment="CONFIGURATION_DIRECTORY=/etc/config"
