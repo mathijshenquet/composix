@@ -929,3 +929,15 @@
   while unrelated VM drivers were active. No VM receipt is claimed. The track
   remains otherwise ready; next is an isolated focused VM retry once `/tmp`
   inode headroom is restored, followed by a final log commit.
+
+- 2026-08-04 15:51 UTC — Isolated focused receipt is green: `TMPDIR=/var/tmp
+  nice -n 10 devenv shell -- nix build .#checks.x86_64-linux.scenario-dirs2
+  --no-link -L --max-jobs 2 --cores 2` completed with output present, then an
+  immediate identical cached re-realisation exited 0 synchronously. The first
+  real VM exposed a harness bug, not product behavior: FHS `getent` has no
+  loader in a sealed root and journald prefixes messages. The scenario now
+  uses the Nix-store Python resolver under `set -eu` and substring journal
+  matches. Its green service assertions prove writable `/config/probe`, the
+  default versioned localhost skeleton, and an item-provided `/etc/hosts`
+  override. Next: commit this regression correction and final log, then leave
+  the clean committed track for independent orchestration.

@@ -3,6 +3,7 @@
 let
   scenario = import ./lib.nix { inherit pkgs cix; };
   shell = pkgs.runtimeShell;
+  python = pkgs.python3;
   item = name: manifest: body: pkgs.runCommand name { } ''
     mkdir -p "$out/bin"
     cat > "$out/bin/start" <<'SH'
@@ -38,6 +39,7 @@ let
   config = item "scenario-dirs2-config" ''
     {"cixManifest":0,"start":["bin/start"],"dirs":{"config":["/config/probe"]}}
   '' ''
+    set -eu
     test "$CONFIGURATION_DIRECTORY" = /config/probe
     ${pkgs.coreutils}/bin/touch /config/probe/configdir-projected
     echo configdir-projected
@@ -46,7 +48,8 @@ let
   localhost = item "scenario-dirs2-localhost" ''
     {"cixManifest":0,"start":["bin/start"]}
   '' ''
-    ${pkgs.glibc.bin}/bin/getent ahostsv4 localhost | ${pkgs.gnugrep}/bin/grep -F 127.0.0.1
+    set -eu
+    ${python}/bin/python3 -c 'import socket; assert "127.0.0.1" in {row[4][0] for row in socket.getaddrinfo("localhost", None)}'
     echo localhost-skeleton
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
@@ -54,7 +57,8 @@ let
     mkdir -p "$out/bin" "$out/etc"
     cat > "$out/bin/start" <<'SH'
     #!${shell}
-    ${pkgs.glibc.bin}/bin/getent ahostsv4 localhost | ${pkgs.gnugrep}/bin/grep -F 127.0.0.42
+    set -eu
+    ${python}/bin/python3 -c 'import socket; assert "127.0.0.42" in {row[4][0] for row in socket.getaddrinfo("localhost", None)}'
     echo localhost-item-override
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
     SH
@@ -133,9 +137,9 @@ scenario.node ''
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2-sealed.json --closed-root")
   machine.succeed("systemctl is-active cix-dirs2-sealed-config.service cix-dirs2-sealed-localhost.service cix-dirs2-sealed-override.service")
-  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-config.service | grep -Fx configdir-projected", timeout=60)
-  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-localhost.service | grep -Fx localhost-skeleton", timeout=60)
-  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-override.service | grep -Fx localhost-item-override", timeout=60)
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-config.service | grep -F configdir-projected", timeout=60)
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-localhost.service | grep -F localhost-skeleton", timeout=60)
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-override.service | grep -F localhost-item-override", timeout=60)
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=cache")
   machine.succeed("test $(systemctl show cix-dirs2-private.service -p ActiveState --value) = inactive")
   machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-left.service cix-dirs2-right.service")
