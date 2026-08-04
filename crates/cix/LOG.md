@@ -1,5 +1,13 @@
 # litdoc work log
 
+- 2026-08-04T16:14:29Z — Committed the resolved `origin/main` merge as
+  `f298152` (`Merge origin/main into track/jsonpretty`). Both journal histories
+  are retained; main's `show_file` tour structure is authoritative and this
+  track's pretty JSON fixture/generated-manifest displays are adapted onto it.
+  Regenerated tour pages have zero drift, all merge receipts above are
+  synchronous, and the worktree was clean immediately after the merge. The
+  orchestrator retains the independent full flake-matrix gate.
+
 - 2026-08-04T16:13:32Z — Merge verification is green with synchronous
   receipts: `cargo fmt --all --check`, `cix fmt --check examples`,
   warning-denied workspace clippy, and serialized workspace tests. The first
