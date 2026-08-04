@@ -1,5 +1,30 @@
 # Cixfile track work log
 
+- 2026-08-04T12:58:00Z — The `track/tourfix` full workspace gate exposed a
+  deterministic stale assertion introduced when CIP-94 added the byte-bound
+  `evalPlan.cixfileHash`: the formatter regression still required the complete
+  unformatted/formatted lock files to be byte-identical. Corrected only the
+  test contract: it now requires the eval-plan hash to change with Cixfile
+  bytes, normalizes that one field, then requires the complete remaining
+  `LockFile` (including memo keys, artifacts, and outputs) to be identical.
+  No formatter, builder, or runtime behavior changed. Next: exact regression
+  rerun followed by the complete agent tier.
+
+- 2026-08-04T13:02:00Z — The resumed full tier exposed the other stale
+  pre-CIP-94 whole-lock assertion: a volatile, unconsumed FETCH file now
+  correctly changes the complete immediate-workspace `snapshotNarHash`, while
+  the older test required identical lock bytes. Updated that test only to
+  assert both sides of the current contract: snapshot hashes differ, but the
+  consumed-path pin, memo/step keys, artifact store path, and empty consumed
+  volatile set stay identical. No cix implementation changed. Next: exact
+  regression and one fresh complete tier.
+
+- 2026-08-04T13:06:00Z — Both CIP-94-adjusted regressions pass exactly, and
+  the fresh complete serialized workspace suite passes all 32 `lock_nix`
+  tests, all five formatter tests, and every other workspace target. The
+  warning-denied all-target clippy receipt is also green. These remain
+  test-contract updates only; production Cixfile/build behavior is untouched.
+
 - 2026-08-04T10:08:00Z — Final docs gate is green with synchronous receipts:
   `devenv shell -- bash -c 'cargo fmt --all --check && cargo run -p cix -- fmt --check examples
   && cargo clippy --workspace --all-targets -- -D warnings'`; `devenv shell -- cargo test

@@ -1,5 +1,45 @@
 # litdoc work log
 
+- 2026-08-04T12:46:00Z — Started the main-CI tour determinism repair on
+  `track/tourfix` after reading the current journal/design context and the
+  historical `track-tour2` blueprint. Fast-forwarded the stale track head to
+  current `main`; preserved the checkout's pre-existing untracked
+  `devenv.lock` in `stash@{0}` because main tracks a different lock. CI's user
+  manager rejects `PrivatePIDs=`, sending cix through the known D13 whole-set
+  degradation without `BindPaths`; Chapter 1's executed `nginx -t` then
+  depends on whether `/var/cache/nginx` was projected. Scope remains the tour:
+  retain the canonical Cixfile, replace the role-directory-dependent receipt
+  with asserted manifest output and clearly labeled system-manager scenario
+  prose, and do not change cix's filed degradation defect. Next: regenerate
+  the tour, inspect drift, and run the focused plus full agent-tier gates.
+
+- 2026-08-04T12:50:00Z — Removed only Chapter 1's executed `nginx -t`
+  receipt; the canonical nginx Cixfile and its generated manifest assertions
+  are unchanged. The replacement is explicitly labeled non-executed prose
+  pointing to `nix/vm-dogfood.nix`, which runs/probes/stops nginx under the
+  production manager. Added the required harness comment naming GitHub
+  Actions CI's `PrivatePIDs=` rejection and resulting no-`BindPaths` D13
+  retry; made Chapter 5's related prose manager-neutral. Focused synchronous
+  receipts pass: `cargo fmt --all --check`; the exact degraded-normalizer
+  regression; ignored tour generation; and the exact twice-rendered tour
+  determinism test. Generated changes are limited to Chapters 1 and 5. Next:
+  run the full standard agent tier, then stage and prove regeneration adds no
+  drift.
+
+- 2026-08-04T13:06:00Z — Final standard agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. After staging the intended generated
+  pages, `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour` followed by `git diff --exit-code -- docs/tour` proved zero
+  regeneration drift; the exact `generated_tour_is_deterministic` test also
+  passed. An earlier workspace attempt hit one transient cache.nixos.org DNS
+  failure; resolver recovery plus the exact failed tour test and the fresh
+  complete suite all passed. No VM implementation or scenario changed, so the
+  track correctly stops at its declared agent tier. Next: final staged review
+  and commit.
+
 - 2026-08-04T00:00:00Z — Started `track/browser3` after reading `AGENTS.md`,
   `.dev/LOG.md`, `docs/design.md`, `docs/corpus.md`'s corpus-maintenance
   loops, and `.dev/specs/track-browser3.md`. Scope is the deterministic corpus

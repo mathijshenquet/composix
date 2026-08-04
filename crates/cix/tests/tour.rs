@@ -672,12 +672,12 @@ RUNDIR /run/nginx
     .expect("writing hello Cixfile");
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing hello lock");
 
-    doc.para("You will build a small nginx service from a canonical Cixfile and validate the resulting item as far as this rootless host permits. Afterwards, you will understand the shortest path from checked-in files to a production service contract and the boundary of the degraded development manager.");
+    doc.para("You will build a small nginx service from a canonical Cixfile and inspect the resulting runtime contract. Afterwards, you will understand the shortest path from checked-in files to a production service and why its live receipt belongs to the system-manager scenario.");
     doc.para("Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.");
 
     doc.para("## Before you start");
     doc.para("You need Nix with flakes enabled, `cix`, and a running systemd user manager for this rootless walkthrough. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
-    doc.para("Production `cix run` projects the item mounts; this host's rootless fallback cannot, so this probe parses the copied configuration in place of serving it and Chapter 5 completes the runtime story.");
+    doc.para("Production `cix run` projects the item and its writable role directories. A user manager may reject sandbox properties that the system manager accepts, so this rootless chapter stops at a host-independent inspection and Chapter 5 completes the runtime story.");
 
     doc.para("## Build the item");
     doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
@@ -695,21 +695,11 @@ RUNDIR /run/nginx
     assert!(manifest.contains("\"/var/cache/nginx\""));
     assert!(manifest.contains("\"/run/nginx\""));
 
-    doc.para("## Probe the canonical item");
-    doc.para("The debug probe moves only nginx's PID file to `/tmp`: nginx accepts the copied configuration syntax, then stops honestly when the rootless manager cannot realize the declared cache directory.");
-    let config_test = doc.sh(
-        &format!(
-            "cix debug {store_path} --user -- nginx -t -p {store_path}/ -c etc/nginx/nginx.conf -e stderr -g 'pid /tmp/cix-tour-nginx.pid;'"
-        ),
-        false,
-    );
-    assert!(config_test.contains("syntax is ok"), "{config_test}");
-    assert!(
-        config_test.contains("/var/cache/nginx/client-body"),
-        "{config_test}"
-    );
-    assert!(config_test.contains("Permission denied"), "{config_test}");
-    doc.para("You have now built an immutable item whose imported command and copied absolute-path configuration form the production service contract, and the restricted rootless manager has parsed that exact configuration without pretending to project it. The next chapters unpack the language and runtime model behind it.");
+    doc.para("## Run the production contract");
+    // GitHub Actions CI's user systemd manager rejects PrivatePIDs=; cix's D13 retry then omits
+    // BindPaths, so a role-directory-dependent nginx probe cannot be a deterministic tour command.
+    doc.para("> **Not executed here — system-manager scenario:** run the item with `cix run <item> --detach`, request its HTTP port, then stop the printed unit. The [VM dogfood scenario](https://github.com/mathijshenquet/composix/blob/main/nix/vm-dogfood.nix) executes that lifecycle with the item mounts, cache directory, and runtime directory projected by the production manager.");
+    doc.para("You have now built an immutable item whose imported command, copied absolute-path configuration, port, and writable directories are asserted directly from its manifest. The next chapters unpack the language and runtime model behind it.");
     doc.finish()
 }
 
@@ -1147,7 +1137,7 @@ START true
     let web_path = proj1_item_path(&built, "web");
 
     doc.para("## Inspect the item, then cross the system-manager boundary");
-    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins; this host's loud D13 user-manager fallback cannot project that mount, so the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.");
+    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins. Because D13 permits a user manager to reject that mount namespace, the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.");
     let parsed = doc.sh(
         &format!(
             "{web_path}/bin/python3 -c 'compile(open(\"{web_path}/srv/app/server.py\").read(), \"server.py\", \"exec\"); print(\"copied server parses\")'"
@@ -1166,7 +1156,7 @@ START true
     assert!(logs.contains("journalctl CIX_COMPOSITE=run CIX_SERVICE=web"));
 
     doc.para("## The system-manager guarantees");
-    doc.para("The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. This host cannot demonstrate that honestly because its user manager rejects the required mount namespace; the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.");
+    doc.para("The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. The rootless contract does not guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.");
     doc.para("`STATEDIR /var/lib/runtime-guide` survives service restarts and belongs to cix until an explicit purge; the item never chooses a host backing path. `SECRET db-password` similarly names no value: compose supplies a root-owned file, systemd projects it below `$CREDENTIALS_DIRECTORY`, and `DB_PASSWORD_FILE` receives only that path. The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.");
 
     doc.para("## Schedule the APP");
