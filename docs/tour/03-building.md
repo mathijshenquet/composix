@@ -6,11 +6,13 @@
 > machine leaks in. Outputs are asserted; store-path ellipses appear in
 > outputs only, never in commands you are meant to type.
 
-You will build pinned network inputs in persistent workspaces, audit them cold, and repair a real downloaded FHS binary before compiling a two-service Rust workspace. Afterwards, you will understand what the lock records, why RUN is offline, how warm replay stays trustworthy, and how one builder can feed narrow independent members.
+You will pin downloaded inputs, reuse checked build work, replay it from an empty workspace, repair a conventional Linux binary, and compile a two-service Rust project. A **lock** is the checked-in `Cixfile.lock` beside each Cixfile; it records immutable source revisions, download pins, and the evidence needed to validate reusable build steps.
 
 ## FETCH, EXPECT, and deliberate lock movement
 
-This compact fixture uses both trust modes. `expected` carries the author's whole-tree SRI hash directly in the Cixfile; `resolved` asks cix to fetch twice and record only the downstream-observable path when you explicitly update that lock entry.
+Choose `EXPECT` when an author or upstream release gives you a trusted checksum. Its SRI value is a `sha256-…` integrity fingerprint over the complete serialized output directory; to calculate one for a download you have independently inspected, put the fetched files in one directory and run `nix hash path --sri that-directory`. Without `EXPECT`, `--update-lock` uses trust on first use: cix fetches twice to expose immediate volatility and pins only paths used downstream, but two matching responses do not authenticate a consistently malicious server.
+
+Read the first line as labelled grammar: in `FETCH expected ${pkgs.coreutils}/bin/printf author-pinned > expected EXPECT sha256-…`, the first `expected` is the new binder name, everything through `> expected` is the network-enabled command and its declared output file, and the final `EXPECT` clause is the author-supplied whole-tree hash. The second FETCH omits that clause, so only an explicit update may create or change its lock pin.
 
 #### `fetch-demo/Cixfile`
 
@@ -29,6 +31,10 @@ RUN cat expected resolved > result
 ITEM fetched-result
 COPY ${assemble}/result /result
 ```
+
+The tour sets `CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces` only to keep its disposable work below this fixture. You do not need to create it: cix does so automatically, and without the variable it uses the user cache at `~/.cache/cix/workspaces`.
+
+A **memo** is a recorded build-step result keyed by the command, imports, environment, and observed inputs. A **build view** is the immutable `/nix/store` snapshot of the memo's output that later COPY steps consume; a miss executes the step and writes a view, while a hit reuses the prior view after rechecking its inputs. `--update-lock resolved` permits the network for that named FETCH, rewrites `fetch-demo/Cixfile.lock`, and should be followed by committing that lock.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --update-lock resolved fetch-demo
@@ -49,7 +55,7 @@ BUILDER assemble memo miss 996aef633ffd -> /nix/store/…-cix-build-view
 author-pinnedlock-pinned
 ```
 
-The lock keeps the immutable nixpkgs revision, FETCH pins, constructive step memos, consumed output objects, and a development-environment snapshot. The snapshot comes from the imported package world, so native toolchain variables arrive together; you do not hand-wire store paths such as `PKG_CONFIG_PATH`.
+The lock is written beside the Cixfile, not in the workspace. It keeps the immutable nixpkgs revision, each FETCH pin, step memos, consumed output objects, and a **development-environment snapshot**: the complete set of environment variables derived together from one builder's imported package universe. That is why compiler-related values such as `PKG_CONFIG_PATH` arrive as one pinned set instead of hand-wired host paths; inspect the full records with `jq '.devEnvs' fetch-demo/Cixfile.lock`.
 
 ```sh
 $ jq '{fetches, devEnvCount:(.devEnvs | length)}' fetch-demo/Cixfile.lock
@@ -70,7 +76,7 @@ $ jq '{fetches, devEnvCount:(.devEnvs | length)}' fetch-demo/Cixfile.lock
 }
 ```
 
-FETCH alone has network authority. The following RUN consumes only staged files in a networkless sandbox, and its command plus imports, environment, and observed read set form the reusable step identity.
+FETCH alone has network authority. RUN executes in a bubblewrap sandbox: a temporary filesystem and namespace containing only the declared packages and workspace, with networking removed. Cix follows the command and all subprocesses with `strace` until they exit, recording file opens, metadata checks, directory listings, missing paths, and writes; the command, imports, environment, and that observed read set form the reusable step identity.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --stats fetch-demo
@@ -78,9 +84,9 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --stats fetch-demo
 BUILDER assemble memo hit completed output (zero Nix subprocesses)
 ```
 
-That hit is not a timestamp promise. Cix rehashes exactly the files, directory listings, metadata probes, and absent paths the command read; unrelated workspace bytes cannot invalidate the step, while a changed observed input does. A persistent workspace is therefore an acceleration structure, not hidden build input.
+That hit is not a timestamp promise. For example, `RUN cat expected resolved > result` records reads of those two files: changing either produces a miss, while adding an unread `notes` file does not. Directory enumeration, metadata-only probes, and an absent file are fingerprinted too; nondeterministic reads therefore cause a miss or a warm-versus-cold audit error instead of becoming invisible state. A persistent workspace is an acceleration structure, not hidden build input.
 
-`--update-lock` and `--cold` are the audit pair: the first is an explicit trust-moving network operation for a selected non-EXPECT FETCH, while the second never contacts the network and replays the pinned bytes in an empty workspace before comparing reads and consumed outputs.
+`--update-lock` and `--cold` are the audit pair. The first permits the network, writes the pin to `Cixfile.lock`, stores fetched bytes as a Nix store snapshot, and records a receipt below `~/.cache/cix/fetch-snapshots`. `--cold` creates an empty builder workspace, never contacts the network, replays those pinned bytes from the local snapshot cache, and compares the new reads and outputs. A different machine must first perform an ordinary pin-verifying build or receive that cached store closure; if the receipt or store snapshot was garbage-collected, cold replay refuses and tells you to repopulate it rather than refetching silently.
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --cold fetch-demo
@@ -95,7 +101,7 @@ BUILDER assemble memo miss 996aef633ffd -> /nix/store/…-cix-build-view
 
 ## The FHS diagnostic, then the one-line fix
 
-The next FETCH downloads an ELF whose interpreter is the conventional GNU `/lib64/ld-linux-x86-64.so.2`. The builder imports a shell and core utilities but no libc, so executing the untouched download must fail—and the shown diagnostic is produced by the real trace, not copied into this guide.
+The tour harness serves the next fixture URL from a temporary local HTTP server; in your Cixfile substitute any real URL and its independently obtained EXPECT hash. The downloaded ELF is a conventional Linux executable whose header demands the fixed loader path `/lib64/ld-linux-x86-64.so.2`. Nix normally keeps that loader under glibc's unique store path, so merely having the executable bytes is insufficient. The builder imports a shell and core utilities but no libc, and the real trace produces the failure below.
 
 #### `fhs-demo/Cixfile`
 
@@ -131,7 +137,7 @@ Caused by:
     cix-build: line 1: ./fhs-probe: cannot execute: required file not found
 ```
 
-Add glibc to the ordered IMPORT union. Its loader satisfies the fixed FHS alias, so the same downloaded binary runs without mutation or a patchelf step.
+Add glibc to the ordered IMPORT union. In the builder sandbox, that import mounts glibc's loader at the conventional `/lib64/ld-linux-x86-64.so.2` alias and offers its library closure; the same bytes now run without mutation or a patchelf step.
 
 ```sh
 $ sed -i 's/${pkgs.coreutils}/${pkgs.coreutils} ${pkgs.glibc}/' fhs-demo/Cixfile
@@ -161,7 +167,7 @@ fhs-tour-ok
 
 ## Capstone: one Rust workspace, two services
 
-The capstone is a real Cargo workspace. One BUILDER imports its complete pinned toolchain, stages the declared workspace, and runs Cargo offline; two SERVICE blocks consume one release binary each.
+The capstone is a complete small Cargo workspace copied from this repository's `examples/build/proj1`. `Cargo.toml` declares the three local members, `Cargo.lock` pins their dependency graph, and the source tree is shown below. There are no registry dependencies in this fixture, so `--offline` needs no unseen vendor directory; cargo, rustc, gcc, and coreutils come from the nixpkgs revision shown in `Cixfile.lock`.
 
 #### `proj1/Cixfile`
 
@@ -194,8 +200,82 @@ SERVICE proj1-worker
   CLAIM egress
 ```
 
+#### `proj1/Cixfile.lock`
+
+```json
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  }
+}
+```
+
+#### `proj1/rust/Cargo.toml`
+
+```
+[workspace]
+resolver = "2"
+members = [
+  "common",
+  "api",
+  "worker",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+common = { path = "common" }
+```
+
+#### `proj1/rust/Cargo.lock`
+
+```json
+# This file is automatically @generated by Cargo.
+# It is not intended for manual editing.
+version = 4
+
+[[package]]
+name = "common"
+version = "0.1.0"
+
+[[package]]
+name = "proj1-api"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
+
+[[package]]
+name = "proj1-worker"
+version = "0.1.0"
+dependencies = [
+ "common",
+]
+```
+
 ```sh
-$ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1 --namespace proj1 -t v1
+$ find proj1/rust -type f -not -path '*/target/*' | sort
+proj1/rust/Cargo.lock
+proj1/rust/Cargo.toml
+proj1/rust/api/Cargo.toml
+proj1/rust/api/src/main.rs
+proj1/rust/common/Cargo.toml
+proj1/rust/common/src/lib.rs
+proj1/rust/worker/Cargo.toml
+proj1/rust/worker/src/main.rs
+```
+
+The positional `proj1` chooses that directory. `--namespace proj1` supplies the slash-grouped tag family, and `-t v1` tags both declared members, yielding `proj1/proj1-api:v1` and `proj1/proj1-worker:v1`. A `directory#member` selector instead builds one final member and its backward dependency slice; it cannot be combined with family tagging.
+
+```sh
+$ items=$(CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1 --namespace proj1 -t v1); api_v1=$(printf '%s\n' "$items" | jq -r '."proj1-api"'); worker_v1=$(printf '%s\n' "$items" | jq -r '."proj1-worker"'); printf '%s\n' "$items"
 {"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
@@ -204,14 +284,25 @@ BUILDER build step 2 RUN executed
 BUILDER build memo miss 5a5e839719dd -> /nix/store/…-cix-build-view
 ```
 
-Now change only the worker and select that member with `directory#member`. The warm builder recompiles the changed workspace, but the API's narrow consumed path still names the same immutable item.
+```sh
+$ cix ls proj1/
+proj1/proj1-api:v1
+proj1/proj1-worker:v1
+```
+
+```sh
+$ "$worker_v1/bin/proj1-worker"
+hello from proj1-worker
+```
+
+Now change only the worker and select that member. Cargo reruns because the shared builder staged the changed workspace, but each final SERVICE depends only on the release binary it copied from that workspace.
 
 ```sh
 $ sed -i 's/proj1-worker/proj1-worker-edited/' proj1/rust/worker/src/main.rs
 ```
 
 ```sh
-$ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-worker
+$ worker_v2=$(CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-worker); printf '%s\n' "$worker_v2"
 /nix/store/…-cix-item-proj1-worker
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
@@ -221,7 +312,12 @@ BUILDER build memo miss 75f8514b46cf -> /nix/store/…-cix-build-view
 ```
 
 ```sh
-$ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-api
+$ "$worker_v2/bin/proj1-worker"
+hello from proj1-worker-edited
+```
+
+```sh
+$ api_after=$(CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-api); printf '%s\n' "$api_after"
 /nix/store/…-cix-item-proj1-api
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
@@ -230,7 +326,12 @@ BUILDER build step 2 RUN executed
 BUILDER build memo miss 75f8514b46cf -> /nix/store/…-cix-build-view
 ```
 
-That is the central build model at project scale: shared warm work stays private to the builder, FETCH trust stays pinned, and each final item depends only on the path it actually copies.
+```sh
+$ cmp -s "$api_v1" "$api_after" && printf 'API item reused byte-for-byte\n'
+API item reused byte-for-byte
+```
+
+The worker receipt visibly changes while the API item is byte-for-byte identical. The warm workspace and memo records stay private to the builder—they are acceleration state, not runtime dependencies—while each final item's Nix closure contains only the immutable paths reached by what that member copied.
 
 
 ---

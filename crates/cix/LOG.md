@@ -1,5 +1,16 @@
 # litdoc work log
 
+- 2026-08-04T19:40:00Z — Chapter 3 regeneration passes with the original real
+  warm/cold/FHS/proj1 builds intact. The prose now labels FETCH grammar and
+  trust modes, defines memo/build-view/lock/dev-env at first use, states the
+  exact workspace and snapshot-cache locations, and gives the complete
+  update-lock→cold transition including fresh-machine and GC refusal behavior.
+  The local fixture server is explicit. Proj1 now shows Cargo manifests,
+  lock, source tree, resulting refs, captured path variables, visibly changed
+  worker output, and a byte-identical API receipt. Lock files render as JSON.
+  Exact explicit tour generation exited 0; next: commit Chapter 3, then build
+  all three naming-demo items before rewriting Chapter 4 distribution prose.
+
 - 2026-08-04T19:10:00Z — Chapters 1 and 2 execute cleanly in explicit tour
   regeneration. Chapter 1 now checks Nix/flakes/user-systemd, teaches captured
   item paths, runs the nginx item through the real user manager, probes HTTP,
