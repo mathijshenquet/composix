@@ -7,8 +7,9 @@
 //! ## Module map
 //!
 //! `build_chain` conducts step ordering and sandbox execution; `fetch` owns
-//! credential consent; `trace` owns read-set capture; `lock` owns persisted
-//! pins and memo records. New build feature strata belong in their own module.
+//! credential consent; `fhs` owns the imported FHS-loader surface and failure
+//! diagnosis; `trace` owns read-set capture; `lock` owns persisted pins and
+//! memo records. New build feature strata belong in their own module.
 
 /// Whether `CIX timing …` instrumentation lines are emitted on stderr.
 /// Opt-in via the CIX_TIMING env var so the measurement harness gets its
@@ -32,6 +33,7 @@ pub(crate) use cix_timing;
 mod build_chain;
 mod codegen;
 mod fetch;
+mod fhs;
 mod lock;
 mod model;
 mod seccomp;

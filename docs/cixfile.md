@@ -335,10 +335,23 @@ native package conventions such as `PKG_CONFIG_PATH` are supplied automatically:
 `${pkgs.pkg-config}` and the relevant library packages (including their `.dev` outputs), then run
 the build command directly rather than spelling a manual pkg-config path.
 
-The fixed skeleton adds exactly one alias: `/usr/bin/env` points to `/bin/env`. This lets
-tool-generated `#!/usr/bin/env bash` (or similar) launchers work when an IMPORT supplies
-`env`, typically `${pkgs.coreutils}`; it deliberately dangles otherwise. No other `/usr`
-content is present.
+The fixed skeleton includes `/usr/bin/env -> /bin/env`. This lets tool-generated
+`#!/usr/bin/env bash` (or similar) launchers work when an IMPORT supplies `env`, typically
+`${pkgs.coreutils}`; it deliberately dangles otherwise. No other `/usr` content is present.
+
+### FHS loader aliases
+
+On x86-64 the builder skeleton also includes fixed GNU
+`/lib64/ld-linux-x86-64.so.2` and musl `/lib/ld-musl-x86_64.so.1` aliases. They dangle until
+the ordered IMPORT set supplies the corresponding loader, normally through `${pkgs.glibc}` or
+`${pkgs.musl}`. This lets an unmodified downloaded ELF enter its imported libc loader; changing
+the versioned skeleton invalidates affected builder memo keys.
+
+The aliases do not add packages' `lib` trees to `/lib` and do not change the loader's search
+path. GNU compatibility therefore covers only `DT_NEEDED` libraries supplied by the imported
+glibc. On a failed RUN, cix diagnoses a missing loader with the libc IMPORT to add. If the binary
+needs libraries beyond that libc, it instead names the missing SONAMEs and points to the explicit
+patchelf escape in [the migration guide](migrate.md#fhs-linked-native-binaries).
 
 FETCH and RUN use constructive traces. Their static memo identity hashes the directive text,
 resolved arguments, declared environment, ordered imports and offered closure, and the versioned

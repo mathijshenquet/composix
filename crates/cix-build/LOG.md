@@ -100,3 +100,108 @@
   tier, `devenv shell -- nix flake check -L`. The latter built and ran the
   complete scenario/VM suite successfully. devenv regenerates an untracked
   lockfile in this worktree; remove that local byproduct before commit.
+
+- 2026-08-04T09:20:00Z — Started track/fhspaths (CIP-95). Phase 1 is a
+  standalone two-builder bubblewrap repro: manufacture GNU- and musl-linked
+  FHS ELFs in one root, then execute them in fresh roots containing only the
+  declared libc IMPORT surface. The load-bearing comparison is no cache vs
+  `LD_LIBRARY_PATH=/lib` vs a generated `/etc/ld.so.cache`; a Nix
+  RUNPATH-carrying bash in the same root must keep resolving its closure from
+  its own RUNPATH. No phase-2 production wiring until this verdict is recorded.
+
+- 2026-08-04T09:40:00Z — **Phase-1 verdict: STOP — the GNU `/lib` wiring is
+  not clean.** Synchronous receipt: `bash .dev/spikes/fhs-paths/repro.sh` exited
+  0 after proving all expected outcomes. The `/lib64/ld-linux-x86-64.so.2`
+  alias executes an RPATH-free FHS ELF with only glibc imported, but only
+  because Nix's loader falls back to its own glibc store `lib/`; a second
+  RPATH-free ELF needing `libcix-fhs-probe.so.1` from the `/lib` union fails.
+  `ldconfig -C /etc/ld.so.cache -f /etc/ld.so.conf -X` creates a valid union
+  cache, but the loader ignores it: Nix glibc hardcodes
+  `/nix/store/<glibc>/etc/ld.so.cache`. Making that cache visible would require
+  shadowing the imported package's immutable store-path view, and would not
+  transfer cleanly to artifact runtime namespaces. `LD_LIBRARY_PATH=/lib`
+  makes the missing SONAME case run, but `LD_DEBUG=libs` proves it changes a
+  Nix RUNPATH-carrying bash's libc resolution from its store RUNPATH to
+  `/lib/libc.so.6`; this is the prohibited shadowing. The musl variant is green
+  because musl's default search path includes `/lib`. Per CIP-95's fallback
+  boundary and the track spec, phase 2 was not started and no auto-patching
+  fallback was improvised.
+
+- 2026-08-04T09:47:00Z — Pulled `origin/main` and read the adopted CIP-95
+  post-spike amendment. Phase 2 resumes on its narrowed v1 contract: an
+  always-present, skeleton-versioned GNU+musl alias pair backed by only the
+  matching loader file from ordered IMPORTs; no `lib/` union or default
+  library search path. Failure-only trace facts will feed (E): workdir
+  execve-ENOENT, loader-path lookups, and missing SONAME opens, correlated
+  with the executed ELF and the imported loader provider. Missing libc gets
+  an IMPORT hint; dependencies outside that libc get an explicit aliases-only
+  boundary and the taught patchelf escape.
+
+- 2026-08-04T09:51:00Z — Implemented the narrowed loader-only skeleton as a
+  separate `fhs` stratum. On x86_64 the fixed aliases point at an internal
+  loader bridge populated from the first matching ordered IMPORT; absent
+  glibc/musl leaves the target dangling. The skeleton fingerprint is v2, and
+  the ordinary IMPORT union remains exactly `bin/etc/share`. Synchronous
+  receipts: `devenv shell -- cargo test -p cix-build fhs::tests -- --nocapture`
+  (2 passed), and `devenv shell -- cargo test -p cix-cixfile --test lock_nix
+  fhs_glibc_and_musl_elfs_run_from_loader_aliases_without_cixfile_fixups --
+  --exact --nocapture` (1 passed). The latter manufactures RPATH-free GNU and
+  musl FHS ELFs in Nix, then executes both in real fresh Cix builders whose
+  Cixfile contains zero patchelf lines.
+
+- 2026-08-04T09:57:00Z — Implemented (E) without persisting negative trace
+  state: only a failing step reparses its temporary syscall file for workdir
+  execs/execve-ENOENT, known FHS loader misses, and failed SONAME opens. A
+  small in-tree ELF reader correlates PT_INTERP + DT_NEEDED with the ordered
+  imported libc provider. The missing-loader report names the binary, loader,
+  needed libc SONAMEs, and `IMPORT ${pkgs.glibc}`/`${pkgs.musl}`; an imported
+  loader plus an unresolved non-libc DT_NEEDED instead says plainly that v1
+  has no `/lib` search path and points at `IMPORT ${pkgs.patchelf}` plus the
+  taught RUN escape. Focused trace/FHS unit tests passed. Real-Nix diagnostic
+  receipts passed synchronously with `/tmp`-inode-safe invocations:
+  `env TMPDIR=$PWD/target/fhspaths-tmp devenv shell -- env
+  TMPDIR=$PWD/target/fhspaths-tmp RUSTC_WRAPPER= cargo test -p cix-cixfile
+  --test lock_nix missing_fhs_loader_diagnostic_suggests_the_libc_import --
+  --exact --nocapture`, the analogous
+  `beyond_libc_diagnostic_names_the_alias_boundary_and_patchelf_escape`, and
+  warning-denied focused clippy for cix-build+cix-cixfile. Host `/tmp` has
+  free bytes but zero free inodes; no shared entries were removed.
+
+- 2026-08-04T10:06:00Z — Narrowed Directus acceptance passed in a disposable,
+  ignored copy of the pinned corpus case. The only Cixfile change was adding
+  `${pkgs.glibc}` to the builder IMPORT; it contains no patchelf command. The
+  downloaded `sass-embedded-linux-x64` Dart executable remained an x86-64 ELF
+  with PT_INTERP `/lib64/ld-linux-x86-64.so.2`. Synchronous receipt:
+  `env TMPDIR=$PWD/target/fhspaths-tmp CIX_STATE_DIR=$PWD/target/fhspaths-directus-state
+  CIX_BUILD_WORKSPACE_DIR=$PWD/target/fhspaths-directus-workspaces timeout 1200
+  target/debug/cix build --update-lock build target/fhspaths-directus#directus`
+  exited 1 only after Sass built the app asset and the monorepo completed its
+  package builds, at the already-known separate `Error: Not a directory (os
+  error 20)`. The former Sass loader `spawn … ENOENT` is absent. No corpus
+  Cixfile was modified; next is documentation and ledger currency.
+
+- 2026-08-04T10:18:00Z — The broad gate exposed an existing nondeterminism in
+  `socket_filter_is_accepted_by_bubblewrap`: it selected the first
+  `/nix/store/*/bin/bash`, which can now be a cix-item symlink whose target is
+  not a reference in that item's NAR-added closure. The test now canonicalizes
+  the selected executable before deriving the offered package, matching its
+  intent independently of store directory order. Exact focused test and fmt
+  check passed. The first broad-gate retries also exhausted filesystem bytes;
+  only this task's disposable Directus workspaces and local Cargo target were
+  removed, while its acceptance log was retained. Further Cargo work uses the
+  task-owned `/dev/shm/composix-fhspaths-20260804` target; no shared Nix garbage
+  was collected.
+
+- 2026-08-04T10:31:00Z — Final track gate is green on the committed tree.
+  Synchronous exit-0 receipts: `cargo fmt --all --check`; `cargo run -- fmt
+  --check examples`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`; corpus regeneration followed by `git diff
+  --exit-code -- docs/corpus`; tour regeneration followed by `git diff
+  --exit-code -- docs/tour` and `cargo test -p cix --test tour -- --nocapture`;
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`; and `nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit --no-link -L`. Cargo and VM
+  commands ran through `devenv shell` with `TMPDIR` (and Cargo target where
+  relevant) under `/dev/shm/composix-fhspaths-20260804`; the two focused VM
+  checks completed their real TCG guests in 164s and 274s respectively. The
+  full flake matrix was deliberately not run: project policy reserves it for
+  the orchestrator's independent pre-merge gate.

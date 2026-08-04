@@ -18,6 +18,15 @@ The downloaded ELF expects an FHS dynamic loader. D58 deliberately excludes
 `lib` from IMPORT, so this is classified as a language gap; no runtime pass is
 claimed.
 
+CIP-95 acceptance (2026-08-04): a disposable copy of this pinned case added
+only `${pkgs.glibc}` to the builder IMPORT and retained zero patchelf lines.
+The downloaded Sass executable remained unpatched with PT_INTERP
+`/lib64/ld-linux-x86-64.so.2`; the former `spawn … ENOENT` disappeared, Sass
+produced the app asset, and the recursive monorepo build proceeded to the
+separate known `Error: Not a directory (os error 20)`. This is track evidence,
+not a green case receipt: the checked-in Cixfile still awaits regeneration and
+no item or runtime pass is claimed.
+
 The conversion dissolves PM2 into systemd,
 keeps `bootstrap` as an idempotent setup hook, persists SQLite/extensions/uploads,
 and probes `GET /server/ping` for exact `pong`.

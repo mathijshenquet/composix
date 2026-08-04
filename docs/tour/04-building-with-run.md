@@ -75,7 +75,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 4ec76759446b -> /nix/store/…-cix-build-view
+BUILDER build memo miss 26ba55130cab -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -104,7 +104,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/src/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss a72d13940869 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 4b6fc3a84507 -> /nix/store/…-cix-build-view
 ```
 
 `--cold` samples the same chain with an empty workspace and now audits the command's read set as well as its selected outputs. This RUN deliberately reads the warm-only marker, so the audit identifies that path-dependent input and fails at the source line.

@@ -1,5 +1,5 @@
 Generated: migrate.md@d582f41 · unknown · 2026-07-31
-Status: stale — regenerate with CIP-91
+Status: stale — regenerate with CIP-95
 
 - The Cix build fails when the downloaded Sass executable requests an FHS dynamic loader; the corpus page must say plainly that no item is produced, rather than presenting an unexplained orange state. → browser
 - Reproduce and retain the exact loader diagnostic in a fresh build receipt once the pinned source is materialized again. → evidence
