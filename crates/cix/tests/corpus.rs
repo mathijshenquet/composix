@@ -88,6 +88,7 @@ struct LedgerGrade {
 }
 
 struct Case {
+    axis: String,
     name: String,
     upstream: Vec<Artifact>,
     cix: Vec<Artifact>,
@@ -308,16 +309,20 @@ fn plain_markdown(input: &str) -> String {
 
 fn load_cases() -> Vec<Case> {
     let grades = ledger_grades();
-    let mut directories = fs::read_dir(corpus_dir())
-        .expect("reading corpus/migrate")
-        .map(|entry| entry.expect("reading corpus case entry").path())
-        .filter(|path| path.is_dir())
-        .collect::<Vec<_>>();
-    directories.sort();
-
-    directories
+    ["docker", "k8s"]
         .into_iter()
-        .filter_map(|directory| {
+        .flat_map(|axis| {
+            let mut directories = fs::read_dir(corpus_dir().join(axis))
+                .unwrap_or_else(|error| panic!("reading corpus/migrate/{axis}: {error}"))
+                .map(|entry| entry.expect("reading corpus case entry").path())
+                .filter(|path| path.is_dir())
+                .collect::<Vec<_>>();
+            directories.sort();
+            directories
+                .into_iter()
+                .map(move |directory| (axis, directory))
+        })
+        .filter_map(|(axis, directory)| {
             let cix = read_cix_artifacts(&directory);
             if cix.is_empty() {
                 return None;
@@ -330,16 +335,18 @@ fn load_cases() -> Vec<Case> {
             let upstream = read_upstream_artifacts(&directory);
             assert!(
                 !upstream.is_empty(),
-                "corpus/migrate/{name} has cix artifacts but no checked-in upstream artifact"
+                "corpus/migrate/{axis}/{name} has cix artifacts but no checked-in upstream artifact"
             );
             assert!(
                 directory.join("receipt.md").is_file(),
-                "corpus/migrate/{name} has no receipt.md"
+                "corpus/migrate/{axis}/{name} has no receipt.md"
             );
-            let grade = grades.get(&name).unwrap_or_else(|| {
-                panic!("corpus/migrate/{name} has no ribbon/evidence row in docs/corpus.md")
+            let key = format!("{axis}/{name}");
+            let grade = grades.get(&key).unwrap_or_else(|| {
+                panic!("corpus/migrate/{key} has no ribbon/evidence row in docs/corpus.md")
             });
             Some(Case {
+                axis: axis.to_owned(),
                 grade: grade.clone(),
                 name,
                 upstream,
@@ -948,17 +955,24 @@ fn ribbon_and_evidence(case: &Case) -> (&str, &str) {
 }
 
 fn render_case(case: &Case) -> String {
-    let title = format!("{} — migration corpus", case.name);
+    let title = format!("{} / {} — migration corpus", case.axis, case.name);
     let mut page = page_start(&title);
     let (ribbon, evidence) = ribbon_and_evidence(case);
-    let receipt_url = format!("{REPOSITORY_URL}/corpus/migrate/{}/receipt.md", case.name);
-    let source_url = format!("{REPOSITORY_URL}/corpus/migrate/{}/SOURCE", case.name);
-    let mastodon_note = (case.name == "mastodon").then_some(
+    let receipt_url = format!(
+        "{REPOSITORY_URL}/corpus/migrate/{}/{}/receipt.md",
+        case.axis, case.name
+    );
+    let source_url = format!(
+        "{REPOSITORY_URL}/corpus/migrate/{}/{}/SOURCE",
+        case.axis, case.name
+    );
+    let mastodon_note = (case.axis == "docker" && case.name == "mastodon").then_some(
         "  <p class=\"status\"><strong>Mastodon tag provenance:</strong> compose children reference <code>corpus-mastodon-&lt;member&gt;:checked</code> tags produced by <code>check.sh</code> from the per-member Cixfiles shown below.</p>\n",
     );
     write!(
         page,
-        "  <nav class=\"crumbs\"><a href=\"index.html\">Corpus browser</a> / {name}</nav>\n  <h1>{name}</h1>\n  <p class=\"status\"><strong>docs/corpus.md ribbon:</strong> {ribbon} · <strong>Evidence:</strong> {evidence}</p>\n  <p class=\"status\"><strong>Receipt status:</strong> {receipt_status} · <a href=\"{receipt_url}\">Full migration receipt</a></p>\n  <p class=\"source\"><a href=\"{source_url}\">Pinned upstream source notes</a></p>\n{mastodon_note}{gap}{context}  <main class=\"artifacts\">\n    <section class=\"column\">\n      <h2>Upstream</h2>\n{upstream}    </section>\n    <section class=\"column\">\n      <h2>composix</h2>\n{cix}    </section>\n  </main>\n  <footer>Generated from <code>corpus/migrate/{name}</code>. Do not edit this page by hand.</footer>\n</body>\n</html>\n",
+        "  <nav class=\"crumbs\"><a href=\"index.html\">Corpus browser</a> / {axis} / {name}</nav>\n  <h1>{axis} / {name}</h1>\n  <p class=\"status\"><strong>docs/corpus.md ribbon:</strong> {ribbon} · <strong>Evidence:</strong> {evidence}</p>\n  <p class=\"status\"><strong>Receipt status:</strong> {receipt_status} · <a href=\"{receipt_url}\">Full migration receipt</a></p>\n  <p class=\"source\"><a href=\"{source_url}\">Pinned upstream source notes</a></p>\n{mastodon_note}{gap}{context}  <main class=\"artifacts\">\n    <section class=\"column\">\n      <h2>Upstream</h2>\n{upstream}    </section>\n    <section class=\"column\">\n      <h2>composix</h2>\n{cix}    </section>\n  </main>\n  <footer>Generated from <code>corpus/migrate/{axis}/{name}</code>. Do not edit this page by hand.</footer>\n</body>\n</html>\n",
+        axis = html_escape(&case.axis),
         name = html_escape(&case.name),
         ribbon = html_escape(ribbon),
         evidence = html_escape(evidence),
@@ -978,19 +992,32 @@ fn render_case(case: &Case) -> String {
 fn render_index(cases: &[Case]) -> String {
     let mut page = page_start("Migration corpus browser — composix");
     page.push_str(
-        "  <nav class=\"crumbs\"><a href=\"../index.html\">composix docs</a> / corpus</nav>\n  <h1>Migration corpus</h1>\n  <p>One living corpus, generated directly from the checked-in upstream and composix artifacts. Each case opens as a two-column comparison; its receipt records what was actually verified and what remains open.</p>\n  <p class=\"status\"><strong>Do not edit these pages.</strong> Regenerate with <code>cargo test --test corpus -- --ignored generate_corpus_browser</code>. Normal tests reject drift.</p>\n  <table>\n    <thead><tr><th>Case</th><th>docs/corpus.md ribbon</th><th>Evidence class</th></tr></thead>\n    <tbody>\n",
+        "  <nav class=\"crumbs\"><a href=\"../index.html\">composix docs</a> / corpus</nav>\n  <h1>Migration corpus</h1>\n  <p>One living corpus, generated directly from the checked-in upstream and composix artifacts. Each case opens as a two-column comparison; its receipt records what was actually verified and what remains open.</p>\n  <p class=\"status\"><strong>Do not edit these pages.</strong> Regenerate with <code>cargo test --test corpus -- --ignored generate_corpus_browser</code>. Normal tests reject drift.</p>\n",
     );
-    for case in cases {
-        let (ribbon, evidence) = ribbon_and_evidence(case);
-        writeln!(
+    for axis in ["docker", "k8s"] {
+        let heading = if axis == "docker" {
+            "Docker cases"
+        } else {
+            "Kubernetes cases"
+        };
+        write!(
             page,
-            "      <tr><td><a href=\"{}.html\">{}</a></td><td>{}</td><td>{}</td></tr>",
-            html_escape(&case.name),
-            html_escape(&case.name),
-            html_escape(ribbon),
-            html_escape(evidence)
+            "  <h2>{heading}</h2>\n  <table>\n    <thead><tr><th>Case</th><th>docs/corpus.md ribbon</th><th>Evidence class</th></tr></thead>\n    <tbody>\n"
         )
-        .expect("rendering corpus index row");
+        .expect("rendering corpus axis heading");
+        for case in cases.iter().filter(|case| case.axis == axis) {
+            let (ribbon, evidence) = ribbon_and_evidence(case);
+            writeln!(
+                page,
+                "      <tr><td><a href=\"{}-{}.html\">{}</a></td><td>{}</td><td>{}</td></tr>",
+                html_escape(&case.axis),
+                html_escape(&case.name),
+                html_escape(&case.name),
+                html_escape(ribbon),
+                html_escape(evidence)
+            )
+            .expect("rendering corpus index row");
+        }
     }
     page.push_str(
         "    </tbody>\n  </table>\n  <footer>Generated from <code>corpus/migrate/</code> and the ribbons in <code>docs/corpus.md</code>.</footer>\n</body>\n</html>\n",
@@ -1006,7 +1033,7 @@ fn render_browser() -> Vec<GeneratedFile> {
         content: render_index(&cases),
     });
     files.extend(cases.iter().map(|case| GeneratedFile {
-        name: format!("{}.html", case.name),
+        name: format!("{}-{}.html", case.axis, case.name),
         content: render_case(case),
     }));
     files

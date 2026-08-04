@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / nats — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / nats</nav>
+  <h1>docker / nats</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Exact upstream release, twins present; the config/entrypoint contract is unrecoverable from SOURCE provenance — the one real loss · <strong>Evidence:</strong> runtime probe · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 2.12.14 binary answers monitoring health; the nixpkgs monitoring contract is separately sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nats/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nats/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The <code>SOURCE</code> record cannot reconstruct the upstream context, so <code>nats-server.conf</code> and <code>docker-entrypoint.sh</code> remain unreadable. The conversion starts with <code>--http_port 8222</code> to make the supplied health probe observable, but this does not preserve the missing config-file or entrypoint contract. → evidence + case</li>
+      <li>The faithful source twin packages only the upstream amd64 release even though the Dockerfile dispatches across eight architectures. → case</li>
+      <li>The monitoring <code>/healthz</code> receipt does not exercise a client publish/subscribe round trip; the dissolved twin also follows nixpkgs&#39; version rather than upstream 2.12.14 by design. → evidence</li>
+    </ul>
+  </aside>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> alpine:3.22
+
+<span class="tok-directive">ENV</span> NATS_SERVER 2.12.14
+
+<span class="tok-directive">LABEL</span> org.opencontainers.image.title=<span class="tok-string">&quot;NATS Server&quot;</span> \
+      org.opencontainers.image.description=<span class="tok-string">&quot;NATS is an open-source, high-performance, cloud native messaging system.&quot;</span> \
+      org.opencontainers.image.url=<span class="tok-string">&quot;https://nats.io&quot;</span> \
+      org.opencontainers.image.documentation=<span class="tok-string">&quot;https://docs.nats.io&quot;</span> \
+      org.opencontainers.image.source=<span class="tok-string">&quot;https://github.com/nats-io/nats-docker&quot;</span> \
+      org.opencontainers.image.vendor=<span class="tok-string">&quot;NATS.io&quot;</span> \
+      org.opencontainers.image.licenses=<span class="tok-string">&quot;Apache-2.0&quot;</span> \
+      org.opencontainers.image.version=<span class="tok-string">&quot;${NATS_SERVER}&quot;</span>
+
+<span class="tok-directive">RUN</span> set -eux; \
+    apkArch=<span class="tok-string">&quot;$(apk --print-arch)&quot;</span>; \
+    case <span class="tok-string">&quot;$apkArch&quot;</span> in \
+    aarch64) natsArch=<span class="tok-string">&#39;arm64&#39;</span>; sha256=<span class="tok-string">&#39;5c7f50a6c14883a04475c6e6ed54b2091b0fa00c7022c10e21d395fdfc5a211d&#39;</span> ;; \
+    armhf) natsArch=<span class="tok-string">&#39;arm6&#39;</span>; sha256=<span class="tok-string">&#39;48860fe19256e926b7e2f68ad0e151ab2131c0fcd4b94acdca76485f4e6a99b7&#39;</span> ;; \
+    armv7) natsArch=<span class="tok-string">&#39;arm7&#39;</span>; sha256=<span class="tok-string">&#39;acbb66deccb4df5ac4a8c7503cd81335452c8265946d05b0ad47fd6991a81698&#39;</span> ;; \
+    x86_64) natsArch=<span class="tok-string">&#39;amd64&#39;</span>; sha256=<span class="tok-string">&#39;84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa&#39;</span> ;; \
+    x86) natsArch=<span class="tok-string">&#39;386&#39;</span>; sha256=<span class="tok-string">&#39;e1bd6e8df589757c0822f2668e8da29ce9a3deabc7d1c1c9cafdfe283192e6e7&#39;</span> ;; \
+    s390x) natsArch=<span class="tok-string">&#39;s390x&#39;</span>; sha256=<span class="tok-string">&#39;65bbbd07a96b7cc5b51ee2263025f02c5d4e37c7a0d714e16b00042cb14e2966&#39;</span> ;; \
+    ppc64le) natsArch=<span class="tok-string">&#39;ppc64le&#39;</span>; sha256=<span class="tok-string">&#39;404fed33fb94dc6b29b8212434e547c54b501b94541977596c87b8a47cdad890&#39;</span> ;; \
+    loong64) natsArch=<span class="tok-string">&#39;loong64&#39;</span>; sha256=<span class="tok-string">&#39;97f70d8d6ce99fdd8ed26738bf109dd8d7cf2dd16a9745ac5f78d5ae80d32aea&#39;</span> ;; \
+    *) echo &gt;&amp;2 <span class="tok-string">&quot;error: $apkArch is not supported!&quot;</span>; exit 1 ;; \
+    esac; \
+    \
+    wget -O nats-server.tar.gz <span class="tok-string">&quot;https://github.com/nats-io/nats-server/releases/download/v${NATS_SERVER}/nats-server-v${NATS_SERVER}-linux-${natsArch}.tar.gz&quot;</span>; \
+    echo <span class="tok-string">&quot;${sha256} *nats-server.tar.gz&quot;</span> | sha256sum -c -; \
+    \
+    apk add --no-cache ca-certificates tzdata; \
+    \
+    tar -xf nats-server.tar.gz; \
+    rm nats-server.tar.gz; \
+    mv <span class="tok-string">&quot;nats-server-v${NATS_SERVER}-linux-${natsArch}/nats-server&quot;</span> /usr/local/bin; \
+    rm -rf <span class="tok-string">&quot;nats-server-v${NATS_SERVER}-linux-${natsArch}&quot;</span>;
+
+<span class="tok-directive">COPY</span> nats-server.conf /etc/nats/nats-server.conf
+<span class="tok-directive">COPY</span> docker-entrypoint.sh /usr/local/bin
+
+<span class="tok-directive">EXPOSE</span> 4222 8222 6222
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;docker-entrypoint.sh&quot;</span>]
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;nats-server&quot;</span>, <span class="tok-string">&quot;--config&quot;</span>, <span class="tok-string">&quot;/etc/nats/nats-server.conf&quot;</span>]
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>https://raw.githubusercontent.com/nats-io/nats-docker/main/2.12.x/alpine3.22/Dockerfile
+Fetched: 2026-07-30
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-nats-0-faithful" name="tabs-nats-0" type="radio" checked>
+        <label for="tabs-nats-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-nats-0-dissolved" name="tabs-nats-0" type="radio">
+        <label for="tabs-nats-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+<span class="tok-directive">BUILDER</span> runtime
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
+  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
+  <span class="tok-directive">ENV</span> NATS_ARCH = amd64
+  <span class="tok-directive">ENV</span> NATS_SHA256 = 84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa
+  <span class="tok-directive">FETCH</span> curl --fail --location https://github.com/nats-io/nats-server/releases/download/v$NATS_SERVER/nats-server-v$NATS_SERVER-linux-$NATS_ARCH.tar.gz --output nats-server.tar.gz &amp;&amp; chmod 644 nats-server.tar.gz &amp;&amp; touch -d @0 nats-server.tar.gz EXPECT sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">echo &quot;$NATS_SHA256 *nats-server.tar.gz&quot; | sha256sum -c -</span>
+<span class="tok-heredoc">rm -rf output</span>
+<span class="tok-heredoc">mkdir -p output/bin</span>
+<span class="tok-heredoc">tar -xOf nats-server.tar.gz &quot;nats-server-v$NATS_SERVER-linux-$NATS_ARCH/nats-server&quot; &gt; output/bin/nats-server</span>
+<span class="tok-heredoc">chmod +x output/bin/nats-server</span>
+<span class="tok-directive">BUILD</span>
+
+<span class="tok-directive">SERVICE</span> nats
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${runtime}</span>/output/bin/nats-server /bin/nats-server
+  <span class="tok-directive">START</span> nats-server --http_port 8222
+  <span class="tok-directive">PORT</span> client = 4222
+  <span class="tok-directive">PORT</span> monitor = 8222
+  <span class="tok-directive">PORT</span> cluster = 6222
+  <span class="tok-directive">CLAIM</span> egress
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nats
+  IMPORT ${pkgs.nats-server} ${pkgs.cacert} ${pkgs.tzdata}
+  START nats-server --http_port 8222
+  PORT client = 4222
+  PORT monitor = 8222
+  PORT cluster = 6222
+  CLAIM egress
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nats&quot;: {
+      &quot;sourceHash&quot;: &quot;ad51054cb86b53719f8690bf09daf4bbafe0ebab0914b25505d913ade7d35c84&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:final:3-11bbc8e4e546&quot;: {
+      &quot;narHash&quot;: &quot;sha256-0a7KA8SV3F8VxIqNAIJNipngAvAW0YUdTiLFSoc3B7w=&quot;
+    },
+    &quot;builder:runtime:3-11bbc8e4e546&quot;: {
+      &quot;narHash&quot;: &quot;sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;2caa09f5cff8319735a338573aed7979a0ba6a4176db0ccbee0d11a766ece065&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;82a9a2199f13376f87200da17f4a5aa10d10d3962966029e249b40d1030611cf&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;a9cadd838fd3ca7191f3ae0c228b14ae274320d650083d1a742f15188a64906c&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:final:3&quot;: {
+      &quot;key&quot;: &quot;c3e4823dec67737754d3ef40c6046705941f45b253f72969e475e139f7346f43&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;content&quot;: &quot;99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884&quot;
+        }
+      }
+    },
+    &quot;builder:final:4&quot;: {
+      &quot;key&quot;: &quot;40056e06a1a0fff4be7baccc8641ead9b2d08b29e394fd5a70c0b8ff4552591d&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 12726873,
+            &quot;mtimeNs&quot;: 0,
+            &quot;size&quot;: 6675238,
+            &quot;len&quot;: 6675238,
+            &quot;mode&quot;: 33188
+          }
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;466632db08c575a09300c9dd0d45f977e606a75b772bd6ea4c923aaf53165d19&quot;
+        },
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;057a700148865ec991d439febaacd490c6c410b1a5e215c707e63c12d7116c8f&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;mode&quot;: 16877
+        },
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;mode&quot;: 16877
+        },
+        &quot;output/bin/nats-server&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      }
+    },
+    &quot;builder:runtime:3&quot;: {
+      &quot;key&quot;: &quot;87c9a4d471e7d9f5674345cd0fd61976ecc178a35fa242e68eef027ecaf04aef&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;content&quot;: &quot;99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884&quot;
+        }
+      }
+    },
+    &quot;builder:runtime:4&quot;: {
+      &quot;key&quot;: &quot;2c169534a0c97ae6a8dbb5a381762846d05ea2f050b322bc9d4451f8757b3b26&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 12727623,
+            &quot;mtimeNs&quot;: 686293023,
+            &quot;size&quot;: 6675238,
+            &quot;len&quot;: 6675238,
+            &quot;mode&quot;: 33188
+          }
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/bin/nats-server&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      }
+    }
+  },
+  &quot;devEnvs&quot;: {
+    &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:a83c8a6e6670e2476df97ef6e047e6edc3c154a0c338593d411e611beb699b4a&quot;: {
+      &quot;environment&quot;: {
+        &quot;SYSTEM_CERTIFICATE_PATH&quot;: &quot;/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt&quot;,
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+      }
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nats&quot;: {
+      &quot;sourceHash&quot;: &quot;a7773552e8ddbce1d97e583b653e596e2a1cbb0e6c0d7ee0e213defb6dc26483&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+docker_tag=migrate-nats-docker
+container=
+unit=
+source_dir=
+
+cleanup() {
+  if [[ -n $container ]]; then
+    docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $unit ]]; then
+    sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $source_dir ]]; then
+    rm -rf &quot;$source_dir&quot;
+  fi
+}
+trap cleanup EXIT
+trap &#39;exit 1&#39; ERR
+
+probe() {
+  local url=$1
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot;; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    source_dir=$(mktemp -d)
+    timeout 60 curl --fail --location --silent --show-error https://github.com/nats-io/nats-docker/archive/refs/heads/main.tar.gz --output &quot;$source_dir/source.tar.gz&quot;
+    tar -xf &quot;$source_dir/source.tar.gz&quot; -C &quot;$source_dir&quot;
+    image=$(timeout 240 docker build --quiet --tag &quot;$docker_tag&quot; &quot;$source_dir/nats-docker-main/2.12.x/alpine3.22&quot;)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18222:8222 &quot;$docker_tag&quot;)
+    probe http://127.0.0.1:18222/healthz
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#nats&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:8222/healthz
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *)
+    echo &quot;usage: $0 {docker|cix}&quot; &gt;&amp;2
+    exit 1
+    ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># nats migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `START`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:f0f977e50ad69c0b9a041f145cce27df06166295792391f98f4ac415a067756c`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/6nj4ggg4wmfpy6hw6hlp3wwnrn66w6ic-cix-item-nats
+{&quot;status&quot;:&quot;ok&quot;}PASS cix
+```
+
+Exit status: 0.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun. No context fetch was possible: this case&#39;s `SOURCE`
+does not identify a reproducible repository for the missing configuration and
+entrypoint files.
+
+```text
+devenv shell -- cargo build -p cix
+./target/debug/cix build corpus/migrate/docker/nats
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/docker/nats
+cd corpus/migrate/docker/nats &amp;&amp; CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+All four commands completed synchronously with exit status 0. The faithful build
+produced `/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats`; the
+dissolved build produced
+`/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats`. The unchanged
+monitoring probe returned `{&quot;status&quot;:&quot;ok&quot;}` and `PASS cix`.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/nats</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

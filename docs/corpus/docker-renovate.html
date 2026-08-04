@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / renovate — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / renovate</nav>
+  <h1>docker / renovate</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Faithful to the supplied narrow CronJob contract; repository config, credentials, actual renovation, and richer job policy remain absent · <strong>Evidence:</strong> build+schedule validation · closed-root (timer/version contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Both nixpkgs-authoritative twins build warm/cold and the daily calendar/compose contract validates; the sealed-root audit separately proves timer/version/log activation · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/renovate/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/renovate/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The available source contract proves a daily scheduled Renovate APP, but supplies no repository configuration, credentials, or target; no repository renovation is exercised. → case</li>
+      <li>Kubernetes concurrency, deadline, retry/history, cache, command-hook, security-context, placement, and secret-volume machinery has no concrete supplied value and is not represented by the APP. → case</li>
+      <li>The normal and dissolved Cixfiles are intentionally identical because locked nixpkgs is authoritative and the supplied source is a CronJob template rather than a Dockerfile-faithful application build. → evidence</li>
+      <li>The acceptance receipt proves build, calendar parsing, and compose validation only; it does not prove authenticated repository work. → evidence</li>
+    </ul>
+  </aside>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Upstream CronJob template: https://raw.githubusercontent.com/renovatebot/helm-charts/f953571cd7d10fd301799192dbaf18c55bd1dad0/charts/renovate/templates/cronjob.yaml
+Repository: https://github.com/renovatebot/helm-charts.git
+Revision: f953571cd7d10fd301799192dbaf18c55bd1dad0 (main on 2026-08-02)
+
+The checked-in upstream-cronjob.yaml is the verbatim Helm template at that revision.
+This is deliberately a narrow schedule/logging migration; Renovate repository
+configuration and credential delivery remain outside the receipt&#39;s claim.
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>upstream-cronjob.yaml</h3>
+        <pre><code><span class="tok-key">{{- $configFileName </span>:= <span class="tok-string">&quot;config.json&quot;</span> }}
+{{<span class="tok-number">-</span> if .Values.renovate.configIsJavaScript }}
+  {{<span class="tok-number">-</span> $configFileName = <span class="tok-string">&quot;config.js&quot;</span> }}
+{{<span class="tok-number">-</span> else if .Values.renovate.configIsJson5 }}
+  {{<span class="tok-number">-</span> $configFileName = <span class="tok-string">&quot;config.json5&quot;</span> }}
+{{<span class="tok-number">-</span> end }}
+<span class="tok-key">apiVersion</span>: batch/v1
+<span class="tok-key">kind</span>: CronJob
+<span class="tok-key">metadata</span>:
+  <span class="tok-key">name</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}
+  <span class="tok-key">namespace</span>: {{ include <span class="tok-string">&quot;renovate.namespace&quot;</span> . }}
+  <span class="tok-key">labels</span>:
+    {{<span class="tok-number">-</span> include <span class="tok-string">&quot;renovate.labels&quot;</span> . | nindent <span class="tok-number">4</span> }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.labels }}
+    {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">4</span> }}
+  {{<span class="tok-number">-</span> end }}
+{{<span class="tok-number">-</span> if .Values.cronjob.annotations }}
+  <span class="tok-key">annotations</span>:
+    {{<span class="tok-number">-</span> toYaml .Values.cronjob.annotations | nindent <span class="tok-number">4</span> }}
+{{<span class="tok-number">-</span> end }}
+<span class="tok-key">spec</span>:
+  <span class="tok-key">schedule</span>: <span class="tok-string">&quot;{{ .Values.cronjob.schedule }}&quot;</span>
+  {{<span class="tok-number">-</span> with .Values.cronjob.timeZone }}
+  <span class="tok-key">timeZone</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.suspend }}
+  <span class="tok-key">suspend</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.concurrencyPolicy }}
+  <span class="tok-key">concurrencyPolicy</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.failedJobsHistoryLimit }}
+  <span class="tok-key">failedJobsHistoryLimit</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.successfulJobsHistoryLimit }}
+  <span class="tok-key">successfulJobsHistoryLimit</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  {{<span class="tok-number">-</span> with .Values.cronjob.startingDeadlineSeconds }}
+  <span class="tok-key">startingDeadlineSeconds</span>: {{ . }}
+  {{<span class="tok-number">-</span> end }}
+  <span class="tok-key">jobTemplate</span>:
+    <span class="tok-key">metadata</span>:
+      <span class="tok-key">labels</span>:
+        {{<span class="tok-number">-</span> include <span class="tok-string">&quot;renovate.selectorLabels&quot;</span> . | nindent <span class="tok-number">8</span> }}
+    <span class="tok-key">spec</span>:
+      {{<span class="tok-number">-</span> with .Values.cronjob.completions }}
+      <span class="tok-key">completions</span>: {{ . }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> with .Values.cronjob.completionMode }}
+      <span class="tok-key">completionMode</span>: {{ . }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> with .Values.cronjob.parallelism}}
+      <span class="tok-key">parallelism</span>: {{ . }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> if .Values.cronjob.ttlSecondsAfterFinished }}
+      <span class="tok-key">ttlSecondsAfterFinished</span>: {{ .Values.cronjob.ttlSecondsAfterFinished }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> if .Values.cronjob.activeDeadlineSeconds }}
+      <span class="tok-key">activeDeadlineSeconds</span>: {{ .Values.cronjob.activeDeadlineSeconds }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> if .Values.cronjob.jobBackoffLimit }}
+      <span class="tok-key">backoffLimit</span>: {{ .Values.cronjob.jobBackoffLimit }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> with .Values.cronjob.backoffLimitPerIndex }}
+      <span class="tok-key">backoffLimitPerIndex</span>: {{ . }}
+      {{<span class="tok-number">-</span> end }}
+      {{<span class="tok-number">-</span> with .Values.cronjob.maxFailedIndexes }}
+      <span class="tok-key">maxFailedIndexes</span>: {{ . }}
+      {{<span class="tok-number">-</span> end }}
+      <span class="tok-key">template</span>:
+        <span class="tok-key">metadata</span>:
+          <span class="tok-key">labels</span>:
+            {{<span class="tok-number">-</span> include <span class="tok-string">&quot;renovate.selectorLabels&quot;</span> . | nindent <span class="tok-number">12</span> }}
+          {{<span class="tok-number">-</span> with .Values.pod.labels }}
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+          {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> if .Values.pod.annotations }}
+          <span class="tok-key">annotations</span>:
+            {{<span class="tok-number">-</span> toYaml .Values.pod.annotations | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+        <span class="tok-key">spec</span>:
+          <span class="tok-key">serviceAccountName</span>: {{ include <span class="tok-string">&quot;renovate.serviceAccountName&quot;</span> . }}
+          <span class="tok-key">restartPolicy</span>: {{ .Values.cronjob.jobRestartPolicy }}
+        {{<span class="tok-number">-</span> with .Values.hostAliases }}
+          <span class="tok-key">hostAliases</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.dnsPolicy }}
+          <span class="tok-key">dnsPolicy</span>: {{ . }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.dnsConfig }}
+          <span class="tok-key">dnsConfig</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+          {{<span class="tok-number">-</span> if or .Values.cronjob.initContainers .Values.ssh_config.enabled }}
+          <span class="tok-key">initContainers</span>:
+            {{<span class="tok-number">-</span> if .Values.ssh_config.enabled }}
+            <span class="tok-comment"># Setting ownership on files from mounted secrets is not supported by K8s.</span>
+            <span class="tok-comment"># See https://github.com/kubernetes/kubernetes/issues/81089.</span>
+            <span class="tok-comment"># So we need to copy the files to an empty-dir mount and change the ownership of those files afterwards.</span>
+            - <span class="tok-key">name</span>: ssh-init
+              <span class="tok-key">image</span>: <span class="tok-string">&quot;{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.useFull | ternary (printf &quot;</span>%s-full<span class="tok-string">&quot; .Values.image.tag) .Values.image.tag }}&quot;</span>
+              <span class="tok-key">imagePullPolicy</span>: {{ .Values.image.pullPolicy }}
+              <span class="tok-key">command</span>: [<span class="tok-string">&quot;/bin/bash&quot;</span>, <span class="tok-string">&quot;-c&quot;</span>]
+              <span class="tok-key">args</span>:
+                - |
+                  cp /ssh-secret-volume/* /home/ubuntu/.ssh
+                  <span class="tok-key">chown -R ubuntu</span>:ubuntu /home/ubuntu/.ssh/*
+                  chmod <span class="tok-number">600</span> /home/ubuntu/.ssh/*
+              <span class="tok-key">volumeMounts</span>:
+                - <span class="tok-key">name</span>: ssh-config-volume
+                  <span class="tok-key">mountPath</span>: /home/ubuntu/.ssh
+                - <span class="tok-key">name</span>: ssh-secret-volume
+                  <span class="tok-key">mountPath</span>: /ssh-secret-volume
+                  <span class="tok-key">readOnly</span>: <span class="tok-literal">true</span>
+              {{<span class="tok-number">-</span> if .Values.renovate.securityContext }}
+              <span class="tok-key">securityContext</span>:
+                {{<span class="tok-number">-</span> include <span class="tok-string">&quot;common.compatibility.renderSecurityContext&quot;</span> (dict <span class="tok-string">&quot;secContext&quot;</span> .Values.renovate.securityContext <span class="tok-string">&quot;context&quot;</span> $) | nindent <span class="tok-number">16</span> }}
+              {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> if .Values.cronjob.initContainers }}
+            {{<span class="tok-number">-</span> toYaml .Values.cronjob.initContainers | nindent <span class="tok-number">12</span> }}
+            {{<span class="tok-number">-</span> end }}
+          {{<span class="tok-number">-</span> end }}
+          <span class="tok-key">containers</span>:
+            - <span class="tok-key">name</span>: {{ .Chart.Name }}
+              <span class="tok-key">image</span>: <span class="tok-string">&quot;{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.useFull | ternary (printf &quot;</span>%s-full<span class="tok-string">&quot; .Values.image.tag) .Values.image.tag }}&quot;</span>
+              <span class="tok-key">imagePullPolicy</span>: {{ .Values.image.pullPolicy }}
+              {{<span class="tok-number">-</span> if or .Values.cronjob.commandOverride .Values.cronjob.argsOverride }}
+              {{<span class="tok-number">-</span> if .Values.cronjob.commandOverride }}
+              <span class="tok-key">command</span>:
+                {{<span class="tok-number">-</span> toYaml .Values.cronjob.commandOverride | nindent <span class="tok-number">16</span> }}
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> if .Values.cronjob.argsOverride }}
+              <span class="tok-key">args</span>:
+                {{<span class="tok-number">-</span> toYaml .Values.cronjob.argsOverride | nindent <span class="tok-number">16</span> }}
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> else if or .Values.cronjob.preCommand .Values.cronjob.postCommand }}
+              <span class="tok-key">command</span>: [<span class="tok-string">&quot;/bin/bash&quot;</span>, <span class="tok-string">&quot;-c&quot;</span>]
+              <span class="tok-key">args</span>:
+                - |
+                  set <span class="tok-number">-</span>e;
+                {{<span class="tok-number">-</span> if .Values.cronjob.preCommand }}
+                  {{<span class="tok-number">-</span> .Values.cronjob.preCommand | nindent <span class="tok-number">18</span> }}
+                {{<span class="tok-number">-</span> end }}
+                  renovate
+                {{<span class="tok-number">-</span> if .Values.cronjob.postCommand }}
+                  {{<span class="tok-number">-</span> .Values.cronjob.postCommand | nindent <span class="tok-number">18</span> }}
+                {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> if or .Values.renovate.config .Values.ssh_config.enabled .Values.renovate.persistence.cache.enabled .Values.extraVolumeMounts }}
+              <span class="tok-key">volumeMounts</span>:
+              {{<span class="tok-number">-</span> if .Values.renovate.config }}
+                - <span class="tok-key">name</span>: config-volume
+                  <span class="tok-key">mountPath</span>: /usr/src/app/{{ $configFileName }}
+                  <span class="tok-key">subPath</span>: {{ $configFileName }}
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> if .Values.ssh_config.enabled }}
+                - <span class="tok-key">name</span>: ssh-config-volume
+                  <span class="tok-key">mountPath</span>: /home/ubuntu/.ssh
+                  <span class="tok-key">readOnly</span>: <span class="tok-literal">true</span>
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> if .Values.extraVolumeMounts }}
+                {{<span class="tok-number">-</span> toYaml .Values.extraVolumeMounts | nindent <span class="tok-number">16</span> }}
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> if .Values.renovate.persistence.cache.enabled }}
+                - <span class="tok-key">name</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}<span class="tok-number">-</span>cache
+                  <span class="tok-key">mountPath</span>: /tmp/renovate
+              {{<span class="tok-number">-</span> end }}
+              {{<span class="tok-number">-</span> end }}
+              <span class="tok-key">env</span>:
+                {{<span class="tok-number">-</span> if .Values.renovate.existingConfigFile }}
+                - <span class="tok-key">name</span>: RENOVATE_CONFIG_FILE
+                  <span class="tok-key">value</span>: {{ .Values.renovate.existingConfigFile }}
+                {{<span class="tok-number">-</span> else if .Values.renovate.config }}
+                - <span class="tok-key">name</span>: RENOVATE_CONFIG_FILE
+                  <span class="tok-key">value</span>: /usr/src/app/{{ $configFileName }}
+                {{<span class="tok-number">-</span> end }}
+                <span class="tok-key">{{- range $k, $v </span>:= .Values.env }}
+                - <span class="tok-key">name</span>: {{ $k | quote }}
+                  <span class="tok-key">value</span>: {{ $v | quote }}
+                {{<span class="tok-number">-</span> end }}
+                {{<span class="tok-number">-</span> with .Values.envList }}
+                  {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">16</span> }}
+                {{<span class="tok-number">-</span> end }}
+              <span class="tok-key">envFrom</span>:
+                {{<span class="tok-number">-</span> if or .Values.secrets .Values.existingSecret }}
+                - <span class="tok-key">secretRef</span>:
+                    <span class="tok-key">name</span>: {{ template <span class="tok-string">&quot;renovate.secretName&quot;</span> . }}
+                {{<span class="tok-number">-</span> end }}
+                {{<span class="tok-number">-</span> with .Values.envFrom }}
+                  {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">16</span> }}
+                {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> if .Values.renovate.securityContext }}
+              <span class="tok-key">securityContext</span>:
+                {{<span class="tok-number">-</span> include <span class="tok-string">&quot;common.compatibility.renderSecurityContext&quot;</span> (dict <span class="tok-string">&quot;secContext&quot;</span> .Values.renovate.securityContext <span class="tok-string">&quot;context&quot;</span> $) | nindent <span class="tok-number">16</span> }}
+            {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> with .Values.resources }}
+              <span class="tok-key">resources</span>:
+                {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">16</span> }}
+            {{<span class="tok-number">-</span> end }}
+          {{<span class="tok-number">-</span> with .Values.extraContainers }}
+            {{<span class="tok-number">-</span> tpl (toYaml .) $ | nindent <span class="tok-number">12</span> }}
+          {{<span class="tok-number">-</span> end }}
+          <span class="tok-key">volumes</span>:
+            {{<span class="tok-number">-</span> if .Values.renovate.config }}
+              {{<span class="tok-number">-</span> if .Values.renovate.configIsSecret }}
+            - <span class="tok-key">name</span>: config-volume
+              <span class="tok-key">secret</span>:
+                <span class="tok-key">secretName</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}<span class="tok-number">-</span>config
+              {{<span class="tok-number">-</span> else }}
+            - <span class="tok-key">name</span>: config-volume
+              <span class="tok-key">configMap</span>:
+                <span class="tok-key">name</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}<span class="tok-number">-</span>config
+              {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> if .Values.renovate.persistence.cache.enabled }}
+            - <span class="tok-key">name</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}<span class="tok-number">-</span>cache
+              <span class="tok-key">persistentVolumeClaim</span>:
+                <span class="tok-key">claimName</span>: {{ include <span class="tok-string">&quot;renovate.fullname&quot;</span> . }}<span class="tok-number">-</span>cache
+            {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> if .Values.ssh_config.enabled }}
+            - <span class="tok-key">name</span>: ssh-config-volume
+              <span class="tok-key">emptyDir</span>:
+                <span class="tok-key">medium</span>: Memory
+            - <span class="tok-key">name</span>: ssh-secret-volume
+              <span class="tok-key">secret</span>:
+                <span class="tok-key">secretName</span>: {{ include <span class="tok-string">&quot;renovate.sshSecretName&quot;</span> .}}
+            {{<span class="tok-number">-</span> end }}
+            {{<span class="tok-number">-</span> if .Values.extraVolumes }}
+              {{<span class="tok-number">-</span> toYaml .Values.extraVolumes | nindent <span class="tok-number">12</span> }}
+            {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.nodeSelector }}
+          <span class="tok-key">nodeSelector</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.affinity }}
+          <span class="tok-key">affinity</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.tolerations }}
+          <span class="tok-key">tolerations</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> if or .Values.securityContext .Values.renovate.persistence.cache.enabled }}
+          <span class="tok-key">{{- $securityDict </span>:= .Values.securityContext }}
+
+          {{<span class="tok-number">-</span> if and .Values.renovate.persistence.cache.enabled (not .Values.securityContext.fsGroup) }}
+            {{<span class="tok-number">-</span> $securityDict = merge $securityDict (dict <span class="tok-string">&quot;fsGroup&quot;</span> <span class="tok-number">1000</span>) }}
+          {{<span class="tok-number">-</span> end }}
+          <span class="tok-key">securityContext</span>:
+            {{<span class="tok-number">-</span> if not (empty $securityDict) }}
+              {{<span class="tok-number">-</span> include <span class="tok-string">&quot;common.compatibility.renderSecurityContext&quot;</span> (dict <span class="tok-string">&quot;secContext&quot;</span> $securityDict <span class="tok-string">&quot;context&quot;</span> $) | nindent <span class="tok-number">12</span> }}
+            {{ end }}
+        {{<span class="tok-number">-</span> end }}
+        {{<span class="tok-number">-</span> with .Values.imagePullSecrets }}
+          <span class="tok-key">imagePullSecrets</span>:
+            {{<span class="tok-number">-</span> toYaml . | nindent <span class="tok-number">12</span> }}
+        {{<span class="tok-number">-</span> end }}
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-renovate-0-faithful" name="tabs-renovate-0" type="radio" checked>
+        <label for="tabs-renovate-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-renovate-0-dissolved" name="tabs-renovate-0" type="radio">
+        <label for="tabs-renovate-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+<span class="tok-directive">APP</span> renovate
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.renovate}</span>
+  <span class="tok-directive">START</span> renovate
+  <span class="tok-directive">CLAIM</span> egress
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+APP renovate
+  IMPORT ${pkgs.renovate}
+  START renovate
+  CLAIM egress
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;renovate&quot;: {
+      &quot;sourceHash&quot;: &quot;ef0f74d841ef2a864dd164057e33bc49d5fc55876b0595cd761201fc53c80eef&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;renovate&quot;: {
+      &quot;sourceHash&quot;: &quot;ef0f74d841ef2a864dd164057e33bc49d5fc55876b0595cd761201fc53c80eef&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+root=&quot;$(cd &quot;$(dirname &quot;$0&quot;)&quot; &amp;&amp; pwd)&quot;
+cix=&quot;${1:-$root/../../../../target/debug/cix}&quot;
+state_dir=&quot;$(mktemp -d)&quot;
+trap &#39;rm -rf -- &quot;$state_dir&quot;&#39; EXIT
+
+CIX_STATE_DIR=&quot;$state_dir&quot; &quot;$cix&quot; build -t regrade &quot;$root&quot;
+systemd-analyze calendar daily &gt;/dev/null
+CIX_STATE_DIR=&quot;$state_dir&quot; &quot;$cix&quot; compose check &quot;$root/compose.json&quot;
+
+printf &#39;PASS cix build, calendar, and compose validation\n&#39;
+</code></pre>
+      </details>
+      <section class="file">
+        <h3>cix.lock</h3>
+        <pre><code>{
+  &quot;paths&quot;: {
+    &quot;renovate&quot;: {
+      &quot;ref&quot;: &quot;renovate:regrade&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate&quot;,
+      &quot;narHash&quot;: &quot;sha256-Qi+o5oZLaPTgX61h99Rx53GWcDWO2rWJoLs0mN5bzgg=&quot;
+    }
+  }
+}
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>compose.json</h3>
+        <pre><code>{
+  <span class="tok-key">&quot;cixCompose&quot;</span>: <span class="tok-number">1</span>,
+  <span class="tok-key">&quot;name&quot;</span>: <span class="tok-string">&quot;corpus-renovate&quot;</span>,
+  <span class="tok-key">&quot;children&quot;</span>: {
+    <span class="tok-key">&quot;renovate&quot;</span>: {
+      <span class="tok-key">&quot;item&quot;</span>: <span class="tok-string">&quot;renovate:regrade&quot;</span>,
+      <span class="tok-key">&quot;schedule&quot;</span>: <span class="tok-string">&quot;daily&quot;</span>,
+      <span class="tok-key">&quot;persistent&quot;</span>: <span class="tok-literal">true</span>
+    }
+  }
+}
+</code></pre>
+      </section>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># Renovate schedule migration receipt
+
+Regrade: 2026-08-02. This is a deliberately narrow conversion of the wild
+Kubernetes CronJob row: it uses the real Nix-packaged Renovate executable and
+proves the landed APP/timer and journald-selector mechanisms. It is not a full
+Renovate deployment: repository configuration and token delivery remain
+unverified, and native secret delivery is not part of this feature wave.
+
+## Build and schedule
+
+```text
+devenv shell -- cargo build -p cix
+target/debug/cix build -t regrade corpus/migrate/docker/renovate
+/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate
+sudo env PATH=&quot;$PATH&quot; target/debug/cix tag &lt;item&gt; renovate:regrade
+systemd-analyze calendar daily
+Normalized form: *-*-* 00:00:00
+target/debug/cix compose check corpus/migrate/docker/renovate/compose.json
+compose corpus-renovate: 1 services, 0 edges, valid
+sudo env PATH=&quot;$PATH&quot; target/debug/cix up \
+  corpus/migrate/docker/renovate/compose.json --update=&#39;*&#39;
+activated corpus-renovate from \
+  /nix/store/gcr7gdk2l2w0pqryxgx4i3krdb2d5nlf-cix-compose-corpus-renovate-generation
+systemctl is-active cix-corpus-renovate-renovate.timer
+active
+```
+
+The generated timer contained the expected native projection:
+
+```ini
+[Timer]
+OnCalendar=daily
+Unit=cix-corpus-renovate-renovate.service
+Persistent=true
+```
+
+The first manual oneshot run trapped in Node/V8 under W^X. Adding the explicit
+`CLAIM jit`, retagging the new item, and updating the compose lock corrected the
+conversion. The final run was green:
+
+```text
+sudo systemctl start cix-corpus-renovate-renovate.service
+Result=success
+ExecMainCode=1
+ExecMainStatus=0
+target/debug/cix logs corpus-renovate/renovate \
+  --invocation 2da1f08172084cf08056187f5a31784b -n 20
+43.214.1
+```
+
+`cix logs` printed the equivalent indexed query with
+`CIX_COMPOSITE=corpus-renovate`, `CIX_SERVICE=renovate`, and the invocation ID.
+Cleanup used `cix down corpus-renovate` and removed both temporary user/root
+`renovate:regrade` tags.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged primary and dissolved APP builds passed, and
+the supplied acceptance checked the default build, `systemd-analyze calendar
+daily`, and compose validation.
+
+The assembler&#39;s primary and `--file Cixfile.dissolved` builds each exited 0 with
+`/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate`. Running
+`corpus/migrate/docker/renovate/check.sh` with this worktree&#39;s cix exited 0 and printed
+`PASS cix build, calendar, and compose validation`. Both builds repeated with
+`--cold` exited 0 with the same item. This case has no Dockerfile/context;
+Docker mode was not run.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/renovate</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

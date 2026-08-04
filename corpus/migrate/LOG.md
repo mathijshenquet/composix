@@ -799,3 +799,24 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   `corpus/migrate/`, `docs/corpus.md`, generated `docs/corpus/`, and
   `docs/open-questions.md`, leaving the fenced `nix/`, `crates/`, `docs/tour/`,
   and `docs/nix-build.md` surfaces unchanged. Only this policy LOG is unstaged.
+## 2026-08-04 — track/corpusk8s start
+
+- Scope: restructure the 21 Docker migration cases below `corpus/migrate/docker/`, add the empty k8s corpus axis and its candidate/authoring skeleton, then re-establish every path-bearing consumer through executed receipts.
+- Environment: entered clean on `track/corpusk8s`; direnv is active. Initial consumer inventory found shared `fetch.sh` and `regen-stage.sh`, all per-case `check.sh` scripts, the corpus browser generator, the CIP-84 closed-root roster, docs links, `.gitignore`, and the AGENTS ledger glob.
+- Next: perform the history-preserving move, make consumers axis-aware, then run the specified consumer and focused-audit gates synchronously.
+
+## 2026-08-04 — axis restructure implemented, verification started
+
+- Moved all 21 tracked cases with `git mv` to `corpus/migrate/docker/`; shared migration controls remain at the root. Per-case checks now resolve `../../../../target/debug/cix` and `../../fetch.sh`; Mastodon's calculated repository root also gains the axis level.
+- `fetch.sh` and `regen-stage.sh` preserve bare Docker case names and accept `axis/case` selectors. The browser uses qualified ledger identities and unique `<axis>-<case>.html` pages, rendering Docker and Kubernetes sections. Updated live docs, generated-page inputs, ignores, check receipts, cold audit test data, and all closed-root Nix corpus paths.
+- Closed-root roster is now qualified and exhaustive over every declared axis; it asserts the closed root has exactly `docker` and `k8s`, then compares every discovered `axis/case` to the audited-or-downgraded roster. This deliberately fails when a new axis or unclassified case is added.
+- Added the k8s authoring skeleton (`CANDIDATES.md`, `README.md`) only. No conversions are present. `docs/migrate.md` remains Dockerfile-to-Cixfile teaching and needs a Kubernetes sibling or section when that conversion wave begins.
+- Next: format/compile and regenerate the browser, run both fetch selector forms and stage selector forms, then run every moved check script and the focused closed-root audit.
+
+## 2026-08-04 — consumer receipts
+
+- Static path receipts: `devenv shell -- cargo fmt --check`; `bash -n corpus/migrate/{fetch,regen-stage}.sh`; `find corpus/migrate/docker -name check.sh -print0 | xargs -0 -n1 bash -n`; `git diff --check`; `devenv shell -- cargo build -p cix`; browser regeneration and `devenv shell -- cargo test --test corpus` all exited 0.
+- Shared-script receipts: from `corpus/migrate/`, `./fetch.sh adminer`, `./fetch.sh docker/adminer`, and `./fetch.sh --all` exited 0; all 15 context-bearing Docker cases were fetched under `docker/`. `regen-stage.sh adminer <temp>/bare` and `regen-stage.sh docker/adminer <temp>/qualified` both exited 0 and produced the expected Dockerfile, prompt, check, and executable cix payloads.
+- All 21 moved checks were invoked as their normal consumers (Renovate with its default binary argument; every other case as `./check.sh cix`). Exit 0: mastodon, nats, phpmyadmin, renovate, tomcat, wallos, whoami. Nonzero: adminer, caddy, directus, dozzle, echo-server, excalidraw, filestash, memcached, nginx, parse-server, redis, traefik, verdaccio, watchtower. Most hit already-ledgered volatile FETCH expectations; Directus reported `No space left on device`; Dozzle reached its known missing `shared_cert.pem`; the other observed outcomes remain in `/tmp/corpusk8s-check-*.log` for this session. Check-triggered lockfile writes were restored from the pre-move blobs, because this track changes paths rather than conversion pins.
+- `COLD_AUDIT=adminer devenv shell -- cargo test -p cix --test cold_audit -- --ignored selected_corpus_pair_matches_a_clean_rebuild` exercised the moved cold-audit path and failed at Adminer's established volatile FETCH EXPECT mismatch.
+- df guard before the VM: `/` 63 GiB free (93% used), `/tmp` 49 GiB free (23% used), inodes available. First focused Nix evaluation correctly failed because the new k8s skeleton was untracked and therefore absent from the Git flake source: the closed-root axis assertion saw only `[ "docker" ]`. Stage the skeleton and rerun; that failure confirms the axis roster cannot silently omit it.

@@ -5,27 +5,40 @@
 # receipt.md — cold regeneration must not see canon (docs/corpus.md loops).
 set -euo pipefail
 
-case=${1:?usage: regen-stage.sh <case> [dest]}
+selector=${1:?usage: regen-stage.sh <case>|<axis>/<case> [dest]}
 root=$(cd -- "$(dirname -- "$0")" && pwd)
 repo=$(cd -- "$root/../.." && pwd)
-dest=${2:-"$HOME/regen-stage/$case"}
+case $selector in
+  */*)
+    axis=${selector%%/*}
+    case_name=${selector#*/}
+    [[ -n $axis && -n $case_name && $case_name != */* ]] || { echo "invalid case: $selector" >&2; exit 1; }
+    ;;
+  *)
+    axis=docker
+    case_name=$selector
+    ;;
+esac
+case_dir="$root/$axis/$case_name"
+qualified_case="$axis/$case_name"
+dest=${2:-"$HOME/regen-stage/${axis}-${case_name}"}
 
-[[ -d "$root/$case" ]] || { echo "unknown case: $case" >&2; exit 1; }
+[[ -d "$case_dir" ]] || { echo "unknown case: $selector" >&2; exit 1; }
 [[ -e "$dest" ]] && { echo "dest exists: $dest (remove it first)" >&2; exit 1; }
 mkdir -p "$dest/bin"
 
 cp "$repo/docs/migrate.md" "$dest/MIGRATE.md"
 for f in Dockerfile SOURCE check.sh; do
-  [[ -f "$root/$case/$f" ]] && cp "$root/$case/$f" "$dest/$f"
+  [[ -f "$case_dir/$f" ]] && cp "$case_dir/$f" "$dest/$f"
 done
-for f in "$root/$case"/upstream-*; do
+for f in "$case_dir"/upstream-*; do
   [[ -f "$f" ]] && cp "$f" "$dest/"
 done
 
-if [[ ! -d "$root/$case/context" ]]; then
-  "$root/fetch.sh" "$case" || echo "note: no fetched context for $case" >&2
+if [[ ! -d "$case_dir/context" ]]; then
+  "$root/fetch.sh" "$qualified_case" || echo "note: no fetched context for $qualified_case" >&2
 fi
-[[ -d "$root/$case/context" ]] && cp -r "$root/$case/context" "$dest/context"
+[[ -d "$case_dir/context" ]] && cp -r "$case_dir/context" "$dest/context"
 
 cix_bin="$repo/target/debug/cix"
 [[ -x "$cix_bin" ]] || { echo "build cix first: cargo build -p cix" >&2; exit 1; }
