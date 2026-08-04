@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,14 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 base service passes; optional runtime mutation remains unconverted · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build and login-page probe pass; dynamic design/plugin entrypoint behavior is outside the probe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/adminer/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 3 files, 4338 bytes</summary>
+    <ul class="file-tree">
+      <li><code>entrypoint.sh</code> <span>482 bytes</span></li>
+      <li><code>index.php</code> <span>1625 bytes</span></li>
+      <li><code>plugin-loader.php</code> <span>2231 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -109,6 +135,19 @@
 <span class="tok-directive">EXPOSE</span> 8080
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile and build context: https://github.com/TimWolla/docker-adminer.git, directory `5`
+Resolved revision: 7088bf0e2003398930eed5ea00032b61aa3b55cb
+Context path: 5
+Exclude context path: Dockerfile
+Exclude context path: fastcgi
+Dockerfile URL: https://raw.githubusercontent.com/TimWolla/docker-adminer/master/5/Dockerfile
+Retrieved: 2026-07-30
+
+The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9.
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -131,6 +170,112 @@
   <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;adminer_src&quot;: {
+      &quot;narHash&quot;: &quot;sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=&quot;
+    },
+    &quot;builder:adminer_src:0-5041e7b369cf&quot;: {
+      &quot;narHash&quot;: &quot;sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;eca6544e4ba9d39bcd23d1ced7d2bacb7d58bcb0554e8c8c620e502a07a4e6ce&quot;: {
+      &quot;paths&quot;: {
+        &quot;adminer.php&quot;: {
+          &quot;narHash&quot;: &quot;sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/4mswbjgarb5g1kgab75lbnd9f01h38ly-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;ed6c877a4f3f1a4274ab712c738ea374797c9c96ccf47769f670bb3b5ae421d0&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/avgkp0gxdl3ib2lxd5khs7vg24sxbh3a-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 98
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then
+  echo &#39;context/ missing — run ../fetch.sh adminer first&#39; &gt;&amp;2
+  exit 1
+fi
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+docker_tag=migrate-adminer-docker
+container=
+unit=
+
+cleanup() {
+  if [[ -n $container ]]; then docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+  if [[ -n $unit ]]; then sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+}
+trap cleanup EXIT
+
+probe() {
+  local url=$1 attempt
+  for attempt in $(seq 1 10); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot; | grep -qi &#39;login&#39;; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    image=$(timeout 240 docker build --quiet --file &quot;$root/Dockerfile&quot; --tag &quot;$docker_tag&quot; &quot;$root/context&quot;)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18082:8080 &quot;$docker_tag&quot;)
+    probe http://127.0.0.1:18082/
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#adminer&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:8080/
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *) echo &#39;usage: ./check.sh {docker|cix}&#39; &gt;&amp;2; exit 1 ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># adminer migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`EXPECT`, builder `IMPORT`, role directories, explicit artifact `bin/`, and D62 selector builds).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:1b74a51d52b661e95107ce2eaec2186d2f55c7c2d5d73602b76a0e6897778659`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/g0yd5br9x691yawy8mjsfx6dd0ssp8mp-cix-item-adminer
+PASS cix
+```
+
+Exit status: 0. The login-page probe passed.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/adminer</code>. Do not edit this page by hand.</footer>

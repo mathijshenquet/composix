@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,7 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/SOURCE">Pinned upstream source notes</a></p>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -74,6 +93,12 @@
 <span class="tok-directive">EXPOSE</span> 80
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>https://raw.githubusercontent.com/traefik/whoami/master/Dockerfile
+Fetched: 2026-07-30
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -95,6 +120,153 @@
   <span class="tok-directive">PORT</span> http = 80
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:0-1efcc24b6ab5&quot;: {
+      &quot;narHash&quot;: &quot;sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE=&quot;
+    },
+    &quot;builder:build:1-1b1da2a6a3d8&quot;: {
+      &quot;narHash&quot;: &quot;sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s=&quot;
+    },
+    &quot;builder:build:1-27b58dcd6983&quot;: {
+      &quot;narHash&quot;: &quot;sha256-tlqh63S9lnbcmOfO5kZAXG/pQSZxAdNThZ7LUMXRHwg=&quot;
+    },
+    &quot;builder:build:2-42a8263a643c&quot;: {
+      &quot;narHash&quot;: &quot;sha256-9M0AkvtAzsOYNGxFP8wMLqR9Im70h+BR/8h1pAzQs5E=&quot;
+    },
+    &quot;src&quot;: {
+      &quot;narHash&quot;: &quot;sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;0ca21c0c8d15603995c3be42a2a761033ce52657c41c4b90af55d1e78935fd57&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 1144
+    },
+    &quot;73b409fc87bb5cc9281b114ee5dd3820a21b4a2d60f1ab2e8bbc892a43f16bed&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/r4hwf34z2ahq6piljcmrxr0sav5qs53m-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 592
+    },
+    &quot;7f7350b70bbccf2dae6df1a60df020fbe5d00bbfd196c59fc1878d85f295df04&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-+CVGgJjWd1KThfI0xExKGZPCffxF4BsxFOooAMiO8D8=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/7l36h0badcgz22acl0n8c3s2mb2ppxx4-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 3724
+    },
+    &quot;809f558ddf4286aee97ab186b85267ff6cde3f4f5f0f98c81704d4f3a062d372&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-apmlQtnNWS8+dvnLYkD99YDgTnH6/6f8I3NotH/2tA4=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/rcsvk7f1va6x0vplrs9rp78ppyppfy11-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 6437
+    },
+    &quot;adf7dc34e8d3c567a702c55fc5524ce9f6b537c8bef3a6b80b186bb6f8ff9f27&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/53gfms5rg2mi1azv3d7i9jyh0plmgsp0-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 672
+    },
+    &quot;fd8401ceb89b27827993d60465772a77a840be8e1064b67ba7f4e1598fe06da4&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-kbQ2Is0WxwurR56xrNPPj0vSoH9k6AZISRGXvuvprEE=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/ywhk4k8rh44c5z2g9zbsm04xj4hijr21-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 714
+    },
+    &quot;fdfcf51098c4fc502b6dfede33c247f6bf9374f9bc6666894ce5e385eb89811b&quot;: {
+      &quot;paths&quot;: {
+        &quot;whoami&quot;: {
+          &quot;narHash&quot;: &quot;sha256-PGesaKnYMmvgp7XYL1rVlTNPgnvUsGu/EvJAwEKk6wg=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/nqxmz348wlc8mryvyw5zas5nk280mdsg-cix-build-consumed&quot;
+        }
+      }
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+docker_tag=migrate-whoami-docker
+container=
+unit=
+
+cleanup() {
+  if [[ -n $container ]]; then
+    docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $unit ]]; then
+    sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+}
+trap cleanup EXIT
+trap &#39;exit 1&#39; ERR
+
+probe() {
+  local url=$1
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot;; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    image=$(timeout 240 docker build --quiet --tag &quot;$docker_tag&quot; https://github.com/traefik/whoami.git)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18080:80 &quot;$docker_tag&quot;)
+    probe http://127.0.0.1:18080/
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#whoami&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:80/
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *)
+    echo &quot;usage: $0 {docker|cix}&quot; &gt;&amp;2
+    exit 1
+    ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># whoami migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, bare builder commands, and bare artifact `START`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:bf3c544f03d387bd30e9b8bc2e08bc6b6f4aae80d884822fe43e472844ab5d44`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/5raa2baz0ixyj7lrhqzrcdbpvf8rlj0i-cix-item-whoami
+PASS cix
+```
+
+Exit status: 0. The HTTP probe passed.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/whoami</code>. Do not edit this page by hand.</footer>

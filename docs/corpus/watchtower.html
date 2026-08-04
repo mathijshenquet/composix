@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,181 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ competing Docker control plane · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Go build succeeds, but faithful runtime requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/watchtower/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 170 files, 21075473 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.all-contributorsrc</code> <span>23207 bytes</span></li>
+      <li><code>.codacy.yml</code> <span>76 bytes</span></li>
+      <li><code>.devbots/lock-issue.yml</code> <span>230 bytes</span></li>
+      <li><code>.editorconfig</code> <span>182 bytes</span></li>
+      <li><code>.github/CODEOWNERS</code> <span>360 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/bug.yml</code> <span>1889 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/config.yml</code> <span>196 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/feature_request.yml</code> <span>1122 bytes</span></li>
+      <li><code>.github/dependabot.yml</code> <span>855 bytes</span></li>
+      <li><code>.github/pull_request_template.md</code> <span>462 bytes</span></li>
+      <li><code>.github/stale.yml</code> <span>406 bytes</span></li>
+      <li><code>.github/workflows/codeql-analysis.yml</code> <span>2597 bytes</span></li>
+      <li><code>.github/workflows/dependabot-approve.yml</code> <span>249 bytes</span></li>
+      <li><code>.github/workflows/greetings.yml</code> <span>1043 bytes</span></li>
+      <li><code>.github/workflows/publish-docs.yml</code> <span>868 bytes</span></li>
+      <li><code>.github/workflows/pull-request.yml</code> <span>1734 bytes</span></li>
+      <li><code>.github/workflows/release-dev.yaml</code> <span>1665 bytes</span></li>
+      <li><code>.github/workflows/release.yml</code> <span>6460 bytes</span></li>
+      <li><code>.gitignore</code> <span>139 bytes</span></li>
+      <li><code>CONTRIBUTING.md</code> <span>1746 bytes</span></li>
+      <li><code>LICENSE.md</code> <span>11526 bytes</span></li>
+      <li><code>README.md</code> <span>38707 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>696 bytes</span></li>
+      <li><code>build.sh</code> <span>247 bytes</span></li>
+      <li><code>cmd/notify-upgrade.go</code> <span>2852 bytes</span></li>
+      <li><code>cmd/root.go</code> <span>10819 bytes</span></li>
+      <li><code>code_of_conduct.md</code> <span>171 bytes</span></li>
+      <li><code>docker-compose.yml</code> <span>1054 bytes</span></li>
+      <li><code>dockerfiles/Dockerfile</code> <span>459 bytes</span></li>
+      <li><code>dockerfiles/Dockerfile.dev-self-contained</code> <span>1150 bytes</span></li>
+      <li><code>dockerfiles/Dockerfile.self-contained</code> <span>944 bytes</span></li>
+      <li><code>dockerfiles/container-networking/docker-compose.yml</code> <span>477 bytes</span></li>
+      <li><code>docs-requirements.txt</code> <span>30 bytes</span></li>
+      <li><code>docs/arguments.md</code> <span>16374 bytes</span></li>
+      <li><code>docs/assets/grafana-dashboard.png</code> <span>32994 bytes</span></li>
+      <li><code>docs/container-selection.md</code> <span>3349 bytes</span></li>
+      <li><code>docs/http-api-mode.md</code> <span>1864 bytes</span></li>
+      <li><code>docs/images/favicon.ico</code> <span>53108 bytes</span></li>
+      <li><code>docs/images/logo-450px.png</code> <span>36798 bytes</span></li>
+      <li><code>docs/index.md</code> <span>2752 bytes</span></li>
+      <li><code>docs/introduction.md</code> <span>1416 bytes</span></li>
+      <li><code>docs/lifecycle-hooks.md</code> <span>3353 bytes</span></li>
+      <li><code>docs/linked-containers.md</code> <span>1150 bytes</span></li>
+      <li><code>docs/metrics.md</code> <span>1963 bytes</span></li>
+      <li><code>docs/notifications.md</code> <span>17948 bytes</span></li>
+      <li><code>docs/private-registries.md</code> <span>7772 bytes</span></li>
+      <li><code>docs/remote-hosts.md</code> <span>715 bytes</span></li>
+      <li><code>docs/running-multiple-instances.md</code> <span>1919 bytes</span></li>
+      <li><code>docs/secure-connections.md</code> <span>1057 bytes</span></li>
+      <li><code>docs/stop-signals.md</code> <span>674 bytes</span></li>
+      <li><code>docs/stylesheets/theme.css</code> <span>3763 bytes</span></li>
+      <li><code>docs/template-preview.md</code> <span>7999 bytes</span></li>
+      <li><code>docs/updating.md</code> <span>420 bytes</span></li>
+      <li><code>docs/usage-overview.md</code> <span>3412 bytes</span></li>
+      <li><code>go.mod</code> <span>3141 bytes</span></li>
+      <li><code>go.sum</code> <span>22260 bytes</span></li>
+      <li><code>gopher-watchtower.png</code> <span>152602 bytes</span></li>
+      <li><code>goreleaser.yml</code> <span>2254 bytes</span></li>
+      <li><code>grafana/dashboards/dashboard.json</code> <span>6375 bytes</span></li>
+      <li><code>grafana/dashboards/dashboard.yml</code> <span>199 bytes</span></li>
+      <li><code>grafana/datasources/datasource.yml</code> <span>139 bytes</span></li>
+      <li><code>internal/actions/actions_suite_test.go</code> <span>3178 bytes</span></li>
+      <li><code>internal/actions/check.go</code> <span>2578 bytes</span></li>
+      <li><code>internal/actions/mocks/client.go</code> <span>2790 bytes</span></li>
+      <li><code>internal/actions/mocks/container.go</code> <span>4336 bytes</span></li>
+      <li><code>internal/actions/mocks/progress.go</code> <span>1294 bytes</span></li>
+      <li><code>internal/actions/update.go</code> <span>8432 bytes</span></li>
+      <li><code>internal/actions/update_test.go</code> <span>14296 bytes</span></li>
+      <li><code>internal/flags/flags.go</code> <span>19432 bytes</span></li>
+      <li><code>internal/flags/flags_test.go</code> <span>9611 bytes</span></li>
+      <li><code>internal/meta/meta.go</code> <span>246 bytes</span></li>
+      <li><code>internal/util/rand_name.go</code> <span>326 bytes</span></li>
+      <li><code>internal/util/rand_sha256.go</code> <span>560 bytes</span></li>
+      <li><code>internal/util/util.go</code> <span>1144 bytes</span></li>
+      <li><code>internal/util/util_test.go</code> <span>2002 bytes</span></li>
+      <li><code>logo.png</code> <span>116149 bytes</span></li>
+      <li><code>main.go</code> <span>177 bytes</span></li>
+      <li><code>mkdocs.yml</code> <span>1627 bytes</span></li>
+      <li><code>oryxBuildBinary</code> <span>20080625 bytes</span></li>
+      <li><code>pkg/api/api.go</code> <span>1801 bytes</span></li>
+      <li><code>pkg/api/api_test.go</code> <span>1417 bytes</span></li>
+      <li><code>pkg/api/metrics/metrics.go</code> <span>527 bytes</span></li>
+      <li><code>pkg/api/metrics/metrics_test.go</code> <span>2180 bytes</span></li>
+      <li><code>pkg/api/update/update.go</code> <span>1348 bytes</span></li>
+      <li><code>pkg/container/cgroup_id.go</code> <span>729 bytes</span></li>
+      <li><code>pkg/container/cgroup_id_test.go</code> <span>1854 bytes</span></li>
+      <li><code>pkg/container/client.go</code> <span>15859 bytes</span></li>
+      <li><code>pkg/container/client_test.go</code> <span>13953 bytes</span></li>
+      <li><code>pkg/container/container.go</code> <span>12578 bytes</span></li>
+      <li><code>pkg/container/container_mock_test.go</code> <span>2204 bytes</span></li>
+      <li><code>pkg/container/container_suite_test.go</code> <span>200 bytes</span></li>
+      <li><code>pkg/container/container_test.go</code> <span>13696 bytes</span></li>
+      <li><code>pkg/container/errors.go</code> <span>320 bytes</span></li>
+      <li><code>pkg/container/metadata.go</code> <span>2750 bytes</span></li>
+      <li><code>pkg/container/mocks/ApiServer.go</code> <span>9155 bytes</span></li>
+      <li><code>pkg/container/mocks/FilterableContainer.go</code> <span>1703 bytes</span></li>
+      <li><code>pkg/container/mocks/container_ref.go</code> <span>747 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_net_consumer-missing_supplier.json</code> <span>6661 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_net_consumer.json</code> <span>6661 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_net_supplier.json</code> <span>12604 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_restarting.json</code> <span>5947 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_running.json</code> <span>6572 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_stopped.json</code> <span>5951 bytes</span></li>
+      <li><code>pkg/container/mocks/data/container_watchtower.json</code> <span>5954 bytes</span></li>
+      <li><code>pkg/container/mocks/data/containers.json</code> <span>6013 bytes</span></li>
+      <li><code>pkg/container/mocks/data/image_default.json</code> <span>2732 bytes</span></li>
+      <li><code>pkg/container/mocks/data/image_net_consumer.json</code> <span>3834 bytes</span></li>
+      <li><code>pkg/container/mocks/data/image_net_producer.json</code> <span>7193 bytes</span></li>
+      <li><code>pkg/container/mocks/data/image_running.json</code> <span>2850 bytes</span></li>
+      <li><code>pkg/container/util_test.go</code> <span>1693 bytes</span></li>
+      <li><code>pkg/filters/filters.go</code> <span>4713 bytes</span></li>
+      <li><code>pkg/filters/filters_test.go</code> <span>9836 bytes</span></li>
+      <li><code>pkg/lifecycle/lifecycle.go</code> <span>3442 bytes</span></li>
+      <li><code>pkg/metrics/metrics.go</code> <span>3074 bytes</span></li>
+      <li><code>pkg/notifications/common_templates.go</code> <span>1109 bytes</span></li>
+      <li><code>pkg/notifications/email.go</code> <span>2081 bytes</span></li>
+      <li><code>pkg/notifications/gotify.go</code> <span>2002 bytes</span></li>
+      <li><code>pkg/notifications/json.go</code> <span>1540 bytes</span></li>
+      <li><code>pkg/notifications/json_test.go</code> <span>2738 bytes</span></li>
+      <li><code>pkg/notifications/model.go</code> <span>384 bytes</span></li>
+      <li><code>pkg/notifications/msteams.go</code> <span>1119 bytes</span></li>
+      <li><code>pkg/notifications/notifications_suite_test.go</code> <span>292 bytes</span></li>
+      <li><code>pkg/notifications/notifier.go</code> <span>3830 bytes</span></li>
+      <li><code>pkg/notifications/notifier_test.go</code> <span>12055 bytes</span></li>
+      <li><code>pkg/notifications/preview/data/data.go</code> <span>3403 bytes</span></li>
+      <li><code>pkg/notifications/preview/data/logs.go</code> <span>1175 bytes</span></li>
+      <li><code>pkg/notifications/preview/data/preview_strings.go</code> <span>4957 bytes</span></li>
+      <li><code>pkg/notifications/preview/data/report.go</code> <span>2641 bytes</span></li>
+      <li><code>pkg/notifications/preview/data/status.go</code> <span>791 bytes</span></li>
+      <li><code>pkg/notifications/preview/tplprev.go</code> <span>744 bytes</span></li>
+      <li><code>pkg/notifications/shoutrrr.go</code> <span>6302 bytes</span></li>
+      <li><code>pkg/notifications/shoutrrr_test.go</code> <span>11354 bytes</span></li>
+      <li><code>pkg/notifications/slack.go</code> <span>2062 bytes</span></li>
+      <li><code>pkg/notifications/templates/funcs.go</code> <span>550 bytes</span></li>
+      <li><code>pkg/registry/auth/auth.go</code> <span>4410 bytes</span></li>
+      <li><code>pkg/registry/auth/auth_test.go</code> <span>6357 bytes</span></li>
+      <li><code>pkg/registry/digest/digest.go</code> <span>3669 bytes</span></li>
+      <li><code>pkg/registry/digest/digest_test.go</code> <span>3543 bytes</span></li>
+      <li><code>pkg/registry/helpers/helpers.go</code> <span>665 bytes</span></li>
+      <li><code>pkg/registry/helpers/helpers_test.go</code> <span>1352 bytes</span></li>
+      <li><code>pkg/registry/manifest/manifest.go</code> <span>1115 bytes</span></li>
+      <li><code>pkg/registry/manifest/manifest_test.go</code> <span>2526 bytes</span></li>
+      <li><code>pkg/registry/registry.go</code> <span>1877 bytes</span></li>
+      <li><code>pkg/registry/registry_suite_test.go</code> <span>259 bytes</span></li>
+      <li><code>pkg/registry/registry_test.go</code> <span>1507 bytes</span></li>
+      <li><code>pkg/registry/trust.go</code> <span>3300 bytes</span></li>
+      <li><code>pkg/registry/trust_test.go</code> <span>1203 bytes</span></li>
+      <li><code>pkg/session/container_status.go</code> <span>1831 bytes</span></li>
+      <li><code>pkg/session/progress.go</code> <span>1788 bytes</span></li>
+      <li><code>pkg/session/report.go</code> <span>3019 bytes</span></li>
+      <li><code>pkg/sorter/sort.go</code> <span>2677 bytes</span></li>
+      <li><code>pkg/types/container.go</code> <span>1920 bytes</span></li>
+      <li><code>pkg/types/convertible_notifier.go</code> <span>365 bytes</span></li>
+      <li><code>pkg/types/filter.go</code> <span>200 bytes</span></li>
+      <li><code>pkg/types/filterable_container.go</code> <span>239 bytes</span></li>
+      <li><code>pkg/types/notifier.go</code> <span>229 bytes</span></li>
+      <li><code>pkg/types/registry_credentials.go</code> <span>199 bytes</span></li>
+      <li><code>pkg/types/report.go</code> <span>566 bytes</span></li>
+      <li><code>pkg/types/token_response.go</code> <span>148 bytes</span></li>
+      <li><code>pkg/types/update_params.go</code> <span>364 bytes</span></li>
+      <li><code>prometheus/prometheus.yml</code> <span>193 bytes</span></li>
+      <li><code>scripts/build-tplprev.sh</code> <span>179 bytes</span></li>
+      <li><code>scripts/codecov.sh</code> <span>158 bytes</span></li>
+      <li><code>scripts/contnet-tests.sh</code> <span>1336 bytes</span></li>
+      <li><code>scripts/dependency-test.sh</code> <span>2986 bytes</span></li>
+      <li><code>scripts/docker-util.sh</code> <span>4171 bytes</span></li>
+      <li><code>scripts/du-cli.sh</code> <span>1576 bytes</span></li>
+      <li><code>scripts/lifecycle-tests.sh</code> <span>6051 bytes</span></li>
+      <li><code>tplprev/main.go</code> <span>1138 bytes</span></li>
+      <li><code>tplprev/main_wasm.go</code> <span>1286 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -71,6 +264,16 @@
 <span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;/watchtower&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/containrrr/watchtower/ca0e86e824ec05389ab972ea97d04d4bf0476e90/dockerfiles/Dockerfile
+Repository: https://github.com/containrrr/watchtower.git
+Resolved revision: ca0e86e824ec05389ab972ea97d04d4bf0476e90
+Context path: .
+Dockerfile sha256: 0254ba1b743374018529b51177f12455f5f0b4b28981d5532a5feaf291fec8ee
+Build context: repository archive in context/. The Dockerfile&#39;s required prebuilt ./watchtower is absent from that source context.
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -92,6 +295,80 @@
   <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:1-1b1da2a6a3d8&quot;: {
+      &quot;narHash&quot;: &quot;sha256-iuQfX1Wu+YJbQEa+MBGzrq+wScN1NpeihkBlyimhNbQ=&quot;
+    },
+    &quot;builder:build:2-42a8263a643c&quot;: {
+      &quot;narHash&quot;: &quot;sha256-7W4TOOT3BIzPIQ9Pz1sBkPu7Ls+lSGA+iiQechkAPDk=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;6d31ca0bc908d2c8acf9e5f4306905ae592e6c8781b794162855d70294bb2d33&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-Isubja1YgVg/ocHqKIE9CZacbKqIcGMOawamnxzeC8I=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/1d2liw2mxzs2n2ahiz39fn4rfsapqvbw-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 3845
+    },
+    &quot;73f55ba0ebab4e2fca28eb0c95a80f82a038c29920881bdbcba349fbf8afb0c6&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-iuQfX1Wu+YJbQEa+MBGzrq+wScN1NpeihkBlyimhNbQ=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/2fppa6x45k7gid309vm272x7h2jmr9xr-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 1278
+    },
+    &quot;a8cd3589f94d915c33ed5312436b34de6989eabe504cfd1b0a16a0a422fadb6e&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-iuQfX1Wu+YJbQEa+MBGzrq+wScN1NpeihkBlyimhNbQ=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/2fppa6x45k7gid309vm272x7h2jmr9xr-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 1433
+    },
+    &quot;e8797762d6133a3fc0e8474cb786a393213868e0f9c01c7d521656ab23d1ed97&quot;: {
+      &quot;paths&quot;: {
+        &quot;watchtower&quot;: {
+          &quot;narHash&quot;: &quot;sha256-/97OJwbZZFEA3yLiHXhJkGaZIlbnoy9VCBM7Lg8/ROk=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/gp4qlqpkxyry2s64k1ri1vx77hvb6vl9-cix-build-consumed&quot;
+        }
+      }
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../target/debug/cix}; name=migrate-r4-watchtower; unit=
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../fetch.sh watchtower first&#39; &gt;&amp;2; exit 1; fi
+cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run --rm --name &quot;$name&quot; -v /var/run/docker.sock:/var/run/docker.sock &quot;$name&quot; --run-once; else item=$($CIX build .#watchtower); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); sleep 2; sudo systemctl is-active --quiet &quot;$unit&quot;; fi
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># watchtower migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and bare `START` from artifact `bin/`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. The historical Docker build lacked the CI-provided `./watchtower` binary; its runtime contract also requires `/var/run/docker.sock`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/49xrwxb2760x3g7zg47n61s6jvg4l3b0-cix-item-watchtower
+```
+
+Exit status: non-zero. The Go build succeeds, but no faithful Cix runtime conversion exists: Watchtower needs Docker&#39;s host socket/API, an explicit ❌ boundary.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/watchtower</code>. Do not edit this page by hand.</footer>

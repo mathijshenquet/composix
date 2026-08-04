@@ -60,6 +60,7 @@ fetch() {
 
   rm -rf -- "$candidate/context"
   mv "$source_tree" "$candidate/context"
+  LC_ALL=C find "$candidate/context" -type f -printf '%P\t%s\n' | LC_ALL=C sort > "$candidate/context.files"
   printf 'fetched %s at %s\n' "$name" "$rev"
 }
 

@@ -22,6 +22,7 @@ const PAGE_STYLE: &str = r#"
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -35,6 +36,23 @@ const PAGE_STYLE: &str = r#"
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
 "#;
@@ -49,6 +67,7 @@ struct GeneratedFile {
 struct Artifact {
     name: String,
     content: String,
+    collapsed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +92,19 @@ struct Case {
     upstream: Vec<Artifact>,
     cix: Vec<Artifact>,
     grade: LedgerGrade,
+    context_files: Option<Vec<ContextFile>>,
+    gap: Option<GapPanel>,
+}
+
+struct ContextFile {
+    path: String,
+    bytes: u64,
+}
+
+struct GapPanel {
+    generated: String,
+    status: String,
+    body: String,
 }
 
 fn repository_root() -> PathBuf {
@@ -87,44 +119,137 @@ fn browser_dir() -> PathBuf {
     repository_root().join("docs/corpus")
 }
 
-fn read_artifacts(directory: &Path, names: &[&str]) -> Vec<Artifact> {
-    names
-        .iter()
-        .filter_map(|name| {
-            let path = directory.join(name);
-            path.is_file().then(|| Artifact {
-                name: (*name).to_owned(),
-                content: fs::read_to_string(&path)
-                    .unwrap_or_else(|error| panic!("reading {}: {error}", path.display())),
-            })
-        })
+fn corpus_files(directory: &Path) -> Vec<PathBuf> {
+    fn visit(directory: &Path, files: &mut Vec<PathBuf>) {
+        let mut entries = fs::read_dir(directory)
+            .unwrap_or_else(|error| panic!("reading {}: {error}", directory.display()))
+            .map(|entry| entry.expect("reading corpus artifact entry").path())
+            .collect::<Vec<_>>();
+        entries.sort();
+        for entry in entries {
+            if entry.is_dir() {
+                visit(&entry, files);
+            } else if entry.is_file() {
+                files.push(entry);
+            }
+        }
+    }
+
+    let mut files = Vec::new();
+    visit(directory, &mut files);
+    files.retain(|path| !path.starts_with(directory.join("context")));
+    files
+}
+
+fn relative_name(directory: &Path, path: &Path) -> String {
+    path.strip_prefix(directory)
+        .expect("corpus artifact remains under its case directory")
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn read_artifact(directory: &Path, path: &Path, collapsed: bool) -> Artifact {
+    Artifact {
+        name: relative_name(directory, path),
+        content: fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("reading {}: {error}", path.display())),
+        collapsed,
+    }
+}
+
+fn is_upstream_artifact(name: &str) -> bool {
+    name == "Dockerfile"
+        || name.starts_with("upstream-")
+        || name == "SOURCE"
+        || name == "context.files"
+}
+
+fn is_collapsed_cix_artifact(name: &str) -> bool {
+    name == "check.sh"
+        || name == "receipt.md"
+        || name.ends_with("Cixfile.lock")
+        || name.ends_with("Cixfile.dissolved.lock")
+}
+
+fn read_upstream_artifacts(directory: &Path) -> Vec<Artifact> {
+    corpus_files(directory)
+        .into_iter()
+        .filter(|path| is_upstream_artifact(&relative_name(directory, path)))
+        .filter(|path| relative_name(directory, path) != "context.files")
+        .map(|path| read_artifact(directory, &path, false))
         .collect()
 }
 
 fn read_cix_artifacts(directory: &Path) -> Vec<Artifact> {
-    let mut names = fs::read_dir(directory)
-        .unwrap_or_else(|error| panic!("reading {}: {error}", directory.display()))
-        .filter_map(|entry| {
-            let entry = entry.expect("reading corpus artifact entry");
-            let path = entry.path();
-            if !path.is_file() {
-                return None;
-            }
-            let name = entry
-                .file_name()
-                .into_string()
-                .expect("corpus artifact filename is UTF-8");
-            let extension = path.extension().and_then(|value| value.to_str());
-            let include = name == "Cixfile"
-                || name == "default.nix"
-                || name == "compose.json"
-                || matches!(extension, Some("conf" | "nix" | "sh" | "yaml" | "yml"));
-            (include && name != "check.sh" && !name.starts_with("upstream-")).then_some(name)
+    let mut artifacts = corpus_files(directory)
+        .into_iter()
+        .filter_map(|path| {
+            let name = relative_name(directory, &path);
+            (!is_upstream_artifact(&name) && name != "GAPS.md")
+                .then(|| read_artifact(directory, &path, is_collapsed_cix_artifact(&name)))
         })
         .collect::<Vec<_>>();
-    names.sort_by_key(|name| (name != "Cixfile", name.clone()));
-    let names = names.iter().map(String::as_str).collect::<Vec<_>>();
-    read_artifacts(directory, &names)
+    artifacts.sort_by_key(|artifact| {
+        (
+            artifact.name.rsplit('/').next() != Some("Cixfile"),
+            artifact.name.clone(),
+        )
+    });
+    artifacts
+}
+
+fn read_context_files(directory: &Path) -> Option<Vec<ContextFile>> {
+    let path = directory.join("context.files");
+    path.is_file().then(|| {
+        fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()))
+            .lines()
+            .map(|line| {
+                let (relative_path, bytes) = line.split_once('\t').unwrap_or_else(|| {
+                    panic!(
+                        "invalid context manifest line in {}: {line:?}",
+                        path.display()
+                    )
+                });
+                ContextFile {
+                    path: relative_path.to_owned(),
+                    bytes: bytes.parse().unwrap_or_else(|error| {
+                        panic!("invalid context size in {}: {error}", path.display())
+                    }),
+                }
+            })
+            .collect()
+    })
+}
+
+fn read_gap_panel(directory: &Path) -> Option<GapPanel> {
+    let path = directory.join("GAPS.md");
+    path.is_file().then(|| {
+        let source = fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+        let mut generated = None;
+        let mut status = None;
+        let body = source
+            .lines()
+            .filter(|line| {
+                if let Some(value) = line.strip_prefix("Generated:") {
+                    generated = Some(value.trim().to_owned());
+                    false
+                } else if let Some(value) = line.strip_prefix("Status:") {
+                    status = Some(value.trim().to_owned());
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        GapPanel {
+            generated: generated.unwrap_or_else(|| "not recorded".to_owned()),
+            status: status.unwrap_or_else(|| "not recorded".to_owned()),
+            body,
+        }
+    })
 }
 
 fn ledger_grades() -> BTreeMap<String, LedgerGrade> {
@@ -202,15 +327,7 @@ fn load_cases() -> Vec<Case> {
                 .expect("corpus case has a name")
                 .to_string_lossy()
                 .into_owned();
-            let upstream = read_artifacts(
-                &directory,
-                &[
-                    "Dockerfile",
-                    "upstream-compose.yaml",
-                    "upstream-compose.yml",
-                    "upstream-cronjob.yaml",
-                ],
-            );
+            let upstream = read_upstream_artifacts(&directory);
             assert!(
                 !upstream.is_empty(),
                 "corpus/migrate/{name} has cix artifacts but no checked-in upstream artifact"
@@ -227,6 +344,8 @@ fn load_cases() -> Vec<Case> {
                 name,
                 upstream,
                 cix,
+                context_files: read_context_files(&directory),
+                gap: read_gap_panel(&directory),
             })
         })
         .collect()
@@ -639,19 +758,189 @@ fn page_start(title: &str) -> String {
     )
 }
 
-fn render_artifacts(artifacts: &[Artifact]) -> String {
-    let mut output = String::new();
-    for artifact in artifacts {
-        let language = language_for(&artifact.name);
-        write!(
-            output,
+fn render_artifact(artifact: &Artifact) -> String {
+    let language = language_for(&artifact.name);
+    let content = highlight(&artifact.content, language);
+    if artifact.collapsed {
+        format!(
+            "      <details class=\"file\">\n        <summary>{}</summary>\n        <pre><code>{}</code></pre>\n      </details>\n",
+            html_escape(&artifact.name),
+            content
+        )
+    } else {
+        format!(
             "      <section class=\"file\">\n        <h3>{}</h3>\n        <pre><code>{}</code></pre>\n      </section>\n",
             html_escape(&artifact.name),
-            highlight(&artifact.content, language)
+            content
         )
-        .expect("rendering artifact");
+    }
+}
+
+fn render_artifacts(artifacts: &[Artifact]) -> String {
+    artifacts.iter().map(render_artifact).collect()
+}
+
+fn render_cix_artifacts(case_name: &str, artifacts: &[Artifact]) -> String {
+    let mut output = String::new();
+    let mut tab_number = 0;
+    for artifact in artifacts {
+        if artifact.name.rsplit('/').next() != Some("Cixfile") {
+            if !artifact.name.ends_with("Cixfile.dissolved") {
+                output.push_str(&render_artifact(artifact));
+            }
+            continue;
+        }
+        let dissolved_name = format!("{}.dissolved", artifact.name);
+        let Some(dissolved) = artifacts
+            .iter()
+            .find(|candidate| candidate.name == dissolved_name)
+        else {
+            output.push_str(&render_artifact(artifact));
+            continue;
+        };
+        let id = format!("tabs-{case_name}-{tab_number}");
+        tab_number += 1;
+        write!(
+            output,
+            "      <section class=\"variant-tabs\">\n        <input id=\"{id}-faithful\" name=\"{id}\" type=\"radio\" checked>\n        <label for=\"{id}-faithful\">Dockerfile-faithful</label>\n        <input id=\"{id}-dissolved\" name=\"{id}\" type=\"radio\">\n        <label for=\"{id}-dissolved\">nixpkgs-direct</label>\n        <div class=\"variant-panels\">\n          <div class=\"variant-panel faithful\">{}          </div>\n          <div class=\"variant-panel dissolved\">{}          </div>\n        </div>\n      </section>\n",
+            render_artifact(artifact),
+            render_artifact(dissolved),
+        )
+        .expect("rendering Cixfile variants");
     }
     output
+}
+
+fn render_context_files(context_files: Option<&[ContextFile]>) -> String {
+    let Some(context_files) = context_files else {
+        return "  <p class=\"context\"><strong>Upstream build context:</strong> context not fetched.</p>\n".to_owned();
+    };
+    let total_bytes = context_files.iter().map(|file| file.bytes).sum::<u64>();
+    let mut output = format!(
+        "  <details class=\"context\">\n    <summary>Upstream build context: {} files, {} bytes</summary>\n    <ul class=\"file-tree\">\n",
+        context_files.len(), total_bytes
+    );
+    for file in context_files {
+        writeln!(
+            output,
+            "      <li><code>{}</code> <span>{} bytes</span></li>",
+            html_escape(&file.path),
+            file.bytes
+        )
+        .expect("rendering context file");
+    }
+    output.push_str("    </ul>\n  </details>\n");
+    output
+}
+
+fn render_inline_markdown(source: &str) -> String {
+    let mut output = String::new();
+    let mut rest = source;
+    while !rest.is_empty() {
+        let code_at = rest.find('`');
+        let link_at = rest.find('[');
+        let next = match (code_at, link_at) {
+            (Some(code), Some(link)) => code.min(link),
+            (Some(code), None) => code,
+            (None, Some(link)) => link,
+            (None, None) => {
+                output.push_str(&html_escape(rest));
+                break;
+            }
+        };
+        output.push_str(&html_escape(&rest[..next]));
+        rest = &rest[next..];
+        if let Some(after_open) = rest.strip_prefix('`') {
+            if let Some(end) = after_open.find('`') {
+                write!(output, "<code>{}</code>", html_escape(&after_open[..end]))
+                    .expect("rendering inline code");
+                rest = &after_open[end + 1..];
+            } else {
+                output.push('`');
+                rest = after_open;
+            }
+        } else if let Some(after_open) = rest.strip_prefix('[') {
+            if let Some((label, after_label)) = after_open.split_once("](") {
+                if let Some((url, after_url)) = after_label.split_once(')') {
+                    write!(
+                        output,
+                        "<a href=\"{}\">{}</a>",
+                        html_escape(url),
+                        html_escape(label)
+                    )
+                    .expect("rendering inline link");
+                    rest = after_url;
+                } else {
+                    output.push('[');
+                    rest = after_open;
+                }
+            } else {
+                output.push('[');
+                rest = after_open;
+            }
+        }
+    }
+    output
+}
+
+fn render_gap_markdown(source: &str) -> String {
+    let mut output = String::new();
+    let mut paragraph = Vec::new();
+    let mut list_open = false;
+    let flush_paragraph = |output: &mut String, paragraph: &mut Vec<&str>| {
+        if !paragraph.is_empty() {
+            writeln!(
+                output,
+                "    <p>{}</p>",
+                render_inline_markdown(&paragraph.join(" "))
+            )
+            .expect("rendering gap paragraph");
+            paragraph.clear();
+        }
+    };
+    for line in source.lines() {
+        let bullet = line.strip_prefix("- ").or_else(|| line.strip_prefix("* "));
+        if let Some(bullet) = bullet {
+            flush_paragraph(&mut output, &mut paragraph);
+            if !list_open {
+                output.push_str("    <ul>\n");
+                list_open = true;
+            }
+            writeln!(output, "      <li>{}</li>", render_inline_markdown(bullet))
+                .expect("rendering gap bullet");
+        } else if line.trim().is_empty() {
+            flush_paragraph(&mut output, &mut paragraph);
+            if list_open {
+                output.push_str("    </ul>\n");
+                list_open = false;
+            }
+        } else {
+            if list_open {
+                output.push_str("    </ul>\n");
+                list_open = false;
+            }
+            paragraph.push(line.trim());
+        }
+    }
+    flush_paragraph(&mut output, &mut paragraph);
+    if list_open {
+        output.push_str("    </ul>\n");
+    }
+    output
+}
+
+fn render_gap_panel(gap: Option<&GapPanel>) -> String {
+    let Some(gap) = gap else {
+        return String::new();
+    };
+    let stale = gap.status.starts_with("stale");
+    format!(
+        "  <aside class=\"gap-panel{}\">\n    <h2>Migration gaps</h2>\n    <p class=\"gap-meta\"><strong>Generated:</strong> {} · <strong>Status:</strong> {}</p>\n{}  </aside>\n",
+        if stale { " stale" } else { "" },
+        html_escape(&gap.generated),
+        html_escape(&gap.status),
+        render_gap_markdown(&gap.body),
+    )
 }
 
 fn ribbon_and_evidence(case: &Case) -> (&str, &str) {
@@ -664,17 +953,23 @@ fn render_case(case: &Case) -> String {
     let (ribbon, evidence) = ribbon_and_evidence(case);
     let receipt_url = format!("{REPOSITORY_URL}/corpus/migrate/{}/receipt.md", case.name);
     let source_url = format!("{REPOSITORY_URL}/corpus/migrate/{}/SOURCE", case.name);
+    let mastodon_note = (case.name == "mastodon").then_some(
+        "  <p class=\"status\"><strong>Mastodon tag provenance:</strong> compose children reference <code>corpus-mastodon-&lt;member&gt;:checked</code> tags produced by <code>check.sh</code> from the per-member Cixfiles shown below.</p>\n",
+    );
     write!(
         page,
-        "  <nav class=\"crumbs\"><a href=\"index.html\">Corpus browser</a> / {name}</nav>\n  <h1>{name}</h1>\n  <p class=\"status\"><strong>docs/corpus.md ribbon:</strong> {ribbon} · <strong>Evidence:</strong> {evidence}</p>\n  <p class=\"status\"><strong>Receipt status:</strong> {receipt_status} · <a href=\"{receipt_url}\">Full migration receipt</a></p>\n  <p class=\"source\"><a href=\"{source_url}\">Pinned upstream source notes</a></p>\n  <main class=\"artifacts\">\n    <section class=\"column\">\n      <h2>Upstream</h2>\n{upstream}    </section>\n    <section class=\"column\">\n      <h2>composix</h2>\n{cix}    </section>\n  </main>\n  <footer>Generated from <code>corpus/migrate/{name}</code>. Do not edit this page by hand.</footer>\n</body>\n</html>\n",
+        "  <nav class=\"crumbs\"><a href=\"index.html\">Corpus browser</a> / {name}</nav>\n  <h1>{name}</h1>\n  <p class=\"status\"><strong>docs/corpus.md ribbon:</strong> {ribbon} · <strong>Evidence:</strong> {evidence}</p>\n  <p class=\"status\"><strong>Receipt status:</strong> {receipt_status} · <a href=\"{receipt_url}\">Full migration receipt</a></p>\n  <p class=\"source\"><a href=\"{source_url}\">Pinned upstream source notes</a></p>\n{mastodon_note}{gap}{context}  <main class=\"artifacts\">\n    <section class=\"column\">\n      <h2>Upstream</h2>\n{upstream}    </section>\n    <section class=\"column\">\n      <h2>composix</h2>\n{cix}    </section>\n  </main>\n  <footer>Generated from <code>corpus/migrate/{name}</code>. Do not edit this page by hand.</footer>\n</body>\n</html>\n",
         name = html_escape(&case.name),
         ribbon = html_escape(ribbon),
         evidence = html_escape(evidence),
         receipt_status = html_escape(&case.grade.receipt_status),
         receipt_url = html_escape(&receipt_url),
         source_url = html_escape(&source_url),
+        mastodon_note = mastodon_note.unwrap_or_default(),
+        gap = render_gap_panel(case.gap.as_ref()),
+        context = render_context_files(case.context_files.as_deref()),
         upstream = render_artifacts(&case.upstream),
-        cix = render_artifacts(&case.cix),
+        cix = render_cix_artifacts(&case.name, &case.cix),
     )
     .expect("rendering case page");
     page
@@ -772,6 +1067,69 @@ fn corpus_browser_matches_committed_pages() {
             path.display()
         );
     }
+}
+
+#[test]
+fn every_checked_in_corpus_cixfile_parses() {
+    let failures = corpus_files(&corpus_dir())
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("Cixfile") && !name.ends_with(".lock"))
+        })
+        .filter_map(|path| {
+            let source = fs::read_to_string(&path)
+                .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+            cix_cixfile::parse(&source)
+                .err()
+                .map(|error| format!("{}: {error:#}", path.display()))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        failures.is_empty(),
+        "checked-in corpus Cixfiles that fail the real parser:\n{}",
+        failures.join("\n")
+    );
+}
+
+#[test]
+fn cixfile_variants_render_as_faithful_default_tabs_and_solo_files_stay_tabless() {
+    let faithful = Artifact {
+        name: "Cixfile".to_owned(),
+        content: "SERVICE web\n".to_owned(),
+        collapsed: false,
+    };
+    let dissolved = Artifact {
+        name: "Cixfile.dissolved".to_owned(),
+        content: "SERVICE web\n".to_owned(),
+        collapsed: false,
+    };
+    let variants = render_cix_artifacts("fixture", &[faithful.clone(), dissolved]);
+    assert!(variants.contains("Dockerfile-faithful"));
+    assert!(variants.contains("nixpkgs-direct"));
+    assert!(variants
+        .contains("id=\"tabs-fixture-0-faithful\" name=\"tabs-fixture-0\" type=\"radio\" checked"));
+
+    let solo = render_cix_artifacts("fixture", &[faithful]);
+    assert!(!solo.contains("type=\"radio\""));
+    assert!(solo.contains("<h3>Cixfile</h3>"));
+}
+
+#[test]
+fn gap_panel_renders_metadata_stale_warning_and_limited_markdown() {
+    let panel = GapPanel {
+        generated: "migrate.md@abc · test model · 2026-08-04".to_owned(),
+        status: "stale — regenerate with CIP-99".to_owned(),
+        body: "A [link](https://example.invalid) with `code`.\n\n- first item\n- second item"
+            .to_owned(),
+    };
+    let rendered = render_gap_panel(Some(&panel));
+    assert!(rendered.contains("gap-panel stale"));
+    assert!(rendered.contains("<strong>Generated:</strong> migrate.md@abc"));
+    assert!(rendered.contains("<a href=\"https://example.invalid\">link</a>"));
+    assert!(rendered.contains("<code>code</code>"));
+    assert!(rendered.contains("<li>first item</li>"));
 }
 
 #[test]

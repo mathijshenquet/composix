@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,496 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 build-only receipt; runtime/config path remains open · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Stable pinned Cix build passes; Mongo-backed runtime was not exercised · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 485 files, 8312249 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.babelrc</code> <span>329 bytes</span></li>
+      <li><code>.dockerignore</code> <span>221 bytes</span></li>
+      <li><code>.flowconfig</code> <span>152 bytes</span></li>
+      <li><code>.gitattributes</code> <span>154 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/---1-report-an-issue.md</code> <span>1528 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/---2-feature-request.md</code> <span>1070 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/config.yml</code> <span>372 bytes</span></li>
+      <li><code>.github/dependabot.yml</code> <span>395 bytes</span></li>
+      <li><code>.github/parse-server-logo.png</code> <span>11622 bytes</span></li>
+      <li><code>.github/pull_request_template.md</code> <span>748 bytes</span></li>
+      <li><code>.github/workflows/ci-automated-check-environment.yml</code> <span>3032 bytes</span></li>
+      <li><code>.github/workflows/ci-performance.yml</code> <span>8981 bytes</span></li>
+      <li><code>.github/workflows/ci.yml</code> <span>11175 bytes</span></li>
+      <li><code>.github/workflows/release-automated.yml</code> <span>4130 bytes</span></li>
+      <li><code>.github/workflows/release-manual-docker.yml</code> <span>2016 bytes</span></li>
+      <li><code>.github/workflows/release-manual-docs.yml</code> <span>1576 bytes</span></li>
+      <li><code>.github/workflows/release-prepare-monthly.yml</code> <span>2549 bytes</span></li>
+      <li><code>.gitignore</code> <span>980 bytes</span></li>
+      <li><code>.madgerc</code> <span>116 bytes</span></li>
+      <li><code>.npmignore</code> <span>39 bytes</span></li>
+      <li><code>.nvmrc</code> <span>8 bytes</span></li>
+      <li><code>.nycrc</code> <span>113 bytes</span></li>
+      <li><code>.prettierrc</code> <span>86 bytes</span></li>
+      <li><code>.releaserc.js</code> <span>4022 bytes</span></li>
+      <li><code>.releaserc/commit.hbs</code> <span>1292 bytes</span></li>
+      <li><code>.releaserc/footer.hbs</code> <span>208 bytes</span></li>
+      <li><code>.releaserc/header.hbs</code> <span>462 bytes</span></li>
+      <li><code>.releaserc/template.hbs</code> <span>151 bytes</span></li>
+      <li><code>6.0.0.md</code> <span>3079 bytes</span></li>
+      <li><code>8.0.0.md</code> <span>4164 bytes</span></li>
+      <li><code>9.0.0.md</code> <span>2136 bytes</span></li>
+      <li><code>CHANGELOG.md</code> <span>1403 bytes</span></li>
+      <li><code>CODE_OF_CONDUCT.md</code> <span>3228 bytes</span></li>
+      <li><code>CONTRIBUTING.md</code> <span>53834 bytes</span></li>
+      <li><code>DEPRECATIONS.md</code> <span>8177 bytes</span></li>
+      <li><code>Dockerfile</code> <span>1406 bytes</span></li>
+      <li><code>LICENSE</code> <span>9567 bytes</span></li>
+      <li><code>NOTICE</code> <span>300 bytes</span></li>
+      <li><code>README.md</code> <span>76795 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>1887 bytes</span></li>
+      <li><code>benchmark/MongoLatencyWrapper.js</code> <span>4167 bytes</span></li>
+      <li><code>benchmark/performance.js</code> <span>30565 bytes</span></li>
+      <li><code>bin/parse-live-query-server</code> <span>68 bytes</span></li>
+      <li><code>bin/parse-server</code> <span>57 bytes</span></li>
+      <li><code>bootstrap.sh</code> <span>4910 bytes</span></li>
+      <li><code>changelogs/CHANGELOG_alpha.md</code> <span>232227 bytes</span></li>
+      <li><code>changelogs/CHANGELOG_beta.md</code> <span>78812 bytes</span></li>
+      <li><code>changelogs/CHANGELOG_release.md</code> <span>316764 bytes</span></li>
+      <li><code>ci/CiVersionCheck.js</code> <span>10395 bytes</span></li>
+      <li><code>ci/ciCheck.js</code> <span>2356 bytes</span></li>
+      <li><code>ci/definitionsCheck.js</code> <span>1129 bytes</span></li>
+      <li><code>ci/nodeEngineCheck.js</code> <span>6639 bytes</span></li>
+      <li><code>ci/uninstallDevDeps.sh</code> <span>645 bytes</span></li>
+      <li><code>eslint.config.js</code> <span>3132 bytes</span></li>
+      <li><code>jsconfig.json</code> <span>88 bytes</span></li>
+      <li><code>jsdoc-conf.json</code> <span>1168 bytes</span></li>
+      <li><code>package-lock.json</code> <span>1686030 bytes</span></li>
+      <li><code>package.json</code> <span>6463 bytes</span></li>
+      <li><code>postinstall.js</code> <span>1060 bytes</span></li>
+      <li><code>public/custom_json.html</code> <span>255 bytes</span></li>
+      <li><code>public/custom_json.json</code> <span>615 bytes</span></li>
+      <li><code>public/custom_page.html</code> <span>192 bytes</span></li>
+      <li><code>public/de-AT/email_verification_link_expired.html</code> <span>722 bytes</span></li>
+      <li><code>public/de-AT/email_verification_link_invalid.html</code> <span>576 bytes</span></li>
+      <li><code>public/de-AT/email_verification_send_fail.html</code> <span>609 bytes</span></li>
+      <li><code>public/de-AT/email_verification_send_success.html</code> <span>404 bytes</span></li>
+      <li><code>public/de-AT/email_verification_success.html</code> <span>335 bytes</span></li>
+      <li><code>public/de-AT/password_reset.html</code> <span>2587 bytes</span></li>
+      <li><code>public/de-AT/password_reset_link_invalid.html</code> <span>423 bytes</span></li>
+      <li><code>public/de-AT/password_reset_success.html</code> <span>343 bytes</span></li>
+      <li><code>public/de/email_verification_link_expired.html</code> <span>722 bytes</span></li>
+      <li><code>public/de/email_verification_link_invalid.html</code> <span>576 bytes</span></li>
+      <li><code>public/de/email_verification_send_fail.html</code> <span>609 bytes</span></li>
+      <li><code>public/de/email_verification_send_success.html</code> <span>404 bytes</span></li>
+      <li><code>public/de/email_verification_success.html</code> <span>335 bytes</span></li>
+      <li><code>public/de/password_reset.html</code> <span>2587 bytes</span></li>
+      <li><code>public/de/password_reset_link_invalid.html</code> <span>423 bytes</span></li>
+      <li><code>public/de/password_reset_success.html</code> <span>343 bytes</span></li>
+      <li><code>public/email_verification_link_expired.html</code> <span>722 bytes</span></li>
+      <li><code>public/email_verification_link_invalid.html</code> <span>576 bytes</span></li>
+      <li><code>public/email_verification_send_fail.html</code> <span>609 bytes</span></li>
+      <li><code>public/email_verification_send_success.html</code> <span>404 bytes</span></li>
+      <li><code>public/email_verification_success.html</code> <span>335 bytes</span></li>
+      <li><code>public/password_reset.html</code> <span>2587 bytes</span></li>
+      <li><code>public/password_reset_link_invalid.html</code> <span>423 bytes</span></li>
+      <li><code>public/password_reset_success.html</code> <span>343 bytes</span></li>
+      <li><code>release_docs.sh</code> <span>936 bytes</span></li>
+      <li><code>resources/buildConfigDefinitions.js</code> <span>13478 bytes</span></li>
+      <li><code>scripts/before_script_postgres.sh</code> <span>384 bytes</span></li>
+      <li><code>scripts/before_script_postgres_conf.sh</code> <span>931 bytes</span></li>
+      <li><code>spec/.babelrc</code> <span>278 bytes</span></li>
+      <li><code>spec/AccountLockoutPolicy.spec.js</code> <span>15790 bytes</span></li>
+      <li><code>spec/AdaptableController.spec.js</code> <span>2775 bytes</span></li>
+      <li><code>spec/AdapterLoader.spec.js</code> <span>7738 bytes</span></li>
+      <li><code>spec/Adapters/Auth/BaseCodeAdapter.spec.js</code> <span>6583 bytes</span></li>
+      <li><code>spec/Adapters/Auth/gcenter.spec.js</code> <span>8970 bytes</span></li>
+      <li><code>spec/Adapters/Auth/github.spec.js</code> <span>7622 bytes</span></li>
+      <li><code>spec/Adapters/Auth/gpgames.spec.js</code> <span>9953 bytes</span></li>
+      <li><code>spec/Adapters/Auth/instagram.spec.js</code> <span>7732 bytes</span></li>
+      <li><code>spec/Adapters/Auth/line.spec.js</code> <span>8040 bytes</span></li>
+      <li><code>spec/Adapters/Auth/linkedIn.spec.js</code> <span>10205 bytes</span></li>
+      <li><code>spec/Adapters/Auth/microsoft.spec.js</code> <span>9703 bytes</span></li>
+      <li><code>spec/Adapters/Auth/oauth2.spec.js</code> <span>13890 bytes</span></li>
+      <li><code>spec/Adapters/Auth/qq.spec.js</code> <span>7023 bytes</span></li>
+      <li><code>spec/Adapters/Auth/spotify.spec.js</code> <span>3038 bytes</span></li>
+      <li><code>spec/Adapters/Auth/twitter.spec.js</code> <span>4174 bytes</span></li>
+      <li><code>spec/Adapters/Auth/wechat.spec.js</code> <span>8079 bytes</span></li>
+      <li><code>spec/Adapters/Auth/weibo.spec.js</code> <span>6276 bytes</span></li>
+      <li><code>spec/AggregateRouter.spec.js</code> <span>4510 bytes</span></li>
+      <li><code>spec/Analytics.spec.js</code> <span>1730 bytes</span></li>
+      <li><code>spec/AudienceRouter.spec.js</code> <span>13072 bytes</span></li>
+      <li><code>spec/Auth.spec.js</code> <span>8063 bytes</span></li>
+      <li><code>spec/AuthDataUniqueIndex.spec.js</code> <span>7827 bytes</span></li>
+      <li><code>spec/AuthenticationAdapters.spec.js</code> <span>73704 bytes</span></li>
+      <li><code>spec/AuthenticationAdaptersV2.spec.js</code> <span>57501 bytes</span></li>
+      <li><code>spec/CLI.spec.js</code> <span>9550 bytes</span></li>
+      <li><code>spec/CacheController.spec.js</code> <span>2123 bytes</span></li>
+      <li><code>spec/Client.spec.js</code> <span>8922 bytes</span></li>
+      <li><code>spec/CloudCode.Validator.spec.js</code> <span>49239 bytes</span></li>
+      <li><code>spec/CloudCode.spec.js</code> <span>160157 bytes</span></li>
+      <li><code>spec/CloudCodeLogger.spec.js</code> <span>14841 bytes</span></li>
+      <li><code>spec/CloudCodeMultipart.spec.js</code> <span>13661 bytes</span></li>
+      <li><code>spec/DatabaseController.spec.js</code> <span>34775 bytes</span></li>
+      <li><code>spec/DefinedSchemas.spec.js</code> <span>27106 bytes</span></li>
+      <li><code>spec/Deprecator.spec.js</code> <span>10002 bytes</span></li>
+      <li><code>spec/EmailVerificationToken.spec.js</code> <span>46400 bytes</span></li>
+      <li><code>spec/EnableExpressErrorHandler.spec.js</code> <span>1052 bytes</span></li>
+      <li><code>spec/EventEmitterPubSub.spec.js</code> <span>1499 bytes</span></li>
+      <li><code>spec/FileDownload.spec.js</code> <span>9250 bytes</span></li>
+      <li><code>spec/FileUrlValidator.spec.js</code> <span>5722 bytes</span></li>
+      <li><code>spec/FilesController.spec.js</code> <span>8642 bytes</span></li>
+      <li><code>spec/GraphQLQueryComplexity.spec.js</code> <span>9009 bytes</span></li>
+      <li><code>spec/GridFSBucketStorageAdapter.spec.js</code> <span>22024 bytes</span></li>
+      <li><code>spec/HTTPRequest.spec.js</code> <span>7426 bytes</span></li>
+      <li><code>spec/Idempotency.spec.js</code> <span>9164 bytes</span></li>
+      <li><code>spec/InMemoryCache.spec.js</code> <span>1710 bytes</span></li>
+      <li><code>spec/InMemoryCacheAdapter.spec.js</code> <span>1345 bytes</span></li>
+      <li><code>spec/InstallationDedup.spec.js</code> <span>10513 bytes</span></li>
+      <li><code>spec/InstallationsRouter.spec.js</code> <span>7039 bytes</span></li>
+      <li><code>spec/JobSchedule.spec.js</code> <span>7174 bytes</span></li>
+      <li><code>spec/LdapAuth.spec.js</code> <span>13841 bytes</span></li>
+      <li><code>spec/Logger.spec.js</code> <span>2729 bytes</span></li>
+      <li><code>spec/LoggerController.spec.js</code> <span>4612 bytes</span></li>
+      <li><code>spec/LogsRouter.spec.js</code> <span>5572 bytes</span></li>
+      <li><code>spec/Middlewares.spec.js</code> <span>23039 bytes</span></li>
+      <li><code>spec/MongoCollection.spec.js</code> <span>3888 bytes</span></li>
+      <li><code>spec/MongoSchemaCollectionAdapter.spec.js</code> <span>2794 bytes</span></li>
+      <li><code>spec/MongoStorageAdapter.spec.js</code> <span>43971 bytes</span></li>
+      <li><code>spec/MongoTransform.spec.js</code> <span>20054 bytes</span></li>
+      <li><code>spec/NullCacheAdapter.spec.js</code> <span>836 bytes</span></li>
+      <li><code>spec/OAuth1.spec.js</code> <span>5222 bytes</span></li>
+      <li><code>spec/PagesRouter.spec.js</code> <span>67013 bytes</span></li>
+      <li><code>spec/Parse.Push.spec.js</code> <span>11395 bytes</span></li>
+      <li><code>spec/ParseACL.spec.js</code> <span>34203 bytes</span></li>
+      <li><code>spec/ParseAPI.spec.js</code> <span>55505 bytes</span></li>
+      <li><code>spec/ParseCloudCodePublisher.spec.js</code> <span>2698 bytes</span></li>
+      <li><code>spec/ParseConfigKey.spec.js</code> <span>5055 bytes</span></li>
+      <li><code>spec/ParseFile.spec.js</code> <span>102732 bytes</span></li>
+      <li><code>spec/ParseGeoPoint.spec.js</code> <span>25452 bytes</span></li>
+      <li><code>spec/ParseGlobalConfig.spec.js</code> <span>7682 bytes</span></li>
+      <li><code>spec/ParseGraphQLClassNameTransformer.spec.js</code> <span>384 bytes</span></li>
+      <li><code>spec/ParseGraphQLController.spec.js</code> <span>30553 bytes</span></li>
+      <li><code>spec/ParseGraphQLSchema.spec.js</code> <span>20986 bytes</span></li>
+      <li><code>spec/ParseGraphQLServer.spec.js</code> <span>448766 bytes</span></li>
+      <li><code>spec/ParseHooks.spec.js</code> <span>22194 bytes</span></li>
+      <li><code>spec/ParseInstallation.spec.js</code> <span>63044 bytes</span></li>
+      <li><code>spec/ParseLiveQuery.spec.js</code> <span>65380 bytes</span></li>
+      <li><code>spec/ParseLiveQueryRedis.spec.js</code> <span>1939 bytes</span></li>
+      <li><code>spec/ParseLiveQueryServer.spec.js</code> <span>73714 bytes</span></li>
+      <li><code>spec/ParseObject.spec.js</code> <span>65018 bytes</span></li>
+      <li><code>spec/ParsePolygon.spec.js</code> <span>14868 bytes</span></li>
+      <li><code>spec/ParsePubSub.spec.js</code> <span>5054 bytes</span></li>
+      <li><code>spec/ParseQuery.Aggregate.spec.js</code> <span>62796 bytes</span></li>
+      <li><code>spec/ParseQuery.Comment.spec.js</code> <span>5278 bytes</span></li>
+      <li><code>spec/ParseQuery.FullTextSearch.spec.js</code> <span>11068 bytes</span></li>
+      <li><code>spec/ParseQuery.hint.spec.js</code> <span>7911 bytes</span></li>
+      <li><code>spec/ParseQuery.spec.js</code> <span>186594 bytes</span></li>
+      <li><code>spec/ParseRelation.spec.js</code> <span>29963 bytes</span></li>
+      <li><code>spec/ParseRole.spec.js</code> <span>22135 bytes</span></li>
+      <li><code>spec/ParseServer.spec.js</code> <span>1918 bytes</span></li>
+      <li><code>spec/ParseServerRESTController.spec.js</code> <span>25961 bytes</span></li>
+      <li><code>spec/ParseSession.spec.js</code> <span>24771 bytes</span></li>
+      <li><code>spec/ParseUser.spec.js</code> <span>146390 bytes</span></li>
+      <li><code>spec/ParseWebSocket.spec.js</code> <span>1047 bytes</span></li>
+      <li><code>spec/ParseWebSocketServer.spec.js</code> <span>4263 bytes</span></li>
+      <li><code>spec/PasswordPolicy.spec.js</code> <span>53535 bytes</span></li>
+      <li><code>spec/PointerPermissions.spec.js</code> <span>86148 bytes</span></li>
+      <li><code>spec/PostgresConfigParser.spec.js</code> <span>3016 bytes</span></li>
+      <li><code>spec/PostgresInitOptions.spec.js</code> <span>2107 bytes</span></li>
+      <li><code>spec/PostgresStorageAdapter.spec.js</code> <span>27748 bytes</span></li>
+      <li><code>spec/PromiseRouter.spec.js</code> <span>718 bytes</span></li>
+      <li><code>spec/ProtectedFields.spec.js</code> <span>82276 bytes</span></li>
+      <li><code>spec/PurchaseValidation.spec.js</code> <span>6976 bytes</span></li>
+      <li><code>spec/PushController.spec.js</code> <span>42249 bytes</span></li>
+      <li><code>spec/PushQueue.spec.js</code> <span>1807 bytes</span></li>
+      <li><code>spec/PushRouter.spec.js</code> <span>2077 bytes</span></li>
+      <li><code>spec/PushWorker.spec.js</code> <span>12155 bytes</span></li>
+      <li><code>spec/QueryTools.spec.js</code> <span>33879 bytes</span></li>
+      <li><code>spec/RateLimit.spec.js</code> <span>59775 bytes</span></li>
+      <li><code>spec/ReadPreferenceOption.spec.js</code> <span>41103 bytes</span></li>
+      <li><code>spec/RedisCacheAdapter.spec.js</code> <span>5598 bytes</span></li>
+      <li><code>spec/RedisPubSub.spec.js</code> <span>1178 bytes</span></li>
+      <li><code>spec/RegexVulnerabilities.spec.js</code> <span>16226 bytes</span></li>
+      <li><code>spec/RequestComplexity.spec.js</code> <span>31061 bytes</span></li>
+      <li><code>spec/RestQuery.spec.js</code> <span>24146 bytes</span></li>
+      <li><code>spec/RevocableSessionsUpgrade.spec.js</code> <span>7176 bytes</span></li>
+      <li><code>spec/RouteAllowList.spec.js</code> <span>22712 bytes</span></li>
+      <li><code>spec/Schema.spec.js</code> <span>53287 bytes</span></li>
+      <li><code>spec/SchemaPerformance.spec.js</code> <span>7315 bytes</span></li>
+      <li><code>spec/SecurityCheck.spec.js</code> <span>13270 bytes</span></li>
+      <li><code>spec/SecurityCheckGroups.spec.js</code> <span>5827 bytes</span></li>
+      <li><code>spec/SessionTokenCache.spec.js</code> <span>1465 bytes</span></li>
+      <li><code>spec/Subscription.spec.js</code> <span>4482 bytes</span></li>
+      <li><code>spec/Uniqueness.spec.js</code> <span>3705 bytes</span></li>
+      <li><code>spec/UserController.spec.js</code> <span>3103 bytes</span></li>
+      <li><code>spec/UserPII.spec.js</code> <span>38659 bytes</span></li>
+      <li><code>spec/Utils.spec.js</code> <span>16806 bytes</span></li>
+      <li><code>spec/ValidationAndPasswordsReset.spec.js</code> <span>41760 bytes</span></li>
+      <li><code>spec/VerifyUserPassword.spec.js</code> <span>20006 bytes</span></li>
+      <li><code>spec/WinstonLoggerAdapter.spec.js</code> <span>9350 bytes</span></li>
+      <li><code>spec/batch.spec.js</code> <span>29939 bytes</span></li>
+      <li><code>spec/buildConfigDefinitions.spec.js</code> <span>6604 bytes</span></li>
+      <li><code>spec/cloud/cloudCodeAbsoluteFile.js</code> <span>109 bytes</span></li>
+      <li><code>spec/cloud/cloudCodeModuleFile.js</code> <span>109 bytes</span></li>
+      <li><code>spec/cloud/cloudCodeRelativeFile.js</code> <span>109 bytes</span></li>
+      <li><code>spec/configs/CLIConfig.json</code> <span>76 bytes</span></li>
+      <li><code>spec/configs/CLIConfigApps.json</code> <span>118 bytes</span></li>
+      <li><code>spec/configs/CLIConfigAuth.json</code> <span>153 bytes</span></li>
+      <li><code>spec/configs/CLIConfigFail.json</code> <span>77 bytes</span></li>
+      <li><code>spec/configs/CLIConfigFailTooManyApps.json</code> <span>223 bytes</span></li>
+      <li><code>spec/configs/CLIConfigUnknownArg.json</code> <span>77 bytes</span></li>
+      <li><code>spec/cryptoUtils.spec.js</code> <span>2443 bytes</span></li>
+      <li><code>spec/defaultGraphQLTypes.spec.js</code> <span>20014 bytes</span></li>
+      <li><code>spec/dependencies/mock-files-adapter/index.js</code> <span>667 bytes</span></li>
+      <li><code>spec/dependencies/mock-files-adapter/package.json</code> <span>129 bytes</span></li>
+      <li><code>spec/dependencies/mock-mail-adapter/index.js</code> <span>269 bytes</span></li>
+      <li><code>spec/dependencies/mock-mail-adapter/package.json</code> <span>127 bytes</span></li>
+      <li><code>spec/eslint.config.js</code> <span>3922 bytes</span></li>
+      <li><code>spec/features.spec.js</code> <span>1385 bytes</span></li>
+      <li><code>spec/graphQLObjectsQueries.js</code> <span>4037 bytes</span></li>
+      <li><code>spec/helper.js</code> <span>20260 bytes</span></li>
+      <li><code>spec/index.spec.js</code> <span>28680 bytes</span></li>
+      <li><code>spec/parsers.spec.js</code> <span>3166 bytes</span></li>
+      <li><code>spec/rest.spec.js</code> <span>57698 bytes</span></li>
+      <li><code>spec/schemas.spec.js</code> <span>114474 bytes</span></li>
+      <li><code>spec/support/CurrentSpecReporter.js</code> <span>3100 bytes</span></li>
+      <li><code>spec/support/CustomAuth.js</code> <span>242 bytes</span></li>
+      <li><code>spec/support/CustomAuthFunction.js</code> <span>310 bytes</span></li>
+      <li><code>spec/support/CustomMiddleware.js</code> <span>84 bytes</span></li>
+      <li><code>spec/support/FailingServer.js</code> <span>738 bytes</span></li>
+      <li><code>spec/support/MockAdapter.js</code> <span>79 bytes</span></li>
+      <li><code>spec/support/MockDatabaseAdapter.js</code> <span>180 bytes</span></li>
+      <li><code>spec/support/MockEmailAdapter.js</code> <span>160 bytes</span></li>
+      <li><code>spec/support/MockEmailAdapterWithOptions.js</code> <span>576 bytes</span></li>
+      <li><code>spec/support/MockLdapServer.js</code> <span>1410 bytes</span></li>
+      <li><code>spec/support/MockPushAdapter.js</code> <span>192 bytes</span></li>
+      <li><code>spec/support/cert/DigiCertTrustedG4CodeSigningRSA4096SHA3842021CA1.crt.pem</code> <span>2378 bytes</span></li>
+      <li><code>spec/support/cert/anothercert.pem</code> <span>1773 bytes</span></li>
+      <li><code>spec/support/cert/cert.pem</code> <span>1773 bytes</span></li>
+      <li><code>spec/support/cert/game_center.pem</code> <span>1704 bytes</span></li>
+      <li><code>spec/support/cert/game_center_2.pem</code> <span>2634 bytes</span></li>
+      <li><code>spec/support/cert/gc-prod-4.cer</code> <span>1216 bytes</span></li>
+      <li><code>spec/support/cert/key.pem</code> <span>3243 bytes</span></li>
+      <li><code>spec/support/dev.js</code> <span>2959 bytes</span></li>
+      <li><code>spec/support/jasmine.json</code> <span>108 bytes</span></li>
+      <li><code>spec/support/lorem.txt</code> <span>1055 bytes</span></li>
+      <li><code>spec/support/myoauth.js</code> <span>417 bytes</span></li>
+      <li><code>spec/vulnerabilities.spec.js</code> <span>241750 bytes</span></li>
+      <li><code>src/AccountLockout.js</code> <span>4399 bytes</span></li>
+      <li><code>src/Adapters/AdapterLoader.js</code> <span>1591 bytes</span></li>
+      <li><code>src/Adapters/Analytics/AnalyticsAdapter.js</code> <span>721 bytes</span></li>
+      <li><code>src/Adapters/Auth/AuthAdapter.js</code> <span>4579 bytes</span></li>
+      <li><code>src/Adapters/Auth/BaseCodeAuthAdapter.js</code> <span>3597 bytes</span></li>
+      <li><code>src/Adapters/Auth/OAuth1Client.js</code> <span>7268 bytes</span></li>
+      <li><code>src/Adapters/Auth/apple.js</code> <span>3831 bytes</span></li>
+      <li><code>src/Adapters/Auth/facebook.js</code> <span>6291 bytes</span></li>
+      <li><code>src/Adapters/Auth/gcenter.js</code> <span>8034 bytes</span></li>
+      <li><code>src/Adapters/Auth/github.js</code> <span>4610 bytes</span></li>
+      <li><code>src/Adapters/Auth/google.js</code> <span>3797 bytes</span></li>
+      <li><code>src/Adapters/Auth/gpgames.js</code> <span>4076 bytes</span></li>
+      <li><code>src/Adapters/Auth/httpsRequest.js</code> <span>877 bytes</span></li>
+      <li><code>src/Adapters/Auth/index.js</code> <span>8220 bytes</span></li>
+      <li><code>src/Adapters/Auth/instagram.js</code> <span>3562 bytes</span></li>
+      <li><code>src/Adapters/Auth/janraincapture.js</code> <span>2741 bytes</span></li>
+      <li><code>src/Adapters/Auth/janrainengage.js</code> <span>1975 bytes</span></li>
+      <li><code>src/Adapters/Auth/keycloak.js</code> <span>6363 bytes</span></li>
+      <li><code>src/Adapters/Auth/ldap.js</code> <span>6884 bytes</span></li>
+      <li><code>src/Adapters/Auth/line.js</code> <span>3815 bytes</span></li>
+      <li><code>src/Adapters/Auth/linkedin.js</code> <span>3616 bytes</span></li>
+      <li><code>src/Adapters/Auth/meetup.js</code> <span>1275 bytes</span></li>
+      <li><code>src/Adapters/Auth/mfa.js</code> <span>8732 bytes</span></li>
+      <li><code>src/Adapters/Auth/microsoft.js</code> <span>3331 bytes</span></li>
+      <li><code>src/Adapters/Auth/oauth2.js</code> <span>4373 bytes</span></li>
+      <li><code>src/Adapters/Auth/phantauth.js</code> <span>1524 bytes</span></li>
+      <li><code>src/Adapters/Auth/qq.js</code> <span>3209 bytes</span></li>
+      <li><code>src/Adapters/Auth/spotify.js</code> <span>3529 bytes</span></li>
+      <li><code>src/Adapters/Auth/twitter.js</code> <span>7002 bytes</span></li>
+      <li><code>src/Adapters/Auth/utils.js</code> <span>659 bytes</span></li>
+      <li><code>src/Adapters/Auth/vkontakte.js</code> <span>2262 bytes</span></li>
+      <li><code>src/Adapters/Auth/wechat.js</code> <span>3507 bytes</span></li>
+      <li><code>src/Adapters/Auth/weibo.js</code> <span>4204 bytes</span></li>
+      <li><code>src/Adapters/Cache/CacheAdapter.js</code> <span>659 bytes</span></li>
+      <li><code>src/Adapters/Cache/InMemoryCache.js</code> <span>1092 bytes</span></li>
+      <li><code>src/Adapters/Cache/InMemoryCacheAdapter.js</code> <span>581 bytes</span></li>
+      <li><code>src/Adapters/Cache/LRUCache.js</code> <span>508 bytes</span></li>
+      <li><code>src/Adapters/Cache/NullCacheAdapter.js</code> <span>311 bytes</span></li>
+      <li><code>src/Adapters/Cache/RedisCacheAdapter.js</code> <span>2411 bytes</span></li>
+      <li><code>src/Adapters/Cache/SchemaCache.js</code> <span>421 bytes</span></li>
+      <li><code>src/Adapters/Email/MailAdapter.js</code> <span>664 bytes</span></li>
+      <li><code>src/Adapters/Files/FilesAdapter.js</code> <span>4270 bytes</span></li>
+      <li><code>src/Adapters/Files/GridFSBucketAdapter.js</code> <span>9222 bytes</span></li>
+      <li><code>src/Adapters/Files/GridStoreAdapter.js</code> <span>226 bytes</span></li>
+      <li><code>src/Adapters/Logger/LoggerAdapter.js</code> <span>434 bytes</span></li>
+      <li><code>src/Adapters/Logger/WinstonLogger.js</code> <span>2964 bytes</span></li>
+      <li><code>src/Adapters/Logger/WinstonLoggerAdapter.js</code> <span>1568 bytes</span></li>
+      <li><code>src/Adapters/MessageQueue/EventEmitterMQ.js</code> <span>1259 bytes</span></li>
+      <li><code>src/Adapters/PubSub/EventEmitterPubSub.js</code> <span>1362 bytes</span></li>
+      <li><code>src/Adapters/PubSub/PubSubAdapter.js</code> <span>987 bytes</span></li>
+      <li><code>src/Adapters/PubSub/RedisPubSub.js</code> <span>885 bytes</span></li>
+      <li><code>src/Adapters/Push/PushAdapter.js</code> <span>838 bytes</span></li>
+      <li><code>src/Adapters/Storage/Mongo/MongoCollection.js</code> <span>7085 bytes</span></li>
+      <li><code>src/Adapters/Storage/Mongo/MongoSchemaCollection.js</code> <span>9078 bytes</span></li>
+      <li><code>src/Adapters/Storage/Mongo/MongoStorageAdapter.js</code> <span>46733 bytes</span></li>
+      <li><code>src/Adapters/Storage/Mongo/MongoTransform.js</code> <span>44676 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/PostgresClient.js</code> <span>892 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/PostgresConfigParser.js</code> <span>3047 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/PostgresStorageAdapter.js</code> <span>96824 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/add-unique.sql</code> <span>336 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/add.sql</code> <span>311 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/contains-all-regex.sql</code> <span>451 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/contains-all.sql</code> <span>440 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/contains.sql</code> <span>317 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/array/remove.sql</code> <span>328 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/index.js</code> <span>768 bytes</span></li>
+      <li><code>src/Adapters/Storage/Postgres/sql/misc/json-object-set-keys.sql</code> <span>486 bytes</span></li>
+      <li><code>src/Adapters/Storage/StorageAdapter.js</code> <span>4155 bytes</span></li>
+      <li><code>src/Adapters/WebSocketServer/WSAdapter.js</code> <span>612 bytes</span></li>
+      <li><code>src/Adapters/WebSocketServer/WSSAdapter.js</code> <span>1132 bytes</span></li>
+      <li><code>src/Auth.js</code> <span>21218 bytes</span></li>
+      <li><code>src/AuthDataLock.js</code> <span>1890 bytes</span></li>
+      <li><code>src/Config.js</code> <span>36355 bytes</span></li>
+      <li><code>src/Controllers/AdaptableController.js</code> <span>1933 bytes</span></li>
+      <li><code>src/Controllers/AnalyticsController.js</code> <span>890 bytes</span></li>
+      <li><code>src/Controllers/CacheController.js</code> <span>1701 bytes</span></li>
+      <li><code>src/Controllers/DatabaseController.js</code> <span>75162 bytes</span></li>
+      <li><code>src/Controllers/FilesController.js</code> <span>4484 bytes</span></li>
+      <li><code>src/Controllers/HooksController.js</code> <span>7037 bytes</span></li>
+      <li><code>src/Controllers/LiveQueryController.js</code> <span>2309 bytes</span></li>
+      <li><code>src/Controllers/LoggerController.js</code> <span>6115 bytes</span></li>
+      <li><code>src/Controllers/ParseGraphQLController.js</code> <span>12538 bytes</span></li>
+      <li><code>src/Controllers/PushController.js</code> <span>8228 bytes</span></li>
+      <li><code>src/Controllers/SchemaController.js</code> <span>53752 bytes</span></li>
+      <li><code>src/Controllers/UserController.js</code> <span>11500 bytes</span></li>
+      <li><code>src/Controllers/index.js</code> <span>8004 bytes</span></li>
+      <li><code>src/Controllers/types.js</code> <span>814 bytes</span></li>
+      <li><code>src/Deprecator/Deprecations.js</code> <span>6865 bytes</span></li>
+      <li><code>src/Deprecator/Deprecator.js</code> <span>5200 bytes</span></li>
+      <li><code>src/Error.js</code> <span>1994 bytes</span></li>
+      <li><code>src/FileUrlValidator.js</code> <span>1894 bytes</span></li>
+      <li><code>src/GraphQL/ParseGraphQLSchema.js</code> <span>17071 bytes</span></li>
+      <li><code>src/GraphQL/ParseGraphQLServer.js</code> <span>16868 bytes</span></li>
+      <li><code>src/GraphQL/helpers/objectsMutations.js</code> <span>671 bytes</span></li>
+      <li><code>src/GraphQL/helpers/objectsQueries.js</code> <span>8357 bytes</span></li>
+      <li><code>src/GraphQL/helpers/queryComplexity.js</code> <span>4377 bytes</span></li>
+      <li><code>src/GraphQL/loaders/configMutations.js</code> <span>2423 bytes</span></li>
+      <li><code>src/GraphQL/loaders/configQueries.js</code> <span>1886 bytes</span></li>
+      <li><code>src/GraphQL/loaders/defaultGraphQLMutations.js</code> <span>552 bytes</span></li>
+      <li><code>src/GraphQL/loaders/defaultGraphQLQueries.js</code> <span>648 bytes</span></li>
+      <li><code>src/GraphQL/loaders/defaultGraphQLTypes.js</code> <span>39729 bytes</span></li>
+      <li><code>src/GraphQL/loaders/defaultRelaySchema.js</code> <span>1530 bytes</span></li>
+      <li><code>src/GraphQL/loaders/filesMutations.js</code> <span>3103 bytes</span></li>
+      <li><code>src/GraphQL/loaders/functionsMutations.js</code> <span>2512 bytes</span></li>
+      <li><code>src/GraphQL/loaders/parseClassMutations.js</code> <span>11761 bytes</span></li>
+      <li><code>src/GraphQL/loaders/parseClassQueries.js</code> <span>4822 bytes</span></li>
+      <li><code>src/GraphQL/loaders/parseClassTypes.js</code> <span>19486 bytes</span></li>
+      <li><code>src/GraphQL/loaders/schemaDirectives.js</code> <span>1848 bytes</span></li>
+      <li><code>src/GraphQL/loaders/schemaMutations.js</code> <span>5605 bytes</span></li>
+      <li><code>src/GraphQL/loaders/schemaQueries.js</code> <span>2350 bytes</span></li>
+      <li><code>src/GraphQL/loaders/schemaTypes.js</code> <span>13996 bytes</span></li>
+      <li><code>src/GraphQL/loaders/usersMutations.js</code> <span>13830 bytes</span></li>
+      <li><code>src/GraphQL/loaders/usersQueries.js</code> <span>2617 bytes</span></li>
+      <li><code>src/GraphQL/parseGraphQLUtils.js</code> <span>1888 bytes</span></li>
+      <li><code>src/GraphQL/transformers/className.js</code> <span>223 bytes</span></li>
+      <li><code>src/GraphQL/transformers/constraintType.js</code> <span>1781 bytes</span></li>
+      <li><code>src/GraphQL/transformers/inputType.js</code> <span>1608 bytes</span></li>
+      <li><code>src/GraphQL/transformers/mutation.js</code> <span>8084 bytes</span></li>
+      <li><code>src/GraphQL/transformers/outputType.js</code> <span>1678 bytes</span></li>
+      <li><code>src/GraphQL/transformers/query.js</code> <span>7852 bytes</span></li>
+      <li><code>src/GraphQL/transformers/schemaFields.js</code> <span>3743 bytes</span></li>
+      <li><code>src/InstallationDedup.js</code> <span>5251 bytes</span></li>
+      <li><code>src/KeyPromiseQueue.js</code> <span>955 bytes</span></li>
+      <li><code>src/LiveQuery/Client.js</code> <span>3670 bytes</span></li>
+      <li><code>src/LiveQuery/Id.js</code> <span>490 bytes</span></li>
+      <li><code>src/LiveQuery/ParseCloudCodePublisher.js</code> <span>1778 bytes</span></li>
+      <li><code>src/LiveQuery/ParseLiveQueryServer.ts</code> <span>50969 bytes</span></li>
+      <li><code>src/LiveQuery/ParsePubSub.js</code> <span>1198 bytes</span></li>
+      <li><code>src/LiveQuery/ParseWebSocketServer.js</code> <span>1704 bytes</span></li>
+      <li><code>src/LiveQuery/QueryTools.js</code> <span>13689 bytes</span></li>
+      <li><code>src/LiveQuery/RequestSchema.js</code> <span>3013 bytes</span></li>
+      <li><code>src/LiveQuery/SessionTokenCache.js</code> <span>1468 bytes</span></li>
+      <li><code>src/LiveQuery/Subscription.js</code> <span>1682 bytes</span></li>
+      <li><code>src/LiveQuery/equalObjects.js</code> <span>996 bytes</span></li>
+      <li><code>src/Options/Definitions.js</code> <span>97399 bytes</span></li>
+      <li><code>src/Options/docs.js</code> <span>70808 bytes</span></li>
+      <li><code>src/Options/index.js</code> <span>76624 bytes</span></li>
+      <li><code>src/Options/parsers.js</code> <span>1701 bytes</span></li>
+      <li><code>src/Page.js</code> <span>713 bytes</span></li>
+      <li><code>src/ParseMessageQueue.js</code> <span>824 bytes</span></li>
+      <li><code>src/ParseServer.ts</code> <span>24242 bytes</span></li>
+      <li><code>src/ParseServerRESTController.js</code> <span>5462 bytes</span></li>
+      <li><code>src/PromiseRouter.js</code> <span>6116 bytes</span></li>
+      <li><code>src/Push/PushQueue.js</code> <span>1837 bytes</span></li>
+      <li><code>src/Push/PushWorker.js</code> <span>3651 bytes</span></li>
+      <li><code>src/Push/utils.js</code> <span>3521 bytes</span></li>
+      <li><code>src/RestQuery.js</code> <span>42575 bytes</span></li>
+      <li><code>src/RestWrite.js</code> <span>69011 bytes</span></li>
+      <li><code>src/Routers/AggregateRouter.js</code> <span>4839 bytes</span></li>
+      <li><code>src/Routers/AnalyticsRouter.js</code> <span>534 bytes</span></li>
+      <li><code>src/Routers/AudiencesRouter.js</code> <span>1783 bytes</span></li>
+      <li><code>src/Routers/ClassesRouter.js</code> <span>6959 bytes</span></li>
+      <li><code>src/Routers/CloudCodeRouter.js</code> <span>3068 bytes</span></li>
+      <li><code>src/Routers/FeaturesRouter.js</code> <span>1567 bytes</span></li>
+      <li><code>src/Routers/FilesRouter.js</code> <span>31285 bytes</span></li>
+      <li><code>src/Routers/FunctionsRouter.js</code> <span>13593 bytes</span></li>
+      <li><code>src/Routers/GlobalConfigRouter.js</code> <span>3864 bytes</span></li>
+      <li><code>src/Routers/GraphQLRouter.js</code> <span>1170 bytes</span></li>
+      <li><code>src/Routers/HooksRouter.js</code> <span>4631 bytes</span></li>
+      <li><code>src/Routers/IAPValidationRouter.js</code> <span>3874 bytes</span></li>
+      <li><code>src/Routers/InstallationsRouter.js</code> <span>1310 bytes</span></li>
+      <li><code>src/Routers/LogsRouter.js</code> <span>1609 bytes</span></li>
+      <li><code>src/Routers/PagesRouter.js</code> <span>23662 bytes</span></li>
+      <li><code>src/Routers/PurgeRouter.js</code> <span>1208 bytes</span></li>
+      <li><code>src/Routers/PushRouter.js</code> <span>2391 bytes</span></li>
+      <li><code>src/Routers/RolesRouter.js</code> <span>648 bytes</span></li>
+      <li><code>src/Routers/SchemasRouter.js</code> <span>4711 bytes</span></li>
+      <li><code>src/Routers/SecurityRouter.js</code> <span>899 bytes</span></li>
+      <li><code>src/Routers/SessionsRouter.js</code> <span>4443 bytes</span></li>
+      <li><code>src/Routers/UsersRouter.js</code> <span>30707 bytes</span></li>
+      <li><code>src/SchemaMigrations/DefinedSchemas.js</code> <span>15218 bytes</span></li>
+      <li><code>src/SchemaMigrations/Migrations.js</code> <span>2398 bytes</span></li>
+      <li><code>src/Security/Check.js</code> <span>1935 bytes</span></li>
+      <li><code>src/Security/CheckGroup.js</code> <span>700 bytes</span></li>
+      <li><code>src/Security/CheckGroups/CheckGroupDatabase.js</code> <span>1548 bytes</span></li>
+      <li><code>src/Security/CheckGroups/CheckGroupServerConfig.js</code> <span>8018 bytes</span></li>
+      <li><code>src/Security/CheckGroups/CheckGroups.js</code> <span>237 bytes</span></li>
+      <li><code>src/Security/CheckRunner.js</code> <span>6445 bytes</span></li>
+      <li><code>src/SharedRest.js</code> <span>1778 bytes</span></li>
+      <li><code>src/StatusHandler.js</code> <span>9567 bytes</span></li>
+      <li><code>src/TestUtils.js</code> <span>1957 bytes</span></li>
+      <li><code>src/Utils.js</code> <span>18072 bytes</span></li>
+      <li><code>src/batch.js</code> <span>7658 bytes</span></li>
+      <li><code>src/cache.js</code> <span>145 bytes</span></li>
+      <li><code>src/cli/definitions/parse-live-query-server.js</code> <span>131 bytes</span></li>
+      <li><code>src/cli/definitions/parse-server.js</code> <span>127 bytes</span></li>
+      <li><code>src/cli/parse-live-query-server.js</code> <span>304 bytes</span></li>
+      <li><code>src/cli/parse-server.js</code> <span>3730 bytes</span></li>
+      <li><code>src/cli/utils/commander.js</code> <span>3983 bytes</span></li>
+      <li><code>src/cli/utils/runner.js</code> <span>1168 bytes</span></li>
+      <li><code>src/cloud-code/Parse.Cloud.js</code> <span>36301 bytes</span></li>
+      <li><code>src/cloud-code/Parse.Server.js</code> <span>504 bytes</span></li>
+      <li><code>src/cryptoUtils.js</code> <span>1563 bytes</span></li>
+      <li><code>src/defaults.js</code> <span>1916 bytes</span></li>
+      <li><code>src/deprecated.js</code> <span>169 bytes</span></li>
+      <li><code>src/index.ts</code> <span>1582 bytes</span></li>
+      <li><code>src/logger.ts</code> <span>899 bytes</span></li>
+      <li><code>src/middlewares.js</code> <span>27730 bytes</span></li>
+      <li><code>src/password.js</code> <span>1087 bytes</span></li>
+      <li><code>src/request.js</code> <span>4648 bytes</span></li>
+      <li><code>src/requiredParameter.js</code> <span>86 bytes</span></li>
+      <li><code>src/rest.js</code> <span>10429 bytes</span></li>
+      <li><code>src/triggers.js</code> <span>34549 bytes</span></li>
+      <li><code>src/vendor/README.md</code> <span>378 bytes</span></li>
+      <li><code>src/vendor/mongodbUrl.js</code> <span>29075 bytes</span></li>
+      <li><code>tsconfig.json</code> <span>341 bytes</span></li>
+      <li><code>types/@types/@parse/fs-files-adapter/index.d.ts</code> <span>167 bytes</span></li>
+      <li><code>types/@types/deepcopy/index.d.ts</code> <span>303 bytes</span></li>
+      <li><code>types/LiveQuery/ParseLiveQueryServer.d.ts</code> <span>1945 bytes</span></li>
+      <li><code>types/Options/index.d.ts</code> <span>10302 bytes</span></li>
+      <li><code>types/ParseServer.d.ts</code> <span>2650 bytes</span></li>
+      <li><code>types/eslint.config.mjs</code> <span>851 bytes</span></li>
+      <li><code>types/index.d.ts</code> <span>1208 bytes</span></li>
+      <li><code>types/logger.d.ts</code> <span>97 bytes</span></li>
+      <li><code>types/tests.ts</code> <span>907 bytes</span></li>
+      <li><code>types/tsconfig.json</code> <span>711 bytes</span></li>
+      <li><code>views/choose_password</code> <span>7539 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -104,6 +612,16 @@
 <span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;node&quot;</span>, <span class="tok-string">&quot;./bin/parse-server&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/parse-community/parse-server/315e157637d902d85f465563b2863a9e19bf1ff4/Dockerfile
+Repository: https://github.com/parse-community/parse-server.git
+Resolved revision: 315e157637d902d85f465563b2863a9e19bf1ff4
+Context path: .
+Dockerfile sha256: 6f3c47982fc03b84751d5c17ce94778102e2cc4a4ab25e054f3f064c23ef727b
+Retrieved: 2026-07-31
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -145,6 +663,229 @@
 <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;1559d3daa3ecc813a650b79375ea61b6741b8746&quot;,
+      &quot;narHash&quot;: &quot;sha256-LQy14TZp77TwbQf40gg1V3jo8FwJG0jGDkAH+zRHqg8=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:4-9514b3517c82&quot;: {
+      &quot;paths&quot;: {
+        &quot;bin/parse-server&quot;: &quot;sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=&quot;,
+        &quot;lib&quot;: &quot;sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=&quot;,
+        &quot;node_modules&quot;: &quot;sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=&quot;,
+        &quot;package-lock.json&quot;: &quot;sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=&quot;,
+        &quot;package.json&quot;: &quot;sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=&quot;,
+        &quot;public&quot;: &quot;sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=&quot;,
+        &quot;views&quot;: &quot;sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50=&quot;
+      }
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;19ea5545347e1315ec7fef5ec42467c5cf07adff7456a40dccb92f75fe962eac&quot;: {
+      &quot;paths&quot;: {
+        &quot;bin/parse-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/m1f13mqip6lz526gr5vdbrxglx7w4yxk-cix-build-consumed&quot;
+        },
+        &quot;lib&quot;: {
+          &quot;narHash&quot;: &quot;sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/flv7j7fp3d0g7m5x1giafl9lnwqxlnc2-cix-build-consumed&quot;
+        },
+        &quot;node_modules&quot;: {
+          &quot;narHash&quot;: &quot;sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hlf97x0js5m627nlp1n34p0vgkffdx86-cix-build-consumed&quot;
+        },
+        &quot;package-lock.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/lsk15a45qiknqi3szbss87sxqvsfjh1v-cix-build-consumed&quot;
+        },
+        &quot;package.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/5zc1649hfhqass7ajd0wcrqp2dm3r6ry-cix-build-consumed&quot;
+        },
+        &quot;public&quot;: {
+          &quot;narHash&quot;: &quot;sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/k1dyknn0mhdiy2nsixv7il3wkj04zynl-cix-build-consumed&quot;
+        },
+        &quot;views&quot;: {
+          &quot;narHash&quot;: &quot;sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/q4365sfk8biimbzc03jz90fsj6ffhx7x-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;5217bb5bf26546bad9b4ff9bf28179620fe880343fd44fc24d332f5e767e8fa5&quot;: {
+      &quot;paths&quot;: {
+        &quot;bin/parse-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/m1f13mqip6lz526gr5vdbrxglx7w4yxk-cix-build-consumed&quot;
+        },
+        &quot;lib&quot;: {
+          &quot;narHash&quot;: &quot;sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/flv7j7fp3d0g7m5x1giafl9lnwqxlnc2-cix-build-consumed&quot;
+        },
+        &quot;node_modules&quot;: {
+          &quot;narHash&quot;: &quot;sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hlf97x0js5m627nlp1n34p0vgkffdx86-cix-build-consumed&quot;
+        },
+        &quot;package-lock.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/lsk15a45qiknqi3szbss87sxqvsfjh1v-cix-build-consumed&quot;
+        },
+        &quot;package.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/5zc1649hfhqass7ajd0wcrqp2dm3r6ry-cix-build-consumed&quot;
+        },
+        &quot;public&quot;: {
+          &quot;narHash&quot;: &quot;sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/k1dyknn0mhdiy2nsixv7il3wkj04zynl-cix-build-consumed&quot;
+        },
+        &quot;views&quot;: {
+          &quot;narHash&quot;: &quot;sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/q4365sfk8biimbzc03jz90fsj6ffhx7x-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;77794052a4358a0eb7a7efa3dc75245f4c4e98f128ef5e567a1b7d5df5536371&quot;: {
+      &quot;paths&quot;: {
+        &quot;bin/parse-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-SIX/8CFOZb6+YsN1M0TSnZvXW/jE9f/2lteJvB0g/2I=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/m1f13mqip6lz526gr5vdbrxglx7w4yxk-cix-build-consumed&quot;
+        },
+        &quot;lib&quot;: {
+          &quot;narHash&quot;: &quot;sha256-W92R+tis/NKDX8NhQhH8cTXmXpJ6Wac2qvrOGF4R+nM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/flv7j7fp3d0g7m5x1giafl9lnwqxlnc2-cix-build-consumed&quot;
+        },
+        &quot;node_modules&quot;: {
+          &quot;narHash&quot;: &quot;sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hlf97x0js5m627nlp1n34p0vgkffdx86-cix-build-consumed&quot;
+        },
+        &quot;package-lock.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-ZRkNCdK0kxLZCtbEUg087R110J1weAq8ocfzwRBDniM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/lsk15a45qiknqi3szbss87sxqvsfjh1v-cix-build-consumed&quot;
+        },
+        &quot;package.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-s2MhW86mfKQy6KBZ5/guTLRo0taNzKWd7AHwCDygbws=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/5zc1649hfhqass7ajd0wcrqp2dm3r6ry-cix-build-consumed&quot;
+        },
+        &quot;public&quot;: {
+          &quot;narHash&quot;: &quot;sha256-BcrUE7gtySUNHIOCsmpiRa8EbTwKKHyxBcxdIOxs4mM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/k1dyknn0mhdiy2nsixv7il3wkj04zynl-cix-build-consumed&quot;
+        },
+        &quot;views&quot;: {
+          &quot;narHash&quot;: &quot;sha256-OrytoU5vl/qoz+nlUe5iPaNF401JsRPFhJ3LkF8nS50=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/q4365sfk8biimbzc03jz90fsj6ffhx7x-cix-build-consumed&quot;
+        }
+      }
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:?usage: ./check.sh docker|cix}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+name=migrate-r5-parse-server
+network=$name-net
+mongo=$name-mongo
+container=
+unit=
+
+cleanup() {
+  [[ -z $unit ]] || sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  [[ -z $container ]] || docker rm -f &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  docker rm -f &quot;$mongo&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  docker network rm &quot;$network&quot; &gt;/dev/null 2&gt;&amp;1 || true
+}
+trap cleanup EXIT
+
+probe() {
+  for _ in $(seq 1 60); do
+    if curl --fail --silent --max-time 2 http://127.0.0.1:18091/parse/health | grep -q &#39;&quot;status&quot;:&quot;ok&quot;&#39;; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+[[ -d $root/context ]] || { echo &#39;context/ missing — run ../fetch.sh parse-server first&#39; &gt;&amp;2; exit 1; }
+cd &quot;$root&quot;
+docker network create &quot;$network&quot; &gt;/dev/null
+case $mode in
+  docker)
+    docker run --detach --rm --name &quot;$mongo&quot; --network &quot;$network&quot; mongo:8.0.4 &gt;/dev/null
+    image=$(timeout 1200 docker build --quiet --file Dockerfile --tag &quot;$name&quot; context)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --name &quot;$name&quot; --network &quot;$network&quot; \
+      --publish 127.0.0.1:18091:1337 &quot;$name&quot; \
+      --appId migration-check --masterKey migration-secret \
+      --databaseURI &quot;mongodb://$mongo:27017/test&quot; \
+      --serverURL http://localhost:1337/parse)
+    probe
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    docker run --detach --rm --name &quot;$mongo&quot; --network &quot;$network&quot; \
+      --publish 127.0.0.1:27027:27017 mongo:8.0.4 &gt;/dev/null
+    item=$(timeout 1200 &quot;$cix&quot; build .#parse-server)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach \
+      -e PARSE_SERVER_APPLICATION_ID=migration-check \
+      -e PARSE_SERVER_MASTER_KEY=migration-secret \
+      -e PARSE_SERVER_DATABASE_URI=mongodb://127.0.0.1:27027/test \
+      -e PARSE_SERVER_URL=http://localhost:18091/parse &quot;$item&quot; | tail -n1)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *) echo &#39;usage: ./check.sh docker|cix&#39; &gt;&amp;2; exit 1 ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># parse-server migration receipt
+
+Source revision: `315e157637d902d85f465563b2863a9e19bf1ff4` (2026-07-31).
+
+Docker: `./check.sh docker` passed on 2026-07-31. Parse Server image:
+`sha256:395ee46833dd658437dcaedcba0d0ed3bea2e2b4cf03e17bd41540344bbb7289`;
+MongoDB image digest:
+`sha256:aaad67f2dca93148e5343c03210bcfc89a0107516a4756bfa018acd6579e5b18`.
+
+Cix: D69 re-check on 2026-07-31. Two clean
+`../../../target/debug/cix build --update-lock build .#parse-server` runs and a
+subsequent ordinary `../../../target/debug/cix build .#parse-server` all built
+`/nix/store/kf4d06323935ym7y4bllbprjidzn367b-cix-item-parse-server`. The
+automatic FETCH lock now pins the seven consumed final paths, not the whole npm
+workdir; their hashes exactly match the prior final memo. The double-fetch probe
+records the volatile `.npm/_cacache/index-v5/**` metadata and timestamped debug
+logs (names and sizes in `Cixfile.lock`) as facts. No Cix runtime pass is claimed:
+the receipt still does not run the Mongo-dependent service probe.
+
+Both modes start the same bounded MongoDB 8.0.4
+companion because upstream documents a database as part of the runnable contract;
+the central probe is `GET /parse/health` returning `{&quot;status&quot;:&quot;ok&quot;}`.
+
+Gap: Docker declares writable `/parse-server/cloud` and `/parse-server/config`
+volumes. Current `CONFIGDIR` accepts only `/etc/&lt;one-component&gt;`, and linking the
+Docker paths to runtime-created configuration directories is rejected by `cix run`
+because the links are broken in the immutable item before the runtime mounts exist.
+The conversion therefore does not claim those optional extension/config volume
+paths are faithful.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/parse-server</code>. Do not edit this page by hand.</footer>

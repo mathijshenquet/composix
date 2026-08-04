@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,7 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build and ping endpoint pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/traefik/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/traefik/SOURCE">Pinned upstream source notes</a></p>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -78,6 +97,12 @@
     org.opencontainers.image.documentation=<span class="tok-string">&quot;https://docs.traefik.io&quot;</span>
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>https://raw.githubusercontent.com/traefik/traefik-library-image/master/v3.5/alpine/Dockerfile
+Fetched: 2026-07-30
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -92,6 +117,103 @@
   <span class="tok-directive">PORT</span> monitor = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+docker_tag=migrate-traefik-docker
+container=
+unit=
+source_dir=
+
+cleanup() {
+  if [[ -n $container ]]; then
+    docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $unit ]]; then
+    sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+  fi
+  if [[ -n $source_dir ]]; then
+    rm -rf &quot;$source_dir&quot;
+  fi
+}
+trap cleanup EXIT
+trap &#39;exit 1&#39; ERR
+
+probe() {
+  local url=$1
+  local attempt
+  for attempt in $(seq 1 30); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot;; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    source_dir=$(mktemp -d)
+    timeout 60 curl --fail --location --silent --show-error https://github.com/traefik/traefik-library-image/archive/refs/heads/master.tar.gz --output &quot;$source_dir/source.tar.gz&quot;
+    tar -xf &quot;$source_dir/source.tar.gz&quot; -C &quot;$source_dir&quot;
+    image=$(timeout 240 docker build --quiet --tag &quot;$docker_tag&quot; &quot;$source_dir/traefik-library-image-master/v3.5/alpine&quot;)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18080:8080 &quot;$docker_tag&quot; --ping=true)
+    probe http://127.0.0.1:18080/ping
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#traefik&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:8080/ping
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *)
+    echo &quot;usage: $0 {docker|cix}&quot; &gt;&amp;2
+    exit 1
+    ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># traefik migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `START`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:c864999938e1dfa9b7dfc5ad644d0e9c5f413612cc501dc69d261684417815a3`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/nnil2w7r861fw33aarp97szdgkzxl33v-cix-item-traefik
+OKPASS cix
+```
+
+Exit status: 0.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/traefik</code>. Do not edit this page by hand.</footer>
