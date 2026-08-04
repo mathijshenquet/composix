@@ -191,3 +191,17 @@
   removed, while its acceptance log was retained. Further Cargo work uses the
   task-owned `/dev/shm/composix-fhspaths-20260804` target; no shared Nix garbage
   was collected.
+
+- 2026-08-04T10:31:00Z — Final track gate is green on the committed tree.
+  Synchronous exit-0 receipts: `cargo fmt --all --check`; `cargo run -- fmt
+  --check examples`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`; corpus regeneration followed by `git diff
+  --exit-code -- docs/corpus`; tour regeneration followed by `git diff
+  --exit-code -- docs/tour` and `cargo test -p cix --test tour -- --nocapture`;
+  `nix build .#checks.x86_64-linux.vm-dogfood --no-link -L`; and `nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit --no-link -L`. Cargo and VM
+  commands ran through `devenv shell` with `TMPDIR` (and Cargo target where
+  relevant) under `/dev/shm/composix-fhspaths-20260804`; the two focused VM
+  checks completed their real TCG guests in 164s and 274s respectively. The
+  full flake matrix was deliberately not run: project policy reserves it for
+  the orchestrator's independent pre-merge gate.
