@@ -1,5 +1,17 @@
 # litdoc work log
 
+- 2026-08-04T21:25:00Z — Chapter 6 explicit regeneration exits 0. Named
+  listener commands now capture the real item and unit. New executable Python
+  fixtures create and connect to a real AF_UNIX socket, while compose projects
+  the producer directory at the consumer's explicit `/run/upstream` path. The
+  document shows track and pin policies, shared backing ownership/lifecycle,
+  honest lock-writing and root-activation boundaries, the root profile and
+  generation-list command, precise rollback scope, unary flag mappings, pod
+  and journal JSON locations, and exact log fields. Producer v1/v2 item names
+  survive store-hash normalization, and assertions prove the diff lines are
+  visibly different. Next: commit Chapter 6 and rebuild Chapter 7 around a
+  real five-line Dockerfile plus fully executable faithful/dissolved twins.
+
 - 2026-08-04T20:45:00Z — Chapter 5 explicit regeneration exits 0 with a real
   rootless web lifecycle: readiness succeeds, the generated manager properties
   are inspected, state is written and read after restart, and the tour restores

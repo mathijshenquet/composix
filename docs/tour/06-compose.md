@@ -6,11 +6,11 @@
 > machine leaks in. Outputs are asserted; store-path ellipses appear in
 > outputs only, never in commands you are meant to type.
 
-You will connect two independently built services with a Unix edge and shared state, validate and diff their compose generation, and exercise the socket-activation primitive beneath named listeners. Afterwards, you will understand compose's resolve/build/activate lifecycle, unary `cix run`, rollback boundary, pod option, and journal namespace without mistaking rootless dry-runs for system activation.
+You will connect two independently built services through a real Unix socket, give both services one persistent directory, and compare two resolved systemd generations. A compose edge names a producer directory and the path where each consumer sees that directory; the shared-directory declaration names storage that both units may write. Rootless probes exercise those data surfaces, while the generated diff stops before privileged system activation.
 
 ## Named listeners are systemd sockets
 
-A `LISTENER` does not let the process call `socket()` for that port. This canonical Cixfile imports the probe's runtime, copies the checked-in Python script, and declares `LISTENER http`; systemd owns the socket and passes file descriptor 3 to the process.
+`LISTENER http` asks systemd to create one stream socket named `http`; it does not forbid the program from creating unrelated sockets. The checked-in `listenfds.py` program verifies that systemd passed exactly one listener as file descriptor 3. The operator's `-p http=127.0.0.1:8420` binds that named listener to an address before the service starts.
 
 #### `listener-fixture/Cixfile`
 
@@ -51,12 +51,12 @@ while True:
 ```
 
 ```sh
-$ cix build listener-fixture
-{"listener-demo":"/nix/store/…-cix-item-listener-demo"}
+$ listener_item=$(cix build listener-fixture | jq -r '.["listener-demo"]'); printf '%s\n' "$listener_item"
+/nix/store/…-cix-item-listener-demo
 ```
 
 ```sh
-$ cix run /nix/store/…-cix-item-listener-demo --user -p http=127.0.0.1:8420 --detach
+$ unit=$(cix run "$listener_item" --user -p http=127.0.0.1:8420 --detach); printf '%s\n' "$unit"
 cix-run-listener-demo-NONCE.service
 [manager degradation warnings vary by host — elided]
 ```
@@ -67,22 +67,47 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop cix-run-listener-demo-NONCE.service
+$ systemctl --user stop "$unit"
 ```
 
-## Two items, one operator document
+## Connect two real item programs
 
 #### `producer/Cixfile`
 
 ```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-SERVICE producer
-IMPORT ${pkgs.coreutils}
-START sleep 300
-ENV VERSION = v1
-STATEDIR /var/lib/shared
+SERVICE producer-v1
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY producer.py /bin/producer-probe
+START producer-probe /run/producer/service.sock v1
 RUNDIR /run/producer
+STATEDIR /var/lib/shared
+```
+
+#### `producer/producer.py`
+
+```python
+#!/usr/bin/env python3
+import os
+import socket
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+path.parent.mkdir(parents=True, exist_ok=True)
+if path.exists():
+    path.unlink()
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(str(path))
+server.listen()
+print(f"producer {version} listening at {path}", flush=True)
+while True:
+    connection, _ = server.accept()
+    with connection:
+        request = connection.recv(4096)
+        connection.sendall(f"producer {version} received ".encode() + request)
 ```
 
 #### `consumer/Cixfile`
@@ -91,23 +116,56 @@ RUNDIR /run/producer
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE consumer
-IMPORT ${pkgs.coreutils}
-START sleep 300
-ENV VERSION = v1
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY consumer.py /bin/consumer-probe
+START consumer-probe /run/upstream/service.sock
 STATEDIR /var/lib/shared
 ```
 
-```sh
-$ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+#### `consumer/consumer.py`
+
+```python
+#!/usr/bin/env python3
+import socket
+import sys
+import time
+
+path = sys.argv[1]
+for attempt in range(100):
+    try:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(path)
+        break
+    except (FileNotFoundError, ConnectionRefusedError):
+        client.close()
+        time.sleep(0.05)
+else:
+    raise SystemExit(f"producer socket never became ready: {path}")
+with client:
+    client.sendall(b"ping")
+    print(f"consumer connected to {path}: {client.recv(4096).decode()}")
 ```
 
 ```sh
-$ cix build consumer -t v1
-{"consumer":"/nix/store/…-cix-item-consumer"}
+$ producer_v1=$(cix build producer | jq -r '.["producer-v1"]'); cix tag "$producer_v1" producer:current; printf '%s\n' "$producer_v1"
+/nix/store/…-cix-item-producer-v1
 ```
 
-The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
+```sh
+$ consumer_item=$(cix build consumer -t v1 | jq -r '.consumer'); printf '%s\n' "$consumer_item"
+/nix/store/…-cix-item-consumer
+```
+
+Before asking compose to project anything, run the exact two item programs against a tour-local Unix socket. A Unix socket is a filesystem entry used for local process-to-process messages; unlike a TCP port, it has a pathname. The consumer waits for that pathname, sends `ping`, and asserts the producer's versioned reply.
+
+```sh
+$ set -eu; edge_dir=$(mktemp -d /tmp/cix-tour-edge-XXXXXX); edge_socket=$edge_dir/service.sock; "$producer_v1/bin/producer-probe" "$edge_socket" v1 >producer.log 2>&1 & producer_pid=$!; trap 'kill -TERM "$producer_pid" 2>/dev/null || true' EXIT; ready=; for attempt in $(seq 1 100); do if test -S "$edge_socket"; then ready=yes; break; fi; sleep 0.05; done; if test "$ready" != yes; then cat producer.log; exit 1; fi; "$consumer_item/bin/consumer-probe" "$edge_socket"; test -S "$edge_socket" && printf '%s is a Unix socket\n' "$edge_socket"; kill -TERM "$producer_pid"; wait "$producer_pid" 2>/dev/null || true; trap - EXIT; cat producer.log; rm -rf "$edge_dir" producer.log
+consumer connected to /tmp/cix-tour-edge-TMP/service.sock: producer v1 received ping
+/tmp/cix-tour-edge-TMP/service.sock is a Unix socket
+producer v1 listening at /tmp/cix-tour-edge-TMP/service.sock
+```
+
+The compose file supplies host policy without rebuilding either item. The `producer-api` edge gives the producer a writable `/run/producer` directory and bind-projects that same directory at `/run/upstream` in the consumer; therefore the producer creates `/run/producer/service.sock` and the consumer opens `/run/upstream/service.sock`. The edge unit owns a private group shared by those two dynamic users and starts the producer before the consumer.
 
 #### `compose.json`
 
@@ -124,13 +182,14 @@ The compose file owns host policy rather than rebuilding either item. Both membe
     },
     "consumer": {
       "item": "consumer:v1",
+      "update": "pin",
       "dirs": {"/var/lib/shared": {"shared": "payload"}}
     }
   },
   "edges": {
     "producer-api": {
       "producer": {"child": "producer", "path": "/run/producer"},
-      "consumers": {"consumer": {}}
+      "consumers": {"consumer": {"path": "/run/upstream"}}
     }
   }
 }
@@ -141,25 +200,29 @@ $ cix compose check compose.json
 compose tour-stack: 2 services, 1 edges, valid
 ```
 
+`update: "track"` re-resolves the producer tag on every check, diff, or activation. `update: "pin"` reuses the consumer's existing `cix.lock` entry until `cix up --update-lock consumer compose.json` explicitly refreshes it; pin is also the default. Here `payload` is the compose-local volume identity, scoped below the `tour-stack` root. Its host backing is `/var/lib/cix-compose/tour-stack/shared/payload`, mode 2770 with setgid and a private supplemental group containing both services. Rollback and ordinary `down` retain the data; `sudo cix down tour-stack --purge --yes` removes it.
+
 #### `cix.lock`
 
-```
+```json
 {
   "paths": {
     "consumer": {
-      "narHash": "sha256-vB9zwJqxm4ZFP/r4ggfqqfAz2GcB1PuPFOXWSj0ONVI=",
+      "narHash": "sha256-MKX3UazCNlzZ+aOLoWDySLFjS+MgKSCR8CWIf5kOlqk=",
       "ref": "consumer:v1",
       "storePath": "/nix/store/…-cix-item-consumer"
     },
     "producer": {
-      "narHash": "sha256-Zw7L+1NaI5diZ2PM2elZAsxIVKhNv04qTlbFqidXa6o=",
+      "narHash": "sha256-Ub2epj+/57lf+Ul3at3rCE7suY6NH5vVmOpGKAXL/H8=",
       "ref": "producer:current",
-      "storePath": "/nix/store/…-cix-item-producer"
+      "storePath": "/nix/store/…-cix-item-producer-v1"
     }
   }
 }
 ```
 
+Only `cix up compose.json` writes this resolved `cix.lock`; commit it with the compose file. `cix compose check` and `cix compose diff` are read-only with respect to the lock. Because this harness cannot perform root activation, it materialized the same checked v1 resolution before displaying the lock, then runs the real dry-build below.
+
 ```sh
 $ cix compose diff compose.json
 unit added: cix-tour-stack-consumer.service
@@ -169,30 +232,30 @@ unit added: cix-tour-stack-shared-payload.service
 unit added: cix-tour-stack.slice
 unit added: cix-tour-stack.target
 service consumer: - -> /nix/store/…-cix-item-consumer
-service producer: - -> /nix/store/…-cix-item-producer
+service producer: - -> /nix/store/…-cix-item-producer-v1
 ```
 
-`cix run` is the unary form of the same contract compiler. It gives one item a transient lifecycle; compose adds stable names, edges, shared backing, operator values, and retained generations.
+`cix run` is the one-service form of the same compiler: its installable becomes a single compose child `item`; `-e NAME=value`, `-p name=value`, and `--dir path=materialization` correspond to that child's `env`, `bind`, and `dirs` maps. `--schedule` maps to `schedule`, and `--closed-root` selects the same generation option. Compose additionally supplies stable child names, edges, shared data, secrets, and retained generations.
 
 ```sh
-$ cix run producer:current --user --detach
-cix-run-producer-NONCE.service
+$ unit=$(cix run producer:current --user --detach); printf '%s\n' "$unit"
+cix-run-producer-v1-NONCE.service
 [manager degradation warnings vary by host — elided]
 ```
 
 ```sh
-$ systemctl --user stop cix-run-producer-NONCE.service
+$ systemctl --user stop "$unit"
 ```
 
-Change only the tracked producer item. The dry diff resolves its moved tag and builds a candidate generation without touching the active system manager.
+Now change only the tracked producer, build a visibly named v2 item, and move the stable `producer:current` tag to it. The pinned consumer remains at the v1 lock entry. The second dry diff resolves the tracked tag and builds a candidate generation without touching the active system manager, profile, or lock.
 
 ```sh
-$ sed -i 's/ENV VERSION = v1/ENV VERSION = v2/' producer/Cixfile
+$ sed -i 's/producer-v1/producer-v2/; s/service.sock v1/service.sock v2/' producer/Cixfile
 ```
 
 ```sh
-$ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+$ producer_v2=$(cix build producer | jq -r '.["producer-v2"]'); cix tag "$producer_v2" producer:current; printf '%s\n' "$producer_v2"
+/nix/store/…-cix-item-producer-v2
 ```
 
 ```sh
@@ -204,14 +267,53 @@ unit added: cix-tour-stack-shared-payload.service
 unit added: cix-tour-stack.slice
 unit added: cix-tour-stack.target
 service consumer: - -> /nix/store/…-cix-item-consumer
-service producer: - -> /nix/store/…-cix-item-producer
+service producer: - -> /nix/store/…-cix-item-producer-v2
 ```
 
-## Activation is the privileged receipt
+`diff` builds a candidate generation directory in the Nix store so it can compare complete unit files, but it neither adds that directory to the root profile nor guarantees retention across garbage collection. An activation creates a generation of `/nix/var/nix/profiles/cix-compose-tour-stack`; after activation, list every retained generation with `sudo nix-env -p /nix/var/nix/profiles/cix-compose-tour-stack --list-generations`. The profile and per-generation GC roots retain the generation and every referenced item closure.
 
-This harness intentionally stops at `check` and `diff`: `cix up compose.json`, `cix rollback tour-stack`, and `cix down tour-stack` manage `/etc/systemd/system`, a root profile, shared backing ownership, and the system manager. The [stack VM scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/lib.nix) executes that exact up → selective change → diff → rollback → down lifecycle, and [the dirs scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix) asserts both writers see the same setgid shared directory.
+## Activation and rollback require root
 
-`network: "pod"` places a subtree in one private network namespace; named networks and service-DNS policy stay separate concerns. The [network-namespace scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/netns.nix) proves pod co-location, isolation, publication, and cleanup. `logNamespace: true` similarly asks systemd for one journal namespace for this compose tree; `cix logs tour-stack[/child]` selects its stamped fields, with the [observability scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/observability.nix) carrying the privileged receipt.
+The supported activation command is `sudo env CIX_STATE_DIR=/var/lib/cix-index cix up compose.json`. It resolves according to update policy, writes `cix.lock`, builds and roots the generation, links its units below `/etc/systemd/system`, reloads the system manager, and starts `cix-tour-stack.target`; success prints `activated tour-stack from /nix/store/<hash>-cix-compose-tour-stack`. This harness stops at check and diff because those host-wide changes require root. The [stack VM scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/lib.nix) executes that exact up → selective change → diff → rollback → down lifecycle, and [the dirs scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix) asserts both writers see the shared setgid directory.
+
+`sudo cix rollback tour-stack` moves the profile to its preceding generation and activates those earlier unit definitions and resolved item references. It does not rewind shared or private data, secret-file contents, the mutable `producer:current` tag, or `cix.lock`. Activation is ordered but not transactional: if systemd fails partway, cix reports the failure and the selected profile remains available for an explicit rollback.
+
+## Optional pod and journal grouping
+
+A group is an inline child with its own `children`. Putting `network: "pod"` on that group places exactly its descendant services in one private network namespace; the setting does not change the Unix edge above.
+
+#### `pod-fragment.json`
+
+```json
+{
+  "children": {
+    "workers": {
+      "network": "pod",
+      "children": {
+        "producer": {"item": "producer:current"},
+        "consumer": {"item": "consumer:v1"}
+      }
+    }
+  }
+}
+```
+
+At the compose root, `logNamespace: true` gives the tree a systemd journal namespace named `cix-tour-stack`. It isolates the stack's journal storage; cix still selects entries using the stamped `CIX_COMPOSITE` and `CIX_SERVICE` fields.
+
+#### `logging-fragment.json`
+
+```json
+{
+  "logNamespace": true
+}
+```
+
+```sh
+$ cix logs tour-stack/consumer --explain
+journalctl CIX_COMPOSITE=tour-stack CIX_SERVICE=consumer
+```
+
+`cix logs tour-stack/consumer -n 20` reads the entries for only that child; `cix logs tour-stack -n 20` omits the service field and reads the whole tree. The consumer's stdout line demonstrated above is the application record those selectors retrieve after system activation. The [network-namespace scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/netns.nix) and [observability scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/observability.nix) carry the privileged pod and namespaced-journal receipts.
 
 
 ---
