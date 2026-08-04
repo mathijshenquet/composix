@@ -1271,6 +1271,62 @@ COPY ${{build}}/one /one
 }
 
 #[test]
+fn edited_plan_reconciles_repeated_copy_in_warm_workspace() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let state = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("input"), "payload\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let cixfile = |builder_suffix: &str, item_suffix: &str| {
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{src}}/input input
+RUN cp input first
+{builder_suffix}ITEM result
+COPY ${{build}}/first /first
+{item_suffix}"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("", "")).unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: workspace.path().to_owned(),
+        state_directory: state.path().to_owned(),
+    };
+    build(&options).unwrap();
+
+    fs::write(
+        directory.path().join("Cixfile"),
+        cixfile(
+            "COPY ${src}/input input\nRUN cp input second\n",
+            "COPY ${build}/second /second\n",
+        ),
+    )
+    .unwrap();
+    let edited = build(&options).unwrap();
+    let item = PathBuf::from(&edited[0].store_path);
+    assert_eq!(fs::read_to_string(item.join("first")).unwrap(), "payload\n");
+    assert_eq!(
+        fs::read_to_string(item.join("second")).unwrap(),
+        "payload\n"
+    );
+}
+
+#[test]
 fn automatic_fetch_pins_only_consumed_paths_and_cold_replays_its_snapshot() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
