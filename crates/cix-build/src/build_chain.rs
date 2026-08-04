@@ -1096,7 +1096,10 @@ fn execute_builder(
                     trace_before.path(),
                     &observations,
                     known_reads.as_ref().unwrap_or(&empty_reads),
-                )?;
+                )
+                .with_context(|| {
+                    format!("line {line}: recording {kind} read set\n  | {source:?}")
+                })?;
                 crate::cix_timing!(
                     "CIX timing trace-read-set reused={} hashed_files={} hashed_bytes={} hashed_directories={} wall_ms={}",
                     recording_metrics.reused,
