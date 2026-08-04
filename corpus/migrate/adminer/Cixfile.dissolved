@@ -1,0 +1,19 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE adminer
+  IMPORT ${pkgs.adminer} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php84}
+  COPY ${pkgs.adminer} /opt/adminer-seed
+  COPY ${src}/context/index.php /opt/adminer-seed/index.php
+  COPY ${src}/context/plugin-loader.php /opt/adminer-seed/plugin-loader.php
+  COPY ${src}/context/entrypoint.sh /usr/local/bin/entrypoint.sh
+  COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
+  COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
+  START sh /usr/local/bin/cix-entrypoint.sh
+  ENV ADMINER_DEFAULT_SERVER = db
+  ENV ADMINER_DESIGN = __cix_unset__
+  ENV ADMINER_PLUGINS = __cix_unset__
+  PORT http = 8080
+  CLAIM egress
+  START_PRE sh /usr/local/bin/prepare-webroot.sh
+  STATEDIR /var/www/html

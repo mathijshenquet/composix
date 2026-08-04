@@ -1,5 +1,54 @@
 # composix work log
 
+## 2026-08-04 evening (the whole corpus on the new canon; tour rebuilt; CI-portability cascade closed)
+
+- **Wave-2 regen MERGED** (`c3acdac`): all twelve remaining cases cold
+  on the CIP-91/92 canon; the full 21-case corpus is now uniform.
+  Two-layer warm/cold evidence rule born mid-wave (my GCs made rebuilds
+  accidentally cold → cold-instability class surfaced: phpmyadmin
+  EXPECT-refetch mismatch, echo-server/parse-server cold read-set
+  divergences — ledgered, never re-pinned to hide). Luna final score:
+  12/12 products, one false probe claim (nginx), honest walls
+  (verdaccio), new findings: wallos artifact-root/role-path collision
+  (→ language), adminer `__cix_unset__` optional-ENV smell, watchtower
+  warm-root duplicate-COPY defect (caught by Mathijs mid-run;
+  correction delivered, finding promoted).
+- **Tour rebuilt as a 7-chapter new-user guide** (`1945070` + fixes):
+  hello-first arc per orchestrator blueprint; orchestrator review
+  caught the interpolated-argv canon leak in ch1/5; then a three-round
+  CI-portability cascade: (1) CI's older user manager rejects
+  PrivatePIDs → degraded fallback drops BindPaths → env-dependent
+  probes (fixed; granular-degradation product item filed); (2)
+  auto-width ps/stats tables measure ambient units → nondeterministic
+  generations (fixed); (3) CIP-94 fetch drvs used bwrap → vanilla
+  GitHub runners deny unprivileged userns (fixed userns-free,
+  byte-identity verified with user.max_user_namespaces=0). CI green
+  again at cip94fix (`b7f85b1`, rerun success). Environment lesson:
+  GitHub-hosted runners (KVM yes per nix-installer, userns no, older
+  user manager) vs devbeast (KVM no, userns yes) — portability across
+  that matrix is the requirement; the local gate cannot substitute for
+  CI's environment class.
+- **CIP-94 buildCixfile milestone 1 MERGED** (`d542769`+fix): nix
+  builds Cixfiles without cix; byte-identity flake check vs --cold;
+  per-FETCH snapshotNarHash FODs; loud FHS/milestone boundaries.
+- **In flight**: tour polish (sol: show_file affordance per Mathijs,
+  ch6 listener from a real Cixfile, read-through nits);
+  corpus/migrate/{docker,k8s} restructure + k8s skeleton (terra,
+  Mathijs's direction).
+- **Ops incidents**: /tmp tmpfs inode exhaustion (probe litter;
+  CLEANUP.md sweep section, relocate-to-cache open item) and root-disk
+  fill from unshared full-gate VM closures (267 GiB GC'd; df-guard now
+  precedes every full gate). Process: 10-minute heartbeat while
+  waiting (Mathijs; memory-recorded); CI watches never blocking.
+- **Open for agents next**: the defect-fix round (CONFIGDIR, EXPECT
+  warm validation, localhost, Not-a-directory, volatile-fetch
+  normalization, warm-root duplicate COPY, granular degradation, lock
+  scale, /tmp relocation, artifact-root collision, optional-ENV); k8s
+  wave-1 + docker CANDIDATES expansion after the restructure; mastodon
+  member regen; CIP-93 progressive-test design; directus/filestash via
+  CIP-95 + Not-a-directory. **Open with Mathijs**: nothing — the draft
+  inbox is empty.
+
 ## 2026-08-04 (track/tourfix main-CI repair)
 
 - Merged work: none in this worktree; completed the `track/tourfix` repair for

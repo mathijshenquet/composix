@@ -1,9 +1,9 @@
-Generated: migrate.md@666cf74 · unknown · 2026-08-02
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The nginx/PHP-FPM configuration pair remains inline only because it embeds store paths; under CIP-91 assembly the configs reference stable runtime paths (`COPY` mime.types/fastcgi_params into `/etc/nginx/`) and become real checked-in files — FILE…FROM was rejected as unneeded. → case (stale, CIP-91)
-- `mime.types` and `fastcgi_params` are immutable package assets embedded as store paths inside the nginx heredoc; place those files with `LINK` and keep the authored config package-agnostic. → case
-- Six package binaries are linked individually into `/bin`, the corpus's clearest artifact toolset pile. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The wrapper still supervises nginx, PHP-FPM, and supercronic inside one service; split them into compose members or state why their coordination requires one unit. → case
-- Docker's `/health.php` check passes only in `check.sh`; add native HTTP `READINESS` now that CIP-79 is built. → case
-- The historical runtime probe has not been reproduced from source in the closed-root audit. → evidence
+- The application webroot is `/app` rather than upstream `/var/www` because the latter collides with Cix's artifact mount and cannot contain the declared state descendants. → language (artifact-root/role-path collision)
+- The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case
+- Upstream's `dcron` service and `/etc/cron.d/cronjobs` schedule are not activated, so only the startup maintenance jobs run. → case
+- Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case
+- Docker's `/health.php` check is exercised only by `check.sh`; the service does not declare the equivalent native HTTP `READINESS`. → case
+- Port 18092 and its second nginx listener exist only because the supplied Cix probe hard-codes that host port without a runtime port override; port 80 remains the faithful listener. → evidence

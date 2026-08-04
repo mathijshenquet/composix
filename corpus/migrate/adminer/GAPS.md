@@ -1,10 +1,10 @@
-Generated: migrate.md@c43ae9b · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The upstream `ADMINER_VERSION` and checksum variables were dissolved into a literal URL and `EXPECT`; keep version/checksum structure as builder `ENV` binders so a later version bump remains reviewable. → prompt
-- The application and its loader files moved from `/var/www/html` to filesystem root without a stated reason. → prompt
-- The upstream PHP tuning file is absent, losing `upload_max_filesize`, `post_max_size`, `memory_limit`, `max_execution_time`, and `max_input_vars`. → case
-- The login-page probe deliberately omits the entrypoint's dynamic design and plugin assembly from `ADMINER_DESIGN` and `ADMINER_PLUGINS`; that optional contract remains unconverted. → case
-- The package binary is exposed through an implicit `/bin` link instead of a declared artifact tool import. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The upstream `STOPSIGNAL SIGINT` has no Cix manifest counterpart, so systemd's default termination semantics silently replace it. → language ([recorded stop-signal gap](../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable))
-- nixpkgs packages Adminer, but this source-faithful conversion has no dissolved twin for the required side-by-side comparison. → case: add dissolved twin
+This regeneration resolves the earlier version/checksum binder, PHP tuning,
+webroot layout, dynamic design/plugin assembly, PHP extension import, artifact
+import, and missing-twin findings.
+
+- `ADMINER_DESIGN` and `ADMINER_PLUGINS` use the private `__cix_unset__` sentinel because Cix cannot declare an optional runtime `ENV` with no default. → language (optional ENV declaration)
+- Docker requests `STOPSIGNAL SIGINT`; Cix has no service stop-signal directive, so systemd's normal termination semantics remain authoritative. → language ([recorded stop-signal gap](../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable))
+- The worker's warm build passed, but the independent fresh fetch is EXPECT-hostile: its published file checksum passes while Cix reports declared `sha256-bJPK…` versus fetched `sha256-XJVI…`, leaving no snapshot for cold replay; keep the pin unchanged and normalize the fetch in the volatile-fetch fix round. → case (cold stability)

@@ -1,26 +1,58 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
-BUILDER ui
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
+BUILDER frontend
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gnused} ${pkgs.nodejs} ${pkgs.cacert}
+  ENV CI = true
+  ENV CLOUD_URL = https://cloud.dozzle.dev
   ENV COREPACK_HOME = $PWD/.corepack
-  COPY ${src}/context/ .
-  FETCH corepack install
-  RUN pnpm config set store-dir $PWD/.pnpm-store
-  FETCH pnpm fetch --ignore-scripts
-  RUN pnpm install --offline --ignore-scripts
-  RUN pnpm build
+  ENV PNPM_HOME = $PWD/.pnpm-home
+  COPY context/pnpm-lock.yaml pnpm-lock.yaml
+  COPY context/pnpm-workspace.yaml pnpm-workspace.yaml
+  COPY context/package.json package.json
+  FETCH corepack pnpm fetch --ignore-scripts --store-dir $PWD/.pnpm-store && test -r package.json
+  COPY context/vite.config.ts vite.config.ts
+  COPY context/tsconfig.json tsconfig.json
+  COPY context/.prettierrc.cjs .prettierrc.cjs
+  COPY context/.npmrc .npmrc
+  COPY context/assets assets
+  COPY context/locales locales
+  COPY context/public public
+  RUN <<BUILD
+frontend_root=$PWD
+frontend_tmp=/tmp/dozzle-frontend
+rm -rf "$frontend_tmp"
+mkdir -p "$frontend_tmp"
+cp package.json pnpm-lock.yaml pnpm-workspace.yaml vite.config.ts tsconfig.json .prettierrc.cjs .npmrc "$frontend_tmp"/
+cp -r assets locales public "$frontend_tmp"/
+cd "$frontend_tmp"
+node "$frontend_root/.corepack/v1/pnpm/11.17.0/bin/pnpm.cjs" install --offline --frozen-lockfile --ignore-scripts --store-dir "$frontend_root/.pnpm-store" --node-linker=hoisted
+node node_modules/vite/bin/vite.js build
+rm -rf "$frontend_root/dist"
+cp -r dist "$frontend_root/dist"
+find "$frontend_root/dist" -exec touch -d @0 {} +
+rm -rf "$frontend_tmp"
+BUILD
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.gcc} ${pkgs.cacert}
-  ENV GOMODCACHE = $PWD/.gomodcache
-  COPY ${src}/context/ .
-  COPY ${ui}/dist dist
+BUILDER backend
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.cacert}
+  ENV CGO_ENABLED = 0
+  ENV TAG = dev
+  COPY context/go.mod go.mod
+  COPY context/go.sum go.sum
+  ENV GOPATH = $PWD/.go
+  ENV GOCACHE = $PWD/.cache/go-build
   FETCH go mod download
-  RUN CGO_ENABLED=0 go build -o dozzle
+  COPY context/internal internal
+  COPY context/proto proto
+  COPY context/types types
+  COPY context/main.go main.go
+  COPY context/protos protos
+  COPY ${frontend}/dist dist
+  RUN mkdir -p bin && go build -ldflags "-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG" -o bin/dozzle
 
 SERVICE dozzle
-  COPY ${build}/dozzle /bin/dozzle
-  STATEDIR /var/lib/dozzle
+  IMPORT ${backend} ${pkgs.cacert}
   START dozzle
   PORT http = 8080
+  STATEDIR /data
+  CLAIM egress

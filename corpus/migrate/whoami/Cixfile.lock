@@ -2,65 +2,15 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5",
-      "narHash": "sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY="
+      "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+      "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+      "lastModified": 1785692966
     }
   },
-  "fetches": {
-    "builder:build:0-1efcc24b6ab5": {
-      "narHash": "sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE="
-    },
-    "builder:build:1-1b1da2a6a3d8": {
-      "narHash": "sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s="
-    },
-    "builder:build:1-27b58dcd6983": {
-      "narHash": "sha256-tlqh63S9lnbcmOfO5kZAXG/pQSZxAdNThZ7LUMXRHwg="
-    },
-    "builder:build:2-42a8263a643c": {
-      "narHash": "sha256-9M0AkvtAzsOYNGxFP8wMLqR9Im70h+BR/8h1pAzQs5E="
-    },
-    "src": {
-      "narHash": "sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0="
-    }
-  },
-  "memo": {
-    "0ca21c0c8d15603995c3be42a2a761033ce52657c41c4b90af55d1e78935fd57": {
-      "outputNarHash": "sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0=",
-      "storePath": "/nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot",
-      "wallMs": 1144
-    },
-    "73b409fc87bb5cc9281b114ee5dd3820a21b4a2d60f1ab2e8bbc892a43f16bed": {
-      "outputNarHash": "sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s=",
-      "storePath": "/nix/store/r4hwf34z2ahq6piljcmrxr0sav5qs53m-cix-build-snapshot",
-      "wallMs": 592
-    },
-    "7f7350b70bbccf2dae6df1a60df020fbe5d00bbfd196c59fc1878d85f295df04": {
-      "outputNarHash": "sha256-+CVGgJjWd1KThfI0xExKGZPCffxF4BsxFOooAMiO8D8=",
-      "storePath": "/nix/store/7l36h0badcgz22acl0n8c3s2mb2ppxx4-cix-build-snapshot",
-      "wallMs": 3724
-    },
-    "809f558ddf4286aee97ab186b85267ff6cde3f4f5f0f98c81704d4f3a062d372": {
-      "outputNarHash": "sha256-apmlQtnNWS8+dvnLYkD99YDgTnH6/6f8I3NotH/2tA4=",
-      "storePath": "/nix/store/rcsvk7f1va6x0vplrs9rp78ppyppfy11-cix-build-snapshot",
-      "wallMs": 6437
-    },
-    "adf7dc34e8d3c567a702c55fc5524ce9f6b537c8bef3a6b80b186bb6f8ff9f27": {
-      "outputNarHash": "sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE=",
-      "storePath": "/nix/store/53gfms5rg2mi1azv3d7i9jyh0plmgsp0-cix-build-snapshot",
-      "wallMs": 672
-    },
-    "fd8401ceb89b27827993d60465772a77a840be8e1064b67ba7f4e1598fe06da4": {
-      "outputNarHash": "sha256-kbQ2Is0WxwurR56xrNPPj0vSoH9k6AZISRGXvuvprEE=",
-      "storePath": "/nix/store/ywhk4k8rh44c5z2g9zbsm04xj4hijr21-cix-build-snapshot",
-      "wallMs": 714
-    },
-    "fdfcf51098c4fc502b6dfede33c247f6bf9374f9bc6666894ce5e385eb89811b": {
-      "paths": {
-        "whoami": {
-          "narHash": "sha256-PGesaKnYMmvgp7XYL1rVlTNPgnvUsGu/EvJAwEKk6wg=",
-          "storePath": "/nix/store/nqxmz348wlc8mryvyw5zas5nk280mdsg-cix-build-consumed"
-        }
-      }
+  "outputs": {
+    "whoami": {
+      "sourceHash": "90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6",
+      "storePath": "/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami"
     }
   }
 }

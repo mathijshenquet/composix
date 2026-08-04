@@ -1,7 +1,6 @@
-Generated: migrate.md@d582f41 · unknown · 2026-07-31
-Status: stale — regenerate with CIP-79
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- Docker's HTTP `HEALTHCHECK` is only mirrored by `check.sh`; regenerate with a native HTTP `READINESS` now that CIP-79 is built. → case
-- The Docker build supplies `NODE_ENV=production`, but the Cix builder drops that input without saying whether it is translated or unnecessary. → case
-- Static output moved from `/usr/share/nginx/html` to `/srv/www` with a replacement nginx configuration and no stated parity reason. → prompt
-- The orange grade is an evidence limit, not a runtime failure: the historical HTTP probe passed, but its consumed build tree has not been reproduced for the closed-root audit. → evidence
+- Docker and nginx serve port 80, and the Cixfile faithfully declares 80; `check.sh cix` instead probes 18090 without passing a Cix port override, so its red result is an acceptance-harness defect rather than evidence that the service chose the wrong port. → evidence
+- The helper normalizes the generated sitemap timestamp and drops the non-runtime `sw.js.map` debug map to stabilize otherwise volatile output; that deliberate source-build deviation remains visible. → case
+- Docker's `TARGETARCH` dependency selection is replaced by the locked local Cix host package universe, so cross-architecture behavior is not reproduced. → case

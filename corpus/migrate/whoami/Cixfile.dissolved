@@ -1,0 +1,6 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE whoami
+  IMPORT ${pkgs.whoami}
+  START whoami
+  PORT http = 80

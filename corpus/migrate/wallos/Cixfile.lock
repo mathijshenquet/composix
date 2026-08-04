@@ -2,48 +2,164 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "148bab9c1c3c53136ecb44a6ea356a0ed5b39b06",
-      "narHash": "sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=",
-      "lastModified": 1785571196
+      "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+      "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+      "lastModified": 1785692966
     }
   },
   "memo": {
-    "17839cf20ab2a32b90bc25b5624c547a997e1dd46f08b1224d18b976d5c75696": {
+    "2fa5e65ee479e070bc1bd67ad394cad8a4cb811ed67d00d3dfe4903a63b36054": {
       "paths": {
-        "app": {
-          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
-          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        ".": {
+          "narHash": "sha256-63dxHULsCJPftnmQq1FOyKQp7tp6d0Xi1g2wD2QYxSk=",
+          "storePath": "/nix/store/hy93kdmz98wqmgxkx4ccgqbmdp80ijy1-cix-build-consumed"
         }
       }
     },
-    "2f2f728a49870e164c2fc6762177c5513804060eaf4bbe110c2f85223ff7f1fb": {
+    "3436a56b771bec3d951f58597af928b364ab27358fa481eca7adfde5c16445bb": {
       "paths": {
-        "app": {
-          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
-          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        ".": {
+          "narHash": "sha256-AaB/WiHo6go+nrI2KlUVSGl67jwk94SvJlZaGHljMhU=",
+          "storePath": "/nix/store/49gh11773dzw5lbfhsniqky6vxy70x7x-cix-build-consumed"
         }
       }
     },
-    "59d894dd0ad6f332936192c9f7381e441e782b845da997feccdbe9721a09478c": {
+    "4a325b97fc4b8bea20116889a62300392db5f64947025289bab2f55e4d88d910": {
       "paths": {
-        "app": {
-          "narHash": "sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=",
-          "storePath": "/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed"
+        ".": {
+          "narHash": "sha256-JS1jjKczUsijUBuyIaUOM3OKcxBBnIhDnQKley3O9bs=",
+          "storePath": "/nix/store/36w7pyb73zmq9np4znps67ly9by7qyxg-cix-build-consumed"
+        }
+      }
+    },
+    "4c4df3691db6009cd48a0d2cb74bdfb642a55b3fa826d9f3e7fd22460688b5e4": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-63dxHULsCJPftnmQq1FOyKQp7tp6d0Xi1g2wD2QYxSk=",
+          "storePath": "/nix/store/hy93kdmz98wqmgxkx4ccgqbmdp80ijy1-cix-build-consumed"
+        }
+      }
+    },
+    "64f0cf73984c3e2795f6aa58f39fceb0a547e91eed0dc4b5b43005d39e5672f5": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-C9P4o0pctMe0tGdwNJg7Hy3QkLYOIkIEIFF6cOTPlbg=",
+          "storePath": "/nix/store/dqkqy1mdnidrwgz8msw1hbmdmk4gjs12-cix-build-consumed"
+        }
+      }
+    },
+    "68da7ceca6a3ad7226dcc8036cdd8c84b5b4f44bbc0959e62a1c9bf0a688d5c2": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-EgRPjMxMdakClJtyGl4JW1MOsmYfe4k2rjW+42ukTO0=",
+          "storePath": "/nix/store/bcwwlnim5l3bvp1c6nd45l9p6w77b7gm-cix-build-consumed"
+        }
+      }
+    },
+    "8f888eb7ca36c6ddc4b22383291ef53f8667c31e5a04b9271b4043be2000892c": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-l4VSRkB4Tkd9nCnziXLh3plafYprSnoSHML5RcQ2GxM=",
+          "storePath": "/nix/store/zw2hqhgdbijax5vsvdl60hiazggkm9h4-cix-build-consumed"
+        }
+      }
+    },
+    "a53909c3039c75faad407dad2096d591f4789b35a511f5776dff94f1142791bb": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-4ch27ohnc7LTAk9fsgDRb5QGDplrZJQZUZZW4B5xobw=",
+          "storePath": "/nix/store/fxamqx526jqw2qfqv9i8jcclk3q6ly14-cix-build-consumed"
+        }
+      }
+    },
+    "c2685503a11cd875cce6751664cfa929c590d78312921ba27fd75971e6f2577f": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-DUePZg4l/mHqAYFQDtNhntgMGnTmOwlCwT4dkWGLScU=",
+          "storePath": "/nix/store/zqlnfkn15yfx444g4aacn9i45fxb2qp2-cix-build-consumed"
+        }
+      }
+    },
+    "f060dcd9a9d77c915954c2025932fee577e417e67ff9afe3af522c93acf0eca4": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-XCFinNYdtmCBSWcdjM+2H1sfmazQAgcsDkg+zkV8CSA=",
+          "storePath": "/nix/store/37gyz2fff04xh707fg3pwmbqpf7cgmy6-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:app:1": {
+      "key": "974f94fc6d3626eaa81f6c0f59bd5286cf91470ca5034777b075657879758103",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "db": {
+          "kind": "directory",
+          "hash": "fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02"
+        },
+        "images/uploads/logos": {
+          "kind": "absent"
+        }
+      },
+      "changes": {
+        "db": {
+          "kind": "present"
+        },
+        "db/wallos.empty.db": {
+          "kind": "absent"
+        },
+        "nginx.conf": {
+          "kind": "absent"
+        },
+        "nginx.default.conf": {
+          "kind": "absent"
+        }
+      }
+    },
+    "builder:app:2": {
+      "key": "b6a3a409dbfa9e10ae3ea70183c5cae6fab0975817b4364f5fc679b3fbbc7225",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "db": {
+          "kind": "directory",
+          "hash": "fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02"
+        },
+        "images/uploads/logos": {
+          "kind": "absent"
+        }
+      },
+      "changes": {
+        "db": {
+          "kind": "present"
+        },
+        "db/wallos.empty.db": {
+          "kind": "absent"
+        },
+        "nginx.conf": {
+          "kind": "absent"
+        },
+        "nginx.default.conf": {
+          "kind": "absent"
         }
       }
     }
   },
   "devEnvs": {
-    "0323a3c59391e994460672c325fb1bdba7d925376992900d404d629de7293e27:21b08f30f7a4b14cf66d1a298d37f67294c769afdaed94ce941c02d9a430e880": {
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099": {
       "environment": {
-        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/7mfsmbhsd3arnypipwm251rcd0b45riy-gnused-4.10/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
       }
     }
   },
   "outputs": {
     "wallos": {
-      "sourceHash": "7eb451a46ff5f1a9c62f34b0a7e75b06af99d29fbb344b607c50d548a0f96fe4",
-      "storePath": "/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos"
+      "sourceHash": "9ad7c1fa0d0589aab8ce080095d0ccdd0d14d28c878953ea897332dfe5ea0337",
+      "storePath": "/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos"
     }
   }
 }

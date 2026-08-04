@@ -1,9 +1,7 @@
-Generated: migrate.md@0f63d00 · unknown · 2026-08-02
-Status: stale — regenerate with CIP-81
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The scheduled APP runs only `renovate --version`; it never performs a repository renovation, so the green timer/log receipt is a mechanism probe rather than an application conversion. → case
-- Repository configuration and tokens are entirely absent even though they are required for useful execution; make that loss prominent wherever the case is summarized. → browser
-- CIP-81 now provides credential files, but the case has not converted the upstream config/secret delivery or demonstrated Renovate consuming it. → case
-- The upstream CronJob's schedule options, concurrency/deadline/retry policy, cache, command hooks, and pod placement knobs are reduced to hard-coded `daily` plus persistence without itemized dispositions. → case
-- This nixpkgs-only mechanism demo has no upstream-faithful CronJob twin. → case: add upstream-faithful twin
-- The closed-root receipt proves timer activation, a version command, and indexed logs only; it is not evidence for authenticated repository work. → evidence
+- The available source contract proves a daily scheduled Renovate APP, but supplies no repository configuration, credentials, or target; no repository renovation is exercised. → case
+- Kubernetes concurrency, deadline, retry/history, cache, command-hook, security-context, placement, and secret-volume machinery has no concrete supplied value and is not represented by the APP. → case
+- The normal and dissolved Cixfiles are intentionally identical because locked nixpkgs is authoritative and the supplied source is a CronJob template rather than a Dockerfile-faithful application build. → evidence
+- The acceptance receipt proves build, calendar parsing, and compose validation only; it does not prove authenticated repository work. → evidence

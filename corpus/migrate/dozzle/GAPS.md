@@ -1,8 +1,7 @@
-Generated: migrate.md@dd2f39a · terra · 2026-07-30
-Status: stale — regenerate with CIP-82
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The UI fetch/build produces different consumed bytes across clean runs and the pinned source lacks the Dockerfile's `shared_cert.pem`; the page must name both build blockers plainly. → browser
-- Establish a reproducible UI output and source contract before promoting the backend-only D69 experiment to evidence for the complete item. → evidence
-- A faithful runtime requires `/var/run/docker.sock` and Docker's control API, which composix deliberately refuses; outbound egress is not a substitute. → refused
-- The upstream writable `/data` path was silently replaced by `/var/lib/dozzle`; CIP-82 role paths can mirror `/data` directly. → prompt
-- Docker's `CLOUD_URL` build input and `TAG` version stamp are omitted without translated/dissolved/gap dispositions. → case
+- A useful Dozzle runtime requires `/var/run/docker.sock` and Docker's control API, which composix deliberately refuses; `CLAIM egress` is not a substitute. → refused
+- `main.go` embeds `shared_cert.pem` and `shared_key.pem`, but the supplied source context lacks both files, so the backend cannot produce an item without fabricating inputs. → evidence
+- The frontend FETCH is cold-unstable: replay reports a warm/cold read-set difference at `.` after earlier isolated pnpm runs stalled; do not repin or weaken the graph, and normalize it in the volatile-fetch fix round. → case (cold stability)
+- Docker's exact Node/pnpm selection, cross-platform arguments, and configurable `CLOUD_URL` become locked-host packages and an explicit default; custom cross-build/cloud inputs require editing the Cixfile. → case

@@ -52,3 +52,16 @@ target/debug/cix logs corpus-renovate/renovate \
 `CIX_COMPOSITE=corpus-renovate`, `CIX_SERVICE=renovate`, and the invocation ID.
 Cleanup used `cix down corpus-renovate` and removed both temporary user/root
 `renovate:regrade` tags.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged primary and dissolved APP builds passed, and
+the supplied acceptance checked the default build, `systemd-analyze calendar
+daily`, and compose validation.
+
+The assembler's primary and `--file Cixfile.dissolved` builds each exited 0 with
+`/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate`. Running
+`corpus/migrate/renovate/check.sh` with this worktree's cix exited 0 and printed
+`PASS cix build, calendar, and compose validation`. Both builds repeated with
+`--cold` exited 0 with the same item. This case has no Dockerfile/context;
+Docker mode was not run.

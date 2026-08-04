@@ -1,8 +1,7 @@
-Generated: migrate.md@dd2f39a · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- Whole packages are copied to ad-hoc `/coreutils`, `/gnused`, `/tomcat`, and `/jre` roots and stitched together with a hand-built `PATH`. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The virtual filesystem diverges from upstream `CATALINA_HOME=/usr/local/tomcat` and its ordinary JRE/package layout; mirror those paths or state why the alternate projection is required. → prompt
-- Setup disables Tomcat's private shutdown listener on 8005 to satisfy the declared-port sandbox; retain that deliberate behavioral change as a visible loss. → case
-- The bounded probe accepts the expected empty-server 404, proving reachability but no deployed web application behavior. → evidence
-- This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin
+- The faithful twin uses nixpkgs' Tomcat 10.1.57 tree instead of reproducing the Docker image's separately compiled Tomcat Native library, and it omits the upstream `configtest` assertion that the native library loaded. → case
+- `CATALINA_HOME` is `/share/tomcat` rather than upstream `/usr/local/tomcat`; the package tree and Docker cross-image copy are behaviorally close but not path-identical. → case
+- Tomcat's `logs`, `temp`, and `work` directories remain under the immutable package assembly even though the Docker writable layer permits runtime writes there. → case
+- The bounded HTTP probe accepts the expected empty-server response, proving reachability but no deployed web application behavior. → evidence

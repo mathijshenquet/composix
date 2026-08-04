@@ -1,21 +1,15 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE tomcat
-  COPY ${pkgs.coreutils} /coreutils
-  COPY ${pkgs.gnused} /gnused
-  COPY ${pkgs.tomcat10} /tomcat
-  COPY ${pkgs.jdk21_headless} /jre
-  COPY setup.sh /bin/tomcat-setup
-  LINK ${pkgs.tomcat10}/bin/catalina.sh /bin/catalina.sh
-  STATEDIR /var/lib/tomcat
-  LOGDIR /var/log/tomcat
-  RUNDIR /run/tomcat
-  ENV CATALINA_HOME = /tomcat
-  ENV CATALINA_BASE = /var/lib/tomcat
-  ENV CATALINA_TMPDIR = /run/tomcat
-  ENV JRE_HOME = /jre
-  ENV PATH = /coreutils/bin:/gnused/bin:/bin
-  START_PRE ${pkgs.bash}/bin/sh /bin/tomcat-setup
-  START ${pkgs.bash}/bin/sh /tomcat/bin/catalina.sh run
+  IMPORT ${pkgs.tomcat10} ${pkgs.jdk21} ${pkgs.coreutils}
+  COPY ${pkgs.tomcat10} /share/tomcat
+  ENV CATALINA_HOME = /share/tomcat
+  ENV TOMCAT_NATIVE_LIBDIR = /share/tomcat/native-jni-lib
+  ENV LD_LIBRARY_PATH = /share/tomcat/native-jni-lib
+  ENV TOMCAT_MAJOR = 10
+  ENV TOMCAT_VERSION = 10.1.57
+  ENV TOMCAT_SHA512 = 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
+  START catalina.sh run
   PORT http = 8080
+  PORT shutdown = 8005
   CLAIM jit
