@@ -419,6 +419,103 @@ fn next_listen() -> String {
     format!("127.0.0.1:{port}")
 }
 
+fn tree_hash(name: &str, contents: &[u8]) -> String {
+    let directory = tempfile::Builder::new()
+        .prefix("cix-tour-hash-")
+        .tempdir_in(test_tmp_dir())
+        .expect("creating hash fixture");
+    fs::write(directory.path().join(name), contents).expect("writing hash fixture");
+    let output = Command::new("nix")
+        .args(["hash", "path", "--sri"])
+        .arg(directory.path())
+        .output()
+        .expect("hashing fixture tree");
+    assert!(
+        output.status.success(),
+        "nix hash path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("Nix hash is UTF-8")
+        .trim()
+        .to_owned()
+}
+
+fn fhs_elf_fixture() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("canonicalizing repository root");
+    let expression = format!(
+        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in
+pkgs.runCommand "cix-tour-fhs-elf" {{ nativeBuildInputs = [ pkgs.gcc pkgs.patchelf ]; }} ''
+  printf '#include <stdio.h>\nint main(void) {{ puts("fhs-tour-ok"); return 0; }}\n' > probe.c
+  cc probe.c -o fhs-probe
+  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath fhs-probe
+  mkdir -p "$out"
+  cp fhs-probe "$out/fhs-probe"
+''"#,
+        root.display()
+    );
+    let output = Command::new("nix")
+        .args([
+            "build",
+            "--impure",
+            "--no-link",
+            "--print-out-paths",
+            "--expr",
+            &expression,
+        ])
+        .output()
+        .expect("building FHS ELF fixture");
+    assert!(
+        output.status.success(),
+        "building FHS ELF failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    PathBuf::from(
+        String::from_utf8(output.stdout)
+            .expect("FHS fixture path is UTF-8")
+            .trim(),
+    )
+}
+
+fn start_file_server(doc: &Doc, directory: &Path, listen: &str) -> Server {
+    let (host, port) = listen.split_once(':').expect("host:port listen address");
+    let child = Command::new("python3")
+        .args(["-m", "http.server", "--bind", host, port, "--directory"])
+        .arg(directory)
+        .current_dir(&doc.base)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starting fixture file server");
+    let mut server = Server { child };
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = server.child.try_wait().expect("checking file server") {
+            panic!("fixture file server exited before becoming ready: {status}");
+        }
+        let ready = Command::new("curl")
+            .args([
+                "-fsS",
+                "--max-time",
+                "1",
+                &format!("http://{listen}/fhs-probe"),
+            ])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if ready {
+            return server;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for fixture file server"
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 fn start_server(doc: &Doc, state_dir: &Path, listen: &str) -> Server {
     let child = Command::new(doc.bin_dir.join("cix"))
         .args(["serve", "--with-store", "--listen", listen])
@@ -728,6 +825,190 @@ CLAIM jit
 
     doc.para("## Directive reference");
     doc.para("| Declaration | What it adds |\n| --- | --- |\n| `FROM … AS name` | A locked package/source/item binder; `FROM .` names local context. |\n| `FETCH name command … EXPECT hash` | A pinned network step and reusable source binder. |\n| `BUILDER name` | A persistent build workspace for `COPY`, `ENV`, `FETCH`, and offline `RUN`. |\n| `SERVICE name` / `APP name` / `ITEM name` | A long-running runtime contract / run-to-completion contract / manifest-less tree. |\n| `IMPORT package…` | An earlier-wins read-only package union with bare command lookup. |\n| `COPY source /destination` | Provenance-aware item assembly; builder destinations are workdir-relative. |\n| `FILE /destination <<EOF` | An inline interpolated file; prefer checked-in files when possible. |\n| `START` / `START_PRE` | The argv entrypoint / idempotent service pre-start argv. |\n| `ENV` / `SECRET` | Declared runtime configuration / credential-file need. |\n| `PORT` / `LISTENER` | A direct TCP/UDP bind / systemd-owned TCP socket. |\n| role dirs / `DIR` | Cix-managed lifecycle storage / operator-supplied data. |\n| `READINESS` / `LIVENESS` | Startup gating / watchdog restart probes. |\n| `CLAIM` / `SHM` | A narrow sandbox exception / bounded private shared memory. |");
+    doc.finish()
+}
+
+fn chapter_building() -> String {
+    let mut doc = Doc::new("building");
+
+    let fetch_demo = doc.base.join("fetch-demo");
+    fs::create_dir(&fetch_demo).expect("creating FETCH demo");
+    let expected_hash = tree_hash("expected", b"author-pinned");
+    fs::write(
+        fetch_demo.join("Cixfile"),
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH expected ${{pkgs.coreutils}}/bin/printf author-pinned > expected EXPECT {expected_hash}
+FETCH resolved ${{pkgs.coreutils}}/bin/printf lock-pinned > resolved
+
+BUILDER assemble
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{expected}}/expected expected
+COPY ${{resolved}}/resolved resolved
+RUN cat expected resolved > result
+
+ITEM fetched-result
+COPY ${{assemble}}/result /result
+"#
+        ),
+    )
+    .expect("writing FETCH demo Cixfile");
+    fs::write(fetch_demo.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing FETCH demo lock");
+
+    doc.para("You will build pinned network inputs in persistent workspaces, audit them cold, and repair a real downloaded FHS binary before compiling a two-service Rust workspace. Afterwards, you will understand what the lock records, why RUN is offline, how warm replay stays trustworthy, and how one builder can feed narrow independent members.");
+
+    doc.para("## FETCH, EXPECT, and deliberate lock movement");
+    doc.para("This compact fixture uses both trust modes. `expected` carries the author's whole-tree SRI hash directly in the Cixfile; `resolved` asks cix to fetch twice and record only the downstream-observable path when you explicitly update that lock entry.");
+    let fetch_source = doc.sh("cat fetch-demo/Cixfile", true);
+    assert!(fetch_source.contains("FETCH expected"));
+    assert!(fetch_source.contains("EXPECT sha256-"));
+    assert!(fetch_source.contains("FETCH resolved"));
+    assert!(fetch_source.contains("RUN cat expected resolved > result"));
+
+    let updated = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --update-lock resolved fetch-demo",
+        true,
+    );
+    assert!(updated.contains("BUILDER assemble memo miss"), "{updated}");
+    let result_path = built_store_path(&updated, "-cix-item-fetched-result");
+    let combined = doc.sh(&format!("cat {result_path}/result"), true);
+    assert_eq!(combined.trim(), "author-pinnedlock-pinned");
+
+    doc.para("The lock keeps the immutable nixpkgs revision, FETCH pins, constructive step memos, consumed output objects, and a development-environment snapshot. The snapshot comes from the imported package world, so native toolchain variables arrive together; you do not hand-wire store paths such as `PKG_CONFIG_PATH`.");
+    let lock = doc.sh(
+        "jq '{fetches, devEnvCount:(.devEnvs | length)}' fetch-demo/Cixfile.lock",
+        true,
+    );
+    assert!(lock.contains("\"expected\""));
+    assert!(lock.contains("\"resolved\""));
+    assert!(lock.contains("\"devEnvCount\": 1"));
+
+    doc.para("FETCH alone has network authority. The following RUN consumes only staged files in a networkless sandbox, and its command plus imports, environment, and observed read set form the reusable step identity.");
+    let warm = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --stats fetch-demo",
+        true,
+    );
+    assert!(warm.contains("memo-hit"), "{warm}");
+    assert!(warm.contains("\"nixSubprocesses\":0"), "{warm}");
+    doc.para("That hit is not a timestamp promise. Cix rehashes exactly the files, directory listings, metadata probes, and absent paths the command read; unrelated workspace bytes cannot invalidate the step, while a changed observed input does. A persistent workspace is therefore an acceleration structure, not hidden build input.");
+
+    doc.para("`--update-lock` and `--cold` are the audit pair: the first is an explicit trust-moving network operation for a selected non-EXPECT FETCH, while the second never contacts the network and replays the pinned bytes in an empty workspace before comparing reads and consumed outputs.");
+    let cold = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --cold fetch-demo",
+        true,
+    );
+    assert!(cold.contains("BUILDER assemble"), "{cold}");
+    assert_eq!(
+        built_store_path(&cold, "-cix-item-fetched-result"),
+        result_path
+    );
+
+    doc.para("## The FHS diagnostic, then the one-line fix");
+    let fhs_fixture = fhs_elf_fixture();
+    let fhs_bytes = fs::read(fhs_fixture.join("fhs-probe")).expect("reading FHS probe");
+    let fhs_hash = tree_hash("fhs-probe", &fhs_bytes);
+    let listen = next_listen();
+    let _server = start_file_server(&doc, &fhs_fixture, &listen);
+    let fhs_demo = doc.base.join("fhs-demo");
+    fs::create_dir(&fhs_demo).expect("creating FHS demo");
+    fs::write(
+        fhs_demo.join("Cixfile"),
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH native ${{pkgs.curl}}/bin/curl -fsS http://{listen}/fhs-probe -o fhs-probe EXPECT {fhs_hash}
+
+BUILDER native-build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{native}}/fhs-probe .
+RUN chmod +x fhs-probe
+RUN ./fhs-probe > result
+
+ITEM native-result
+COPY ${{native-build}}/result /result
+"#
+        ),
+    )
+    .expect("writing FHS demo Cixfile");
+    fs::write(fhs_demo.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing FHS demo lock");
+
+    doc.para("The next FETCH downloads an ELF whose interpreter is the conventional GNU `/lib64/ld-linux-x86-64.so.2`. The builder imports a shell and core utilities but no libc, so executing the untouched download must fail—and the shown diagnostic is produced by the real trace, not copied into this guide.");
+    let fhs_source = doc.sh("cat fhs-demo/Cixfile", true);
+    assert!(fhs_source.contains("http://"));
+    assert!(!fhs_source.contains("pkgs.glibc"));
+    let missing = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo",
+        false,
+    );
+    assert!(
+        missing.contains("fhs-probe requires the FHS loader"),
+        "{missing}"
+    );
+    assert!(missing.contains("/lib64/ld-linux-x86-64.so.2"), "{missing}");
+    assert!(missing.contains("IMPORT ${pkgs.glibc}"), "{missing}");
+
+    doc.para("Add glibc to the ordered IMPORT union. Its loader satisfies the fixed FHS alias, so the same downloaded binary runs without mutation or a patchelf step.");
+    doc.sh(
+        "sed -i 's/${pkgs.coreutils}/${pkgs.coreutils} ${pkgs.glibc}/' fhs-demo/Cixfile",
+        true,
+    );
+    let repaired_source = doc.sh("grep '^IMPORT' fhs-demo/Cixfile", true);
+    assert!(repaired_source.contains("${pkgs.glibc}"));
+    let repaired = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo",
+        true,
+    );
+    let repaired_path = built_store_path(&repaired, "-cix-item-native-result");
+    let fhs_result = doc.sh(&format!("cat {repaired_path}/result"), true);
+    assert_eq!(fhs_result.trim(), "fhs-tour-ok");
+
+    doc.para("## Capstone: one Rust workspace, two services");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/build/proj1");
+    for relative in PROJ1_FILES {
+        let destination = doc.base.join("proj1").join(relative);
+        fs::create_dir_all(destination.parent().expect("project file has a parent"))
+            .expect("creating proj1 directory");
+        fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
+    }
+    doc.para("The capstone is a real Cargo workspace. One BUILDER imports its complete pinned toolchain, stages the declared workspace, and runs Cargo offline; two SERVICE blocks consume one release binary each.");
+    let proj1_source = doc.sh("cat proj1/Cixfile", true);
+    assert!(proj1_source.contains("cargo build --release --locked --offline --workspace"));
+    assert!(proj1_source.contains("SERVICE proj1-api"));
+    assert!(proj1_source.contains("SERVICE proj1-worker"));
+    let first = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1 --namespace proj1 -t v1",
+        true,
+    );
+    let first_api = proj1_item_path(&first, "proj1-api");
+    let first_worker = proj1_item_path(&first, "proj1-worker");
+
+    doc.para("Now change only the worker and select that member with `directory#member`. The warm builder recompiles the changed workspace, but the API's narrow consumed path still names the same immutable item.");
+    doc.sh(
+        "sed -i 's/proj1-worker/proj1-worker-edited/' proj1/rust/worker/src/main.rs",
+        true,
+    );
+    let edited_worker = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-worker",
+        true,
+    );
+    let edited_worker = edited_worker
+        .lines()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("selected worker build printed its item")
+        .to_owned();
+    assert_ne!(edited_worker, first_worker);
+    let unchanged_api = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-api",
+        true,
+    );
+    let unchanged_api = unchanged_api
+        .lines()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("selected API build printed its item")
+        .to_owned();
+    assert_eq!(unchanged_api, first_api);
+    doc.para("That is the central build model at project scale: shared warm work stays private to the builder, FETCH trust stays pinned, and each final item depends only on the path it actually copies.");
     doc.finish()
 }
 
@@ -1256,10 +1537,11 @@ fn render_tour() -> Vec<GeneratedFile> {
             body: chapter_cixfile_language(),
         },
         Scenario {
-            filename: "03-build-run-debug.md",
-            title: "Chapter 3: Build, run, debug",
-            description: "Read a Cixfile, build its manifest, run by tag, and debug the same tag.",
-            body: chapter_build_run_debug(),
+            filename: "03-building.md",
+            title: "Chapter 3: Building: BUILDERs, FETCH, and the lock",
+            description:
+                "Pin network inputs, reuse audited work, repair an FHS binary, and build proj1.",
+            body: chapter_building(),
         },
         Scenario {
             filename: "04-building-with-run.md",

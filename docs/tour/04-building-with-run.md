@@ -132,4 +132,4 @@ BUILDER build memo hit completed output (zero Nix subprocesses)
 
 ---
 
-[← Previous](03-build-run-debug.html) · [Tour index](index.html) · [Next →](05-proj1.html)
+[← Previous](03-building.html) · [Tour index](index.html) · [Next →](05-proj1.html)

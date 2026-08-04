@@ -13,7 +13,7 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 2: The Cixfile language](02-cixfile-language.html) — Learn binders, assembly, runtime declarations, and the directive vocabulary.
 
-- [Chapter 3: Build, run, debug](03-build-run-debug.html) — Read a Cixfile, build its manifest, run by tag, and debug the same tag.
+- [Chapter 3: Building: BUILDERs, FETCH, and the lock](03-building.html) — Pin network inputs, reuse audited work, repair an FHS binary, and build proj1.
 
 - [Chapter 4: Building with RUN](04-building-with-run.html) — Build through a persistent workspace and replay only consumed paths.
 

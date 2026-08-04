@@ -152,4 +152,4 @@ $ jq '{env, ports, listeners, dirs, claims}' /nix/store/…-cix-item-language/ci
 
 ---
 
-[← Previous](01-hello-composix.html) · [Tour index](index.html) · [Next →](03-build-run-debug.html)
+[← Previous](01-hello-composix.html) · [Tour index](index.html) · [Next →](03-building.html)

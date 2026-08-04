@@ -281,3 +281,13 @@
   lifecycle dirs, TCP+UDP ports, LISTENER, and egress/JIT claims; its compact
   manifest projection and closing directive table are asserted. Focused
   generation passed synchronously after fixture-path corrections; no ENOSPC.
+
+- 2026-08-04T11:55:00Z — Chapter 3 is implemented and generated as
+  `03-building.md`. One continuous executable story covers author-EXPECT and
+  double-fetched automatic pins, offline RUN, a zero-Nix warm memo receipt,
+  compact lock/dev-env evidence, successful cold replay, then a locally served
+  genuinely FHS-linked ELF whose first RUN emits the real loader/libc IMPORT
+  hint and whose second RUN succeeds after adding glibc. The proj1 capstone
+  proves one warm Cargo workspace, two items, member selection, and unchanged
+  API identity after a worker-only edit. Focused generation passed
+  synchronously; no ENOSPC.
