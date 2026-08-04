@@ -559,3 +559,17 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   ledger, and `git diff --check` exited 0. Next: teach every routed prompt lesson
   in `docs/migrate.md`, then replace the living table's single ribbon with separate
   fidelity and evidence axes.
+
+## 2026-08-04 — migration prompt closes routed prompt gaps
+
+- Amended `docs/migrate.md` in place, in its existing teaching flow: the opening
+  contract now requires an explicit disposition for every upstream ENV/config/
+  tuning knob; graph selection warns that many sibling copies usually hide one
+  deploy unit; FETCH guidance preserves upstream version/checksum binders as well
+  as the Cix SRI; runtime assembly mirrors upstream application and role paths by
+  default; and verification makes the per-case `GAPS.md` contract mandatory.
+- `rg -n '→ prompt$' corpus/migrate/*/GAPS.md` returned 12 findings. Each is
+  covered by one of those general lessons; no image-specific exception or syntax
+  from an unadopted draft was taught. `git diff --check` exited 0. Next: regrade
+  the living table on independent fidelity/evidence axes and cross-check every row
+  against its ledger.
