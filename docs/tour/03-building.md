@@ -227,4 +227,4 @@ That is the central build model at project scale: shared warm work stays private
 
 ---
 
-[← Previous](02-cixfile-language.html) · [Tour index](index.html) · [Next →](04-building-with-run.html)
+[← Previous](02-cixfile-language.html) · [Tour index](index.html) · [Next →](04-naming-distribution.html)

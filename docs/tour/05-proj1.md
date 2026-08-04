@@ -157,4 +157,4 @@ $ systemctl --user stop cix-run-proj1-api-NONCE.service
 
 ---
 
-[← Previous](04-building-with-run.html) · [Tour index](index.html) · [Next →](06-advanced.html)
+[← Previous](04-naming-distribution.html) · [Tour index](index.html) · [Next →](06-advanced.html)

@@ -15,7 +15,7 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 3: Building: BUILDERs, FETCH, and the lock](03-building.html) — Pin network inputs, reuse audited work, repair an FHS binary, and build proj1.
 
-- [Chapter 4: Building with RUN](04-building-with-run.html) — Build through a persistent workspace and replay only consumed paths.
+- [Chapter 4: Naming and distribution](04-naming-distribution.html) — Tag immutable items, manage families, serve a cache, and follow a moving ref.
 
 - [Chapter 5: proj1](05-proj1.html) — Build two services from one Rust workspace and run the API.
 

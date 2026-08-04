@@ -291,3 +291,12 @@
   proves one warm Cargo workspace, two items, member selection, and unchanged
   API identity after a worker-only edit. Focused generation passed
   synchronously; no ENOSPC.
+
+- 2026-08-04T12:10:00Z — Chapter 4 is implemented and generated as
+  `04-naming-distribution.md`. It keeps exactly one short raw-tree aside, then
+  executes post-build family tagging, compact inspection, move-as-tag+untag,
+  removal/GC semantics, a moved tag, content-negotiated serve with a real Nix
+  binary cache, adopted pull, and upstream refresh after a second move. The
+  product has no literal mv/rm image-object verbs, so the prose teaches the
+  actual tag/untag model rather than inventing them. Focused generation passed
+  synchronously; no ENOSPC.

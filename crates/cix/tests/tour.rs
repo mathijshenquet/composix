@@ -308,6 +308,31 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
     path
 }
 
+fn add_raw_item(doc: &Doc, name: &str, contents: &str) -> String {
+    let directory = doc.base.join(name);
+    fs::create_dir(&directory).expect("creating raw item directory");
+    fs::write(directory.join("message"), contents).expect("writing raw item payload");
+    fs::write(
+        directory.join("cix-manifest.json"),
+        r#"{"cixManifest":0,"start":["message"]}"#,
+    )
+    .expect("writing raw item manifest");
+    let output = Command::new("nix")
+        .args(["store", "add-path"])
+        .arg(&directory)
+        .output()
+        .expect("adding raw item to the Nix store");
+    assert!(
+        output.status.success(),
+        "nix store add-path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("raw item path is UTF-8")
+        .trim()
+        .to_owned()
+}
+
 fn listener_fixture(doc: &Doc) -> String {
     let fixture = doc.base.join("listener-fixture");
     let executable = fixture.join("bin/listenfds");
@@ -1012,6 +1037,101 @@ COPY ${{native-build}}/result /result
     doc.finish()
 }
 
+fn chapter_naming_distribution() -> String {
+    let mut doc = Doc::new("naming-distribution");
+    let publisher = doc.state_dir.clone();
+    let consumer = doc.base.join("consumer-state");
+
+    doc.para("You will give an immutable item a family of operational names, move and remove those names, then serve and refresh one across an index boundary. Afterwards, you will understand why tags are GC-rooted pointers rather than build inputs and how ordinary Nix caches carry the bytes.");
+
+    doc.para("## One demystifying aside: an item is a tree");
+    doc.para("Normally `cix build` writes this tree for you. At the boundary, however, an item is simply a Nix store tree with `cix-manifest.json`; this is the tour's one hand-assembled example, kept short so you can see that no image format is hiding underneath.");
+    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
+
+    doc.para("## Names come after builds");
+    doc.para("The store path already has its complete identity. Tags add mutable operational vocabulary and GC roots after that build, so changing a tag never changes the item it points at. A slash groups related members into a family; the explicit suffix is always a tag, with no magic `latest`.");
+    doc.sh("cix tag my-app:v1 guide/web:v1", true);
+    doc.sh("cix tag my-app:v1 guide/web:stable", true);
+    let family = doc.sh("cix ls -l guide/", true);
+    assert!(family.contains("guide/web:v1"));
+    assert!(family.contains("guide/web:stable"));
+    assert!(family.contains(&first));
+
+    let inspected = doc.sh(
+        "cix inspect guide/web:v1 | jq '{kind, reference, storePath}'",
+        true,
+    );
+    assert!(inspected.contains("\"kind\": \"artifact\""));
+    assert!(inspected.contains("\"reference\": \"guide/web:v1\""));
+    assert!(inspected.contains(&first));
+
+    doc.para("There is no mutable image object to rename or delete. Move a name by tagging the destination and untagging the source; remove one with `cix untag`. Nix garbage collection may reclaim an item only after no cix tag or other GC root reaches it.");
+    doc.sh(
+        "cix tag guide/web:v1 guide/web:release && cix untag guide/web:stable",
+        true,
+    );
+    let moved_names = doc.sh("cix ls guide/", true);
+    assert!(moved_names.contains("guide/web:release"));
+    assert!(!moved_names.contains("guide/web:stable"));
+
+    let second = add_raw_item(&doc, "my-app-v2", "hello from my app v2\n");
+    doc.para("Moving `guide/web:v1` to a new build changes only that pointer. The immutable v1 path still exists wherever another root retains it.");
+    doc.sh(&format!("cix tag {second} guide/web:v1"), true);
+    let moved = doc.sh("cix ls -l guide/", true);
+    assert!(moved.contains(&second));
+    assert!(moved.contains(&first));
+
+    doc.para("## Serve and pull");
+    doc.para("`cix serve --with-store` exposes the bare local tag database and a standard Nix binary cache. One content-negotiated URL returns HTML to a browser and the index entry to a cix client; the index resolves names, while Nix signatures and NAR hashes protect content.");
+    let listen = next_listen();
+    doc.background(
+        "publisher $",
+        &format!("cix serve --with-store --listen {listen}"),
+    );
+    let server = start_server(&doc, &publisher, &listen);
+    let entry = doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!(
+            "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://{listen}/guide/web:v1 | jq '{{outputs, substituters}}'"
+        ),
+        true,
+    );
+    assert!(entry.contains("\"outputs\""));
+    assert!(entry.contains(&second));
+    assert!(entry.contains("/store"));
+
+    doc.para("A qualified ref carries its origin. `--as` adopts it under a bare local name while remembering that upstream, and a later bare `cix pull` refreshes every such moving tag.");
+    let pulled = doc.sh_in(
+        "consumer $",
+        &consumer,
+        &format!("cix pull {listen}/guide/web:v1 --as guide/web:v1"),
+        true,
+    );
+    assert!(pulled.contains("updated 1 tag(s)"));
+    let local = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(local.contains("guide/web:v1"));
+    assert!(local.contains(&second));
+    assert!(local.contains(&listen));
+
+    let third = add_raw_item(&doc, "my-app-v3", "hello from my app v3\n");
+    doc.sh_in(
+        "publisher $",
+        &publisher,
+        &format!("cix tag {third} guide/web:v1"),
+        true,
+    );
+    let refreshed = doc.sh_in("consumer $", &consumer, "cix pull", true);
+    assert!(refreshed.contains("updated 1 tag(s)"));
+    let updated = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
+    assert!(updated.contains(&third));
+    assert!(!updated.contains(&second));
+    drop(server);
+
+    doc.para("The result is deliberately small: mutable HTTP names select immutable store paths, and standard Nix substitution moves their closures. No daemon-owned image graph or default registry is required.");
+    doc.finish()
+}
+
 fn chapter_build_run_debug() -> String {
     let mut doc = Doc::new("build-run-debug");
     fs::write(doc.base.join("greeting.txt"), "hello from Cixfile\n")
@@ -1544,10 +1664,11 @@ fn render_tour() -> Vec<GeneratedFile> {
             body: chapter_building(),
         },
         Scenario {
-            filename: "04-building-with-run.md",
-            title: "Chapter 4: Building with RUN",
-            description: "Build through a persistent workspace and replay only consumed paths.",
-            body: chapter_building_with_run(),
+            filename: "04-naming-distribution.md",
+            title: "Chapter 4: Naming and distribution",
+            description:
+                "Tag immutable items, manage families, serve a cache, and follow a moving ref.",
+            body: chapter_naming_distribution(),
         },
         Scenario {
             filename: "05-proj1.md",
