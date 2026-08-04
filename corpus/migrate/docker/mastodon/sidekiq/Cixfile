@@ -2,8 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE sidekiq
+  IMPORT ${pkgs.postgresql} ${pkgs.python3} ${pkgs.redis}
   COPY ${src}/worker.py /opt/mastodon/worker.py
-  START ${pkgs.python3}/bin/python3 /opt/mastodon/worker.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  START python3 /opt/mastodon/worker.py psql redis-cli
   SECRET db-password
   PORT control = 33001
   STATEDIR /mastodon/public/system

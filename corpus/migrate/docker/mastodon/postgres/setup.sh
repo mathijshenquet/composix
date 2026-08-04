@@ -2,7 +2,7 @@ set -eu
 . /opt/postgres/runtime-env.sh
 
 if test ! -s "$data_dir/PG_VERSION"; then
-  initdb \
+  "$(readlink -f "$(command -v initdb)")" \
     --pgdata="$data_dir" \
     --username=mastodon \
     --pwfile="$CREDENTIALS_DIRECTORY/db-password" \
