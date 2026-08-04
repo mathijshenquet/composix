@@ -117,6 +117,15 @@ fn wait_for_user_units_gone<'a>(units: impl IntoIterator<Item = &'a str>) -> Res
                 remaining.join(", ")
             ));
         }
+        // A unit that exited failed (seen on older CI managers) stays loaded until
+        // reset-failed; issue it idempotently so failed and clean exits both unload.
+        for unit in &remaining {
+            let _ = std::process::Command::new("systemctl")
+                .args(["--user", "reset-failed", unit])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status();
+        }
         // `systemd-run --collect` unloads asynchronously after stop. Waiting here keeps the
         // next tour receipt from observing a unit created by the preceding receipt.
         std::thread::sleep(Duration::from_millis(20));
