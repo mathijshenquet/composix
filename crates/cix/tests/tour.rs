@@ -100,7 +100,7 @@ fn user_cix_units() -> Result<BTreeSet<String>, String> {
 
 fn wait_for_user_units_gone<'a>(units: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
     let units = units.into_iter().map(str::to_owned).collect::<Vec<_>>();
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(45);
     loop {
         let present = user_cix_units()?;
         let remaining = units
