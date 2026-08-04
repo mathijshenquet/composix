@@ -110,7 +110,7 @@ COPY ${native-build}/result /result
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo
-FETCH native memo miss 836a265a6bc7 -> /nix/store/…-cix-build-view
+FETCH native memo miss <command-key> -> /nix/store/…-cix-build-view
 BUILDER native-build workspace <persistent>
 BUILDER native-build step 1 COPY /nix/store/…-cix-build-view/fhs-probe -> .
 BUILDER native-build step 2 RUN executed
@@ -139,7 +139,7 @@ IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.glibc}
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo
 {"native-result":"/nix/store/…-cix-item-native-result"}
-FETCH native memo hit 836a265a6bc7 -> /nix/store/…-cix-build-view
+FETCH native memo hit <command-key> -> /nix/store/…-cix-build-view
 BUILDER native-build workspace <persistent>
 BUILDER native-build step 1 COPY /nix/store/…-cix-build-view/fhs-probe -> .
 BUILDER native-build step 2 RUN executed

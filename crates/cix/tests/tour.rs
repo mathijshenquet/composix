@@ -243,6 +243,8 @@ fn normalize(raw: &str, base: &Path) -> String {
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"(?m)(\s{2,})\d+s(\s*)$").expect("valid age regex");
     let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
+    let local_fetch_memo = Regex::new(r"(?m)^(FETCH native memo (?:miss|hit)) [0-9a-f]{12}")
+        .expect("valid local FETCH memo regex");
     let builder_workspace = Regex::new(r"(?m)^BUILDER ([^ ]+) workspace [^\n]+$")
         .expect("valid builder workspace regex");
     let cargo_progress =
@@ -270,6 +272,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "${1}0s${2}");
     let normalized = build_wall_time.replace_all(&normalized, "");
+    let normalized = local_fetch_memo.replace_all(&normalized, "${1} <command-key>");
     let normalized =
         builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
     let normalized = cargo_progress.replace_all(&normalized, "");

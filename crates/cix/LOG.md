@@ -331,3 +331,11 @@
   learning path, swept obsolete page names, and removed superseded generator
   code. Focused `generate_tour` passed synchronously (1 passed in 28.11s); no
   ENOSPC occurred.
+
+- 2026-08-04T13:25:00Z — The first full workspace test exposed one
+  determinism leak: the FHS fixture's deliberately fresh loopback port changed
+  the real FETCH command memo key between consecutive renders. Normalization
+  now labels that derived receipt `<command-key>` while retaining the
+  content-hash EXPECT and real miss/hit behavior. The exact consecutive-render
+  test passed (1 passed in 55.49s), and regeneration passed (1 passed in
+  28.83s). This was not ENOSPC and no disk workaround was used.
