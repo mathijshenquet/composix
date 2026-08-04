@@ -339,3 +339,16 @@
   content-hash EXPECT and real miss/hit behavior. The exact consecutive-render
   test passed (1 passed in 55.49s), and regeneration passed (1 passed in
   28.83s). This was not ENOSPC and no disk workaround was used.
+
+- 2026-08-04T13:45:00Z — Final bounded agent gate passed synchronously
+  on committed head `0ff3131`: `cargo fmt --all --check`; `cix fmt
+  --check examples` (exit 0 with the pre-existing LINK deprecation
+  notices); warning-denied workspace/all-target Clippy; and serial full
+  workspace tests, including tour determinism/drift, the foreign-unit guard,
+  watch, integration suites, and doc tests. One intervening workspace attempt
+  met the fixed decoy name while the preceding test's transient unit was still
+  unloading; read-only inspection immediately showed it absent, and the
+  unchanged guard passed in the complete rerun. Explicit tour regeneration
+  passed (1 passed in 51.93s), followed by `git diff --exit-code -- docs/tour`
+  and the obsolete-page-name sweep at exit 0. All commands used `nice`, six
+  Cargo/Nix jobs, and four Nix cores. No ENOSPC occurred.
