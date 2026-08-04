@@ -1,5 +1,0 @@
-web:
-  title: verdaccio
-  assetFolder: ./test/partials/assets
-
-log: { type: stdout, format: pretty, level: trace }

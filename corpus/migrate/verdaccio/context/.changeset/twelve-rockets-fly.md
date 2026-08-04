@@ -1,5 +1,0 @@
----
-'verdaccio': patch
----
-
-renovate

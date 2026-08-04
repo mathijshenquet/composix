@@ -908,7 +908,10 @@ RUNDIR /run/nginx
 
     doc.para("## Before you start");
     doc.para("Install the current alpha with `nix profile install github:mathijshenquet/composix#cix`, or use `cix` from this repository's `devenv` shell. The commands below require Linux, Nix, and a per-user systemd manager; macOS, non-systemd Linux, and containers or WSL sessions without user systemd can follow the build sections but cannot run the service lifecycle.");
-    let nix_version = doc.sh("nix --version >/dev/null 2>&1 && printf 'nix: available\\n'", true);
+    let nix_version = doc.sh(
+        "nix --version >/dev/null 2>&1 && printf 'nix: available\\n'",
+        true,
+    );
     assert!(nix_version.contains("nix: available"));
     let flakes = doc.sh(
         "nix flake metadata --no-write-lock-file github:NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e >/dev/null 2>&1 && printf 'flakes: available\\n'",
