@@ -17,24 +17,24 @@ A Cixfile is a backward-only graph. `FROM` binds inputs, a block binds the artif
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-SERVICE language
+SERVICE guide-site
 IMPORT ${pkgs.coreutils} ${pkgs.busybox} ${pkgs.bash}
-COPY index.html /srv/language/index.html
+COPY index.html /srv/guide-site/index.html
 COPY ${pkgs.coreutils}/bin/printf /opt/tools/printf
 COPY ${pkgs.nginx}/conf /opt/nginx
-COPY service.conf /etc/language/service.conf
-FILE /etc/language/build-origin <<ORIGIN
+COPY service.conf /etc/guide-site/service.conf
+FILE /etc/guide-site/build-origin <<ORIGIN
 packages=${pkgs.coreutils}
 ORIGIN
 START sleep 60
 ENV SITE_NAME = guide
 ENV API_TOKEN required
-STATEDIR /var/lib/language
+STATEDIR /var/lib/guide-site
 STATEDIR /opt/nginx/state
-CACHEDIR /var/cache/language
-LOGDIR /var/log/language
-CONFIGDIR /etc/language
-RUNDIR /run/language
+CACHEDIR /var/cache/guide-site
+LOGDIR /var/log/guide-site
+CONFIGDIR /etc/guide-site
+RUNDIR /run/guide-site
 PORT web = 8088
 PORT dns = udp:5353
 LISTENER admin
@@ -45,29 +45,29 @@ CLAIM jit
 #### `index.html`
 
 ```html
-language guide
+guide site
 ```
 
 #### `service.conf`
 
 ```nginx
-root=/srv/language
-state=/var/lib/language
+root=/srv/guide-site
+state=/var/lib/guide-site
 ```
 
 ## IMPORT and COPY
 
 `IMPORT` unions each package's `bin`, `etc`, and `share` trees into the item. It accepts ordinary package references, bare commands such as `sleep` resolve through that union, and earlier imports win a collision—so coreutils supplies `ls` even though busybox comes later.
 
-`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. A later write or a runtime directory mount beneath a link forces that branch to materialize, which is why the package tree containing `STATEDIR /opt/nginx/state` becomes a real directory while `/opt/tools/printf` remains a link.
+`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. `STATEDIR /opt/nginx/state` is deliberately nested beneath the copied nginx package tree to demonstrate CIP-91: a runtime mount below a linked branch forces that branch to materialize, while `/opt/tools/printf` remains a link.
 
 ```sh
 $ cix build .
-{"language":"/nix/store/…-cix-item-language"}
+{"guide-site":"/nix/store/…-cix-item-guide-site"}
 ```
 
 ```sh
-$ test -f /nix/store/…-cix-item-language/srv/language/index.html && test -L /nix/store/…-cix-item-language/opt/tools/printf && test ! -L /nix/store/…-cix-item-language/opt/nginx && printf 'local: materialized\npackage: linked\nmount ancestor: materialized\n'
+$ test -f /nix/store/…-cix-item-guide-site/srv/guide-site/index.html && test -L /nix/store/…-cix-item-guide-site/opt/tools/printf && test ! -L /nix/store/…-cix-item-guide-site/opt/nginx && printf 'local: materialized\npackage: linked\nmount ancestor: materialized\n'
 local: materialized
 package: linked
 mount ancestor: materialized
@@ -75,7 +75,7 @@ mount ancestor: materialized
 
 `FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.
 
-#### `etc/language/build-origin`
+#### `etc/guide-site/build-origin`
 
 ```
 packages=/nix/store/…-coreutils-9.11
@@ -90,7 +90,7 @@ A bare port is TCP; the `udp:` prefix is the single UDP spelling. `LISTENER admi
 `CLAIM egress` admits outbound networking, and `CLAIM jit` allows writable executable memory. Without those explicit declarations, the corresponding sandbox authority stays denied.
 
 ```sh
-$ jq '{env, ports, listeners, dirs, claims}' /nix/store/…-cix-item-language/cix-manifest.json
+$ jq '{env, ports, listeners, dirs, claims}' /nix/store/…-cix-item-guide-site/cix-manifest.json
 {
   "env": {
     "API_TOKEN": {
@@ -120,20 +120,20 @@ $ jq '{env, ports, listeners, dirs, claims}' /nix/store/…-cix-item-language/ci
   },
   "dirs": {
     "cache": [
-      "/var/cache/language"
+      "/var/cache/guide-site"
     ],
     "config": [
-      "/etc/language"
+      "/etc/guide-site"
     ],
     "logs": [
-      "/var/log/language"
+      "/var/log/guide-site"
     ],
     "run": [
-      "/run/language"
+      "/run/guide-site"
     ],
     "state": [
       "/opt/nginx/state",
-      "/var/lib/language"
+      "/var/lib/guide-site"
     ]
   },
   "claims": [

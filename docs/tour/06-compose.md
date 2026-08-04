@@ -9,12 +9,24 @@ You will connect two independently built services with a Unix edge and shared st
 
 ## Named listeners are systemd sockets
 
-A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
+A `LISTENER` does not let the process call `socket()` for that port. This canonical Cixfile imports the probe's runtime, copies the checked-in Python script, and declares `LISTENER http`; systemd owns the socket and passes file descriptor 3 to the process.
 
-#### `listener-fixture/bin/listenfds`
+#### `listener-fixture/Cixfile`
 
+```dockerfile
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE listener-demo
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY listenfds.py /bin/listenfds
+START listenfds
+LISTENER http
 ```
-#!/usr/bin/python3
+
+#### `listener-fixture/listenfds.py`
+
+```python
+#!/usr/bin/env python3
 import os
 import socket
 
@@ -37,19 +49,14 @@ while True:
         )
 ```
 
-#### `listener-fixture/cix-manifest.json`
-
-```json
-{
-  "cixManifest": 0,
-  "start": ["bin/listenfds"],
-  "listeners": {"http": {"type": "stream"}}
-}
+```sh
+$ cix build listener-fixture
+{"listener-demo":"/nix/store/…-cix-item-listener-demo"}
 ```
 
 ```sh
-$ cix run /nix/store/…-listener-fixture --user -p http=127.0.0.1:8420 --detach
-cix-run-listener-fixture-NONCE.service
+$ cix run /nix/store/…-cix-item-listener-demo --user -p http=127.0.0.1:8420 --detach
+cix-run-listener-demo-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
 
@@ -59,7 +66,7 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop cix-run-listener-fixture-NONCE.service
+$ systemctl --user stop cix-run-listener-demo-NONCE.service
 ```
 
 ## Two items, one operator document

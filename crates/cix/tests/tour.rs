@@ -556,14 +556,13 @@ fn add_raw_item(doc: &Doc, name: &str, contents: &str) -> String {
         .to_owned()
 }
 
-fn listener_fixture(doc: &Doc) -> String {
+fn listener_fixture(doc: &Doc) {
     let fixture = doc.base.join("listener-fixture");
-    let executable = fixture.join("bin/listenfds");
-    fs::create_dir_all(executable.parent().expect("listener executable parent"))
-        .expect("creating listener fixture directory");
+    fs::create_dir(&fixture).expect("creating listener fixture directory");
+    let executable = fixture.join("listenfds.py");
     fs::write(
         &executable,
-        r#"#!/usr/bin/python3
+        r#"#!/usr/bin/env python3
 import os
 import socket
 
@@ -598,30 +597,18 @@ while True:
         fs::set_permissions(&executable, permissions).expect("making listener executable");
     }
     fs::write(
-        fixture.join("cix-manifest.json"),
-        r#"{
-  "cixManifest": 0,
-  "start": ["bin/listenfds"],
-  "listeners": {"http": {"type": "stream"}}
-}
+        fixture.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE listener-demo
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY listenfds.py /bin/listenfds
+START listenfds
+LISTENER http
 "#,
     )
-    .expect("writing listener manifest");
-
-    let output = Command::new("nix")
-        .args(["store", "add-path"])
-        .arg(&fixture)
-        .output()
-        .expect("adding listener fixture to the Nix store");
-    assert!(
-        output.status.success(),
-        "nix store add-path failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
-    String::from_utf8(output.stdout)
-        .expect("Nix store path is UTF-8")
-        .trim()
-        .to_owned()
+    .expect("writing listener Cixfile");
+    fs::write(fixture.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing listener lock");
 }
 
 fn write_resolved_compose_lock_entries(doc: &Doc, compose_path: &Path, entries: &[(&str, &str)]) {
@@ -910,11 +897,10 @@ RUNDIR /run/nginx
 
 fn chapter_cixfile_language() -> String {
     let mut doc = Doc::new("cixfile-language");
-    fs::write(doc.base.join("index.html"), "language guide\n")
-        .expect("writing language fixture page");
+    fs::write(doc.base.join("index.html"), "guide site\n").expect("writing language fixture page");
     fs::write(
         doc.base.join("service.conf"),
-        "root=/srv/language\nstate=/var/lib/language\n",
+        "root=/srv/guide-site\nstate=/var/lib/guide-site\n",
     )
     .expect("writing language fixture config");
     fs::write(
@@ -922,24 +908,24 @@ fn chapter_cixfile_language() -> String {
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-SERVICE language
+SERVICE guide-site
 IMPORT ${pkgs.coreutils} ${pkgs.busybox} ${pkgs.bash}
-COPY index.html /srv/language/index.html
+COPY index.html /srv/guide-site/index.html
 COPY ${pkgs.coreutils}/bin/printf /opt/tools/printf
 COPY ${pkgs.nginx}/conf /opt/nginx
-COPY service.conf /etc/language/service.conf
-FILE /etc/language/build-origin <<ORIGIN
+COPY service.conf /etc/guide-site/service.conf
+FILE /etc/guide-site/build-origin <<ORIGIN
 packages=${pkgs.coreutils}
 ORIGIN
 START sleep 60
 ENV SITE_NAME = guide
 ENV API_TOKEN required
-STATEDIR /var/lib/language
+STATEDIR /var/lib/guide-site
 STATEDIR /opt/nginx/state
-CACHEDIR /var/cache/language
-LOGDIR /var/log/language
-CONFIGDIR /etc/language
-RUNDIR /run/language
+CACHEDIR /var/cache/guide-site
+LOGDIR /var/log/guide-site
+CONFIGDIR /etc/guide-site
+RUNDIR /run/guide-site
 PORT web = 8088
 PORT dns = udp:5353
 LISTENER admin
@@ -958,19 +944,20 @@ CLAIM jit
         .map(|path| doc.show_file(path))
         .join("");
     assert!(source.contains("FROM . AS src"));
-    assert!(source.contains("COPY index.html /srv/language/index.html"));
+    assert!(source.contains("SERVICE guide-site"));
+    assert!(source.contains("COPY index.html /srv/guide-site/index.html"));
     assert!(source.contains("ENV API_TOKEN required"));
     assert!(source.contains("PORT dns = udp:5353"));
     assert!(source.contains("CLAIM egress"));
 
     doc.para("## IMPORT and COPY");
     doc.para("`IMPORT` unions each package's `bin`, `etc`, and `share` trees into the item. It accepts ordinary package references, bare commands such as `sleep` resolve through that union, and earlier imports win a collision—so coreutils supplies `ls` even though busybox comes later.");
-    doc.para("`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. A later write or a runtime directory mount beneath a link forces that branch to materialize, which is why the package tree containing `STATEDIR /opt/nginx/state` becomes a real directory while `/opt/tools/printf` remains a link.");
+    doc.para("`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. `STATEDIR /opt/nginx/state` is deliberately nested beneath the copied nginx package tree to demonstrate CIP-91: a runtime mount below a linked branch forces that branch to materialize, while `/opt/tools/printf` remains a link.");
     let built = doc.sh("cix build .", true);
-    let store_path = built_store_path(&built, "-cix-item-language");
+    let store_path = built_store_path(&built, "-cix-item-guide-site");
     let layout = doc.sh(
         &format!(
-            "test -f {store_path}/srv/language/index.html && test -L {store_path}/opt/tools/printf && test ! -L {store_path}/opt/nginx && printf 'local: materialized\\npackage: linked\\nmount ancestor: materialized\\n'"
+            "test -f {store_path}/srv/guide-site/index.html && test -L {store_path}/opt/tools/printf && test ! -L {store_path}/opt/nginx && printf 'local: materialized\\npackage: linked\\nmount ancestor: materialized\\n'"
         ),
         true,
     );
@@ -980,7 +967,7 @@ CLAIM jit
     );
 
     doc.para("`FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.");
-    let generated = doc.show_file(Path::new(&store_path).join("etc/language/build-origin"));
+    let generated = doc.show_file(Path::new(&store_path).join("etc/guide-site/build-origin"));
     assert!(generated.contains("packages=/nix/store/") && generated.contains("-coreutils-"));
 
     doc.para("## Runtime declarations are grants");
@@ -1473,16 +1460,19 @@ fn chapter_compose() -> String {
     doc.para("You will connect two independently built services with a Unix edge and shared state, validate and diff their compose generation, and exercise the socket-activation primitive beneath named listeners. Afterwards, you will understand compose's resolve/build/activate lifecycle, unary `cix run`, rollback boundary, pod option, and journal namespace without mistaking rootless dry-runs for system activation.");
 
     doc.para("## Named listeners are systemd sockets");
-    let listener_path = listener_fixture(&doc);
-    doc.para("A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.");
-    let listener_source = [
-        "listener-fixture/bin/listenfds",
-        "listener-fixture/cix-manifest.json",
-    ]
-    .map(|path| doc.show_file(path))
-    .join("");
+    listener_fixture(&doc);
+    doc.para("A `LISTENER` does not let the process call `socket()` for that port. This canonical Cixfile imports the probe's runtime, copies the checked-in Python script, and declares `LISTENER http`; systemd owns the socket and passes file descriptor 3 to the process.");
+    let listener_source = ["listener-fixture/Cixfile", "listener-fixture/listenfds.py"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(listener_source.contains("socket.fromfd(3"));
-    assert!(listener_source.contains("\"listeners\""));
+    assert!(listener_source.contains("COPY listenfds.py /bin/listenfds"));
+    assert!(listener_source.contains("LISTENER http"));
+    let listener_build = doc.sh("cix build listener-fixture", true);
+    let listener_path = built_store_path(&listener_build, "-cix-item-listener-demo");
+    let manifest = fs::read_to_string(Path::new(&listener_path).join("cix-manifest.json"))
+        .expect("reading built listener manifest");
+    assert!(manifest.contains("\"listeners\""));
     let listen = next_listen();
     let started = doc.sh(
         &format!("cix run {listener_path} --user -p http={listen} --detach"),

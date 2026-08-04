@@ -1,5 +1,20 @@
 # litdoc work log
 
+- 2026-08-04T15:55:00Z — Chapter polish is complete. Chapter 6 now writes a
+  canonical `listener-fixture/Cixfile`, imports coreutils + Python, copies the
+  executable checked-in `listenfds.py` probe, starts it by the imported bare
+  name, declares `LISTENER http`, builds it with real `cix build`, asserts the
+  generated manifest's listener field, and runs/probes that built item. The
+  env shebang uses the runtime skeleton's documented `/usr/bin/env` route, so
+  the copied script remains compatible with the rootless no-mount fallback.
+  Chapter 2's service and app-native paths are now coherently named
+  `guide-site`; its prose explicitly identifies `STATEDIR /opt/nginx/state` as
+  a deliberate CIP-91 linked-branch materialization demonstration. Focused
+  synchronous receipts pass: explicit tour generation (including the live
+  built listener), fmt, committed-document match, and `git diff --check`.
+  Next: commit this unit, then run the full agent tier and final three-run
+  determinism receipt.
+
 - 2026-08-04T15:35:00Z — The file-display unit is complete. `Doc::show_file`
   reads the real file, returns its raw bytes-as-text for the existing semantic
   assertions, and renders normalized content beneath a relative-path H4 label;
