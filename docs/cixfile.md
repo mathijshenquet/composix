@@ -1,9 +1,10 @@
 # The Cixfile
 
-*Status: D47 blocks and binders through D65, CIP-79 health, and CIP-87 read-set keying are
-implemented: named persistent builders, constructive step traces, narrow consumed-path records,
-package IMPORT unions, declared or TOFU-pinned network fetches, directive continuations, RUN
-heredocs, and full-line comments.*
+*Status: D47 blocks and binders through D65, CIP-79 health, CIP-87 read-set keying, CIP-91
+artifact import, and CIP-92 protocol-aware ports are implemented: named persistent builders,
+constructive step traces, narrow consumed-path records, universal package IMPORT unions,
+declared or TOFU-pinned network fetches, directive continuations, RUN heredocs, and full-line
+comments.*
 
 A Cixfile turns a directory into one or more composix artifacts. It is Dockerfile-shaped, so
 the common operations are recognizable, but its boundaries are explicit: builders do
@@ -27,10 +28,11 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE my-nginx
+IMPORT ${pkgs.nginx}
 COPY ${src}/index.html /srv/www/index.html
 COPY ${src}/nginx.conf /etc/nginx/nginx.conf
-LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+START nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
@@ -59,9 +61,9 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
-| `APP <name>` | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
-| `ITEM <name>` | `COPY`, `FILE`, `LINK` | a pure store tree, with no manifest |
+| `SERVICE <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
+| `APP <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
+| `ITEM <name>` | `IMPORT`, `COPY`, `FILE` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
 and a declaration cannot refer to a later declaration. Errors report both the bad line and,
@@ -103,6 +105,12 @@ Prefer one directory COPY when its contents move as a unit:
 COPY ${src}/rust/ .
 ```
 
+Copy is store-aware by a rule visible in the Cixfile: local and remote source-context paths are
+materialized, while package, builder/FETCH, and cix-item sources link as immutable closure
+members. A role-directory or `DIR` mount at or below a linked destination, or a later assembly
+write below it, materializes that destination tree so mount ancestors and ordered writes remain
+real directories.
+
 Copy the whole source tree by default. FETCH and RUN memo entries record the paths they actually
 read, so a source-only edit does not invalidate a dependency-fetch step that read only manifests.
 Manifest-first enumeration remains an optimization for pathological read sets or especially
@@ -129,10 +137,7 @@ START sh /bin/start
 `SCRIPT` was removed; the parser reports the `COPY` plus explicit-shell migration instead of
 accepting an alias.
 
-<a id="link"></a>
-
-`LINK <target> <linkpath>` adds a symlink. LINK follows both `ln -s TARGET LINKNAME` and
-COPY's source-first reading: where from, then where it lands.
+<a id="link"></a>`LINK <source> <destination>` is a deprecated alias for the equivalent `COPY`, during the corpus transition only.
 
 <a id="syntax"></a>
 
@@ -268,7 +273,7 @@ It resolves through the cix index (qualified refs fetch when needed), verifies i
 and records `artifacts.<ref> = { storePath, narHash }` in `Cixfile.lock`. The tag may move;
 the lock keeps this build on the selected store path until `cix build --update-lock webvault`.
 A missing local ref says to pull or tag it first. Item binders are trees: use only
-`${webvault}/path` in `COPY` or `LINK`. `${webvault.attr}` is rejected because index refs never
+`${webvault}/path` in `COPY`. `${webvault.attr}` is rejected because index refs never
 create package namespaces, and `IMPORT ${webvault}` is deliberately unavailable.
 
 Disambiguation is deliberately mechanical: a known flakeref spelling is a flakeref; every
@@ -316,10 +321,10 @@ expands `$PWD` in that step's `/work` directory. `START` and `START_PRE` accept 
 double-quoted argv words; for example, `START nginx -g 'daemon off;'` passes `daemon off;` as one
 argument. Unterminated quotes are line-numbered errors.
 
-`IMPORT` takes whole package references, is repeatable, and unions each package's `bin`,
-`etc`, and `share` trees read-only at `/bin`, `/etc`, and `/share`. Earlier declarations win
-collisions. Bare builder commands resolve through `/bin`; IMPORTed package closures and
-explicit package references are the only store paths offered to the sandbox. Import
+`IMPORT` takes whole package references, is repeatable in every block kind, and unions each
+package's `bin`, `etc`, and `share` trees read-only at `/bin`, `/etc`, and `/share`. Earlier
+declarations win collisions. Bare commands resolve through `/bin`; IMPORTed package closures
+and explicit package references are the only store paths offered to the sandbox. Import
 `${pkgs.cacert}` when a FETCH needs public TLS roots. RUN remains networkless.
 
 On the first build for an ordered IMPORT set, cix asks the pinned nixpkgs for its development
@@ -427,6 +432,18 @@ idempotent pre-start hook. `PORT` and `LISTENER` declare inbound networking. `ST
 `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, and `RUNDIR` map directly to systemd's managed
 `*Directory=` roles.
 
+`PORT <name> = <port>` declares TCP, while `PORT <name> = udp:<port>` declares UDP:
+
+```dockerfile
+PORT https = 443
+PORT http3 = udp:443
+```
+
+Both are enforced through the corresponding `SocketBindAllow=` and deny rules. The Docker-form
+`443/udp` is refused with a hint to write `udp:443`; the systemd spelling is the one Cixfile
+form. `LISTENER` remains a TCP stream contract, and compose publication remains TCP-only until
+a datagram-activation case establishes its required behavior.
+
 <a id="role-dirs"></a>
 
 Role dirs are claims cix fulfills itself. `STATEDIR`, `CACHEDIR`, `LOGDIR`, and `RUNDIR` each
@@ -486,7 +503,7 @@ Four host edges have narrow channels:
 - cix generates `/etc/passwd` and `/etc/group` containing exactly root, the unit identity, and
   nobody, and combines that database with `PrivateUsers=`. This covers DynamicUser and declared
   static identities without importing the host account database.
-- `CLAIM egress` brings in the host's `/etc/resolv.conf` verbatim. CA trust does not: link or copy
+- `CLAIM egress` brings in the host's `/etc/resolv.conf` verbatim. CA trust does not: `COPY`
   `${pkgs.cacert}` (or another declared trust bundle) into the artifact and point the application
   at it.
 - timezone selection is an ordinary `TZ` environment value. `/etc/localtime` is never injected.
@@ -494,11 +511,10 @@ Four host edges have narrow channels:
   therefore keep working without adding a shell or logging sidecar.
 
 The sole conventional executable alias is `/usr/bin/env -> /bin/env`; it dangles unless the
-artifact explicitly provides `/bin/env`, for example with
-`LINK ${pkgs.coreutils}/bin/env /bin/env`. cix reports that dependency when a declared executable
-uses an env shebang. `/bin/sh` is never created. Name the shell package directly in `START` or
-`START_PRE`, such as `START ${pkgs.bash}/bin/sh /bin/start`; shell availability is part of the
-artifact contract, not NixOS host luck.
+artifact imports a package that provides `env`, usually `IMPORT ${pkgs.coreutils}`. cix reports
+that dependency when a declared executable uses an env shebang. `/bin/sh` is never created.
+Import a shell and invoke it by bare name, for example `IMPORT ${pkgs.bash}` followed by
+`START sh /bin/start`; shell availability is part of the artifact contract, not NixOS host luck.
 
 Closed-root services cannot bind ports below 1024 directly. `PrivateUsers=` puts their
 capabilities in a user namespace, where `CAP_NET_BIND_SERVICE` cannot authorize a bind in the
@@ -557,17 +573,16 @@ and GC-root mechanism; an untagged item becomes collectable again after its run 
 Artifact destinations name their native runtime paths and are stored item-relatively. Every
 SERVICE and APP gets `PATH=bin` unless it explicitly declares
 `ENV PATH = …`, which replaces that default entirely. A one-word `START app` or `START_PRE app`
-therefore resolves at build time to that item's `bin/app`; use it as the preferred spelling
-after copying or linking a runtime binary there. `START /bin/app` and package binaries as direct
-store references remain valid. Add external runtime tools visibly with lines such as
-`LINK ${pkgs.postgresql}/bin/postgres /bin/postgres`, rather than making them ambient PATH
-entries. `cix exec` and `cix debug` inherit the same item-bin PATH. `LINK` is also useful for
+therefore resolves at build time to that item's `bin/app`. Use `IMPORT` for package-provided
+runtime tools and bare argv words; `COPY` can assemble an app-specific executable at `/bin/app`.
+`START /bin/app` and package binaries as direct store references remain legal, but are not the
+taught spelling. `cix exec` and `cix debug` inherit the same item-bin PATH. Use `COPY` for
 package-owned assets such as nginx's `mime.types`.
 
 <a id="item"></a>
 
-`ITEM` is the content-only block. It accepts only `COPY`, `FILE`, and `LINK`: runtime directives
-such as `START`, `ENV`, ports, claims, or role directories are rejected.
+`ITEM` is the content-only block. It accepts only `IMPORT`, `COPY`, and `FILE`: runtime
+directives such as `START`, `ENV`, ports, claims, or role directories are rejected.
 Items are build products; `SERVICE` and `APP` declare runnable contracts.
 
 ## Building and tagging a family
@@ -592,6 +607,10 @@ $ cix build .
 
 `cix build .#api` builds only `api` and the backward FETCH/BUILDER slice it consumes, then
 prints that bare store path. It cannot be combined with `-t`: a tag names the complete family.
+
+`cix build --file Cixfile.dissolved .` selects a named Cixfile and writes its independent sibling
+lock, `Cixfile.dissolved.lock`. The default `Cixfile` similarly uses `Cixfile.lock`; a translation
+twin can therefore live beside its source file without sharing pins.
 
 ## Workshop dev loop
 
