@@ -205,3 +205,28 @@
   checks completed their real TCG guests in 164s and 274s respectively. The
   full flake matrix was deliberately not run: project policy reserves it for
   the orchestrator's independent pre-merge gate.
+
+- 2026-08-04T10:56:25Z — Started track/cip94 milestone 1 from `origin/main`
+  (`1d599dc`). The binding outcome is a pure `nix/lib` eval-from-lock
+  `buildCixfile` whose pure-assembly and one-builder FETCH+RUN fixtures are
+  byte-identical to synchronous `cix build --cold` results. FHS-consuming
+  builders are a loud eval-time boundary; multi-builder and runtime-manifest
+  behavior may be cut only with explicit errors. First step: map the Rust
+  cold builder, lock schema, and flake check conventions before choosing the
+  smallest shared skeleton representation.
+
+- 2026-08-04T11:08:00Z — Added the pure-eval lock substrate. Each FETCH now
+  records the NAR hash of its complete immediate post-step workspace
+  (`snapshotNarHash`), which is the missing hash required to model exactly one
+  fixed-output derivation per FETCH; locks also record the dev-env snapshot
+  selected by each builder. A versioned, Cixfile-content-bound `evalPlan`
+  serializes the resolved parser AST rather than duplicating the Cixfile parser
+  in Nix. Existing locks remain readable and ordinary cold builds merely omit
+  the plan with a loud note until their FETCH pin is refreshed. Focused Rust
+  receipt (44 tests): `env TMPDIR=/dev/shm/composix-cip94-20260804/tmp
+  CARGO_TARGET_DIR=/dev/shm/composix-cip94-20260804/target cargo test -p
+  cix-build -p cix-cixfile --lib` exited 0. Host `/dev/md3` briefly reached
+  ENOSPC and rustfmt truncated `build_chain.rs`; the zero-byte file was caught
+  immediately, restored byte-for-byte from HEAD, and the isolated edits were
+  reapplied before the green receipt. All further build state stays in
+  `/dev/shm`.
