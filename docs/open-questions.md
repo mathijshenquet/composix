@@ -70,6 +70,13 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   diagnosability defect (D73 spirit) and the actual remaining directus
   blocker; reproduce from the fhsspike branch and give the error its
   path + step context.
+- **cix probe/audit tooling litters /tmp** (2026-08-04 incident): four
+  `cix-fetch-probe-*` dirs (~1.1G each) and five `cix-build-cold-*`
+  dirs (377M each) from past sessions survived on the tmpfs and
+  exhausted its inode cap (node-tree-shaped contents), wedging every
+  tool on the host. Probes and cold audits must clean their temp dirs
+  on exit (or unpack outside /tmp); ~/CLEANUP.md now carries the sweep
+  patterns as mitigation.
 - **Lock-scale observation** (track/fhsspike, 2026-08-04): the directus
   builder run grew `Cixfile.lock` by ~148k lines of step observations /
   dev-env data. Possibly correct-but-heavy CIP-87/88 output on a huge
