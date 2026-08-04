@@ -52,7 +52,7 @@ $ cix build . --namespace runtime -t v1
 
 ## Inspect the item, then cross the system-manager boundary
 
-`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins; this host's loud D13 user-manager fallback cannot project that mount, so the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.
+`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins. Because D13 permits a user manager to reject that mount namespace, the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.
 
 ```sh
 $ /nix/store/…-cix-item-web/bin/python3 -c 'compile(open("/nix/store/…-cix-item-web/srv/app/server.py").read(), "server.py", "exec"); print("copied server parses")'
@@ -84,7 +84,7 @@ journalctl CIX_COMPOSITE=run CIX_SERVICE=web
 
 ## The system-manager guarantees
 
-The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. This host cannot demonstrate that honestly because its user manager rejects the required mount namespace; the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.
+The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. The rootless contract does not guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.
 
 `STATEDIR /var/lib/runtime-guide` survives service restarts and belongs to cix until an explicit purge; the item never chooses a host backing path. `SECRET db-password` similarly names no value: compose supplies a root-owned file, systemd projects it below `$CREDENTIALS_DIRECTORY`, and `DB_PASSWORD_FILE` receives only that path. The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.
 

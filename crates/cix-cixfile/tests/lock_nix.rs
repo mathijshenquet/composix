@@ -1349,7 +1349,7 @@ COPY ${{build}}/result /result
 }
 
 #[test]
-fn update_lock_ignores_unconsumed_timestamped_fetch_output() {
+fn update_lock_keeps_consumed_result_stable_across_unconsumed_timestamped_fetch_output() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(
         directory.path().join("Cixfile"),
@@ -1382,7 +1382,8 @@ START /bin/true
         state_directory: test_state_directory(),
     })
     .unwrap();
-    let first_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
+    let first_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
     build(&BuildOptions {
         directory: directory.path().to_owned(),
         update_lock: Some("build".into()),
@@ -1393,18 +1394,31 @@ START /bin/true
         state_directory: test_state_directory(),
     })
     .unwrap();
-    assert_eq!(
-        first_lock,
-        fs::read(directory.path().join("Cixfile.lock")).unwrap()
-    );
-    let lock: LockFile =
+    let second_lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
-    let pin = lock.fetches.values().next().unwrap();
+    let first_pin = first_lock.fetches.values().next().unwrap();
+    let second_pin = second_lock.fetches.values().next().unwrap();
+    assert_ne!(
+        first_pin.snapshot_nar_hash, second_pin.snapshot_nar_hash,
+        "CIP-94 records the complete immediate post-FETCH workspace"
+    );
+    assert_eq!(first_pin.paths, second_pin.paths);
+    assert_eq!(first_lock.memo, second_lock.memo);
+    assert_eq!(first_lock.step_memo, second_lock.step_memo);
     assert_eq!(
-        pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
+        first_lock.outputs["result"].store_path,
+        second_lock.outputs["result"].store_path
+    );
+    assert_eq!(
+        second_pin
+            .paths
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         ["result"]
     );
-    assert!(pin.volatile.is_empty());
+    assert!(first_pin.volatile.is_empty());
+    assert!(second_pin.volatile.is_empty());
 }
 
 #[test]

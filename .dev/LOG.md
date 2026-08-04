@@ -1,5 +1,24 @@
 # composix work log
 
+## 2026-08-04 (track/tourfix main-CI repair)
+
+- Merged work: none in this worktree; completed the `track/tourfix` repair for
+  CI-only tour drift. Chapter 1 retains its canonical nginx Cixfile and
+  manifest receipt, but the mount-dependent `nginx -t` execution is now
+  clearly labeled non-executed system-manager prose pointing to VM dogfood.
+  Chapter 5's boundary prose is manager-neutral, and the harness comment names
+  CI's `PrivatePIDs=` rejection and resulting no-`BindPaths` D13 retry.
+- Decisions: none. D13 and the filed granular-degradation defect remain
+  unchanged. Two test-only assertions made stale by CIP-94 were aligned with
+  its byte-bound eval-plan hash and complete FETCH snapshot hash; no cix
+  implementation behavior changed.
+- Verification: fmt, canonical examples fmt, warning-denied all-target clippy,
+  full serialized workspace tests, explicit tour regeneration with zero
+  drift, and explicit twice-rendered tour determinism all pass synchronously.
+- Open with Mathijs: none. Open for agents: independently gate and merge the
+  committed `track/tourfix`; the orchestrator layer still owns the full flake
+  matrix.
+
 ## 2026-08-04 (corpus professionalization day: the loops built, CIP-91/92/93 same-day, wave-1 cold regen landed)
 
 - **The corpus loops** (from Mathijs's rapid-fire corpus review):

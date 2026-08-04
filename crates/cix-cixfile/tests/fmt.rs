@@ -108,7 +108,8 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         state_directory: test_state_directory(),
     })
     .unwrap();
-    let original_lock = fs::read(directory.path().join("Cixfile.lock")).unwrap();
+    let original_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
 
     let formatted = fmt::format(COPY_KEYING_FIXTURE).unwrap();
     fs::write(directory.path().join("Cixfile"), formatted).unwrap();
@@ -125,8 +126,18 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
     })
     .unwrap();
 
-    assert_eq!(
-        fs::read(directory.path().join("Cixfile.lock")).unwrap(),
-        original_lock
-    );
+    let mut formatted_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let original_cixfile_hash = &original_lock
+        .eval_plan
+        .as_ref()
+        .expect("original build records an eval plan")
+        .cixfile_hash;
+    let formatted_eval_plan = formatted_lock
+        .eval_plan
+        .as_mut()
+        .expect("formatted build records an eval plan");
+    assert_ne!(formatted_eval_plan.cixfile_hash, *original_cixfile_hash);
+    formatted_eval_plan.cixfile_hash = original_cixfile_hash.clone();
+    assert_eq!(formatted_lock, original_lock);
 }
