@@ -114,14 +114,16 @@ that migration directly instead of turning either spelling into a mysterious unk
 
 `FILE <destination> <<EOF` adds an inline interpolated file. Keep ordinary configuration and
 scripts as real files next to the Cixfile and copy them with `COPY`; use a FILE heredoc only
-when the file content itself must interpolate `${…}`. The unadopted
-[`FILE … FROM` draft](../cips/draft/file-from.md) is intended to dissolve that remaining inline
-case, but its syntax is not implemented. Invoke a copied script through an explicit package
-shell:
+when the file content itself must interpolate `${…}` — and treat wanting that as a smell:
+after IMPORT/COPY assembly, configuration can reference stable runtime paths instead of store
+paths, so the file stays a real checked-in file. (An interpolating `FILE … FROM` form was
+[considered and rejected](../cips/rejected/file-from.md) as unneeded.) Invoke a copied script
+through an imported shell:
 
 ```dockerfile
+IMPORT ${pkgs.bash}
 COPY start /bin/start
-START ${pkgs.bash}/bin/sh /bin/start
+START sh /bin/start
 ```
 
 `SCRIPT` was removed; the parser reports the `COPY` plus explicit-shell migration instead of

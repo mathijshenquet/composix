@@ -114,9 +114,12 @@ START sh /bin/start
 Keep file content in real, checked-in files next to the Cixfile and bring it into an artifact
 with `COPY`. This is the rule for scripts and configuration alike: it preserves normal editor
 tooling and keeps the Cixfile readable. Use a `FILE <<EOF` heredoc only when the content itself
-must interpolate `${…}`. That exception is temporary: the unadopted
-[`FILE … FROM` draft](../cips/draft/file-from.md) is the intended way to move interpolated
-content back into real files; do not write or assume that syntax until the draft is adopted.
+must interpolate `${…}` — and treat wanting that as a smell: after IMPORT/COPY assembly,
+configuration can almost always reference a stable runtime path instead of a store path
+(`COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types`, then `include
+/etc/nginx/mime.types;` in the config, which then lives as a real checked-in file). An
+interpolating `FILE … FROM` form was considered and rejected as unneeded once assembly
+works this way.
 
 COPY is store-aware by a rule visible in the Cixfile: local or remote source-context paths are
 materialized, while package, builder/FETCH, and cix-item sources are linked as immutable closure

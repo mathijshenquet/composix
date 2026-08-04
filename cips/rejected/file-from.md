@@ -1,7 +1,14 @@
 # FILE … FROM — interpolating file authoring without heredocs
 
-Status: **draft** (2026-08-02, from Mathijs's wallos review: "waarom
-geen COPY? Agents blijven heredocs doen").
+Status: **rejected** (2026-08-04, Mathijs: smells, suspected YAGNI —
+confirmed by analysis: CIP-91 dissolved the motivating cases. The
+wallos-shaped interpolations existed to embed store paths in config
+content; after IMPORT/COPY assembly the config references stable
+runtime paths instead — `COPY ${pkgs.nginx}/conf/mime.types
+/etc/nginx/mime.types` then `include /etc/nginx/mime.types;` — no
+interpolation needed. The heredoc `FILE` remains for the rare genuine
+residue. Revisit only if the regeneration sweep surfaces real demand
+that COPY-plus-runtime-paths cannot express.)
 
 ## 1. The problem
 

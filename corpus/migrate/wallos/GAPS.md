@@ -1,7 +1,7 @@
 Generated: migrate.md@666cf74 · unknown · 2026-08-02
 Status: stale — regenerate with CIP-91
 
-- The nginx/PHP-FPM configuration pair remains inline only because it needs package interpolation; move it to real files when the pending syntax lands. → language ([FILE … FROM draft](../../../cips/draft/file-from.md))
+- The nginx/PHP-FPM configuration pair remains inline only because it embeds store paths; under CIP-91 assembly the configs reference stable runtime paths (`COPY` mime.types/fastcgi_params into `/etc/nginx/`) and become real checked-in files — FILE…FROM was rejected as unneeded. → case (stale, CIP-91)
 - `mime.types` and `fastcgi_params` are immutable package assets embedded as store paths inside the nginx heredoc; place those files with `LINK` and keep the authored config package-agnostic. → case
 - Six package binaries are linked individually into `/bin`, the corpus's clearest artifact toolset pile. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
 - The wrapper still supervises nginx, PHP-FPM, and supercronic inside one service; split them into compose members or state why their coordination requires one unit. → case

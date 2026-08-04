@@ -63,7 +63,7 @@
     <h2>Migration gaps</h2>
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@666cf74 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
-      <li>The nginx/PHP-FPM configuration pair remains inline only because it needs package interpolation; move it to real files when the pending syntax lands. → language (<a href="../../../cips/draft/file-from.md">FILE … FROM draft</a>)</li>
+      <li>The nginx/PHP-FPM configuration pair remains inline only because it embeds store paths; under CIP-91 assembly the configs reference stable runtime paths (<code>COPY</code> mime.types/fastcgi_params into <code>/etc/nginx/</code>) and become real checked-in files — FILE…FROM was rejected as unneeded. → case (stale, CIP-91)</li>
       <li><code>mime.types</code> and <code>fastcgi_params</code> are immutable package assets embedded as store paths inside the nginx heredoc; place those files with <code>LINK</code> and keep the authored config package-agnostic. → case</li>
       <li>Six package binaries are linked individually into <code>/bin</code>, the corpus&#39;s clearest artifact toolset pile. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>The wrapper still supervises nginx, PHP-FPM, and supercronic inside one service; split them into compose members or state why their coordination requires one unit. → case</li>

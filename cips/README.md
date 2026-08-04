@@ -16,10 +16,13 @@ for new decisions.
 - **Amendments**: while composix is v0, landed CIPs may be amended in
   place. Every amendment appends a dated line to the CIP's Changelog
   section. Post-1.0, amendments become new CIPs that supersede.
-- **Rejected** drafts stay in `draft/` with `Status: rejected (<why>)` —
-  refusals are records (feature-level refusals also land in the
-  docs/docker.md ledger). Superseded pre-CIP explorations are filed the
-  same way (`Status: superseded`).
+- **`draft/` is a strict inbox for Mathijs** (amended 2026-08-04): it
+  holds only items awaiting his read or decision. Everything decided
+  moves out: rejected/superseded drafts to `cips/rejected/` with
+  `Status: rejected (<why>)` or `superseded` (refusals are records;
+  feature-level refusals also land in the docs/docker.md ledger), and
+  deliberately-parked items to `cips/deferred/` (Mathijs wants them
+  later, not now).
 - **Retro-adoption & consolidation** (alpha rule, Mathijs 2026-08-02):
   pre-CIP design papers may be renumbered into the CIP sequence, and
   clusters of design.md D-numbers may be cleaned up and consolidated

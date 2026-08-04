@@ -1,5 +1,8 @@
 # Compose surface language (draft CIP)
 
+> **Deferred** (2026-08-04, Mathijs): "ik wil dit nog een keer oppakken maar niet nu." Parked in cips/deferred/ for a future round.
+
+
 Status: **draft, parked on D28's evidence gate.** D28 dissolved the
 compose-language question: `compose.json` is canonical, human authoring is a
 generator concern, and this document stands as the encoding archive — TOML
