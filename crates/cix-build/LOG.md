@@ -100,3 +100,29 @@
   tier, `devenv shell -- nix flake check -L`. The latter built and ran the
   complete scenario/VM suite successfully. devenv regenerates an untracked
   lockfile in this worktree; remove that local byproduct before commit.
+
+- 2026-08-04T09:20:00Z — Started track/fhspaths (CIP-95). Phase 1 is a
+  standalone two-builder bubblewrap repro: manufacture GNU- and musl-linked
+  FHS ELFs in one root, then execute them in fresh roots containing only the
+  declared libc IMPORT surface. The load-bearing comparison is no cache vs
+  `LD_LIBRARY_PATH=/lib` vs a generated `/etc/ld.so.cache`; a Nix
+  RUNPATH-carrying bash in the same root must keep resolving its closure from
+  its own RUNPATH. No phase-2 production wiring until this verdict is recorded.
+
+- 2026-08-04T09:40:00Z — **Phase-1 verdict: STOP — the GNU `/lib` wiring is
+  not clean.** Synchronous receipt: `bash .dev/spikes/fhs-paths/repro.sh` exited
+  0 after proving all expected outcomes. The `/lib64/ld-linux-x86-64.so.2`
+  alias executes an RPATH-free FHS ELF with only glibc imported, but only
+  because Nix's loader falls back to its own glibc store `lib/`; a second
+  RPATH-free ELF needing `libcix-fhs-probe.so.1` from the `/lib` union fails.
+  `ldconfig -C /etc/ld.so.cache -f /etc/ld.so.conf -X` creates a valid union
+  cache, but the loader ignores it: Nix glibc hardcodes
+  `/nix/store/<glibc>/etc/ld.so.cache`. Making that cache visible would require
+  shadowing the imported package's immutable store-path view, and would not
+  transfer cleanly to artifact runtime namespaces. `LD_LIBRARY_PATH=/lib`
+  makes the missing SONAME case run, but `LD_DEBUG=libs` proves it changes a
+  Nix RUNPATH-carrying bash's libc resolution from its store RUNPATH to
+  `/lib/libc.so.6`; this is the prohibited shadowing. The musl variant is green
+  because musl's default search path includes `/lib`. Per CIP-95's fallback
+  boundary and the track spec, phase 2 was not started and no auto-patching
+  fallback was improvised.
