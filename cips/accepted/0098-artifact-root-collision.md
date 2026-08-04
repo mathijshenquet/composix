@@ -1,8 +1,7 @@
 # artifact-root-collision — role dirs under the application tree (CIP-light, v2)
 
-Status: **draft, CIP-light, v2** (2026-08-04; v2 after Mathijs: "role
-dirs onder normale dirs vind ik gewoon prima, dat doet docker toch ook
-met volumes? Spreekt hier iets tegen?" — answer: nothing fundamental).
+Status: **CIP-98, adopted 2026-08-04** (CIP-light; v2 akkoord — role
+dirs are declarable anywhere, docker-volume-style nesting).
 
 **Problem.** Wallos wanted upstream's `/var/www` layout with state dirs
 beneath it, but declaring role dirs under the artifact-projected tree
@@ -24,3 +23,9 @@ before the nested RW role mount. Wallos's `/var/www` layout is the
 acceptance test (its GAPS bullet flips on landing).
 
 **Effort.** Small-medium: ordering + validator lift + regression.
+
+## Decision
+
+Adopted 2026-08-04 at v2: role dirs anywhere including beneath
+artifact-projected paths; RO projection mounts before nested RW role
+mounts; validator lifted; wallos /var/www is the acceptance test.

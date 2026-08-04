@@ -1,7 +1,6 @@
 # granular-degradation — one rejected directive must not cost the whole sandbox set
 
-Status: **draft v2** (2026-08-04; v2 answers Mathijs's capability-query
-question and drops the per-directive-retry naivety).
+Status: **CIP-97, adopted 2026-08-04** (v2 akkoord).
 
 ## 1. The problem
 
@@ -44,3 +43,11 @@ floor for rootless mode, unchanged.
   managers may differ per instance)?
 - Does `systemd-analyze --user verify` exist on every supported
   manager version (it is old, but confirm the oldest CI image)?
+
+## Decision
+
+Adopted 2026-08-04 at v2: one batched `systemd-analyze verify` probe
+per manager (rejected set cached by manager identity+version), unit
+generation omits exactly the unsupported directives with loud logs,
+runtime Unknown-assignment parsing as belt-and-braces, D13's degraded
+set as the unchanged floor.
