@@ -921,11 +921,7 @@ START /bin/true
         ),
     )
     .unwrap();
-    let mut lock = committed_lock();
-    lock.fetches.insert(
-        "ingredient".into(),
-        cix_cixfile::FetchPin::expected("sha256-stale".into()),
-    );
+    let lock = committed_lock();
     fs::write(
         directory.path().join("Cixfile.lock"),
         format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
@@ -947,6 +943,99 @@ START /bin/true
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
     assert_eq!(lock.fetches.len(), 2);
     assert!(lock.fetches.values().all(|pin| pin.nar_hash == expected));
+}
+
+#[test]
+fn warm_fetch_memo_rejects_expect_that_diverges_from_its_recorded_pin() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let state = tempfile::tempdir().unwrap();
+    let first_tree = tempfile::tempdir().unwrap();
+    fs::write(first_tree.path().join("release.json"), "release\n").unwrap();
+    let second_tree = tempfile::tempdir().unwrap();
+    fs::write(second_tree.path().join("release.json"), "release\n").unwrap();
+    fs::write(second_tree.path().join("traefik.tar.gz"), "asset\n").unwrap();
+    let hash = |path: &Path| {
+        cix_common::nix(&["hash", "path", "--mode", "nar", path.to_str().unwrap()])
+            .unwrap()
+            .trim()
+            .to_owned()
+    };
+    let first = hash(first_tree.path());
+    let second = hash(second_tree.path());
+    let cixfile = |second_expect: &str| {
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER release
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+FETCH printf 'release\n' > release.json EXPECT {first}
+FETCH printf 'asset\n' > traefik.tar.gz EXPECT {second_expect}
+ITEM traefik
+COPY ${{release}}/release.json /release.json
+COPY ${{release}}/traefik.tar.gz /traefik.tar.gz
+"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile(&second)).unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: workspace.path().to_owned(),
+        state_directory: state.path().to_owned(),
+    };
+
+    build(&options).unwrap();
+    let warm_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(warm_lock.step_memo.len(), 2);
+    assert_eq!(
+        warm_lock
+            .fetches
+            .iter()
+            .find(|(id, _)| id.starts_with("builder:release:1-"))
+            .unwrap()
+            .1
+            .nar_hash,
+        second
+    );
+
+    fs::write(directory.path().join("Cixfile"), cixfile(&first)).unwrap();
+    let error = build(&options).unwrap_err();
+    let rendered = format!("{error:#}");
+    assert!(rendered.contains("line 5"), "{rendered}");
+    assert!(rendered.contains("recorded lock pin"), "{rendered}");
+    assert!(
+        rendered.contains(&format!("declared {first}")),
+        "{rendered}"
+    );
+    assert!(
+        rendered.contains(&format!("lock records {second}")),
+        "{rendered}"
+    );
+
+    let unchanged: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(
+        unchanged
+            .fetches
+            .iter()
+            .find(|(id, _)| id.starts_with("builder:release:1-"))
+            .unwrap()
+            .1
+            .nar_hash,
+        second
+    );
 }
 
 #[test]
@@ -1178,6 +1267,62 @@ COPY ${{build}}/one /one
             .map(String::as_str)
             .collect::<Vec<_>>(),
         ["one", "runs", "two"]
+    );
+}
+
+#[test]
+fn edited_plan_reconciles_repeated_copy_in_warm_workspace() {
+    let directory = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let state = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("input"), "payload\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let cixfile = |builder_suffix: &str, item_suffix: &str| {
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{src}}/input input
+RUN cp input first
+{builder_suffix}ITEM result
+COPY ${{build}}/first /first
+{item_suffix}"#
+        )
+    };
+    fs::write(directory.path().join("Cixfile"), cixfile("", "")).unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: workspace.path().to_owned(),
+        state_directory: state.path().to_owned(),
+    };
+    build(&options).unwrap();
+
+    fs::write(
+        directory.path().join("Cixfile"),
+        cixfile(
+            "COPY ${src}/input input\nRUN cp input second\n",
+            "COPY ${build}/second /second\n",
+        ),
+    )
+    .unwrap();
+    let edited = build(&options).unwrap();
+    let item = PathBuf::from(&edited[0].store_path);
+    assert_eq!(fs::read_to_string(item.join("first")).unwrap(), "payload\n");
+    assert_eq!(
+        fs::read_to_string(item.join("second")).unwrap(),
+        "payload\n"
     );
 }
 

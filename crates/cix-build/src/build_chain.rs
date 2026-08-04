@@ -17,6 +17,7 @@ use crate::codegen::{
 };
 use crate::fetch::{CredentialMount, HostCredentials};
 use crate::fhs;
+use crate::lock::builder_fetch_id;
 use crate::seccomp;
 use crate::trace;
 use crate::{
@@ -480,9 +481,18 @@ fn execute_top_fetch(
     credentials: &mut HostCredentials,
 ) -> Result<(String, bool)> {
     if let Some(expected) = &fetch.expected {
-        if lock.fetches.get(name).map(|pin| &pin.nar_hash) != Some(expected) {
-            lock.fetches
-                .insert(name.to_owned(), FetchPin::expected(expected.clone()));
+        match lock.fetches.get(name) {
+            Some(pin) if pin.nar_hash != *expected => bail!(
+                "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {expected}\n  lock records {}",
+                fetch.line,
+                fetch.source,
+                pin.nar_hash
+            ),
+            Some(_) => {}
+            None => {
+                lock.fetches
+                    .insert(name.to_owned(), FetchPin::expected(expected.clone()));
+            }
         }
     }
     let context = resolve_fetch_context(cixfile, name, directory, lock, system, binders)?;
@@ -806,7 +816,7 @@ fn execute_builder(
         .cloned()
         .collect::<Vec<_>>();
     let mut export_prelude = BTreeMap::new();
-    install_declared_expectations(builder_name, builder, &context.commands, lock);
+    install_declared_expectations(builder_name, builder, &context.commands, lock)?;
     let chain_key_started = Instant::now();
     let existing_keys = builder_chain_keys(
         builder_name,
@@ -973,8 +983,7 @@ fn execute_builder(
                     .as_ref()
                     .filter(|memo| memo.key == memo_key)
                     .cloned();
-                let fetch_id = is_fetch
-                    .then(|| format!("builder:{builder_name}:{}", fetch_id(index, command)));
+                let fetch_id = is_fetch.then(|| builder_fetch_id(builder_name, index, command));
                 if let Some(id) = &fetch_id {
                     if cold {
                         if let Some(memo) = &recorded_memo {
@@ -1087,7 +1096,10 @@ fn execute_builder(
                     trace_before.path(),
                     &observations,
                     known_reads.as_ref().unwrap_or(&empty_reads),
-                )?;
+                )
+                .with_context(|| {
+                    format!("line {line}: recording {kind} read set\n  | {source:?}")
+                })?;
                 crate::cix_timing!(
                     "CIX timing trace-read-set reused={} hashed_files={} hashed_bytes={} hashed_directories={} wall_ms={}",
                     recording_metrics.reused,
@@ -1622,18 +1634,29 @@ fn install_declared_expectations(
     builder: &Builder,
     commands: &[String],
     lock: &mut LockFile,
-) {
+) -> Result<()> {
     let mut command_index = 0;
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
             BuildStep::Env { .. } => {}
-            BuildStep::Fetch { expected, .. } => {
+            BuildStep::Fetch {
+                expected,
+                line,
+                source,
+                ..
+            } => {
                 let command = &commands[command_index];
                 if let Some(expected) = expected {
-                    let id = format!("builder:{builder_name}:{}", fetch_id(index, command));
-                    if lock.fetches.get(&id).map(|pin| &pin.nar_hash) != Some(expected) {
-                        lock.fetches
-                            .insert(id, FetchPin::expected(expected.clone()));
+                    let id = builder_fetch_id(builder_name, index, command);
+                    match lock.fetches.get(&id) {
+                        Some(pin) if pin.nar_hash != *expected => bail!(
+                            "line {line}: BUILDER {builder_name} FETCH EXPECT disagrees with its recorded lock pin\n  | {source:?}\n  declared {expected}\n  lock records {}",
+                            pin.nar_hash
+                        ),
+                        Some(_) => {}
+                        None => {
+                            lock.fetches.insert(id, FetchPin::expected(expected.clone()));
+                        }
                     }
                 }
                 command_index += 1;
@@ -1642,6 +1665,7 @@ fn install_declared_expectations(
             BuildStep::Copy(_) => {}
         }
     }
+    Ok(())
 }
 
 fn builder_chain_keys(
@@ -1685,7 +1709,7 @@ fn builder_chain_keys(
             BuildStep::Fetch { .. } => {
                 let command = &context.commands[command_index];
                 command_index += 1;
-                let id = format!("builder:{builder_name}:{}", fetch_id(index, command));
+                let id = builder_fetch_id(builder_name, index, command);
                 let Some(pin) = lock.fetches.get(&id) else {
                     return Ok(None);
                 };
@@ -3550,10 +3574,6 @@ fn refresh_fetch_pin(
         pin.volatile = volatile;
     }
     Ok(pin)
-}
-
-fn fetch_id(index: usize, command: &str) -> String {
-    format!("{index}-{}", short_key(&hex_hash(command.as_bytes())))
 }
 
 fn verify_fetch_pin(pin: Option<&FetchPin>, actual: Option<&str>) -> Result<()> {

@@ -793,6 +793,25 @@ START /bin/true \
     }
 
     #[test]
+    fn builder_copies_are_sequential_but_artifact_destinations_stay_unique() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY first value\nRUN true\nCOPY second value\nITEM result\nCOPY ${build}/value /value\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.builders["build"].steps.len(), 3);
+
+        let duplicate = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM result\nCOPY first /value\nCOPY second /value\n",
+        )
+        .unwrap_err();
+        assert_eq!(duplicate.line, 4);
+        assert!(
+            duplicate.message.contains("already populated"),
+            "{duplicate}"
+        );
+    }
+
+    #[test]
     fn from_local_is_optional_but_a_package_universe_is_required() {
         parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY payload /payload\nSTART /bin/true\n")
             .unwrap();

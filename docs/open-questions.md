@@ -7,30 +7,6 @@ opening another file, or it does not belong here. Resolved work lives
 in `.dev/LOG.md` and the CIP changelogs, not in this file. Design-sized
 questions live in `cips/draft/` — this file only points at them.
 
-## In flight (agent tracks running or queued — no action needed)
-
-- **EXPECT accepted without warm validation** — a wrong or copy-pasted
-  `EXPECT` hash builds green as long as the fetch memo-hits; the
-  mismatch only fires on a real refetch, possibly weeks later. Found
-  because luna pasted one traefik fetch's hash onto the other and
-  everything stayed green. Fix (in `track/buildfixes`): compare the
-  declared EXPECT against the recorded lock pin at plan time and fail
-  with both values named; also root-cause why the lock recorded the
-  same pin hash for two different fetches.
-- **A build error with no context** — the directus build dies with
-  literally `Error: Not a directory`: no path, no build step named. You
-  cannot debug what you cannot locate; every I/O error cix raises
-  should say what it was doing to which path. In `track/buildfixes`,
-  which also root-causes the underlying failure (it is the last thing
-  between directus and a green build now that CIP-95 fixed its loader
-  problem).
-- **Editing a Cixfile can wedge its warm workspace** — after changing
-  COPY lines, a re-run against the existing warm builder workspace can
-  fail with `destination "go.mod" is already populated` instead of
-  reconciling or invalidating the workspace. A worker "solved" this by
-  contorting the Cixfile, which is exactly backwards — the workspace is
-  disposable by design, the file is not. In `track/buildfixes`.
-
 ## Promoted to CIP drafts (read there; each is self-contained)
 
 - [granular-degradation](../cips/draft/granular-degradation.md) — one

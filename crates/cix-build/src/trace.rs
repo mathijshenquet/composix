@@ -346,8 +346,11 @@ pub(crate) fn read_dependencies_with_known(
                     metrics.hashed_bytes += metadata.len();
                 }
                 Ok(_) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error.into()),
+                Err(error) if path_is_missing(&error) => {}
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("reading traced path {}", path.display()))
+                }
             }
             Ok((
                 relative.clone(),
@@ -411,8 +414,12 @@ pub(crate) fn current_dependencies_with_metrics(
                         metrics.rehashed_files += 1;
                         metrics.rehashed_bytes += metadata.len();
                     }
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                    Err(error) => return Err(error.into()),
+                    Err(error) if path_is_missing(&error) => {}
+                    Err(error) => {
+                        return Err(error).with_context(|| {
+                            format!("reading recorded dependency {}", path.display())
+                        })
+                    }
                 }
             }
             Ok((relative.clone(), dependency(&path, listed, content)?))
@@ -439,9 +446,11 @@ pub(crate) fn record_workspace_fingerprints(
         if writes.contains(relative) {
             continue;
         }
-        *fingerprint = Some(file_fingerprint(&fs::symlink_metadata(relative_path(
-            workspace, relative,
-        ))?));
+        let path = relative_path(workspace, relative);
+        *fingerprint = Some(file_fingerprint(
+            &fs::symlink_metadata(&path)
+                .with_context(|| format!("reading workspace fingerprint {}", path.display()))?,
+        ));
     }
     Ok(())
 }
@@ -453,8 +462,10 @@ pub(crate) fn filesystem_changes(
 ) -> Result<BTreeMap<String, StepChange>> {
     let mut changes = BTreeMap::new();
     for relative in written {
-        let old = fs::symlink_metadata(relative_path(before, relative)).ok();
-        let new = fs::symlink_metadata(relative_path(after, relative)).ok();
+        let old_path = relative_path(before, relative);
+        let new_path = relative_path(after, relative);
+        let old = metadata_if_present(&old_path)?;
+        let new = metadata_if_present(&new_path)?;
         let change = match (old, new) {
             (None, Some(_)) => StepChange::Present,
             (Some(_), None) => StepChange::Absent,
@@ -476,7 +487,7 @@ pub(crate) fn filesystem_changes(
 fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency> {
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(ReadDependency::Absent),
+        Err(error) if path_is_missing(&error) => return Ok(ReadDependency::Absent),
         Err(error) => {
             return Err(error).with_context(|| format!("reading traced path {}", path.display()))
         }
@@ -484,7 +495,8 @@ fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency
     if metadata.is_dir() && !metadata.file_type().is_symlink() {
         return if listed {
             Ok(ReadDependency::Directory {
-                hash: directory_hash(path)?,
+                hash: directory_hash(path)
+                    .with_context(|| format!("hashing traced directory {}", path.display()))?,
             })
         } else {
             Ok(ReadDependency::DirectoryExists)
@@ -492,11 +504,27 @@ fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency
     }
     if content {
         Ok(ReadDependency::File {
-            hash: read_hash(path, &metadata)?,
+            hash: read_hash(path, &metadata)
+                .with_context(|| format!("hashing traced file {}", path.display()))?,
             fingerprint: None,
         })
     } else {
         Ok(ReadDependency::FileExists)
+    }
+}
+
+fn path_is_missing(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+    )
+}
+
+fn metadata_if_present(path: &Path) -> Result<Option<fs::Metadata>> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(Some(metadata)),
+        Err(error) if path_is_missing(&error) => Ok(None),
+        Err(error) => Err(error).with_context(|| format!("reading traced path {}", path.display())),
     }
 }
 
@@ -516,28 +544,43 @@ fn read_hash(path: &Path, metadata: &fs::Metadata) -> Result<String> {
     digest.update(metadata.mode().to_le_bytes());
     if metadata.file_type().is_symlink() {
         digest.update(b"symlink\0");
-        digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+        digest.update(
+            fs::read_link(path)
+                .with_context(|| format!("reading symlink {}", path.display()))?
+                .as_os_str()
+                .as_encoded_bytes(),
+        );
         if let Ok(target) = fs::metadata(path) {
             if target.is_file() {
-                let mut file = fs::File::open(path)?;
-                io::copy(&mut file, &mut digest)?;
+                let mut file = fs::File::open(path)
+                    .with_context(|| format!("opening traced file {}", path.display()))?;
+                io::copy(&mut file, &mut digest)
+                    .with_context(|| format!("reading traced file {}", path.display()))?;
             }
         }
     } else {
-        let mut file = fs::File::open(path)?;
-        io::copy(&mut file, &mut digest)?;
+        let mut file = fs::File::open(path)
+            .with_context(|| format!("opening traced file {}", path.display()))?;
+        io::copy(&mut file, &mut digest)
+            .with_context(|| format!("reading traced file {}", path.display()))?;
     }
     Ok(hex(digest.finalize()))
 }
 
 fn directory_hash(path: &Path) -> Result<String> {
-    let mut entries = fs::read_dir(path)?.collect::<io::Result<Vec<_>>>()?;
+    let mut entries = fs::read_dir(path)
+        .with_context(|| format!("opening traced directory {}", path.display()))?
+        .collect::<io::Result<Vec<_>>>()
+        .with_context(|| format!("reading traced directory {}", path.display()))?;
     entries.sort_by_key(|entry| entry.file_name());
     let mut digest = Sha256::new();
     for entry in entries {
         digest.update(entry.file_name().as_encoded_bytes());
         digest.update([0]);
-        let kind = entry.file_type()?;
+        let entry_path = entry.path();
+        let kind = entry
+            .file_type()
+            .with_context(|| format!("reading traced entry type {}", entry_path.display()))?;
         digest.update(if kind.is_dir() {
             b"directory".as_slice()
         } else if kind.is_symlink() {
@@ -739,6 +782,21 @@ mod tests {
                     }
                 ),
             ])
+        );
+    }
+
+    #[test]
+    fn records_a_path_beneath_a_file_as_absent() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("file"), "payload").unwrap();
+        let capture = Capture {
+            observations: BTreeMap::from([("file/child".into(), Observation::default())]),
+            writes: BTreeSet::new(),
+        };
+
+        assert_eq!(
+            read_dependencies(root.path(), &capture).unwrap(),
+            BTreeMap::from([("file/child".into(), ReadDependency::Absent)])
         );
     }
 
