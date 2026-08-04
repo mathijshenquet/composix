@@ -2,6 +2,22 @@
 
 ## track/netnsrace
 
+- 2026-08-04 07:34 UTC — Final current-tree agent tier is green after
+  merging current `origin/main` (`7f98bc1`), which supplied its independent
+  corpus-browser drift correction. The initial workspace test had failed only
+  that pre-existing generated-page drift; after integration,
+  `devenv shell -- cargo test --workspace` passed synchronously. Explicit tour
+  regeneration and the following tour drift/determinism test both passed, with
+  no generated tour diff. Current-tree fmt, examples fmt, and warning-denied
+  workspace/all-target clippy all exited 0. The bounded focused receipt
+  `nice -n 10 nix build .#checks.x86_64-linux.scenario-netns --no-link -L
+  --max-jobs 6 --cores 4` also exited 0 synchronously under TCG: closed-root
+  reactivation succeeded, both netns teardowns completed, and both immediate
+  namespace-path absence assertions passed. The specified implementation,
+  deterministic regression coverage, bounded 20-run before/after experiment,
+  and open-question closure are complete. Next: independent orchestrator
+  verification and merge.
+
 - 2026-08-04 07:25 UTC — The announced post-fix campaign completed
   synchronously: **20/20 contended VMs passed**, with zero netns stop
   timeouts, zero stale namespace paths, and zero activation failures. This is
