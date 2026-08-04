@@ -1,8 +1,8 @@
 # emit-nix — cix build as the *2nix that ends *2nix
 
-Status: **draft** (2026-08-02, from Mathijs's prompt: prospects of cix
-build inside the nix world purely as DX — no translator tools — with
-fantasy allowed and an adversarial eye required; §5).
+Status: **draft v2, adoption-ready** (2026-08-02; v2 2026-08-04 after
+Mathijs's read: "heel mooi, waarschijnlijk oppak waardig" with all four
+open questions answered — see §6/§7. Scope narrowed to pure tier 1.)
 
 ## 1. The problem
 
@@ -249,23 +249,29 @@ opaque hash. That diffability is quietly the strongest pitch: a
    meta.license. Concession: tier 2 output is not nixpkgs-grade until
    both exist; flake users can splice meta manually.
 
-## 6. Recommendation
+## 6. Recommendation (v2, per Mathijs's answers)
 
-v1 = tier 1 (`cix-lib.buildCixfile`, eval-from-lock) + the byte-
-identity acceptance test against `--cold`, plus the Cargo.lock
-checksum cross-check from turn 2. Tier 2 (`--emit-nix`) lands behind
-the same test. `cix vendor`, dynamic-drvs, and nixpkgs upstream stay
-recorded horizons. ROI check before building: the tracefast track's
-subprocess/cost table should confirm where the DX win concentrates.
+**v1 = pure tier 1**: `cix-lib.buildCixfile` (eval-from-lock, zero
+generated files) in this repo (`?dir=nix/lib`), plus the byte-identity
+acceptance test against `cix build --cold` — the test §5.3 declares
+load-bearing: if it cannot be kept, this CIP dies rather than drift.
+Everything else moves out of scope: tier 2 (`--emit-nix`) joins
+`cix vendor`, dynamic-drvs, and nixpkgs upstream as recorded horizons;
+the checksum cross-check is split out of this CIP entirely (§7.3). ROI
+check before building stands: the tracefast subprocess/cost table
+should confirm where the DX win concentrates.
 
-## 7. Open questions
+## 7. Open questions — answered 2026-08-04 (Mathijs)
 
-1. Does tier 1 live in this repo (`?dir=nix/lib`) or a sibling flake?
-2. `cix vendor -- <cmd>` in v1 scope or horizon?
-3. Is the checksum cross-check (turn 2) a FETCH feature independent of
-   this CIP? (It hardens plain cix too — arguably split it out.)
-4. Granularity (the dream2nix lesson): stay at one-FOD-per-FETCH-step
-   (simple, ecosystem-blind) or split observed fetches per logical
-   dependency where the consumed set decomposes naturally (finer
-   cache-hits, per-dep overrides, but it reintroduces ecosystem
-   awareness through the back door)?
+1. In this repo (`?dir=nix/lib`); split later if ever needed.
+2. No — `cix vendor` stays a horizon.
+3. Split out. The steelman survived (observed-vs-declared have
+   different custody at different times: a registry tamper today fails
+   against upstream's lockfile committed months ago, collapsing our
+   network-TOFU into the already-assumed source trust) — but the check
+   requires per-ecosystem lockfile awareness, which contradicts this
+   CIP's ecosystem-blindness. If wanted, it returns as an independent
+   FETCH-hardening draft; it is not part of emit-nix.
+4. One-FOD-per-FETCH, fixed ("ik zou me er niet aan branden") — no
+   per-dependency splitting, no ecosystem awareness through the back
+   door.
