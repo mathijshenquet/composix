@@ -6,9 +6,9 @@
   pretty serializers, and index JSON API responses are indented. Existing
   pretty lock/compose artifact writers remain unchanged; no corpus locks were
   rewritten. The tour is committed with plain `cat` manifest receipts and all
-  final agent-tier and three-run determinism receipts recorded above. Next:
-  commit this required post-commit journal receipt; the orchestrator owns the
-  independent full flake-matrix gate.
+  final agent-tier and three-run determinism receipts recorded above. The
+  required post-commit journal receipt is `d5010b3`; the worktree was clean
+  afterward. The orchestrator owns the independent full flake-matrix gate.
 
 - 2026-08-04T15:49:50Z — Staged regenerated tour chapters 1, 4, and 6, then
   reran the ignored generator synchronously (exit 0) with zero unstaged tour
