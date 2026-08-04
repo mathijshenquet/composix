@@ -907,10 +907,10 @@ RUNDIR /run/nginx
     );
     assert_eq!(flakes.trim(), "flakes: available");
     let manager = doc.sh(
-        "systemctl --user is-system-running >/dev/null 2>&1 && printf 'user manager: running\\n' || { state=$(systemctl --user is-system-running 2>/dev/null); test \"$state\" = degraded && printf 'user manager: running (degraded)\\n'; }",
+        "case $(systemctl --user is-system-running 2>/dev/null) in running|degraded) printf 'user manager: available\\n';; esac",
         true,
     );
-    assert!(manager.contains("user manager: running"));
+    assert!(manager.contains("user manager: available"));
     doc.para("Here **rootless** means that `cix run --user` asks your per-user systemd manager to start the unit without root privileges. This development path lacks `DynamicUser=` and may lose mount-namespace, device, PID, and capability restrictions that the system manager provides; cix prints that degradation instead of implying production-equivalent isolation.");
 
     doc.para("## Build the item");
