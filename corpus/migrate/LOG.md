@@ -612,3 +612,32 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   Mastodon — CIP-86's pod namespace gives isolation and egress machinery but
   cannot express the upstream external+internal memberships or `internal: true`;
   D26/D27 remain the recorded frontier and the import drafts are orthogonal.
+
+## 2026-08-04 — corpus-gaps final agent gate
+
+- `devenv shell -- cargo fmt --all --check` — exit 0.
+- `devenv shell -- cargo run -p cix -- fmt --check examples` — exit 0 (the
+  synchronous cached rerun is the receipt after the first invocation compiled the
+  worktree binary).
+- `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings` —
+  exit 0.
+- `devenv shell -- cargo test --workspace` — exit 101 for exactly
+  `corpus_browser_matches_committed_pages`: the old generated
+  `docs/corpus/index.html` contains the former ribbons/evidence, while the
+  deterministic in-memory render contains this track's new Fidelity/Evidence
+  content. `generated_corpus_browser_is_deterministic` passes. This is the
+  intentional concurrent-track merge seam: `.dev/specs/track-corpusgaps.md`
+  forbids touching `docs/corpus/`, and `.dev/specs/track-browser3.md` assigns that
+  output plus the generator to browser3 with an explicit orchestrator-regeneration
+  merge note. The forbidden regeneration was not performed.
+- `devenv shell -- cargo test --workspace -- --skip
+  corpus_browser_matches_committed_pages` — exit 0; every other workspace unit,
+  integration, real-Nix, tour, and doc test passed. The skipped assertion is the
+  single failure above, not a broader test selection.
+- `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour` —
+  exit 0; `git diff --exit-code -- docs/tour` — exit 0; `devenv shell -- cargo
+  test -p cix --test tour tour_matches_committed_document -- --exact` — exit 0.
+- Final static audit: all 21 ledgers have valid header pairs, routed bullet
+  endings, and existing local link targets; the living table has 21 rows;
+  `git diff --check` exits 0; changed paths stay inside the track fence. No focused
+  VM scenario applies because this track changes no runtime behavior.
