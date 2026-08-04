@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,525 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ❌ Docker-control-plane workload; build receipt is non-green · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/dozzle/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 514 files, 31733665 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.air.toml</code> <span>867 bytes</span></li>
+      <li><code>.dockerignore</code> <span>53 bytes</span></li>
+      <li><code>.editorconfig</code> <span>275 bytes</span></li>
+      <li><code>.gitattributes</code> <span>18 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/0_bug_report.yml</code> <span>2427 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/1_feature_request.yml</code> <span>559 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/2_peformance_report.yml</code> <span>1744 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/3_cloud_bug_report.yml</code> <span>987 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/config.yml</code> <span>158 bytes</span></li>
+      <li><code>.github/demo.gif</code> <span>24887259 bytes</span></li>
+      <li><code>.github/funding.yml</code> <span>30 bytes</span></li>
+      <li><code>.github/renovate.json</code> <span>397 bytes</span></li>
+      <li><code>.github/stale.yml</code> <span>693 bytes</span></li>
+      <li><code>.github/workflows/claude-code-review.yml</code> <span>2000 bytes</span></li>
+      <li><code>.github/workflows/claude.yml</code> <span>1949 bytes</span></li>
+      <li><code>.github/workflows/deploy.yml</code> <span>4834 bytes</span></li>
+      <li><code>.github/workflows/dev.yml</code> <span>1909 bytes</span></li>
+      <li><code>.github/workflows/pages.yml</code> <span>1743 bytes</span></li>
+      <li><code>.github/workflows/pr.yml</code> <span>340 bytes</span></li>
+      <li><code>.github/workflows/test.yml</code> <span>3771 bytes</span></li>
+      <li><code>.gitignore</code> <span>216 bytes</span></li>
+      <li><code>.npmrc</code> <span>94 bytes</span></li>
+      <li><code>.prettierignore</code> <span>124 bytes</span></li>
+      <li><code>.prettierrc.cjs</code> <span>85 bytes</span></li>
+      <li><code>CLAUDE.md</code> <span>19810 bytes</span></li>
+      <li><code>CODE_OF_CONDUCT.md</code> <span>3353 bytes</span></li>
+      <li><code>Dockerfile</code> <span>1642 bytes</span></li>
+      <li><code>LICENSE</code> <span>1070 bytes</span></li>
+      <li><code>MAJOR_VERSIONS.md</code> <span>3037 bytes</span></li>
+      <li><code>Makefile</code> <span>2174 bytes</span></li>
+      <li><code>README.md</code> <span>8876 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>278 bytes</span></li>
+      <li><code>assets/App.vue</code> <span>1174 bytes</span></li>
+      <li><code>assets/auto-imports.d.ts</code> <span>63632 bytes</span></li>
+      <li><code>assets/build.spec.ts</code> <span>911 bytes</span></li>
+      <li><code>assets/components.d.ts</code> <span>15997 bytes</span></li>
+      <li><code>assets/components/Announcements.vue</code> <span>4244 bytes</span></li>
+      <li><code>assets/components/BarChart.spec.ts</code> <span>3232 bytes</span></li>
+      <li><code>assets/components/BarChart.vue</code> <span>3685 bytes</span></li>
+      <li><code>assets/components/CloudPopover.vue</code> <span>6099 bytes</span></li>
+      <li><code>assets/components/CloudSearchInline.vue</code> <span>1515 bytes</span></li>
+      <li><code>assets/components/CloudSettingsCard.vue</code> <span>7535 bytes</span></li>
+      <li><code>assets/components/ContainerDropdown.vue</code> <span>1077 bytes</span></li>
+      <li><code>assets/components/ContainerPopup.vue</code> <span>1343 bytes</span></li>
+      <li><code>assets/components/ContainerStatCell.spec.ts</code> <span>4029 bytes</span></li>
+      <li><code>assets/components/ContainerStatCell.vue</code> <span>2596 bytes</span></li>
+      <li><code>assets/components/ContainerTable.vue</code> <span>8365 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/ContainerActionsToolbar.vue</code> <span>11761 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/ContainerHealth.vue</code> <span>535 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/ContainerLog.vue</code> <span>1618 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/ContainerTitle.vue</code> <span>3985 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/HistoricalContainerLog.vue</code> <span>1906 bytes</span></li>
+      <li><code>assets/components/ContainerViewer/VolumeWarning.vue</code> <span>3879 bytes</span></li>
+      <li><code>assets/components/FuzzySearchModal.spec.ts</code> <span>4257 bytes</span></li>
+      <li><code>assets/components/FuzzySearchModal.vue</code> <span>16763 bytes</span></li>
+      <li><code>assets/components/GroupMenu.vue</code> <span>825 bytes</span></li>
+      <li><code>assets/components/GroupedViewer/GroupedLog.vue</code> <span>1589 bytes</span></li>
+      <li><code>assets/components/HostCard.vue</code> <span>5061 bytes</span></li>
+      <li><code>assets/components/HostList.vue</code> <span>262 bytes</span></li>
+      <li><code>assets/components/HostMenu.vue</code> <span>14070 bytes</span></li>
+      <li><code>assets/components/HostViewer/HostGroupLog.vue</code> <span>2286 bytes</span></li>
+      <li><code>assets/components/HostViewer/HostLog.vue</code> <span>1689 bytes</span></li>
+      <li><code>assets/components/K8sMenu.vue</code> <span>4720 bytes</span></li>
+      <li><code>assets/components/K8sViewer/NamespaceLog.vue</code> <span>1505 bytes</span></li>
+      <li><code>assets/components/K8sViewer/OwnerLog.vue</code> <span>1477 bytes</span></li>
+      <li><code>assets/components/Links.vue</code> <span>1969 bytes</span></li>
+      <li><code>assets/components/LogViewer/ComplexLogItem.spec.ts</code> <span>2453 bytes</span></li>
+      <li><code>assets/components/LogViewer/ComplexLogItem.vue</code> <span>2516 bytes</span></li>
+      <li><code>assets/components/LogViewer/ContainerEventLogItem.vue</code> <span>525 bytes</span></li>
+      <li><code>assets/components/LogViewer/EventSource.spec.ts</code> <span>7247 bytes</span></li>
+      <li><code>assets/components/LogViewer/EventSource.vue</code> <span>2509 bytes</span></li>
+      <li><code>assets/components/LogViewer/GroupedLogItem.vue</code> <span>881 bytes</span></li>
+      <li><code>assets/components/LogViewer/IOCard.vue</code> <span>1627 bytes</span></li>
+      <li><code>assets/components/LogViewer/LoadMoreLogItem.vue</code> <span>969 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogActions.vue</code> <span>5828 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogAnalytics.vue</code> <span>10967 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogDate.vue</code> <span>196 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogDetails.vue</code> <span>5091 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogItem.vue</code> <span>1254 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogLevel.vue</code> <span>1119 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogList.vue</code> <span>2973 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogStd.vue</code> <span>324 bytes</span></li>
+      <li><code>assets/components/LogViewer/LogViewer.vue</code> <span>478 bytes</span></li>
+      <li><code>assets/components/LogViewer/MultiContainerActionToolbar.vue</code> <span>3676 bytes</span></li>
+      <li><code>assets/components/LogViewer/MultiContainerStat.spec.ts</code> <span>2380 bytes</span></li>
+      <li><code>assets/components/LogViewer/MultiContainerStat.vue</code> <span>6932 bytes</span></li>
+      <li><code>assets/components/LogViewer/RandomColorTag.vue</code> <span>1548 bytes</span></li>
+      <li><code>assets/components/LogViewer/SQLTable.vue</code> <span>2107 bytes</span></li>
+      <li><code>assets/components/LogViewer/SearchStatus.spec.ts</code> <span>3948 bytes</span></li>
+      <li><code>assets/components/LogViewer/SearchStatus.vue</code> <span>2573 bytes</span></li>
+      <li><code>assets/components/LogViewer/SimpleLogItem.vue</code> <span>418 bytes</span></li>
+      <li><code>assets/components/LogViewer/SkippedEntriesLogItem.vue</code> <span>521 bytes</span></li>
+      <li><code>assets/components/LogViewer/StatCard.vue</code> <span>708 bytes</span></li>
+      <li><code>assets/components/LogViewer/ViewerWithSource.vue</code> <span>891 bytes</span></li>
+      <li><code>assets/components/LogViewer/ZigZag.vue</code> <span>445 bytes</span></li>
+      <li><code>assets/components/LogViewer/__snapshots__/EventSource.spec.ts.snap</code> <span>13482 bytes</span></li>
+      <li><code>assets/components/MetricCard.vue</code> <span>1484 bytes</span></li>
+      <li><code>assets/components/MultiContainerViewer/MultiContainerLog.vue</code> <span>1367 bytes</span></li>
+      <li><code>assets/components/Notification/AlertCard.vue</code> <span>7412 bytes</span></li>
+      <li><code>assets/components/Notification/AlertForm.vue</code> <span>7936 bytes</span></li>
+      <li><code>assets/components/Notification/CloudDestinationForm.vue</code> <span>5173 bytes</span></li>
+      <li><code>assets/components/Notification/CooldownField.vue</code> <span>681 bytes</span></li>
+      <li><code>assets/components/Notification/DestinationCard.vue</code> <span>2814 bytes</span></li>
+      <li><code>assets/components/Notification/DestinationForm.vue</code> <span>3651 bytes</span></li>
+      <li><code>assets/components/Notification/EventAlertFields.vue</code> <span>2774 bytes</span></li>
+      <li><code>assets/components/Notification/LogAlertFields.vue</code> <span>3522 bytes</span></li>
+      <li><code>assets/components/Notification/MetricAlertFields.vue</code> <span>3308 bytes</span></li>
+      <li><code>assets/components/Notification/WebhookDestinationForm.vue</code> <span>9227 bytes</span></li>
+      <li><code>assets/components/Notification/payloadTemplates.ts</code> <span>1391 bytes</span></li>
+      <li><code>assets/components/PageWithLinks.vue</code> <span>388 bytes</span></li>
+      <li><code>assets/components/Popup.vue</code> <span>1410 bytes</span></li>
+      <li><code>assets/components/ScrollProgress.vue</code> <span>2161 bytes</span></li>
+      <li><code>assets/components/ScrollableView.vue</code> <span>2889 bytes</span></li>
+      <li><code>assets/components/Search.spec.ts</code> <span>1674 bytes</span></li>
+      <li><code>assets/components/Search.vue</code> <span>1981 bytes</span></li>
+      <li><code>assets/components/ServiceViewer/ServiceLog.vue</code> <span>1462 bytes</span></li>
+      <li><code>assets/components/SideMenu.vue</code> <span>1912 bytes</span></li>
+      <li><code>assets/components/SidePanel.vue</code> <span>587 bytes</span></li>
+      <li><code>assets/components/StackViewer/StackLog.vue</code> <span>1659 bytes</span></li>
+      <li><code>assets/components/SwarmMenu.vue</code> <span>2865 bytes</span></li>
+      <li><code>assets/components/Terminal.vue</code> <span>3289 bytes</span></li>
+      <li><code>assets/components/WelcomeModal.spec.ts</code> <span>5987 bytes</span></li>
+      <li><code>assets/components/WelcomeModal.vue</code> <span>10666 bytes</span></li>
+      <li><code>assets/components/common/Carousel.vue</code> <span>2861 bytes</span></li>
+      <li><code>assets/components/common/CarouselItem.vue</code> <span>281 bytes</span></li>
+      <li><code>assets/components/common/DateTime.vue</code> <span>1066 bytes</span></li>
+      <li><code>assets/components/common/Dropdown.vue</code> <span>685 bytes</span></li>
+      <li><code>assets/components/common/DropdownMenu.vue</code> <span>1312 bytes</span></li>
+      <li><code>assets/components/common/HostIcon.vue</code> <span>396 bytes</span></li>
+      <li><code>assets/components/common/IndeterminateBar.vue</code> <span>696 bytes</span></li>
+      <li><code>assets/components/common/JsonFormatted.vue</code> <span>763 bytes</span></li>
+      <li><code>assets/components/common/JsonText.spec.ts</code> <span>1413 bytes</span></li>
+      <li><code>assets/components/common/JsonText.vue</code> <span>1037 bytes</span></li>
+      <li><code>assets/components/common/JsonValue.spec.ts</code> <span>2256 bytes</span></li>
+      <li><code>assets/components/common/JsonValue.vue</code> <span>3169 bytes</span></li>
+      <li><code>assets/components/common/KeyShortcut.vue</code> <span>634 bytes</span></li>
+      <li><code>assets/components/common/LabeledInput.vue</code> <span>252 bytes</span></li>
+      <li><code>assets/components/common/MobileMenu.vue</code> <span>1485 bytes</span></li>
+      <li><code>assets/components/common/RelativeTime.vue</code> <span>408 bytes</span></li>
+      <li><code>assets/components/common/SideDrawer.vue</code> <span>2219 bytes</span></li>
+      <li><code>assets/components/common/SlideTransition.vue</code> <span>799 bytes</span></li>
+      <li><code>assets/components/common/Tag.vue</code> <span>316 bytes</span></li>
+      <li><code>assets/components/common/TimedButton.vue</code> <span>972 bytes</span></li>
+      <li><code>assets/components/common/ToastModal.vue</code> <span>1583 bytes</span></li>
+      <li><code>assets/components/common/Toggle.vue</code> <span>327 bytes</span></li>
+      <li><code>assets/composable/alertForm.ts</code> <span>5266 bytes</span></li>
+      <li><code>assets/composable/cloudConfig.ts</code> <span>1621 bytes</span></li>
+      <li><code>assets/composable/cloudLogSearch.ts</code> <span>5374 bytes</span></li>
+      <li><code>assets/composable/commands.ts</code> <span>7180 bytes</span></li>
+      <li><code>assets/composable/containerActions.ts</code> <span>4127 bytes</span></li>
+      <li><code>assets/composable/downloadUrl.ts</code> <span>1674 bytes</span></li>
+      <li><code>assets/composable/drawer.ts</code> <span>917 bytes</span></li>
+      <li><code>assets/composable/duckdb.ts</code> <span>914 bytes</span></li>
+      <li><code>assets/composable/eventStreams.ts</code> <span>8268 bytes</span></li>
+      <li><code>assets/composable/exprEditor.ts</code> <span>9654 bytes</span></li>
+      <li><code>assets/composable/fuzzySearch.ts</code> <span>405 bytes</span></li>
+      <li><code>assets/composable/historicalLogs.ts</code> <span>3908 bytes</span></li>
+      <li><code>assets/composable/loadBetween.ts</code> <span>1746 bytes</span></li>
+      <li><code>assets/composable/logContext.ts</code> <span>1647 bytes</span></li>
+      <li><code>assets/composable/logLoader.ts</code> <span>3695 bytes</span></li>
+      <li><code>assets/composable/media.ts</code> <span>61 bytes</span></li>
+      <li><code>assets/composable/popup.ts</code> <span>262 bytes</span></li>
+      <li><code>assets/composable/profileStorage.ts</code> <span>2196 bytes</span></li>
+      <li><code>assets/composable/scrollContext.ts</code> <span>585 bytes</span></li>
+      <li><code>assets/composable/search.spec.ts</code> <span>1330 bytes</span></li>
+      <li><code>assets/composable/search.ts</code> <span>1054 bytes</span></li>
+      <li><code>assets/composable/storage.ts</code> <span>1187 bytes</span></li>
+      <li><code>assets/composable/templateEditor.ts</code> <span>2263 bytes</span></li>
+      <li><code>assets/composable/title.ts</code> <span>248 bytes</span></li>
+      <li><code>assets/composable/toast.ts</code> <span>1216 bytes</span></li>
+      <li><code>assets/composable/useExprEditorField.ts</code> <span>566 bytes</span></li>
+      <li><code>assets/composable/visible.ts</code> <span>915 bytes</span></li>
+      <li><code>assets/layouts/default.vue</code> <span>3532 bytes</span></li>
+      <li><code>assets/layouts/splash.vue</code> <span>179 bytes</span></li>
+      <li><code>assets/logo.svg</code> <span>7614 bytes</span></li>
+      <li><code>assets/main.css</code> <span>7301 bytes</span></li>
+      <li><code>assets/main.ts</code> <span>382 bytes</span></li>
+      <li><code>assets/models/Container.spec.ts</code> <span>4658 bytes</span></li>
+      <li><code>assets/models/Container.ts</code> <span>5089 bytes</span></li>
+      <li><code>assets/models/LogEntry.spec.ts</code> <span>3880 bytes</span></li>
+      <li><code>assets/models/LogEntry.ts</code> <span>7009 bytes</span></li>
+      <li><code>assets/models/Stack.ts</code> <span>708 bytes</span></li>
+      <li><code>assets/modules/i18n.ts</code> <span>1598 bytes</span></li>
+      <li><code>assets/modules/pinia.ts</code> <span>161 bytes</span></li>
+      <li><code>assets/modules/router.ts</code> <span>385 bytes</span></li>
+      <li><code>assets/pages/[...all].vue</code> <span>403 bytes</span></li>
+      <li><code>assets/pages/cloud/search.vue</code> <span>9082 bytes</span></li>
+      <li><code>assets/pages/container/[id].time.[datetime].vue</code> <span>1059 bytes</span></li>
+      <li><code>assets/pages/container/[id].vue</code> <span>3033 bytes</span></li>
+      <li><code>assets/pages/group/[name].vue</code> <span>620 bytes</span></li>
+      <li><code>assets/pages/host-group/[name].vue</code> <span>415 bytes</span></li>
+      <li><code>assets/pages/host/[id].vue</code> <span>670 bytes</span></li>
+      <li><code>assets/pages/index.vue</code> <span>2352 bytes</span></li>
+      <li><code>assets/pages/login.vue</code> <span>2788 bytes</span></li>
+      <li><code>assets/pages/merged/[ids].vue</code> <span>558 bytes</span></li>
+      <li><code>assets/pages/namespace/[name].vue</code> <span>795 bytes</span></li>
+      <li><code>assets/pages/notifications.vue</code> <span>6770 bytes</span></li>
+      <li><code>assets/pages/owner/[name].vue</code> <span>932 bytes</span></li>
+      <li><code>assets/pages/service/[name].vue</code> <span>773 bytes</span></li>
+      <li><code>assets/pages/settings.vue</code> <span>12359 bytes</span></li>
+      <li><code>assets/pages/show.vue</code> <span>988 bytes</span></li>
+      <li><code>assets/pages/stack/[name].vue</code> <span>759 bytes</span></li>
+      <li><code>assets/shims-vue.d.ts</code> <span>209 bytes</span></li>
+      <li><code>assets/stores/announcements.ts</code> <span>1494 bytes</span></li>
+      <li><code>assets/stores/config.ts</code> <span>1143 bytes</span></li>
+      <li><code>assets/stores/container.ts</code> <span>6341 bytes</span></li>
+      <li><code>assets/stores/hosts.ts</code> <span>709 bytes</span></li>
+      <li><code>assets/stores/k8s.spec.ts</code> <span>4514 bytes</span></li>
+      <li><code>assets/stores/k8s.ts</code> <span>5524 bytes</span></li>
+      <li><code>assets/stores/pinned.ts</code> <span>915 bytes</span></li>
+      <li><code>assets/stores/settings.ts</code> <span>1713 bytes</span></li>
+      <li><code>assets/stores/swarm.ts</code> <span>3023 bytes</span></li>
+      <li><code>assets/test-setup.ts</code> <span>604 bytes</span></li>
+      <li><code>assets/typed-router.d.ts</code> <span>7231 bytes</span></li>
+      <li><code>assets/types/Container.d.ts</code> <span>1410 bytes</span></li>
+      <li><code>assets/types/Point.d.ts</code> <span>53 bytes</span></li>
+      <li><code>assets/types/notifications.ts</code> <span>1677 bytes</span></li>
+      <li><code>assets/utils/ansi.ts</code> <span>1052 bytes</span></li>
+      <li><code>assets/utils/date.spec.ts</code> <span>1351 bytes</span></li>
+      <li><code>assets/utils/date.ts</code> <span>1228 bytes</span></li>
+      <li><code>assets/utils/events.ts</code> <span>334 bytes</span></li>
+      <li><code>assets/utils/format.spec.ts</code> <span>1759 bytes</span></li>
+      <li><code>assets/utils/format.ts</code> <span>859 bytes</span></li>
+      <li><code>assets/utils/index.ts</code> <span>325 bytes</span></li>
+      <li><code>assets/utils/object.spec.ts</code> <span>1702 bytes</span></li>
+      <li><code>assets/utils/object.ts</code> <span>1173 bytes</span></li>
+      <li><code>assets/utils/reactive.ts</code> <span>1119 bytes</span></li>
+      <li><code>docker-compose.yml</code> <span>4148 bytes</span></li>
+      <li><code>docs/.gitignore</code> <span>109 bytes</span></li>
+      <li><code>docs/.vitepress/.gitignore</code> <span>11 bytes</span></li>
+      <li><code>docs/.vitepress/activity.data.ts</code> <span>1437 bytes</span></li>
+      <li><code>docs/.vitepress/config.ts</code> <span>6292 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/BuyMeCoffee.vue</code> <span>357 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/Counter.vue</code> <span>828 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/FinalCta.vue</code> <span>2297 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/HeroTrust.vue</code> <span>1691 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/HeroVideo.vue</code> <span>1884 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/InstallCommand.vue</code> <span>1744 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/SponsoredBy.vue</code> <span>544 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/Stats.vue</code> <span>1633 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/Supported.vue</code> <span>14067 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/Testimonials.vue</code> <span>1270 bytes</span></li>
+      <li><code>docs/.vitepress/theme/components/WhyDozzle.vue</code> <span>2645 bytes</span></li>
+      <li><code>docs/.vitepress/theme/index.ts</code> <span>1286 bytes</span></li>
+      <li><code>docs/.vitepress/theme/media/dozzle-dark.mp4</code> <span>1784207 bytes</span></li>
+      <li><code>docs/.vitepress/theme/media/dozzle-light.mp4</code> <span>2025571 bytes</span></li>
+      <li><code>docs/.vitepress/theme/media/dozzle-ui-actions.png</code> <span>35038 bytes</span></li>
+      <li><code>docs/.vitepress/theme/media/poster-dark.webp</code> <span>33628 bytes</span></li>
+      <li><code>docs/.vitepress/theme/media/poster-light.webp</code> <span>32010 bytes</span></li>
+      <li><code>docs/.vitepress/theme/style.css</code> <span>8517 bytes</span></li>
+      <li><code>docs/components.d.ts</code> <span>1372 bytes</span></li>
+      <li><code>docs/guide/actions.md</code> <span>1439 bytes</span></li>
+      <li><code>docs/guide/agent.md</code> <span>11549 bytes</span></li>
+      <li><code>docs/guide/alerts-and-webhooks.md</code> <span>10052 bytes</span></li>
+      <li><code>docs/guide/analytics.md</code> <span>1395 bytes</span></li>
+      <li><code>docs/guide/authentication.md</code> <span>17665 bytes</span></li>
+      <li><code>docs/guide/changing-base.md</code> <span>3392 bytes</span></li>
+      <li><code>docs/guide/container-groups.md</code> <span>1092 bytes</span></li>
+      <li><code>docs/guide/container-names.md</code> <span>1077 bytes</span></li>
+      <li><code>docs/guide/debugging.md</code> <span>1482 bytes</span></li>
+      <li><code>docs/guide/default-profile.md</code> <span>4129 bytes</span></li>
+      <li><code>docs/guide/deployments.md</code> <span>3106 bytes</span></li>
+      <li><code>docs/guide/dozzle-cloud.md</code> <span>7135 bytes</span></li>
+      <li><code>docs/guide/dtop.md</code> <span>1299 bytes</span></li>
+      <li><code>docs/guide/faq.md</code> <span>10953 bytes</span></li>
+      <li><code>docs/guide/filters.md</code> <span>2259 bytes</span></li>
+      <li><code>docs/guide/getting-started.md</code> <span>4488 bytes</span></li>
+      <li><code>docs/guide/healthcheck.md</code> <span>1763 bytes</span></li>
+      <li><code>docs/guide/hostname.md</code> <span>1243 bytes</span></li>
+      <li><code>docs/guide/k8s.md</code> <span>5848 bytes</span></li>
+      <li><code>docs/guide/log-files-on-disk.md</code> <span>1781 bytes</span></li>
+      <li><code>docs/guide/mcp.md</code> <span>3601 bytes</span></li>
+      <li><code>docs/guide/podman.md</code> <span>9269 bytes</span></li>
+      <li><code>docs/guide/remote-hosts.md</code> <span>5230 bytes</span></li>
+      <li><code>docs/guide/shell.md</code> <span>1800 bytes</span></li>
+      <li><code>docs/guide/sql-engine.md</code> <span>2834 bytes</span></li>
+      <li><code>docs/guide/supported-env-vars.md</code> <span>4048 bytes</span></li>
+      <li><code>docs/guide/swarm-mode.md</code> <span>4736 bytes</span></li>
+      <li><code>docs/guide/what-is-dozzle.md</code> <span>2277 bytes</span></li>
+      <li><code>docs/index.md</code> <span>3136 bytes</span></li>
+      <li><code>docs/package.json</code> <span>195 bytes</span></li>
+      <li><code>docs/pnpm-lock.yaml</code> <span>567 bytes</span></li>
+      <li><code>docs/public/_headers</code> <span>71 bytes</span></li>
+      <li><code>docs/public/_redirects</code> <span>0 bytes</span></li>
+      <li><code>docs/public/favicon.ico</code> <span>2089 bytes</span></li>
+      <li><code>docs/public/icons/ai.svg</code> <span>262 bytes</span></li>
+      <li><code>docs/public/icons/chart-line-data.svg</code> <span>515 bytes</span></li>
+      <li><code>docs/public/icons/docker-icon.svg</code> <span>797 bytes</span></li>
+      <li><code>docs/public/icons/document.svg</code> <span>329 bytes</span></li>
+      <li><code>docs/public/icons/locked.svg</code> <span>253 bytes</span></li>
+      <li><code>docs/public/icons/network-3.svg</code> <span>351 bytes</span></li>
+      <li><code>docs/public/icons/notification-new.svg</code> <span>479 bytes</span></li>
+      <li><code>docs/public/icons/sql.svg</code> <span>342 bytes</span></li>
+      <li><code>docs/public/icons/terminal-command.svg</code> <span>292 bytes</span></li>
+      <li><code>docs/public/icons/terminal.svg</code> <span>316 bytes</span></li>
+      <li><code>docs/public/logo.svg</code> <span>9489 bytes</span></li>
+      <li><code>docs/public/og-image.png</code> <span>129353 bytes</span></li>
+      <li><code>docs/support.md</code> <span>755 bytes</span></li>
+      <li><code>docs/team.md</code> <span>3374 bytes</span></li>
+      <li><code>docs/vite.config.ts</code> <span>430 bytes</span></li>
+      <li><code>e2e/agent.spec.ts</code> <span>600 bytes</span></li>
+      <li><code>e2e/custom.spec.ts</code> <span>1602 bytes</span></li>
+      <li><code>e2e/data/notifications.yml</code> <span>283 bytes</span></li>
+      <li><code>e2e/data/users.yml</code> <span>109 bytes</span></li>
+      <li><code>e2e/default.spec.ts</code> <span>1088 bytes</span></li>
+      <li><code>e2e/logs.spec.ts</code> <span>1540 bytes</span></li>
+      <li><code>e2e/mobile-stats.spec.ts</code> <span>1300 bytes</span></li>
+      <li><code>e2e/remote-host.spec.ts</code> <span>1004 bytes</span></li>
+      <li><code>e2e/simple.spec.ts</code> <span>2330 bytes</span></li>
+      <li><code>e2e/visual.spec.ts</code> <span>650 bytes</span></li>
+      <li><code>e2e/visual.spec.ts-snapshots/dark-homepage-1-Mobile-Chrome-linux.png</code> <span>20672 bytes</span></li>
+      <li><code>e2e/visual.spec.ts-snapshots/dark-homepage-1-chromium-linux.png</code> <span>17551 bytes</span></li>
+      <li><code>e2e/visual.spec.ts-snapshots/default-homepage-1-Mobile-Chrome-linux.png</code> <span>18945 bytes</span></li>
+      <li><code>e2e/visual.spec.ts-snapshots/default-homepage-1-chromium-linux.png</code> <span>17233 bytes</span></li>
+      <li><code>examples/README.md</code> <span>526 bytes</span></li>
+      <li><code>examples/docker.agents-with-certs.yml</code> <span>347 bytes</span></li>
+      <li><code>examples/docker.agents.yml</code> <span>240 bytes</span></li>
+      <li><code>examples/docker.swarm.auth.yml</code> <span>458 bytes</span></li>
+      <li><code>examples/docker.swarm.yml</code> <span>471 bytes</span></li>
+      <li><code>examples/ingress.yml</code> <span>397 bytes</span></li>
+      <li><code>examples/k8s.dozzle.yml</code> <span>1647 bytes</span></li>
+      <li><code>examples/setup-remote-agent.sh</code> <span>5025 bytes</span></li>
+      <li><code>examples/setup-swarm.fish</code> <span>3771 bytes</span></li>
+      <li><code>examples/users.yml</code> <span>119 bytes</span></li>
+      <li><code>go.mod</code> <span>7788 bytes</span></li>
+      <li><code>go.sum</code> <span>55048 bytes</span></li>
+      <li><code>gqlgen.yml</code> <span>6273 bytes</span></li>
+      <li><code>internal/agent/client.go</code> <span>16644 bytes</span></li>
+      <li><code>internal/agent/client_test.go</code> <span>8424 bytes</span></li>
+      <li><code>internal/agent/pb/rpc.pb.go</code> <span>62455 bytes</span></li>
+      <li><code>internal/agent/pb/rpc_grpc.pb.go</code> <span>34164 bytes</span></li>
+      <li><code>internal/agent/pb/types.pb.go</code> <span>48858 bytes</span></li>
+      <li><code>internal/agent/server.go</code> <span>18679 bytes</span></li>
+      <li><code>internal/analytics/http_beacon.go</code> <span>898 bytes</span></li>
+      <li><code>internal/auth/proxy.go</code> <span>2131 bytes</span></li>
+      <li><code>internal/auth/proxy_test.go</code> <span>1560 bytes</span></li>
+      <li><code>internal/auth/roles.go</code> <span>1329 bytes</span></li>
+      <li><code>internal/auth/roles_test.go</code> <span>3150 bytes</span></li>
+      <li><code>internal/auth/simple.go</code> <span>1346 bytes</span></li>
+      <li><code>internal/auth/users.go</code> <span>5571 bytes</span></li>
+      <li><code>internal/cache/expire.go</code> <span>831 bytes</span></li>
+      <li><code>internal/cloud/client.go</code> <span>13324 bytes</span></li>
+      <li><code>internal/cloud/client_test.go</code> <span>4642 bytes</span></li>
+      <li><code>internal/cloud/log_streamer.go</code> <span>7958 bytes</span></li>
+      <li><code>internal/cloud/log_streamer_test.go</code> <span>15061 bytes</span></li>
+      <li><code>internal/cloud/search.go</code> <span>4221 bytes</span></li>
+      <li><code>internal/cloud/tools.go</code> <span>19427 bytes</span></li>
+      <li><code>internal/cloud/tools_actions.go</code> <span>3389 bytes</span></li>
+      <li><code>internal/cloud/tools_containers.go</code> <span>6427 bytes</span></li>
+      <li><code>internal/cloud/tools_helpers.go</code> <span>2055 bytes</span></li>
+      <li><code>internal/cloud/tools_logs.go</code> <span>2891 bytes</span></li>
+      <li><code>internal/cloud/tools_notifications.go</code> <span>5848 bytes</span></li>
+      <li><code>internal/cloud/tools_notifications_test.go</code> <span>6394 bytes</span></li>
+      <li><code>internal/cloud/tools_resolve.go</code> <span>15998 bytes</span></li>
+      <li><code>internal/cloud/tools_resolve_readpath_test.go</code> <span>11142 bytes</span></li>
+      <li><code>internal/cloud/tools_resolve_test.go</code> <span>13266 bytes</span></li>
+      <li><code>internal/cloud/tools_stream.go</code> <span>4217 bytes</span></li>
+      <li><code>internal/cloud/tools_stream_test.go</code> <span>13896 bytes</span></li>
+      <li><code>internal/cloud/tools_test.go</code> <span>11270 bytes</span></li>
+      <li><code>internal/container/client.go</code> <span>1528 bytes</span></li>
+      <li><code>internal/container/container_store.go</code> <span>13569 bytes</span></li>
+      <li><code>internal/container/container_store_test.go</code> <span>6063 bytes</span></li>
+      <li><code>internal/container/event_generator.go</code> <span>9628 bytes</span></li>
+      <li><code>internal/container/event_generator_test.go</code> <span>14134 bytes</span></li>
+      <li><code>internal/container/host.go</code> <span>2342 bytes</span></li>
+      <li><code>internal/container/level_guesser.go</code> <span>5009 bytes</span></li>
+      <li><code>internal/container/level_guesser_test.go</code> <span>6352 bytes</span></li>
+      <li><code>internal/container/logfmt.go</code> <span>2356 bytes</span></li>
+      <li><code>internal/container/logfmt_test.go</code> <span>3484 bytes</span></li>
+      <li><code>internal/container/sanitize.go</code> <span>1718 bytes</span></li>
+      <li><code>internal/container/sanitize_test.go</code> <span>2673 bytes</span></li>
+      <li><code>internal/container/statfs_unix.go</code> <span>371 bytes</span></li>
+      <li><code>internal/container/statfs_windows.go</code> <span>181 bytes</span></li>
+      <li><code>internal/container/stripansi.go</code> <span>297 bytes</span></li>
+      <li><code>internal/container/types.go</code> <span>10065 bytes</span></li>
+      <li><code>internal/container/types_test.go</code> <span>623 bytes</span></li>
+      <li><code>internal/container/volume_monitor.go</code> <span>4215 bytes</span></li>
+      <li><code>internal/deploy/compose.go</code> <span>648 bytes</span></li>
+      <li><code>internal/deploy/compose_test.go</code> <span>6531 bytes</span></li>
+      <li><code>internal/deploy/deployer.go</code> <span>22652 bytes</span></li>
+      <li><code>internal/deploy/manager.go</code> <span>11598 bytes</span></li>
+      <li><code>internal/deploy/manager_test.go</code> <span>13993 bytes</span></li>
+      <li><code>internal/docker/calculation.go</code> <span>2407 bytes</span></li>
+      <li><code>internal/docker/calculation_test.go</code> <span>1476 bytes</span></li>
+      <li><code>internal/docker/client.go</code> <span>20601 bytes</span></li>
+      <li><code>internal/docker/client_test.go</code> <span>13470 bytes</span></li>
+      <li><code>internal/docker/log_reader.go</code> <span>2236 bytes</span></li>
+      <li><code>internal/docker/log_reader_test.go</code> <span>2525 bytes</span></li>
+      <li><code>internal/docker/stats_collector.go</code> <span>4269 bytes</span></li>
+      <li><code>internal/docker/stats_collector_test.go</code> <span>3300 bytes</span></li>
+      <li><code>internal/healthcheck/http.go</code> <span>636 bytes</span></li>
+      <li><code>internal/healthcheck/http_test.go</code> <span>1107 bytes</span></li>
+      <li><code>internal/healthcheck/rpc.go</code> <span>562 bytes</span></li>
+      <li><code>internal/k8s/client.go</code> <span>21832 bytes</span></li>
+      <li><code>internal/k8s/client_test.go</code> <span>12594 bytes</span></li>
+      <li><code>internal/k8s/log_reader.go</code> <span>600 bytes</span></li>
+      <li><code>internal/k8s/log_reader_test.go</code> <span>635 bytes</span></li>
+      <li><code>internal/k8s/stats_collector.go</code> <span>3402 bytes</span></li>
+      <li><code>internal/mcp/server.go</code> <span>16760 bytes</span></li>
+      <li><code>internal/mcp/server_test.go</code> <span>18374 bytes</span></li>
+      <li><code>internal/migration/cloud_config.go</code> <span>3654 bytes</span></li>
+      <li><code>internal/notification/cloud_config.go</code> <span>1303 bytes</span></li>
+      <li><code>internal/notification/config.go</code> <span>7009 bytes</span></li>
+      <li><code>internal/notification/dispatcher/cloud.go</code> <span>4206 bytes</span></li>
+      <li><code>internal/notification/dispatcher/cloud_test.go</code> <span>2153 bytes</span></li>
+      <li><code>internal/notification/dispatcher/dispatcher.go</code> <span>309 bytes</span></li>
+      <li><code>internal/notification/dispatcher/webhook.go</code> <span>8111 bytes</span></li>
+      <li><code>internal/notification/dispatcher/webhook_test.go</code> <span>8672 bytes</span></li>
+      <li><code>internal/notification/event_listener.go</code> <span>4352 bytes</span></li>
+      <li><code>internal/notification/event_listener_test.go</code> <span>2934 bytes</span></li>
+      <li><code>internal/notification/log_listener.go</code> <span>7963 bytes</span></li>
+      <li><code>internal/notification/manager.go</code> <span>12886 bytes</span></li>
+      <li><code>internal/notification/persist.go</code> <span>4092 bytes</span></li>
+      <li><code>internal/notification/processing.go</code> <span>8943 bytes</span></li>
+      <li><code>internal/notification/stats_listener.go</code> <span>4661 bytes</span></li>
+      <li><code>internal/notification/ttl_cache.go</code> <span>1642 bytes</span></li>
+      <li><code>internal/notification/types.go</code> <span>13300 bytes</span></li>
+      <li><code>internal/notification/types_test.go</code> <span>15591 bytes</span></li>
+      <li><code>internal/profile/disk.go</code> <span>3646 bytes</span></li>
+      <li><code>internal/releases/github.go</code> <span>2310 bytes</span></li>
+      <li><code>internal/support/cli/agent_command.go</code> <span>8406 bytes</span></li>
+      <li><code>internal/support/cli/agent_test_command.go</code> <span>1025 bytes</span></li>
+      <li><code>internal/support/cli/analytics.go</code> <span>1156 bytes</span></li>
+      <li><code>internal/support/cli/args.go</code> <span>5870 bytes</span></li>
+      <li><code>internal/support/cli/certs.go</code> <span>784 bytes</span></li>
+      <li><code>internal/support/cli/clients.go</code> <span>2283 bytes</span></li>
+      <li><code>internal/support/cli/deploy_command.go</code> <span>1253 bytes</span></li>
+      <li><code>internal/support/cli/generate_command.go</code> <span>2551 bytes</span></li>
+      <li><code>internal/support/cli/health_command.go</code> <span>1102 bytes</span></li>
+      <li><code>internal/support/cli/logger.go</code> <span>512 bytes</span></li>
+      <li><code>internal/support/cli/valid_env.go</code> <span>649 bytes</span></li>
+      <li><code>internal/support/container/agent_service.go</code> <span>3704 bytes</span></li>
+      <li><code>internal/support/container/client_service.go</code> <span>1584 bytes</span></li>
+      <li><code>internal/support/container/container_service.go</code> <span>1823 bytes</span></li>
+      <li><code>internal/support/docker/docker_service.go</code> <span>10394 bytes</span></li>
+      <li><code>internal/support/docker/multi_host_service.go</code> <span>18223 bytes</span></li>
+      <li><code>internal/support/docker/retriable_client_manager.go</code> <span>7030 bytes</span></li>
+      <li><code>internal/support/docker/swarm_client_manager.go</code> <span>6653 bytes</span></li>
+      <li><code>internal/support/k8s/k8s_cluster_service.go</code> <span>7444 bytes</span></li>
+      <li><code>internal/support/k8s/k8s_service.go</code> <span>5419 bytes</span></li>
+      <li><code>internal/support/web/copy_leak_test.go</code> <span>1156 bytes</span></li>
+      <li><code>internal/support/web/escape.go</code> <span>3432 bytes</span></li>
+      <li><code>internal/support/web/escape_test.go</code> <span>1774 bytes</span></li>
+      <li><code>internal/support/web/regex.go</code> <span>4997 bytes</span></li>
+      <li><code>internal/support/web/search.go</code> <span>453 bytes</span></li>
+      <li><code>internal/support/web/sse.go</code> <span>2149 bytes</span></li>
+      <li><code>internal/support/web/url.go</code> <span>1011 bytes</span></li>
+      <li><code>internal/utils/ring_buffer.go</code> <span>1400 bytes</span></li>
+      <li><code>internal/utils/ring_buffer_test.go</code> <span>1571 bytes</span></li>
+      <li><code>internal/utils/time.go</code> <span>192 bytes</span></li>
+      <li><code>internal/web/__snapshots__/web.snapshot</code> <span>8399 bytes</span></li>
+      <li><code>internal/web/actions.go</code> <span>2916 bytes</span></li>
+      <li><code>internal/web/actions_test.go</code> <span>6684 bytes</span></li>
+      <li><code>internal/web/auth.go</code> <span>1546 bytes</span></li>
+      <li><code>internal/web/auth_proxy_test.go</code> <span>1762 bytes</span></li>
+      <li><code>internal/web/auth_simple_test.go</code> <span>5169 bytes</span></li>
+      <li><code>internal/web/auth_test.go</code> <span>3071 bytes</span></li>
+      <li><code>internal/web/brotli.go</code> <span>726 bytes</span></li>
+      <li><code>internal/web/cloud.go</code> <span>8529 bytes</span></li>
+      <li><code>internal/web/cloud_search.go</code> <span>3770 bytes</span></li>
+      <li><code>internal/web/csp.go</code> <span>422 bytes</span></li>
+      <li><code>internal/web/debug.go</code> <span>517 bytes</span></li>
+      <li><code>internal/web/download.go</code> <span>6518 bytes</span></li>
+      <li><code>internal/web/download_test.go</code> <span>3768 bytes</span></li>
+      <li><code>internal/web/events.go</code> <span>5911 bytes</span></li>
+      <li><code>internal/web/events_test.go</code> <span>4563 bytes</span></li>
+      <li><code>internal/web/healthcheck.go</code> <span>1027 bytes</span></li>
+      <li><code>internal/web/index.go</code> <span>4493 bytes</span></li>
+      <li><code>internal/web/logs.go</code> <span>15495 bytes</span></li>
+      <li><code>internal/web/logs_test.go</code> <span>19932 bytes</span></li>
+      <li><code>internal/web/manifest.go</code> <span>661 bytes</span></li>
+      <li><code>internal/web/notifications.go</code> <span>21499 bytes</span></li>
+      <li><code>internal/web/profile.go</code> <span>1376 bytes</span></li>
+      <li><code>internal/web/routes.go</code> <span>8931 bytes</span></li>
+      <li><code>internal/web/routes_test.go</code> <span>4199 bytes</span></li>
+      <li><code>internal/web/sw.go</code> <span>1366 bytes</span></li>
+      <li><code>internal/web/terminal.go</code> <span>3837 bytes</span></li>
+      <li><code>internal/web/terminal_test.go</code> <span>2228 bytes</span></li>
+      <li><code>internal/web/version.go</code> <span>210 bytes</span></li>
+      <li><code>lint-staged.config.mjs</code> <span>270 bytes</span></li>
+      <li><code>locales/da.yml</code> <span>17330 bytes</span></li>
+      <li><code>locales/de.yml</code> <span>18285 bytes</span></li>
+      <li><code>locales/en.yml</code> <span>16462 bytes</span></li>
+      <li><code>locales/es.yml</code> <span>18346 bytes</span></li>
+      <li><code>locales/fr.yml</code> <span>18909 bytes</span></li>
+      <li><code>locales/id.yml</code> <span>17324 bytes</span></li>
+      <li><code>locales/it.yml</code> <span>17597 bytes</span></li>
+      <li><code>locales/ko.yml</code> <span>18899 bytes</span></li>
+      <li><code>locales/nl.yml</code> <span>17829 bytes</span></li>
+      <li><code>locales/pl.yml</code> <span>18103 bytes</span></li>
+      <li><code>locales/pt.yml</code> <span>18051 bytes</span></li>
+      <li><code>locales/ru.yml</code> <span>25416 bytes</span></li>
+      <li><code>locales/sl.yml</code> <span>17633 bytes</span></li>
+      <li><code>locales/tr.yml</code> <span>18338 bytes</span></li>
+      <li><code>locales/zh-tw.yml</code> <span>16342 bytes</span></li>
+      <li><code>locales/zh.yml</code> <span>16046 bytes</span></li>
+      <li><code>main.go</code> <span>13079 bytes</span></li>
+      <li><code>package.json</code> <span>4018 bytes</span></li>
+      <li><code>playwright.config.ts</code> <span>1755 bytes</span></li>
+      <li><code>pnpm-lock.yaml</code> <span>272095 bytes</span></li>
+      <li><code>pnpm-workspace.yaml</code> <span>177 bytes</span></li>
+      <li><code>proto/cloud/cloud.pb.go</code> <span>74321 bytes</span></li>
+      <li><code>proto/cloud/cloud_grpc.pb.go</code> <span>7141 bytes</span></li>
+      <li><code>protos/cloud.proto</code> <span>8159 bytes</span></li>
+      <li><code>protos/rpc.proto</code> <span>4122 bytes</span></li>
+      <li><code>protos/types.proto</code> <span>3595 bytes</span></li>
+      <li><code>public/apple-touch-icon.png</code> <span>29565 bytes</span></li>
+      <li><code>public/favicon.ico</code> <span>15406 bytes</span></li>
+      <li><code>public/favicon.png</code> <span>19035 bytes</span></li>
+      <li><code>public/index.html</code> <span>1392 bytes</span></li>
+      <li><code>tsconfig.json</code> <span>673 bytes</span></li>
+      <li><code>types/beacon.go</code> <span>922 bytes</span></li>
+      <li><code>types/notification.go</code> <span>4973 bytes</span></li>
+      <li><code>vite.config.ts</code> <span>2431 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -118,6 +655,17 @@
 <span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;/dozzle&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/amir20/dozzle/c159db5f0b5cccb80e7432d51823eb2702b617bc/Dockerfile
+Repository: https://github.com/amir20/dozzle.git
+Resolved revision: c159db5f0b5cccb80e7432d51823eb2702b617bc
+Context path: .
+Exclude context path: .claude
+Dockerfile sha256: 4d7d02d4dd93031024ed5c87770e577b0c88a5961d678a80e7bf7a35520920b3
+Build context: repository archive in context/ (Dockerfile copies source trees and manifests).
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -151,6 +699,125 @@
   <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:3-42a8263a643c&quot;: {
+      &quot;narHash&quot;: &quot;sha256-JCMsdHfhwEkVJUnE9D4Xid8GD1SUgBwKdyppbU6iy1U=&quot;
+    },
+    &quot;builder:ui:1-5a267a43e080&quot;: {
+      &quot;narHash&quot;: &quot;sha256-jnHUmeLmiOHbIWI49IX9B0Eaw73NxdSz415Lu8VuU9s=&quot;
+    },
+    &quot;builder:ui:2-cee80c31585b&quot;: {
+      &quot;narHash&quot;: &quot;sha256-hwTRXpgGj1xlb0fZi4pRP8bzhzYDeKXge8xy2flvm3M=&quot;
+    },
+    &quot;builder:ui:3-dca97b5c9016&quot;: {
+      &quot;narHash&quot;: &quot;sha256-0gfaq4CJuEeG6QE8y9eQoXZ3eoHzEhwpynbphp457qY=&quot;
+    },
+    &quot;builder:ui:4-e5a84ccc3af8&quot;: {
+      &quot;narHash&quot;: &quot;sha256-Dynp64Cg8LvghhD7NTFFHwjO6OBnlTs5X9G0E+VtRx8=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;145aff4583e2e7fa744de9c9d7070e021fe5a1709fb5d99dd601ad8b58712e1a&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-jnHUmeLmiOHbIWI49IX9B0Eaw73NxdSz415Lu8VuU9s=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/dmj3k6a9j3hvgxagzi0nn41qkbk479ff-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 358
+    },
+    &quot;44e3ca96a8cf12c2a87f0d147a7a1d39a3c3dedf71c76a4dc43f7efbed215c39&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-0gfaq4CJuEeG6QE8y9eQoXZ3eoHzEhwpynbphp457qY=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/4ls5mkr3g2hjz9f4xdqv46lyhbs9b63d-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 2906
+    },
+    &quot;7320c5fe0a5d35adffc582a00f8735dfbe69cb8a5c8f2d69f10c2592e517e46d&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-R8ZdWNjFsYgDg7Eu7dAW4W4yWjuZjCGMsKBSdt5mQS0=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/vcy7ar0grp4p24kk1kkpnrchjfaskxf6-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 524
+    },
+    &quot;73e0fc7b4a02c8b13f76de228e4f530216513a6a432d5349b98a26109578cac3&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-n/7wQ0XRe6kaiGukkcJSFwbwbxHMFiRK/1mskD7U8gg=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/5qlb332gmxrdhfhn0nk4m5clw5amhz37-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 297
+    },
+    &quot;93140878969cd17a8894ef06453466839ef332b32a532e8534b1db506e1bd362&quot;: {
+      &quot;paths&quot;: {
+        &quot;dist&quot;: {
+          &quot;narHash&quot;: &quot;sha256-o7j4lRat3yAyzaEbs1uvWR+aFabNZc1s60aT5YeDx2M=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/ad1xsdbl278bxmz0cqvgxs9aw1x7cdz4-cix-build-consumed&quot;
+        }
+      }
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../target/debug/cix}; name=migrate-r4-dozzle; unit=
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../fetch.sh dozzle first&#39; &gt;&amp;2; exit 1; fi
+cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run -d --rm --name &quot;$name&quot; -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#dozzle); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
+for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:8080/healthcheck &gt;/dev/null &amp;&amp; exit 0; sleep 1; done
+exit 1
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># dozzle migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and `STATEDIR`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. The Docker runtime contract includes `/var/run/docker.sock`.
+
+## `./check.sh cix`
+
+```text
+Error: line 10: FETCH output changed
+  | &quot;  FETCH pnpm fetch --ignore-scripts&quot;
+```
+
+Exit status: non-zero. The currently pinned UI cache is also unstable. The
+requested independent two-run `go mod download` reproduction found the precise
+backend cause: the common 33,862 files were byte-identical, while run 1 retained
+seven extra Go checksum-database tile files totaling 35,808 bytes:
+
+```text
+8192  5ce1866f...  tile/8/0/x227/780
+2624  04139b3c...  tile/8/0/x227/780.p/82
+3456  128cf09f...  tile/8/0/x228/452.p/108
+8192  9fb9ad92...  tile/8/1/889
+6272  7cb74e70...  tile/8/1/889.p/196
+3200  483bc44b...  tile/8/1/892.p/100
+3872  7372f718...  tile/8/2/003.p/121
+```
+
+Thus the mismatch is not changed module source: concurrent sumdb cache
+population chooses a different valid tile subset. A disposable backend-only D69
+reproduction (the exact source revision, a minimal generated `dist`, and
+placeholder absent cert files solely to make the historical source compile) ran
+`cix build --update-lock build .` twice, then `cix build .`. Both probes produced
+`/nix/store/l8l5vlf0v4zzhz0vv7xrimqm7la36l3d-cix-item-proof`; the second pair&#39;s
+ordinary build memo-hit. Its automatic pin is only `dozzle`, while the recorded
+volatile facts include the sumdb tile paths above. This proves D69 consumed-set
+keying handles the Go-side FETCH without representing the full service conversion
+as passing. The UI remains the honest normalization case: its pnpm/Vite-generated
+consumed `dist` bytes differ across clean runs, so D69 records rather than
+excludes it. Forced lock refresh also reaches the historical missing
+`shared_cert.pem` source failure. Independently, no faithful Cix runtime exists:
+Dozzle requires Docker&#39;s host socket/API, which remains an explicit boundary.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/dozzle</code>. Do not edit this page by hand.</footer>
