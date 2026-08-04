@@ -1,7 +1,7 @@
 set -eu
 . /opt/postgres/runtime-env.sh
 
-exec "$1" \
+exec "$(readlink -f "$(command -v "$1")")" \
   -D "$data_dir" \
   -p 35432 \
   -h 127.0.0.1 \

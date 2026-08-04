@@ -1,5 +1,132 @@
 # litdoc work log
 
+- 2026-08-04T16:47:31Z — Semantic jsonpretty merge resolution is fully green
+  with synchronous exit-0 receipts. Explicit ignored regeneration ran twice;
+  the second run against staged pages left `git diff --exit-code -- docs/tour`
+  clean. The exact `generated_tour_is_deterministic` test then passed three
+  consecutive foreground runs in 58.14 s, 58.26 s, and 58.62 s. The bounded
+  agent tier passed `cargo fmt --all --check`, `cix fmt --check examples`,
+  warning-denied workspace clippy, and serialized full workspace tests. Both
+  unstaged and staged `git diff --check` passed, the recursive START canon scan
+  found no interpolation, no merge conflicts remain, and only cix-prefixed
+  stale failed user-unit records were reset before verifying none remained.
+  The df guard started with 37 GiB root space and 181905 `/tmp` inodes free and
+  ended with 42 GiB and 181580 free. No focused VM scenario applies to this
+  tour-only conflict resolution; the orchestrator retains the independent full
+  flake-matrix gate and final prose pass. Next: commit the merge and stop.
+
+- 2026-08-04T16:38:47Z — Began semantic resolution of the in-progress
+  `origin/main` merge after jsonpretty landed. The tour4 chapter structure and
+  prose remain authoritative. Reapplied the landed JSON intent at the harness
+  boundary: hand-made manifests use `jq -n`, pretty-spacing assertions follow
+  the new output, multiline build maps are parsed as complete JSON values, and
+  the built listener manifest is displayed from its pretty on-disk file. Kept
+  Chapter 1's selected `jq` view because it teaches the runtime-contract fields
+  without dumping the entire first manifest. Both append-only journal histories
+  are retained; generated pages and fixture locks will be regenerated rather
+  than hand-merged. Next: regenerate, run three determinism receipts and the
+  complete bounded agent gate, then commit the merge.
+
+- 2026-08-04T16:29:14Z — Final bounded agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`, `devenv shell --
+  cargo run -p cix -- fmt --check examples`, `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`, and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. Explicit ignored tour regeneration exited
+  0 and `git diff --exit-code -- docs/tour` proved no drift. The exact
+  `generated_tour_is_deterministic` test passed three consecutive foreground
+  runs (50.59 s, 51.41 s, 53.06 s). Recursive `grep` found no `START` line
+  containing `${`, `git diff --check` passed, and no active user `cix-*` unit
+  remained. The df guard started with 40 GiB root space and 175454 `/tmp`
+  inodes free and ended with 36 GiB and 181923 free. No focused VM scenario is
+  applicable because this track changes only the executed tour harness and
+  generated guide; the orchestrator retains the full flake matrix gate. Track
+  is complete and ready for the requested orchestrator prose pass.
+
+- 2026-08-04T22:10:00Z — Chapter 7 and the cross-chapter cold-reader audit
+  regenerate successfully. Watch now captures its PID, executes SIGINT cleanup,
+  states default workspace/memo behavior, and gives the exact privileged
+  compose-watch boundary. A pinned two-platform flake executes a real
+  `nix develop` tool receipt. Faithful and dissolved runnable APPs now derive
+  from the same displayed five-line Dockerfile, both print `Hello, world!`, and
+  their independent nixpkgs locks and `--file` resolution/update commands are
+  explicit. The local migration bridge defines source context, receipts, and
+  gaps. The final bullet audit also added index prerequisites, Chapter 1 role
+  backing/service-kind context, correct Cargo.lock highlighting, explicit
+  compose readiness/baseline/shared-role rules, and a real Chapter 5 watchdog
+  restart plus debug PATH receipt. Next: commit, then run df guard and the full
+  bounded agent gate including three deterministic renders and canon scan.
+
+- 2026-08-04T21:25:00Z — Chapter 6 explicit regeneration exits 0. Named
+  listener commands now capture the real item and unit. New executable Python
+  fixtures create and connect to a real AF_UNIX socket, while compose projects
+  the producer directory at the consumer's explicit `/run/upstream` path. The
+  document shows track and pin policies, shared backing ownership/lifecycle,
+  honest lock-writing and root-activation boundaries, the root profile and
+  generation-list command, precise rollback scope, unary flag mappings, pod
+  and journal JSON locations, and exact log fields. Producer v1/v2 item names
+  survive store-hash normalization, and assertions prove the diff lines are
+  visibly different. Next: commit Chapter 6 and rebuild Chapter 7 around a
+  real five-line Dockerfile plus fully executable faithful/dissolved twins.
+
+- 2026-08-04T20:45:00Z — Chapter 5 explicit regeneration exits 0 with a real
+  rootless web lifecycle: readiness succeeds, the generated manager properties
+  are inspected, state is written and read after restart, and the tour restores
+  any pre-existing user-state value afterward. The chapter now validates the
+  implemented compose secret source and gives the exact privileged supply
+  commands, defines the debug delimiter and observability columns/selectors,
+  scopes closed-root as an opt-in audit, and creates, inspects, removes, and
+  unloads a scheduled APP timer pair. Host-specific manager warnings and live
+  accounting remain declared normalizations. Next: commit Chapter 5, then make
+  Chapter 6's Unix producer/consumer edge and compose update receipts concrete.
+
+- 2026-08-04T20:05:00Z — Chapter 4 explicit regeneration passes. The hand-made
+  item is now honestly labelled taggable-but-not-runnable, `nix store add`, GC
+  roots, tag argument order, platform metadata, and the inspect `artifact`
+  label are explained in plain terms. V2 and v3 directories are each created,
+  shown, added, captured, and only then tagged. Families are scoped to their
+  actual namespace/list behavior. Distribution now establishes separate
+  publisher/consumer indexes, gives the qualified-ref grammar before use,
+  defines closure/download behavior, and distinguishes the unsigned loopback
+  receipt from TLS + signed-cache + trusted-public-key production setup. Next:
+  commit Chapter 4 and replace Chapter 5's parse-only web story with a live
+  readiness/state/restart lifecycle.
+
+- 2026-08-04T19:40:00Z — Chapter 3 regeneration passes with the original real
+  warm/cold/FHS/proj1 builds intact. The prose now labels FETCH grammar and
+  trust modes, defines memo/build-view/lock/dev-env at first use, states the
+  exact workspace and snapshot-cache locations, and gives the complete
+  update-lock→cold transition including fresh-machine and GC refusal behavior.
+  The local fixture server is explicit. Proj1 now shows Cargo manifests,
+  lock, source tree, resulting refs, captured path variables, visibly changed
+  worker output, and a byte-identical API receipt. Lock files render as JSON.
+  Exact explicit tour generation exited 0; next: commit Chapter 3, then build
+  all three naming-demo items before rewriting Chapter 4 distribution prose.
+
+- 2026-08-04T19:10:00Z — Chapters 1 and 2 execute cleanly in explicit tour
+  regeneration. Chapter 1 now checks Nix/flakes/user-systemd, teaches captured
+  item paths, runs the nginx item through the real user manager, probes HTTP,
+  and stops the printed unit; a checked-in launcher uses native projections in
+  production and `CIX_APP` only on degraded user managers. Host-specific
+  degradation blocks normalize to the declared single marker. Chapter 2 now
+  defines every language noun, puts five Dockerfile/Cixfile lines side by side,
+  proves a real store symlink target and CIP-91 materialization, and supplies
+  the missing runtime/operator grammar. Chapter 1 plus the verbatim
+  preamble/index committed as `2b80163`; next commit is the independently
+  generated Chapter 2 source/page.
+
+- 2026-08-04T18:30:00Z — Started `track/tour4` from clean `310022e` after
+  reading the track spec, both cold-reader `CONFUSIONS.md` reports in full,
+  the repository/design journals, the existing seven-chapter generator, and
+  the runtime/compose/build implementation seams needed for honest commands.
+  Every report bullet is acceptance scope. Direct `cix run` has no credential
+  source flag: implemented runtime credentials are compose-level
+  `secrets` consumed by root-owned `cix run --compose`/`cix up`; compose
+  activation likewise requires root. The tour will execute the portable
+  rootless service, persistence, timer, listener, and Unix-probe receipts,
+  while labeling exact credential/activation commands as non-executed instead
+  of fabricating privilege. Planned commits are index/infrastructure followed
+  by one commit per chapter; final gate is the standard agent tier, three
+  consecutive deterministic renders, the `${` START canon scan, and df guard.
 - 2026-08-04T16:14:29Z — Committed the resolved `origin/main` merge as
   `f298152` (`Merge origin/main into track/jsonpretty`). Both journal histories
   are retained; main's `show_file` tour structure is authoritative and this

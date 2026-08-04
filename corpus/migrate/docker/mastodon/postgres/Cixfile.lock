@@ -2,15 +2,15 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "148bab9c1c3c53136ecb44a6ea356a0ed5b39b06",
-      "narHash": "sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=",
-      "lastModified": 1785571196
+      "rev": "e72e4f299401a3689d4b3d5fc6496b11db7064eb",
+      "narHash": "sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=",
+      "lastModified": 1785828668
     }
   },
   "outputs": {
     "postgres": {
-      "sourceHash": "af43381b1059d439deb3bf59d1efd204eca0f662139088492d1f8ec440b1fc57",
-      "storePath": "/nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres"
+      "sourceHash": "224c084229634a79d321822a0ed3658c8e6557f13a4a5a0843bcdada641e60cf",
+      "storePath": "/nix/store/rlvrgga96ibd97c6fvvcpcanh66afmkz-cix-item-postgres"
     }
   }
 }

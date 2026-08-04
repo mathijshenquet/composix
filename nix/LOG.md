@@ -1,5 +1,35 @@
 # VM dogfood log
 
+- 2026-08-04T00:00:00Z: Phase 2 implementation and selection receipts:
+  `47ca63c` adds `nix run .#progressive-vm-check`, which compares current and
+  base scenario `drvPath`s using Nix evaluation, prints every selected/skipped
+  name and reason, runs selected roots, and keeps `--full` one flag away.
+  Corrected the first filter before gate: it accidentally omitted Rust source
+  files; the final `lib.fileset.toSource` includes the Cargo manifests, lock,
+  and workspace crates. Controlled committed probes from that baseline:
+  docs `47ca63c..fa39ed9` selected 0/13; corpus `fa39ed9..0583e4c` selected
+  0/13; crate `0583e4c..6312e2b` selected 13/13 (dry-run receipt). The first
+  two exit 0 without running a VM; the third loudly reports all 13 would run.
+
+- 2026-08-04T00:00:00Z: Phase 1 receipt complete. Real parent/child pairs:
+  docs-only `9b8f347..4e29c18`, corpus-only `66f60f4..8c268ad`, and
+  crate-only `8420a95..4dd3b73`. `nix eval` of every scenario's `drvPath`
+  found 13/13 changed in every pair. Their shared `cix` derivation changed in
+  every pair because `src = self` captured the complete tracked tree; each
+  scenario reaches that derivation and invokes cix. Chosen design: retain
+  Nix's derivation cache as the selector, narrow cix's source to its Cargo
+  workspace inputs, and add a loud eval-derived VM driver with a one-flag full
+  escape. A crate-code change still truthfully selects every scenario until
+  the binary itself gains narrower contract strata.
+
+- 2026-08-04T00:00:00Z: Started `track/cip93` phase 1. The mandate is to
+  measure why Nix caching does not already provide change-keyed VM selection
+  for docs-only, corpus-only, and crate-only commits before choosing an
+  implementation. Current suspected edge: `flake.nix` builds `cix` from
+  `src = self`, and every scenario receives that package. Next: evaluate and
+  dry-run parent/child pairs for one real commit of each shape, then record
+  the complete scenario derivation map and selection-design verdict.
+
 - 2026-07-30T00:00:00Z: Collision cleanup made the side-by-side VM exceed five
   minutes. The collision is intentionally a failed compose and is the last assertion
   in an isolated disposable VM, so it need not be brought down before VM teardown;

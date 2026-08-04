@@ -50,15 +50,16 @@ long-running members.
 
 ## Synchronous receipt
 
-`./check.sh cix` exited 0 on 2026-08-02. Its final items were:
+The CIP-91/92 in-place modernization reran `./check.sh cix` and exited 0
+synchronously on 2026-08-04. Its final items were:
 
 ```text
-postgres  /nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres
-redis     /nix/store/94pyzpkfryrjbxm92mrp8qa2h3dbhdsa-cix-item-redis
-web       /nix/store/afc7xdw294x7vhk6q6rripry1xiys3vk-cix-item-web
-sidekiq   /nix/store/p0aafmd6j6mvrx409avj5xpahrnykw6m-cix-item-sidekiq
-streaming /nix/store/lpwp6923950n3rkv32flld7wdmqlnqw0-cix-item-streaming
-cleanup   /nix/store/wf46a8q03rcjm72nqbzy9n3xpl7f6hh7-cix-item-cleanup
+postgres  /nix/store/rlvrgga96ibd97c6fvvcpcanh66afmkz-cix-item-postgres
+redis     /nix/store/ncasnv8rpcvri8dr3xlik0nnnnpklqrw-cix-item-redis
+web       /nix/store/4kw4nh1lpw6dcbb8d9zpw2w95pf71nac-cix-item-web
+sidekiq   /nix/store/f13zgdsxzmpr8s9dfsa4jamv7rip1hhb-cix-item-sidekiq
+streaming /nix/store/ja9qyk1m0ldczqa42nh230gfrpyvq26r-cix-item-streaming
+cleanup   /nix/store/xvyx25a61w408dksz09jcyv7gmmy59xq-cix-item-cleanup
 ```
 
 The compose check reported six services and two Unix edges. During activation,
@@ -76,7 +77,7 @@ EXIT cleanup completed with status 0, including `cix down --purge --yes`.
 The final rerun used `devenv shell -- ./corpus/migrate/docker/mastodon/check.sh cix`
 and exited 0 synchronously. It refreshes the `pkgs` lock before every member
 build so a locally cached item cannot hide a garbage-collected external runtime
-path. A second refresh of all six `Cixfile.lock` files produced no byte changes.
+path.
 
 ## Closed-root receipt
 

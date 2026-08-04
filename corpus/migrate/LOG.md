@@ -829,3 +829,41 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
 
 - All standard receipts exited 0: `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`.
 - Tour regeneration initially lost a loopback-server startup race, then its immediate retry exited 0. The committed tour drift and deterministic-render tests both exited 0, as did the final `devenv shell -- cargo test -p cix --test corpus` browser drift/determinism suite and `git diff --check`. The only remaining tracked change is this append-only receipt.
+
+## 2026-08-04 — track/mastodon2 start
+
+- Read the track specification, corpus maintenance rules, and CIP-91. The
+  post-restructure Docker case exists at `docker/mastodon/`, so the required
+  work is unblocked. The modernization is deliberately in place: preserve
+  every compose member, tag, port, edge, secret, readiness probe, and native
+  role directory; replace LINK package assembly and interpolated command paths
+  with block-local IMPORT, store-aware COPY, and bare argv.
+
+## 2026-08-04 — PostgreSQL import assembly correction
+
+- The first full six-member probe built and tagged all modernized members but
+  was not a receipt: PostgreSQL `initdb` failed to load `dict_snowball` after
+  the command moved from its direct store path to the imported `/bin` union.
+  PostgreSQL determines its extension directory from its invoked executable;
+  a whole package lib COPY to `/lib` is correctly rejected as a reserved
+  runtime path. Both PostgreSQL process entrypoints resolve their imported
+  symlinks before execution, retaining bare Cixfile argv while preserving the
+  package's original executable-relative extension lookup. The failed stack
+  was synchronously purged before the retry.
+
+## 2026-08-04 — track/mastodon2 receipts
+
+- The full normal compose probe, `devenv shell --
+  ./corpus/migrate/docker/mastodon/check.sh cix`, exited 0 synchronously after
+  building and tagging all six members. It exercised shared read/write state,
+  delayed readiness, the credential source, timer executions, scoped logs,
+  and final purge; the exact fresh item paths are recorded in the case receipt.
+- Browser regeneration and its ordinary corpus drift suite exited 0. The
+  standard agent tier also exited 0: workspace formatting, examples format
+  check, warning-denied workspace clippy, and full workspace tests. Tour
+  regeneration and drift checks completed without changes.
+- Focused closed-root receipt, `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit --no-link -L`, exited 0
+  synchronously under TCG. Its exhaustive suite included Mastodon's six
+  modernized members, closed-root assertions, credentials, readiness, timer,
+  scoped logs, and purge.
