@@ -11,8 +11,9 @@ You will connect two independently built services with a Unix edge and shared st
 
 A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
 
-```sh
-$ cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json
+#### `listener-fixture/bin/listenfds`
+
+```
 #!/usr/bin/python3
 import os
 import socket
@@ -34,6 +35,11 @@ while True:
             + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             + b"Connection: close\r\n\r\n" + body
         )
+```
+
+#### `listener-fixture/cix-manifest.json`
+
+```json
 {
   "cixManifest": 0,
   "start": ["bin/listenfds"],
@@ -58,8 +64,9 @@ $ systemctl --user stop cix-run-listener-fixture-NONCE.service
 
 ## Two items, one operator document
 
-```sh
-$ cat producer/Cixfile consumer/Cixfile
+#### `producer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE producer
@@ -68,6 +75,11 @@ START sleep 300
 ENV VERSION = v1
 STATEDIR /var/lib/shared
 RUNDIR /run/producer
+```
+
+#### `consumer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE consumer
@@ -89,8 +101,9 @@ $ cix build consumer -t v1
 
 The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
 
-```sh
-$ cat compose.json
+#### `compose.json`
+
+```json
 {
   "cixCompose": 1,
   "name": "tour-stack",
@@ -120,8 +133,9 @@ $ cix compose check compose.json
 compose tour-stack: 2 services, 1 edges, valid
 ```
 
-```sh
-$ cat cix.lock
+#### `cix.lock`
+
+```
 {
   "paths": {
     "consumer": {

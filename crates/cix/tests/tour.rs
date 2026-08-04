@@ -346,8 +346,67 @@ impl Doc {
         writeln!(self.text, "```text\n{normalized}\n```\n").expect("writing command output");
     }
 
+    fn show_file(&mut self, path: impl AsRef<Path>) -> String {
+        let path = path.as_ref();
+        let actual = if path.is_absolute() {
+            path.to_owned()
+        } else {
+            self.base.join(path)
+        };
+        let contents = fs::read_to_string(&actual)
+            .unwrap_or_else(|error| panic!("reading displayed file {}: {error}", actual.display()));
+        let label = relative_file_label(path, &self.base);
+        let language = file_language(path);
+        writeln!(self.text, "#### `{}`\n", label.display()).expect("writing file label");
+        writeln!(self.text, "```{language}").expect("writing file fence");
+        let normalized = normalize(&contents, &self.base);
+        self.text.push_str(&normalized);
+        if !normalized.ends_with('\n') {
+            self.text.push('\n');
+        }
+        writeln!(self.text, "```\n").expect("writing file content");
+        contents
+    }
+
     fn finish(self) -> String {
         self.text
+    }
+}
+
+fn relative_file_label(path: &Path, base: &Path) -> PathBuf {
+    if !path.is_absolute() {
+        return path.to_owned();
+    }
+    if let Ok(relative) = path.strip_prefix(base) {
+        return relative.to_owned();
+    }
+    if let Ok(store_relative) = path.strip_prefix("/nix/store") {
+        let mut components = store_relative.components();
+        if components.next().is_some() {
+            let relative = components.as_path();
+            if !relative.as_os_str().is_empty() {
+                return relative.to_owned();
+            }
+        }
+    }
+    path.file_name().map(PathBuf::from).unwrap_or_default()
+}
+
+fn file_language(path: &Path) -> &'static str {
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if filename.starts_with("Cixfile") {
+        return "dockerfile";
+    }
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("nix") => "nix",
+        Some("conf") => "nginx",
+        Some("py") => "python",
+        Some("json") => "json",
+        Some("html") => "html",
+        _ => "",
     }
 }
 
@@ -444,12 +503,8 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         true,
     );
     doc.sh_in(prompt, state_dir, &format!("ls -1 {name}"), true);
-    doc.sh_in(
-        prompt,
-        state_dir,
-        &format!("cat {name}/message {name}/cix-manifest.json"),
-        true,
-    );
+    doc.show_file(format!("{name}/message"));
+    doc.show_file(format!("{name}/cix-manifest.json"));
     doc.sh_in(
         prompt,
         state_dir,
@@ -829,7 +884,9 @@ RUNDIR /run/nginx
 
     doc.para("## Build the item");
     doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
-    let source = doc.sh("cat Cixfile index.html nginx.conf", true);
+    let source = ["Cixfile", "index.html", "nginx.conf"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(source.contains("IMPORT ${pkgs.nginx}"));
     assert!(source.contains("START nginx -c /etc/nginx/nginx.conf -e stderr"));
     assert!(!source.contains("${src}"));
@@ -838,7 +895,7 @@ RUNDIR /run/nginx
 
     let built = doc.sh("cix build .", true);
     let store_path = built_store_path(&built, "-cix-item-hello");
-    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
+    let manifest = doc.show_file(Path::new(&store_path).join("cix-manifest.json"));
     assert!(manifest.contains("/bin/nginx"));
     assert!(manifest.contains("\"/var/cache/nginx\""));
     assert!(manifest.contains("\"/run/nginx\""));
@@ -897,7 +954,9 @@ CLAIM jit
 
     doc.para("## A graph you can read from top to bottom");
     doc.para("A Cixfile is a backward-only graph. `FROM` binds inputs, a block binds the artifact it creates, and `${name}` can refer only to something declared earlier; there are no ambient package names or inherited filesystem layers. The local directory is the one deliberate convenience: a bare `COPY index.html …` is the same source as `${src}/index.html` after `FROM . AS src`.");
-    let source = doc.sh("cat Cixfile index.html service.conf", true);
+    let source = ["Cixfile", "index.html", "service.conf"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(source.contains("FROM . AS src"));
     assert!(source.contains("COPY index.html /srv/language/index.html"));
     assert!(source.contains("ENV API_TOKEN required"));
@@ -921,7 +980,7 @@ CLAIM jit
     );
 
     doc.para("`FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.");
-    let generated = doc.sh(&format!("cat {store_path}/etc/language/build-origin"), true);
+    let generated = doc.show_file(Path::new(&store_path).join("etc/language/build-origin"));
     assert!(generated.contains("packages=/nix/store/") && generated.contains("-coreutils-"));
 
     doc.para("## Runtime declarations are grants");
@@ -975,7 +1034,7 @@ COPY ${{assemble}}/result /result
 
     doc.para("## FETCH, EXPECT, and deliberate lock movement");
     doc.para("This compact fixture uses both trust modes. `expected` carries the author's whole-tree SRI hash directly in the Cixfile; `resolved` asks cix to fetch twice and record only the downstream-observable path when you explicitly update that lock entry.");
-    let fetch_source = doc.sh("cat fetch-demo/Cixfile", true);
+    let fetch_source = doc.show_file("fetch-demo/Cixfile");
     assert!(fetch_source.contains("FETCH expected"));
     assert!(fetch_source.contains("EXPECT sha256-"));
     assert!(fetch_source.contains("FETCH resolved"));
@@ -987,7 +1046,7 @@ COPY ${{assemble}}/result /result
     );
     assert!(updated.contains("BUILDER assemble memo miss"), "{updated}");
     let result_path = built_store_path(&updated, "-cix-item-fetched-result");
-    let combined = doc.sh(&format!("cat {result_path}/result"), true);
+    let combined = doc.show_file(Path::new(&result_path).join("result"));
     assert_eq!(combined.trim(), "author-pinnedlock-pinned");
 
     doc.para("The lock keeps the immutable nixpkgs revision, FETCH pins, constructive step memos, consumed output objects, and a development-environment snapshot. The snapshot comes from the imported package world, so native toolchain variables arrive together; you do not hand-wire store paths such as `PKG_CONFIG_PATH`.");
@@ -1049,7 +1108,7 @@ COPY ${{native-build}}/result /result
     fs::write(fhs_demo.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing FHS demo lock");
 
     doc.para("The next FETCH downloads an ELF whose interpreter is the conventional GNU `/lib64/ld-linux-x86-64.so.2`. The builder imports a shell and core utilities but no libc, so executing the untouched download must fail—and the shown diagnostic is produced by the real trace, not copied into this guide.");
-    let fhs_source = doc.sh("cat fhs-demo/Cixfile", true);
+    let fhs_source = doc.show_file("fhs-demo/Cixfile");
     assert!(fhs_source.contains("http://"));
     assert!(!fhs_source.contains("pkgs.glibc"));
     let missing = doc.sh(
@@ -1075,7 +1134,7 @@ COPY ${{native-build}}/result /result
         true,
     );
     let repaired_path = built_store_path(&repaired, "-cix-item-native-result");
-    let fhs_result = doc.sh(&format!("cat {repaired_path}/result"), true);
+    let fhs_result = doc.show_file(Path::new(&repaired_path).join("result"));
     assert_eq!(fhs_result.trim(), "fhs-tour-ok");
 
     doc.para("## Capstone: one Rust workspace, two services");
@@ -1087,7 +1146,7 @@ COPY ${{native-build}}/result /result
         fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
     }
     doc.para("The capstone is a real Cargo workspace. One BUILDER imports its complete pinned toolchain, stages the declared workspace, and runs Cargo offline; two SERVICE blocks consume one release binary each.");
-    let proj1_source = doc.sh("cat proj1/Cixfile", true);
+    let proj1_source = doc.show_file("proj1/Cixfile");
     assert!(proj1_source.contains("cargo build --release --locked --offline --workspace"));
     assert!(proj1_source.contains("SERVICE proj1-api"));
     assert!(proj1_source.contains("SERVICE proj1-worker"));
@@ -1274,7 +1333,9 @@ START sleep 300
 
     doc.para("## The item owns needs; the operator owns values");
     doc.para("The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.");
-    let source = doc.sh("cat Cixfile server.py", true);
+    let source = ["Cixfile", "server.py"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(source.contains("STATEDIR /var/lib/runtime-guide"));
     assert!(source.contains("COPY server.py /srv/app/server.py"));
     assert!(source.contains("START python3 /srv/app/server.py"));
@@ -1414,10 +1475,12 @@ fn chapter_compose() -> String {
     doc.para("## Named listeners are systemd sockets");
     let listener_path = listener_fixture(&doc);
     doc.para("A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.");
-    let listener_source = doc.sh(
-        "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
-        true,
-    );
+    let listener_source = [
+        "listener-fixture/bin/listenfds",
+        "listener-fixture/cix-manifest.json",
+    ]
+    .map(|path| doc.show_file(path))
+    .join("");
     assert!(listener_source.contains("socket.fromfd(3"));
     assert!(listener_source.contains("\"listeners\""));
     let listen = next_listen();
@@ -1452,7 +1515,9 @@ fn chapter_compose() -> String {
         fs::write(directory.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
             .expect("writing compose member lock");
     }
-    let members = doc.sh("cat producer/Cixfile consumer/Cixfile", true);
+    let members = ["producer/Cixfile", "consumer/Cixfile"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(members.contains("RUNDIR /run/producer"));
     assert_eq!(members.matches("STATEDIR /var/lib/shared").count(), 2);
     let producer_build = doc.sh("cix build producer -t current", true);
@@ -1488,7 +1553,7 @@ fn chapter_compose() -> String {
     )
     .expect("writing compose fixture");
     doc.para("The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.");
-    let compose = doc.sh("cat compose.json", true);
+    let compose = doc.show_file("compose.json");
     assert!(compose.contains("\"shared\": \"payload\""));
     assert!(compose.contains("\"producer-api\""));
     assert!(compose.contains("\"logNamespace\": true"));
@@ -1506,7 +1571,7 @@ fn chapter_compose() -> String {
             ("consumer", "consumer:v1"),
         ],
     );
-    let lock = doc.sh("cat cix.lock", true);
+    let lock = doc.show_file("cix.lock");
     assert!(lock.contains(&first_producer));
     assert!(lock.contains(&consumer));
     let initial = doc.sh_after_warming("cix compose diff compose.json", true);
@@ -1578,7 +1643,9 @@ COPY message /message
     )
     .expect("writing watch Cixfile");
     fs::write(watch_dir.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing watch lock");
-    let watch_source = doc.sh("cat watch-app/Cixfile watch-app/message", true);
+    let watch_source = ["watch-app/Cixfile", "watch-app/message"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(watch_source.contains("ITEM watched"));
     assert!(watch_source.contains("first"));
 
@@ -1683,7 +1750,9 @@ COPY payload /payload
         .expect("writing dissolved lock");
 
     doc.para("A faithful twin preserves upstream build choreography when that behavior matters; a dissolved twin selects the nix-native result directly when the ceremony adds no contract. `--file` chooses one without renaming files or mixing trust state, and each Cixfile writes its own sibling lock.");
-    let twin_source = doc.sh("cat twins/Cixfile twins/Cixfile.dissolved", true);
+    let twin_source = ["twins/Cixfile", "twins/Cixfile.dissolved"]
+        .map(|path| doc.show_file(path))
+        .join("");
     assert!(twin_source.contains("BUILDER faithful-build"));
     assert!(twin_source.contains("ITEM translation\nCOPY payload /payload"));
     let faithful = doc.sh(
@@ -1888,6 +1957,22 @@ fn generate_tour() {
 #[test]
 fn generated_tour_is_deterministic() {
     assert_eq!(render_tour(), render_tour());
+}
+
+#[test]
+fn displayed_files_use_their_source_language() {
+    for (path, expected) in [
+        ("Cixfile", "dockerfile"),
+        ("Cixfile.dissolved", "dockerfile"),
+        ("overlay.nix", "nix"),
+        ("nginx.conf", "nginx"),
+        ("server.py", "python"),
+        ("compose.json", "json"),
+        ("index.html", "html"),
+        ("message", ""),
+    ] {
+        assert_eq!(file_language(Path::new(path)), expected, "{path}");
+    }
 }
 
 #[test]

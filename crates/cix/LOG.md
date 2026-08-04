@@ -1,5 +1,31 @@
 # litdoc work log
 
+- 2026-08-04T15:35:00Z — The file-display unit is complete. `Doc::show_file`
+  reads the real file, returns its raw bytes-as-text for the existing semantic
+  assertions, and renders normalized content beneath a relative-path H4 label;
+  store outputs are labeled relative to their item root. Cixfiles (including
+  `Cixfile.dissolved`) use `dockerfile`; nix, nginx config, Python, JSON, and
+  HTML extensions use their requested fences; other files use an untagged
+  fence. All 17 generated `$ cat` transcripts are gone, including single-file
+  built outputs and the raw-item aside; the only remaining `cat` is the RUN
+  command that genuinely demonstrates concatenation. Focused synchronous
+  receipts pass: fmt, the language-routing regression, explicit tour
+  generation, the committed-document match, `git diff --check`, and a generated
+  tour grep finding zero `$ cat` prompts. Next: commit this unit, then rebuild
+  the listener through a Cixfile and polish Chapter 2.
+
+- 2026-08-04T15:15:00Z — Started `track/tourpolish` from current main after
+  reading the repository journal, design decisions, cix tour log, tour source,
+  and the prior tour blueprint/voice rules. Scope is recorded in
+  `.dev/specs/track-tourpolish.md`: replace all 17 generated `$ cat` file dumps
+  with per-file typed blocks sourced from real files; rebuild Chapter 6's
+  listener item from a canonical `LISTENER` Cixfile and checked-in Python
+  probe; retain and explicitly explain Chapter 2's deliberate CIP-91
+  mount-below-linked-tree materialization example; and rename its demo-site
+  service. Planned commits separate the harness/file-display migration from
+  chapter fixture/prose changes. Final gate is the standard agent tier plus
+  three consecutive synchronous tour determinism runs.
+
 - 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
   `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell --

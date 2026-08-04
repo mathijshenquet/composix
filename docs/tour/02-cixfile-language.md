@@ -11,8 +11,9 @@ You will grow the first service into an example of every everyday Cixfile declar
 
 A Cixfile is a backward-only graph. `FROM` binds inputs, a block binds the artifact it creates, and `${name}` can refer only to something declared earlier; there are no ambient package names or inherited filesystem layers. The local directory is the one deliberate convenience: a bare `COPY index.html …` is the same source as `${src}/index.html` after `FROM . AS src`.
 
-```sh
-$ cat Cixfile index.html service.conf
+#### `Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
@@ -39,7 +40,17 @@ PORT dns = udp:5353
 LISTENER admin
 CLAIM egress
 CLAIM jit
+```
+
+#### `index.html`
+
+```html
 language guide
+```
+
+#### `service.conf`
+
+```nginx
 root=/srv/language
 state=/var/lib/language
 ```
@@ -64,8 +75,9 @@ mount ancestor: materialized
 
 `FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.
 
-```sh
-$ cat /nix/store/…-cix-item-language/etc/language/build-origin
+#### `etc/language/build-origin`
+
+```
 packages=/nix/store/…-coreutils-9.11
 ```
 
