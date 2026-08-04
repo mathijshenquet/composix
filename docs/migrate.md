@@ -71,7 +71,16 @@ RUN cargo build --release --locked --offline
 
 Do not write `${pkgs.cargo}/bin/cargo` inside `RUN`, and do not construct a builder `PATH`.
 `IMPORT` unions the packages' `bin`, `etc`, and `share` trees at `/bin`, `/etc`, and `/share`;
-earlier imports win collisions. Importing `${pkgs.cacert}` makes the conventional CA bundle
+earlier imports win collisions.
+
+`IMPORT` also provisions the toolchain environment those packages would receive in nixpkgs'
+own build shell: search-path variables whose values point into the imported set — for example
+`PKG_CONFIG_PATH`, `CMAKE_PREFIX_PATH`, or a linker/header search path — are computed once
+from the locked universe, snapshotted into `Cixfile.lock`, and exported to every build step.
+Never hand-wire a `CPATH=…` / `LIBRARY_PATH=…` preamble onto a compile command: import the
+libraries (their `dev` outputs where nixpkgs splits them) and let the snapshot carry the
+wiring. If a build still cannot find a header or library, that is a finding for the gap
+ledger, not plumbing to write inline. Importing `${pkgs.cacert}` makes the conventional CA bundle
 available, but composix never imports it implicitly. `RUN` has no network access.
 Tool-generated `#!/usr/bin/env ...` launchers also need an import that supplies `env` (usually
 `${pkgs.coreutils}`): the fixed `/usr/bin/env` alias points only at `/bin/env`.

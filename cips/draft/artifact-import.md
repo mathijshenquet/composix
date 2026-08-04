@@ -46,20 +46,40 @@ ITEM — accepts `IMPORT ${pkgs.x} …` with identical union semantics. The
 artifact's toolset is one visible line; bare `START`/`START_PRE` words stay
 build-time checked against the assembled tree.
 
-**(b) LINK dissolves into store-aware COPY.** COPY already knows when its
-source is immutable store content; it may then link instead of
-materializing as an implementation detail. `LINK x y` and `COPY x y` differ
-today only in that choice, so one verb suffices:
+**(b) LINK dissolves into store-aware COPY** (Mathijs 50% sure — turned
+over 4×, holds up if the rules below stay this clean; the implementation
+track spikes it first and LINK survives as fallback if the spike sours).
+`LINK x y` and `COPY x y` differ today only in symlink-vs-materialize at
+assembly, so one verb suffices, **by rule rather than heuristic**: COPY
+whose source is immutable store content links; COPY from build context
+materializes. The mode is derivable from the Cixfile text alone.
 
 ```dockerfile
-COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types   # links under the hood
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types   # links, by rule
 ```
 
-One concept is deleted from the language. Implementation must define the
-union rule when a later COPY writes *under* a link-assembled directory
-(materialize that subtree deterministically), and the migration spike
-verifies nothing at runtime distinguishes symlink from materialized file
-(realpath-sensitive apps get checked in the regeneration sweep).
+The four turns:
+
+1. *Runtime mutation* — moot: under the closed root the item tree is
+   read-only either way; writes live in role dirs regardless.
+2. *Realpath visibility* — the residual risk. Linked binaries are the
+   status quo (every LINK today is a symlink) and store-relative
+   resolution usually helps, but a linked *application tree* changes
+   upward/sibling resolution for realpath-walking runtimes (node's module
+   walk is the canonical case). Mitigation: the regeneration sweep tests
+   the whole corpus, and the escape is restructuring via a builder `cp` —
+   no new syntax.
+3. *Structural exception, statically known* — a role-dir/`DIR` mount
+   point beneath a COPY destination requires real ancestor directories
+   (nothing mounts under a symlink into the store), and a later COPY
+   writing beneath a linked directory needs the same. Both conditions are
+   visible at build time: materialize the destination chain in exactly
+   those cases (or refuse with a suggestion — spike decides). This also
+   answers directus: `COPY ${build}/dist /directus` + three STATEDIRs
+   under `/directus` forces `/directus` to materialize, automatically.
+4. *Distribution* — linking genuinely wins: referenced packages stay
+   shared closure members across items (smaller NARs, dedup over the
+   wire); materializing would inline the bytes per item.
 
 **(c) One canon for executables.** With (a), the blessed form is
 `IMPORT` + bare command words. Interpolated store paths in `START`/
@@ -101,6 +121,7 @@ redis, tomcat, verdaccio, wallos, watchtower, whoami) flip
   repetition.
 - **COPY union semantics** for writes under a link-assembled directory:
   materialize-on-write per subtree, or refuse and require narrower COPY
-  sources? (Tomcat's tree is the test case.)
+  sources? (Tomcat's tree is the test case; §3(b) turn 3 leaves it to the
+  spike.)
 - Does `ENV PATH = …` replacing the default still make sense once IMPORT
   is the canon, or should explicit PATH become a lint alongside (c)?
