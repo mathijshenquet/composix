@@ -1,50 +1,43 @@
-# volatile-fetch — make EXPECT consumed-set-aware (v2)
+# volatile-fetch — EXPECT is for stable artifacts; teach and diagnose, do not re-engineer (v3)
 
-Status: **draft v2** (2026-08-04; v2 after Mathijs: "waarom hier niet
-ook read set intersecten?" — he is right, and it dissolves the original
-proposal's lint/teaching surfaces).
+Status: **draft v3** (2026-08-04; v3 after Mathijs's sharper question:
+"waarom zou je überhaupt expliciete EXPECT schrijven als het ding dat
+je fetched niet stable is?" — exactly; v2's consumed-set EXPECT is
+withdrawn as complexity papering over a usage error).
 
-## 1. The problem
+## 1. The problem, reframed
 
-Whole-tree EXPECT hashes every fetched byte, including bytes nothing
-consumes: GitHub release JSON download counters (traefik), package-
-manager cache subsets (dozzle sumdb tiles, node_modules variance), a
-mirror-varying tarball (phpmyadmin). Such pins fail on any true
-refetch. Meanwhile the TOFU path (no EXPECT) ALREADY pins only
-consumed paths — the volatility problem exists precisely because
-EXPECT does not intersect with the consumed read set.
+The corpus failures (traefik release-JSON counters, phpmyadmin mirror
+variance, dozzle cache subsets) all wrote `EXPECT` over content that is
+not stable. That is the error itself: EXPECT is the author's precise
+whole-tree claim and belongs on genuinely stable artifacts (release
+tarballs, tagged files). For everything else the TOFU path already
+does the right thing — it pins only consumed paths, so volatile
+side-bytes never enter the pin.
 
-## 2. Prior work
+## 2. What was considered and dropped
 
-CIP-87/D69 built the consumed-set machinery: per-path content records
-in the lock, narrowing pins to what downstream reads. v1 of this draft
-proposed teaching normalization idioms plus a volatile-shape lint —
-respectively mediocre DX and a maintenance surface (Mathijs), both now
-demoted.
+- v1: normalization teaching + a volatile-shape lint — mediocre DX and
+  a maintenance surface (Mathijs).
+- v2: consumed-set EXPECT — dissolves the symptom but changes EXPECT
+  semantics, adds re-blessing churn on consumer changes, and still
+  encourages EXPECT where it does not belong.
 
 ## 3. Recommendation
 
-`EXPECT` verifies the **consumed subset**: the declared hash covers the
-per-path content records of exactly the paths later steps consume,
-computed from the same lock records TOFU uses. Volatile side-bytes
-become irrelevant to both trust modes.
+1. **Teaching (one paragraph in migrate.md)**: EXPECT only what is
+   stable; for volatile or ecosystem-managed fetches, use TOFU
+   consumed pins and, when author trust is wanted, verify upstream's
+   published checksum inside RUN (the corpus already does this:
+   `sha256sum -c` against the vendor value — trust without pinning
+   noise).
+2. **The mismatch diagnostic teaches**: on EXPECT divergence, cix
+   already names both hashes; add one line — if a refetch of unchanged
+   upstream diverges, the fetched tree is volatile; drop EXPECT and
+   rely on consumed pins (command shown), or pin a stable asset URL.
+3. **Corpus sweep**: remove the wrongly-placed EXPECTs
+   (traefik/phpmyadmin/dozzle class), keeping their RUN-level upstream
+   checksum verifications; re-grade rows.
 
-The honest trade-off: the consumed set changes when consumers change —
-adding a `COPY ${fetch}/other-file …` shifts the expected hash. The
-diagnostic makes re-blessing precise: on mismatch, print the old and
-new consumed path lists and their per-path hashes, so the author sees
-"you now also consume X" versus "content of Y changed" at a glance —
-these are distinguishable cases, and only the second is a trust event.
-
-Corpus sweep after landing: traefik/phpmyadmin/dozzle-class cases
-re-pin under the new semantics; the teaching paragraph in migrate.md
-shrinks to "EXPECT covers what you consume".
-
-## 4. Open questions
-
-- Spelling of a whole-tree escape (if any consumer genuinely wants
-  everything: `COPY ${fetch}/ .` already expresses it naturally — is
-  an explicit flag ever needed?)
-- Migration: existing whole-tree EXPECT values fail under consumed-set
-  semantics; alpha rule says hard switch with a clear error naming the
-  recompute command — confirm.
+**Effort.** Small: one diagnostic line, one teaching paragraph, a
+mechanical corpus sweep.
