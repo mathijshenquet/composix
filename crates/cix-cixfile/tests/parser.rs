@@ -107,10 +107,13 @@ STATEDIR /var/lib/migrate
     #[test]
     fn import_accepts_whole_package_refs_and_path_has_migration_errors() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nIMPORT ${pkgs.coreutils}\nRUN true\nSERVICE app\nSTART /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nIMPORT ${pkgs.coreutils}\nRUN true\nSERVICE service\nIMPORT ${pkgs.bash}\nIMPORT ${build}\nSTART bash\nAPP app\nIMPORT ${pkgs.coreutils}\nSTART true\nITEM item\nIMPORT ${pkgs.bash}\n",
         )
         .unwrap();
         assert_eq!(parsed.builders["build"].imports.len(), 2);
+        assert_eq!(parsed.artifacts["service"].imports.len(), 2);
+        assert_eq!(parsed.artifacts["app"].imports.len(), 1);
+        assert_eq!(parsed.artifacts["item"].imports.len(), 1);
 
         let suffix = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}/bin\nSERVICE app\nSTART /bin/true\n",
@@ -153,6 +156,57 @@ STATEDIR /var/lib/migrate
             BuildStep::Copy(Copy { .. })
         ));
         assert_eq!(parsed.artifacts["app"].copies.len(), 2);
+    }
+
+    #[test]
+    fn store_copy_mode_and_structural_materialization_are_static() {
+        let parsed = parse(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER build
+COPY seed seed
+SERVICE linked
+COPY ${pkgs.coreutils} /toolset
+START ${pkgs.coreutils}/bin/true
+SERVICE tomcat
+COPY ${build}/tomcat /tomcat
+COPY patch /tomcat/conf/patch
+START ${pkgs.coreutils}/bin/true
+SERVICE directus
+COPY ${build}/dist /app
+STATEDIR /app/database
+DIR /app/uploads
+START ${pkgs.coreutils}/bin/true
+SERVICE file-write
+COPY ${pkgs.coreutils} /app
+FILE /app/config <<EOF
+configured
+EOF
+START ${pkgs.coreutils}/bin/true
+SERVICE local
+COPY ${src}/tree /tree
+START ${pkgs.coreutils}/bin/true
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(parsed.artifacts["linked"].copies[0].mode, CopyMode::Link);
+        assert_eq!(
+            parsed.artifacts["tomcat"].copies[0].mode,
+            CopyMode::Materialize
+        );
+        assert_eq!(
+            parsed.artifacts["directus"].copies[0].mode,
+            CopyMode::Materialize
+        );
+        assert_eq!(
+            parsed.artifacts["file-write"].copies[0].mode,
+            CopyMode::Materialize
+        );
+        assert_eq!(
+            parsed.artifacts["local"].copies[0].mode,
+            CopyMode::Materialize
+        );
     }
 
     #[test]
@@ -345,7 +399,7 @@ START /bin/true \
     }
 
     #[test]
-    fn cachedir_and_link_use_the_d52_spellings() {
+    fn cachedir_and_deprecated_link_alias_parse() {
         let parsed = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nSTART /bin/hello\nCACHEDIR /var/cache/app\n",
         )
@@ -355,12 +409,11 @@ START /bin/true \
             .dirs
             .cache
             .contains("/var/cache/app"));
-        let Assembly::Link { dst, target } = &parsed.artifacts["app"].assembly[0] else {
-            panic!("expected LINK");
-        };
-        assert_eq!(dst, "bin/hello");
+        let copy = &parsed.artifacts["app"].copies[0];
+        assert_eq!(copy.dst, "bin/hello");
+        assert_eq!(copy.mode, CopyMode::Link);
         assert!(matches!(
-            target.parts.first(),
+            copy.src.parts.first(),
             Some(TemplatePart::Package { attrpath, .. }) if attrpath == "hello"
         ));
 
@@ -613,8 +666,8 @@ START /bin/true \
         )
         .unwrap();
         assert_eq!(parsed.artifacts["data"].kind, ArtifactKind::Item);
-        assert_eq!(parsed.artifacts["data"].copies.len(), 1);
-        assert_eq!(parsed.artifacts["data"].assembly.len(), 2);
+        assert_eq!(parsed.artifacts["data"].copies.len(), 2);
+        assert_eq!(parsed.artifacts["data"].assembly.len(), 1);
 
         for directive in [
             "START /bin/hello",
