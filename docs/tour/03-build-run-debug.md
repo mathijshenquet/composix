@@ -109,6 +109,49 @@ $ cat prebuilt/Cixfile.lock
       "narHash": "sha256-Zav/GPnMh1fTIW3HoM20hjbFGlBbdrr35lNlXrdaf7U="
     }
   },
+  "evalPlan": {
+    "version": 1,
+    "cixfileHash": "2399aa4f1a1bcdd54e8763e94e0112ea602ba1a1cc3113a1db1b71567267755b",
+    "skeleton": "v2:/usr/bin/env->/bin/env;x86_64:/lib64/ld-linux-x86-64.so.2->/lib/cix-loaders/ld-linux-x86-64.so.2,/lib/ld-musl-x86_64.so.1->/lib/cix-loaders/ld-musl-x86_64.so.1",
+    "inputs": {
+      "pkgs": {
+        "url": "github:NixOS/nixpkgs/nixos-unstable",
+        "kind": "package-universe",
+        "overlays": []
+      },
+      "prior": {
+        "url": "tour/tour-assets:v1",
+        "kind": "artifact",
+        "overlays": []
+      }
+    },
+    "topLevelFetchCount": 0,
+    "builders": {},
+    "artifacts": {
+      "copied-greeting": {
+        "kind": "app",
+        "imports": [],
+        "copies": [
+          {
+            "src": [
+              {
+                "kind": "binder",
+                "name": "prior"
+              },
+              {
+                "kind": "literal",
+                "value": "/share/greeting"
+              }
+            ],
+            "dst": "share/greeting",
+            "mode": "link",
+            "line": 5
+          }
+        ],
+        "assembly": []
+      }
+    }
+  },
   "outputs": {
     "copied-greeting": {
       "sourceHash": "a83cdbecbebff0c89b55a61b51cd67e16a9e65f5c63dcde6f8c9f427dec7986b",
