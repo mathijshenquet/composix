@@ -1,7 +1,14 @@
 # builder-dev-imports — headers, libraries, and pkg-config through IMPORT
 
-Status: **draft** (2026-08-04, from Mathijs's corpus review of filestash;
-loop-1 promotion of a `→ language` gap).
+Status: **withdrawn** (2026-08-04, same day: Mathijs's review — CIP-88(a)
+already decided and built this. The vendored dev-env snapshot synthesizes
+the toolchain environment from the IMPORTed packages via nixpkgs' own
+stdenv machinery (`nix print-dev-env`), lock-pinned; a cix-side
+`IMPORT DEV` union would re-mint exactly the per-variable list the
+CIP-88 amendment rejected. Filestash's hand-wired preamble predates
+CIP-88 — its GAPS.md now routes to stale-regenerate, and the
+regeneration is the verification that the snapshot covers the
+`CPATH`/`LIBRARY_PATH` case.)
 
 ## 1. The problem
 

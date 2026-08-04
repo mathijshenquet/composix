@@ -1,7 +1,10 @@
-# artifact-import — one canon for referencing package binaries in artifacts
+# artifact-import — one way to assemble an artifact's toolset
 
-Status: **draft** (2026-08-04, from Mathijs's corpus review: LINK/COPY slop
-across the migration corpus; loop-1 promotion of `→ language` gaps).
+Status: **draft v2** (2026-08-04; v1 same day from Mathijs's corpus review,
+v2 after his design round: STATEDIR-direct kills runtime-path links, LINK
+itself is on the table, and the governing principle is *fewer ways to do
+the same thing* — the current degrees of freedom are disorienting and
+footgunny).
 
 ## 1. The problem
 
@@ -9,87 +12,95 @@ An artifact (SERVICE/APP/ITEM) that runs binaries from nixpkgs packages has
 no canonical way to say so. The corpus exhibits **four** competing styles:
 
 1. **LINK into `/bin` + bare START** (adminer, directus, echo-server,
-   verdaccio, watchtower, whoami): `LINK ${pkgs.nodejs_22}/bin/node /bin/node`
-   then `START node …`. The bare name resolves through the artifact's own
-   assembled `/bin` — an *implicit self-import* that reads as magic, and at
-   scale becomes a LINK pile (wallos carries six).
-2. **Interpolated START path, no assembly at all** (redis):
-   `START ${pkgs.redis}/bin/redis-server …`. Reads cleanest for a one-binary
-   service, but the resulting item has no `bin/` to speak of — the filesystem
-   a debugger sees is oddly empty.
-3. **Whole-package COPY + hand-built PATH** (tomcat):
-   `COPY ${pkgs.coreutils} /coreutils` … `ENV PATH = /coreutils/bin:…`.
-   Materializes package trees at ad-hoc root paths and reimplements what
-   IMPORT already does for builders.
-4. **Checked-in wrapper scripts that assume style 1** (wallos
-   `setup.sh`/`start.sh` invoking bare names).
+   verdaccio, watchtower, whoami) — an *implicit self-import* that reads as
+   magic and degenerates into LINK piles (wallos carries six).
+2. **Interpolated START path, no assembly** (redis) —
+   `START ${pkgs.redis}/bin/redis-server …`; clean for one binary, but the
+   item a debugger enters is oddly empty.
+3. **Whole-package COPY + hand-built PATH** (tomcat) — reimplements builder
+   IMPORT at ad-hoc root paths.
+4. **Wrapper scripts assuming style 1** (wallos setup/start).
+
+Four spellings of one intent is the defect; the fix is to make one of them
+the only blessed one.
 
 ## 2. Prior work
 
-Builders already solved this: `IMPORT` unions the packages' `bin`, `etc`,
-and `share` trees at `/bin`, `/etc`, `/share`, earlier imports win
-collisions, and bare command words are checked at build time. Artifacts were
-deliberately excluded when IMPORT landed (D56-era) on the theory that the
-runtime toolset should be assembled explicitly — and `docs/migrate.md`
-teaches exactly that ("The runtime toolset is the artifact's own `bin/`"),
-which is where the LINK piles come from: every needed binary becomes a LINK
-line, and a reviewer can't tell a deliberate single-binary exposure from a
-mechanical pile.
+Builders already have the answer: `IMPORT` unions the packages'
+`bin`/`etc`/`share` at `/bin`/`/etc`/`/share`, earlier wins, bare command
+words are build-time checked. `docs/migrate.md` currently teaches style 1
+for artifacts, which is where the piles come from.
 
-A sibling problem hides in builders today: directus performs a symlink
-ritual (`mkdir -p … && rm -rf … && ln -s /var/lib/directus/database
-database`) purely to redirect app-relative paths into state — a state
-contract buried in shell.
+On the "does interpolation vs linking matter technically?" question
+(Mathijs, this round): no hard reason survives inspection. A symlink's
+target *is* the store-path string, so link-assembly embeds exactly the same
+references in the item as interpolated argv does; the closure walk sees
+both; and content-addressing pain concentrates on *self*-references, which
+neither form creates. The only principled argument left is uniformity —
+which the governing principle says is sufficient.
 
 ## 3. Recommendation
 
-**(a) Extend `IMPORT` to artifact blocks** with builder semantics: union the
-named packages' `bin`/`etc`/`share` into the artifact tree; earlier wins;
-bare `START`/`START_PRE` words keep being build-time checked. Wallos's six
-LINKs become
+**(a) IMPORT becomes universal.** Every block kind — BUILDER, SERVICE, APP,
+ITEM — accepts `IMPORT ${pkgs.x} …` with identical union semantics. The
+artifact's toolset is one visible line; bare `START`/`START_PRE` words stay
+build-time checked against the assembled tree.
+
+**(b) LINK dissolves into store-aware COPY.** COPY already knows when its
+source is immutable store content; it may then link instead of
+materializing as an implementation detail. `LINK x y` and `COPY x y` differ
+today only in that choice, so one verb suffices:
 
 ```dockerfile
-SERVICE wallos
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php} ${pkgs.nginx} ${pkgs.supercronic}
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types   # links under the hood
 ```
 
-and the self-import stops being magic: the toolset is one visible line,
-symmetric with builders.
+One concept is deleted from the language. Implementation must define the
+union rule when a later COPY writes *under* a link-assembled directory
+(materialize that subtree deterministically), and the migration spike
+verifies nothing at runtime distinguishes symlink from materialized file
+(realpath-sensitive apps get checked in the regeneration sweep).
 
-**(b) LINK keeps a narrower, honest job**: placing a *single file* at a
-chosen path — `LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types` —
-or deliberately exposing exactly one binary without the package's whole
-`bin/`. A LINK pile (≥3 links into `/bin` from packages) becomes a lint
-suggesting IMPORT.
-
-**(c) Runtime-path LINK targets**: artifact `LINK` accepts an absolute
-runtime path as target when (and only when) that path lies under one of the
-artifact's declared role dirs or a declared `DIR`:
+**(c) One canon for executables.** With (a), the blessed form is
+`IMPORT` + bare command words. Interpolated store paths in `START`/
+`START_PRE` argv remain grammatically legal (FILE content and COPY sources
+need interpolation regardless) but become a **lint**: the strict mode
+warns and the teaching prompt never shows the form. Redis becomes
 
 ```dockerfile
-SERVICE directus
-  STATEDIR /var/lib/directus
-  LINK /var/lib/directus/database /directus/database
+SERVICE redis
+  IMPORT ${pkgs.redis}
+  STATEDIR /data
+  START redis-server --dir /data --port 6379
 ```
 
-The role-dir restriction keeps the link typed — no dangling escapes into
-undeclared host paths — and dissolves the mkdir/rm/ln ceremony.
+Lint timing per Mathijs ("slightly YAGNI, left to you"): the lint lands
+with the regeneration sweep, where mechanical generation makes it earn its
+keep; no separate track before that.
+
+**(d) State binds where the app expects it — v1's runtime-path LINK is
+rejected.** `STATEDIR /directus/database` is the whole answer: role dirs
+already accept any clean absolute path and already do the binding, so
+redirect-symlink ceremony (builder `ln -s` dances *and* v1's proposed
+`LINK /var/lib/… /app/…`) is slop against existing mechanism. Directus
+declares three STATEDIRs at its native paths and deletes the ritual.
 
 On landing: `docs/migrate.md` rewrites its runtime-toolset section around
-IMPORT; LINK piles and whole-package COPY+PATH become anti-patterns;
-exhibiting corpus cases flip stale (adminer, directus, echo-server,
-filestash, memcached, nats, tomcat, verdaccio, wallos, watchtower, whoami at
-minimum).
+IMPORT + bare names and the role-dir rule; the exhibiting cases (at
+minimum adminer, directus, echo-server, filestash, memcached, nats,
+redis, tomcat, verdaccio, wallos, watchtower, whoami) flip
+`Status: stale — regenerate with artifact-import`.
 
 ## 4. Open questions
 
-- **The one-binary canon** (Mathijs explicitly wants a chat round): does
-  redis-style direct interpolation in `START` stay *preferred* for
-  single-binary services (fewest moving parts, empty-looking item), or is
-  canon a one-line `IMPORT ${pkgs.redis}` for uniformity and a debuggable
-  tree?
-- Does ITEM get IMPORT too? (Pure assembly of a tool tree is a legitimate
-  ITEM use; no manifest interaction.)
-- Is the LINK-pile lint a warning or a hard error?
-- For (c): is "under a declared role dir" the right boundary, or should a
-  bare undeclared absolute target be a loud error with a suggestion?
+- **Top-level IMPORT spill** (Mathijs: "maybe"): may a prelude-level
+  `IMPORT` apply to every block? Convenient for `${pkgs.bash}`-everywhere
+  files, but it couples all blocks' keys to one line (any change rebuilds
+  everything) and reintroduces an ambient-ish surface. Lean: block-local
+  only at first; revisit if regenerated corpus files show painful
+  repetition.
+- **COPY union semantics** for writes under a link-assembled directory:
+  materialize-on-write per subtree, or refuse and require narrower COPY
+  sources? (Tomcat's tree is the test case.)
+- Does `ENV PATH = …` replacing the default still make sense once IMPORT
+  is the canon, or should explicit PATH become a lint alongside (c)?

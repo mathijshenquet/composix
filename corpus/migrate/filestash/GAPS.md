@@ -1,7 +1,7 @@
 Generated: migrate.md@d582f41 · unknown · 2026-07-31
-Status: stale — regenerate with D70
+Status: stale — regenerate with D70 + CIP-88
 
-- The page-wide `CPATH`/`LIBRARY_PATH`/`PKG_CONFIG_PATH` preamble is mechanical development-input plumbing that `IMPORT` does not provide. → language ([builder-dev-imports draft](../../../cips/draft/builder-dev-imports.md))
+- The page-wide `CPATH`/`LIBRARY_PATH`/`PKG_CONFIG_PATH` preamble predates CIP-88(a): the vendored dev-env snapshot now supplies toolchain search paths from the IMPORTed packages; regeneration verifies the coverage. → case (stale, CIP-88)
 - The required coherent static C-library set cannot be selected from the locked nixpkgs packages: `pkgsStatic.giflib` itself fails, but D70 overlays now provide the `.nix` package-customization escape for a regenerated case. → case
 - Four helper binaries are linked one by one into `/bin`, the same artifact toolset slop as the larger Wallos pile. → language ([artifact-import draft](../../../cips/draft/artifact-import.md))
 - The runtime moved the upstream `/app` tree into `/bin`, `/share`, and `/var/lib/filestash`; mirror the application layout or explain each deliberate split. → prompt
