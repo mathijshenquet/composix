@@ -137,25 +137,6 @@ impl Doc {
         self.sh_in("$", &state_dir, command, expect_success)
     }
 
-    fn sh_ps_units(&mut self, expect_success: bool, unit_names: &[String]) -> String {
-        let state_dir = self.state_dir.clone();
-        let output = self.run(&state_dir, "cix ps --json", expect_success);
-        let raw = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let rows: Vec<cix_compose::PsRow> = serde_json::from_str(&raw)
-            .unwrap_or_else(|error| panic!("cix ps --json emitted invalid JSON: {error}\n{raw}"));
-        let rows = rows
-            .into_iter()
-            .filter(|row| unit_names.iter().any(|name| name == &row.unit))
-            .collect::<Vec<_>>();
-        let displayed = cix_compose::render_ps_table(&rows);
-        self.record("$", "cix ps", &displayed);
-        displayed
-    }
-
     fn sh_in(
         &mut self,
         prompt: &str,
@@ -243,6 +224,9 @@ fn normalize(raw: &str, base: &Path) -> String {
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
     let age = Regex::new(r"(?m)(\s{2,})\d+s(\s*)$").expect("valid age regex");
     let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
+    let nginx_diagnostic =
+        Regex::new(r"(?m)^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[emerg\] \d+#\d+:")
+            .expect("valid nginx diagnostic regex");
     let local_fetch_memo = Regex::new(r"(?m)^(FETCH native memo (?:miss|hit)) [0-9a-f]{12}")
         .expect("valid local FETCH memo regex");
     let builder_workspace = Regex::new(r"(?m)^BUILDER ([^ ]+) workspace [^\n]+$")
@@ -272,6 +256,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
     let normalized = age.replace_all(&normalized, "${1}0s${2}");
     let normalized = build_wall_time.replace_all(&normalized, "");
+    let normalized = nginx_diagnostic.replace_all(&normalized, "nginx: [emerg]");
     let normalized = local_fetch_memo.replace_all(&normalized, "${1} <command-key>");
     let normalized =
         builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
@@ -660,13 +645,12 @@ fn chapter_hello() -> String {
     fs::write(
         doc.base.join("nginx.conf"),
         r#"daemon off;
-pid /tmp/cix-tour-nginx.pid;
 error_log stderr info;
 events { }
 http {
   access_log off;
-  client_body_temp_path /tmp/cix-tour-nginx-body;
-  server { listen 18085; root .; }
+  client_body_temp_path /var/cache/nginx/client-body;
+  server { listen 18085; root /srv/www; }
 }
 "#,
     )
@@ -674,13 +658,12 @@ http {
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
 SERVICE hello
 IMPORT ${pkgs.nginx}
 COPY index.html /srv/www/index.html
 COPY nginx.conf /etc/nginx/nginx.conf
-START nginx -p ${src}/ -c nginx.conf -e stderr
+START nginx -c /etc/nginx/nginx.conf -e stderr -g 'pid /run/nginx/nginx.pid;'
 PORT http = 18085
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
@@ -689,18 +672,19 @@ RUNDIR /run/nginx
     .expect("writing hello Cixfile");
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing hello lock");
 
-    doc.para("You will build and run a small nginx service from a Cixfile. Afterwards, you will understand the shortest path from checked-in files to a supervised process.");
+    doc.para("You will build a small nginx service from a canonical Cixfile and validate the resulting item as far as this rootless host permits. Afterwards, you will understand the shortest path from checked-in files to a production service contract and the boundary of the degraded development manager.");
     doc.para("Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.");
 
     doc.para("## Before you start");
-    doc.para("You need Nix with flakes enabled, `cix`, a running systemd user manager for this rootless walkthrough, and `curl`. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
-    doc.para("Because a restricted user manager cannot project item mounts on this host, the development probe reads its checked-in page through the locked source path and uses private `/tmp` files. The same item still declares nginx's production cache and runtime paths; Chapter 5 returns to that runtime boundary explicitly.");
+    doc.para("You need Nix with flakes enabled, `cix`, and a running systemd user manager for this rootless walkthrough. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
+    doc.para("Production `cix run` projects the item mounts; this host's rootless fallback cannot, so this probe parses the copied configuration in place of serving it and Chapter 5 completes the runtime story.");
 
     doc.para("## Build the item");
     doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
     let source = doc.sh("cat Cixfile index.html nginx.conf", true);
     assert!(source.contains("IMPORT ${pkgs.nginx}"));
-    assert!(source.contains("START nginx"));
+    assert!(source.contains("START nginx -c /etc/nginx/nginx.conf -e stderr"));
+    assert!(!source.contains("${src}"));
     assert!(source.contains("CACHEDIR /var/cache/nginx"));
     assert!(source.contains("RUNDIR /run/nginx"));
 
@@ -711,27 +695,21 @@ RUNDIR /run/nginx
     assert!(manifest.contains("\"/var/cache/nginx\""));
     assert!(manifest.contains("\"/run/nginx\""));
 
-    doc.para("## Run, probe, stop");
-    let started = doc.sh(&format!("cix run {store_path} --user --detach"), true);
-    let unit_name = started
-        .lines()
-        .find(|line| line.starts_with("cix-run-hello-") && line.ends_with(".service"))
-        .expect("cix run printed the hello unit")
-        .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
-    };
-    wait_for_http(
-        "127.0.0.1:18085",
-        "<h1>hello from your first composix service</h1>",
+    doc.para("## Probe the canonical item");
+    doc.para("The debug probe moves only nginx's PID file to `/tmp`: nginx accepts the copied configuration syntax, then stops honestly when the rootless manager cannot realize the declared cache directory.");
+    let config_test = doc.sh(
+        &format!(
+            "cix debug {store_path} --user -- nginx -t -p {store_path}/ -c etc/nginx/nginx.conf -e stderr -g 'pid /tmp/cix-tour-nginx.pid;'"
+        ),
+        false,
     );
-    let response = doc.sh("curl -fsS http://127.0.0.1:18085", true);
-    assert_eq!(
-        response.trim(),
-        "<h1>hello from your first composix service</h1>"
+    assert!(config_test.contains("syntax is ok"), "{config_test}");
+    assert!(
+        config_test.contains("/var/cache/nginx/client-body"),
+        "{config_test}"
     );
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    doc.para("You have now built an immutable item, run its declared service, reached it on its declared port, and stopped the transient unit. The next chapters unpack the language and operational model behind those five minutes.");
+    assert!(config_test.contains("Permission denied"), "{config_test}");
+    doc.para("You have now built an immutable item whose imported command and copied absolute-path configuration form the production service contract, and the restricted rootless manager has parsed that exact configuration without pretending to project it. The next chapters unpack the language and runtime model behind it.");
     doc.finish()
 }
 
@@ -1131,11 +1109,11 @@ HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
 SERVICE web
 IMPORT ${pkgs.python3}
-START python3 ${src}/server.py
+COPY server.py /srv/app/server.py
+START python3 /srv/app/server.py
 PORT http = 18086
 STATEDIR /var/lib/runtime-guide
 SECRET db-password AS DB_PASSWORD_FILE
@@ -1150,12 +1128,15 @@ START true
     .expect("writing runtime Cixfile");
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing runtime lock");
 
-    doc.para("You will run and inspect a tagged HTTP service with health contracts, then schedule a run-to-completion app. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.");
+    doc.para("You will inspect a tagged HTTP service with health contracts at the honest rootless boundary, then debug and schedule its run-to-completion sibling. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.");
 
     doc.para("## The item owns needs; the operator owns values");
     doc.para("The service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The APP beside it has a finite entrypoint and is therefore eligible for timer scheduling.");
     let source = doc.sh("cat Cixfile server.py", true);
     assert!(source.contains("STATEDIR /var/lib/runtime-guide"));
+    assert!(source.contains("COPY server.py /srv/app/server.py"));
+    assert!(source.contains("START python3 /srv/app/server.py"));
+    assert!(!source.contains("${src}"));
     assert!(source.contains("SECRET db-password AS DB_PASSWORD_FILE"));
     assert!(source.contains("READINESS http :18086/healthz IN 10s"));
     assert!(source.contains("LIVENESS http :18086/livez EVERY 2s"));
@@ -1163,32 +1144,22 @@ START true
     let built = doc.sh("cix build . --namespace runtime -t v1", true);
     assert!(built.contains("\"web\""));
     assert!(built.contains("\"cleanup\""));
+    let web_path = proj1_item_path(&built, "web");
 
-    doc.para("## Run by tag, then debug the same contract");
-    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. This host's user manager takes the loud D13 fallback, but the readiness adapter still holds startup until the real HTTP endpoint answers and the liveness adapter continues probing it.");
-    let started = doc.sh("cix run runtime/web:v1 --user --detach", true);
-    let unit_name = started
-        .lines()
-        .find(|line| line.starts_with("cix-run-web-") && line.ends_with(".service"))
-        .expect("cix run printed the runtime unit")
-        .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
-    };
-    wait_for_http("127.0.0.1:18086", "runtime healthy");
-    let response = doc.sh("curl -fsS http://127.0.0.1:18086/healthz", true);
-    assert_eq!(response.trim(), "runtime healthy");
-
-    let debugged = doc.sh(
-        "cix debug runtime/web:v1 --user -- python3 -c 'print(\"debug uses the item package union\")'",
+    doc.para("## Inspect the item, then cross the system-manager boundary");
+    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins; this host's loud D13 user-manager fallback cannot project that mount, so the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.");
+    let parsed = doc.sh(
+        &format!(
+            "{web_path}/bin/python3 -c 'compile(open(\"{web_path}/srv/app/server.py\").read(), \"server.py\", \"exec\"); print(\"copied server parses\")'"
+        ),
         true,
     );
-    assert!(debugged.contains("debug uses the item package union"));
+    assert!(parsed.contains("copied server parses"));
+    doc.para("`cix debug` still resolves an item by tag and replaces its entrypoint inside the service sandbox. The finite cleanup sibling has no mount or health dependency, so it is the honest rootless target for that receipt.");
+    let debugged = doc.sh("cix debug runtime/cleanup:v1 --user -- true", true);
     assert!(debugged.contains("cix debug --user is degraded"));
-
-    let rows = doc.sh_ps_units(true, std::slice::from_ref(&unit_name));
-    assert!(rows.contains(&unit_name));
-    assert!(rows.contains("active/running"));
+    let ps = doc.sh("cix ps | head -n 1", true);
+    assert!(ps.contains("MANAGER  COMPOSITE  SERVICE"));
     let stats = doc.sh("cix stats 2>/dev/null | head -n 1", true);
     assert!(stats.contains("MANAGER  COMPOSITE  SERVICE"));
     let logs = doc.sh("cix logs run/web --explain", true);
@@ -1215,7 +1186,6 @@ START true
     let active = doc.sh(&format!("systemctl --user is-active {timer}"), true);
     assert_eq!(active.trim(), "active");
 
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
     doc.para("You now have the complete ownership split: artifacts declare their process needs, compose supplies host policy and secrets, and systemd owns lifecycle, health, logs, timers, and accounting.");
     doc.finish()
 }
@@ -1615,7 +1585,7 @@ fn render_tour() -> Vec<GeneratedFile> {
         Scenario {
             filename: "01-hello-composix.md",
             title: "Chapter 1: Hello, composix",
-            description: "Build, run, probe, and stop your first Cixfile service.",
+            description: "Build your first canonical service item and probe the rootless boundary.",
             body: chapter_hello(),
         },
         Scenario {
@@ -1643,7 +1613,7 @@ fn render_tour() -> Vec<GeneratedFile> {
             filename: "05-runtime-contract.md",
             title: "Chapter 5: Running: the runtime contract",
             description:
-                "Run and debug by tag, inspect health and observability, and schedule an APP.",
+                "Inspect health and observability, debug by tag, and schedule an APP.",
             body: chapter_runtime_contract(),
         },
         Scenario {

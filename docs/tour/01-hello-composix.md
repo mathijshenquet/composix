@@ -5,15 +5,15 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-You will build and run a small nginx service from a Cixfile. Afterwards, you will understand the shortest path from checked-in files to a supervised process.
+You will build a small nginx service from a canonical Cixfile and validate the resulting item as far as this rootless host permits. Afterwards, you will understand the shortest path from checked-in files to a production service contract and the boundary of the degraded development manager.
 
 Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.
 
 ## Before you start
 
-You need Nix with flakes enabled, `cix`, a running systemd user manager for this rootless walkthrough, and `curl`. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.
+You need Nix with flakes enabled, `cix`, and a running systemd user manager for this rootless walkthrough. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.
 
-Because a restricted user manager cannot project item mounts on this host, the development probe reads its checked-in page through the locked source path and uses private `/tmp` files. The same item still declares nginx's production cache and runtime paths; Chapter 5 returns to that runtime boundary explicitly.
+Production `cix run` projects the item mounts; this host's rootless fallback cannot, so this probe parses the copied configuration in place of serving it and Chapter 5 completes the runtime story.
 
 ## Build the item
 
@@ -22,25 +22,23 @@ Your first Cixfile imports nginx, copies two ordinary project files, names its e
 ```sh
 $ cat Cixfile index.html nginx.conf
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
 SERVICE hello
 IMPORT ${pkgs.nginx}
 COPY index.html /srv/www/index.html
 COPY nginx.conf /etc/nginx/nginx.conf
-START nginx -p ${src}/ -c nginx.conf -e stderr
+START nginx -c /etc/nginx/nginx.conf -e stderr -g 'pid /run/nginx/nginx.pid;'
 PORT http = 18085
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
 <h1>hello from your first composix service</h1>
 daemon off;
-pid /tmp/cix-tour-nginx.pid;
 error_log stderr info;
 events { }
 http {
   access_log off;
-  client_body_temp_path /tmp/cix-tour-nginx-body;
-  server { listen 18085; root .; }
+  client_body_temp_path /var/cache/nginx/client-body;
+  server { listen 18085; root /srv/www; }
 }
 ```
 
@@ -51,27 +49,23 @@ $ cix build .
 
 ```sh
 $ cat /nix/store/…-cix-item-hello/cix-manifest.json
-{"cixManifest":0,"dirs":{"cache":["/var/cache/nginx"],"run":["/run/nginx"]},"env":{"PATH":{"default":"bin"}},"mounts":["/bin/nginx","/etc/nginx","/share/man","/srv/www"],"ports":{"http":{"protocol":"tcp","value":18085}},"start":["bin/nginx","-p","/nix/store/…-cix-source/","-c","nginx.conf","-e","stderr"]}
+{"cixManifest":0,"dirs":{"cache":["/var/cache/nginx"],"run":["/run/nginx"]},"env":{"PATH":{"default":"bin"}},"mounts":["/bin/nginx","/etc/nginx","/share/man","/srv/www"],"ports":{"http":{"protocol":"tcp","value":18085}},"start":["bin/nginx","-c","/etc/nginx/nginx.conf","-e","stderr","-g","pid /run/nginx/nginx.pid;"]}
 ```
 
-## Run, probe, stop
+## Probe the canonical item
+
+The debug probe moves only nginx's PID file to `/tmp`: nginx accepts the copied configuration syntax, then stops honestly when the rootless manager cannot realize the declared cache directory.
 
 ```sh
-$ cix run /nix/store/…-cix-item-hello --user --detach
-cix-run-hello-NONCE.service
-warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
+$ cix debug /nix/store/…-cix-item-hello --user -- nginx -t -p /nix/store/…-cix-item-hello/ -c etc/nginx/nginx.conf -e stderr -g 'pid /tmp/cix-tour-nginx.pid;'
+warning: cix debug --user is degraded development mode; it does not provide the full system-manager sandbox or DynamicUser identity
+=== cix debug: degraded service sandbox; service=hello; identity=caller (--user) ===
+nginx: the configuration file /nix/store/…-cix-item-hello/etc/nginx/nginx.conf syntax is ok
+nginx: [emerg] mkdir() "/var/cache/nginx/client-body" failed (13: Permission denied)
+nginx: configuration file /nix/store/…-cix-item-hello/etc/nginx/nginx.conf test failed
 ```
 
-```sh
-$ curl -fsS http://127.0.0.1:8420
-<h1>hello from your first composix service</h1>
-```
-
-```sh
-$ systemctl --user stop cix-run-hello-NONCE.service
-```
-
-You have now built an immutable item, run its declared service, reached it on its declared port, and stopped the transient unit. The next chapters unpack the language and operational model behind those five minutes.
+You have now built an immutable item whose imported command and copied absolute-path configuration form the production service contract, and the restricted rootless manager has parsed that exact configuration without pretending to project it. The next chapters unpack the language and runtime model behind it.
 
 
 ---

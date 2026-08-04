@@ -352,3 +352,36 @@
   passed (1 passed in 51.93s), followed by `git diff --exit-code -- docs/tour`
   and the obsolete-page-name sweep at exit 0. All commands used `nice`, six
   Cargo/Nix jobs, and four Nix cores. No ENOSPC occurred.
+
+- 2026-08-04T14:10:00Z — Began the blocking orchestrator review fix for
+  CIP-91 teaching canon. Chapters 1 and 5 will retain only bare imported
+  commands plus copied absolute item paths in their Cixfiles; this host's
+  rootless receipts will validate the physical built item without using a
+  locked source path to make the service appear runnable. Next: regenerate,
+  review the honest degraded prose, and repeat the bounded agent gate.
+
+- 2026-08-04T14:35:00Z — Chapters 1 and 5 now generate only CIP-91-canonical
+  service declarations: imported bare commands, local files copied into
+  absolute item paths, and no source binder in START argv. Chapter 1's real
+  nginx debug receipt accepts the exact copied config syntax and then exposes
+  the unavailable CACHEDIR instead of serving through a source path. Chapter
+  5 parses its copied Python directly from the immutable item, uses the
+  mount-free APP for its tagged debug receipt, and leaves HTTP health to the
+  linked system-manager scenario. The openings and index no longer promise a
+  rootless HTTP run. Focused generation passed (1 passed in 15.58s) and the
+  exact consecutive-render check passed (1 passed in 28.30s); no ENOSPC.
+
+- 2026-08-04T14:55:00Z — The bounded review-fix gate passed synchronously:
+  `cargo fmt --all --check`; `cix fmt --check examples` (exit 0 with the
+  existing LINK deprecation notices); warning-denied workspace/all-target
+  Clippy; and serial full workspace tests, including tour determinism/drift,
+  foreign-unit isolation, watch, integrations, and doc tests. Final explicit
+  tour regeneration passed (1 passed in 15.63s). All gate commands used
+  `nice`, six Cargo/Nix jobs, and four Nix cores. No ENOSPC occurred.
+
+- 2026-08-04T15:10:00Z — Restored the chapter 5 `cix ps` surface as an
+  honest header-only receipt after removing the unprojectable web unit, then
+  repeated the complete bounded gate on that final source. Formatting,
+  examples formatting, warning-denied Clippy, serial full workspace tests,
+  tour determinism/drift, and explicit regeneration (1 passed in 15.62s) all
+  passed synchronously. No ENOSPC occurred.

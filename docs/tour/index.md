@@ -11,7 +11,7 @@ Start at [Chapter 1](01-hello-composix.html) and follow the guide in order; ever
 
 ## Chapters
 
-- [Chapter 1: Hello, composix](01-hello-composix.html) — Build, run, probe, and stop your first Cixfile service.
+- [Chapter 1: Hello, composix](01-hello-composix.html) — Build your first canonical service item and probe the rootless boundary.
 
 - [Chapter 2: The Cixfile language](02-cixfile-language.html) — Learn binders, assembly, runtime declarations, and the directive vocabulary.
 
@@ -19,7 +19,7 @@ Start at [Chapter 1](01-hello-composix.html) and follow the guide in order; ever
 
 - [Chapter 4: Naming and distribution](04-naming-distribution.html) — Tag immutable items, manage families, serve a cache, and follow a moving ref.
 
-- [Chapter 5: Running: the runtime contract](05-runtime-contract.html) — Run and debug by tag, inspect health and observability, and schedule an APP.
+- [Chapter 5: Running: the runtime contract](05-runtime-contract.html) — Inspect health and observability, debug by tag, and schedule an APP.
 
 - [Chapter 6: Compose](06-compose.html) — Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.
 

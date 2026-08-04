@@ -5,7 +5,7 @@
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-You will run and inspect a tagged HTTP service with health contracts, then schedule a run-to-completion app. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.
+You will inspect a tagged HTTP service with health contracts at the honest rootless boundary, then debug and schedule its run-to-completion sibling. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.
 
 ## The item owns needs; the operator owns values
 
@@ -14,11 +14,11 @@ The service declares a direct port, persistent application-native state, one cre
 ```sh
 $ cat Cixfile server.py
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
 SERVICE web
 IMPORT ${pkgs.python3}
-START python3 ${src}/server.py
+COPY server.py /srv/app/server.py
+START python3 /srv/app/server.py
 PORT http = 18086
 STATEDIR /var/lib/runtime-guide
 SECRET db-password AS DB_PASSWORD_FILE
@@ -50,32 +50,26 @@ $ cix build . --namespace runtime -t v1
 {"cleanup":"/nix/store/…-cix-item-cleanup","web":"/nix/store/…-cix-item-web"}
 ```
 
-## Run by tag, then debug the same contract
+## Inspect the item, then cross the system-manager boundary
 
-`cix run` resolves the tag and compiles the manifest into a transient unit. This host's user manager takes the loud D13 fallback, but the readiness adapter still holds startup until the real HTTP endpoint answers and the liveness adapter continues probing it.
+`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins; this host's loud D13 user-manager fallback cannot project that mount, so the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.
 
 ```sh
-$ cix run runtime/web:v1 --user --detach
-cix-run-web-NONCE.service
-warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
+$ /nix/store/…-cix-item-web/bin/python3 -c 'compile(open("/nix/store/…-cix-item-web/srv/app/server.py").read(), "server.py", "exec"); print("copied server parses")'
+copied server parses
 ```
 
-```sh
-$ curl -fsS http://127.0.0.1:8420/healthz
-runtime healthy
-```
+`cix debug` still resolves an item by tag and replaces its entrypoint inside the service sandbox. The finite cleanup sibling has no mount or health dependency, so it is the honest rootless target for that receipt.
 
 ```sh
-$ cix debug runtime/web:v1 --user -- python3 -c 'print("debug uses the item package union")'
-debug uses the item package union
+$ cix debug runtime/cleanup:v1 --user -- true
 warning: cix debug --user is degraded development mode; it does not provide the full system-manager sandbox or DynamicUser identity
-=== cix debug: degraded service sandbox; service=web; identity=caller (--user) ===
+=== cix debug: degraded service sandbox; service=cleanup; identity=caller (--user) ===
 ```
 
 ```sh
-$ cix ps
-MANAGER  COMPOSITE  SERVICE  UNIT                                          STATE       RESULT   DESCRIPTION
-user     -          web      cix-run-web-NONCE.service  active/running  success  /nix/store/…-cix-item-web/bin/python3 /nix/store/…-cix-source/server.py
+$ cix ps | head -n 1
+MANAGER  COMPOSITE  SERVICE                                                    UNIT                                                       STATE       RESULT     DESCRIPTION
 ```
 
 ```sh
@@ -107,10 +101,6 @@ warning: --user is degraded development mode; the system manager with DynamicUse
 ```sh
 $ systemctl --user is-active cix-run-cleanup-NONCE.timer
 active
-```
-
-```sh
-$ systemctl --user stop cix-run-web-NONCE.service
 ```
 
 You now have the complete ownership split: artifacts declare their process needs, compose supplies host policy and secrets, and systemd owns lifecycle, health, logs, timers, and accounting.
