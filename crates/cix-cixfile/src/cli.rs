@@ -14,6 +14,9 @@ pub enum Command {
     Build {
         #[arg(default_value = ".")]
         dir: String,
+        /// Named Cixfile in the build directory.
+        #[arg(long, value_name = "NAME", default_value = "Cixfile")]
+        file: String,
         #[arg(short = 't', long)]
         tag: Vec<String>,
         /// Family name used only when applying -t tags.
@@ -59,6 +62,7 @@ impl Command {
         match self {
             Self::Build {
                 dir,
+                file,
                 tag,
                 namespace,
                 update_lock,
@@ -81,11 +85,12 @@ impl Command {
                     workspace_directory,
                     state_directory: state_directory.to_owned(),
                 };
-                let (items, build_stats) = crate::build_family_with_stats(
+                let (items, build_stats) = crate::build_family_with_stats_file(
                     &options,
                     &tag,
                     namespace.as_deref(),
                     selector.as_deref(),
+                    &file,
                 )?;
                 if selector.is_some() {
                     if stats {

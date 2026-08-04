@@ -7,8 +7,8 @@ mod parser;
 mod watch;
 
 pub use build::{
-    build, build_family, build_family_with_stats, build_with_stats, BuildOptions, BuildStats,
-    BuiltItem, StepStat,
+    build, build_family, build_family_with_stats, build_family_with_stats_file, build_with_stats,
+    BuildOptions, BuildStats, BuiltItem, StepStat,
 };
 pub use cix_build::revoke_fetch_consent;
 pub use cix_build::{
@@ -17,8 +17,8 @@ pub use cix_build::{
 };
 pub use cix_build::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
-    Env, Fetch, Input, InputKind, Liveness, Port, Probe, Readiness, Secret, Service, Template,
-    TemplatePart,
+    Env, Fetch, Input, InputKind, Liveness, Port, PortSource, Probe, Protocol, Readiness, Secret,
+    Service, Template, TemplatePart,
 };
 pub use parser::{parse, ParseError};
 pub use watch::{watch, WatchOptions};

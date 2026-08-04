@@ -636,6 +636,7 @@ START ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
     assert!(lock.contains("\"narHash\""));
 
     doc.para("The package universe is pinned by revision and content hash. These ITEM and SERVICE blocks perform only assembly, so they need no BUILDER: builders exist only when FETCH or RUN has work to do.");
+    doc.para("A directory can carry a translation twin beside its default Cixfile: `cix build --file Cixfile.dissolved .` selects that named file and writes its independent sibling lock, `Cixfile.dissolved.lock`.");
     let built = doc.sh("cix build . --namespace tour -t v1", true);
     let store_path = built_store_path(&built, "-cix-item-tour-app");
     let assets_path = built_store_path(&built, "-cix-item-tour-assets");

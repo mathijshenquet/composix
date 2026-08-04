@@ -67,12 +67,22 @@ pub fn build_family_with_stats(
     requested_namespace: Option<&str>,
     selector: Option<&str>,
 ) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    build_family_with_stats_file(options, tags, requested_namespace, selector, "Cixfile")
+}
+
+pub fn build_family_with_stats_file(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+    file_name: &str,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
     cix_common::reset_nix_subprocess_count();
     let directory = options
         .directory
         .canonicalize()
         .with_context(|| format!("resolving build directory {}", options.directory.display()))?;
-    let cixfile_path = directory.join("Cixfile");
+    let cixfile_path = named_cixfile_path(&directory, file_name)?;
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
@@ -121,11 +131,11 @@ pub fn build_family_with_stats(
             "--update-lock names no lock-bearing FROM, FETCH, or BUILDER binder {name:?}"
         ),
     };
-    let lock_path = directory.join("Cixfile.lock");
+    let lock_path = directory.join(format!("{file_name}.lock"));
     let state = cix_index::Store::open(options.state_directory.clone())?;
     let mut lock = ensure_lock(&state, &lock_path, &cixfile.inputs, input_update)?;
     resolve_input_metadata(&mut cixfile, &lock)?;
-    let source_hash = build_fingerprint(&directory, &lock)?;
+    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
     if !options.cold && options.update_lock.is_none() && tags.is_empty() {
         let cached = cixfile
             .artifact_order
@@ -180,7 +190,7 @@ pub fn build_family_with_stats(
             store_path,
         });
     }
-    let source_hash = build_fingerprint(&directory, &lock)?;
+    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
     for item in &outputs {
         for tag in tags {
             let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
@@ -246,17 +256,34 @@ fn step_stats(cixfile: &crate::Cixfile, status: &'static str) -> Vec<StepStat> {
     stats
 }
 
-fn source_tree_hash(directory: &std::path::Path) -> Result<String> {
+fn named_cixfile_path(directory: &std::path::Path, file_name: &str) -> Result<PathBuf> {
+    let file = std::path::Path::new(file_name);
+    if file.components().count() != 1
+        || !matches!(
+            file.components().next(),
+            Some(std::path::Component::Normal(_))
+        )
+    {
+        anyhow::bail!("--file must name a Cixfile in the build directory, got {file_name:?}")
+    }
+    Ok(directory.join(file))
+}
+
+fn source_tree_hash(directory: &std::path::Path, file_name: &str) -> Result<String> {
     let mut digest = Sha256::new();
-    hash_source_tree(directory, directory, &mut digest)?;
+    hash_source_tree(directory, directory, file_name, &mut digest)?;
     let digest = digest.finalize();
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
-fn build_fingerprint(directory: &std::path::Path, lock: &cix_build::LockFile) -> Result<String> {
+fn build_fingerprint(
+    directory: &std::path::Path,
+    lock: &cix_build::LockFile,
+    file_name: &str,
+) -> Result<String> {
     let mut digest = Sha256::new();
     digest.update(cix_build::BUILDER_FINGERPRINT.as_bytes());
-    digest.update(source_tree_hash(directory)?.as_bytes());
+    digest.update(source_tree_hash(directory, file_name)?.as_bytes());
     digest.update(serde_json::to_vec(&(
         &lock.inputs,
         &lock.artifacts,
@@ -273,11 +300,12 @@ fn build_fingerprint(directory: &std::path::Path, lock: &cix_build::LockFile) ->
 fn hash_source_tree(
     root: &std::path::Path,
     path: &std::path::Path,
+    file_name: &str,
     digest: &mut Sha256,
 ) -> Result<()> {
     let metadata = fs::symlink_metadata(path)?;
     let relative = path.strip_prefix(root).unwrap_or(path);
-    if relative == std::path::Path::new("Cixfile.lock") || relative.starts_with(".git") {
+    if is_cixfile_lock(relative) || relative.starts_with(".git") {
         return Ok(());
     }
     digest.update(relative.as_os_str().as_encoded_bytes());
@@ -286,7 +314,7 @@ fn hash_source_tree(
         digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
     } else if metadata.is_file() {
         digest.update(b"file");
-        if relative == std::path::Path::new("Cixfile") {
+        if relative == std::path::Path::new(file_name) {
             digest.update(crate::fmt::format(&fs::read_to_string(path)?)?.as_bytes());
         } else {
             let mut file = fs::File::open(path)?;
@@ -299,10 +327,18 @@ fn hash_source_tree(
         let mut children = fs::read_dir(path)?.collect::<std::result::Result<Vec<_>, _>>()?;
         children.sort_by_key(|entry| entry.file_name());
         for child in children {
-            hash_source_tree(root, &child.path(), digest)?;
+            hash_source_tree(root, &child.path(), file_name, digest)?;
         }
     }
     Ok(())
+}
+
+fn is_cixfile_lock(path: &std::path::Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name == "Cixfile.lock" || (name.starts_with("Cixfile.") && name.ends_with(".lock"))
+        })
 }
 
 fn reject_expected_fetch_update(cixfile: &crate::Cixfile, requested: &str) -> Result<()> {
@@ -435,8 +471,8 @@ fn add_item_to_store(path: &str, name: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_fingerprint, reject_expected_fetch_update, tag_namespace, tag_reference,
-        validate_namespace, validate_tag,
+        build_family_with_stats_file, build_fingerprint, reject_expected_fetch_update,
+        tag_namespace, tag_reference, validate_namespace, validate_tag, BuildOptions,
     };
     use crate::parse;
     use cix_build::{LockFile, OutputReceipt};
@@ -459,7 +495,7 @@ mod tests {
             dev_envs: BTreeMap::new(),
             outputs: BTreeMap::new(),
         };
-        let before = build_fingerprint(directory.path(), &lock).unwrap();
+        let before = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
         lock.outputs.insert(
             "app".into(),
             OutputReceipt {
@@ -467,7 +503,32 @@ mod tests {
                 store_path: "/nix/store/prior-run-output".into(),
             },
         );
-        assert_eq!(before, build_fingerprint(directory.path(), &lock).unwrap());
+        assert_eq!(
+            before,
+            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+        );
+    }
+
+    #[test]
+    fn missing_named_cixfile_names_the_full_path() {
+        let directory = tempfile::tempdir().unwrap();
+        let options = BuildOptions {
+            directory: directory.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: directory.path().join("workspaces"),
+            state_directory: directory.path().join("state"),
+        };
+        let error = build_family_with_stats_file(&options, &[], None, None, "Cixfile.dissolved")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("Cixfile.dissolved"), "{error}");
+        assert!(
+            error.contains(&directory.path().display().to_string()),
+            "{error}"
+        );
     }
 
     #[test]

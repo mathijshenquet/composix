@@ -6,6 +6,7 @@ START_PRE setup
 ENV PORT = 9000 required
 ENV TOKEN secret
 PORT http = $PORT
+PORT http3 = udp:8443
 READINESS http :9000/healthz IN 90s
 LIVENESS tcp :9000 EVERY 10s
 STATEDIR /var/lib/app

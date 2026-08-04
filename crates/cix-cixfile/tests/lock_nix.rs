@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use cix_build::generate_nix_with_snapshots;
-use cix_cixfile::{build, build_family, generate_nix, parse, ArtifactPin, BuildOptions, LockFile};
+use cix_cixfile::{
+    build, build_family, build_family_with_stats_file, generate_nix, parse, ArtifactPin,
+    BuildOptions, LockFile,
+};
 
 fn test_workspace_directory() -> PathBuf {
     tempfile::tempdir().unwrap().keep()
@@ -32,6 +35,62 @@ fn committed_lock() -> LockFile {
         dev_envs: std::collections::BTreeMap::new(),
         outputs: std::collections::BTreeMap::new(),
     }
+}
+
+#[test]
+fn named_cixfiles_build_independently_with_sibling_locks() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("default.txt"), "default\n").unwrap();
+    fs::write(directory.path().join("dissolved.txt"), "dissolved\n").unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nITEM default\nCOPY default.txt /result\n",
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.dissolved"),
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nITEM dissolved\nCOPY dissolved.txt /result\n",
+    )
+    .unwrap();
+    for lock_name in ["Cixfile.lock", "Cixfile.dissolved.lock"] {
+        fs::write(
+            directory.path().join(lock_name),
+            format!(
+                "{}\n",
+                serde_json::to_string_pretty(&committed_lock()).unwrap()
+            ),
+        )
+        .unwrap();
+    }
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
+    };
+
+    let default = build(&options).unwrap();
+    let dissolved = build_family_with_stats_file(&options, &[], None, None, "Cixfile.dissolved")
+        .unwrap()
+        .0;
+    assert_eq!(
+        fs::read_to_string(Path::new(&default[0].store_path).join("result")).unwrap(),
+        "default\n"
+    );
+    assert_eq!(
+        fs::read_to_string(Path::new(&dissolved[0].store_path).join("result")).unwrap(),
+        "dissolved\n"
+    );
+    let default_lock = fs::read_to_string(directory.path().join("Cixfile.lock")).unwrap();
+    let dissolved_lock =
+        fs::read_to_string(directory.path().join("Cixfile.dissolved.lock")).unwrap();
+    assert!(default_lock.contains("default"));
+    assert!(!default_lock.contains("dissolved"));
+    assert!(dissolved_lock.contains("dissolved"));
+    assert!(!dissolved_lock.contains("default"));
 }
 
 #[test]

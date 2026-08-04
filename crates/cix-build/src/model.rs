@@ -320,9 +320,21 @@ pub struct Env {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Port {
+pub struct Port {
+    pub source: PortSource,
+    pub protocol: Protocol,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PortSource {
     Env(String),
     Value(u16),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Protocol {
+    Tcp,
+    Udp,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]

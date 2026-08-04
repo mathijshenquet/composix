@@ -60,6 +60,10 @@
     "http": {
       "env": "PORT",
       "protocol": "tcp"
+    },
+    "http3": {
+      "protocol": "udp",
+      "value": 8443
     }
   },
   "start_pre": [

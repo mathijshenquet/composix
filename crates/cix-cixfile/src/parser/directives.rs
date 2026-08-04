@@ -799,7 +799,13 @@ impl Parser<'_> {
         arguments: &str,
     ) -> Result<(), ParseError> {
         self.require_artifact_kind("PORT", line, source, &[ArtifactKind::Service])?;
-        let fields = exact_fields(arguments, 3, line, source, "PORT <name> = <$VAR|value>")?;
+        let fields = exact_fields(
+            arguments,
+            3,
+            line,
+            source,
+            "PORT <name> = [udp:]<$VAR|value>",
+        )?;
         validate_name("port", fields[0], line, source)?;
         if fields[1] != "=" {
             return Err(ParseError::new(
@@ -808,11 +814,30 @@ impl Parser<'_> {
                 "PORT name must be followed by '='",
             ));
         }
-        let port = if let Some(variable) = fields[2].strip_prefix('$') {
-            validate_env_name(variable, line, source)?;
-            Port::Env(variable.to_owned())
+        let (protocol, value) = if let Some(value) = fields[2].strip_prefix("udp:") {
+            (Protocol::Udp, value)
+        } else if let Some((port, protocol)) = fields[2].rsplit_once('/') {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!(
+                    "PORT uses systemd protocol spelling; write udp:{port} instead of {port}/{protocol}"
+                ),
+            ));
+        } else if fields[2].contains(':') {
+            return Err(ParseError::new(
+                line,
+                source,
+                "PORT supports bare TCP ports or udp:<port>; SCTP is not supported",
+            ));
         } else {
-            let value = fields[2].parse::<u16>().map_err(|_| {
+            (Protocol::Tcp, fields[2])
+        };
+        let port_source = if let Some(variable) = value.strip_prefix('$') {
+            validate_env_name(variable, line, source)?;
+            PortSource::Env(variable.to_owned())
+        } else {
+            let value = value.parse::<u16>().map_err(|_| {
                 ParseError::new(line, source, "PORT value must be between 1 and 65535")
             })?;
             if value == 0 {
@@ -822,7 +847,11 @@ impl Parser<'_> {
                     "PORT value must be between 1 and 65535",
                 ));
             }
-            Port::Value(value)
+            PortSource::Value(value)
+        };
+        let port = Port {
+            source: port_source,
+            protocol,
         };
         let name = self.current_artifact_name("PORT", line, source)?.to_owned();
         let service = &mut self
