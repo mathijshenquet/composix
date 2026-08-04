@@ -56,9 +56,21 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / parse-server</nav>
   <h1>parse-server</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 build-only receipt; runtime/config path remains open · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Stable pinned Cix build passes; Mongo-backed runtime was not exercised · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — config volumes/log path and Node version diverge; runtime remains unproved · <strong>Evidence:</strong> build</p>
+  <p class="status"><strong>Receipt status:</strong> Stable pinned Cix item build; Mongo-backed runtime is not exercised · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/parse-server/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-82</p>
+    <ul>
+      <li>Seven sibling <code>COPY</code> directives enumerate one deploy output; copy the deploy unit or state exactly what is excluded and why. → prompt</li>
+      <li><code>LOGDIR /var/log/parse-server</code> needlessly diverges from upstream <code>/parse-server/logs</code>; role-directory paths are free and should mirror the application. → prompt</li>
+      <li>Writable <code>/parse-server/cloud</code> and <code>/parse-server/config</code> were omitted because the old grammar restricted <code>CONFIGDIR</code>; CIP-82 removed that restriction, so both upstream paths can now be declared directly. → case</li>
+      <li>The runtime moves from Docker&#39;s Node 20.19 to nixpkgs Node 22 because the locked universe removed EOL Node 20; retain that explicit compatibility disposition. → case</li>
+      <li>The Docker-shaped <code>ENV NAME=value</code> spelling is intentionally not grammar today; preserve the canonical spaced form and cite the pending diagnostic disposition. → open question (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">`ENV NAME=value`</a>)</li>
+      <li>The item builds, but the Mongo-backed <code>/parse/health</code> contract has never passed on the Cix side. → evidence</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 485 files, 8312249 bytes</summary>
     <ul class="file-tree">

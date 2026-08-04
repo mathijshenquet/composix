@@ -56,9 +56,20 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / tomcat</nav>
   <h1>tomcat</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ complete package tree + idempotent setup · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix build and bounded HTTP reachability probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — virtual layout, disabled shutdown listener, application behavior, and faithful twin remain · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Sealed-root empty-server HTTP reachability · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>Whole packages are copied to ad-hoc <code>/coreutils</code>, <code>/gnused</code>, <code>/tomcat</code>, and <code>/jre</code> roots and stitched together with a hand-built <code>PATH</code>. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The virtual filesystem diverges from upstream <code>CATALINA_HOME=/usr/local/tomcat</code> and its ordinary JRE/package layout; mirror those paths or state why the alternate projection is required. → prompt</li>
+      <li>Setup disables Tomcat&#39;s private shutdown listener on 8005 to satisfy the declared-port sandbox; retain that deliberate behavioral change as a visible loss. → case</li>
+      <li>The bounded probe accepts the expected empty-server 404, proving reachability but no deployed web application behavior. → evidence</li>
+      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 66 files, 276429 bytes</summary>
     <ul class="file-tree">

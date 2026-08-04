@@ -56,9 +56,18 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / memcached</nav>
   <h1>memcached</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix build and protocol version probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — upstream is 1.6.45, receipt reports 1.6.42, feature parity and faithful twin are missing · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Sealed-root package build and protocol VERSION response · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@c43ae9b · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The receipt exposes concrete version skew—upstream 1.6.45 versus nixpkgs 1.6.42—and does not establish parity for the upstream SASL, TLS, extstore, or proxy build features. → evidence</li>
+      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 1 files, 124 bytes</summary>
     <ul class="file-tree">

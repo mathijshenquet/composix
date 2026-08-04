@@ -56,9 +56,22 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / caddy</nav>
   <h1>caddy</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix build and HTTP probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/caddy/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — probe toy, upstream config/ports, split state layout, and faithful twin are missing · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> A sealed-root caddy respond HTTP probe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/caddy/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/caddy/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@c43ae9b · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-82</p>
+    <ul>
+      <li><code>START caddy respond</code> is a probe-shaped toy, not the upstream <code>caddy run --config /etc/caddy/Caddyfile --adapter caddyfile</code> contract; the upstream Caddyfile and welcome page are absent. → case</li>
+      <li>Only port 8080 is declared: upstream HTTP/HTTPS/admin ports 80, 443, and 2019 are not represented. → case</li>
+      <li>Upstream also exposes QUIC on 443/UDP, while <code>PORT</code> has no protocol spelling for a faithful declaration. → language (candidate: UDP ports)</li>
+      <li><code>/config</code> and <code>/data</code> were collapsed below one <code>/var/lib/caddy</code> state role even though role-directory paths can now mirror both upstream paths directly. → prompt</li>
+      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The receipt proves only the toy HTTP responder and does not compare the selected nixpkgs Caddy version with upstream 2.11.4. → evidence</li>
+      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+    </ul>
+  </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">

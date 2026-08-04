@@ -56,9 +56,21 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / verdaccio</nav>
   <h1>verdaccio</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 package-manager build remains non-green · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix Corepack/pnpm build sequence fails before producing an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/verdaccio/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Blocked — build diagnostic, runtime layout, and environment parity remain unresolved · <strong>Evidence:</strong> build (Cix failure)</p>
+  <p class="status"><strong>Receipt status:</strong> Corepack/pnpm exits non-zero before producing an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/verdaccio/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/verdaccio/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-82</p>
+    <ul>
+      <li>The sed rewrite from <code>/verdaccio/storage</code> to <code>/var/lib/verdaccio</code> is unnecessary: <code>STATEDIR /verdaccio/storage</code> can mirror the upstream volume directly under the migration guide&#39;s role-path rule. → case</li>
+      <li>The deploy tree moves from <code>/opt/verdaccio</code> to <code>/app</code>, and configuration moves from <code>/verdaccio/conf</code> to <code>/etc/verdaccio</code>, without a stated reason. → prompt</li>
+      <li>Upstream <code>VERDACCIO_APPDIR</code>, user/uid, port/protocol/address, <code>PATH</code>, and <code>HOME</code> environment declarations disappear without translated/dissolved/gap dispositions. → case</li>
+      <li>Node is linked into <code>/bin</code> and then found through implicit self-import instead of an explicit artifact tool declaration. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>“Package-manager build remains non-green” means the Corepack/pnpm sequence exits non-zero before producing any item; record the precise failing command and diagnostic on a fresh attempt. → evidence</li>
+      <li>Until that build receipt exists, the service block is untested aspiration rather than a runnable approximation. → browser</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 1705 files, 11489962 bytes</summary>
     <ul class="file-tree">

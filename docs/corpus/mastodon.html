@@ -56,10 +56,21 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / mastodon</nav>
   <h1>mastodon</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 integration passes; D26/D27 network segmentation remains an explicit loss · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Six-member compose passes ordinary and closed-root integration: credential, Unix edges, shared-rw state, readiness/liveness, timer, scoped logs, and purge · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Six-member sealed-root composition: credentials, Unix edges, shared-rw state, health, timer, logs, and purge · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/SOURCE">Pinned upstream source notes</a></p>
   <p class="status"><strong>Mastodon tag provenance:</strong> compose children reference <code>corpus-mastodon-&lt;member&gt;:checked</code> tags produced by <code>check.sh</code> from the per-member Cixfiles shown below.</p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@4e76da0 · unknown · 2026-08-02 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The checked conversion substitutes Python/nginx shape stubs for Mastodon&#39;s web, Sidekiq, and streaming applications and adds a sixth cleanup member; it proves composition mechanisms, not a Mastodon application migration. → case</li>
+      <li>Only <code>compose.json</code> is visible in the browser even though <code>corpus-mastodon-*:checked</code> tags are produced from six member Cixfiles by <code>check.sh</code>; surface that provenance and the member sources. → browser</li>
+      <li>The upstream external/internal multi-network split and <code>internal: true</code> egress boundary remain unexpressed. → language (<a href="../../../docs/design.md#building-now-updated-2026-08-02">D26/D27 named-network frontier</a>)</li>
+      <li><code>.env.production</code> and its application configuration are replaced by one database credential and stub defaults; the unconverted configuration surface must remain explicit. → case</li>
+      <li>HTTP/TCP liveness loses its resident pinger on systemd 257 even though the accepted VM passes on newer systemd. → evidence</li>
+    </ul>
+  </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">

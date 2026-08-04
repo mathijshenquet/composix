@@ -56,9 +56,18 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / echo-server</nav>
   <h1>echo-server</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Historical Cix offline build and bounded HTTP probe pass; consumed build tree is not reproducible for closed-root audit · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/echo-server/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — upstream layout/tool assembly diverges and closed-root reproduction is pending · <strong>Evidence:</strong> runtime probe (historical)</p>
+  <p class="status"><strong>Receipt status:</strong> Historical Cix offline build and bounded HTTP probe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/echo-server/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/echo-server/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@c43ae9b · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The two runtime files moved from upstream <code>/app</code> to filesystem root without a stated reason. → prompt</li>
+      <li>Node is linked into <code>/bin</code> and then found through implicit self-import instead of an explicit artifact tool declaration. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The historical HTTP receipt consumed a one-off build tree that has not been reproduced in the closed-root audit; rerun it from the recorded revision before upgrading the evidence tier. → evidence</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 78 files, 863713 bytes</summary>
     <ul class="file-tree">

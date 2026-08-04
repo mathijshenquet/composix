@@ -56,9 +56,20 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / nginx</nav>
   <h1>nginx</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + native logging projection · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Cix build, HTTP request, and indexed journald query pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — synthetic config omits entrypoint behavior, version parity, and a faithful twin · <strong>Evidence:</strong> closed-root · receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Sealed-root fixed HTTP response and indexed journald query · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The package-only conversion replaces upstream&#39;s normal nginx contract and entrypoint-driven template/resolver/worker tuning with a synthetic one-server config that returns a fixed string. → case</li>
+      <li>The non-interpolating nginx configuration is an unnecessary heredoc instead of a normal checked-in file. → case</li>
+      <li>The receipt reports nixpkgs nginx 1.30.4 while the Dockerfile pins 1.31.3, and Docker mode was not rerun. → evidence</li>
+      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; the manifest has no stop-signal declaration and silently uses systemd&#39;s default. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 86 files, 230915 bytes</summary>
     <ul class="file-tree">

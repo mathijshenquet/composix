@@ -61,27 +61,27 @@
   <table>
     <thead><tr><th>Case</th><th>docs/corpus.md ribbon</th><th>Evidence class</th></tr></thead>
     <tbody>
-      <tr><td><a href="adminer.html">adminer</a></td><td>🔶 base service passes; optional runtime mutation remains unconverted</td><td>receipt</td></tr>
-      <tr><td><a href="caddy.html">caddy</a></td><td>✅ package selection + direct service contract</td><td>receipt</td></tr>
-      <tr><td><a href="directus.html">directus</a></td><td>🔶 blocked on the native-binary/FHS loader gap</td><td>receipt</td></tr>
-      <tr><td><a href="dozzle.html">dozzle</a></td><td>❌ Docker-control-plane workload; build receipt is non-green</td><td>receipt</td></tr>
-      <tr><td><a href="echo-server.html">echo-server</a></td><td>🔶 runtime receipt exists; closed-root evidence pending reproducible inputs</td><td>receipt</td></tr>
-      <tr><td><a href="excalidraw.html">excalidraw</a></td><td>🔶 runtime receipt exists; closed-root evidence pending reproducible inputs</td><td>receipt</td></tr>
-      <tr><td><a href="filestash.html">filestash</a></td><td>🔶 package/static-link composition gap</td><td>receipt</td></tr>
-      <tr><td><a href="mastodon.html">mastodon</a></td><td>🔶 integration passes; D26/D27 network segmentation remains an explicit loss</td><td>receipt</td></tr>
-      <tr><td><a href="memcached.html">memcached</a></td><td>✅ package selection + direct service contract</td><td>receipt</td></tr>
-      <tr><td><a href="nats.html">nats</a></td><td>✅ package selection + direct service contract</td><td>receipt</td></tr>
-      <tr><td><a href="nginx.html">nginx</a></td><td>✅ package selection + native logging projection</td><td>receipt</td></tr>
-      <tr><td><a href="parse-server.html">parse-server</a></td><td>🔶 build-only receipt; runtime/config path remains open</td><td>receipt</td></tr>
-      <tr><td><a href="phpmyadmin.html">phpmyadmin</a></td><td>✅ package selection + direct service contract</td><td>receipt</td></tr>
-      <tr><td><a href="redis.html">redis</a></td><td>✅ package selection + arbitrary-path state</td><td>receipt</td></tr>
-      <tr><td><a href="renovate.html">renovate</a></td><td>🔶 schedule/logging pass; credentials await CIP-81 implementation</td><td>receipt</td></tr>
-      <tr><td><a href="tomcat.html">tomcat</a></td><td>✅ complete package tree + idempotent setup</td><td>receipt</td></tr>
-      <tr><td><a href="traefik.html">traefik</a></td><td>✅ package selection + direct service contract</td><td>receipt</td></tr>
-      <tr><td><a href="verdaccio.html">verdaccio</a></td><td>🔶 package-manager build remains non-green</td><td>receipt</td></tr>
-      <tr><td><a href="wallos.html">wallos</a></td><td>🔶 runtime passes; READINESS undeclared; closed-root evidence pending reproducible inputs</td><td>receipt</td></tr>
-      <tr><td><a href="watchtower.html">watchtower</a></td><td>❌ competing Docker control plane</td><td>receipt</td></tr>
-      <tr><td><a href="whoami.html">whoami</a></td><td>🔶 runtime receipt exists; closed-root evidence pending reproducible inputs</td><td>receipt</td></tr>
+      <tr><td><a href="adminer.html">adminer</a></td><td>🔶 Declared losses — PHP tuning, upstream layout, and dynamic design/plugin assembly are missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="caddy.html">caddy</a></td><td>🔶 Declared losses — probe toy, upstream config/ports, split state layout, and faithful twin are missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="directus.html">directus</a></td><td>⏳ Blocked — downloaded native binary cannot run in the builder; state assembly remains provisional</td><td>build (Cix failure)</td></tr>
+      <tr><td><a href="dozzle.html">dozzle</a></td><td>❌ Refused — useful runtime requires Docker&#39;s socket/API; complete build is also non-green</td><td>build (Cix failure)</td></tr>
+      <tr><td><a href="echo-server.html">echo-server</a></td><td>🔶 Declared losses — upstream layout/tool assembly diverges and closed-root reproduction is pending</td><td>runtime probe (historical)</td></tr>
+      <tr><td><a href="excalidraw.html">excalidraw</a></td><td>🔶 Declared losses — build environment/layout differ and Docker health is not declared as readiness</td><td>runtime probe (historical)</td></tr>
+      <tr><td><a href="filestash.html">filestash</a></td><td>⏳ Blocked — development imports and a coherent static C-library package set are unavailable</td><td>build (Cix failure)</td></tr>
+      <tr><td><a href="mastodon.html">mastodon</a></td><td>🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="memcached.html">memcached</a></td><td>🔶 Declared losses — upstream is 1.6.45, receipt reports 1.6.42, feature parity and faithful twin are missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="nats.html">nats</a></td><td>🔶 Declared losses — upstream config/cluster listener, version proof, message round-trip, and faithful twin are missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="nginx.html">nginx</a></td><td>🔶 Declared losses — synthetic config omits entrypoint behavior, version parity, and a faithful twin</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="parse-server.html">parse-server</a></td><td>🔶 Declared losses — config volumes/log path and Node version diverge; runtime remains unproved</td><td>build</td></tr>
+      <tr><td><a href="phpmyadmin.html">phpmyadmin</a></td><td>🔶 Declared losses — PHP extensions/tuning, config generation, session layout, and Docker parity are missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="redis.html">redis</a></td><td>🔶 Declared losses — upstream version/build/entrypoint parity and a faithful twin are unproved</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="renovate.html">renovate</a></td><td>🔶 Declared losses — no repository work, config/credentials, job-policy parity, or faithful twin</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="tomcat.html">tomcat</a></td><td>🔶 Declared losses — virtual layout, disabled shutdown listener, application behavior, and faithful twin remain</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="traefik.html">traefik</a></td><td>🔶 Declared losses — ports/start contract and version/proxy parity differ; faithful twin is missing</td><td>closed-root · receipt</td></tr>
+      <tr><td><a href="verdaccio.html">verdaccio</a></td><td>⏳ Blocked — build diagnostic, runtime layout, and environment parity remain unresolved</td><td>build (Cix failure)</td></tr>
+      <tr><td><a href="wallos.html">wallos</a></td><td>🔶 Declared losses — readiness is undeclared, in-unit supervision remains, and closed-root reproduction is pending</td><td>runtime probe (historical)</td></tr>
+      <tr><td><a href="watchtower.html">watchtower</a></td><td>❌ Refused — useful runtime requires Docker&#39;s socket/API and the upstream supply contract is unreproducible</td><td>build</td></tr>
+      <tr><td><a href="whoami.html">whoami</a></td><td>🔶 Declared losses — runtime assets, reproducible closed-root evidence, and dissolved twin are missing</td><td>runtime probe (historical)</td></tr>
     </tbody>
   </table>
   <footer>Generated from <code>corpus/migrate/</code> and the ribbons in <code>docs/corpus.md</code>.</footer>

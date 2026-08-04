@@ -523,3 +523,121 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   sumdb tile paths are probe facts, hence unconsumed. The UI's pnpm/Vite `dist`
   remains a consumed-byte instability and is recorded, not excluded or normalized
   by cix. The required Docker socket remains an independent runtime boundary.
+
+## 2026-08-04 — corpus gap-ledger track started
+
+- Loaded `AGENTS.md`, `.dev/specs/track-corpusgaps.md`, the living-corpus
+  maintenance contract, the migration prompt, and the existing migration journal.
+  The worktree is clean on `track/corpusgaps` and `DEVENV_ROOT` points at this
+  worktree. Scope is fenced to the 21 new `GAPS.md` files, `docs/corpus.md`,
+  `docs/migrate.md`, and this journal; no Cixfile, context, lock, check, receipt,
+  generated browser output, or Rust source will be changed.
+- Provenance audit started from each case's introducing commit and the most recent
+  `docs/migrate.md` revision in its ancestry. Next: desk-review every Dockerfile,
+  Cixfile/compose file, receipt, and relevant source-side configuration before
+  writing the routed ledgers.
+
+## 2026-08-04 — all 21 case ledgers drafted
+
+- Added one `GAPS.md` beside every living migration. Each has the required
+  provenance/status header and every prose bullet ends in a routing arrow. Early
+  converter batches are attributed to `terra` because
+  `.dev/specs/track-migrate.md` fixes that model; later/manual feature-wave cases
+  say `unknown` because the repository does not establish their generating model.
+- Desk review covered every checked-in Dockerfile or upstream compose/CronJob,
+  current Cixfile/member set, SOURCE, and receipt. Findings beyond the seed include
+  Caddy's unrepresentable UDP/QUIC port, Adminer/nginx stop-signal loss, dropped
+  Excalidraw `NODE_ENV`, Dozzle's `/data` divergence, NATS's missing config/cluster
+  listener, phpMyAdmin's large config/extension delta, Renovate's version-only APP,
+  Wallos's retained in-unit supervisor, and source/receipt parity weaknesses.
+- Stale statuses are limited to conversions that can already consume a landed
+  feature: Caddy/Dozzle/Parse Server/Verdaccio (CIP-82), Excalidraw/Wallos
+  (CIP-79), and Renovate (CIP-81). Unadopted artifact-import,
+  builder-dev-imports, and FILE…FROM findings remain current and link their drafts.
+- Static receipt: `find corpus/migrate -mindepth 2 -maxdepth 2 -name GAPS.md |
+  wc -l` printed `21`; a local header/bullet routing audit found no malformed
+  ledger, and `git diff --check` exited 0. Next: teach every routed prompt lesson
+  in `docs/migrate.md`, then replace the living table's single ribbon with separate
+  fidelity and evidence axes.
+
+## 2026-08-04 — migration prompt closes routed prompt gaps
+
+- Amended `docs/migrate.md` in place, in its existing teaching flow: the opening
+  contract now requires an explicit disposition for every upstream ENV/config/
+  tuning knob; graph selection warns that many sibling copies usually hide one
+  deploy unit; FETCH guidance preserves upstream version/checksum binders as well
+  as the Cix SRI; runtime assembly mirrors upstream application and role paths by
+  default; and verification makes the per-case `GAPS.md` contract mandatory.
+- `rg -n '→ prompt$' corpus/migrate/*/GAPS.md` returned 12 findings. Each is
+  covered by one of those general lessons; no image-specific exception or syntax
+  from an unadopted draft was taught. `git diff --check` exited 0. Next: regrade
+  the living table on independent fidelity/evidence axes and cross-check every row
+  against its ledger.
+
+## 2026-08-04 — living corpus regraded on two axes
+
+- Replaced the single living-corpus ribbon with independent Fidelity and Evidence
+  columns. Fidelity now says faithful/declared losses/blocked/refused plus one
+  case-specific clause; Evidence says build/runtime probe/closed-root and links
+  the relevant receipt. The closed-root labels also link the exhaustive CIP-84
+  audit section so the stronger tier is not attributed to an older per-case
+  receipt. Sections 1–3 retain their existing survey grades unchanged.
+- Caddy is the canary: its sealed-root `caddy respond` receipt remains strong
+  evidence, while Fidelity now names it as a toy that omits upstream config,
+  ports, state layout, and the faithful twin. The same separation prevents the
+  Memcached/NATS/nginx/phpMyAdmin/Redis/Tomcat/Traefik probes and Renovate's
+  version-only timer from implying untested parity.
+- Follow-up correction to the earlier stale roster: Filestash is also stale with
+  D70. Artifact `IMPORT` still needs its draft, but D70 overlays already provide
+  the `.nix` package-customization escape for the broken static package set; that
+  finding is therefore routed back to the case, not promoted as new language.
+- Static receipt: the living-table slice contains exactly 21 numbered rows and
+  `git diff --check` exited 0.
+
+## 2026-08-04 — Language-gap candidates for the orchestrator
+
+- Builder support for downloaded FHS-linked ELF interpreters — Directus — bare
+  builder `IMPORT` cannot provide/patch the requested dynamic loader; artifact
+  imports/runtime-path links and development header/library search paths do not
+  change an executable's ELF interpreter.
+- Protocol-aware inbound ports, beginning with UDP — Caddy — the manifest/`PORT`
+  surface records TCP only, so the upstream 443/UDP QUIC listener cannot be
+  declared or sandbox-authorized; neither existing import draft touches network
+  protocols.
+- Per-service stop signal/timeout semantics — Adminer and nginx — the upstream
+  SIGINT/SIGQUIT contracts fall back to systemd's default because manifests expose
+  neither `KillSignal=` nor `TimeoutStopSec=`; this is already recorded as an open
+  mechanical field, not covered by either import draft.
+- Exact named/multi-network membership and internal-network egress policy —
+  Mastodon — CIP-86's pod namespace gives isolation and egress machinery but
+  cannot express the upstream external+internal memberships or `internal: true`;
+  D26/D27 remain the recorded frontier and the import drafts are orthogonal.
+
+## 2026-08-04 — corpus-gaps final agent gate
+
+- `devenv shell -- cargo fmt --all --check` — exit 0.
+- `devenv shell -- cargo run -p cix -- fmt --check examples` — exit 0 (the
+  synchronous cached rerun is the receipt after the first invocation compiled the
+  worktree binary).
+- `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings` —
+  exit 0.
+- `devenv shell -- cargo test --workspace` — exit 101 for exactly
+  `corpus_browser_matches_committed_pages`: the old generated
+  `docs/corpus/index.html` contains the former ribbons/evidence, while the
+  deterministic in-memory render contains this track's new Fidelity/Evidence
+  content. `generated_corpus_browser_is_deterministic` passes. This is the
+  intentional concurrent-track merge seam: `.dev/specs/track-corpusgaps.md`
+  forbids touching `docs/corpus/`, and `.dev/specs/track-browser3.md` assigns that
+  output plus the generator to browser3 with an explicit orchestrator-regeneration
+  merge note. The forbidden regeneration was not performed.
+- `devenv shell -- cargo test --workspace -- --skip
+  corpus_browser_matches_committed_pages` — exit 0; every other workspace unit,
+  integration, real-Nix, tour, and doc test passed. The skipped assertion is the
+  single failure above, not a broader test selection.
+- `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour` —
+  exit 0; `git diff --exit-code -- docs/tour` — exit 0; `devenv shell -- cargo
+  test -p cix --test tour tour_matches_committed_document -- --exact` — exit 0.
+- Final static audit: all 21 ledgers have valid header pairs, routed bullet
+  endings, and existing local link targets; the living table has 21 rows;
+  `git diff --check` exits 0; changed paths stay inside the track fence. No focused
+  VM scenario applies because this track changes no runtime behavior.

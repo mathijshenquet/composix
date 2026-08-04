@@ -56,9 +56,21 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / filestash</nav>
   <h1>filestash</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 package/static-link composition gap · <strong>Evidence:</strong> receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Docker passes; Cix stops at unavailable static-library linkage · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Blocked — development imports and a coherent static C-library package set are unavailable · <strong>Evidence:</strong> build (Cix failure)</p>
+  <p class="status"><strong>Receipt status:</strong> Docker probe passes; Cix reaches static-library linkage and fails before an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel stale">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with D70</p>
+    <ul>
+      <li>The page-wide <code>CPATH</code>/<code>LIBRARY_PATH</code>/<code>PKG_CONFIG_PATH</code> preamble is mechanical development-input plumbing that <code>IMPORT</code> does not provide. → language (<a href="../../../cips/draft/builder-dev-imports.md">builder-dev-imports draft</a>)</li>
+      <li>The required coherent static C-library set cannot be selected from the locked nixpkgs packages: <code>pkgsStatic.giflib</code> itself fails, but D70 overlays now provide the <code>.nix</code> package-customization escape for a regenerated case. → case</li>
+      <li>Four helper binaries are linked one by one into <code>/bin</code>, the same artifact toolset slop as the larger Wallos pile. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The runtime moved the upstream <code>/app</code> tree into <code>/bin</code>, <code>/share</code>, and <code>/var/lib/filestash</code>; mirror the application layout or explain each deliberate split. → prompt</li>
+      <li>Go generation is joined to dependency download in a networked <code>FETCH</code>, whose generated cache snapshot changed between runs. → evidence</li>
+      <li>The Docker receipt followed moving <code>master</code> while the Cix side used a recorded revision, so the two probes are not proven against identical source bytes. → evidence</li>
+    </ul>
+  </aside>
   <details class="context">
     <summary>Upstream build context: 1431 files, 34724256 bytes</summary>
     <ul class="file-tree">
