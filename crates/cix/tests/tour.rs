@@ -565,7 +565,7 @@ RUNDIR /run/nginx
     doc.finish()
 }
 
-fn chapter_distribution() -> String {
+fn chapter_distribution_old() -> String {
     let mut doc = Doc::new("distribution");
     let publisher = doc.state_dir.clone();
     let consumer = doc.base.join("consumer-state");
@@ -636,6 +636,98 @@ fn chapter_distribution() -> String {
     assert!(!updated.contains(&first));
     doc.para("GC follows those pins: after the refresh, the consumer roots the new path rather than the old one.");
     drop(server);
+    doc.finish()
+}
+
+fn chapter_cixfile_language() -> String {
+    let mut doc = Doc::new("cixfile-language");
+    fs::write(doc.base.join("index.html"), "language guide\n")
+        .expect("writing language fixture page");
+    fs::write(
+        doc.base.join("service.conf"),
+        "root=/srv/language\nstate=/var/lib/language\n",
+    )
+    .expect("writing language fixture config");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE language
+IMPORT ${pkgs.coreutils} ${pkgs.busybox} ${pkgs.bash}
+COPY index.html /srv/language/index.html
+COPY ${pkgs.coreutils}/bin/printf /opt/tools/printf
+COPY ${pkgs.nginx}/conf /opt/nginx
+COPY service.conf /etc/language/service.conf
+FILE /etc/language/build-origin <<ORIGIN
+packages=${pkgs.coreutils}
+ORIGIN
+START sleep 60
+ENV SITE_NAME = guide
+ENV API_TOKEN required
+STATEDIR /var/lib/language
+STATEDIR /opt/nginx/state
+CACHEDIR /var/cache/language
+LOGDIR /var/log/language
+CONFIGDIR /etc/language
+RUNDIR /run/language
+PORT web = 8088
+PORT dns = udp:5353
+LISTENER admin
+CLAIM egress
+CLAIM jit
+"#,
+    )
+    .expect("writing language Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing language lock");
+
+    doc.para("You will grow the first service into an example of every everyday Cixfile declaration. Afterwards, you will understand the backward-only graph, explicit binders, and capability vocabulary well enough to read a Cixfile without hidden Docker assumptions.");
+
+    doc.para("## A graph you can read from top to bottom");
+    doc.para("A Cixfile is a backward-only graph. `FROM` binds inputs, a block binds the artifact it creates, and `${name}` can refer only to something declared earlier; there are no ambient package names or inherited filesystem layers. The local directory is the one deliberate convenience: a bare `COPY index.html …` is the same source as `${src}/index.html` after `FROM . AS src`.");
+    let source = doc.sh("cat Cixfile index.html service.conf", true);
+    assert!(source.contains("FROM . AS src"));
+    assert!(source.contains("COPY index.html /srv/language/index.html"));
+    assert!(source.contains("ENV API_TOKEN required"));
+    assert!(source.contains("PORT dns = udp:5353"));
+    assert!(source.contains("CLAIM egress"));
+
+    doc.para("## IMPORT and COPY");
+    doc.para("`IMPORT` unions each package's `bin`, `etc`, and `share` trees into the item. It accepts ordinary package references, bare commands such as `sleep` resolve through that union, and earlier imports win a collision—so coreutils supplies `ls` even though busybox comes later.");
+    doc.para("`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. A later write or a runtime directory mount beneath a link forces that branch to materialize, which is why the package tree containing `STATEDIR /opt/nginx/state` becomes a real directory while `/opt/tools/printf` remains a link.");
+    let built = doc.sh("cix build .", true);
+    let store_path = built_store_path(&built, "-cix-item-language");
+    let layout = doc.sh(
+        &format!(
+            "test -f {store_path}/srv/language/index.html && test -L {store_path}/opt/tools/printf && test ! -L {store_path}/opt/nginx && printf 'local: materialized\\npackage: linked\\nmount ancestor: materialized\\n'"
+        ),
+        true,
+    );
+    assert_eq!(
+        layout.trim(),
+        "local: materialized\npackage: linked\nmount ancestor: materialized"
+    );
+
+    doc.para("`FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.");
+    let generated = doc.sh(&format!("cat {store_path}/etc/language/build-origin"), true);
+    assert!(generated.contains("packages=/nix/store/") && generated.contains("-coreutils-"));
+
+    doc.para("## Runtime declarations are grants");
+    doc.para("`ENV SITE_NAME = guide` supplies a default, while `ENV API_TOKEN required` requires an operator value without baking one into the item. Role directories use the application's native absolute paths and state their lifecycle: state persists, cache is disposable, logs are retained, config is operator-managed content, and run data disappears on stop.");
+    doc.para("A bare port is TCP; the `udp:` prefix is the single UDP spelling. `LISTENER admin` is different: systemd owns a TCP socket and passes its file descriptor to the service, which is useful for socket activation and privileged binds. Chapter 6 executes that boundary in a compose setting.");
+    doc.para("`CLAIM egress` admits outbound networking, and `CLAIM jit` allows writable executable memory. Without those explicit declarations, the corresponding sandbox authority stays denied.");
+    let manifest = doc.sh(
+        &format!("jq '{{env, ports, listeners, dirs, claims}}' {store_path}/cix-manifest.json"),
+        true,
+    );
+    assert!(manifest.contains("\"udp\""));
+    assert!(manifest.contains("\"admin\""));
+    assert!(manifest.contains("\"required\": true"));
+    assert!(manifest.contains("\"egress\""));
+    assert!(manifest.contains("\"jit\""));
+
+    doc.para("## Directive reference");
+    doc.para("| Declaration | What it adds |\n| --- | --- |\n| `FROM … AS name` | A locked package/source/item binder; `FROM .` names local context. |\n| `FETCH name command … EXPECT hash` | A pinned network step and reusable source binder. |\n| `BUILDER name` | A persistent build workspace for `COPY`, `ENV`, `FETCH`, and offline `RUN`. |\n| `SERVICE name` / `APP name` / `ITEM name` | A long-running runtime contract / run-to-completion contract / manifest-less tree. |\n| `IMPORT package…` | An earlier-wins read-only package union with bare command lookup. |\n| `COPY source /destination` | Provenance-aware item assembly; builder destinations are workdir-relative. |\n| `FILE /destination <<EOF` | An inline interpolated file; prefer checked-in files when possible. |\n| `START` / `START_PRE` | The argv entrypoint / idempotent service pre-start argv. |\n| `ENV` / `SECRET` | Declared runtime configuration / credential-file need. |\n| `PORT` / `LISTENER` | A direct TCP/UDP bind / systemd-owned TCP socket. |\n| role dirs / `DIR` | Cix-managed lifecycle storage / operator-supplied data. |\n| `READINESS` / `LIVENESS` | Startup gating / watchdog restart probes. |\n| `CLAIM` / `SHM` | A narrow sandbox exception / bounded private shared memory. |");
     doc.finish()
 }
 
@@ -1157,10 +1249,11 @@ fn render_tour() -> Vec<GeneratedFile> {
             body: chapter_hello(),
         },
         Scenario {
-            filename: "02-distribution.md",
-            title: "Chapter 2: Distribution",
-            description: "Serve an index and store, pull it elsewhere, and follow a moving tag.",
-            body: chapter_distribution(),
+            filename: "02-cixfile-language.md",
+            title: "Chapter 2: The Cixfile language",
+            description:
+                "Learn binders, assembly, runtime declarations, and the directive vocabulary.",
+            body: chapter_cixfile_language(),
         },
         Scenario {
             filename: "03-build-run-debug.md",

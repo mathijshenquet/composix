@@ -273,3 +273,11 @@
   honestly uses its locked source path and private `/tmp` runtime files while
   retaining the production role-dir declarations. Focused synchronous
   `generate_tour` passed; no ENOSPC occurred.
+
+- 2026-08-04T11:35:00Z — Chapter 2 is implemented and generated as
+  `02-cixfile-language.md`. The growing real Cixfile proves earlier-wins
+  universal IMPORT, local materialization, package linking, forced
+  materialization below a role mount, interpolated FILE, required ENV, all
+  lifecycle dirs, TCP+UDP ports, LISTENER, and egress/JIT claims; its compact
+  manifest projection and closing directive table are asserted. Focused
+  generation passed synchronously after fixture-path corrections; no ENOSPC.

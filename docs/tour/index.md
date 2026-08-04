@@ -11,7 +11,7 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 1: Hello, composix](01-hello-composix.html) — Build, run, probe, and stop your first Cixfile service.
 
-- [Chapter 2: Distribution](02-distribution.html) — Serve an index and store, pull it elsewhere, and follow a moving tag.
+- [Chapter 2: The Cixfile language](02-cixfile-language.html) — Learn binders, assembly, runtime declarations, and the directive vocabulary.
 
 - [Chapter 3: Build, run, debug](03-build-run-debug.html) — Read a Cixfile, build its manifest, run by tag, and debug the same tag.
 
