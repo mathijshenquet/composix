@@ -311,3 +311,12 @@
   pointers because this host's user manager rejects mount projection. Narrowed
   age normalization so declared `10s`/`2s` health durations no longer become
   fake `0s`. Focused generation passed synchronously; no ENOSPC.
+
+- 2026-08-04T12:50:00Z — Chapter 6 is implemented and generated as
+  `06-compose.md`. It executes LISTENER fd-3 socket activation, builds two
+  Cixfile services, validates a Unix edge plus shared STATEDIR and
+  `logNamespace`, records the real two-ref lock, dry-builds/diffs generations,
+  demonstrates unary run, then moves the tracked producer and diffs again.
+  `up`/`rollback`/`down`, setgid sharing, pod netns, and journal namespace are
+  clearly system-manager-only prose with exact lib/dirs2/netns/observability VM
+  pointers. Focused generation passed synchronously; no ENOSPC.

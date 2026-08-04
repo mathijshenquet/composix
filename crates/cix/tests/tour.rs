@@ -427,38 +427,55 @@ while True:
 }
 
 fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) {
-    let reference = Ref::parse(reference).expect("parsing compose reference");
-    let reference_text = reference.display();
-    let pointer: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            doc.state_dir
-                .join("names")
-                .join(cix_index::Store::encode_name(&reference.name)),
+    write_resolved_compose_lock_entries(doc, compose_path, &[("web", reference)]);
+}
+
+fn write_resolved_compose_lock_entries(doc: &Doc, compose_path: &Path, entries: &[(&str, &str)]) {
+    let mut paths = serde_json::Map::new();
+    for (path, reference) in entries {
+        let reference = Ref::parse(reference).expect("parsing compose reference");
+        let reference_text = reference.display();
+        let pointer: serde_json::Value = serde_json::from_slice(
+            &fs::read(
+                doc.state_dir
+                    .join("names")
+                    .join(cix_index::Store::encode_name(&reference.name)),
+            )
+            .expect("reading compose name pointer"),
         )
-        .expect("reading compose name pointer"),
-    )
-    .expect("parsing compose name pointer");
-    let table: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            Path::new(pointer["storePath"].as_str().expect("pointer store path"))
-                .join("table.json"),
+        .expect("parsing compose name pointer");
+        let table: serde_json::Value = serde_json::from_slice(
+            &fs::read(
+                Path::new(pointer["storePath"].as_str().expect("pointer store path"))
+                    .join("table.json"),
+            )
+            .expect("reading compose tag table"),
         )
-        .expect("reading compose tag table"),
-    )
-    .expect("parsing compose tag table");
-    let record = &table["tags"][&reference.tag];
-    let store_path = record["storePath"]
-        .as_str()
-        .expect("finding compose store path")
-        .to_owned();
-    let nar_hash = record["narHash"]
-        .as_str()
-        .expect("finding compose nar hash")
-        .to_owned();
+        .expect("parsing compose tag table");
+        let record = &table["tags"][&reference.tag];
+        let store_path = record["storePath"]
+            .as_str()
+            .expect("finding compose store path")
+            .to_owned();
+        let nar_hash = record["narHash"]
+            .as_str()
+            .expect("finding compose nar hash")
+            .to_owned();
+        paths.insert(
+            (*path).to_owned(),
+            serde_json::json!({
+                "ref": reference_text,
+                "storePath": store_path,
+                "narHash": nar_hash,
+            }),
+        );
+    }
     fs::write(
         cix_compose::Compose::lock_path(compose_path),
         format!(
-            "{{\n  \"paths\": {{\n    \"web\": {{\n      \"ref\": \"{reference_text}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
+            "{}\n",
+            serde_json::to_string_pretty(&serde_json::json!({ "paths": paths }))
+                .expect("serializing compose lock")
         ),
     )
     .expect("writing resolved compose lock");
@@ -1271,6 +1288,148 @@ START true
     doc.finish()
 }
 
+fn chapter_compose() -> String {
+    let mut doc = Doc::new("compose");
+
+    doc.para("You will connect two independently built services with a Unix edge and shared state, validate and diff their compose generation, and exercise the socket-activation primitive beneath named listeners. Afterwards, you will understand compose's resolve/build/activate lifecycle, unary `cix run`, rollback boundary, pod option, and journal namespace without mistaking rootless dry-runs for system activation.");
+
+    doc.para("## Named listeners are systemd sockets");
+    let listener_path = listener_fixture(&doc);
+    doc.para("A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.");
+    let listener_source = doc.sh(
+        "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
+        true,
+    );
+    assert!(listener_source.contains("socket.fromfd(3"));
+    assert!(listener_source.contains("\"listeners\""));
+    let listen = next_listen();
+    let started = doc.sh(
+        &format!("cix run {listener_path} --user -p http={listen} --detach"),
+        true,
+    );
+    let listener_unit = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-") && line.ends_with(".service"))
+        .expect("cix run printed a listener unit")
+        .to_owned();
+    let _listener = UserUnit {
+        name: listener_unit.clone(),
+    };
+    wait_for_http(&listen, "LISTEN_FDS=1; no socket() authority");
+    let response = doc.sh(&format!("curl -fsS http://{listen}"), true);
+    assert_eq!(response.trim(), "LISTEN_FDS=1; no socket() authority");
+    doc.sh(&format!("systemctl --user stop {listener_unit}"), true);
+
+    doc.para("## Two items, one operator document");
+    for (name, extra) in [("producer", "RUNDIR /run/producer\n"), ("consumer", "")] {
+        let directory = doc.base.join(name);
+        fs::create_dir(&directory).expect("creating compose member directory");
+        fs::write(
+            directory.join("Cixfile"),
+            format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE {name}\nIMPORT ${{pkgs.coreutils}}\nSTART sleep 300\nENV VERSION = v1\nSTATEDIR /var/lib/shared\n{extra}"
+            ),
+        )
+        .expect("writing compose member Cixfile");
+        fs::write(directory.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+            .expect("writing compose member lock");
+    }
+    let members = doc.sh("cat producer/Cixfile consumer/Cixfile", true);
+    assert!(members.contains("RUNDIR /run/producer"));
+    assert_eq!(members.matches("STATEDIR /var/lib/shared").count(), 2);
+    let producer_build = doc.sh("cix build producer -t current", true);
+    let first_producer = built_store_path(&producer_build, "-cix-item-producer");
+    let consumer_build = doc.sh("cix build consumer -t v1", true);
+    let consumer = built_store_path(&consumer_build, "-cix-item-consumer");
+
+    fs::write(
+        doc.base.join("compose.json"),
+        r#"{
+  "cixCompose": 1,
+  "name": "tour-stack",
+  "logNamespace": true,
+  "children": {
+    "producer": {
+      "item": "producer:current",
+      "update": "track",
+      "dirs": {"/var/lib/shared": {"shared": "payload"}}
+    },
+    "consumer": {
+      "item": "consumer:v1",
+      "dirs": {"/var/lib/shared": {"shared": "payload"}}
+    }
+  },
+  "edges": {
+    "producer-api": {
+      "producer": {"child": "producer", "path": "/run/producer"},
+      "consumers": {"consumer": {}}
+    }
+  }
+}
+"#,
+    )
+    .expect("writing compose fixture");
+    doc.para("The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.");
+    let compose = doc.sh("cat compose.json", true);
+    assert!(compose.contains("\"shared\": \"payload\""));
+    assert!(compose.contains("\"producer-api\""));
+    assert!(compose.contains("\"logNamespace\": true"));
+    let checked = doc.sh("cix compose check compose.json", true);
+    assert_eq!(
+        checked.trim(),
+        "compose tour-stack: 2 services, 1 edges, valid"
+    );
+
+    write_resolved_compose_lock_entries(
+        &doc,
+        &doc.base.join("compose.json"),
+        &[
+            ("producer", "producer:current"),
+            ("consumer", "consumer:v1"),
+        ],
+    );
+    let lock = doc.sh("cat cix.lock", true);
+    assert!(lock.contains(&first_producer));
+    assert!(lock.contains(&consumer));
+    let initial = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(
+        initial.contains("cix-tour\x2dstack-producer.service"),
+        "{initial}"
+    );
+    assert!(
+        initial.contains("cix-tour\x2dstack-consumer.service"),
+        "{initial}"
+    );
+
+    doc.para("`cix run` is the unary form of the same contract compiler. It gives one item a transient lifecycle; compose adds stable names, edges, shared backing, operator values, and retained generations.");
+    let unary = doc.sh("cix run producer:current --user --detach", true);
+    let unary_unit = unary
+        .lines()
+        .find(|line| line.starts_with("cix-run-producer-") && line.ends_with(".service"))
+        .expect("unary run printed a producer unit")
+        .to_owned();
+    let _unary = UserUnit {
+        name: unary_unit.clone(),
+    };
+    doc.sh(&format!("systemctl --user stop {unary_unit}"), true);
+
+    doc.para("Change only the tracked producer item. The dry diff resolves its moved tag and builds a candidate generation without touching the active system manager.");
+    doc.sh(
+        "sed -i 's/ENV VERSION = v1/ENV VERSION = v2/' producer/Cixfile",
+        true,
+    );
+    let producer_v2 = doc.sh("cix build producer -t current", true);
+    let second_producer = built_store_path(&producer_v2, "-cix-item-producer");
+    assert_ne!(first_producer, second_producer);
+    let changed = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(changed.contains(&second_producer), "{changed}");
+
+    doc.para("## Activation is the privileged receipt");
+    doc.para("This harness intentionally stops at `check` and `diff`: `cix up compose.json`, `cix rollback tour-stack`, and `cix down tour-stack` manage `/etc/systemd/system`, a root profile, shared backing ownership, and the system manager. The [stack VM scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/lib.nix) executes that exact up → selective change → diff → rollback → down lifecycle, and [the dirs scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix) asserts both writers see the same setgid shared directory.");
+    doc.para("`network: \"pod\"` places a subtree in one private network namespace; named networks and service-DNS policy stay separate concerns. The [network-namespace scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/netns.nix) proves pod co-location, isolation, publication, and cleanup. `logNamespace: true` similarly asks systemd for one journal namespace for this compose tree; `cix logs tour-stack[/child]` selects its stamped fields, with the [observability scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/observability.nix) carrying the privileged receipt.");
+    doc.finish()
+}
+
 fn chapter_build_run_debug() -> String {
     let mut doc = Doc::new("build-run-debug");
     fs::write(doc.base.join("greeting.txt"), "hello from Cixfile\n")
@@ -1817,10 +1976,10 @@ fn render_tour() -> Vec<GeneratedFile> {
             body: chapter_runtime_contract(),
         },
         Scenario {
-            filename: "06-advanced.md",
-            title: "Chapter 6: Advanced",
-            description: "Inspect socket activation, then compose a real Cixfile-built service.",
-            body: chapter_advanced(),
+            filename: "06-compose.md",
+            title: "Chapter 6: Compose",
+            description: "Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.",
+            body: chapter_compose(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

@@ -19,4 +19,4 @@ This executable tour follows composix from naming and distribution through build
 
 - [Chapter 5: Running: the runtime contract](05-runtime-contract.html) — Run and debug by tag, inspect health and observability, and schedule an APP.
 
-- [Chapter 6: Advanced](06-advanced.html) — Inspect socket activation, then compose a real Cixfile-built service.
+- [Chapter 6: Compose](06-compose.html) — Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.

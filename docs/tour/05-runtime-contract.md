@@ -118,4 +118,4 @@ You now have the complete ownership split: artifacts declare their process needs
 
 ---
 
-[← Previous](04-naming-distribution.html) · [Tour index](index.html) · [Next →](06-advanced.html)
+[← Previous](04-naming-distribution.html) · [Tour index](index.html) · [Next →](06-compose.html)
