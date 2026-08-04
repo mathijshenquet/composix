@@ -39,7 +39,7 @@ RUNDIR /run/nginx
 ```
 
 ```sh
-cix build . -t v1                              # {"my-nginx":"/nix/store/…"}; deterministic pin
+cix build . -t v1                              # prints an indented JSON member map; deterministic pin
 cix run my-nginx:v1                       # a hardened transient systemd unit
 
 # on the box your org's DNS calls cix.my-org.com:

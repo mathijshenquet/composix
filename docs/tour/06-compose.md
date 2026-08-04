@@ -12,7 +12,7 @@ You will connect two independently built services with a Unix edge and shared st
 A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
 
 ```sh
-$ cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json
+$ cat listener-fixture/bin/listenfds
 #!/usr/bin/python3
 import os
 import socket
@@ -34,10 +34,55 @@ while True:
             + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             + b"Connection: close\r\n\r\n" + body
         )
+```
+
+```sh
+$ cix inspect /nix/store/…-listener-fixture
 {
-  "cixManifest": 0,
-  "start": ["bin/listenfds"],
-  "listeners": {"http": {"type": "stream"}}
+  "kind": "artifact",
+  "reference": null,
+  "storePath": "/nix/store/…-listener-fixture",
+  "narHash": "sha256-gfEjKh9+oHz9uR8uHT3IfF3h7Ib2k8MsFR8HvHRmmbM=",
+  "outputs": {
+    "x86_64-linux": {
+      "storePath": "/nix/store/…-listener-fixture",
+      "narHash": "sha256-gfEjKh9+oHz9uR8uHT3IfF3h7Ib2k8MsFR8HvHRmmbM="
+    }
+  },
+  "manifest": {
+    "cixManifest": 0,
+    "dirs": {
+      "cache": [],
+      "config": [],
+      "data": [],
+      "logs": [],
+      "run": null,
+      "state": []
+    },
+    "egress": false,
+    "env": {},
+    "jit": null,
+    "listeners": {
+      "http": {
+        "type": "stream"
+      }
+    },
+    "liveness": null,
+    "mounts": null,
+    "network": null,
+    "ports": {},
+    "readiness": null,
+    "secrets": {},
+    "shm": null,
+    "start": [
+      "bin/listenfds"
+    ],
+    "start_pre": null
+  },
+  "closureSize": 1512,
+  "trustedKeys": [],
+  "upstream": null,
+  "drvPath": null
 }
 ```
 
@@ -79,12 +124,16 @@ STATEDIR /var/lib/shared
 
 ```sh
 $ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+{
+  "producer": "/nix/store/…-cix-item-producer"
+}
 ```
 
 ```sh
 $ cix build consumer -t v1
-{"consumer":"/nix/store/…-cix-item-consumer"}
+{
+  "consumer": "/nix/store/…-cix-item-consumer"
+}
 ```
 
 The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
@@ -170,7 +219,9 @@ $ sed -i 's/ENV VERSION = v1/ENV VERSION = v2/' producer/Cixfile
 
 ```sh
 $ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+{
+  "producer": "/nix/store/…-cix-item-producer"
+}
 ```
 
 ```sh

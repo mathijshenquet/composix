@@ -96,7 +96,7 @@ impl Command {
                     if stats {
                         println!(
                             "{}",
-                            serde_json::to_string(
+                            render_json(
                                 &serde_json::json!({ "item": items[0].store_path, "stats": build_stats })
                             )?
                         );
@@ -111,12 +111,12 @@ impl Command {
                     if stats {
                         println!(
                             "{}",
-                            serde_json::to_string(
+                            render_json(
                                 &serde_json::json!({ "items": members, "stats": build_stats })
                             )?
                         );
                     } else {
-                        println!("{}", serde_json::to_string(&members)?);
+                        println!("{}", render_json(&members)?);
                     }
                 }
                 Ok(())
@@ -132,6 +132,10 @@ impl Command {
             ),
         }
     }
+}
+
+fn render_json(value: &impl serde::Serialize) -> anyhow::Result<String> {
+    serde_json::to_string_pretty(value).context("serializing cix build JSON")
 }
 
 #[derive(clap::Args)]
@@ -243,7 +247,9 @@ fn parse_build_target(input: &str) -> anyhow::Result<(PathBuf, Option<String>)> 
 
 #[cfg(test)]
 mod tests {
-    use super::parse_build_target;
+    use std::collections::BTreeMap;
+
+    use super::{parse_build_target, render_json};
 
     #[test]
     fn parses_member_selector_from_build_target() {
@@ -252,5 +258,12 @@ mod tests {
             (".".into(), Some("api".into()))
         );
         assert_eq!(parse_build_target(".").unwrap(), (".".into(), None));
+    }
+
+    #[test]
+    fn renders_build_json_with_indentation() {
+        let output = render_json(&BTreeMap::from([("api", "/nix/store/api")])).unwrap();
+
+        assert_eq!(output, "{\n  \"api\": \"/nix/store/api\"\n}");
     }
 }

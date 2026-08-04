@@ -444,12 +444,7 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         true,
     );
     doc.sh_in(prompt, state_dir, &format!("ls -1 {name}"), true);
-    doc.sh_in(
-        prompt,
-        state_dir,
-        &format!("cat {name}/message {name}/cix-manifest.json"),
-        true,
-    );
+    doc.sh_in(prompt, state_dir, &format!("cat {name}/message"), true);
     doc.sh_in(
         prompt,
         state_dir,
@@ -473,6 +468,8 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         path.starts_with("/nix/store/"),
         "unexpected store path: {path}"
     );
+    let inspection = doc.sh_in(prompt, state_dir, "cix inspect my-app:v1", true);
+    assert!(inspection.contains("\"cixManifest\": 0"));
     path
 }
 
@@ -838,7 +835,7 @@ RUNDIR /run/nginx
 
     let built = doc.sh("cix build .", true);
     let store_path = built_store_path(&built, "-cix-item-hello");
-    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
+    let manifest = doc.sh(&format!("cix inspect {store_path}"), true);
     assert!(manifest.contains("/bin/nginx"));
     assert!(manifest.contains("\"/var/cache/nginx\""));
     assert!(manifest.contains("\"/run/nginx\""));
@@ -1005,7 +1002,7 @@ COPY ${{assemble}}/result /result
         true,
     );
     assert!(warm.contains("memo-hit"), "{warm}");
-    assert!(warm.contains("\"nixSubprocesses\":0"), "{warm}");
+    assert!(warm.contains("\"nixSubprocesses\": 0"), "{warm}");
     doc.para("That hit is not a timestamp promise. Cix rehashes exactly the files, directory listings, metadata probes, and absent paths the command read; unrelated workspace bytes cannot invalidate the step, while a changed observed input does. A persistent workspace is therefore an acceleration structure, not hidden build input.");
 
     doc.para("`--update-lock` and `--cold` are the audit pair: the first is an explicit trust-moving network operation for a selected non-EXPECT FETCH, while the second never contacts the network and replays the pinned bytes in an empty workspace before comparing reads and consumed outputs.");
@@ -1414,12 +1411,10 @@ fn chapter_compose() -> String {
     doc.para("## Named listeners are systemd sockets");
     let listener_path = listener_fixture(&doc);
     doc.para("A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.");
-    let listener_source = doc.sh(
-        "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
-        true,
-    );
+    let listener_source = doc.sh("cat listener-fixture/bin/listenfds", true);
     assert!(listener_source.contains("socket.fromfd(3"));
-    assert!(listener_source.contains("\"listeners\""));
+    let listener_manifest = doc.sh(&format!("cix inspect {listener_path}"), true);
+    assert!(listener_manifest.contains("\"listeners\""));
     let listen = next_listen();
     let started = doc.sh(
         &format!("cix run {listener_path} --user -p http={listen} --detach"),
@@ -1722,11 +1717,13 @@ fn proj1_item_path(output: &str, name: &str) -> String {
 }
 
 fn build_member_map(output: &str) -> std::collections::BTreeMap<String, String> {
-    let json = output
-        .lines()
-        .find(|line| line.starts_with('{'))
+    let json_start = output
+        .find('{')
         .unwrap_or_else(|| panic!("build did not print a JSON member map:\n{output}"));
-    serde_json::from_str(json)
+    serde_json::Deserializer::from_str(&output[json_start..])
+        .into_iter::<std::collections::BTreeMap<String, String>>()
+        .next()
+        .expect("a JSON member map starts with an object")
         .unwrap_or_else(|error| panic!("build printed invalid member JSON: {error}\n{output}"))
 }
 

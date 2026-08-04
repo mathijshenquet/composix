@@ -51,7 +51,11 @@ HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
 
 ```sh
 $ cix build . --namespace runtime -t v1
-{"cleanup":"/nix/store/…-cix-item-cleanup","observer":"/nix/store/…-cix-item-observer","web":"/nix/store/…-cix-item-web"}
+{
+  "cleanup": "/nix/store/…-cix-item-cleanup",
+  "observer": "/nix/store/…-cix-item-observer",
+  "web": "/nix/store/…-cix-item-web"
+}
 ```
 
 ## Inspect the item, then cross the system-manager boundary

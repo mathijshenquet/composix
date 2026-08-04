@@ -52,7 +52,9 @@ state=/var/lib/language
 
 ```sh
 $ cix build .
-{"language":"/nix/store/…-cix-item-language"}
+{
+  "language": "/nix/store/…-cix-item-language"
+}
 ```
 
 ```sh

@@ -30,7 +30,9 @@ COPY ${assemble}/result /result
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --update-lock resolved fetch-demo
-{"fetched-result":"/nix/store/…-cix-item-fetched-result"}
+{
+  "fetched-result": "/nix/store/…-cix-item-fetched-result"
+}
 FETCH expected memo miss 999a72d2b130 -> /nix/store/…-cix-build-view
 FETCH resolved update probe: two outputs were identical
 FETCH resolved memo miss 7a6aa9b6b1cf -> /nix/store/…-cix-build-view
@@ -71,7 +73,41 @@ FETCH alone has network authority. The following RUN consumes only staged files 
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --stats fetch-demo
-{"items":{"fetched-result":"/nix/store/…-cix-item-fetched-result"},"stats":{"nixSubprocesses":0,"steps":[{"kind":"FETCH","name":"expected","status":"memo-hit"},{"kind":"FETCH","name":"resolved","status":"memo-hit"},{"kind":"COPY","name":"assemble:1","status":"memo-hit"},{"kind":"COPY","name":"assemble:2","status":"memo-hit"},{"kind":"RUN","name":"assemble:3","status":"memo-hit"}]}}
+{
+  "items": {
+    "fetched-result": "/nix/store/…-cix-item-fetched-result"
+  },
+  "stats": {
+    "nixSubprocesses": 0,
+    "steps": [
+      {
+        "kind": "FETCH",
+        "name": "expected",
+        "status": "memo-hit"
+      },
+      {
+        "kind": "FETCH",
+        "name": "resolved",
+        "status": "memo-hit"
+      },
+      {
+        "kind": "COPY",
+        "name": "assemble:1",
+        "status": "memo-hit"
+      },
+      {
+        "kind": "COPY",
+        "name": "assemble:2",
+        "status": "memo-hit"
+      },
+      {
+        "kind": "RUN",
+        "name": "assemble:3",
+        "status": "memo-hit"
+      }
+    ]
+  }
+}
 BUILDER assemble memo hit completed output (zero Nix subprocesses)
 ```
 
@@ -81,7 +117,9 @@ That hit is not a timestamp promise. Cix rehashes exactly the files, directory l
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --cold fetch-demo
-{"fetched-result":"/nix/store/…-cix-item-fetched-result"}
+{
+  "fetched-result": "/nix/store/…-cix-item-fetched-result"
+}
 FETCH expected replayed pinned snapshot 999a72d2b130 -> /nix/store/…-cix-build-view
 FETCH resolved replayed pinned snapshot 7a6aa9b6b1cf -> /nix/store/…-cix-build-view
 BUILDER assemble step 1 COPY /nix/store/…-cix-build-view/expected -> expected
@@ -140,7 +178,9 @@ IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.glibc}
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo
-{"native-result":"/nix/store/…-cix-item-native-result"}
+{
+  "native-result": "/nix/store/…-cix-item-native-result"
+}
 FETCH native memo hit <command-key> -> /nix/store/…-cix-build-view
 BUILDER native-build workspace <persistent>
 BUILDER native-build step 1 COPY /nix/store/…-cix-build-view/fhs-probe -> .
@@ -190,7 +230,10 @@ SERVICE proj1-worker
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1 --namespace proj1 -t v1
-{"proj1-api":"/nix/store/…-cix-item-proj1-api","proj1-worker":"/nix/store/…-cix-item-proj1-worker"}
+{
+  "proj1-api": "/nix/store/…-cix-item-proj1-api",
+  "proj1-worker": "/nix/store/…-cix-item-proj1-worker"
+}
 BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold

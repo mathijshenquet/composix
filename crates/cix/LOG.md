@@ -1,5 +1,40 @@
 # litdoc work log
 
+- 2026-08-04T15:34:03Z — Final standard agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. The exact
+  `generated_tour_is_deterministic` check passed three consecutive foreground
+  runs in 37.57s, 38.99s, and 44.17s. After staging generated pages, ignored
+  tour regeneration exited 0 and `git diff --exit-code -- docs/tour` was
+  clean. This output-only track has no focused VM scenario; the full flake
+  matrix remains the orchestrator's independent pre-merge gate. Next: stage
+  the scoped feature (including this required journal), review, and commit.
+
+- 2026-08-04T15:30:00Z — Focused formatting and output receipts are green:
+  the cix-cixfile pretty-render unit test and ignored tour regeneration both
+  exited 0 synchronously. The tour harness now parses the complete JSON value
+  before trailing build diagnostics, so its path assertions remain valid with
+  multiline stdout. Regeneration changed every build-map golden to indented
+  JSON and replaced all raw manifest `cat` displays with `cix inspect`; the
+  remaining manifest `jq` view is already indented. An explicit serializer
+  audit leaves all non-stdout JSON (manifests, locks, state, hashes, and index
+  HTTP responses) on their prior code paths. Next: three consecutive tour
+  determinism receipts, committed-tour drift check, then standard agent tier.
+
+- 2026-08-04T15:23:49Z — Started `track/jsonpretty` from the current main
+  head. Scope is only CLI JSON stdout formatting, its output tests, generated
+  tour receipts, and docs; artifact and lock serialization bytes remain fenced.
+  Audit found `cix inspect` and `cix ps --json` already use
+  `to_string_pretty`; the only compact cix stdout JSON was the Cixfile build
+  member map (including `--stats`). Switched those three rendering branches to
+  pretty serialization with a focused indentation regression. Reworked the
+  tour's raw manifest `cat` receipts to `cix inspect`, while leaving manifest
+  creation/storage untouched. Updated build-output documentation to describe
+  deterministic, pipe-safe indentation. Next: format, focused tests, regenerate
+  the tour, inspect all generated JSON and then run the standard agent tier.
+
 - 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
   `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell --
