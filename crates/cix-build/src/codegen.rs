@@ -11,11 +11,10 @@ use crate::{
 };
 
 fn bare_command(arguments: &[Template]) -> Option<String> {
-    match arguments.first()? {
-        Template { parts } => match parts.as_slice() {
-            [TemplatePart::Literal(command)] if !command.contains('/') => Some(command.clone()),
-            _ => None,
-        },
+    let Template { parts } = arguments.first()?;
+    match parts.as_slice() {
+        [TemplatePart::Literal(command)] if !command.contains('/') => Some(command.clone()),
+        _ => None,
     }
 }
 
