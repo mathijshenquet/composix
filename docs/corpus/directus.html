@@ -56,12 +56,12 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / directus</nav>
   <h1>directus</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Blocked — downloaded native binary cannot run in the builder; state assembly remains provisional · <strong>Evidence:</strong> build (Cix failure)</p>
-  <p class="status"><strong>Receipt status:</strong> Docker probe passes; Cix fails before producing an item at an FHS-loader-dependent Sass binary · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Blocked — FHS-loader support is built; the checked-in conversion needs regeneration and the later path defect remains · <strong>Evidence:</strong> build (Cix failure + CIP-95 acceptance)</p>
+  <p class="status"><strong>Receipt status:</strong> Docker probe passes; CIP-95 acceptance proves imported glibc removes the unpatched Sass loader failure, then Cix reaches a separate Not a directory failure before producing an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-95</p>
     <ul>
       <li>The Cix build fails when the downloaded Sass executable requests an FHS dynamic loader; the corpus page must say plainly that no item is produced, rather than presenting an unexplained orange state. → browser</li>
       <li>Reproduce and retain the exact loader diagnostic in a fresh build receipt once the pinned source is materialized again. → evidence</li>
@@ -4769,6 +4769,15 @@ spawn .../sass-embedded-linux-x64/dart-sass/src/dart ENOENT
 The downloaded ELF expects an FHS dynamic loader. D58 deliberately excludes
 `lib` from IMPORT, so this is classified as a language gap; no runtime pass is
 claimed.
+
+CIP-95 acceptance (2026-08-04): a disposable copy of this pinned case added
+only `${pkgs.glibc}` to the builder IMPORT and retained zero patchelf lines.
+The downloaded Sass executable remained unpatched with PT_INTERP
+`/lib64/ld-linux-x86-64.so.2`; the former `spawn … ENOENT` disappeared, Sass
+produced the app asset, and the recursive monorepo build proceeded to the
+separate known `Error: Not a directory (os error 20)`. This is track evidence,
+not a green case receipt: the checked-in Cixfile still awaits regeneration and
+no item or runtime pass is claimed.
 
 The conversion dissolves PM2 into systemd,
 keeps `bootstrap` as an idempotent setup hook, persists SQLite/extensions/uploads,

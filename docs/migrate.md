@@ -87,6 +87,38 @@ available, but composix never imports it implicitly. `RUN` has no network access
 Tool-generated `#!/usr/bin/env ...` launchers also need an import that supplies `env` (usually
 `${pkgs.coreutils}`): the fixed `/usr/bin/env` alias points only at `/bin/env`.
 
+<a id="fhs-linked-native-binaries"></a>
+
+## FHS-linked native binaries
+
+Some dependency managers download Linux executables whose ELF interpreter is an FHS path rather
+than a Nix store path. On x86-64, builders always contain fixed aliases for the common GNU
+`/lib64/ld-linux-x86-64.so.2` and musl `/lib/ld-musl-x86_64.so.1` loaders. Like
+`/usr/bin/env`, each alias deliberately dangles until its provider is imported: add
+`${pkgs.glibc}` for the GNU loader or `${pkgs.musl}` for the musl loader. Cix does not mutate the
+downloaded executable.
+
+This is an aliases-only compatibility surface, not an FHS root. In particular, IMPORT still
+unions only `bin`, `etc`, and `share`; there is no `/lib` union or added library search path. The
+GNU v1 contract covers binaries whose `DT_NEEDED` libraries all come from the imported glibc,
+including downloaded Sass. If a failed RUN finds a missing loader, cix suggests the corresponding
+libc IMPORT. If the loader is present but the ELF needs libraries beyond that libc, the diagnostic
+names the missing SONAMEs and points back here.
+
+Use the explicit patchelf escape when other library providers are required:
+
+```dockerfile
+# Fragment — repair one known downloaded executable after FETCH/install.
+IMPORT ${pkgs.patchelf} ${pkgs.glibc} ${pkgs.zlib}
+RUN patchelf \
+  --set-interpreter ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 \
+  --set-rpath ${pkgs.glibc}/lib:${pkgs.zlib}/lib path/to/binary
+```
+
+Choose every RPATH provider from the executable's actual `DT_NEEDED` set. Keep this per-binary and
+explicit: downloaded trees can contain both GNU- and musl-linked variants, and blindly patching
+all ELFs to one loader misrepairs the other variant.
+
 The runtime toolset is the artifact's imported `bin/`. Every SERVICE and APP gets `PATH=bin` by
 default, and a bare command is checked against that assembled tree at build time, including when
 arguments follow it. An explicit `ENV PATH = …` replaces that runtime default, but does not change
@@ -341,6 +373,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `FROM debian`, `alpine`, or another runtime image | Start from the needed `${pkgs.*}` packages | `FROM` binds a package universe, source tree, or explicit-tag cix item; it never inherits a root filesystem. |
 | `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in the BUILDER/SERVICE/APP/ITEM that uses it, then invoke commands by bare name | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
 | `RUN command` | Offline `RUN` inside a named `BUILDER` | Import every command as a whole package and invoke it by bare name. |
+| Downloaded FHS-linked executable | IMPORT `${pkgs.glibc}` or `${pkgs.musl}` for its x86-64 loader alias; use the explicit patchelf RUN escape for other libraries | The aliases do not create an FHS root or `/lib` search path. GNU v1 covers only `DT_NEEDED` libraries supplied by imported glibc. |
 | Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, preferably with `EXPECT` | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
 | Multi-stage `COPY --from=build` | `COPY ${build}/path /destination` | Blocks refer backward; prefer a narrow output path. |
 | Cross-image `COPY --from=<image>` | `FROM family/member:v3 AS prebuilt`, then `COPY ${prebuilt}/path /destination` | The index ref must have an explicit tag. It is NAR-verified and lock-pinned; a moved tag takes effect only through `--update-lock prebuilt`. |

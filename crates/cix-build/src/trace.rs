@@ -248,6 +248,8 @@ pub(crate) fn parse_failure(trace: &str) -> FailureTrace {
                 path,
                 base.as_deref()
                     .or_else(|| cwd.get(&pid).map(PathBuf::as_path))
+                    // strace reports host PIDs while clone may return namespace PIDs;
+                    // command descendants still inherit bubblewrap's /work cwd.
                     .or(Some(Path::new("/work"))),
             )
         });

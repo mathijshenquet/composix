@@ -166,3 +166,16 @@
   `beyond_libc_diagnostic_names_the_alias_boundary_and_patchelf_escape`, and
   warning-denied focused clippy for cix-build+cix-cixfile. Host `/tmp` has
   free bytes but zero free inodes; no shared entries were removed.
+
+- 2026-08-04T10:06:00Z — Narrowed Directus acceptance passed in a disposable,
+  ignored copy of the pinned corpus case. The only Cixfile change was adding
+  `${pkgs.glibc}` to the builder IMPORT; it contains no patchelf command. The
+  downloaded `sass-embedded-linux-x64` Dart executable remained an x86-64 ELF
+  with PT_INTERP `/lib64/ld-linux-x86-64.so.2`. Synchronous receipt:
+  `env TMPDIR=$PWD/target/fhspaths-tmp CIX_STATE_DIR=$PWD/target/fhspaths-directus-state
+  CIX_BUILD_WORKSPACE_DIR=$PWD/target/fhspaths-directus-workspaces timeout 1200
+  target/debug/cix build --update-lock build target/fhspaths-directus#directus`
+  exited 1 only after Sass built the app asset and the monorepo completed its
+  package builds, at the already-known separate `Error: Not a directory (os
+  error 20)`. The former Sass loader `spawn … ENOENT` is absent. No corpus
+  Cixfile was modified; next is documentation and ledger currency.
