@@ -941,7 +941,7 @@ RUNDIR /run/nginx
     assert!(manifest.contains("\"/run/nginx\""));
 
     doc.para("## Run, probe, and stop it");
-    doc.para("A **projection** is a read-only bind mount that makes an item path such as `$item/srv/www` appear at its declared service path such as `/srv/www`. The production system manager supplies those projections and stronger isolation; this rootless demo also has the `CIX_APP` fallback described above. The harness normalizes host-varying manager degradation warnings to the fixed marker line `[manager degradation warnings vary by host — elided]`; the service, HTTP probe, and stop command still really execute.");
+    doc.para("A **projection** is a read-only bind mount that makes an item path such as `$item/srv/www` appear at its declared service path such as `/srv/www`. The production system manager supplies those projections and stronger isolation; this rootless demo also has the `CIX_APP` fallback described above. Two displayed normalizations keep this page identical on every host: `NONCE` replaces the unique per-run identifier in unit names, and host-varying manager degradation warnings collapse to the fixed marker line `[manager degradation warnings vary by host — elided]`. The service, HTTP probe, and stop command still really execute.");
     let started = doc.sh_with_env(
         "unit=$(cix run \"$item\" --user --detach); printf '%s\\n' \"$unit\"",
         &[("item", &store_path)],
