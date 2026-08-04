@@ -143,6 +143,9 @@ Status legend: ✅ decided · 🔶 position taken, review welcome · ❓ open, n
   closure from advertised substituters (verify narHash; require signatures when trustedKeys given),
   then tag locally with upstream recorded.
 - `cix pull` — refresh every tag that has an upstream; fetch the ones that moved.
+- `cix inspect <ref-or-installable>` — a bare ref inspects local state; a qualified ref uses the
+  same Docker-style grammar as `pull`, negotiates the index entry at that URL, and prints the
+  normal pretty JSON without creating a local mirror tag.
 
 ### The org workflow (pre-push)
 
