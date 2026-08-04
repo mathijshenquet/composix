@@ -321,6 +321,64 @@ pub fn ensure_lock(
     Ok(lock)
 }
 
+pub fn validate_declared_expectations(cixfile: &Cixfile, lock: &LockFile) -> Result<bool> {
+    let mut cache_safe = true;
+    for (name, fetch) in &cixfile.fetches {
+        let Some(expected) = fetch.expected.as_deref() else {
+            continue;
+        };
+        match lock.fetches.get(name) {
+            Some(pin) if pin.nar_hash != expected => bail!(
+                "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {expected}\n  lock records {}",
+                fetch.line,
+                fetch.source,
+                pin.nar_hash
+            ),
+            Some(_) => {}
+            None => cache_safe = false,
+        }
+    }
+    for (builder_name, builder) in &cixfile.builders {
+        for (index, step) in builder.steps.iter().enumerate() {
+            let BuildStep::Fetch {
+                expected: Some(expected),
+                command,
+                line,
+                source,
+                ..
+            } = step
+            else {
+                continue;
+            };
+            let Some(command) = command.literal_value() else {
+                cache_safe = false;
+                continue;
+            };
+            let id = builder_fetch_id(builder_name, index, &command);
+            let Some(pin) = lock.fetches.get(&id) else {
+                cache_safe = false;
+                continue;
+            };
+            if pin.nar_hash != *expected {
+                bail!(
+                    "line {line}: BUILDER {builder_name} FETCH EXPECT disagrees with its recorded lock pin\n  | {source:?}\n  declared {expected}\n  lock records {}",
+                    pin.nar_hash
+                );
+            }
+        }
+    }
+    Ok(cache_safe)
+}
+
+pub(crate) fn builder_fetch_id(builder: &str, index: usize, command: &str) -> String {
+    let digest = Sha256::digest(command.as_bytes());
+    let hex = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("builder:{builder}:{index}-{}", &hex[..12])
+}
+
 fn ensure_lock_with<F, A>(
     path: &Path,
     inputs: &BTreeMap<String, Input>,
