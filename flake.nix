@@ -106,6 +106,10 @@
         scenario-observability = import ./nix/scenarios/observability.nix { inherit pkgs cix; };
         scenario-devices = import ./nix/scenarios/devices.nix { inherit pkgs cix; };
         scenario-health = import ./nix/scenarios/health.nix { inherit pkgs cix; };
+        scenario-health-systemd257 = import ./nix/scenarios/health.nix {
+          inherit pkgs cix;
+          systemdPackage = systemd257;
+        };
         scenario-secrets = import ./nix/scenarios/secrets.nix { inherit pkgs cix; };
         scenario-dirs2 = import ./nix/scenarios/dirs2.nix { inherit pkgs cix; };
         scenario-closedroot-audit = import ./nix/scenarios/closedroot-audit.nix { inherit pkgs cix; };

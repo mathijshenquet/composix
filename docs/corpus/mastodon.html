@@ -60,16 +60,17 @@
   <p class="status"><strong>Receipt status:</strong> Six-member sealed-root composition: credentials, Unix edges, shared-rw state, health, timer, logs, and purge · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/mastodon/SOURCE">Pinned upstream source notes</a></p>
   <p class="status"><strong>Mastodon tag provenance:</strong> compose children reference <code>corpus-mastodon-&lt;member&gt;:checked</code> tags produced by <code>check.sh</code> from the per-member Cixfiles shown below.</p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@4e76da0 · unknown · 2026-08-02 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@4e76da0 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with systemd-257 adapter-liveness regression</p>
     <ul>
       <li>The checked conversion substitutes Python/nginx shape stubs for Mastodon&#39;s web, Sidekiq, and streaming applications and adds a sixth cleanup member; it proves composition mechanisms, not a Mastodon application migration. → case</li>
       <li>Only <code>compose.json</code> is visible in the browser even though <code>corpus-mastodon-*:checked</code> tags are produced from six member Cixfiles by <code>check.sh</code>; surface that provenance and the member sources. → browser</li>
       <li>The upstream external/internal multi-network split and <code>internal: true</code> egress boundary remain unexpressed. → language (<a href="../../../docs/design.md#building-now-updated-2026-08-02">D26/D27 named-network frontier</a>)</li>
       <li><code>.env.production</code> and its application configuration are replaced by one database credential and stub defaults; the unconverted configuration surface must remain explicit. → case</li>
-      <li>HTTP/TCP liveness loses its resident pinger on systemd 257 even though the accepted VM passes on newer systemd. → evidence</li>
+      <li>The recorded HTTP/TCP liveness loss on systemd 257 is stale: the focused</li>
     </ul>
+    <p>regression now runs under pinned systemd 257.6 and retains a healthy pinger beyond its watchdog window. Regenerate only with the original manager/package and generated-unit evidence if the observation recurs. → evidence</p>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
