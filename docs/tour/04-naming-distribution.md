@@ -21,9 +21,15 @@ cix-manifest.json
 message
 ```
 
-```sh
-$ cat my-app-v1/message my-app-v1/cix-manifest.json
+#### `my-app-v1/message`
+
+```
 hello from my app v1
+```
+
+#### `my-app-v1/cix-manifest.json`
+
+```json
 {"cixManifest":0,"start":["message"]}
 ```
 

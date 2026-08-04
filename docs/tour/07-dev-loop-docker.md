@@ -9,12 +9,18 @@ You will keep one artifact rebuilding through an edit, then build faithful and d
 
 ## Watch the artifact, not a mutable container
 
-```sh
-$ cat watch-app/Cixfile watch-app/message
+#### `watch-app/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 ITEM watched
 COPY message /message
+```
+
+#### `watch-app/message`
+
+```
 first
 ```
 
@@ -40,8 +46,9 @@ The watcher coalesces edit bursts, warm-builds the affected Cixfile, and prints 
 
 A faithful twin preserves upstream build choreography when that behavior matters; a dissolved twin selects the nix-native result directly when the ceremony adds no contract. `--file` chooses one without renaming files or mixing trust state, and each Cixfile writes its own sibling lock.
 
-```sh
-$ cat twins/Cixfile twins/Cixfile.dissolved
+#### `twins/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
@@ -52,6 +59,11 @@ RUN cp payload result
 
 ITEM translation
 COPY ${faithful-build}/result /payload
+```
+
+#### `twins/Cixfile.dissolved`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 ITEM translation

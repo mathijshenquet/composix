@@ -9,11 +9,24 @@ You will connect two independently built services with a Unix edge and shared st
 
 ## Named listeners are systemd sockets
 
-A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
+A `LISTENER` does not let the process call `socket()` for that port. This canonical Cixfile imports the probe's runtime, copies the checked-in Python script, and declares `LISTENER http`; systemd owns the socket and passes file descriptor 3 to the process.
 
-```sh
-$ cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json
-#!/usr/bin/python3
+#### `listener-fixture/Cixfile`
+
+```dockerfile
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE listener-demo
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY listenfds.py /bin/listenfds
+START listenfds
+LISTENER http
+```
+
+#### `listener-fixture/listenfds.py`
+
+```python
+#!/usr/bin/env python3
 import os
 import socket
 
@@ -34,16 +47,16 @@ while True:
             + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             + b"Connection: close\r\n\r\n" + body
         )
-{
-  "cixManifest": 0,
-  "start": ["bin/listenfds"],
-  "listeners": {"http": {"type": "stream"}}
-}
 ```
 
 ```sh
-$ cix run /nix/store/…-listener-fixture --user -p http=127.0.0.1:8420 --detach
-cix-run-listener-fixture-NONCE.service
+$ cix build listener-fixture
+{"listener-demo":"/nix/store/…-cix-item-listener-demo"}
+```
+
+```sh
+$ cix run /nix/store/…-cix-item-listener-demo --user -p http=127.0.0.1:8420 --detach
+cix-run-listener-demo-NONCE.service
 warning: --user is degraded development mode; the system manager with DynamicUser is the supported runtime target; filesystem mounts cannot be projected and CIX_APP names the real store path
 ```
 
@@ -53,13 +66,14 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop cix-run-listener-fixture-NONCE.service
+$ systemctl --user stop cix-run-listener-demo-NONCE.service
 ```
 
 ## Two items, one operator document
 
-```sh
-$ cat producer/Cixfile consumer/Cixfile
+#### `producer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE producer
@@ -68,6 +82,11 @@ START sleep 300
 ENV VERSION = v1
 STATEDIR /var/lib/shared
 RUNDIR /run/producer
+```
+
+#### `consumer/Cixfile`
+
+```dockerfile
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE consumer
@@ -89,8 +108,9 @@ $ cix build consumer -t v1
 
 The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
 
-```sh
-$ cat compose.json
+#### `compose.json`
+
+```json
 {
   "cixCompose": 1,
   "name": "tour-stack",
@@ -120,8 +140,9 @@ $ cix compose check compose.json
 compose tour-stack: 2 services, 1 edges, valid
 ```
 
-```sh
-$ cat cix.lock
+#### `cix.lock`
+
+```
 {
   "paths": {
     "consumer": {
