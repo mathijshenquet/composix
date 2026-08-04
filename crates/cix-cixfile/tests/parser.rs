@@ -54,6 +54,40 @@ STATEDIR /var/lib/migrate
     }
 
     #[test]
+    fn ports_default_to_tcp_and_accept_systemd_udp_spelling() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nENV PORT = 5353\nPORT http = 8080\nPORT dns = udp:$PORT\nSTART /bin/true\n",
+        )
+        .unwrap();
+        assert_eq!(
+            parsed.artifacts["app"].service.ports["http"].protocol,
+            Protocol::Tcp
+        );
+        assert_eq!(
+            parsed.artifacts["app"].service.ports["dns"].protocol,
+            Protocol::Udp
+        );
+        assert_eq!(
+            parsed.artifacts["app"].service.ports["dns"].source,
+            PortSource::Env("PORT".into())
+        );
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&parsed).unwrap()).unwrap();
+        assert_eq!(manifest["ports"]["http"]["protocol"], "tcp");
+        assert_eq!(manifest["ports"]["dns"]["protocol"], "udp");
+    }
+
+    #[test]
+    fn docker_udp_port_spelling_suggests_the_systemd_form() {
+        let error = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nPORT http3 = 443/udp\nSTART /bin/true\n",
+        )
+        .unwrap_err();
+        assert_eq!(error.line, 3);
+        assert!(error.message.contains("udp:443"), "{error}");
+    }
+
+    #[test]
     fn fetch_expect_is_trailing_and_rejects_the_removed_leading_form() {
         let parsed = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf top EXPECT sha256-top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH printf step EXPECT sha256-step\nSERVICE app\nSTART /bin/true\n",

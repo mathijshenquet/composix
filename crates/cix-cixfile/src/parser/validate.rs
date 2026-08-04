@@ -469,7 +469,7 @@ pub(super) fn validate_service_references(
     }
     for (name, port) in &service.ports {
         let (line, source) = &metadata.ports[name];
-        if let Port::Env(variable) = port {
+        if let PortSource::Env(variable) = &port.source {
             let Some(env) = service.env.get(variable) else {
                 return Err(ParseError::new(
                     *line,

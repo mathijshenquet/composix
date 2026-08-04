@@ -188,6 +188,7 @@ struct Surface {
     service: String,
     name: String,
     kind: PublishKind,
+    protocol: Option<cix_run::spec::Protocol>,
     binding: Option<SocketAddr>,
     pod: Option<String>,
 }
@@ -298,6 +299,13 @@ impl TreeBuilder<'_> {
                     declaration.port
                 )
             })?;
+            if surface.protocol == Some(cix_run::spec::Protocol::Udp) {
+                bail!(
+                    "publish.{} selects UDP port {:?}; compose publish currently supports TCP only",
+                    join_path(walk.path, name),
+                    declaration.port
+                );
+            }
             exports.insert(name.clone(), surface.clone());
         }
         Ok(exports)
@@ -373,6 +381,7 @@ impl TreeBuilder<'_> {
                     service: path.to_owned(),
                     name: name.clone(),
                     kind: PublishKind::Listener,
+                    protocol: None,
                     binding: pod
                         .and_then(|_| declaration.bind.get(name))
                         .map(|value| parse_publish_binding(path, name, value))
@@ -391,6 +400,7 @@ impl TreeBuilder<'_> {
                     service: path.to_owned(),
                     name: name.clone(),
                     kind: PublishKind::Port { target },
+                    protocol: Some(service.ports[name].protocol),
                     binding: pod
                         .and_then(|_| declaration.bind.get(name))
                         .map(|value| parse_publish_binding(path, name, value))
@@ -1314,5 +1324,38 @@ mod tests {
         assert!(checked.publishes.iter().any(|publish| {
             publish.name == "tcp" && publish.kind == PublishKind::Port { target: 8080 }
         }));
+    }
+
+    #[test]
+    fn compose_refuses_udp_port_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        let item = write_item(
+            directory.path(),
+            "dns",
+            &item_spec(
+                r#""start":["/nix/store/fake/bin/app"],"ports":{"dns":{"value":5353,"protocol":"udp"}}"#,
+            ),
+        );
+        let compose: Compose = serde_json::from_str(
+            r#"{
+              "cixCompose": 1,
+              "name": "publish",
+              "network": "pod",
+              "children": {
+                "dns": {"item": "dns:v1", "bind": {"dns": "127.0.0.1:15353"}}
+              },
+              "publish": {"dns": {"child": "dns", "port": "dns"}}
+            }"#,
+        )
+        .unwrap();
+        let error = check_with(&compose, &Lock::default(), &UpdateRequest::None, &|_| {
+            Ok(output(&item, "hash"))
+        })
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("UDP port") && error.contains("TCP only"),
+            "{error}"
+        );
     }
 }

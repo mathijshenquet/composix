@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, InputKind, InputLock,
-    LockFile, Port, Probe, Service, Template, TemplatePart,
+    LockFile, PortSource, Probe, Protocol, Service, Template, TemplatePart,
 };
 
 fn bare_command(arguments: &[Template]) -> Option<String> {
@@ -738,11 +738,15 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
         output.push_str(" ports = {");
         for (name, port) in &service.ports {
             write!(output, " {} = {{", nix_attr(name))?;
-            match port {
-                Port::Env(variable) => write!(output, " env = {};", nix_string(variable))?,
-                Port::Value(value) => write!(output, " value = {value};")?,
+            match &port.source {
+                PortSource::Env(variable) => write!(output, " env = {};", nix_string(variable))?,
+                PortSource::Value(value) => write!(output, " value = {value};")?,
             }
-            output.push_str(" protocol = \"tcp\"; };");
+            let protocol = match port.protocol {
+                Protocol::Tcp => "tcp",
+                Protocol::Udp => "udp",
+            };
+            write!(output, " protocol = {protocol:?}; }};")?;
         }
         output.push_str(" };");
     }
@@ -1138,15 +1142,24 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
         let mut ports = Map::new();
         for (name, port) in &service.ports {
             let mut declaration = Map::new();
-            match port {
-                Port::Env(variable) => {
+            match &port.source {
+                PortSource::Env(variable) => {
                     declaration.insert("env".into(), Value::String(variable.clone()));
                 }
-                Port::Value(port) => {
+                PortSource::Value(port) => {
                     declaration.insert("value".into(), Value::from(*port));
                 }
             }
-            declaration.insert("protocol".into(), Value::String("tcp".into()));
+            declaration.insert(
+                "protocol".into(),
+                Value::String(
+                    match port.protocol {
+                        Protocol::Tcp => "tcp",
+                        Protocol::Udp => "udp",
+                    }
+                    .into(),
+                ),
+            );
             ports.insert(name.clone(), Value::Object(declaration));
         }
         value.insert("ports".into(), Value::Object(ports));

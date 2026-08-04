@@ -48,6 +48,8 @@ $ cat Cixfile.lock
 
 The package universe is pinned by revision and content hash. These ITEM and SERVICE blocks perform only assembly, so they need no BUILDER: builders exist only when FETCH or RUN has work to do.
 
+A directory can carry a translation twin beside its default Cixfile: `cix build --file Cixfile.dissolved .` selects that named file and writes its independent sibling lock, `Cixfile.dissolved.lock`.
+
 ```sh
 $ cix build . --namespace tour -t v1
 {"tour-app":"/nix/store/…-cix-item-tour-app","tour-assets":"/nix/store/…-cix-item-tour-assets"}

@@ -1,5 +1,5 @@
 Generated: migrate.md@c43ae9b · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Status: stale — regenerate with CIP-92
 
 - `START caddy respond` is a probe-shaped toy, not the upstream `caddy run --config /etc/caddy/Caddyfile --adapter caddyfile` contract; the upstream Caddyfile and welcome page are absent. → case
 - Only port 8080 is declared: upstream HTTP/HTTPS/admin ports 80, 443, and 2019 are not represented. → case

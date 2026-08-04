@@ -1,5 +1,52 @@
 # Cixfile track work log
 
+- 2026-08-04T08:00:04Z — Committed the complete CIP-92 track as `cee4dfc`
+  (`cixfile: add UDP ports and named build files`), including this tracked
+  journal, parser/codegen/inspect/compose coverage, the real-Nix translation
+  twin fixture, regenerated tour and corpus browser artifacts, Caddy stale
+  marker, and Docker ledger regrade. Cached whitespace validation was clean
+  immediately before commit; post-commit status is clean and no
+  `origin/track/cip92` ref exists. Ready for the orchestrator's independent
+  full flake-matrix gate.
+
+- 2026-08-04T08:00:00Z — Prescribed agent gate is green with synchronous exit
+  statuses: `cargo fmt --all --check`; `cargo run -p cix -- fmt --check
+  examples`; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo
+  test --workspace`; ignored tour regeneration followed by exact committed-tour
+  and deterministic-tour tests; and ignored corpus-browser regeneration followed
+  by its exact committed-page test. The examples formatter emitted only the
+  pre-existing CIP-91 `LINK` deprecation warnings and exited 0. No VM scenario
+  is structurally affected: cix-run already carried UDP `SocketBindAllow`
+  codegen and its workspace coverage ran. Re-graded the Docker port row
+  (UDP declaration vs TCP-only compose publish), marked Caddy's protocol gap
+  stale for CIP-92, and regenerated its browser page. `git diff --check` exits
+  0. Next: stage the scoped implementation, tests, ledgers, generated docs,
+  and this required journal; inspect the cached diff; commit the complete
+  logical CIP-92 unit.
+
+- 2026-08-04T07:56:53Z — Implemented CIP-92 end to end. `PORT` now accepts
+  bare TCP or `udp:<port>` (including env-backed values), rejects Docker's
+  `443/udp` with the `udp:443` correction, and emits protocol-bearing manifest
+  declarations. Existing cix-run codegen projects that to `SocketBindAllow`;
+  the golden manifest carries UDP, cix inspect serializes it, and compose now
+  refuses an attempted UDP publication because its proxy remains TCP-only.
+  Added `cix build --file NAME DIR[#member]`: named files select sibling
+  `NAME.lock`, preserve selectors/tags/namespaces/update/cold options, reject
+  path traversal, and name a missing full path. The real-Nix twin fixture
+  proves independent output and locks; the regenerated build tour documents
+  the flag. Synchronous focused receipts: parser (31 tests), named-lock
+  fixture, tour regeneration, and deterministic-tour run all exited 0. Next:
+  run the prescribed formatter/clippy/workspace/tour-drift gate, inspect the
+  final scope, and commit the complete logical CIP-92 unit including this log.
+
+- 2026-08-04T07:45:37Z — Started `track/cip92`. Read AGENTS.md, the assigned
+  specification, adopted CIP-92 decision, current session journal, and this
+  crate journal; direnv/devenv is active. Scope is protocol-aware `PORT`, the
+  named-Cixfile build option, their tests and build-tour documentation. The
+  concurrent netns/adapter tracks and corpus/docs-corpus fence remain untouched.
+  Next: trace the current parser → manifest → runner/inspect and compose
+  publish paths, then implement the smallest end-to-end protocol model.
+
 - 2026-08-02T23:42:28Z — Committed the steady-state receipt and its explicit
   revert-branch observability as `b616405` (`docs: distinguish first and
   steady warm builds`). It contains only the timing marker in cix-build and
