@@ -92,6 +92,23 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   nsswitch.conf) — or an explicit decision that services must not
   assume `localhost`.
 
+- **EXPECT not validated against the recorded pin on warm builds**
+  (regen wave 1, luna's traefik, verified 2026-08-04): a Cixfile with a
+  wrong/copy-pasted EXPECT builds green indefinitely while the fetch
+  memo-hits — the mismatch only fires on a true refetch. Observed: both
+  traefik fetches declare the same EXPECT, the lock records the same
+  narHash for both pins while its stepMemos show different content, and
+  corrupting one EXPECT surfaced a mismatch naming the *old* declared
+  value. cix should cross-check declared EXPECT against the recorded
+  pin at plan time (string compare) and error on divergence; reproduce
+  from `track/regen1`'s traefik case and root-cause the identical-pin
+  recording.
+- **Unstable-API FETCH content is EXPECT-hostile** (same case): pinning
+  GitHub's release-metadata JSON captures download counters that mutate
+  every refetch, so the pin fails on any cache loss. Teaching nuance
+  for migrate.md (normalize volatile JSON to the needed fields inside
+  the fetch, or fetch the asset URL directly) + candidate lint.
+
 ## Proposed one-line dispositions (awaiting Mathijs, batch-blessable)
 
 - **`docker cp`** ❓ → ❌ + docs: role dirs are host paths (CIP-82 makes
