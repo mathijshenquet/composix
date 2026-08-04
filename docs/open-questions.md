@@ -76,6 +76,22 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   read set; assess whether the lock format needs aggregation before
   big-ecosystem cases become routine.
 
+- **CONFIGDIR is not path-free** (regen wave 1, luna's caddy, verified
+  2026-08-04): `cix run` refuses `config directory /config/... must be
+  under /etc` while `cix build` accepts it and docs/migrate.md teaches
+  role-dir path freedom. Triple defect: doc/impl mismatch, build/run
+  validation split (should fail spanned at build), and the restriction
+  itself contradicts CIP-82/CIP-91 path-freedom — caddy's upstream
+  `/config` layout was forced into `/data`. Lift the restriction with
+  the STATEDIR mirror machinery, or (if systemd forbids) document +
+  build-time error; either way build and run must agree.
+- **No `localhost` in the service sandbox** (same wave, caddy): Docker
+  injects `/etc/hosts`; cix services get none, so resolving `localhost`
+  fails and luna hand-wrote a 3-line hosts FILE. Candidate for one
+  blessed skeleton file (the `/usr/bin/env` precedent; cix already owns
+  nsswitch.conf) — or an explicit decision that services must not
+  assume `localhost`.
+
 ## Proposed one-line dispositions (awaiting Mathijs, batch-blessable)
 
 - **`docker cp`** ❓ → ❌ + docs: role dirs are host paths (CIP-82 makes
