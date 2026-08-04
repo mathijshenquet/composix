@@ -49,9 +49,9 @@ pub use codegen::{
 pub use eval_plan::{EvalPlan, EVAL_PLAN_VERSION};
 pub use fetch::revoke_fetch_consent;
 pub use lock::{
-    ensure_lock, resolve_input_metadata, save_lock, ArtifactPin, ConsumedPath, DevEnvironment,
-    FetchPin, InputLock, LockFile, MemoEntry, OutputHash, OutputReceipt, ReadDependency,
-    StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
+    ensure_lock, resolve_input_metadata, save_lock, validate_declared_expectations, ArtifactPin,
+    ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry, OutputHash,
+    OutputReceipt, ReadDependency, StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
 
 pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");

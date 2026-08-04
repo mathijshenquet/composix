@@ -296,12 +296,12 @@ impl Parser<'_> {
         let name = match &block {
             CurrentBlock::Builder(name) | CurrentBlock::Artifact(name) => name,
         };
-        if !self
+        let duplicate = !self
             .destinations
             .get_mut(name)
             .expect("block destinations exist")
-            .insert(destination.to_owned())
-        {
+            .insert(destination.to_owned());
+        if duplicate && matches!(&block, CurrentBlock::Artifact(_)) {
             return Err(ParseError::new(
                 line,
                 source,
