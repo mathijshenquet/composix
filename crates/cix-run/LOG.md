@@ -517,6 +517,64 @@
   audit found no whitespace errors or unrelated worktree changes. The track is
   ready to commit; next step is orchestrator re-verification and merge.
 
+## track/adapterlive
+
+- 2026-08-04 UTC — Started the systemd-257 adapter-liveness retention repair on
+  `track/adapterlive`. Read the track spec, CIP-79, current journals, health
+  compiler/prober, and VM scenario. The ordinary `scenario-health` flake check
+  currently imports the moving nixos-unstable `pkgs` set (not the pinned v257
+  package); the flake already carries a `systemd257` compatibility package for
+  NixOS VM use. Current implementation forks the `ExecStartPost` pinger and
+  returns its parent successfully, exactly matching the Mastodon receipt's
+  failure mechanism. Next: run the focused current VM as a baseline and make a
+  narrow v257 health VM reproduction before selecting a retention mechanism.
+
+- 2026-08-04 UTC — Reproduction result: `scenario-health` passed on the
+  flake/CI package set (systemd 261), and the same focused scenario passed with
+  its PID 1 proven to be the flake-pinned systemd 257.6 compatibility package.
+  It keeps the cix-owned HTTP pinger healthy for seven seconds after activation,
+  exceeding the emitted three-second watchdog window; the recorded Mastodon
+  loss is therefore not reproducible in the available in-tree 257 universe.
+  Mechanism assessment: a companion cannot send `WATCHDOG=1` to the parent
+  service because systemd authorizes notifications by the sending unit's
+  cgroup; re-parenting intentionally evades systemd supervision; and a version
+  gate would silently remove liveness despite the negative reproduction. No
+  product mechanism change is warranted without the original manager/package
+  and generated-unit evidence. Added the 257 check and survival assertion as
+  regression coverage, updated the open-item disposition, and marked the
+  exhibiting Mastodon gap stale. Next: run formatter and focused current/v257
+  VM receipts, then commit this evidence-backed resolution.
+
+- 2026-08-04 UTC — Synchronous focused receipts passed: `devenv shell -- nix
+  build .#checks.x86_64-linux.scenario-health --no-link -L` (PID 1 systemd
+  261) and `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-health-systemd257 --no-link -L` (PID 1 pinned
+  systemd 257.6). Both retain the healthy HTTP pinger through the new
+  seven-second / three-second-watchdog assertion and complete the existing
+  failed-probe restart recovery. `devenv shell -- cargo fmt --all --check`,
+  `devenv shell -- cargo run -p cix -- fmt --check examples`, and `git diff
+  --check` also pass. Next: complete the standard Rust and tour gates, audit,
+  and commit.
+
+- 2026-08-04 UTC — `devenv shell -- cargo clippy --workspace --all-targets --
+  -D warnings` passed. `devenv shell -- cargo test --workspace` reached the
+  corpus-browser drift check and failed only because the required Mastodon
+  `GAPS.md` stale disposition changes generated `docs/corpus/mastodon.html`;
+  the test first reports unrelated pre-existing `docs/corpus/filestash.html`
+  drift too. Regenerating either page requires editing `docs/corpus*`, which
+  this track's explicit fence forbids. This is a scope/ledger-output conflict,
+  not a product failure; leave the generated-browser refresh to its owning
+  track or explicit orchestration. No green full-workspace receipt is claimed.
+  Next: run the independent tour drift gate, audit the allowed changes, and
+  report the honest stop rather than crossing the fence.
+
+- 2026-08-04 UTC — `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour` passed and `git diff --exit-code -- docs/tour` was clean. The
+  focused health receipts, Rust formatter/examples formatter, warning-denied
+  clippy, and tour gate are green. The only unfinished prescribed gate is the
+  full workspace suite's forbidden corpus-browser regeneration; do not commit
+  a falsely green track or alter `docs/corpus*` without direction.
+
 ## track/secrets
 
 - 2026-08-02 10:00 UTC — Started CIP-81 from `.dev/specs/track-secrets.md` on
