@@ -902,7 +902,7 @@ RUNDIR /run/nginx
     let nix_version = doc.sh("nix --version", true);
     assert!(nix_version.contains("nix"));
     let flakes = doc.sh(
-        "nix flake metadata --no-write-lock-file github:NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e >/dev/null && printf 'flakes: available\\n'",
+        "nix flake metadata --no-write-lock-file github:NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e >/dev/null 2>&1 && printf 'flakes: available\\n'",
         true,
     );
     assert_eq!(flakes.trim(), "flakes: available");
