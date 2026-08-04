@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,58 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build and login-page probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/phpmyadmin/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/phpmyadmin/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 47 files, 574302 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.gitattributes</code> <span>32 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE.md</code> <span>181 bytes</span></li>
+      <li><code>.github/workflows/ci.yml</code> <span>1347 bytes</span></li>
+      <li><code>.github/workflows/run-tests.yml</code> <span>2877 bytes</span></li>
+      <li><code>.gitignore</code> <span>85 bytes</span></li>
+      <li><code>CHANGELOG.md</code> <span>4002 bytes</span></li>
+      <li><code>Dockerfile-alpine.template</code> <span>5879 bytes</span></li>
+      <li><code>Dockerfile-debian.template</code> <span>6641 bytes</span></li>
+      <li><code>LICENSE</code> <span>35142 bytes</span></li>
+      <li><code>Makefile</code> <span>1330 bytes</span></li>
+      <li><code>README.md</code> <span>16932 bytes</span></li>
+      <li><code>apache/Dockerfile</code> <span>6780 bytes</span></li>
+      <li><code>apache/config.inc.php</code> <span>8431 bytes</span></li>
+      <li><code>apache/docker-entrypoint.sh</code> <span>2085 bytes</span></li>
+      <li><code>apache/helpers.php</code> <span>1899 bytes</span></li>
+      <li><code>config.inc.php</code> <span>8431 bytes</span></li>
+      <li><code>docker-compose.yml</code> <span>181 bytes</span></li>
+      <li><code>docker-entrypoint.sh</code> <span>2085 bytes</span></li>
+      <li><code>fpm-alpine/Dockerfile</code> <span>6011 bytes</span></li>
+      <li><code>fpm-alpine/config.inc.php</code> <span>8431 bytes</span></li>
+      <li><code>fpm-alpine/docker-entrypoint.sh</code> <span>1722 bytes</span></li>
+      <li><code>fpm-alpine/helpers.php</code> <span>1899 bytes</span></li>
+      <li><code>fpm/Dockerfile</code> <span>6674 bytes</span></li>
+      <li><code>fpm/config.inc.php</code> <span>8431 bytes</span></li>
+      <li><code>fpm/docker-entrypoint.sh</code> <span>1722 bytes</span></li>
+      <li><code>fpm/helpers.php</code> <span>1899 bytes</span></li>
+      <li><code>generate-stackbrew-library.sh</code> <span>2682 bytes</span></li>
+      <li><code>helpers.php</code> <span>1899 bytes</span></li>
+      <li><code>hooks/build</code> <span>94 bytes</span></li>
+      <li><code>testing/Dockerfile</code> <span>211 bytes</span></li>
+      <li><code>testing/config.test.inc.php</code> <span>43 bytes</span></li>
+      <li><code>testing/config.user.inc.php</code> <span>35 bytes</span></li>
+      <li><code>testing/conftest.py</code> <span>786 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-config-mount-dir.yml</code> <span>1674 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-default.yml</code> <span>1685 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-different-apache-port.yml</code> <span>1702 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-fs-import-export.yml</code> <span>2071 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-one-host.yml</code> <span>1671 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-one-socket-host.yml</code> <span>1784 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-one-ssl-host.yml</code> <span>3165 bytes</span></li>
+      <li><code>testing/docker-compose/docker-compose.testing-run-as-www-data.yml</code> <span>1920 bytes</span></li>
+      <li><code>testing/generate-keys.sh</code> <span>1437 bytes</span></li>
+      <li><code>testing/phpmyadmin_test.py</code> <span>6822 bytes</span></li>
+      <li><code>testing/secure-user.sql</code> <span>0 bytes</span></li>
+      <li><code>testing/test-docker.sh</code> <span>3794 bytes</span></li>
+      <li><code>testing/world.sql</code> <span>396184 bytes</span></li>
+      <li><code>update.sh</code> <span>3514 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -208,6 +278,16 @@
 <span class="tok-directive">CMD</span> [<span class="tok-string">&quot;apache2-foreground&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/phpmyadmin/docker/452a995fe6c90b96473fc17c3d704786c33d42bc/apache/Dockerfile
+Repository: https://github.com/phpmyadmin/docker.git
+Resolved revision: 452a995fe6c90b96473fc17c3d704786c33d42bc
+Context path: .
+Dockerfile sha256: 308b162fc2904d9e64c0e05418eb8a3ae5a2e20c615446f945a88343fc4c8836
+Build context: repository archive in context/ (includes config.inc.php, helpers.php, and docker-entrypoint.sh).
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -228,6 +308,90 @@
   <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:0-23a8742ecb78&quot;: {
+      &quot;narHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;
+    },
+    &quot;builder:build:0-6bc01e968126&quot;: {
+      &quot;narHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;
+    },
+    &quot;pma-src&quot;: {
+      &quot;narHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;20a7e7d00be8fd7780dde773289bb3ecab68c3a7dd3b02afd066bd5333245fe9&quot;: {
+      &quot;paths&quot;: {
+        &quot;app&quot;: {
+          &quot;narHash&quot;: &quot;sha256-qmyjvZdcH7iw3A7L0+811d491vgoMDXyPsCgiRE1VQA=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/i0hswybwp1jpaw9d4fvimdy36jbqjqkx-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;679d696a8d00d1d9552289ca8c008ee197fe0a93ca994aba8cc400af0e5d4bb2&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-CJwE9BGSdhyOBLOGiNVq7xKBG50EiQyR5icThGcfrhU=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/j9mbzi71c3qfvzban74ljsw45w4hy1pw-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 172
+    },
+    &quot;7cfb81983266a1d0e493d2ac261432862472f511dc2f53e89f883ba8285f011b&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 164
+    },
+    &quot;9c54145861da9bf9204777f9cfc985c95cd413139a3cab0f866231d8efba571a&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 172
+    },
+    &quot;df52c5d6388867456a0c4b032e88e22da216a1ce5bc37df2d7231a6c6e0bed5b&quot;: {
+      &quot;outputNarHash&quot;: &quot;sha256-uGJ8IH/VFiLO4pCxJKHWrtjlF1erCyhpuAy7nrcOtcE=&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/sj2qcy5m4agjwgvg3xi7iydcf9rpzzw2-cix-build-snapshot&quot;,
+      &quot;wallMs&quot;: 175
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../target/debug/cix}; name=migrate-r4-phpmyadmin; unit=
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../fetch.sh phpmyadmin first&#39; &gt;&amp;2; exit 1; fi
+cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run -d --rm --name &quot;$name&quot; -p 8080:80 &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#phpmyadmin); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
+for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:8080/ | grep -qi phpmyadmin &amp;&amp; exit 0; sleep 1; done
+exit 1
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># phpmyadmin migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, `EXPECT`, `STATEDIR`, and explicit artifact `bin/`).
+
+Docker side: historical 2026-07-30 receipt, not rerun; no completed Docker transcript was captured then.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/gbfjxsjkc07w22y99jgglmsxf3s0yydb-cix-item-phpmyadmin
+```
+
+Exit status: 0. The phpMyAdmin HTTP probe passed after the existing D36 fallback.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/phpmyadmin</code>. Do not edit this page by hand.</footer>

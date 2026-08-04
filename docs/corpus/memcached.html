@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,12 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + direct service contract · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build and protocol version probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/memcached/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 1 files, 124 bytes</summary>
+    <ul class="file-tree">
+      <li><code>docker-entrypoint.sh</code> <span>124 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -137,6 +161,18 @@
 <span class="tok-directive">CMD</span> [<span class="tok-string">&quot;memcached&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile and build context: https://github.com/docker-library/memcached.git, directory `1/alpine`
+Resolved revision: 53ac0ecb0bf88b471a0110f8996ce791baf1a667
+Context path: 1/alpine
+Exclude context path: Dockerfile
+Dockerfile URL: https://raw.githubusercontent.com/docker-library/memcached/master/1/alpine/Dockerfile
+Retrieved: 2026-07-30
+
+The Dockerfile pins memcached 1.6.45 and SHA-1 45038980ea7045a548b9b5b5125ef7116312a768.
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -150,6 +186,91 @@
   <span class="tok-directive">PORT</span> memcached = 11211
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then
+  echo &#39;context/ missing — run ../fetch.sh memcached first&#39; &gt;&amp;2
+  exit 1
+fi
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+docker_tag=migrate-memcached-docker
+container=
+unit=
+
+cleanup() {
+  if [[ -n $container ]]; then docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+  if [[ -n $unit ]]; then sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+}
+trap cleanup EXIT
+
+probe() {
+  local port=$1 attempt result
+  for attempt in $(seq 1 10); do
+    result=$(printf &#39;version\r\n&#39; | timeout 2 nc 127.0.0.1 &quot;$port&quot; || true)
+    if [[ $result == VERSION\ * ]]; then printf &#39;%s\n&#39; &quot;$result&quot;; return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    image=$(timeout 360 docker build --quiet --file &quot;$root/Dockerfile&quot; --tag &quot;$docker_tag&quot; &quot;$root/context&quot;)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:11211:11211 &quot;$docker_tag&quot;)
+    probe 11211
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 240 &quot;$cix&quot; build &quot;$root#memcached&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe 11211
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *) echo &#39;usage: ./check.sh {docker|cix}&#39; &gt;&amp;2; exit 1 ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># memcached migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (explicit artifact `bin/` and bare `START`).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:176adbf343271bf411648dced32bbe97b2c734052e66bfc11ba7ba7aebeea8d5`.
+
+## `./check.sh cix`
+
+```text
+cix item /nix/store/i9zz4b30wg3lnjmshj5bkjz51999hpmc-cix-item-memcached
+VERSION 1.6.42
+PASS cix
+```
+
+Exit status: 0.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/memcached</code>. Do not edit this page by hand.</footer>

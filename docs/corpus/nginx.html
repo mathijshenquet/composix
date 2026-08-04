@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,97 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ package selection + native logging projection · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build, HTTP request, and indexed journald query pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 86 files, 230915 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.github/CODEOWNERS</code> <span>84 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/bug_report.yml</code> <span>2325 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/config.yml</code> <span>593 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/feature_request.yml</code> <span>1589 bytes</span></li>
+      <li><code>.github/pull_request_template.md</code> <span>1229 bytes</span></li>
+      <li><code>.github/workflows/ci.yml</code> <span>1558 bytes</span></li>
+      <li><code>.github/workflows/f5_cla.yml</code> <span>2209 bytes</span></li>
+      <li><code>.github/workflows/sync.yml</code> <span>2201 bytes</span></li>
+      <li><code>.gitignore</code> <span>6 bytes</span></li>
+      <li><code>.test/config.sh</code> <span>167 bytes</span></li>
+      <li><code>.test/tests/ipv6/expected-std-out.txt</code> <span>123 bytes</span></li>
+      <li><code>.test/tests/ipv6/run.sh</code> <span>1146 bytes</span></li>
+      <li><code>.test/tests/modules/nginx.conf.sme</code> <span>743 bytes</span></li>
+      <li><code>.test/tests/modules/run.sh</code> <span>1682 bytes</span></li>
+      <li><code>.test/tests/static/run.sh</code> <span>1052 bytes</span></li>
+      <li><code>.test/tests/templates-resolver-ipv6/expected-std-out.txt</code> <span>17 bytes</span></li>
+      <li><code>.test/tests/templates-resolver-ipv6/run.sh</code> <span>1889 bytes</span></li>
+      <li><code>.test/tests/templates-resolver-ipv6/server.conf.template</code> <span>256 bytes</span></li>
+      <li><code>.test/tests/templates-resolver/run.sh</code> <span>1376 bytes</span></li>
+      <li><code>.test/tests/templates-resolver/server.conf.template</code> <span>236 bytes</span></li>
+      <li><code>.test/tests/templates/run.sh</code> <span>1326 bytes</span></li>
+      <li><code>.test/tests/templates/server.conf.template</code> <span>200 bytes</span></li>
+      <li><code>.test/tests/workers/expected-std-out.txt</code> <span>64 bytes</span></li>
+      <li><code>.test/tests/workers/run.sh</code> <span>1494 bytes</span></li>
+      <li><code>.test/tests/workers/server.conf.template</code> <span>200 bytes</span></li>
+      <li><code>CODE_OF_CONDUCT.md</code> <span>5226 bytes</span></li>
+      <li><code>CONTRIBUTING.md</code> <span>3647 bytes</span></li>
+      <li><code>Dockerfile-alpine-otel.template</code> <span>2880 bytes</span></li>
+      <li><code>Dockerfile-alpine-perl.template</code> <span>2901 bytes</span></li>
+      <li><code>Dockerfile-alpine-slim.template</code> <span>5581 bytes</span></li>
+      <li><code>Dockerfile-alpine.template</code> <span>3467 bytes</span></li>
+      <li><code>Dockerfile-debian-otel.template</code> <span>4462 bytes</span></li>
+      <li><code>Dockerfile-debian-perl.template</code> <span>4423 bytes</span></li>
+      <li><code>Dockerfile-debian.template</code> <span>6604 bytes</span></li>
+      <li><code>LICENSE</code> <span>1280 bytes</span></li>
+      <li><code>README.md</code> <span>5009 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>903 bytes</span></li>
+      <li><code>SUPPORT.md</code> <span>1775 bytes</span></li>
+      <li><code>entrypoint/10-listen-on-ipv6-by-default.sh</code> <span>2125 bytes</span></li>
+      <li><code>entrypoint/15-local-resolvers.envsh</code> <span>389 bytes</span></li>
+      <li><code>entrypoint/20-envsubst-on-templates.sh</code> <span>3030 bytes</span></li>
+      <li><code>entrypoint/30-tune-worker-processes.sh</code> <span>4619 bytes</span></li>
+      <li><code>entrypoint/docker-entrypoint.sh</code> <span>1620 bytes</span></li>
+      <li><code>generate-stackbrew-library.sh</code> <span>4118 bytes</span></li>
+      <li><code>mainline/alpine-otel/Dockerfile</code> <span>3649 bytes</span></li>
+      <li><code>mainline/alpine-perl/Dockerfile</code> <span>3668 bytes</span></li>
+      <li><code>mainline/alpine-slim/10-listen-on-ipv6-by-default.sh</code> <span>2125 bytes</span></li>
+      <li><code>mainline/alpine-slim/15-local-resolvers.envsh</code> <span>389 bytes</span></li>
+      <li><code>mainline/alpine-slim/20-envsubst-on-templates.sh</code> <span>3030 bytes</span></li>
+      <li><code>mainline/alpine-slim/30-tune-worker-processes.sh</code> <span>4619 bytes</span></li>
+      <li><code>mainline/alpine-slim/Dockerfile</code> <span>5907 bytes</span></li>
+      <li><code>mainline/alpine-slim/docker-entrypoint.sh</code> <span>1620 bytes</span></li>
+      <li><code>mainline/alpine/Dockerfile</code> <span>4191 bytes</span></li>
+      <li><code>mainline/debian-otel/Dockerfile</code> <span>5132 bytes</span></li>
+      <li><code>mainline/debian-perl/Dockerfile</code> <span>5091 bytes</span></li>
+      <li><code>mainline/debian/10-listen-on-ipv6-by-default.sh</code> <span>2125 bytes</span></li>
+      <li><code>mainline/debian/15-local-resolvers.envsh</code> <span>389 bytes</span></li>
+      <li><code>mainline/debian/20-envsubst-on-templates.sh</code> <span>3030 bytes</span></li>
+      <li><code>mainline/debian/30-tune-worker-processes.sh</code> <span>4619 bytes</span></li>
+      <li><code>mainline/debian/Dockerfile</code> <span>7274 bytes</span></li>
+      <li><code>mainline/debian/docker-entrypoint.sh</code> <span>1620 bytes</span></li>
+      <li><code>modules/Dockerfile</code> <span>4190 bytes</span></li>
+      <li><code>modules/Dockerfile.alpine</code> <span>3369 bytes</span></li>
+      <li><code>modules/README.md</code> <span>5957 bytes</span></li>
+      <li><code>modules/echo/build-deps</code> <span>9 bytes</span></li>
+      <li><code>modules/echo/prebuild</code> <span>380 bytes</span></li>
+      <li><code>modules/echo/source</code> <span>68 bytes</span></li>
+      <li><code>stable/alpine-otel/Dockerfile</code> <span>3640 bytes</span></li>
+      <li><code>stable/alpine-perl/Dockerfile</code> <span>3659 bytes</span></li>
+      <li><code>stable/alpine-slim/10-listen-on-ipv6-by-default.sh</code> <span>2125 bytes</span></li>
+      <li><code>stable/alpine-slim/15-local-resolvers.envsh</code> <span>389 bytes</span></li>
+      <li><code>stable/alpine-slim/20-envsubst-on-templates.sh</code> <span>3030 bytes</span></li>
+      <li><code>stable/alpine-slim/30-tune-worker-processes.sh</code> <span>4619 bytes</span></li>
+      <li><code>stable/alpine-slim/Dockerfile</code> <span>5889 bytes</span></li>
+      <li><code>stable/alpine-slim/docker-entrypoint.sh</code> <span>1620 bytes</span></li>
+      <li><code>stable/alpine/Dockerfile</code> <span>4182 bytes</span></li>
+      <li><code>stable/debian-otel/Dockerfile</code> <span>5123 bytes</span></li>
+      <li><code>stable/debian-perl/Dockerfile</code> <span>5082 bytes</span></li>
+      <li><code>stable/debian/10-listen-on-ipv6-by-default.sh</code> <span>2125 bytes</span></li>
+      <li><code>stable/debian/15-local-resolvers.envsh</code> <span>389 bytes</span></li>
+      <li><code>stable/debian/20-envsubst-on-templates.sh</code> <span>3030 bytes</span></li>
+      <li><code>stable/debian/30-tune-worker-processes.sh</code> <span>4619 bytes</span></li>
+      <li><code>stable/debian/Dockerfile</code> <span>7265 bytes</span></li>
+      <li><code>stable/debian/docker-entrypoint.sh</code> <span>1620 bytes</span></li>
+      <li><code>sync-awsecr.sh</code> <span>4961 bytes</span></li>
+      <li><code>update.sh</code> <span>7273 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -171,6 +280,16 @@
 <span class="tok-directive">CMD</span> [<span class="tok-string">&quot;nginx&quot;</span>, <span class="tok-string">&quot;-g&quot;</span>, <span class="tok-string">&quot;daemon off;&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/nginx/docker-nginx/e0f008fab4e1ce252c9451590c6a2aff305dd03c/mainline/alpine-slim/Dockerfile
+Repository: https://github.com/nginx/docker-nginx.git
+Resolved revision: e0f008fab4e1ce252c9451590c6a2aff305dd03c
+Context path: .
+Dockerfile sha256: 27ed3bcc98e683e210066251fb72c0b52c31a0b089471d041aed30ba499e81a3
+Build context: repository archive in context/; sibling entrypoint files are in context/mainline/alpine-slim/.
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -196,6 +315,67 @@
   <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../target/debug/cix}; name=migrate-r4-nginx; unit=
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../fetch.sh nginx first&#39; &gt;&amp;2; exit 1; fi
+cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context/mainline/alpine-slim; docker run -d --rm --name &quot;$name&quot; -p 80:80 &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#nginx); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
+for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:80/ &gt;/dev/null &amp;&amp; exit 0; sleep 1; done
+exit 1
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># nginx migration receipt
+
+Cix refresh: 2026-08-02. The current conversion uses a locked store executable,
+quote-aware `START`, the service&#39;s real `LOGDIR`, and explicit stderr logging.
+
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## 2026-08-02 build, runtime, and log projection
+
+```text
+target/debug/cix build -t regrade corpus/migrate/nginx
+/nix/store/s35rsvbhr2hi9qmm1wpj4bibgl3nssvz-cix-item-nginx
+target/debug/cix compose check .dev/scratch/regrade/nginx-compose.json
+compose corpus-nginx: 1 services, 0 edges, valid
+sudo env PATH=&quot;$PATH&quot; target/debug/cix up \
+  .dev/scratch/regrade/nginx-compose.json --update=&#39;*&#39;
+activated corpus-nginx from \
+  /nix/store/ih1xx84mpvnwggfwwdcaqkhc0qvysqw6-cix-compose-corpus-nginx-generation
+curl --fail --silent http://127.0.0.1:80/
+target/debug/cix logs corpus-nginx/nginx \
+  --invocation e7e0b1a98d454881b8d5e7ec3ec5be04 -n 30
+nginx/1.30.4
+start worker process 1302377
+```
+
+Exit status: 0. The HTTP probe passed; `-g &#39;daemon off; error_log stderr
+info;&#39;` remained one argv word. `cix logs` printed and executed the equivalent
+indexed `journalctl` query using `CIX_COMPOSITE`, `CIX_SERVICE`, and the current
+invocation ID. Runtime used the existing D36 PrivatePIDs fallback. Docker mode
+and upstream version parity were not re-verified. Cleanup used `cix down` and
+removed both temporary tags.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/nginx</code>. Do not edit this page by hand.</footer>

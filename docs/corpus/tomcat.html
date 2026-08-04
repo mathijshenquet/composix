@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,77 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ complete package tree + idempotent setup · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix build and bounded HTTP reachability probe pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 66 files, 276429 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.gitattributes</code> <span>92 bytes</span></li>
+      <li><code>.github/workflows/ci.yml</code> <span>1482 bytes</span></li>
+      <li><code>.github/workflows/verify-templating.yml</code> <span>337 bytes</span></li>
+      <li><code>.gitignore</code> <span>17 bytes</span></li>
+      <li><code>10.1/jdk11/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk11/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk17/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk17/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk21/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk21/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk25/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jdk25/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>10.1/jre11/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre11/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre17/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre17/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre21/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre21/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre25/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>10.1/jre25/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jdk17/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jdk17/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jdk21/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jdk21/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jdk25/temurin-jammy/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jdk25/temurin-noble/Dockerfile</code> <span>5578 bytes</span></li>
+      <li><code>11.0/jre17/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jre17/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jre21/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jre21/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jre25/temurin-jammy/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>11.0/jre25/temurin-noble/Dockerfile</code> <span>1536 bytes</span></li>
+      <li><code>9.0/jdk11/corretto-al2/Dockerfile</code> <span>5712 bytes</span></li>
+      <li><code>9.0/jdk11/temurin-jammy/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk11/temurin-noble/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk17/corretto-al2/Dockerfile</code> <span>5712 bytes</span></li>
+      <li><code>9.0/jdk17/temurin-jammy/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk17/temurin-noble/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk21/corretto-al2/Dockerfile</code> <span>5712 bytes</span></li>
+      <li><code>9.0/jdk21/temurin-jammy/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk21/temurin-noble/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk25/temurin-jammy/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk25/temurin-noble/Dockerfile</code> <span>5638 bytes</span></li>
+      <li><code>9.0/jdk8/corretto-al2/Dockerfile</code> <span>5711 bytes</span></li>
+      <li><code>9.0/jdk8/temurin-jammy/Dockerfile</code> <span>5637 bytes</span></li>
+      <li><code>9.0/jdk8/temurin-noble/Dockerfile</code> <span>5637 bytes</span></li>
+      <li><code>9.0/jre11/temurin-jammy/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre11/temurin-noble/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre17/temurin-jammy/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre17/temurin-noble/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre21/temurin-jammy/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre21/temurin-noble/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre25/temurin-jammy/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre25/temurin-noble/Dockerfile</code> <span>1535 bytes</span></li>
+      <li><code>9.0/jre8/temurin-jammy/Dockerfile</code> <span>1533 bytes</span></li>
+      <li><code>9.0/jre8/temurin-noble/Dockerfile</code> <span>1533 bytes</span></li>
+      <li><code>Dockerfile.template</code> <span>9090 bytes</span></li>
+      <li><code>LICENSE</code> <span>56977 bytes</span></li>
+      <li><code>README.md</code> <span>1671 bytes</span></li>
+      <li><code>apply-templates.sh</code> <span>1121 bytes</span></li>
+      <li><code>from.jq</code> <span>749 bytes</span></li>
+      <li><code>generate-stackbrew-library.sh</code> <span>4691 bytes</span></li>
+      <li><code>shared.jq</code> <span>889 bytes</span></li>
+      <li><code>update.sh</code> <span>134 bytes</span></li>
+      <li><code>versions.json</code> <span>2137 bytes</span></li>
+      <li><code>versions.sh</code> <span>2875 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -91,6 +180,16 @@
 <span class="tok-directive">CMD</span> [<span class="tok-string">&quot;catalina.sh&quot;</span>, <span class="tok-string">&quot;run&quot;</span>]
 </code></pre>
       </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile: https://raw.githubusercontent.com/docker-library/tomcat/f3407586eb54489354943d0d1be0a595a11825d7/10.1/jre21/temurin-noble/Dockerfile
+Repository: https://github.com/docker-library/tomcat.git
+Resolved revision: f3407586eb54489354943d0d1be0a595a11825d7
+Context path: .
+Dockerfile sha256: 666e62388d2ae578000098a88cd8afe5cd6b19b62e3aebd20d65e72872eb8ade
+Build context: repository archive in context/; this Dockerfile has no local COPY inputs.
+</code></pre>
+      </section>
     </section>
     <section class="column">
       <h2>composix</h2>
@@ -119,6 +218,58 @@
   <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../target/debug/cix}; name=migrate-r4-tomcat; unit=
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../fetch.sh tomcat first&#39; &gt;&amp;2; exit 1; fi
+cleanup() { [ -z &quot;$unit&quot; ] || sudo -n systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run -d --rm --name &quot;$name&quot; -p 8080:8080 &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#tomcat); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
+for _ in {1..20}; do curl --max-time 2 --silent http://127.0.0.1:8080/ &gt;/dev/null &amp;&amp; { printf &#39;PASS %s\n&#39; &quot;$mode&quot;; exit 0; }; sleep 1; done
+exit 1
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># tomcat migration receipt
+
+Cix refresh: 2026-08-01. Language generation: D56–D64 (`STATEDIR`, `LOGDIR`,
+explicit artifacts, setup, and claims).
+
+Docker side: historical 2026-07-30 receipt, not rerun; no historical Docker digest was captured.
+
+## `./check.sh cix` — pass
+
+```text
+cix item /nix/store/zb77wa6z6fka2yx3dmz9s3b0wnbb7d3w-cix-item-tomcat
+PASS cix
+```
+
+The legacy root cause was an incomplete artifact: linking only `catalina.sh`
+lost sibling scripts, Tomcat libraries/configuration, Java, and even shell
+utilities, so its symlink resolution searched `//bin/setclasspath.sh`. The fixed
+item carries the complete Tomcat 10.1.57 and JRE 21 trees, seeds a writable
+`CATALINA_BASE`, and declares JIT. Tomcat also opens a private shutdown listener
+on port 8005 by default; the setup disables it because the service declares only
+8080. The natural probe regards any HTTP response at `/` as reachable, matching
+the candidate wording and Tomcat&#39;s expected no-application 404.
+</code></pre>
+      </details>
       <section class="file">
         <h3>setup.sh</h3>
         <pre><code>#!/bin/sh

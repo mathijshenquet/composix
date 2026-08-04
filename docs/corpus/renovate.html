@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,9 +59,21 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 schedule/logging pass; credentials await CIP-81 implementation · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Cix timer activation, execution, and indexed logs pass; token/config delivery is unconverted · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/SOURCE">Pinned upstream source notes</a></p>
+  <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Upstream CronJob template: https://raw.githubusercontent.com/renovatebot/helm-charts/f953571cd7d10fd301799192dbaf18c55bd1dad0/charts/renovate/templates/cronjob.yaml
+Repository: https://github.com/renovatebot/helm-charts.git
+Revision: f953571cd7d10fd301799192dbaf18c55bd1dad0 (main on 2026-08-02)
+
+The checked-in upstream-cronjob.yaml is the verbatim Helm template at that revision.
+This is deliberately a narrow schedule/logging migration; Renovate repository
+configuration and credential delivery remain outside the receipt&#39;s claim.
+</code></pre>
+      </section>
       <section class="file">
         <h3>upstream-cronjob.yaml</h3>
         <pre><code><span class="tok-key">{{- $configFileName </span>:= <span class="tok-string">&quot;config.json&quot;</span> }}
@@ -319,6 +349,49 @@
   <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
+      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+root=&quot;$(cd &quot;$(dirname &quot;$0&quot;)&quot; &amp;&amp; pwd)&quot;
+cix=&quot;${1:-$root/../../../target/debug/cix}&quot;
+state_dir=&quot;$(mktemp -d)&quot;
+trap &#39;rm -rf -- &quot;$state_dir&quot;&#39; EXIT
+
+CIX_STATE_DIR=&quot;$state_dir&quot; &quot;$cix&quot; build -t regrade &quot;$root&quot;
+systemd-analyze calendar daily &gt;/dev/null
+CIX_STATE_DIR=&quot;$state_dir&quot; &quot;$cix&quot; compose check &quot;$root/compose.json&quot;
+
+printf &#39;PASS cix build, calendar, and compose validation\n&#39;
+</code></pre>
+      </details>
+      <section class="file">
+        <h3>cix.lock</h3>
+        <pre><code>{
+  &quot;paths&quot;: {
+    &quot;renovate&quot;: {
+      &quot;ref&quot;: &quot;renovate:regrade&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate&quot;,
+      &quot;narHash&quot;: &quot;sha256-Qi+o5oZLaPTgX61h99Rx53GWcDWO2rWJoLs0mN5bzgg=&quot;
+    }
+  }
+}
+</code></pre>
+      </section>
       <section class="file">
         <h3>compose.json</h3>
         <pre><code>{
@@ -334,6 +407,64 @@
 }
 </code></pre>
       </section>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># Renovate schedule migration receipt
+
+Regrade: 2026-08-02. This is a deliberately narrow conversion of the wild
+Kubernetes CronJob row: it uses the real Nix-packaged Renovate executable and
+proves the landed APP/timer and journald-selector mechanisms. It is not a full
+Renovate deployment: repository configuration and token delivery remain
+unverified, and native secret delivery is not part of this feature wave.
+
+## Build and schedule
+
+```text
+devenv shell -- cargo build -p cix
+target/debug/cix build -t regrade corpus/migrate/renovate
+/nix/store/zvkknma4m5xipnahpc0a4vsmcxjkcssn-cix-item-renovate
+sudo env PATH=&quot;$PATH&quot; target/debug/cix tag &lt;item&gt; renovate:regrade
+systemd-analyze calendar daily
+Normalized form: *-*-* 00:00:00
+target/debug/cix compose check corpus/migrate/renovate/compose.json
+compose corpus-renovate: 1 services, 0 edges, valid
+sudo env PATH=&quot;$PATH&quot; target/debug/cix up \
+  corpus/migrate/renovate/compose.json --update=&#39;*&#39;
+activated corpus-renovate from \
+  /nix/store/gcr7gdk2l2w0pqryxgx4i3krdb2d5nlf-cix-compose-corpus-renovate-generation
+systemctl is-active cix-corpus-renovate-renovate.timer
+active
+```
+
+The generated timer contained the expected native projection:
+
+```ini
+[Timer]
+OnCalendar=daily
+Unit=cix-corpus-renovate-renovate.service
+Persistent=true
+```
+
+The first manual oneshot run trapped in Node/V8 under W^X. Adding the explicit
+`CLAIM jit`, retagging the new item, and updating the compose lock corrected the
+conversion. The final run was green:
+
+```text
+sudo systemctl start cix-corpus-renovate-renovate.service
+Result=success
+ExecMainCode=1
+ExecMainStatus=0
+target/debug/cix logs corpus-renovate/renovate \
+  --invocation 2da1f08172084cf08056187f5a31784b -n 20
+43.214.1
+```
+
+`cix logs` printed the equivalent indexed query with
+`CIX_COMPOSITE=corpus-renovate`, `CIX_SERVICE=renovate`, and the invocation ID.
+Cleanup used `cix down corpus-renovate` and removed both temporary user/root
+`renovate:regrade` tags.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/renovate</code>. Do not edit this page by hand.</footer>

@@ -18,6 +18,7 @@
     .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
     .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
     .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
     pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
     code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     .tok-directive { color: var(--directive); font-weight: 650; }
@@ -31,6 +32,23 @@
     table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
     th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
     footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
     @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
   </style>
@@ -41,6 +59,89 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs · <strong>Evidence:</strong> receipt</p>
   <p class="status"><strong>Receipt status:</strong> Historical Cix offline build and bounded HTTP probe pass; consumed build tree is not reproducible for closed-root audit · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/echo-server/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/echo-server/SOURCE">Pinned upstream source notes</a></p>
+  <details class="context">
+    <summary>Upstream build context: 78 files, 863713 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.dockerignore</code> <span>2263 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/bug_report.md</code> <span>471 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/feature_request.md</code> <span>619 bytes</span></li>
+      <li><code>.github/PULL_REQUEST_TEMPLATE.md</code> <span>1534 bytes</span></li>
+      <li><code>.github/workflows/docker.yml</code> <span>2884 bytes</span></li>
+      <li><code>.github/workflows/gh-page.yml</code> <span>539 bytes</span></li>
+      <li><code>.github/workflows/github-bump.yml</code> <span>637 bytes</span></li>
+      <li><code>.github/workflows/nodejs-tests.yml</code> <span>730 bytes</span></li>
+      <li><code>.gitignore</code> <span>1795 bytes</span></li>
+      <li><code>CONTRIBUTING.md</code> <span>4023 bytes</span></li>
+      <li><code>LICENSE.txt</code> <span>35149 bytes</span></li>
+      <li><code>README.md</code> <span>15782 bytes</span></li>
+      <li><code>codecov.yml</code> <span>133 bytes</span></li>
+      <li><code>docker-compose/Dockerfile.local</code> <span>244 bytes</span></li>
+      <li><code>docker-compose/ELK/docker-compose.yml</code> <span>1055 bytes</span></li>
+      <li><code>docker-compose/ELK/logstash/logstash.conf</code> <span>110 bytes</span></li>
+      <li><code>docker-compose/SEQ/docker-compose.yml</code> <span>579 bytes</span></li>
+      <li><code>docs/.gitignore</code> <span>633 bytes</span></li>
+      <li><code>docs/Gemfile</code> <span>144 bytes</span></li>
+      <li><code>docs/Gemfile.lock</code> <span>7424 bytes</span></li>
+      <li><code>docs/_config.yml</code> <span>716 bytes</span></li>
+      <li><code>docs/assets/images/curl.png</code> <span>139146 bytes</span></li>
+      <li><code>docs/assets/images/docker.gif</code> <span>75976 bytes</span></li>
+      <li><code>docs/assets/images/docker.png</code> <span>128300 bytes</span></li>
+      <li><code>docs/assets/images/ping-pong.png</code> <span>11355 bytes</span></li>
+      <li><code>docs/assets/images/seq.png</code> <span>36000 bytes</span></li>
+      <li><code>docs/docker-compose.yml</code> <span>218 bytes</span></li>
+      <li><code>docs/examples/echo.helm.yaml</code> <span>161 bytes</span></li>
+      <li><code>docs/examples/echo.kube.yaml</code> <span>1070 bytes</span></li>
+      <li><code>docs/favicon.ico</code> <span>2462 bytes</span></li>
+      <li><code>docs/index.md</code> <span>2747 bytes</span></li>
+      <li><code>docs/pages/configuration/commands.md</code> <span>1447 bytes</span></li>
+      <li><code>docs/pages/configuration/feature-toggle.md</code> <span>1316 bytes</span></li>
+      <li><code>docs/pages/configuration/index.md</code> <span>383 bytes</span></li>
+      <li><code>docs/pages/configuration/loggers.md</code> <span>1941 bytes</span></li>
+      <li><code>docs/pages/quick-start/docker-compose.md</code> <span>2970 bytes</span></li>
+      <li><code>docs/pages/quick-start/docker.md</code> <span>1515 bytes</span></li>
+      <li><code>docs/pages/quick-start/helm.md</code> <span>1658 bytes</span></li>
+      <li><code>docs/pages/quick-start/includes/section-examples.md</code> <span>3754 bytes</span></li>
+      <li><code>docs/pages/quick-start/index.md</code> <span>74 bytes</span></li>
+      <li><code>docs/pages/quick-start/kubernetes.md</code> <span>975 bytes</span></li>
+      <li><code>docs/pages/quick-start/nodejs.md</code> <span>1163 bytes</span></li>
+      <li><code>docs/release-notes.md</code> <span>759 bytes</span></li>
+      <li><code>package-lock.json</code> <span>330684 bytes</span></li>
+      <li><code>package.json</code> <span>1157 bytes</span></li>
+      <li><code>renovate.json</code> <span>107 bytes</span></li>
+      <li><code>src/app.js</code> <span>1333 bytes</span></li>
+      <li><code>src/global.json</code> <span>1296 bytes</span></li>
+      <li><code>src/middlewares/customHttpBodyMiddleware.js</code> <span>497 bytes</span></li>
+      <li><code>src/middlewares/customHttpCodeMiddleware.js</code> <span>884 bytes</span></li>
+      <li><code>src/middlewares/customHttpEnvBodyMiddleware.js</code> <span>461 bytes</span></li>
+      <li><code>src/middlewares/customHttpHeadersMiddleware.js</code> <span>616 bytes</span></li>
+      <li><code>src/middlewares/customResponseTime.js</code> <span>435 bytes</span></li>
+      <li><code>src/middlewares/logMiddleware.js</code> <span>1523 bytes</span></li>
+      <li><code>src/middlewares/showFileMiddleware.js</code> <span>779 bytes</span></li>
+      <li><code>src/nconf.js</code> <span>296 bytes</span></li>
+      <li><code>src/response/environment.js</code> <span>122 bytes</span></li>
+      <li><code>src/response/host.js</code> <span>169 bytes</span></li>
+      <li><code>src/response/http.js</code> <span>219 bytes</span></li>
+      <li><code>src/response/request.js</code> <span>443 bytes</span></li>
+      <li><code>src/webserver.js</code> <span>162 bytes</span></li>
+      <li><code>test/body.form.js</code> <span>1537 bytes</span></li>
+      <li><code>test/body.json.js</code> <span>1512 bytes</span></li>
+      <li><code>test/body.text.js</code> <span>1703 bytes</span></li>
+      <li><code>test/cookie.js</code> <span>2722 bytes</span></li>
+      <li><code>test/custom.body.js</code> <span>1219 bytes</span></li>
+      <li><code>test/custom.code.js</code> <span>5277 bytes</span></li>
+      <li><code>test/custom.environment.js</code> <span>752 bytes</span></li>
+      <li><code>test/custom.headers.js</code> <span>1640 bytes</span></li>
+      <li><code>test/custom.js</code> <span>1316 bytes</span></li>
+      <li><code>test/custom.time.js</code> <span>1919 bytes</span></li>
+      <li><code>test/environment.js</code> <span>487 bytes</span></li>
+      <li><code>test/file.js</code> <span>826 bytes</span></li>
+      <li><code>test/headers.js</code> <span>2262 bytes</span></li>
+      <li><code>test/logs.js</code> <span>2458 bytes</span></li>
+      <li><code>test/query.js</code> <span>1364 bytes</span></li>
+      <li><code>test/verbs.js</code> <span>2152 bytes</span></li>
+      <li><code>webpack.config.js</code> <span>530 bytes</span></li>
+    </ul>
+  </details>
   <main class="artifacts">
     <section class="column">
       <h2>Upstream</h2>
@@ -60,6 +161,16 @@
 <span class="tok-directive">COPY</span> --from=build /build/dist/webserver.js .
 
 <span class="tok-directive">ENTRYPOINT</span> [ <span class="tok-string">&quot;node&quot;</span>, <span class="tok-string">&quot;webserver&quot;</span> ]</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Dockerfile and build context: https://github.com/Ealenn/Echo-Server.git
+Resolved revision: 2b735482f942cbd889f1d49f3ff892364d0519ac
+Context path: .
+Exclude context path: Dockerfile
+Dockerfile URL: https://raw.githubusercontent.com/Ealenn/Echo-Server/master/Dockerfile
+Retrieved: 2026-07-30
+</code></pre>
       </section>
     </section>
     <section class="column">
@@ -84,6 +195,117 @@
   <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
+      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:build:1-d1134e7bd38c&quot;: {
+      &quot;narHash&quot;: &quot;sha256-5Cf8r8nyBXGmLeeSylacY7GocPd9vZAJ6KGUThg2BMg=&quot;
+    },
+    &quot;builder:build:2-9514b3517c82&quot;: {
+      &quot;narHash&quot;: &quot;sha256-8i6L/uNdRsju4wVkbyIsdcKJ3MWUK6S1/2sMgw2cwKU=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;088585685c59505a65e41e1a6de2755fed6b319487ff97099c62b1a7342e18e5&quot;: {
+      &quot;paths&quot;: {
+        &quot;dist/webserver.js&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Nw0iWhsCfq9lxXqIC8dscJ/vuDBTJVrsaXWXl6iF9HY=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/8yd7q7yl104wpmdwihz1b3wzamz06y5c-cix-build-consumed&quot;
+        },
+        &quot;src/global.json&quot;: {
+          &quot;narHash&quot;: &quot;sha256-JVZ764iPBHUAdewHjN3Z9mmTICY81eb8y/Bf90KR4WI=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/vgmv8szf6yp3hqa6icx834gn3mqri75g-cix-build-consumed&quot;
+        }
+      }
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+mode=${1:-}
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+if [[ ! -d $root/context ]]; then
+  echo &#39;context/ missing — run ../fetch.sh echo-server first&#39; &gt;&amp;2
+  exit 1
+fi
+cix=${CIX:-&quot;$root/../../../target/debug/cix&quot;}
+docker_tag=migrate-echo-server-docker
+container=
+unit=
+
+cleanup() {
+  if [[ -n $container ]]; then docker stop &quot;$container&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+  if [[ -n $unit ]]; then sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true; fi
+}
+trap cleanup EXIT
+
+probe() {
+  local url=$1 attempt
+  for attempt in $(seq 1 10); do
+    if curl --fail --silent --max-time 2 &quot;$url&quot; | grep -q &#39;&quot;http&quot;&#39;; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+cd &quot;$root&quot;
+case $mode in
+  docker)
+    image=$(timeout 240 docker build --quiet --file &quot;$root/Dockerfile&quot; --tag &quot;$docker_tag&quot; &quot;$root/context&quot;)
+    printf &#39;docker image %s\n&#39; &quot;$image&quot;
+    container=$(timeout 30 docker run --detach --rm --publish 127.0.0.1:18081:80 &quot;$docker_tag&quot;)
+    probe http://127.0.0.1:18081/
+    printf &#39;PASS docker\n&#39;
+    ;;
+  cix)
+    item=$(timeout 20 &quot;$cix&quot; build &quot;$root#echo-server&quot;)
+    printf &#39;cix item %s\n&#39; &quot;$item&quot;
+    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+    printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    probe http://127.0.0.1:80/
+    printf &#39;PASS cix\n&#39;
+    ;;
+  *) echo &#39;usage: ./check.sh {docker|cix}&#39; &gt;&amp;2; exit 1 ;;
+esac
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># echo-server migration receipt
+
+Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, bare builder commands, explicit Node `bin/`, `CLAIM jit`, and D58&#39;s `/usr/bin/env` skeleton alias).
+
+Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:617137dd0795830b72301249dfbebacb2255fc8614e7eb6952f5ce6c61c53a8d`.
+
+## `./check.sh cix`
+
+```text
+npm ci --offline --ignore-scripts --no-audit --no-fund
+&gt; echo-server@1.0.0 build
+&gt; webpack --config webpack.config.js
+webpack 5.90.1 compiled with 8 warnings
+PASS cix
+```
+
+Exit status: zero. `IMPORT ${pkgs.coreutils}` supplies `/bin/env`, so the fixed
+`/usr/bin/env → /bin/env` sandbox alias launches webpack&#39;s generated wrapper. The
+webpack warnings are upstream bundler warnings; the built service passed the bounded HTTP
+probe. Final item: `/nix/store/mjvw61rg51b8zv3qvmz81n2rhphnn6is-cix-item-echo-server`.
+</code></pre>
+      </details>
     </section>
   </main>
   <footer>Generated from <code>corpus/migrate/echo-server</code>. Do not edit this page by hand.</footer>
