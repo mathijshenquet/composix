@@ -1,5 +1,15 @@
 # litdoc work log
 
+- 2026-08-04T15:50:16Z — Committed the amended all-JSON policy as `fb64abf`
+  (`cix: pretty-print all JSON writes`): cix item manifests are formatted by
+  the generated Nix build, build-state/cache and compose secret writes use
+  pretty serializers, and index JSON API responses are indented. Existing
+  pretty lock/compose artifact writers remain unchanged; no corpus locks were
+  rewritten. The tour is committed with plain `cat` manifest receipts and all
+  final agent-tier and three-run determinism receipts recorded above. Next:
+  commit this required post-commit journal receipt; the orchestrator owns the
+  independent full flake-matrix gate.
+
 - 2026-08-04T15:49:50Z — Staged regenerated tour chapters 1, 4, and 6, then
   reran the ignored generator synchronously (exit 0) with zero unstaged tour
   drift. Final serializer audit finds the only remaining non-pretty
