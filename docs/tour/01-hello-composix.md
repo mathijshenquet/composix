@@ -13,8 +13,8 @@ You will build and run a small nginx service from ordinary checked-in files. A b
 Install the current alpha with `nix profile install github:mathijshenquet/composix#cix`, or use `cix` from this repository's `devenv` shell. The commands below require Linux, Nix, and a per-user systemd manager; macOS, non-systemd Linux, and containers or WSL sessions without user systemd can follow the build sections but cannot run the service lifecycle.
 
 ```sh
-$ nix --version
-nix (Determinate Nix 3.21.0) 2.34.6
+$ nix --version >/dev/null 2>&1 && printf 'nix: available\n'
+nix: available
 ```
 
 ```sh
