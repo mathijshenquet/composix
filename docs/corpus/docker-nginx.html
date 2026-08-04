@@ -66,7 +66,7 @@
       <li>The faithful twin preserves the upstream entrypoint scripts, but its Alpine-specific IPv6 hook cannot validate <code>apk manifest nginx</code> against the nixpkgs package and therefore does not perform that Docker mutation. → case</li>
       <li>Docker&#39;s stdout/stderr log symlinks are not reproduced, and the faithful runtime probe is red because the packaged configuration opens <code>/var/log/nginx/error.log</code> and <code>access.log</code> while the service declares no <code>LOGDIR</code>. systemd captures process output, but that does not satisfy those file paths. → case</li>
       <li>Docker&#39;s fixed nginx uid/gid 101 is replaced by Cix/systemd&#39;s managed service identity. → language (fixed service identity)</li>
-      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix has no stop-signal declaration, so systemd&#39;s stop behavior applies. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix has no stop-signal declaration, so systemd&#39;s stop behavior applies. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
       <li>The copied worker-autotune hook&#39;s Docker cgroup paths and operator-supplied envsubst/stream templates are not covered by the HTTP probe. → evidence</li>
     </ul>
   </aside>

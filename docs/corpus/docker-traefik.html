@@ -65,7 +65,7 @@
     <ul>
       <li>The Dockerfile&#39;s copied <code>/entrypoint.sh</code> is absent from the supplied context, so its arbitrary-argument behavior cannot be audited. The service starts <code>traefik --ping=true</code> directly and the receipt proves only that ping endpoint, not a reverse-proxy configuration. → evidence + case</li>
       <li>The faithful builder uses GitHub&#39;s release-API asset endpoint because the Dockerfile&#39;s browser-download URL returned 404 from the FETCH sandbox; the selected version, architecture name, and published digest remain the same. → case</li>
-      <li>Both FETCH steps intentionally retain the identical copy-pasted <code>EXPECT</code>. Warm builds never validated it, proving the <a href="../../../docs/open-questions.md#expect-not-validated-against-the-recorded-pin-on-warm-builds">EXPECT-versus-recorded-pin defect</a>; correcting either value before the product fix would destroy this case&#39;s reproduction. → language (EXPECT validation)</li>
+      <li>Both FETCH steps intentionally retain the identical copy-pasted <code>EXPECT</code>. Warm builds never validated it, proving the <a href="../../../../cips/open-questions.md#expect-not-validated-against-the-recorded-pin-on-warm-builds">EXPECT-versus-recorded-pin defect</a>; correcting either value before the product fix would destroy this case&#39;s reproduction. → language (EXPECT validation)</li>
       <li>The first FETCH pins mutable GitHub release-metadata JSON whose download counters change, making cold refetches EXPECT-hostile. Normalize it to the consumed fields, or bypass it for the stable asset URL, in the same product round that fixes EXPECT validation. → case</li>
     </ul>
   </aside>

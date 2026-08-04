@@ -1,0 +1,218 @@
+const Parse = require('parse/node').Parse;
+const path = require('path');
+const { isRouteAllowed, matchesExactRoute } = require('./middlewares');
+const { createSanitizedError } = require('./Error');
+// These methods handle batch requests.
+const batchPath = '/batch';
+
+// Mounts a batch-handler onto a PromiseRouter.
+function mountOnto(router) {
+  router.route('POST', batchPath, req => {
+    return handleBatch(router, req);
+  });
+}
+
+function parseURL(urlString) {
+  try {
+    return new URL(urlString);
+  } catch {
+    return undefined;
+  }
+}
+
+function makeBatchRoutingPathFunction(originalUrl, serverURL, publicServerURL) {
+  serverURL = serverURL ? parseURL(serverURL) : undefined;
+  publicServerURL = publicServerURL ? parseURL(publicServerURL) : undefined;
+
+  const apiPrefixLength = originalUrl.length - batchPath.length;
+  let apiPrefix = originalUrl.slice(0, apiPrefixLength);
+
+  const makeRoutablePath = function (requestPath) {
+    // The routablePath is the path minus the api prefix
+    if (requestPath.slice(0, apiPrefix.length) != apiPrefix) {
+      throw new Parse.Error(Parse.Error.INVALID_JSON, 'cannot route batch path ' + requestPath);
+    }
+    return path.posix.join('/', requestPath.slice(apiPrefix.length));
+  };
+
+  if (serverURL && publicServerURL && serverURL.pathname != publicServerURL.pathname) {
+    const localPath = serverURL.pathname;
+    const publicPath = publicServerURL.pathname;
+
+    // Override the api prefix
+    apiPrefix = localPath;
+    return function (requestPath) {
+      // Figure out which server url was used by figuring out which
+      // path more closely matches requestPath
+      const startsWithLocal = requestPath.startsWith(localPath);
+      const startsWithPublic = requestPath.startsWith(publicPath);
+      const pathLengthToUse =
+        startsWithLocal && startsWithPublic
+          ? Math.max(localPath.length, publicPath.length)
+          : startsWithLocal
+            ? localPath.length
+            : publicPath.length;
+
+      const newPath = path.posix.join('/', localPath, '/', requestPath.slice(pathLengthToUse));
+
+      // Use the method for local routing
+      return makeRoutablePath(newPath);
+    };
+  }
+
+  return makeRoutablePath;
+}
+
+// Returns a promise for a {response} object.
+// TODO: pass along auth correctly
+async function handleBatch(router, req) {
+  if (!Array.isArray(req.body?.requests)) {
+    throw new Parse.Error(Parse.Error.INVALID_JSON, 'requests must be an array');
+  }
+  const batchRequestLimit = req.config?.requestComplexity?.batchRequestLimit ?? -1;
+  if (batchRequestLimit > -1 && !req.auth?.isMaster && !req.auth?.isMaintenance && req.body.requests.length > batchRequestLimit) {
+    throw new Parse.Error(
+      Parse.Error.INVALID_JSON,
+      `Batch request contains ${req.body.requests.length} sub-requests, which exceeds the limit of ${batchRequestLimit}.`
+    );
+  }
+  for (const restRequest of req.body.requests) {
+    if (!restRequest || typeof restRequest !== 'object' || typeof restRequest.path !== 'string') {
+      throw new Parse.Error(Parse.Error.INVALID_JSON, 'batch request path must be a string');
+    }
+  }
+
+  // The batch paths are all from the root of our domain.
+  // That means they include the API prefix, that the API is mounted
+  // to. However, our promise router does not route the api prefix. So
+  // we need to figure out the API prefix, so that we can strip it
+  // from all the subrequests.
+  if (!req.originalUrl.endsWith(batchPath)) {
+    throw 'internal routing problem - expected url to end with batch';
+  }
+
+  const makeRoutablePath = makeBatchRoutingPathFunction(
+    req.originalUrl,
+    req.config.serverURL,
+    req.config.publicServerURL
+  );
+
+  // Enforce rate limits for each batch sub-request by invoking the
+  // rate limit handler. This ensures sub-requests consume tokens from
+  // the same window state as direct requests.
+  const rateLimits = req.config.rateLimits || [];
+  for (const restRequest of req.body.requests) {
+    const routablePath = makeRoutablePath(restRequest.path);
+    if ((restRequest.method || 'GET').toUpperCase() === 'POST' && routablePath === batchPath) {
+      throw new Parse.Error(Parse.Error.INVALID_JSON, 'nested batch requests are not allowed');
+    }
+    // Re-enforce routeAllowList on each sub-request. The enforceRouteAllowList
+    // middleware runs once on the outer /batch URL, so without this check an
+    // operator who allowlists `batch` would expose every route reachable via
+    // sub-request dispatch.
+    if (!isRouteAllowed(routablePath, req.config, req.auth)) {
+      throw createSanitizedError(
+        Parse.Error.OPERATION_FORBIDDEN,
+        `Route not allowed by routeAllowList: ${(restRequest.method || 'GET').toUpperCase()} ${routablePath}`,
+        req.config
+      );
+    }
+    for (const limit of rateLimits) {
+      const pathExp = limit.path.regexp || limit.path;
+      if (!pathExp.test(routablePath)) {
+        continue;
+      }
+      const info = { ...req.info };
+      if (matchesExactRoute(routablePath, '/login')) {
+        delete info.sessionToken;
+      }
+      const fakeReq = {
+        ip: req.ip || req.config?.ip || '127.0.0.1',
+        method: (restRequest.method || 'GET').toUpperCase(),
+        _batchOriginalMethod: 'POST',
+        config: req.config,
+        auth: req.auth,
+        info,
+      };
+      const fakeRes = { setHeader() {} };
+      try {
+        await limit.handler(fakeReq, fakeRes, err => {
+          if (err) {
+            throw err;
+          }
+        });
+      } catch {
+        throw new Parse.Error(
+          Parse.Error.CONNECTION_FAILED,
+          limit.errorResponseMessage || 'Too many requests'
+        );
+      }
+    }
+  }
+
+  const batch = transactionRetries => {
+    let initialPromise = Promise.resolve();
+    if (req.body?.transaction === true) {
+      initialPromise = req.config.database.createTransactionalSession();
+    }
+
+    return initialPromise.then(() => {
+      const promises = req.body?.requests.map(restRequest => {
+        const routablePath = makeRoutablePath(restRequest.path);
+
+        // Construct a request that we can send to a handler
+        const request = {
+          body: restRequest.body,
+          config: req.config,
+          auth: req.auth,
+          info: req.info,
+        };
+
+        return router.tryRouteRequest(restRequest.method, routablePath, request).then(
+          response => {
+            return { success: response.response };
+          },
+          error => {
+            return { error: { code: error.code, error: error.message } };
+          }
+        );
+      });
+
+      return Promise.all(promises)
+        .then(results => {
+          if (req.body?.transaction === true) {
+            if (results.find(result => typeof result.error === 'object')) {
+              return req.config.database.abortTransactionalSession().then(() => {
+                return Promise.reject({ response: results });
+              });
+            } else {
+              return req.config.database.commitTransactionalSession().then(() => {
+                return { response: results };
+              });
+            }
+          } else {
+            return { response: results };
+          }
+        })
+        .catch(error => {
+          if (
+            error &&
+            error.response &&
+            error.response.find(
+              errorItem => typeof errorItem.error === 'object' && errorItem.error.code === 251
+            ) &&
+            transactionRetries > 0
+          ) {
+            return batch(transactionRetries - 1);
+          }
+          throw error;
+        });
+    });
+  };
+  return batch(5);
+}
+
+module.exports = {
+  mountOnto,
+  makeBatchRoutingPathFunction,
+};

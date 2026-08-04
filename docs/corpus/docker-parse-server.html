@@ -64,7 +64,7 @@
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CONFIGDIR path freedom</p>
     <ul>
       <li>The locked universe&#39;s supported Node 22 replaces Docker&#39;s exact Node 20.19/Alpine identity. → case</li>
-      <li>The service listens on 18091 for the repository probe rather than Docker&#39;s default 1337, and its config role moves from <code>/parse-server/config</code> to <code>/etc/parse-server</code> because the current runner rejects CONFIGDIR outside <code>/etc</code>. → language (<a href="../../../docs/open-questions.md#open-for-agents">recorded CONFIGDIR restriction</a>)</li>
+      <li>The service listens on 18091 for the repository probe rather than Docker&#39;s default 1337, and its config role moves from <code>/parse-server/config</code> to <code>/etc/parse-server</code> because the current runner rejects CONFIGDIR outside <code>/etc</code>. → language (<a href="../../../../cips/open-questions.md#open-for-agents">recorded CONFIGDIR restriction</a>)</li>
       <li>The cross-builder <code>COPY ${deps}/node_modules</code> is cold-divergent even though the warm build and Mongo-backed probe pass; this should be diagnosed and normalized by <a href="../../../cips/accepted/0087-read-set-keying.md">CIP-87&#39;s cold-divergence machinery</a>. → language (cold divergence audit)</li>
       <li>Independent ordinary dependency fetches alternated between the staged <code>prod_node_modules</code> hash and a rejected different hash before the successful probe, so the fetched output is unstable even before the explicit cold comparison; do not repin this variance away. → case (cold stability)</li>
     </ul>

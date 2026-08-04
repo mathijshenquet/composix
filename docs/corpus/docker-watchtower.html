@@ -67,7 +67,7 @@
       <li>The Dockerfile consumes a CI-provided <code>watchtower</code> binary absent from the recorded repository context; compiling the supplied Go source modernizes the build side but is a different supply contract. → evidence</li>
       <li>Docker&#39;s exec healthcheck has no equivalent generic exec health probe, and no weaker native HTTP/TCP assertion is invented. → language (exec health probe)</li>
       <li>A cold audit reports a warm/cold Go build-cache read-set mismatch, so source-build cold stability remains unproved. → case (cold stability)</li>
-      <li>Repeating a direct <code>COPY</code> destination against an already populated warm builder root is rejected; the exact product finding is promoted in <code>docs/open-questions.md</code>. → language (warm-root duplicate COPY)</li>
+      <li>Repeating a direct <code>COPY</code> destination against an already populated warm builder root is rejected; the exact product finding is promoted in <code>cips/open-questions.md</code>. → language (warm-root duplicate COPY)</li>
     </ul>
   </aside>
   <details class="context">

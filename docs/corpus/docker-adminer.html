@@ -65,7 +65,7 @@
     <p>This regeneration resolves the earlier version/checksum binder, PHP tuning, webroot layout, dynamic design/plugin assembly, PHP extension import, artifact import, and missing-twin findings.</p>
     <ul>
       <li><code>ADMINER_DESIGN</code> and <code>ADMINER_PLUGINS</code> use the private <code>__cix_unset__</code> sentinel because Cix cannot declare an optional runtime <code>ENV</code> with no default. → language (optional ENV declaration)</li>
-      <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix has no service stop-signal directive, so systemd&#39;s normal termination semantics remain authoritative. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix has no service stop-signal directive, so systemd&#39;s normal termination semantics remain authoritative. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
       <li>The worker&#39;s warm build passed, but the independent fresh fetch is EXPECT-hostile: its published file checksum passes while Cix reports declared <code>sha256-bJPK…</code> versus fetched <code>sha256-XJVI…</code>, leaving no snapshot for cold replay; keep the pin unchanged and normalize the fetch in the volatile-fetch fix round. → case (cold stability)</li>
     </ul>
   </aside>
