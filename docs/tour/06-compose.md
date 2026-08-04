@@ -194,4 +194,4 @@ This harness intentionally stops at `check` and `diff`: `cix up compose.json`, `
 
 ---
 
-[← Previous](05-runtime-contract.html) · [Tour index](index.html)
+[← Previous](05-runtime-contract.html) · [Tour index](index.html) · [Next →](07-dev-loop-docker.html)

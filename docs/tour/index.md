@@ -1,11 +1,13 @@
-# cix — tour
+# composix — new-user guide
 
 > **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.
 > All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.
 > Version **0.1.0**, commit `unknown`.
 > **Do not edit** — re-run the test to regenerate.
 
-This executable tour follows composix from naming and distribution through building, running, debugging, and composing. Each chapter is one continuous story: inputs are shown before use, commands are real, and assertions keep the prose honest.
+Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that declare exactly what enters an item and what its process may use.
+
+Start at [Chapter 1](01-hello-composix.html) and follow the guide in order; every shown command is executed by the tour harness.
 
 ## Chapters
 
@@ -20,3 +22,5 @@ This executable tour follows composix from naming and distribution through build
 - [Chapter 5: Running: the runtime contract](05-runtime-contract.html) — Run and debug by tag, inspect health and observability, and schedule an APP.
 
 - [Chapter 6: Compose](06-compose.html) — Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.
+
+- [Chapter 7: The dev loop and coming from Docker](07-dev-loop-docker.html) — Watch artifact rebuilds, keep translation twins, and continue into the migration corpus.

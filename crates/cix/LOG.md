@@ -320,3 +320,14 @@
   `up`/`rollback`/`down`, setgid sharing, pod netns, and journal namespace are
   clearly system-manager-only prose with exact lib/dirs2/netns/observability VM
   pointers. Focused generation passed synchronously; no ENOSPC.
+
+- 2026-08-04T13:10:00Z — Chapter 7 is implemented and generated as
+  `07-dev-loop-docker.md`. Its real watcher rebuilds after an edited source
+  file; the watched workspace is created below cix's prescribed cache temp
+  area because target-tree paths are intentionally ignored, then linked into
+  the continuous story. Faithful and dissolved `--file` Docker twins build
+  independently with their own locks, and the chapter links to the migration
+  workflow and corpus. Rewrote the generated index around the seven-chapter
+  learning path, swept obsolete page names, and removed superseded generator
+  code. Focused `generate_tour` passed synchronously (1 passed in 28.11s); no
+  ENOSPC occurred.
