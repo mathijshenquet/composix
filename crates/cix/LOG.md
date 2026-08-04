@@ -1,5 +1,17 @@
 # litdoc work log
 
+- 2026-08-04T19:10:00Z — Chapters 1 and 2 execute cleanly in explicit tour
+  regeneration. Chapter 1 now checks Nix/flakes/user-systemd, teaches captured
+  item paths, runs the nginx item through the real user manager, probes HTTP,
+  and stops the printed unit; a checked-in launcher uses native projections in
+  production and `CIX_APP` only on degraded user managers. Host-specific
+  degradation blocks normalize to the declared single marker. Chapter 2 now
+  defines every language noun, puts five Dockerfile/Cixfile lines side by side,
+  proves a real store symlink target and CIP-91 materialization, and supplies
+  the missing runtime/operator grammar. Chapter 1 plus the verbatim
+  preamble/index committed as `2b80163`; next commit is the independently
+  generated Chapter 2 source/page.
+
 - 2026-08-04T18:30:00Z — Started `track/tour4` from clean `310022e` after
   reading the track spec, both cold-reader `CONFUSIONS.md` reports in full,
   the repository/design journals, the existing seven-chapter generator, and
