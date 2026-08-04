@@ -246,3 +246,25 @@
   CIP-95 rejection. Exact command: `env
   TMPDIR=/dev/shm/composix-cip94-20260804/tmp nix build
   .#checks.x86_64-linux.build-cixfile-byte-identity --no-link -L`.
+
+- 2026-08-04T11:59:51Z — Final agent tier is green. With command prefix
+  `nice -n 10 env TMPDIR=/dev/shm/composix-cip94-20260804/tmp
+  CARGO_TARGET_DIR=/dev/shm/composix-cip94-20260804/target`, synchronous
+  exit-0 receipts were: `cargo fmt --all --check`; `cargo run -j 6 -- fmt
+  --check examples`; `cargo clippy -j 6 --workspace --all-targets -- -D
+  warnings`; `cargo test -j 6 --workspace`; `cargo test -j 6 -p cix --test
+  tour -- --ignored generate_tour`, then `git diff --exit-code -- docs/tour`
+  and `cargo test -j 6 -p cix --test tour -- --nocapture`. Nix receipts:
+  `nix flake show ./nix/lib --no-write-lock-file`; `nix eval
+  .#lib --apply builtins.attrNames --json` (result:
+  `["buildCixfile","withSpec"]`); and `nice -n 10 nix build
+  .#checks.x86_64-linux.with-spec-redis --no-link -L --max-jobs 6 --cores 4`.
+  The final focused receipt on committed head `ff81690` was `nice -n 10 env
+  TMPDIR=/dev/shm/composix-cip94-20260804/tmp nix build
+  .#checks.x86_64-linux.build-cixfile-byte-identity --no-link -L --max-jobs 6
+  --cores 4`: synchronous exit 0, real TCG guest in 46.66s. The first tour
+  generator attempt encountered a transient Cargo cache SQLite I/O error; its
+  clean-workspace retry and the subsequent full tour harness both exited 0.
+  Per project policy, the full flake matrix is reserved for the orchestrator's
+  independent pre-merge gate and was not run here. No corpus or migration
+  ledger files were touched, as required by the track fence.
