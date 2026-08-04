@@ -75,8 +75,10 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   dirs (377M each) from past sessions survived on the tmpfs and
   exhausted its inode cap (node-tree-shaped contents), wedging every
   tool on the host. Probes and cold audits must clean their temp dirs
-  on exit (or unpack outside /tmp); ~/CLEANUP.md now carries the sweep
-  patterns as mitigation.
+  on exit AND should relocate to a disk-backed product dir
+  (~/.cache/cix/tmp) rather than the tmpfs — the node's tmpfs inode cap
+  is admin-managed and not ours to raise (only home-manager runs here).
+  ~/CLEANUP.md carries the sweep patterns as mitigation.
 - **Lock-scale observation** (track/fhsspike, 2026-08-04): the directus
   builder run grew `Cixfile.lock` by ~148k lines of step observations /
   dev-env data. Possibly correct-but-heavy CIP-87/88 output on a huge
