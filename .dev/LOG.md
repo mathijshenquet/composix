@@ -1,5 +1,72 @@
 # composix work log
 
+## 2026-08-04 (corpus professionalization day: the loops built, CIP-91/92/93 same-day, wave-1 cold regen landed)
+
+- **The corpus loops** (from Mathijs's rapid-fire corpus review):
+  docs/corpus.md "How this corpus is maintained" — per-case GAPS.md
+  (open-vocabulary arrow routing), corpus→CIP→feature staleness rule
+  (AGENTS.md extension), cold-regeneration loop with Generated:
+  provenance headers, later-automation intent. Merged: track/corpusgaps
+  (sol; 21 routed ledgers, Fidelity/Evidence two-axis regrade,
+  migrate.md parity/layout/version-binder addenda) + track/browser3
+  (terra; every subordinate file rendered, context.files manifests,
+  CSS-only twin tabs, gap panels, real-parser rot guard).
+- **Adopted same day**: CIP-91 artifact-import (universal IMPORT,
+  store-aware COPY link-by-rule + two static materialization triggers,
+  LINK deprecation alias, STATEDIR-at-native-paths; spike clean, sol
+  implemented, gate green `00078d9`); CIP-92 port-protocols (systemd
+  `udp:443` single form + Docker-form hint, `cix build --file` sibling
+  locks; terra `7b00e34`); CIP-93 test-pyramid (minimal e2e +
+  progressive-tests amendment — change-keyed VM selection as design
+  goal). Draft inbox restructured: cips/rejected/ + cips/deferred/
+  minted; file-from REJECTED (YAGNI post-CIP-91, docs propagated);
+  cixfile-build → rejected, compose-syntax → deferred; emit-nix v2
+  adoption-ready (pure tier 1, cross-check split out with steelman
+  recorded); fhs-interpreter iterated v3→v5 (trace-driven diagnostics +
+  provide-the-FHS-paths via IMPORT lib-union + loader aliases; patchelf
+  RUN stays taught escape; round-2 spike = ld.so search wiring vs
+  RUNPATH shadowing; directus regen is the acceptance case).
+- **Agent-open items closed**: netnsrace (sol) — NOT the suspected
+  ordering race: 1s teardown budget killed `ip netns delete` under
+  load; 10s stop budget on netns oneshots; 17/20→20/20 under identical
+  contention (`c1d6c59`). adapterlive (terra) — pinger loss does NOT
+  reproduce on pinned 257.6 nor 261; 7s retention assertion added;
+  honest downgrade (`8ccf043`).
+- **Wave-1 cold regeneration landed** (`54a9d36`): six dissolvable
+  cases regenerated cold by gpt-5.6-luna in bwrap-lite staging dirs
+  (regen-stage.sh; canon-blind; transcript-audited via codex session
+  history), all 12 Cixfiles independently re-verified green, assembled
+  by sol with fresh ledgers + probes. Luna 6/6 build-green with quality
+  far above the table's guess — but ONE false probe claim (nginx
+  "check.sh cix passed" did not reproduce: /var/log/nginx absent) →
+  luna greens re-verify like everyone's. Caddy regen killed the probe
+  toy (real config contract, four ports incl. day-old udp:443 syntax
+  luna guessed unprompted — syntax-choice validation).
+- **Product findings from the wave** (all in docs/open-questions.md):
+  CONFIGDIR must-be-under-/etc at run while build accepts + docs teach
+  path freedom (verified triple defect); no `localhost` in the service
+  sandbox (skeleton /etc/hosts candidate); EXPECT not validated against
+  recorded pin on warm builds (traefik's copy-pasted double EXPECT
+  preserved in-tree as the living repro); unstable-API FETCH content is
+  EXPECT-hostile; bare `Error: Not a directory` diagnosability defect +
+  ~148k-line lock growth (fhsspike). Prompt findings → migrate.md:
+  dissolved-twin contract, volatile-metadata normalization.
+- **Process built**: regen-stage.sh cold staging; luna-first escalation
+  ladder with failure-analysis-before-escalation; jail ladder decided
+  (v0 transcript-audit → v1 user-separation → v2 bwrap; codex's own
+  sandbox verified NOT read-confining); never-overlap-full-gates held
+  all day (serial gate train through five merges).
+- **Open with Mathijs**: emit-nix adoption (mint CIP-94 on his word);
+  fhs-interpreter v5 (magic question dissolved by the path route; ld.so
+  wiring spike next); the standing 14 dispositions + ARG re-marking.
+- **Open for agents**: docs/cixfile.md full CIP-91/92 currency pass
+  (LINK-first teaching throughout — queued); wave-2 regen (app-shaped
+  cases + repro-pinning for the four evidence-gap cases); wave-3 (hard
+  cases; directus gates on fhs v5 spike + Not-a-directory fix); the
+  wave's product-defect fixes (CONFIGDIR, EXPECT validation, hosts);
+  CIP-93 progressive-test design; nginx faithful probe red (log-path
+  contract).
+
 ## 2026-08-03 early (day closed: board fully landed, GC done)
 
 - **track/fetchself MERGED** (`e2402d1`, CI green): CIP-87
