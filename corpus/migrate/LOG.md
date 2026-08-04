@@ -820,3 +820,12 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
 - All 21 moved checks were invoked as their normal consumers (Renovate with its default binary argument; every other case as `./check.sh cix`). Exit 0: mastodon, nats, phpmyadmin, renovate, tomcat, wallos, whoami. Nonzero: adminer, caddy, directus, dozzle, echo-server, excalidraw, filestash, memcached, nginx, parse-server, redis, traefik, verdaccio, watchtower. Most hit already-ledgered volatile FETCH expectations; Directus reported `No space left on device`; Dozzle reached its known missing `shared_cert.pem`; the other observed outcomes remain in `/tmp/corpusk8s-check-*.log` for this session. Check-triggered lockfile writes were restored from the pre-move blobs, because this track changes paths rather than conversion pins.
 - `COLD_AUDIT=adminer devenv shell -- cargo test -p cix --test cold_audit -- --ignored selected_corpus_pair_matches_a_clean_rebuild` exercised the moved cold-audit path and failed at Adminer's established volatile FETCH EXPECT mismatch.
 - df guard before the VM: `/` 63 GiB free (93% used), `/tmp` 49 GiB free (23% used), inodes available. First focused Nix evaluation correctly failed because the new k8s skeleton was untracked and therefore absent from the Git flake source: the closed-root axis assertion saw only `[ "docker" ]`. Stage the skeleton and rerun; that failure confirms the axis roster cannot silently omit it.
+
+## 2026-08-04 — closed-root receipt
+
+- With the complete axis tree committed into the Git-backed flake source, `devenv shell -- nix build .#checks.x86_64-linux.scenario-closedroot-audit --no-link -L` exited 0 synchronously. The load-bearing two-axis roster evaluation and its exhaustive runtime suite passed, including the Docker corpus services, packaged samples, and Mastodon compose startup/teardown under closed roots.
+
+## 2026-08-04 — final agent gate
+
+- All standard receipts exited 0: `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`.
+- Tour regeneration initially lost a loopback-server startup race, then its immediate retry exited 0. The committed tour drift and deterministic-render tests both exited 0, as did the final `devenv shell -- cargo test -p cix --test corpus` browser drift/determinism suite and `git diff --check`. The only remaining tracked change is this append-only receipt.
