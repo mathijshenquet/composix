@@ -1,9 +1,8 @@
-Generated: migrate.md@dd2f39a · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The sed rewrite from `/verdaccio/storage` to `/var/lib/verdaccio` is unnecessary: `STATEDIR /verdaccio/storage` can mirror the upstream volume directly under the migration guide's role-path rule. → case
-- The deploy tree moves from `/opt/verdaccio` to `/app`, and configuration moves from `/verdaccio/conf` to `/etc/verdaccio`, without a stated reason. → prompt
-- Upstream `VERDACCIO_APPDIR`, user/uid, port/protocol/address, `PATH`, and `HOME` environment declarations disappear without translated/dissolved/gap dispositions. → case
-- Node is linked into `/bin` and then found through implicit self-import instead of an explicit artifact tool declaration. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- “Package-manager build remains non-green” means the Corepack/pnpm sequence exits non-zero before producing any item; record the precise failing command and diagnostic on a fresh attempt. → evidence
-- Until that build receipt exists, the service block is untested aspiration rather than a runnable approximation. → browser
+- The pnpm monorepo wall stands: the sandboxed `pnpm --filter verdaccio build` path exits non-zero before producing an item, so the runtime graph remains unproved. → evidence
+- The upstream UI CSS generator performs network access during `pnpm run build`; keeping that entire build in `FETCH` is an over-broad networked transformation whose reproducibility has not been established. → case
+- Docker's fixed `USER 10001`, root group, uid-entrypoint passwd injection, and ownership/mode ceremony dissolve into systemd-managed identity rather than preserving numeric ownership. → case
+- The external `/-/ping` probe is not represented as native readiness and cannot run until the build wall is cleared. → case
+- Cold replay diverges at Corepack's pnpm cache (`warm Directory`, `cold Absent`) before reaching the already-red monorepo build. → case (cold stability)

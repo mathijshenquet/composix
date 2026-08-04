@@ -20,3 +20,23 @@ item carries the complete Tomcat 10.1.57 and JRE 21 trees, seeds a writable
 on port 8005 by default; the setup disables it because the service declares only
 8080. The natural probe regards any HTTP response at `/` as reachable, matching
 the candidate wording and Tomcat's expected no-application 404.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker evidence: both staged twins built warm and cold, the supplied HTTP probe
+exited 0, and a direct dissolved probe passed. The primary item was
+`/nix/store/s58jpph2qgzj18xwwam5is3jkzhqa9mf-cix-item-tomcat`; the dissolved
+item was `/nix/store/cffy1xg2019nx265gd2k4rvhlpymd5fl-cix-item-tomcat`.
+
+After `bash corpus/migrate/fetch.sh tomcat` exited 0, the assembler ran the exact
+ordinary and cold twin commands:
+
+- `target/debug/cix build corpus/migrate/tomcat` and
+  `target/debug/cix build --file Cixfile.dissolved corpus/migrate/tomcat`
+  exited 0 with the two items above.
+- `CIX=/home/mathijs/worktrees/composix/track-regen2/target/debug/cix
+  ./check.sh cix` exited 0 synchronously from the case directory and printed
+  `PASS cix`.
+- The same two builds with `--cold` each exited 0 and returned the same items.
+
+Docker mode was not rerun.

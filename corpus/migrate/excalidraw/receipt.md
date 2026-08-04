@@ -13,3 +13,19 @@ same title probe passed after the host's documented D36 PrivatePIDs fallback.
 The Docker `HEALTHCHECK` probe is preserved by `check.sh`, but Cixfile cannot yet
 encode D48 health edges; even if the paired HTTP probe passes, that missing
 declarative health contract remains a product gap.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker evidence: the staged ordinary and cold builds exited 0 with
+`/nix/store/6bc9grm0jqgab6mkxkybyidxg9bagpw5-cix-item-excalidraw`. The exact
+supplied Cix probe exited 1 because systemd could not execute the repository
+runner in its namespace (`203/EXEC`); an in-store runner independently proved
+the service served `Excalidraw Whiteboard` on its faithful port 80. The harness
+probes 18090 without passing a port override.
+
+After `bash corpus/migrate/fetch.sh excalidraw` exited 0, the assembler's
+`target/debug/cix build corpus/migrate/excalidraw` executed Yarn/Vite and exited
+0 with the same item. The supplied probe again exited 1 at the runner-path
+`203/EXEC` boundary. `target/debug/cix build --cold corpus/migrate/excalidraw`
+replayed the pinned FETCH snapshot and exited 0 with the same item. Docker mode
+was not rerun.

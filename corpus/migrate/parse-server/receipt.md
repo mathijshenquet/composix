@@ -27,3 +27,20 @@ Docker paths to runtime-created configuration directories is rejected by `cix ru
 because the links are broken in the immutable item before the runtime mounts exist.
 The conversion therefore does not claim those optional extension/config volume
 paths are faithful.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged ordinary build and complete Mongo-backed
+`/parse/health` probe exited 0 with
+`/nix/store/vn5h6gzhmnc065y8147sgkx3gjpym906-cix-item-parse-server`. Its cold
+audit exited 1 on cross-builder `node_modules` divergence.
+
+After `bash corpus/migrate/fetch.sh parse-server` exited 0, the assembler's first
+`target/debug/cix build corpus/migrate/parse-server` exited 1 because fetched
+`prod_node_modules` was `sha256-wYd03V9yFxRVohztLAP2BeldqeidsD6NaQP1QGnJPL4=`
+instead of locked `sha256-0s/8KQ/zw4tS/Fr0LTBoV9yL7w5v+B4mMBO0cBe1YDA=`.
+No pin was updated. The supplied probe's second ordinary fetch matched the
+staged observation, compiled 197 Babel files, built the same item, started a
+MongoDB 8.0.4 companion, and exited 0 with `PASS cix` from `/parse/health`.
+The explicit `--cold` build exited 1 at the first npm FETCH because
+`node_modules` was a warm directory and cold-absent. Docker mode was not rerun.

@@ -34,3 +34,21 @@ configuration heredocs remain together only because nginx configuration needs
 Overlay experience: package customization stays a concise native Nix function,
 while the service contract, roles, readiness, setup, and process supervision
 remain typed Cixfile declarations.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged ordinary build and supplied `/health.php`
+probe exited 0 (`PASS cix`), producing
+`/nix/store/gxv88a6f0q2jp469pb8590c39fif13lr-cix-item-wallos`.
+
+After `bash corpus/migrate/fetch.sh wallos` exited 0, the assembler observed:
+
+- `target/debug/cix build corpus/migrate/wallos` exited 0 with
+  `/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos`.
+- `CIX=/home/mathijs/worktrees/composix/track-regen2/target/debug/cix
+  ./check.sh cix` exited 0 synchronously from the case directory; the bounded
+  probe returned exact `OK` and printed `PASS cix`.
+- `target/debug/cix build --cold corpus/migrate/wallos` exited 0 with the same
+  item after executing the assembly RUN from a cold workspace.
+
+Docker mode was not rerun.

@@ -1,83 +1,25 @@
-FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
-FROM . AS src
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER app
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
-  COPY ${src}/context/ app
-  RUN rm -rf app/Dockerfile app/nginx.conf app/nginx.default.conf app/startup.sh app/db app/images/uploads/logos
-  RUN mkdir -p app/images/uploads
-  RUN ln -s /var/lib/wallos/db app/db
-  RUN ln -s /var/lib/wallos/logos app/images/uploads/logos
-  RUN sed 's#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g' app/cronjobs > app/cronjobs.cix
-  RUN mv app/cronjobs.cix app/cronjobs
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  COPY context/ .
+  COPY startup.cix.sh startup.sh
+  RUN <<ASSEMBLE
+rm -f nginx.conf nginx.default.conf
+rm -rf db images/uploads/logos
+ln -s /data/db db
+ln -s /data/logos images/uploads/logos
+ASSEMBLE
 
 SERVICE wallos
-  COPY ${app}/app /var/www/html
-  COPY setup.sh /bin/setup
-  COPY start.sh /bin/start
-  LINK ${pkgs.bash}/bin/bash /bin/bash
-  LINK ${pkgs.coreutils}/bin/mkdir /bin/mkdir
-  LINK ${pkgs.php}/bin/php /bin/php
-  LINK ${pkgs.php}/bin/php-fpm /bin/php-fpm
-  LINK ${pkgs.nginx}/bin/nginx /bin/nginx
-  LINK ${pkgs.supercronic}/bin/supercronic /bin/supercronic
-  # Kept inline until FILE … FROM because the config pair includes package interpolation.
-  FILE /etc/php-fpm.conf <<PHP
-[global]
-error_log = /var/log/wallos/php-fpm.log
-daemonize = no
-
-[www]
-listen = /run/wallos/php-fpm.sock
-listen.mode = 0660
-pm = dynamic
-pm.max_children = 15
-pm.start_servers = 2
-pm.min_spare_servers = 1
-pm.max_spare_servers = 3
-pm.max_requests = 500
-catch_workers_output = yes
-clear_env = no
-PHP
-  FILE /etc/nginx.conf <<NGINX
-daemon off;
-pid /run/wallos/nginx.pid;
-error_log stderr info;
-events { worker_connections 1024; }
-http {
-  include ${pkgs.nginx}/conf/mime.types;
-  default_type application/octet-stream;
-  access_log /var/log/wallos/nginx-access.log;
-  client_body_temp_path /var/cache/wallos/body;
-  proxy_temp_path /var/cache/wallos/proxy;
-  fastcgi_temp_path /var/cache/wallos/fastcgi;
-  uwsgi_temp_path /var/cache/wallos/uwsgi;
-  scgi_temp_path /var/cache/wallos/scgi;
-  server {
-    listen 18092;
-    root /var/www/html;
-    index index.php;
-    location / { try_files $uri $uri/ /index.php?$args; }
-    location ~ \.php$ {
-      include ${pkgs.nginx}/conf/fastcgi_params;
-      fastcgi_pass unix:/run/wallos/php-fpm.sock;
-      fastcgi_index index.php;
-      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }
-    location ~ \.db$ { deny all; return 403; }
-    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }
-    location ~* \.tmp/.*\.php$ { deny all; return 403; }
-    location ~* ^/includes/.*\.php$ { deny all; return 403; }
-  }
-}
-NGINX
-  START ${pkgs.bash}/bin/bash /bin/start
-  START_PRE ${pkgs.bash}/bin/bash /bin/setup
-  STATEDIR /var/lib/wallos/db
-  STATEDIR /var/lib/wallos/logos
-  CACHEDIR /var/cache/wallos
-  LOGDIR /var/log/wallos
-  RUNDIR /run/wallos
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.nginx} ${pkgs.php83}
+  COPY ${app}/ /app
+  COPY nginx.cix.conf /etc/nginx/nginx.conf
+  COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+  COPY php-fpm.cix.conf /etc/wallos/php-fpm.conf
+  START bash /app/startup.sh
+  PORT http = 80
+  PORT probe = 18092
   CLAIM egress
-  CLAIM jit
-  PORT http = 18092
+  STATEDIR /data/db
+  STATEDIR /data/logos

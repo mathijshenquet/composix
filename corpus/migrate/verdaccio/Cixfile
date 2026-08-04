@@ -1,25 +1,32 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.gnused} ${pkgs.cacert}
-  ENV COREPACK_HOME = $PWD/.corepack
+BUILDER builder
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.nodejs_24} ${pkgs.corepack} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert}
+  ENV NODE_ENV = development
+  ENV VERDACCIO_BUILD_REGISTRY = https://registry.npmjs.org
+  ENV OUTPUT = $PWD/output
   COPY ${src}/context/ .
   FETCH corepack install
-  RUN pnpm config set store-dir $PWD/.pnpm-store
-  FETCH pnpm fetch --frozen-lockfile
-  RUN pnpm install --offline --frozen-lockfile --ignore-scripts
-  RUN pnpm run build
-  RUN pnpm --filter verdaccio --prod --legacy deploy deploy
-  COPY ${src}/context/packages/config/src/conf/docker.yaml config.yaml
-  RUN sed -e 's@/verdaccio/storage@/var/lib/verdaccio@g' -e 's@/verdaccio/plugins@/var/lib/verdaccio/plugins@g' config.yaml > config.cix.yaml
+  RUN pnpm config set registry "$VERDACCIO_BUILD_REGISTRY"
+  RUN rm -rf node_modules
+  FETCH pnpm install --frozen-lockfile --ignore-scripts --node-linker=hoisted
+  FETCH pnpm run build && pnpm --filter verdaccio --prod --legacy deploy "$OUTPUT/verdaccio-deploy" && rm -rf node_modules
 
 SERVICE verdaccio
-  COPY ${build}/deploy /app
-  COPY ${build}/config.cix.yaml /etc/verdaccio/config.yaml
-  STATEDIR /var/lib/verdaccio
-  LINK ${pkgs.nodejs_24}/bin/node /bin/node
-  START node /app/bin/verdaccio --config /etc/verdaccio/config.yaml --listen http://0.0.0.0:4873
+  IMPORT ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.openssl}
+  COPY ${builder}/output/verdaccio-deploy /opt/verdaccio
+  COPY context/packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
+  COPY start-verdaccio /bin/start-verdaccio
+  ENV VERDACCIO_APPDIR = /opt/verdaccio
+  ENV VERDACCIO_USER_NAME = verdaccio
+  ENV VERDACCIO_USER_UID = 10001
+  ENV VERDACCIO_PORT = 4873
+  ENV VERDACCIO_PROTOCOL = http
+  ENV VERDACCIO_ADDRESS = [::]
+  ENV HOME = /opt/verdaccio
+  START sh /bin/start-verdaccio
   PORT http = 4873
-  CLAIM jit
+  STATEDIR /verdaccio/storage
+  CACHEDIR /verdaccio/plugins
   CLAIM egress

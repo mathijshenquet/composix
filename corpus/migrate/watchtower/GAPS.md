@@ -1,7 +1,8 @@
-Generated: migrate.md@dd2f39a · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- A faithful runtime requires Docker's host socket and control API, which composix deliberately refuses. → refused
-- The upstream Dockerfile consumes a CI-provided `watchtower` binary absent from the recorded repository context, so its Docker build cannot be reproduced from this pair. → evidence
-- The Cix conversion compiles source instead, a different supply contract that must not stand in for a Dockerfile-faithful twin. → case
-- Copying the built binary into `/bin` and invoking it by a bare name relies on implicit self-import rather than a declared artifact tool contract. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
+- A useful Watchtower runtime requires Docker's host socket and control API, which composix deliberately refuses. → refused
+- The Dockerfile consumes a CI-provided `watchtower` binary absent from the recorded repository context; compiling the supplied Go source modernizes the build side but is a different supply contract. → evidence
+- Docker's exec healthcheck has no equivalent generic exec health probe, and no weaker native HTTP/TCP assertion is invented. → language (exec health probe)
+- A cold audit reports a warm/cold Go build-cache read-set mismatch, so source-build cold stability remains unproved. → case (cold stability)
+- Repeating a direct `COPY` destination against an already populated warm builder root is rejected; the exact product finding is promoted in `docs/open-questions.md`. → language (warm-root duplicate COPY)

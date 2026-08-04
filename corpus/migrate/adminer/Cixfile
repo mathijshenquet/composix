@@ -1,15 +1,30 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-# The output hash pins the complete fetched work directory, not just the upstream file.
-BUILDER adminer_src
-  IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.cacert}
-  FETCH curl --fail --location --silent --show-error --output adminer.php https://github.com/vrana/adminer/releases/download/v5.5.0/adminer-5.5.0.php EXPECT sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=
+BUILDER adminer-release
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.gzip}
+  ENV ADMINER_VERSION = 5.5.0
+  ENV ADMINER_DOWNLOAD_SHA256 = d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+  ENV ADMINER_SRC_DOWNLOAD_SHA256 = df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
+  FETCH curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c - EXPECT sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=
+  FETCH curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c - EXPECT sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=
+  RUN tar xzf source.tar.gz --strip-components=1 "adminer-$ADMINER_VERSION/designs/" "adminer-$ADMINER_VERSION/plugins/" && rm source.tar.gz
 
 SERVICE adminer
-  COPY ${src}/context/index.php /index.php
-  COPY ${src}/context/plugin-loader.php /plugin-loader.php
-  COPY ${adminer_src}/adminer.php /adminer.php
-  LINK ${pkgs.php84}/bin/php /bin/php
-  START php -S 0.0.0.0:8080 -t .
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php84} ${pkgs.php84Extensions.mysqli} ${pkgs.php84Extensions.pdo_pgsql} ${pkgs.php84Extensions.pdo_sqlite} ${pkgs.php84Extensions.pdo_odbc} ${pkgs.php84Extensions.pdo_dblib}
+  COPY ${src}/context/entrypoint.sh /usr/local/bin/entrypoint.sh
+  COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
+  COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
+  COPY ${src}/context/index.php /opt/adminer-seed/index.php
+  COPY ${src}/context/plugin-loader.php /opt/adminer-seed/plugin-loader.php
+  COPY ${adminer-release}/adminer.php /opt/adminer-seed/adminer.php
+  COPY ${adminer-release}/designs /opt/adminer-seed/designs
+  COPY ${adminer-release}/plugins /opt/adminer-seed/plugins
+  START sh /usr/local/bin/cix-entrypoint.sh
+  ENV ADMINER_DEFAULT_SERVER = db
+  ENV ADMINER_DESIGN = __cix_unset__
+  ENV ADMINER_PLUGINS = __cix_unset__
   PORT http = 8080
+  CLAIM egress
+  START_PRE sh /usr/local/bin/prepare-webroot.sh
+  STATEDIR /var/www/html
