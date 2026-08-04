@@ -1,5 +1,40 @@
 # Cixfile track work log
 
+- 2026-08-04T10:08:00Z — Final docs gate is green with synchronous receipts:
+  `devenv shell -- bash -c 'cargo fmt --all --check && cargo run -p cix -- fmt --check examples
+  && cargo clippy --workspace --all-targets -- -D warnings'`; `devenv shell -- cargo test
+  --workspace -- --test-threads=1`; `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`; committed-tour and deterministic-tour exact tests; committed-page and
+  deterministic corpus-browser exact tests without browser regeneration; and `git diff --check`.
+  Tour regeneration left `docs/tour/` unchanged; corpus browser drift was clean and untouched.
+  The only initial gate failure was the restored `#link` diagnostics anchor recorded below.
+  Next: review the scoped diff, stage this journal and `docs/cixfile.md`, then commit the single
+  CIP-91/92 documentation unit.
+
+- 2026-08-04T10:00:00Z — The first synchronous serial workspace receipt reached
+  `cix-cixfile` diagnostics and failed because `20_link_old_order.cix` correctly requires the
+  existing `docs/cixfile.md#link` migration anchor. Restored that anchor inline with the sole
+  deprecated-alias sentence; no prose or product scope expanded. This invalidates the prior
+  static/workspace receipts. Next: rerun the complete docs gate from this repaired head.
+
+- 2026-08-04T09:52:00Z — Completed the documentation currency pass in
+  `docs/cixfile.md`: universal IMPORT directive map and semantics; store-aware COPY with both
+  static materialization triggers; the single deprecated LINK-alias line; IMPORT + bare-argv
+  examples (including `/usr/bin/env`); UDP `PORT` and Docker-form correction; and named
+  `cix build --file` sibling-lock behavior. The sweep of non-generated `docs/` (excluding the
+  fenced migrate/corpus material) found no other stale LINK-first or interpolated-START teaching:
+  `docs/docker.md` is already CIP-91/92-current, `docs/nix-build.md` has no such teaching, and
+  `docs/design.md` occurrences are historical decision records. Touched only this reference doc
+  and this required journal. Next: run the standard docs receipts synchronously, including
+  untouched corpus-browser drift verification.
+
+- 2026-08-04T09:45:00Z — Started `track/cixdocs`. Read AGENTS.md, the current
+  session journal, this tracked journal, the assigned specification, and the adopted CIP-91 and
+  CIP-92 decisions; direnv confirms the devenv is active. Documentation-only fence: no crates/
+  or `docs/migrate.md` edits, while `track/fhspaths` works there. `docs/migrate.md` is already
+  the canonical current phrasing. Next: sweep `docs/cixfile.md` and non-generated docs for
+  LINK-first or interpolated-START teaching, then run the prescribed docs gate.
+
 - 2026-08-04T08:00:04Z — Committed the complete CIP-92 track as `cee4dfc`
   (`cixfile: add UDP ports and named build files`), including this tracked
   journal, parser/codegen/inspect/compose coverage, the real-Nix translation
