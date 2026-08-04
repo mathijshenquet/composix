@@ -40,15 +40,20 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   gitea's version-stamp case gets a documented pattern, not a mechanism.
   **Awaiting blessing.**
 
-## Open for agents
+## Resolved agent investigations
 
-- **netns activation under load** (2026-08-02, orchestrator gate): the
-  scenario-netns closed-root leg failed once under full parallel VM
-  load — `cix-netns-b-fixed.service` failed during activation — and
-  passed focused on the identical tree. Possibly a real ordering race
-  (member starting before the pod netns oneshot completes) that load
-  exposes; reproduce under contention and root-cause before waving it
-  off as flake.
+- **netns activation under load** (resolved 2026-08-04): 20 contended
+  pre-fix `scenario-netns` runs reproduced one exact closed-root activation
+  failure and two stale namespace paths. The generated dependency graph was
+  already correct. The real race was interrupted teardown: the suite's
+  one-second manager stop timeout killed `ip netns delete`, leaving
+  `/run/netns/cix-netns-b-netns`; immediate reactivation then failed `ip netns
+  add` with `File exists`, and the member failed by dependency. Generated
+  netns oneshots now have their own bounded 10-second stop budget. The focused
+  VM and 20/20 identically contended post-fix runs passed with no netns stop,
+  stale-path, or activation failure.
+
+## Open for agents
 
 - **CIP-79 adapter liveness on systemd 257** — the cix-owned HTTP/TCP
   `ExecStartPost` parent exits successfully, but its forked resident pinger is

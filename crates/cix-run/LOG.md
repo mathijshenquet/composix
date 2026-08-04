@@ -2,6 +2,17 @@
 
 ## track/netnsrace
 
+- 2026-08-04 07:25 UTC — The announced post-fix campaign completed
+  synchronously: **20/20 contended VMs passed**, with zero netns stop
+  timeouts, zero stale namespace paths, and zero activation failures. This is
+  the same independently named, six-at-once TCG contention shape that produced
+  17/20 passes before the fix (one exact activation failure plus two stale
+  final paths). Updated `docs/open-questions.md` to move the item out of the
+  agent-open queue and record the graph proof, teardown/re-entry mechanism,
+  narrow fix, and before/after rates. Next: run the complete standard agent
+  tier and a current-HEAD focused netns VM, then record exact synchronous
+  receipts.
+
 - 2026-08-04 07:13 UTC — Implemented the mechanism-scoped fix: generated
   netns oneshots now carry `TimeoutStopSec=10s`, so namespace deletion does
   not inherit the scenario's intentionally global 1-second service budget.
