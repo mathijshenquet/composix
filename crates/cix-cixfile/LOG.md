@@ -2324,3 +2324,87 @@
   Mastodon under closed roots`). The commit contains exactly ten task
   artifacts; this append-only LOG remains the only unstaged worktree change as
   required. No open implementation items remain for this fix round.
+- 2026-08-04T06:48:56Z — Started `track/cip91` from a clean branch with
+  direnv/devenv active. Read the assigned spec, adopted CIP-91 contract,
+  project journal/design context, and this crate journal. The track is
+  explicitly spike-first: I am mapping the existing parser and Nix assembly,
+  then will prototype the tomcat later-write, directus role-dir descendant,
+  and linked-tree realpath shapes. No phase-2 behavior will be implemented
+  until the spike verdict is recorded here; a sour verdict will stop at the
+  contract's universal-IMPORT fallback. Next: identify the smallest assembly
+  representation that keeps link/materialize mode text-derivable and both
+  materialization triggers statically decidable.
+
+## 2026-08-04 — track/cip91
+
+- 2026-08-04T06:57:30Z — **Phase-1 spike verdict: clean; proceed to phase 2.**
+  Store/package, BUILDER/FETCH, and cix-item binder sources are statically
+  distinguishable from local/remote source contexts in the parsed Cixfile.
+  A final text-only pass also decides both exceptions: any role-dir/`DIR` at
+  or below the COPY destination, and any later COPY/FILE/LINK write below it.
+  Chose materialize-on-later-write over refusal: it preserves ordinary ordered
+  assembly (including Tomcat overlays) without new syntax. The first real-Nix
+  run exposed that `cp -a` retains store directory read-only modes; making the
+  private copy owner-writable during assembly fixed the later-write case
+  without weakening the final immutable store result. Synchronous focused
+  receipts passed: the Tomcat tree retained its base plus later patch;
+  Directus's `${build}/dist -> /app` became a real directory solely because
+  `STATEDIR /app/database`/`DIR /app/uploads` descend from it; and the realpath
+  probe observed the accepted semantic difference exactly. Linked:
+  `/nix/store/mnz7…-.tmpKEOKzA/tree/lib/probe.js`; materialized:
+  `/nix/store/g58z…-cix-item-materialized-realpath/app/lib/probe.js`.
+  Exact repros: `cargo test -p cix-cixfile --test parser
+  d47_tests::store_copy_mode_and_structural_materialization_are_static --
+  --exact` and `cargo test -p cix-cixfile --test lock_nix
+  store_aware_copy_spike_covers_tomcat_directus_and_realpath -- --exact
+  --nocapture`, both exit 0. The realpath hazard is the narrow, already
+  accepted store-path visibility change, not a broader resolution failure.
+  Next: phase 2 universal artifact IMPORT and LINK's deprecated COPY alias.
+
+- 2026-08-04T07:08:25Z — Phase-2 language/assembly implementation is complete
+  and focused-green. SERVICE/APP/ITEM now retain ordered IMPORTs, recursively
+  union `bin`/`etc`/`share` with earlier-wins collisions, enumerate D22-safe
+  sparse manifest mounts, and validate bare START/START_PRE command words even
+  when argv follows. ITEM remains manifest-free. LINK now emits a deprecation
+  warning and enters the exact COPY model path. Store-aware COPY links package,
+  builder/FETCH, and cix-item sources, while context sources materialize; the
+  two spike exceptions materialize automatically. Preserved D57/proj1 member
+  selectivity by content-address-normalizing a narrow consumed builder/FETCH
+  subpath before linking, so an unrelated sibling output cannot leak the
+  changing aggregate view path into an item. Focused real-Nix union, spike,
+  bare-command, and proj1 receipts all pass; complete `cargo test -p
+  cix-cixfile` and `cargo test -p cix-build` also exited 0. Next: audit/stage
+  only implementation and tests (leave this journal unstaged), commit the
+  logical unit, then update docs/tour/ledgers.
+
+- 2026-08-04T07:11:55Z — Committed the complete implementation/test unit as
+  `2a67d44` (`build: implement CIP-91 artifact imports`). Rewrote
+  docs/migrate.md's artifact canon to block-local IMPORT + bare argv, explained
+  store-aware COPY and its structural materialization rules, replaced every
+  interpolated START and LINK in its examples, and made native-path role dirs
+  explicit. Re-graded the Dockerfile/COPY/multi-stage rows in docs/docker.md.
+  The executable tour contains no LINK demonstration, so its sources/generated
+  pages need no behavioral edit. Grepped every migration GAPS ledger: all 15
+  artifact-import exhibitors now say `Status: stale — regenerate with CIP-91`
+  and link the accepted CIP; no corpus Cixfile or generated browser page was
+  touched. Next: commit this documentation/ledger unit, then run the prescribed
+  standard tier and a focused closed-root VM consuming linked artifact content.
+
+- 2026-08-04T07:23:14Z — CIP-91 is implementation-complete and green at the
+  track gate. Committed documentation/ledgers as `5218e07` (`docs: teach
+  CIP-91 artifact assembly`). The first standard-tier pass caught one Clippy
+  `match_single_binding` and the expected generated corpus-browser drift after
+  marking GAPS stale; fixed the former in `4c5e98a` and regenerated/committed
+  the 15 affected browser pages in `6d1e0f1`, without changing any corpus
+  Cixfile. Final synchronous exit-0 receipts on the committed source snapshot:
+  `cargo fmt --all -- --check`; `cargo run -p cix -- fmt --check examples`
+  (only the expected LINK deprecation diagnostics); `cargo clippy --workspace
+  --all-targets -- -D warnings`; `cargo test --workspace -j 6`; tour generator,
+  determinism, and committed-document drift tests; corpus-browser generator,
+  determinism, and committed-page drift tests; and `nice -n 10 nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit -L --no-link --max-jobs 6
+  --cores 4`. The focused VM fell back from unavailable KVM to TCG, completed
+  its full linked-artifact/closed-root suite in 317.56 seconds, and the owning
+  Nix build synchronously exited 0. `git diff --check` also exited 0 before the
+  final commits. Next: re-run the short formatting/diff checks after journal
+  bookkeeping, verify only this required uncommitted LOG remains, and hand off.

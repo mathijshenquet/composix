@@ -44,9 +44,9 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `COPY`, `FILE`, `LINK`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM` |
-| `APP <name>` | A run-to-completion artifact | `COPY`, `FILE`, `LINK`, `START`, `ENV`, `SECRET`, `STATEDIR`, `CACHEDIR`, `CLAIM` |
-| `ITEM <name>` | A pure store tree, with no manifest | `COPY`, `FILE`, `LINK` |
+| `SERVICE <name>` | A long-running artifact | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`; deprecated `LINK` parses as `COPY` |
+| `APP <name>` | A run-to-completion artifact | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `STATEDIR`, `CACHEDIR`, `CLAIM`; deprecated `LINK` parses as `COPY` |
+| `ITEM <name>` | A pure store tree, with no manifest | `IMPORT`, `COPY`, `FILE`; deprecated `LINK` parses as `COPY` |
 
 `SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
 workshop binders. An ITEM is a build product, not a runnable contract: use only pure assembly
@@ -59,8 +59,8 @@ that consumes the sources.
 
 ## The rule that prevents most broken migrations
 
-**Everything inside a `BUILDER` is bare.** Import whole packages, then invoke commands by
-name:
+**Every packaged toolset is an `IMPORT`, and every imported command is bare.** Import whole
+packages in the block that uses them, then invoke commands by name:
 
 ```dockerfile
 # Fragment — directives inside a BUILDER.
@@ -70,8 +70,10 @@ RUN cargo build --release --locked --offline
 ```
 
 Do not write `${pkgs.cargo}/bin/cargo` inside `RUN`, and do not construct a builder `PATH`.
-`IMPORT` unions the packages' `bin`, `etc`, and `share` trees at `/bin`, `/etc`, and `/share`;
-earlier imports win collisions.
+The same rule applies to SERVICE and APP commands: import the runtime package and use a bare
+`START`/`START_PRE` command word. `IMPORT` has identical semantics in BUILDER, SERVICE, APP,
+and ITEM: it unions packages' `bin`, `etc`, and `share` trees at `/bin`, `/etc`, and `/share`,
+with earlier imports winning collisions. ITEM receives the tree but remains manifest-free.
 
 `IMPORT` also provisions the toolchain environment those packages would receive in nixpkgs'
 own build shell: search-path variables whose values point into the imported set — for example
@@ -85,16 +87,17 @@ available, but composix never imports it implicitly. `RUN` has no network access
 Tool-generated `#!/usr/bin/env ...` launchers also need an import that supplies `env` (usually
 `${pkgs.coreutils}`): the fixed `/usr/bin/env` alias points only at `/bin/env`.
 
-The runtime toolset is the artifact's own `bin/`. Copy or link package binaries there, then use
-bare `START`/`START_PRE`: every SERVICE and APP gets `PATH=bin` by default, and a bare command is
-checked against that assembled tree at build time. An explicit `ENV PATH = …` replaces that
-default entirely. Interpolated absolute store paths remain valid at the shipping dock, where
-artifact `START`, `LINK` targets, and `COPY` sources refer to immutable package assets:
+The runtime toolset is the artifact's imported `bin/`. Every SERVICE and APP gets `PATH=bin` by
+default, and a bare command is checked against that assembled tree at build time, including when
+arguments follow it. An explicit `ENV PATH = …` replaces that runtime default, but does not change
+the build-time command check. Interpolated store paths remain valid in FILE content and COPY
+sources; do not use them as the taught START spelling:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
-START ${pkgs.nginx}/bin/nginx -g 'daemon off;'
-LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+IMPORT ${pkgs.nginx}
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+START nginx -g 'daemon off;'
 ```
 
 `START` and `START_PRE` split single- and double-quoted words correctly, so `daemon off;` above is
@@ -103,8 +106,9 @@ actually part of the service, copy it as a real file, and invoke an explicit she
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
+IMPORT ${pkgs.bash}
 COPY start /bin/start
-START ${pkgs.bash}/bin/sh /bin/start
+START sh /bin/start
 ```
 
 Keep file content in real, checked-in files next to the Cixfile and bring it into an artifact
@@ -113,6 +117,13 @@ tooling and keeps the Cixfile readable. Use a `FILE <<EOF` heredoc only when the
 must interpolate `${…}`. That exception is temporary: the unadopted
 [`FILE … FROM` draft](../cips/draft/file-from.md) is the intended way to move interpolated
 content back into real files; do not write or assume that syntax until the draft is adopted.
+
+COPY is store-aware by a rule visible in the Cixfile: local or remote source-context paths are
+materialized, while package, builder/FETCH, and cix-item sources are linked as immutable closure
+members. A role directory at or below a linked destination, or a later assembly write below it,
+automatically materializes that destination tree so mount ancestors and ordered writes remain
+real directories. `LINK <source> <destination>` is only a deprecated alias for the equivalent
+COPY during the corpus transition; new Cixfiles must use COPY.
 
 Keep a one-line `RUN` to at most two commands joined with `&&`. For longer work, prefer
 multiple `RUN` steps—constructive read-set keying keeps independent steps cacheable—or use a
@@ -241,7 +252,9 @@ default. Moving content to filesystem root or inventing package-shaped directori
 conversion harder to compare and can break relative-path behavior. Diverge only for a stated
 reason. Role-directory paths are not constrained to conventional host-looking prefixes, so
 `STATEDIR`, `CONFIGDIR`, `LOGDIR`, `CACHEDIR`, and `RUNDIR` may and usually should use the exact
-paths the application already expects.
+paths the application already expects. Do not redirect `/app/database` to a conventional-looking
+`/var/lib` path with symlinks: declare `STATEDIR /app/database`. If `/app` came from a store-backed
+COPY, that descendant role declaration automatically materializes the required ancestor chain.
 
 Declare role directories by their systemd meaning. Their paths may be any clean
 absolute application path; cix mirrors the full path under a unit-scoped systemd
@@ -307,7 +320,7 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | Docker mechanism | Cix treatment | Important caveat |
 | --- | --- | --- |
 | `FROM debian`, `alpine`, or another runtime image | Start from the needed `${pkgs.*}` packages | `FROM` binds a package universe, source tree, or explicit-tag cix item; it never inherits a root filesystem. |
-| `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in a builder, `${pkgs.x}/bin/x` in an artifact directive | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
+| `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in the BUILDER/SERVICE/APP/ITEM that uses it, then invoke commands by bare name | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
 | `RUN command` | Offline `RUN` inside a named `BUILDER` | Import every command as a whole package and invoke it by bare name. |
 | Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, preferably with `EXPECT` | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
 | Multi-stage `COPY --from=build` | `COPY ${build}/path /destination` | Blocks refer backward; prefer a narrow output path. |
@@ -341,10 +354,11 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE web
+IMPORT ${pkgs.nginx}
 COPY ${src}/index.html /srv/www/index.html
 COPY ${src}/nginx.conf /etc/nginx/nginx.conf
-LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-START ${pkgs.nginx}/bin/nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+START nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
@@ -376,8 +390,9 @@ cp README.md "$OUTPUT/README.md"
 BUILD
 
 SERVICE readme
+IMPORT ${pkgs.coreutils}
 COPY ${payload}/output/README.md /share/nixpkgs-README.md
-START ${pkgs.coreutils}/bin/sleep infinity
+START sleep infinity
 ```
 
 ## Verification is part of the conversion

@@ -42,6 +42,15 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
 
 ## Resolved agent investigations
 
+- **CIP-79 adapter liveness on systemd 257** (re-evaluated 2026-08-04) —
+  the focused health VM now runs the actual pinned systemd 257.6 PID 1 and
+  keeps a healthy HTTP adapter alive for seven seconds after `cix up`, beyond
+  its three-second watchdog window; the ordinary CI/flake VM is currently
+  systemd 261. The reported Mastodon failure is therefore not reproduced in
+  the available 257 universe. No version gate or weaker liveness behavior is
+  justified without a reproducer carrying the original manager/package and
+  generated-unit evidence.
+
 - **netns activation under load** (resolved 2026-08-04): 20 contended
   pre-fix `scenario-netns` runs reproduced one exact closed-root activation
   failure and two stale namespace paths. The generated dependency graph was
@@ -54,12 +63,6 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   stale-path, or activation failure.
 
 ## Open for agents
-
-- **CIP-79 adapter liveness on systemd 257** — the cix-owned HTTP/TCP
-  `ExecStartPost` parent exits successfully, but its forked resident pinger is
-  not retained and a healthy service later hits `WatchdogSec`. Add a systemd
-  version gate or fix the retention mechanism; see the
-  [Mastodon receipt](../corpus/migrate/mastodon/receipt.md#synchronous-receipt).
 
 - **Bare `Error: Not a directory` from cix build** (track/fhsspike,
   2026-08-04): the patched directus build died with a context-free error

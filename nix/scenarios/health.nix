@@ -1,4 +1,4 @@
-{ pkgs, cix }:
+{ pkgs, cix, systemdPackage ? null }:
 
 let
   scenario = import ./lib.nix { inherit pkgs cix; };
@@ -120,9 +120,17 @@ let
     }
   '';
 in
-scenario.node ''
+scenario.nodeWith (if systemdPackage == null then { } else {
+  boot.initrd.systemd.package = pkgs.systemd;
+  systemd.package = systemdPackage;
+}) ''
   import time
 
+  print(machine.succeed("readlink -f /proc/1/exe; /proc/1/exe --version | head -1"))
+  ${if systemdPackage == null then "" else ''
+  machine.succeed("readlink -f /proc/1/exe | grep -F '${systemdPackage}'")
+  machine.succeed("/proc/1/exe --version | head -1 | grep -E '^systemd 257( |$)'")
+  ''}
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${web}) scenario-health-web:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${consumer}) scenario-health-consumer:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${failing}) scenario-health-failing:v1")
@@ -140,6 +148,7 @@ scenario.node ''
   machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"await\" \"http\" \":18090/healthz'")
   machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"pinger\" \"http\" \":18090/livez'")
   machine.succeed("! systemctl cat cix-health-web.service | grep -E '(curl|/bin/sh)'")
+  machine.succeed("sleep 7; systemctl is-active cix-health-web.service")
 
   status, output = machine.execute("timeout 30 env CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/health-failing.json 2>&1")
   print(output)

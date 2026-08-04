@@ -59,14 +59,14 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Blocked — downloaded native binary cannot run in the builder; state assembly remains provisional · <strong>Evidence:</strong> build (Cix failure)</p>
   <p class="status"><strong>Receipt status:</strong> Docker probe passes; Cix fails before producing an item at an FHS-loader-dependent Sass binary · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/directus/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
       <li>The Cix build fails when the downloaded Sass executable requests an FHS dynamic loader; the corpus page must say plainly that no item is produced, rather than presenting an unexplained orange state. → browser</li>
       <li>Reproduce and retain the exact loader diagnostic in a fresh build receipt once the pinned source is materialized again. → evidence</li>
       <li>Builders cannot provision or patch a downloaded FHS-linked ELF&#39;s interpreter through today&#39;s bare <code>IMPORT</code> surface. → language (candidate: builder ELF loader support)</li>
-      <li>The builder&#39;s <code>mkdir</code>/<code>rm</code>/<code>ln</code> dance redirects application-relative state paths, and the service separately links Node into <code>/bin</code>; both are symptoms of the missing artifact import/runtime-path link canon. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The builder&#39;s <code>mkdir</code>/<code>rm</code>/<code>ln</code> dance redirects application-relative state paths, and the service separately links Node into <code>/bin</code>; CIP-91 now replaces both with native-path role dirs and artifact IMPORT. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>Keep the good narrow handoff <code>COPY ${build}/dist /directus</code> when regenerating; it copies the deploy unit instead of leaking the whole workshop. → case</li>
       <li>Split at least one of database, extensions, or uploads into a second <code>STATEDIR</code> to demonstrate role multiplicity directly, as Wallos already does for database and logos. → case</li>
       <li><code>NPM_CONFIG_UPDATE_NOTIFIER=false</code> disappears without an explicit “runtime package manager dissolved” disposition; parity review requires the disposition even when the environment is intentionally unnecessary. → case</li>

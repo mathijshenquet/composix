@@ -1534,6 +1534,11 @@ fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, Needed
         }
     };
     for artifact in cixfile.artifacts.values() {
+        for import in &artifact.imports {
+            for binder in template_binders(import) {
+                add(binder, ".", None);
+            }
+        }
         for copy in &artifact.copies {
             if let Some((binder, path)) = binder_path(&copy.src) {
                 add(
@@ -3728,6 +3733,7 @@ mod tests {
                 ],
             },
             dst: ".".into(),
+            mode: crate::CopyMode::Materialize,
             line: 8,
             source: "COPY ${src}/rust/ .".into(),
         };
@@ -3742,6 +3748,7 @@ mod tests {
                 ],
             },
             dst: ".".into(),
+            mode: crate::CopyMode::Materialize,
             line: 7,
             source: "  COPY ${src}/rust/ .".into(),
         };

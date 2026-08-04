@@ -59,15 +59,15 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — PHP tuning, upstream layout, and dynamic design/plugin assembly are missing · <strong>Evidence:</strong> closed-root · receipt</p>
   <p class="status"><strong>Receipt status:</strong> Base Cix login page under a sealed root; optional entrypoint behavior is outside the probe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/adminer/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@c43ae9b · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@c43ae9b · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
       <li>The upstream <code>ADMINER_VERSION</code> and checksum variables were dissolved into a literal URL and <code>EXPECT</code>; keep version/checksum structure as builder <code>ENV</code> binders so a later version bump remains reviewable. → prompt</li>
       <li>The application and its loader files moved from <code>/var/www/html</code> to filesystem root without a stated reason. → prompt</li>
       <li>The upstream PHP tuning file is absent, losing <code>upload_max_filesize</code>, <code>post_max_size</code>, <code>memory_limit</code>, <code>max_execution_time</code>, and <code>max_input_vars</code>. → case</li>
       <li>The login-page probe deliberately omits the entrypoint&#39;s dynamic design and plugin assembly from <code>ADMINER_DESIGN</code> and <code>ADMINER_PLUGINS</code>; that optional contract remains unconverted. → case</li>
-      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>The upstream <code>STOPSIGNAL SIGINT</code> has no Cix manifest counterpart, so systemd&#39;s default termination semantics silently replace it. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
       <li>nixpkgs packages Adminer, but this source-faithful conversion has no dissolved twin for the required side-by-side comparison. → case: add dissolved twin</li>
     </ul>
