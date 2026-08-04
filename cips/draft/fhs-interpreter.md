@@ -1,9 +1,10 @@
 # fhs-interpreter — downloaded native binaries in bare builders
 
-Status: **draft v4** (2026-08-04; v3's trace-driven direction blessed —
-"(E) sowieso top, (F) ook" — v4 wires repair into IMPORT itself per
-Mathijs, carries how-much-magic as the one open decision, and cuts the
-per-target directive/claim shapes as strictly less nice).
+Status: **draft v5** (2026-08-04; v4's IMPORT-wiring kept, but Mathijs's
+"waarom eigenlijk de ELF-route en niet gewoon die dingen op het pad
+zetten?" reframes the mechanism: provide the FHS paths instead of
+rewriting binaries. v5 makes that the recommendation and demotes
+patching to the verified escape.)
 
 ## 1. The problem
 
@@ -46,87 +47,88 @@ in the track/fhsspike branch journal):
   remaining directus blocker), and the lock grew by ~148k lines of step
   observations (scale question for the lock format).
 
-## 3. Recommendation — detection + IMPORT-wired repair
+## 3. Recommendation — provide the paths, don't rewrite the bytes
 
-**(E) Trace-driven detection — always on, no keyword.** The step already
-runs under the CIP-87 tracer, and that tracer already parses failed
-opens (`= -1 ENOENT` results are recognized in `trace.rs` today) — the
-spike's whole painful discovery phase was information the sandbox had
-and threw away. When a RUN step fails, cix scans the step's trace for
-(i) `execve` ENOENT on a path inside the workdir (the directus
-`spawn … dart ENOENT` shape), (ii) reads of FHS loader paths
-(`/lib64/ld-*`, `/lib/ld-*`), and (iii) failed SONAME opens during
-dynamic loading. The error names the failing executable, its ELF
-interpreter, and the missing loader/SONAMEs, and matches them against
-what the builder's IMPORTed packages (plus the loader→libc map)
-provide. Pure diagnosability (D73 spirit); deletes the loop's discovery
-half for every ecosystem at once.
+**Why nix patches, and why that reason does not transfer.** nixpkgs
+patchelf's culture exists because *store packages* must never depend on
+ambient host paths — a purity constraint on artifacts that leave the
+sandbox. A cix builder step runs inside a mount namespace cix itself
+constructs; nothing ambient exists unless cix puts it there. The
+constraint that forced nixpkgs into byte-rewriting simply does not
+apply, and the house already proves the alternative shape: the sandbox
+skeleton ships a fixed `/usr/bin/env -> /bin/env` alias that dangles
+until an IMPORT supplies `env`, with a diagnostic that names the fix.
 
-**(F) Auto-repair wired into IMPORT.** The providers are already
-declared — IMPORT is the declaration — so repair needs no second
-package list: when (E) detects a repairable downloaded ELF, cix patches
-interpreter+RPATH from the *imported* set, records the changed file in
-the lock, and re-runs the step. A need no imported package satisfies is
-a loud refusal naming the SONAME (the spike's musl alternate stays
-safe: no imported musl, no silent mispatch).
+**(G) The FHS surface becomes part of IMPORT's union.** IMPORT
+additionally unions the packages' `lib/` at `/lib` (earlier-wins, same
+rule as `bin`), and the skeleton gains the well-known loader aliases —
+`/lib64/ld-linux-x86-64.so.2` and `/lib/ld-musl-x86_64.so.1` (per-arch
+table) — pointing into `/lib`, dangling until a libc is imported,
+exactly like the env alias. `IMPORT ${pkgs.glibc}` then makes a
+downloaded GNU binary loadable with **no mutation, no detection, no
+retry**: the paths exist before the step runs, deterministically
+derived from the declaration. What this wins over ELF patching:
 
-**The one open decision: how much magic.** Mathijs's lean is full
-magic — zero keyword, always on. The honest arguments against
-zero-keyword, for the record:
+1. *No mutation* — upstream bytes stay byte-identical (parity claims
+   and checksum comparisons keep working); the whole how-much-magic
+   debate dissolves because nothing is silently rewritten.
+2. *No loop* — patching needs detect→patch→re-run because targets
+   appear mid-step; aliases exist up front. Mathijs's inline-catch
+   worry is exactly right, and the answer is to need no catching.
+3. *Runtime spawns covered* — a SERVICE that lazily spawns a
+   downloaded ELF never hits the builder tracer; artifact IMPORT gives
+   it the same loader surface. The patch route structurally missed
+   this class.
+4. *musl-safe by construction* — each loader path is distinct; the GNU
+   alias resolves only if glibc-family is imported, the musl alias only
+   for musl. No per-binary classification, no misrepair.
+5. *Per-binary work disappears* — no brittle `.pnpm/<ver>` globs.
 
-1. *Silent mutation of fetched bytes.* Every other assembly action is
-   additive; auto-patchelf rewrites content that upstream shipped, and
-   with zero keyword the Cixfile carries no textual trace that binary
-   rewriting is part of this build. "Why doesn't my binary match
-   upstream's checksum" needs a visible cause in the file.
-2. *Intended-failure masking.* A step that deliberately probes platform
-   support (or a test asserting an exec fails) gets "repaired" into
-   different behavior with no opt-out visible at the site.
-3. *Default-path complexity.* Failed-step → patch → re-run machinery
-   engages on every build by default, not just where downloaded native
-   code is a known ingredient.
-4. *House style.* The language refuses ambient magic everywhere else
-   (explicit `cacert`, no implicit `:latest`, named FROM). Rewriting
-   ELF interpreters is the most invasive action in the language;
-   a one-word mark keeps it honest.
+The mechanism detail the round-2 spike must verify: the aliased nix
+ld.so does not search `/lib` by default. Candidate wirings — a
+generated `/etc/ld.so.conf`+cache in the union, or a builder-default
+library path — where naive `LD_LIBRARY_PATH=/lib` is suspect (it
+outranks DT_RUNPATH and could shadow nix-built binaries' own
+resolution); the spike picks the wiring that leaves RUNPATH-carrying
+binaries untouched.
 
-The compromise that keeps ~all of the magic: a bare, argument-less
-builder `FIXUP` — mechanics 100% automatic from the trace and the
-import set, but the single word is the mutation-mark and intent gate,
-and (E)'s diagnostic ends with "add FIXUP to enable automatic repair".
-Recommendation: bare `FIXUP`; if Mathijs still prefers zero-keyword
-after these arguments, it is an alpha-reversible call — the mechanics
-are identical.
+**(E) Trace-driven diagnostics, always on.** Unchanged from v3/v4 in
+mechanism (the tracer already parses `-1 ENOENT`), but its output now
+teaches the *declaration*, mirroring the env-alias hint: "dart requires
+the FHS loader /lib64/ld-linux-x86-64.so.2 and libm.so.6, libc.so.6 —
+IMPORT a package set providing them (${pkgs.glibc})." Where the need is
+outside the imported set, the convergence loop is the author adding one
+IMPORT line per diagnostic — cix itself never retries.
 
-**Interim and escape: the taught RUN pattern.** Until (F) lands —
-and permanently, for ELFs the build never execs (a service spawning a
-downloaded binary lazily at *runtime* never hits the builder tracer) —
-the explicit `IMPORT ${pkgs.patchelf} ${pkgs.glibc}` +
-`RUN patchelf --set-interpreter … --set-rpath …` sequence remains
-expressible and taught (the spike's verified recipe).
+**(A) The taught patchelf RUN pattern stays** (Mathijs: a fine
+works-now solution): the spike-verified
+`IMPORT ${pkgs.patchelf} ${pkgs.glibc}` + `RUN patchelf
+--set-interpreter … --set-rpath …` recipe remains taught as the
+works-today path and the permanent escape for exotic needs (RPATH
+surgery, `--add-needed`) that alias semantics cannot express. (E)'s
+diagnostic references it until (G) lands.
 
-**Rejected shapes** (v2 §3, cut 2026-08-04 as strictly less nice than
-(E)+(F), record retained): a manual per-target `FIXUP ELF <glob> WITH
-<pkgs>` directive (target discovery is free from the trace; the manual
-form's only residual service — runtime-spawned ELFs — is covered by the
-RUN pattern above); `IMPORT … FIXUP <glob>` adjacency (dishonest phase
-model: the target does not exist when IMPORT executes); a
-`CLAIM prebuilt-elf` (claims grant capabilities, not transformations —
-vocabulary pollution). Its "remaining unpatched ELF" diagnostic idea
-lives on inside (E).
+**Fallback**: if the round-2 spike shows the loader/search wiring
+cannot be made clean (RUNPATH shadowing unresolvable, cache generation
+too stateful), v4's IMPORT-wired auto-patching returns as the
+mechanism, with its bare-`FIXUP` mutation-mark question intact. The
+rejected per-target shapes (manual `FIXUP ELF`, IMPORT-adjacency,
+`CLAIM prebuilt-elf`) stay rejected on the grounds recorded in v4.
 
 ## 4. Open questions
 
-- The magic level: bare `FIXUP` opt-in (recommended above) vs
-  zero-keyword always-on (Mathijs's lean) — one taste call, mechanics
-  identical either way.
-- (E) needs the tracer to *retain* negative results long enough to
-  attribute them to the failing step's report — the `-1 ENOENT` parse
-  exists; confirm retention cost is trivial.
-- Provider matching beyond the imported set (whole-universe SONAME
-  suggestions) needs a nix-index-style database per universe rev —
-  defer, or build a small cached index?
-- Re-run semantics for (F): re-run the whole step after patching
-  (simpler, keying-safe) — measure the cost on the directus case.
-- Should (F) also cover `--add-needed`/soname rewrites, or is
-  interpreter+RPATH the honest v0?
+- The ld.so search wiring for `/lib` (spike round 2): generated
+  ld.so.conf/cache vs a default library path — measured against the
+  RUNPATH-shadowing hazard on nix-built binaries in the same builder.
+- Do artifacts always carry the loader aliases (dangling, like
+  /usr/bin/env) or only when a libc-family package is imported?
+  (Skeleton simplicity vs surface minimalism; env precedent says
+  always-dangling is fine.)
+- 32-bit (`/lib/ld-linux.so.2`) and other arch aliases: full table now
+  or grow on demand?
+- Does `lib/` union join builder IMPORT only, or artifacts too from day
+  one? (Runtime-spawn coverage argues artifacts; closure size argues
+  measuring first.)
+- Directus regen is the acceptance case: `IMPORT ${pkgs.glibc}` with
+  zero patchelf lines must build (modulo the separate bare
+  `Error: Not a directory` defect).
