@@ -1786,6 +1786,7 @@ mod tests {
                     "state": ["/srv/app/state", "/var/lib/app-extra"],
                     "cache": ["/app/cache"],
                     "logs": ["/app/logs", "/var/log/app-extra"],
+                    "config": ["/config/app"],
                     "run": ["/tmp/app/run"]
                 }
             }"#,
@@ -1809,12 +1810,15 @@ mod tests {
             "BindPaths=/var/cache/cix-run-app/app/cache:/app/cache",
             "LogsDirectory=cix-run-app cix-run-app/app/logs cix-run-app/var/log/app-extra",
             "BindPaths=/var/log/cix-run-app/app/logs:/app/logs",
+            "ConfigurationDirectory=cix-run-app cix-run-app/config/app",
+            "BindPaths=/etc/cix-run-app/config/app:/config/app",
             "RuntimeDirectory=cix-run-app/tmp/app/run",
             "BindPaths=/run/cix-run-app/tmp/app/run:/tmp/app/run",
             "TemporaryFileSystem=/app:ro",
             "TemporaryFileSystem=/srv:ro",
             "TemporaryFileSystem=/tmp:ro",
             "Environment=\"STATE_DIRECTORY=/srv/app/state:/var/lib/app-extra\"",
+            "Environment=\"CONFIGURATION_DIRECTORY=/config/app\"",
             "Environment=\"LOGS_DIRECTORY=/app/logs:/var/log/app-extra\"",
             "Environment=\"RUNTIME_DIRECTORY=/tmp/app/run\"",
         ] {

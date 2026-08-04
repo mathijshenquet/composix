@@ -352,9 +352,9 @@ impl Service {
         }
 
         let mut seen: BTreeSet<&Path> = BTreeSet::new();
-        for (role, root, paths) in self.dirs.roles() {
+        for (role, paths) in self.dirs.roles() {
             for path in paths {
-                validate_app_path(role, root, path)?;
+                validate_app_path(role, path)?;
                 if !seen.insert(path) {
                     bail!(
                         "directory path {} is declared more than once",
@@ -705,13 +705,13 @@ impl Env {
 }
 
 impl Dirs {
-    pub fn roles(&self) -> [(&'static str, &'static str, &[PathBuf]); 5] {
+    pub fn roles(&self) -> [(&'static str, &[PathBuf]); 5] {
         [
-            ("state", "/var/lib", &self.state),
-            ("cache", "/var/cache", &self.cache),
-            ("logs", "/var/log", &self.logs),
-            ("config", "/etc", &self.config),
-            ("run", "/run", self.run.as_deref().unwrap_or_default()),
+            ("state", &self.state),
+            ("cache", &self.cache),
+            ("logs", &self.logs),
+            ("config", &self.config),
+            ("run", self.run.as_deref().unwrap_or_default()),
         ]
     }
 }
@@ -802,11 +802,8 @@ fn is_env_continue(value: u8) -> bool {
     is_env_start(value) || value.is_ascii_digit()
 }
 
-fn validate_app_path(role: &str, root: &str, path: &Path) -> Result<()> {
+fn validate_app_path(role: &str, path: &Path) -> Result<()> {
     validate_absolute_clean_path(path, &format!("{role} directory"))?;
-    if role == "config" && path.strip_prefix(root).is_err() {
-        bail!("{role} directory {} must be under {root}", path.display());
-    }
     Ok(())
 }
 
@@ -965,6 +962,7 @@ mod tests {
                     "state": ["/srv/app/state"],
                     "cache": ["/app/cache"],
                     "logs": ["/app/logs"],
+                    "config": ["/config/app"],
                     "run": ["/tmp/app/run"],
                     "data": [{"path": "/media", "ro": true}, {"path": "/consume", "ro": false}]
                 }

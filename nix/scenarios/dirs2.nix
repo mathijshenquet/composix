@@ -35,6 +35,35 @@ let
     ${pkgs.coreutils}/bin/touch /var/lib/shared/${side}
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
+  config = item "scenario-dirs2-config" ''
+    {"cixManifest":0,"start":["bin/start"],"dirs":{"config":["/config/probe"]}}
+  '' ''
+    test "$CONFIGURATION_DIRECTORY" = /config/probe
+    ${pkgs.coreutils}/bin/touch /config/probe/configdir-projected
+    echo configdir-projected
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
+  '';
+  localhost = item "scenario-dirs2-localhost" ''
+    {"cixManifest":0,"start":["bin/start"]}
+  '' ''
+    ${pkgs.glibc.bin}/bin/getent ahostsv4 localhost | ${pkgs.gnugrep}/bin/grep -F 127.0.0.1
+    echo localhost-skeleton
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
+  '';
+  localhostOverride = pkgs.runCommand "scenario-dirs2-localhost-override" { } ''
+    mkdir -p "$out/bin" "$out/etc"
+    cat > "$out/bin/start" <<'SH'
+    #!${shell}
+    ${pkgs.glibc.bin}/bin/getent ahostsv4 localhost | ${pkgs.gnugrep}/bin/grep -F 127.0.0.42
+    echo localhost-item-override
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
+    SH
+    chmod 0755 "$out/bin/start"
+    printf '127.0.0.42 item-wins localhost\n' > "$out/etc/hosts"
+    cat > "$out/cix-manifest.json" <<'EOF'
+    {"cixManifest":0,"start":["bin/start"],"mounts":["/etc/hosts"]}
+    EOF
+  '';
   compose = pkgs.writeText "scenario-dirs2.json" ''
     {
       "cixCompose": 1,
@@ -63,6 +92,17 @@ let
       }
     }
   '';
+  sealed = pkgs.writeText "scenario-dirs2-sealed.json" ''
+    {
+      "cixCompose": 1,
+      "name": "dirs2-sealed",
+      "children": {
+        "config": {"item": "scenario-dirs2-config:v1"},
+        "localhost": {"item": "scenario-dirs2-localhost:v1"},
+        "override": {"item": "scenario-dirs2-localhost-override:v1"}
+      }
+    }
+  '';
 in
 scenario.node ''
   machine.succeed("mkdir -p /tmp/dirs2/host-state /tmp/dirs2/host-media /tmp/scenario")
@@ -72,7 +112,11 @@ scenario.node ''
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${private}) scenario-dirs2-private:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${shared "left"}) scenario-dirs2-left:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${shared "right"}) scenario-dirs2-right:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${config}) scenario-dirs2-config:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${localhost}) scenario-dirs2-localhost:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${localhostOverride}) scenario-dirs2-localhost-override:v1")
   machine.succeed("cp ${compose} /tmp/scenario/dirs2.json")
+  machine.succeed("cp ${sealed} /tmp/scenario/dirs2-sealed.json")
   status, warning = machine.execute("CIX_STATE_DIR=/var/lib/cix-index cix compose check ${degradation} 2>&1")
   print(warning)
   assert status == 0
@@ -87,6 +131,11 @@ scenario.node ''
   for unit in ["cix-dirs2-host", "cix-dirs2-private", "cix-dirs2-left", "cix-dirs2-right"]:
       machine.succeed("test $(systemctl show " + unit + ".service -p NRestarts --value) = 0")
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2-sealed.json --closed-root")
+  machine.succeed("systemctl is-active cix-dirs2-sealed-config.service cix-dirs2-sealed-localhost.service cix-dirs2-sealed-override.service")
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-config.service | grep -Fx configdir-projected", timeout=60)
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-localhost.service | grep -Fx localhost-skeleton", timeout=60)
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-dirs2-sealed-override.service | grep -Fx localhost-item-override", timeout=60)
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix clean dirs2 --what=cache")
   machine.succeed("test $(systemctl show cix-dirs2-private.service -p ActiveState --value) = inactive")
   machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-left.service cix-dirs2-right.service")
