@@ -9,7 +9,7 @@ use std::{
 };
 
 use cix_common::Ref;
-use cix_index::{pull, serve, tag, Store};
+use cix_index::{inspect_artifact, pull, serve, tag, Store};
 
 fn temporary_dir(label: &str) -> PathBuf {
     let nonce = SystemTime::now()
@@ -128,6 +128,58 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
         .contains("qualified names denote remote state; tags are bare"));
 
     let client_store = Store::open(client_state.clone()).unwrap();
+    let remote_ref = format!("{root_url}/family/member:v1");
+    let inspected = inspect_artifact(&client_store, &remote_ref).unwrap();
+    assert_eq!(
+        inspected.metadata.unwrap().reference,
+        remote_ref,
+        "qualified inspect resolves the served ref without creating a mirror tag"
+    );
+
+    let missing_ref = format!("{root_url}/family/missing:v1");
+    let missing = inspect_artifact(&client_store, &missing_ref)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        missing.contains(&format!(
+            "index ref not found at http://{root_url}/family/missing:v1"
+        )),
+        "{missing}"
+    );
+
+    let refused_listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let refused_port = refused_listener.local_addr().unwrap().port();
+    drop(refused_listener);
+    let refused_ref = format!("127.0.0.1:{refused_port}/family/member:v1");
+    let refused = inspect_artifact(&client_store, &refused_ref)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refused.contains(&format!(
+            "could not connect to index at http://127.0.0.1:{refused_port}/family/member:v1"
+        )),
+        "{refused}"
+    );
+
+    let (non_cix_port, non_cix_request) = non_cix_server();
+    let non_cix_ref = format!("127.0.0.1:{non_cix_port}/family/member:v1");
+    let non_cix = inspect_artifact(&client_store, &non_cix_ref)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        non_cix.contains(&format!(
+            "index at http://127.0.0.1:{non_cix_port}/family/member:v1 returned a non-cix response"
+        )),
+        "{non_cix}"
+    );
+    assert!(
+        non_cix_request
+            .join()
+            .unwrap()
+            .contains("Accept: application/vnd.cix+json;version=1"),
+        "qualified inspect must request the cix representation"
+    );
+
     assert_eq!(
         pull(
             &client_store,
@@ -227,6 +279,23 @@ fn readiness_request(stream: &mut TcpStream) -> std::io::Result<()> {
     let mut response = [0; 1];
     stream.read_exact(&mut response)?;
     Ok(())
+}
+
+fn non_cix_server() -> (u16, thread::JoinHandle<String>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let request = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut bytes = [0; 4096];
+        let length = stream.read(&mut bytes).unwrap();
+        stream
+            .write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 13\r\nConnection: close\r\n\r\nnot an index",
+            )
+            .unwrap();
+        String::from_utf8_lossy(&bytes[..length]).into_owned()
+    });
+    (port, request)
 }
 
 struct HttpResponse {

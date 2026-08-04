@@ -249,7 +249,7 @@
   tour regeneration/drift; then audit and commit the green track.
 
 - 2026-08-02T19:21:16Z — Focused Mastodon receipt is synchronously green:
-  `corpus/migrate/mastodon/check.sh cix` exited 0 after its EXIT cleanup. It
+  `corpus/migrate/docker/mastodon/check.sh cix` exited 0 after its EXIT cleanup. It
   built six locked items, validated six services/two Unix edges, activated
   generation `4ihz6a…`, showed three refused web probes before the delayed
   readiness success, verified independent web+sidekiq shared writes and the
@@ -818,7 +818,7 @@
   than leaving nginx desk-only. Updated its stale bare START to the locked
   `${pkgs.nginx}` executable and set `error_log stderr info` in the existing
   quote-aware `-g` argv. Exact successful repro: `target/debug/cix build -t
-  regrade corpus/migrate/nginx` produced
+  regrade corpus/migrate/docker/nginx` produced
   `/nix/store/s35rsvbhr2hi9qmm1wpj4bibgl3nssvz-cix-item-nginx`; a scratch
   compose check passed; root tag + `sudo env PATH="$PATH" target/debug/cix up
   .dev/scratch/regrade/nginx-compose.json --update='*'` activated generation
@@ -855,7 +855,7 @@
 - 2026-08-02T07:20:00Z — Empirical subset milestone: updated the existing
   Redis migration to preserve Docker's `/data` path as `STATEDIR /data`, then
   ran `devenv shell -- cargo build -p cix`, `target/debug/cix build
-  corpus/migrate/redis#redis`, a root transient run, bounded TCP PING, and
+  corpus/migrate/docker/redis#redis`, a root transient run, bounded TCP PING, and
   `cix inspect --runtime`. Final item
   `/nix/store/0zd94c03qk3gddgg01cwaznwgcywiap2-cix-item-redis` returned `+PONG`;
   inspect showed `/var/lib/private/cix-run-redis/data`, proving CIP-82 leg 1's
@@ -1108,7 +1108,7 @@
   cargo test --workspace`; focused `devenv shell -- cargo test -p cix-cixfile
   --test lock_nix -- --nocapture`. No cold-audit executable exists on this
   base (the prescribed `rg -n 'cold_audit|cold-audit' . --glob '!target/**'
-  --glob '!corpus/migrate/**/context/**'` finds only design/log prose). Tour
+  --glob '!corpus/migrate/docker/**/context/**'` finds only design/log prose). Tour
   gate, with `TMPDIR=/dev/shm` to avoid the shared `/tmp` inode limit: ignored
   regeneration, `git diff --exit-code -- docs/tour`, committed-doc matching,
   and deterministic generation passed twice. VM command `TMPDIR=/dev/shm
@@ -1153,7 +1153,7 @@
   --all-targets -- -D warnings`; and `devenv shell -- cargo test --workspace`
   (exit 0). No `cold_audit` executable exists on this base (`rg -n
   'cold_audit|cold-audit' . --glob '!target/**' --glob
-  '!corpus/migrate/**/context/**'` finds the D69 design mention only). Tour
+  '!corpus/migrate/docker/**/context/**'` finds the D69 design mention only). Tour
   repros: `devenv shell -- cargo test -p cix --test tour -- --ignored
   generate_tour`; `git add docs/tour && git diff --exit-code -- docs/tour`;
   `devenv shell -- cargo test -p cix --test tour
@@ -1162,7 +1162,7 @@
   passed. The dogfood VM repro `devenv shell -- nix build
   .#checks.x86_64-linux.vm-dogfood --no-link -L` passed; receipt confirmed with
   `nix path-info /nix/store/ssxw6w6gx1pivkalbzy220x6xydpyp16-vm-test-run-vm-dogfood`.
-  Exhibit repros: Parse Server's two `cd corpus/migrate/parse-server &&
+  Exhibit repros: Parse Server's two `cd corpus/migrate/docker/parse-server &&
   ../../../target/debug/cix build --update-lock build .#parse-server` plus
   `../../../target/debug/cix build .#parse-server`; ProjB's `target/debug/cix
   build --update-lock build examples/build/projB#projb` twice plus `target/debug/cix
@@ -1452,7 +1452,7 @@
   usr_bin_env_shebang_requires_an_imported_env -- --nocapture`; `devenv shell
   -- cargo test -p cix-cixfile --lib`; `devenv shell -- cargo build -p cix`;
   `cd corpus/migrate && ./fetch.sh echo-server`; and `cd
-  corpus/migrate/echo-server && ../../../target/debug/cix build --update-lock
+  corpus/migrate/docker/echo-server && ../../../target/debug/cix build --update-lock
   build .#echo-server && ./check.sh cix`. The regression proves both a literal
   shebang success with bash/coreutils imports and the loud missing-coreutils
   failure. Echo Server now reaches and passes webpack plus its HTTP check;
@@ -1491,7 +1491,7 @@
   `cd corpus/migrate && ./fetch.sh --all` fetched all pinned contexts, and
   the nine previously green checks (adminer, caddy, memcached, nats, nginx,
   phpmyadmin, redis, traefik, whoami) pass via `./check.sh cix`; exact corpus
-  results are appended to `corpus/migrate/LOG.md`. Both complete migrate.md
+  results are appended to `corpus/migrate/docker/LOG.md`. Both complete migrate.md
   samples were copied verbatim to ignored `.dev/scratch/absdest/` fixtures and
   built with `devenv shell -- target/debug/cix build .dev/scratch/absdest/{dissolve,fetch}`;
   the sample and README/reference verbatim diffs pass. Tour regeneration via
@@ -2029,7 +2029,7 @@
   test conventions, then implement the fold and browser model.
 
 - 2026-08-02T08:43:00Z — Folded the isolated Renovate regrade into the
-  living `corpus/migrate/renovate` layout and removed `corpus/regrade/`.
+  living `corpus/migrate/docker/renovate` layout and removed `corpus/regrade/`.
   Added SOURCE notes pinned to renovatebot/helm-charts revision
   `f953571cd7d10fd301799192dbaf18c55bd1dad0`, the verbatim upstream CronJob
   template, and a bounded check that covers the cix build, native calendar
@@ -2250,7 +2250,7 @@
   config, and script files. Rust formatting, Wallos Cixfile formatting, diff
   hygiene, lexer tests, deterministic rendering, and explicit regeneration all
   pass; the pre-regeneration drift failure was expected and observed. Next:
-  run `corpus/migrate/wallos/check.sh cix` synchronously, update its receipt and
+  run `corpus/migrate/docker/wallos/check.sh cix` synchronously, update its receipt and
   stale health ledger wording, then prove committed browser drift green.
 
 - 2026-08-02T15:10:16Z — Focused behavior and browser receipts are green. The
@@ -2406,7 +2406,7 @@
   `--update-lock=pkgs`; next: rerun `check.sh cix` synchronously.
 
 - 2026-08-02T20:14:52Z — Final ordinary-root receipt passed synchronously
-  (exit 0): `devenv shell -- ./corpus/migrate/mastodon/check.sh cix`, including
+  (exit 0): `devenv shell -- ./corpus/migrate/docker/mastodon/check.sh cix`, including
   its EXIT teardown. All six members built, the two-edge compose activated,
   readiness delay, credential, shared-rw markers, watchdog survival, timer,
   scoped logs, and purge passed. Explicit stability follow-up refreshed all six

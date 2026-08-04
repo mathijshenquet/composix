@@ -144,7 +144,7 @@
   add fixture coverage for variants/gap panels, and add the real-parser rot
   guard before regenerating pages and running the declared agent tier.
 
-- 2026-08-04T00:20:00Z — Extended `corpus/migrate/fetch.sh` to write sorted
+- 2026-08-04T00:20:00Z — Extended `corpus/migrate/docker/fetch.sh` to write sorted
   `<relative-path>\t<bytes>` `context.files` after each successful fetch, then
   fetched all 15 cases whose SOURCE supplies the helper's required repository,
   immutable revision, and context path: adminer, directus, dozzle, echo-server,
@@ -155,7 +155,7 @@
   reports `SOURCE does not declare a context path`; mastodon and renovate report
   `SOURCE lacks a parseable resolved revision`; nats, traefik, and whoami report
   `SOURCE lacks a parseable repository URL`. Their pages deliberately say
-  "context not fetched". Exact repros: `bash corpus/migrate/fetch.sh <case>`.
+  "context not fetched". Exact repros: `bash corpus/migrate/docker/fetch.sh <case>`.
 
 - 2026-08-04T01:10:00Z — Browser implementation and regenerated `docs/corpus/`
   are complete in two logical commits: `0c271dd` records the fetched manifests
@@ -333,7 +333,7 @@
   `CIX_STATE_DIR` and `CIX_BUILD_WORKSPACE_DIR`, seeds the documented `my-nginx:v1`
   producer for `build/from-item`, then compares the real warm and `--cold` JSON member
   maps member by member. `COLD_AUDIT=<pair>` fetches one corpus context with
-  `bash corpus/migrate/fetch.sh <pair>` before auditing its snapshot. The ignored proof
+  `bash corpus/migrate/docker/fetch.sh <pair>` before auditing its snapshot. The ignored proof
   `nondeterministic_builder_is_rejected` passed with `cargo test -p cix --test
   cold_audit -- --ignored nondeterministic_builder_is_rejected`; it confirms the real
   cold bridge reports `COPY ${build}/x (line 6) differs between warm and cold`.
