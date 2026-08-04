@@ -1,6 +1,6 @@
-# optional-env — declaring an ENV with no default (CIP-light)
+# optional-env — declaring an ENV with no default (CIP-96, was CIP-light)
 
-Status: **draft, CIP-light** (2026-08-04; from adminer's regeneration).
+Status: **CIP-96, adopted 2026-08-04** (Mathijs: "docker heeft ook gewoon ENV NAME toch? gewoon doen").
 
 **Problem.** `ENV NAME = value` sets a default and `ENV NAME required`
 demands an operator value — but there is no way to declare "this
@@ -15,3 +15,12 @@ from the environment unless the operator supplies it. Grammar mirrors
 
 **Effort.** Small — grammar + manifest field + runner pass-through +
 one corpus case cleanup.
+
+## Decision
+
+Adopted 2026-08-04. Spelling: the bare form `ENV NAME` (familiar from
+docker-compose's environment passthrough lists) declares an optional
+variable with no default; `ENV NAME optional` is not minted. Manifest
+records it; the runner passes it through only when the operator
+supplies a value. Adminer's `__cix_unset__` sentinel cleanup rides the
+implementing track.

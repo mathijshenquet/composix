@@ -1,37 +1,46 @@
 # granular-degradation — one rejected directive must not cost the whole sandbox set
 
-Status: **draft** (2026-08-04, from the tour-CI cascade; promoted out of
-open-questions per Mathijs's redo).
+Status: **draft v2** (2026-08-04; v2 answers Mathijs's capability-query
+question and drops the per-directive-retry naivety).
 
 ## 1. The problem
 
 When a systemd user manager rejects a single hardening directive, cix
-retries the unit with an entire property set removed. Concretely, on
-GitHub's CI runners the user manager predates `PrivatePIDs=`; cix's
-fallback then dropped `PrivateUsers`, `ProtectSystem`, `ProtectHome`,
-`PrivateTmp` AND `BindPaths` together — so one unknown key cost the
-mount projection, and a service that runs fine on a newer manager fails
-there. The degraded development path (the early "rootless is allowed
-but weaker" decision, D13 in docs/design.md) was meant as the floor,
-not the first fallback.
+retries the unit with an entire property set removed. On GitHub's CI
+runners the manager predates `PrivatePIDs=`; cix's fallback then
+dropped `PrivateUsers`, `ProtectSystem`, `ProtectHome`, `PrivateTmp`
+AND `BindPaths` together — one unknown key cost the mount projection.
+Background: the "degraded development path" is the early decision
+(docs/design.md D13) that rootless `--user` runs are allowed but
+weaker — no DynamicUser, reduced sandboxing — with production on the
+system manager. That degraded set was meant as the floor, not the
+first fallback.
 
-## 2. Prior work
+## 2. Prior work — is there a capability query? (researched)
 
-systemd itself reports exactly which assignment it refused ("Unknown
-assignment: PrivatePIDs=yes"), so the information for a precise retry
-exists. The current all-or-nothing set dates from when the fallback had
-one consumer (local dev).
+systemd has NO per-directive support query: `systemctl show -p
+Features`/`--version` expose compile-time flags, not directive
+vocabulary. But the practical probe exists and is fast:
+`systemd-analyze --user verify <unit>` parses a unit with the TARGET
+manager's own parser and prints "Unknown assignment" per unsupported
+key WITHOUT starting anything. One verify round-trip yields the exact
+rejected-directive set. (Version-keyed tables — the podman/quadlet
+approach — are the maintenance surface we avoid.)
 
 ## 3. Recommendation
 
-Parse the manager's rejection, drop only the named directive, retry;
-repeat until the unit loads or a floor set is reached. Log each dropped
-directive loudly. The tour/CI environment class (older manager, no
-userns) becomes a regression scenario.
+Before first unit submission per manager, run one batched
+`systemd-analyze verify` probe over the full directive set cix might
+emit; cache the rejected set keyed by manager identity+version. Unit
+generation then omits exactly the unsupported directives, loudly
+logging each omission. No retry loop in the common case; the runtime
+"Unknown assignment" parser stays as belt-and-braces for managers
+whose verify output diverges. D13's degraded set remains the explicit
+floor for rootless mode, unchanged.
 
 ## 4. Open questions
 
-- Is per-directive retry cost acceptable (one manager round-trip per
-  rejected key), or should cix probe manager capabilities once and
-  cache per manager version?
-- Does the floor stay exactly D13's current degraded set?
+- Cache key: manager version alone, or version+unit-path (container
+  managers may differ per instance)?
+- Does `systemd-analyze --user verify` exist on every supported
+  manager version (it is old, but confirm the oldest CI image)?
