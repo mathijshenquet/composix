@@ -583,6 +583,20 @@
   Mastodon generated browser page for its stale adapter-liveness evidence.
   Next: commit that generated artifact, then rerun the full workspace gate.
 
+- 2026-08-04 UTC — Committed the generated Mastodon browser refresh as
+  `b5c05f7`. A concurrent `track/netnsrace` twenty-VM contention matrix is
+  active, so the final full workspace gate is deliberately deferred until it
+  finishes; project policy forbids overlapping full VM gates. Next: wait for
+  that external gate to clear, then run the full workspace test synchronously.
+
+- 2026-08-04 UTC — After the corpus refresh, `devenv shell -- cargo test
+  --workspace` exited 0 synchronously: the corpus browser determinism and
+  committed-page checks are green again, alongside all workspace suites. This
+  closes the previously honest gate stop. The agent-tier receipts are now
+  formatter, examples formatter, warning-denied clippy, focused health VMs on
+  systemd 261 and 257.6, generated corpus/tour drift, and the full workspace
+  suite. Next: audit status, commit this final gate receipt, and hand off.
+
 ## track/secrets
 
 - 2026-08-02 10:00 UTC — Started CIP-81 from `.dev/specs/track-secrets.md` on
