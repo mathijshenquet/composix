@@ -523,3 +523,39 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   sumdb tile paths are probe facts, hence unconsumed. The UI's pnpm/Vite `dist`
   remains a consumed-byte instability and is recorded, not excluded or normalized
   by cix. The required Docker socket remains an independent runtime boundary.
+
+## 2026-08-04 — corpus gap-ledger track started
+
+- Loaded `AGENTS.md`, `.dev/specs/track-corpusgaps.md`, the living-corpus
+  maintenance contract, the migration prompt, and the existing migration journal.
+  The worktree is clean on `track/corpusgaps` and `DEVENV_ROOT` points at this
+  worktree. Scope is fenced to the 21 new `GAPS.md` files, `docs/corpus.md`,
+  `docs/migrate.md`, and this journal; no Cixfile, context, lock, check, receipt,
+  generated browser output, or Rust source will be changed.
+- Provenance audit started from each case's introducing commit and the most recent
+  `docs/migrate.md` revision in its ancestry. Next: desk-review every Dockerfile,
+  Cixfile/compose file, receipt, and relevant source-side configuration before
+  writing the routed ledgers.
+
+## 2026-08-04 — all 21 case ledgers drafted
+
+- Added one `GAPS.md` beside every living migration. Each has the required
+  provenance/status header and every prose bullet ends in a routing arrow. Early
+  converter batches are attributed to `terra` because
+  `.dev/specs/track-migrate.md` fixes that model; later/manual feature-wave cases
+  say `unknown` because the repository does not establish their generating model.
+- Desk review covered every checked-in Dockerfile or upstream compose/CronJob,
+  current Cixfile/member set, SOURCE, and receipt. Findings beyond the seed include
+  Caddy's unrepresentable UDP/QUIC port, Adminer/nginx stop-signal loss, dropped
+  Excalidraw `NODE_ENV`, Dozzle's `/data` divergence, NATS's missing config/cluster
+  listener, phpMyAdmin's large config/extension delta, Renovate's version-only APP,
+  Wallos's retained in-unit supervisor, and source/receipt parity weaknesses.
+- Stale statuses are limited to conversions that can already consume a landed
+  feature: Caddy/Dozzle/Parse Server/Verdaccio (CIP-82), Excalidraw/Wallos
+  (CIP-79), and Renovate (CIP-81). Unadopted artifact-import,
+  builder-dev-imports, and FILE…FROM findings remain current and link their drafts.
+- Static receipt: `find corpus/migrate -mindepth 2 -maxdepth 2 -name GAPS.md |
+  wc -l` printed `21`; a local header/bullet routing audit found no malformed
+  ledger, and `git diff --check` exited 0. Next: teach every routed prompt lesson
+  in `docs/migrate.md`, then replace the living table's single ribbon with separate
+  fidelity and evidence axes.
