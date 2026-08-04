@@ -1,10 +1,9 @@
 # fhs-interpreter — downloaded native binaries in bare builders
 
-Status: **draft v3** (2026-08-04; v1 promoted from the corpusgaps sweep,
-v2 rewritten on the track/fhsspike evidence, v3 after Mathijs's
-structural direction: the build already runs traced in a sandbox — detect
-failed FHS reads there and match them to providers, instead of teaching
-humans a "try build → patch +1" loop; repair stays opt-in via a keyword).
+Status: **draft v4** (2026-08-04; v3's trace-driven direction blessed —
+"(E) sowieso top, (F) ook" — v4 wires repair into IMPORT itself per
+Mathijs, carries how-much-magic as the one open decision, and cuts the
+per-target directive/claim shapes as strictly less nice).
 
 ## 1. The problem
 
@@ -47,129 +46,87 @@ in the track/fhsspike branch journal):
   remaining directus blocker), and the lock grew by ~148k lines of step
   observations (scale question for the lock format).
 
-## 3. Recommendation — four concrete shapes
-
-**(A) Taught RUN pattern (expressible today).**
-
-```dockerfile
-IMPORT ${pkgs.bash} … ${pkgs.patchelf} ${pkgs.glibc}
-RUN pnpm install --recursive --offline --frozen-lockfile
-RUN patchelf --set-interpreter ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 \
-    --set-rpath ${pkgs.glibc}/lib \
-    node_modules/.pnpm/sass-embedded-linux-x64@1.93.3/…/dart-sass/src/dart
-```
-
-No language change; lands as a migrate.md teaching section. Cost:
-migrators must recognize ELF failures, inspect DT_NEEDED, know platform
-variants, and hand-maintain brittle versioned paths.
-
-**(B) `FIXUP ELF` builder directive.**
-
-```dockerfile
-FIXUP ELF node_modules/.pnpm/sass-embedded-linux-x64@*/…/dart-sass/src/dart \
-    WITH ${pkgs.glibc}
-```
-
-Builder-only, runs at its declaration point (after materialization). Cix
-validates the target is a dynamically-linked ELF of a known
-architecture/libc, sets the interpreter from the named libc package,
-derives RPATH from the `lib/` dirs of every `WITH` package, refuses
-unknown combinations loudly, and records the changed file in the lock. A
-bounded glob absorbs version-bump path brittleness. Multiple `WITH`
-packages cover multi-provider DT_NEEDED sets.
-
-**(C) `IMPORT … FIXUP` adjacency.**
-
-```dockerfile
-IMPORT ${pkgs.glibc} FIXUP node_modules/**/dart-sass/src/dart
-```
-
-Reads well — the satisfying package is visibly adjacent — but the phase
-model is dishonest: IMPORT executes before the target exists (it appears
-only after `pnpm install`), so the directive would need deferred
-execution, breaking IMPORT's current one-shot semantics. Recorded mostly
-to reject it for that reason unless the phase story improves.
-
-**(D) Declarative prebuild claim.**
-
-```dockerfile
-CLAIM prebuilt-elf node_modules/**/dart-sass/src/dart WITH ${pkgs.glibc}
-```
-
-Scales as teaching vocabulary ("this builder contains downloaded native
-code") and could power a targeted diagnostic when *other* unpatched FHS
-ELFs remain. But the spike's musl-alternate evidence cuts against any
-claim-shaped/ambient form doing the repair itself, and claims elsewhere
-in the language grant *capabilities*, not transformations — a
-transformation wearing a claim costume muddies that vocabulary.
+## 3. Recommendation — detection + IMPORT-wired repair
 
 **(E) Trace-driven detection — always on, no keyword.** The step already
-runs under the CIP-87 tracer, and that tracer already parses failed opens
-(`= -1 ENOENT` results are recognized in `trace.rs` today) — the spike's
-whole painful discovery phase was information the sandbox had and threw
-away. When a RUN step fails, cix scans the step's trace for (i) `execve`
-ENOENT on a path inside the workdir (the directus `spawn … dart ENOENT`
-shape), (ii) reads of FHS loader paths (`/lib64/ld-*`, `/lib/ld-*`), and
-(iii) failed SONAME opens during dynamic loading. The error then names
-the failing executable, its ELF interpreter, and the missing
-loader/SONAMEs, and matches them against what the builder's IMPORTed
-packages (plus the loader→libc map) provide:
+runs under the CIP-87 tracer, and that tracer already parses failed
+opens (`= -1 ENOENT` results are recognized in `trace.rs` today) — the
+spike's whole painful discovery phase was information the sandbox had
+and threw away. When a RUN step fails, cix scans the step's trace for
+(i) `execve` ENOENT on a path inside the workdir (the directus
+`spawn … dart ENOENT` shape), (ii) reads of FHS loader paths
+(`/lib64/ld-*`, `/lib/ld-*`), and (iii) failed SONAME opens during
+dynamic loading. The error names the failing executable, its ELF
+interpreter, and the missing loader/SONAMEs, and matches them against
+what the builder's IMPORTed packages (plus the loader→libc map)
+provide. Pure diagnosability (D73 spirit); deletes the loop's discovery
+half for every ecosystem at once.
 
-```text
-error: RUN step 6 failed: node_modules/…/dart-sass/src/dart requires the
-  FHS loader /lib64/ld-linux-x86-64.so.2 (not present in a cix builder)
-  and libm.so.6, libc.so.6 — provided by imported ${pkgs.glibc}.
-  Downloaded native binaries need an explicit repair: see FIXUP.
-```
+**(F) Auto-repair wired into IMPORT.** The providers are already
+declared — IMPORT is the declaration — so repair needs no second
+package list: when (E) detects a repairable downloaded ELF, cix patches
+interpreter+RPATH from the *imported* set, records the changed file in
+the lock, and re-runs the step. A need no imported package satisfies is
+a loud refusal naming the SONAME (the spike's musl alternate stays
+safe: no imported musl, no silent mispatch).
 
-Pure diagnosability (D73 spirit): no semantics change, no opt-in needed,
-and it deletes the loop's discovery half for every ecosystem at once.
+**The one open decision: how much magic.** Mathijs's lean is full
+magic — zero keyword, always on. The honest arguments against
+zero-keyword, for the record:
 
-**(F) Opt-in bounded auto-repair — the keyword.**
+1. *Silent mutation of fetched bytes.* Every other assembly action is
+   additive; auto-patchelf rewrites content that upstream shipped, and
+   with zero keyword the Cixfile carries no textual trace that binary
+   rewriting is part of this build. "Why doesn't my binary match
+   upstream's checksum" needs a visible cause in the file.
+2. *Intended-failure masking.* A step that deliberately probes platform
+   support (or a test asserting an exec fails) gets "repaired" into
+   different behavior with no opt-out visible at the site.
+3. *Default-path complexity.* Failed-step → patch → re-run machinery
+   engages on every build by default, not just where downloaded native
+   code is a known ingredient.
+4. *House style.* The language refuses ambient magic everywhere else
+   (explicit `cacert`, no implicit `:latest`, named FROM). Rewriting
+   ELF interpreters is the most invasive action in the language;
+   a one-word mark keeps it honest.
 
-```dockerfile
-FIXUP WITH ${pkgs.glibc} ${pkgs.zlib}
-```
+The compromise that keeps ~all of the magic: a bare, argument-less
+builder `FIXUP` — mechanics 100% automatic from the trace and the
+import set, but the single word is the mutation-mark and intent gate,
+and (E)'s diagnostic ends with "add FIXUP to enable automatic repair".
+Recommendation: bare `FIXUP`; if Mathijs still prefers zero-keyword
+after these arguments, it is an alpha-reversible call — the mechanics
+are identical.
 
-Builder-scoped, opt-in. With the declaration present, a RUN step that
-(E)-detects a repairable downloaded ELF gets it patched automatically —
-interpreter and RPATH — **only from the declared WITH set**: cix maps the
-observed missing loader/SONAMEs to the declared packages' `lib/` trees,
-patches, records the changed file in the lock, and re-runs the step. A
-need no declared package satisfies is a loud refusal naming the SONAME
-(the musl alternate stays safe: no declared musl, no silent mispatch).
-The human loop collapses to "read the (E) diagnostic, declare the
-providers it names"; the iteration moves inside one build step, bounded
-by the declared set instead of ambient search.
+**Interim and escape: the taught RUN pattern.** Until (F) lands —
+and permanently, for ELFs the build never execs (a service spawning a
+downloaded binary lazily at *runtime* never hits the builder tracer) —
+the explicit `IMPORT ${pkgs.patchelf} ${pkgs.glibc}` +
+`RUN patchelf --set-interpreter … --set-rpath …` sequence remains
+expressible and taught (the spike's verified recipe).
 
-**Lean (v3):** (E) unconditionally — it is trace plumbing we largely
-have. (F) as the language feature, replacing v2's manual-target (B):
-target discovery came free from the trace, so the human declares only
-*providers*, which is exactly the dependency fact worth writing down.
-(A) remains the interim teaching until (F) exists; (B)'s validation
-machinery (arch/libc refusal, RPATH derivation, lock recording) survives
-inside (F) as implementation; (C) rejected on phase grounds; (D) rejected
-as claim-vocabulary pollution, though its "remaining unpatched ELF"
-diagnostic rides along in (E).
+**Rejected shapes** (v2 §3, cut 2026-08-04 as strictly less nice than
+(E)+(F), record retained): a manual per-target `FIXUP ELF <glob> WITH
+<pkgs>` directive (target discovery is free from the trace; the manual
+form's only residual service — runtime-spawned ELFs — is covered by the
+RUN pattern above); `IMPORT … FIXUP <glob>` adjacency (dishonest phase
+model: the target does not exist when IMPORT executes); a
+`CLAIM prebuilt-elf` (claims grant capabilities, not transformations —
+vocabulary pollution). Its "remaining unpatched ELF" diagnostic idea
+lives on inside (E).
 
 ## 4. Open questions
 
+- The magic level: bare `FIXUP` opt-in (recommended above) vs
+  zero-keyword always-on (Mathijs's lean) — one taste call, mechanics
+  identical either way.
 - (E) needs the tracer to *retain* negative results long enough to
-  attribute them to the failing step's report — today the `-1 ENOENT`
-  parse exists but negatives are presumably dropped after read-set
-  filtering. Confirm the retention cost is trivial before promising
-  "always on".
-- Provider matching scope: the WITH set and IMPORTed packages are cheap
-  to search; suggesting providers from the whole locked universe needs a
-  nix-index-style SONAME database — defer, or build a small cached index
-  per universe rev?
-- Does (F) re-run the step after patching, or patch-and-continue within
-  the failed step? (Re-run is simpler and keying-safe; measure the cost
-  on the directus case.)
-- Keyword bikeshed: `FIXUP WITH …` vs `FIXUP ELF WITH …`; and does a
-  manual per-target form (v2's B) stay as an escape hatch or is
-  provider-only declaration enough?
+  attribute them to the failing step's report — the `-1 ENOENT` parse
+  exists; confirm retention cost is trivial.
+- Provider matching beyond the imported set (whole-universe SONAME
+  suggestions) needs a nix-index-style database per universe rev —
+  defer, or build a small cached index?
+- Re-run semantics for (F): re-run the whole step after patching
+  (simpler, keying-safe) — measure the cost on the directus case.
 - Should (F) also cover `--add-needed`/soname rewrites, or is
   interpreter+RPATH the honest v0?
-- The musl alternate: refusal is decided; should the message name the
-  musl loader explicitly to teach the variant problem?
