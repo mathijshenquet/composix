@@ -2,11 +2,14 @@
 //!
 //! Run `cargo test --test tour -- --ignored generate_tour` to update the documents.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::mpsc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -59,6 +62,173 @@ struct UserUnit {
 impl Drop for UserUnit {
     fn drop(&mut self) {
         let _ = cix_run::runtime::stop_service(&self.name, true);
+        let _ = wait_for_user_units_gone([self.name.as_str()]);
+    }
+}
+
+fn user_cix_units() -> Result<BTreeSet<String>, String> {
+    let output = Command::new("systemctl")
+        .args([
+            "--user",
+            "list-units",
+            "cix-*",
+            "--all",
+            "--output=json",
+            "--no-pager",
+            "--no-legend",
+        ])
+        .output()
+        .map_err(|error| format!("listing user cix units: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "listing user cix units failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let units: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("parsing user cix units: {error}"))?;
+    units
+        .into_iter()
+        .map(|unit| {
+            unit.get("unit")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .ok_or_else(|| "systemctl user unit has no string unit field".to_owned())
+        })
+        .collect()
+}
+
+fn wait_for_user_units_gone<'a>(units: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
+    let units = units.into_iter().map(str::to_owned).collect::<Vec<_>>();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let present = user_cix_units()?;
+        let remaining = units
+            .iter()
+            .filter(|unit| present.contains(*unit))
+            .cloned()
+            .collect::<Vec<_>>();
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "timed out waiting for user units to unload: {}",
+                remaining.join(", ")
+            ));
+        }
+        // `systemd-run --collect` unloads asynchronously after stop. Waiting here keeps the
+        // next tour receipt from observing a unit created by the preceding receipt.
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn stop_user_units_created_since(before: &BTreeSet<String>, prefix: &str, receipt: &str) {
+    let after =
+        user_cix_units().unwrap_or_else(|error| panic!("listing units after {receipt}: {error}"));
+    let mut created = after
+        .difference(before)
+        .filter(|unit| unit.starts_with(prefix))
+        .cloned()
+        .collect::<Vec<_>>();
+    created.sort_by_key(|unit| unit.ends_with(".slice"));
+    for unit in &created {
+        let output = Command::new("systemctl")
+            .args(["--user", "stop", unit])
+            .output()
+            .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error}"));
+        if !output.status.success()
+            && user_cix_units()
+                .unwrap_or_else(|error| panic!("checking {unit} after {receipt}: {error}"))
+                .contains(unit)
+        {
+            panic!(
+                "stopping {unit} after {receipt} failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+    }
+    wait_for_user_units_gone(created.iter().map(String::as_str))
+        .unwrap_or_else(|error| panic!("tearing down units after {receipt}: {error}"));
+}
+
+fn stop_user_unit(unit: &str, receipt: &str) {
+    cix_run::runtime::stop_service(unit, true)
+        .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error:#}"));
+    wait_for_user_units_gone([unit])
+        .unwrap_or_else(|error| panic!("tearing down {unit} after {receipt}: {error}"));
+}
+
+fn stop_empty_cix_run_slice(receipt: &str) {
+    let active = Command::new("systemctl")
+        .args([
+            "--user",
+            "list-units",
+            "cix-run-*.service",
+            "cix-debug-*.service",
+            "cix-run-*.socket",
+            "cix-run-*.timer",
+            "--state=active",
+            "--no-pager",
+            "--no-legend",
+        ])
+        .output()
+        .unwrap_or_else(|error| panic!("checking active cix units after {receipt}: {error}"));
+    assert!(
+        active.status.success(),
+        "checking active cix units after {receipt} failed: {}",
+        String::from_utf8_lossy(&active.stderr).trim()
+    );
+    if !active.stdout.is_empty() {
+        return;
+    }
+    let units = user_cix_units()
+        .unwrap_or_else(|error| panic!("checking cix-run.slice after {receipt}: {error}"));
+    if !units.contains("cix-run.slice") {
+        return;
+    }
+    let output = Command::new("systemctl")
+        .args(["--user", "stop", "cix-run.slice"])
+        .output()
+        .unwrap_or_else(|error| panic!("stopping cix-run.slice after {receipt}: {error}"));
+    assert!(
+        output.status.success(),
+        "stopping cix-run.slice after {receipt} failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    wait_for_user_units_gone(["cix-run.slice"])
+        .unwrap_or_else(|error| panic!("tearing down cix-run.slice after {receipt}: {error}"));
+}
+
+struct ScheduledUserUnit {
+    timer: String,
+}
+
+impl Drop for ScheduledUserUnit {
+    fn drop(&mut self) {
+        let _ = Command::new("systemctl")
+            .args(["--user", "stop", &self.timer])
+            .output();
+        let Some(stem) = self.timer.strip_suffix(".timer") else {
+            return;
+        };
+        let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") else {
+            return;
+        };
+        let directory = PathBuf::from(runtime).join("systemd/user");
+        for suffix in [".service", ".timer", "-root.service"] {
+            let _ = fs::remove_file(directory.join(format!("{stem}{suffix}")));
+        }
+        let _ = Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .output();
+        let service = format!("{stem}.service");
+        let root_service = format!("{stem}-root.service");
+        let _ = wait_for_user_units_gone([
+            self.timer.as_str(),
+            service.as_str(),
+            root_service.as_str(),
+        ]);
     }
 }
 
@@ -108,25 +278,6 @@ impl Doc {
         // transcript is independent of the local Nix cache.
         self.run(&state_dir, command, expect_success);
         self.sh_in("$", &state_dir, command, expect_success)
-    }
-
-    fn sh_ps_units(&mut self, expect_success: bool, unit_names: &[String]) -> String {
-        let state_dir = self.state_dir.clone();
-        let output = self.run(&state_dir, "cix ps --json", expect_success);
-        let raw = format!(
-            "{}{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let rows: Vec<cix_compose::PsRow> = serde_json::from_str(&raw)
-            .unwrap_or_else(|error| panic!("cix ps --json emitted invalid JSON: {error}\n{raw}"));
-        let rows = rows
-            .into_iter()
-            .filter(|row| unit_names.iter().any(|name| name == &row.unit))
-            .collect::<Vec<_>>();
-        let displayed = cix_compose::render_ps_table(&rows);
-        self.record("$", "cix ps", &displayed);
-        displayed
     }
 
     fn sh_in(
@@ -190,6 +341,11 @@ impl Doc {
         writeln!(self.text, "```sh\n{prompt} {command} &\n```\n").expect("writing command");
     }
 
+    fn output(&mut self, output: &str) {
+        let normalized = normalize(output, &self.base);
+        writeln!(self.text, "```text\n{normalized}\n```\n").expect("writing command output");
+    }
+
     fn finish(self) -> String {
         self.text
     }
@@ -209,15 +365,22 @@ fn normalize(raw: &str, base: &Path) -> String {
     let port = Regex::new(r"127\.0\.0\.1:\d+").expect("valid port regex");
     let created_at =
         Regex::new(r#"(\"createdAt\"\s*:\s*\")\d{10}(\")"#).expect("valid createdAt regex");
-    let age = Regex::new(r"\b\d+s\b").expect("valid age regex");
+    let age = Regex::new(r"(?m)(\s{2,})\d+s(\s*)$").expect("valid age regex");
     let build_wall_time = Regex::new(r" \(\d+ ms\)").expect("valid build wall-time regex");
+    let nginx_diagnostic =
+        Regex::new(r"(?m)^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[emerg\] \d+#\d+:")
+            .expect("valid nginx diagnostic regex");
+    let local_fetch_memo = Regex::new(r"(?m)^(FETCH native memo (?:miss|hit)) [0-9a-f]{12}")
+        .expect("valid local FETCH memo regex");
     let builder_workspace = Regex::new(r"(?m)^BUILDER ([^ ]+) workspace [^\n]+$")
         .expect("valid builder workspace regex");
     let cargo_progress =
         Regex::new(r"(?m)^\s*(?:Compiling [^\n]+|Finished `release` profile[^\n]*)\n?")
             .expect("valid cargo progress regex");
-    let unit_name =
-        Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.service").expect("valid unit name regex");
+    let unit_name = Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.(service|timer)")
+        .expect("valid unit name regex");
+    let observer_stats = Regex::new(r"(?m)^(user  run  cix-run-observer-[0-9a-f]+\.service)  .+$")
+        .expect("valid observer stats regex");
     let stale_failed_unit =
         Regex::new(r"(?m)^user\s+cix-run-[a-z][a-z0-9-]*-NONCE\.service\s+failed/failed.*\n?")
             .expect("valid stale unit regex");
@@ -236,12 +399,17 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized = store_hash.replace_all(raw, "/nix/store/…-");
     let normalized = port.replace_all(&normalized, TOUR_LISTEN);
     let normalized = created_at.replace_all(&normalized, "${1}1700000000${2}");
-    let normalized = age.replace_all(&normalized, "0s");
+    let normalized = age.replace_all(&normalized, "${1}0s${2}");
     let normalized = build_wall_time.replace_all(&normalized, "");
+    let normalized = nginx_diagnostic.replace_all(&normalized, "nginx: [emerg]");
+    let normalized = local_fetch_memo.replace_all(&normalized, "${1} <command-key>");
     let normalized =
         builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
     let normalized = cargo_progress.replace_all(&normalized, "");
-    let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.service");
+    // Accounting values are live by definition; retain the asserted row identity and schema.
+    let normalized =
+        observer_stats.replace_all(&normalized, "${1}  <live>  <live>  <live>  <live>  <live>");
+    let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.${2}");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
@@ -306,6 +474,31 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         "unexpected store path: {path}"
     );
     path
+}
+
+fn add_raw_item(doc: &Doc, name: &str, contents: &str) -> String {
+    let directory = doc.base.join(name);
+    fs::create_dir(&directory).expect("creating raw item directory");
+    fs::write(directory.join("message"), contents).expect("writing raw item payload");
+    fs::write(
+        directory.join("cix-manifest.json"),
+        r#"{"cixManifest":0,"start":["message"]}"#,
+    )
+    .expect("writing raw item manifest");
+    let output = Command::new("nix")
+        .args(["store", "add-path"])
+        .arg(&directory)
+        .output()
+        .expect("adding raw item to the Nix store");
+    assert!(
+        output.status.success(),
+        "nix store add-path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("raw item path is UTF-8")
+        .trim()
+        .to_owned()
 }
 
 fn listener_fixture(doc: &Doc) -> String {
@@ -376,39 +569,52 @@ while True:
         .to_owned()
 }
 
-fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) {
-    let reference = Ref::parse(reference).expect("parsing compose reference");
-    let reference_text = reference.display();
-    let pointer: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            doc.state_dir
-                .join("names")
-                .join(cix_index::Store::encode_name(&reference.name)),
+fn write_resolved_compose_lock_entries(doc: &Doc, compose_path: &Path, entries: &[(&str, &str)]) {
+    let mut paths = serde_json::Map::new();
+    for (path, reference) in entries {
+        let reference = Ref::parse(reference).expect("parsing compose reference");
+        let reference_text = reference.display();
+        let pointer: serde_json::Value = serde_json::from_slice(
+            &fs::read(
+                doc.state_dir
+                    .join("names")
+                    .join(cix_index::Store::encode_name(&reference.name)),
+            )
+            .expect("reading compose name pointer"),
         )
-        .expect("reading compose name pointer"),
-    )
-    .expect("parsing compose name pointer");
-    let table: serde_json::Value = serde_json::from_slice(
-        &fs::read(
-            Path::new(pointer["storePath"].as_str().expect("pointer store path"))
-                .join("table.json"),
+        .expect("parsing compose name pointer");
+        let table: serde_json::Value = serde_json::from_slice(
+            &fs::read(
+                Path::new(pointer["storePath"].as_str().expect("pointer store path"))
+                    .join("table.json"),
+            )
+            .expect("reading compose tag table"),
         )
-        .expect("reading compose tag table"),
-    )
-    .expect("parsing compose tag table");
-    let record = &table["tags"][&reference.tag];
-    let store_path = record["storePath"]
-        .as_str()
-        .expect("finding compose store path")
-        .to_owned();
-    let nar_hash = record["narHash"]
-        .as_str()
-        .expect("finding compose nar hash")
-        .to_owned();
+        .expect("parsing compose tag table");
+        let record = &table["tags"][&reference.tag];
+        let store_path = record["storePath"]
+            .as_str()
+            .expect("finding compose store path")
+            .to_owned();
+        let nar_hash = record["narHash"]
+            .as_str()
+            .expect("finding compose nar hash")
+            .to_owned();
+        paths.insert(
+            (*path).to_owned(),
+            serde_json::json!({
+                "ref": reference_text,
+                "storePath": store_path,
+                "narHash": nar_hash,
+            }),
+        );
+    }
     fs::write(
         cix_compose::Compose::lock_path(compose_path),
         format!(
-            "{{\n  \"paths\": {{\n    \"web\": {{\n      \"ref\": \"{reference_text}\",\n      \"storePath\": \"{store_path}\",\n      \"narHash\": \"{nar_hash}\"\n    }}\n  }}\n}}\n"
+            "{}\n",
+            serde_json::to_string_pretty(&serde_json::json!({ "paths": paths }))
+                .expect("serializing compose lock")
         ),
     )
     .expect("writing resolved compose lock");
@@ -417,6 +623,103 @@ fn write_resolved_compose_lock(doc: &Doc, compose_path: &Path, reference: &str) 
 fn next_listen() -> String {
     let port = NEXT_TOUR_PORT.fetch_add(1, Ordering::Relaxed);
     format!("127.0.0.1:{port}")
+}
+
+fn tree_hash(name: &str, contents: &[u8]) -> String {
+    let directory = tempfile::Builder::new()
+        .prefix("cix-tour-hash-")
+        .tempdir_in(test_tmp_dir())
+        .expect("creating hash fixture");
+    fs::write(directory.path().join(name), contents).expect("writing hash fixture");
+    let output = Command::new("nix")
+        .args(["hash", "path", "--sri"])
+        .arg(directory.path())
+        .output()
+        .expect("hashing fixture tree");
+    assert!(
+        output.status.success(),
+        "nix hash path failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    String::from_utf8(output.stdout)
+        .expect("Nix hash is UTF-8")
+        .trim()
+        .to_owned()
+}
+
+fn fhs_elf_fixture() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("canonicalizing repository root");
+    let expression = format!(
+        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in
+pkgs.runCommand "cix-tour-fhs-elf" {{ nativeBuildInputs = [ pkgs.gcc pkgs.patchelf ]; }} ''
+  printf '#include <stdio.h>\nint main(void) {{ puts("fhs-tour-ok"); return 0; }}\n' > probe.c
+  cc probe.c -o fhs-probe
+  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath fhs-probe
+  mkdir -p "$out"
+  cp fhs-probe "$out/fhs-probe"
+''"#,
+        root.display()
+    );
+    let output = Command::new("nix")
+        .args([
+            "build",
+            "--impure",
+            "--no-link",
+            "--print-out-paths",
+            "--expr",
+            &expression,
+        ])
+        .output()
+        .expect("building FHS ELF fixture");
+    assert!(
+        output.status.success(),
+        "building FHS ELF failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    PathBuf::from(
+        String::from_utf8(output.stdout)
+            .expect("FHS fixture path is UTF-8")
+            .trim(),
+    )
+}
+
+fn start_file_server(doc: &Doc, directory: &Path, listen: &str) -> Server {
+    let (host, port) = listen.split_once(':').expect("host:port listen address");
+    let child = Command::new("python3")
+        .args(["-m", "http.server", "--bind", host, port, "--directory"])
+        .arg(directory)
+        .current_dir(&doc.base)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starting fixture file server");
+    let mut server = Server { child };
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        if let Some(status) = server.child.try_wait().expect("checking file server") {
+            panic!("fixture file server exited before becoming ready: {status}");
+        }
+        let ready = Command::new("curl")
+            .args([
+                "-fsS",
+                "--max-time",
+                "1",
+                &format!("http://{listen}/fhs-probe"),
+            ])
+            .output()
+            .is_ok_and(|output| output.status.success());
+        if ready {
+            return server;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for fixture file server"
+        );
+        std::thread::sleep(Duration::from_millis(25));
+    }
 }
 
 fn start_server(doc: &Doc, state_dir: &Path, listen: &str) -> Server {
@@ -480,67 +783,396 @@ fn root_filename() -> &'static str {
     "bXktYXBw"
 }
 
-fn chapter_index() -> String {
-    let mut doc = Doc::new("index");
-    doc.para("The index gives mutable, memorable names to immutable Nix store paths. This chapter follows one tag through its complete local life.");
+fn chapter_hello() -> String {
+    let mut doc = Doc::new("hello");
+    fs::write(
+        doc.base.join("index.html"),
+        "<h1>hello from your first composix service</h1>\n",
+    )
+    .expect("writing hello page");
+    fs::write(
+        doc.base.join("nginx.conf"),
+        r#"daemon off;
+error_log stderr info;
+events { }
+http {
+  access_log off;
+  client_body_temp_path /var/cache/nginx/client-body;
+  server { listen 18085; root /srv/www; }
+}
+"#,
+    )
+    .expect("writing hello nginx config");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-    doc.para("## Tag");
-    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
-    let listing = doc.sh("cix ls -l", true);
-    assert!(listing.contains("my-app:v1"));
-    assert!(listing.contains(&first));
+SERVICE hello
+IMPORT ${pkgs.nginx}
+COPY index.html /srv/www/index.html
+COPY nginx.conf /etc/nginx/nginx.conf
+START nginx -c /etc/nginx/nginx.conf -e stderr -g 'pid /run/nginx/nginx.pid;'
+PORT http = 18085
+CACHEDIR /var/cache/nginx
+RUNDIR /run/nginx
+"#,
+    )
+    .expect("writing hello Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing hello lock");
 
-    doc.para("The name points at an immutable tag table. Cix roots that table, which in turn keeps the store paths in its current entries alive.");
-    let roots = doc.sh("ls \"$CIX_STATE_DIR/roots/names\"", true);
-    assert_eq!(roots.trim(), root_filename());
-    let table = doc.sh(
-        &format!(
-            "cat \"$(readlink $CIX_STATE_DIR/roots/names/{}/table)/table.json\"",
-            root_filename()
-        ),
-        true,
-    );
-    assert!(table.contains("\"cixTagTable\": 1"));
-    assert!(table.contains(&first));
+    doc.para("You will build a small nginx service from a canonical Cixfile and inspect the resulting runtime contract. Afterwards, you will understand the shortest path from checked-in files to a production service and why its live receipt belongs to the system-manager scenario.");
+    doc.para("Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.");
 
-    doc.para("## Inspect");
-    doc.para("Inspection resolves the tag, then combines its per-system index entry with the parsed runtime manifest and measured Nix closure as stable JSON.");
-    let inspected = doc.sh("cix inspect my-app:v1", true);
-    assert!(inspected.contains("\"kind\": \"artifact\""));
-    assert!(inspected.contains("\"outputs\": {"));
-    assert!(inspected.contains("\"closureSize\":"));
-    assert!(inspected.contains("\"manifest\":"));
+    doc.para("## Before you start");
+    doc.para("You need Nix with flakes enabled, `cix`, and a running systemd user manager for this rootless walkthrough. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
+    doc.para("Production `cix run` projects the item and its writable role directories. A user manager may reject sandbox properties that the system manager accepts, so this rootless chapter stops at a host-independent inspection and Chapter 5 completes the runtime story.");
 
-    doc.para("## Move");
-    doc.para("Retagging atomically moves the name to a newer immutable build. The old path does not change; this name simply stops pinning it.");
-    let second = fixture(&mut doc, "my-app-v2", "hello from my app v2");
-    let moved = doc.sh("cix ls -l", true);
-    assert!(moved.contains(&second));
-    assert!(!moved.contains(&first));
+    doc.para("## Build the item");
+    doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
+    let source = doc.sh("cat Cixfile index.html nginx.conf", true);
+    assert!(source.contains("IMPORT ${pkgs.nginx}"));
+    assert!(source.contains("START nginx -c /etc/nginx/nginx.conf -e stderr"));
+    assert!(!source.contains("${src}"));
+    assert!(source.contains("CACHEDIR /var/cache/nginx"));
+    assert!(source.contains("RUNDIR /run/nginx"));
 
-    doc.para("## Untag");
-    doc.para("Removing the tag writes a new table with no `v1` entry. The history remains inspectable in immutable predecessor tables, but fresh resolution no longer offers the tag.");
-    doc.sh("cix untag my-app:v1", true);
-    let empty = doc.sh("cix ls", true);
-    assert!(empty.trim().is_empty());
-    doc.para("The next `nix-collect-garbage` may reclaim bytes that no other root still reaches.");
+    let built = doc.sh("cix build .", true);
+    let store_path = built_store_path(&built, "-cix-item-hello");
+    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
+    assert!(manifest.contains("/bin/nginx"));
+    assert!(manifest.contains("\"/var/cache/nginx\""));
+    assert!(manifest.contains("\"/run/nginx\""));
+
+    doc.para("## Run the production contract");
+    // GitHub Actions CI's user systemd manager rejects PrivatePIDs=; cix's D13 retry then omits
+    // BindPaths, so a role-directory-dependent nginx probe cannot be a deterministic tour command.
+    doc.para("> **Not executed here — system-manager scenario:** run the item with `cix run <item> --detach`, request its HTTP port, then stop the printed unit. The [VM dogfood scenario](https://github.com/mathijshenquet/composix/blob/main/nix/vm-dogfood.nix) executes that lifecycle with the item mounts, cache directory, and runtime directory projected by the production manager.");
+    doc.para("You have now built an immutable item whose imported command, copied absolute-path configuration, port, and writable directories are asserted directly from its manifest. The next chapters unpack the language and runtime model behind it.");
     doc.finish()
 }
 
-fn chapter_distribution() -> String {
-    let mut doc = Doc::new("distribution");
+fn chapter_cixfile_language() -> String {
+    let mut doc = Doc::new("cixfile-language");
+    fs::write(doc.base.join("index.html"), "language guide\n")
+        .expect("writing language fixture page");
+    fs::write(
+        doc.base.join("service.conf"),
+        "root=/srv/language\nstate=/var/lib/language\n",
+    )
+    .expect("writing language fixture config");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE language
+IMPORT ${pkgs.coreutils} ${pkgs.busybox} ${pkgs.bash}
+COPY index.html /srv/language/index.html
+COPY ${pkgs.coreutils}/bin/printf /opt/tools/printf
+COPY ${pkgs.nginx}/conf /opt/nginx
+COPY service.conf /etc/language/service.conf
+FILE /etc/language/build-origin <<ORIGIN
+packages=${pkgs.coreutils}
+ORIGIN
+START sleep 60
+ENV SITE_NAME = guide
+ENV API_TOKEN required
+STATEDIR /var/lib/language
+STATEDIR /opt/nginx/state
+CACHEDIR /var/cache/language
+LOGDIR /var/log/language
+CONFIGDIR /etc/language
+RUNDIR /run/language
+PORT web = 8088
+PORT dns = udp:5353
+LISTENER admin
+CLAIM egress
+CLAIM jit
+"#,
+    )
+    .expect("writing language Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing language lock");
+
+    doc.para("You will grow the first service into an example of every everyday Cixfile declaration. Afterwards, you will understand the backward-only graph, explicit binders, and capability vocabulary well enough to read a Cixfile without hidden Docker assumptions.");
+
+    doc.para("## A graph you can read from top to bottom");
+    doc.para("A Cixfile is a backward-only graph. `FROM` binds inputs, a block binds the artifact it creates, and `${name}` can refer only to something declared earlier; there are no ambient package names or inherited filesystem layers. The local directory is the one deliberate convenience: a bare `COPY index.html …` is the same source as `${src}/index.html` after `FROM . AS src`.");
+    let source = doc.sh("cat Cixfile index.html service.conf", true);
+    assert!(source.contains("FROM . AS src"));
+    assert!(source.contains("COPY index.html /srv/language/index.html"));
+    assert!(source.contains("ENV API_TOKEN required"));
+    assert!(source.contains("PORT dns = udp:5353"));
+    assert!(source.contains("CLAIM egress"));
+
+    doc.para("## IMPORT and COPY");
+    doc.para("`IMPORT` unions each package's `bin`, `etc`, and `share` trees into the item. It accepts ordinary package references, bare commands such as `sleep` resolve through that union, and earlier imports win a collision—so coreutils supplies `ls` even though busybox comes later.");
+    doc.para("`COPY` makes its storage choice from provenance. Local source bytes are materialized; package, FETCH, builder, and cix-item sources normally remain links into immutable store trees. A later write or a runtime directory mount beneath a link forces that branch to materialize, which is why the package tree containing `STATEDIR /opt/nginx/state` becomes a real directory while `/opt/tools/printf` remains a link.");
+    let built = doc.sh("cix build .", true);
+    let store_path = built_store_path(&built, "-cix-item-language");
+    let layout = doc.sh(
+        &format!(
+            "test -f {store_path}/srv/language/index.html && test -L {store_path}/opt/tools/printf && test ! -L {store_path}/opt/nginx && printf 'local: materialized\\npackage: linked\\nmount ancestor: materialized\\n'"
+        ),
+        true,
+    );
+    assert_eq!(
+        layout.trim(),
+        "local: materialized\npackage: linked\nmount ancestor: materialized"
+    );
+
+    doc.para("`FILE` creates the small interpolated `build-origin` file below. It is useful when the content genuinely needs a binder value; for ordinary configuration it is a smell, because a checked-in file plus `COPY` stays easier to lint, edit, and test.");
+    let generated = doc.sh(&format!("cat {store_path}/etc/language/build-origin"), true);
+    assert!(generated.contains("packages=/nix/store/") && generated.contains("-coreutils-"));
+
+    doc.para("## Runtime declarations are grants");
+    doc.para("`ENV SITE_NAME = guide` supplies a default, while `ENV API_TOKEN required` requires an operator value without baking one into the item. Role directories use the application's native absolute paths and state their lifecycle: state persists, cache is disposable, logs are retained, config is operator-managed content, and run data disappears on stop.");
+    doc.para("A bare port is TCP; the `udp:` prefix is the single UDP spelling. `LISTENER admin` is different: systemd owns a TCP socket and passes its file descriptor to the service, which is useful for socket activation and privileged binds. Chapter 6 executes that boundary in a compose setting.");
+    doc.para("`CLAIM egress` admits outbound networking, and `CLAIM jit` allows writable executable memory. Without those explicit declarations, the corresponding sandbox authority stays denied.");
+    let manifest = doc.sh(
+        &format!("jq '{{env, ports, listeners, dirs, claims}}' {store_path}/cix-manifest.json"),
+        true,
+    );
+    assert!(manifest.contains("\"udp\""));
+    assert!(manifest.contains("\"admin\""));
+    assert!(manifest.contains("\"required\": true"));
+    assert!(manifest.contains("\"egress\""));
+    assert!(manifest.contains("\"jit\""));
+
+    doc.para("## Directive reference");
+    doc.para("| Declaration | What it adds |\n| --- | --- |\n| `FROM … AS name` | A locked package/source/item binder; `FROM .` names local context. |\n| `FETCH name command … EXPECT hash` | A pinned network step and reusable source binder. |\n| `BUILDER name` | A persistent build workspace for `COPY`, `ENV`, `FETCH`, and offline `RUN`. |\n| `SERVICE name` / `APP name` / `ITEM name` | A long-running runtime contract / run-to-completion contract / manifest-less tree. |\n| `IMPORT package…` | An earlier-wins read-only package union with bare command lookup. |\n| `COPY source /destination` | Provenance-aware item assembly; builder destinations are workdir-relative. |\n| `FILE /destination <<EOF` | An inline interpolated file; prefer checked-in files when possible. |\n| `START` / `START_PRE` | The argv entrypoint / idempotent service pre-start argv. |\n| `ENV` / `SECRET` | Declared runtime configuration / credential-file need. |\n| `PORT` / `LISTENER` | A direct TCP/UDP bind / systemd-owned TCP socket. |\n| role dirs / `DIR` | Cix-managed lifecycle storage / operator-supplied data. |\n| `READINESS` / `LIVENESS` | Startup gating / watchdog restart probes. |\n| `CLAIM` / `SHM` | A narrow sandbox exception / bounded private shared memory. |");
+    doc.finish()
+}
+
+fn chapter_building() -> String {
+    let mut doc = Doc::new("building");
+
+    let fetch_demo = doc.base.join("fetch-demo");
+    fs::create_dir(&fetch_demo).expect("creating FETCH demo");
+    let expected_hash = tree_hash("expected", b"author-pinned");
+    fs::write(
+        fetch_demo.join("Cixfile"),
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH expected ${{pkgs.coreutils}}/bin/printf author-pinned > expected EXPECT {expected_hash}
+FETCH resolved ${{pkgs.coreutils}}/bin/printf lock-pinned > resolved
+
+BUILDER assemble
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{expected}}/expected expected
+COPY ${{resolved}}/resolved resolved
+RUN cat expected resolved > result
+
+ITEM fetched-result
+COPY ${{assemble}}/result /result
+"#
+        ),
+    )
+    .expect("writing FETCH demo Cixfile");
+    fs::write(fetch_demo.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing FETCH demo lock");
+
+    doc.para("You will build pinned network inputs in persistent workspaces, audit them cold, and repair a real downloaded FHS binary before compiling a two-service Rust workspace. Afterwards, you will understand what the lock records, why RUN is offline, how warm replay stays trustworthy, and how one builder can feed narrow independent members.");
+
+    doc.para("## FETCH, EXPECT, and deliberate lock movement");
+    doc.para("This compact fixture uses both trust modes. `expected` carries the author's whole-tree SRI hash directly in the Cixfile; `resolved` asks cix to fetch twice and record only the downstream-observable path when you explicitly update that lock entry.");
+    let fetch_source = doc.sh("cat fetch-demo/Cixfile", true);
+    assert!(fetch_source.contains("FETCH expected"));
+    assert!(fetch_source.contains("EXPECT sha256-"));
+    assert!(fetch_source.contains("FETCH resolved"));
+    assert!(fetch_source.contains("RUN cat expected resolved > result"));
+
+    let updated = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --update-lock resolved fetch-demo",
+        true,
+    );
+    assert!(updated.contains("BUILDER assemble memo miss"), "{updated}");
+    let result_path = built_store_path(&updated, "-cix-item-fetched-result");
+    let combined = doc.sh(&format!("cat {result_path}/result"), true);
+    assert_eq!(combined.trim(), "author-pinnedlock-pinned");
+
+    doc.para("The lock keeps the immutable nixpkgs revision, FETCH pins, constructive step memos, consumed output objects, and a development-environment snapshot. The snapshot comes from the imported package world, so native toolchain variables arrive together; you do not hand-wire store paths such as `PKG_CONFIG_PATH`.");
+    let lock = doc.sh(
+        "jq '{fetches, devEnvCount:(.devEnvs | length)}' fetch-demo/Cixfile.lock",
+        true,
+    );
+    assert!(lock.contains("\"expected\""));
+    assert!(lock.contains("\"resolved\""));
+    assert!(lock.contains("\"devEnvCount\": 1"));
+
+    doc.para("FETCH alone has network authority. The following RUN consumes only staged files in a networkless sandbox, and its command plus imports, environment, and observed read set form the reusable step identity.");
+    let warm = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --stats fetch-demo",
+        true,
+    );
+    assert!(warm.contains("memo-hit"), "{warm}");
+    assert!(warm.contains("\"nixSubprocesses\":0"), "{warm}");
+    doc.para("That hit is not a timestamp promise. Cix rehashes exactly the files, directory listings, metadata probes, and absent paths the command read; unrelated workspace bytes cannot invalidate the step, while a changed observed input does. A persistent workspace is therefore an acceleration structure, not hidden build input.");
+
+    doc.para("`--update-lock` and `--cold` are the audit pair: the first is an explicit trust-moving network operation for a selected non-EXPECT FETCH, while the second never contacts the network and replays the pinned bytes in an empty workspace before comparing reads and consumed outputs.");
+    let cold = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --cold fetch-demo",
+        true,
+    );
+    assert!(cold.contains("BUILDER assemble"), "{cold}");
+    assert_eq!(
+        built_store_path(&cold, "-cix-item-fetched-result"),
+        result_path
+    );
+
+    doc.para("## The FHS diagnostic, then the one-line fix");
+    let fhs_fixture = fhs_elf_fixture();
+    let fhs_bytes = fs::read(fhs_fixture.join("fhs-probe")).expect("reading FHS probe");
+    let fhs_hash = tree_hash("fhs-probe", &fhs_bytes);
+    let listen = next_listen();
+    let _server = start_file_server(&doc, &fhs_fixture, &listen);
+    let fhs_demo = doc.base.join("fhs-demo");
+    fs::create_dir(&fhs_demo).expect("creating FHS demo");
+    fs::write(
+        fhs_demo.join("Cixfile"),
+        format!(
+            r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+FETCH native ${{pkgs.curl}}/bin/curl -fsS http://{listen}/fhs-probe -o fhs-probe EXPECT {fhs_hash}
+
+BUILDER native-build
+IMPORT ${{pkgs.bash}} ${{pkgs.coreutils}}
+COPY ${{native}}/fhs-probe .
+RUN chmod +x fhs-probe
+RUN ./fhs-probe > result
+
+ITEM native-result
+COPY ${{native-build}}/result /result
+"#
+        ),
+    )
+    .expect("writing FHS demo Cixfile");
+    fs::write(fhs_demo.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing FHS demo lock");
+
+    doc.para("The next FETCH downloads an ELF whose interpreter is the conventional GNU `/lib64/ld-linux-x86-64.so.2`. The builder imports a shell and core utilities but no libc, so executing the untouched download must fail—and the shown diagnostic is produced by the real trace, not copied into this guide.");
+    let fhs_source = doc.sh("cat fhs-demo/Cixfile", true);
+    assert!(fhs_source.contains("http://"));
+    assert!(!fhs_source.contains("pkgs.glibc"));
+    let missing = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo",
+        false,
+    );
+    assert!(
+        missing.contains("fhs-probe requires the FHS loader"),
+        "{missing}"
+    );
+    assert!(missing.contains("/lib64/ld-linux-x86-64.so.2"), "{missing}");
+    assert!(missing.contains("IMPORT ${pkgs.glibc}"), "{missing}");
+
+    doc.para("Add glibc to the ordered IMPORT union. Its loader satisfies the fixed FHS alias, so the same downloaded binary runs without mutation or a patchelf step.");
+    doc.sh(
+        "sed -i 's/${pkgs.coreutils}/${pkgs.coreutils} ${pkgs.glibc}/' fhs-demo/Cixfile",
+        true,
+    );
+    let repaired_source = doc.sh("grep '^IMPORT' fhs-demo/Cixfile", true);
+    assert!(repaired_source.contains("${pkgs.glibc}"));
+    let repaired = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build fhs-demo",
+        true,
+    );
+    let repaired_path = built_store_path(&repaired, "-cix-item-native-result");
+    let fhs_result = doc.sh(&format!("cat {repaired_path}/result"), true);
+    assert_eq!(fhs_result.trim(), "fhs-tour-ok");
+
+    doc.para("## Capstone: one Rust workspace, two services");
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/build/proj1");
+    for relative in PROJ1_FILES {
+        let destination = doc.base.join("proj1").join(relative);
+        fs::create_dir_all(destination.parent().expect("project file has a parent"))
+            .expect("creating proj1 directory");
+        fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
+    }
+    doc.para("The capstone is a real Cargo workspace. One BUILDER imports its complete pinned toolchain, stages the declared workspace, and runs Cargo offline; two SERVICE blocks consume one release binary each.");
+    let proj1_source = doc.sh("cat proj1/Cixfile", true);
+    assert!(proj1_source.contains("cargo build --release --locked --offline --workspace"));
+    assert!(proj1_source.contains("SERVICE proj1-api"));
+    assert!(proj1_source.contains("SERVICE proj1-worker"));
+    let first = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1 --namespace proj1 -t v1",
+        true,
+    );
+    let first_api = proj1_item_path(&first, "proj1-api");
+    let first_worker = proj1_item_path(&first, "proj1-worker");
+
+    doc.para("Now change only the worker and select that member with `directory#member`. The warm builder recompiles the changed workspace, but the API's narrow consumed path still names the same immutable item.");
+    doc.sh(
+        "sed -i 's/proj1-worker/proj1-worker-edited/' proj1/rust/worker/src/main.rs",
+        true,
+    );
+    let edited_worker = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-worker",
+        true,
+    );
+    let edited_worker = edited_worker
+        .lines()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("selected worker build printed its item")
+        .to_owned();
+    assert_ne!(edited_worker, first_worker);
+    let unchanged_api = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build proj1#proj1-api",
+        true,
+    );
+    let unchanged_api = unchanged_api
+        .lines()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("selected API build printed its item")
+        .to_owned();
+    assert_eq!(unchanged_api, first_api);
+    doc.para("That is the central build model at project scale: shared warm work stays private to the builder, FETCH trust stays pinned, and each final item depends only on the path it actually copies.");
+    doc.finish()
+}
+
+fn chapter_naming_distribution() -> String {
+    let mut doc = Doc::new("naming-distribution");
     let publisher = doc.state_dir.clone();
     let consumer = doc.base.join("consumer-state");
 
-    doc.para("A served index and a standard Nix binary cache are enough to move the same immutable artifact between machines. Separate state directories stand in for the publisher and consumer here.");
-    doc.para("## Serve");
-    let first = fixture_in(
-        &mut doc,
-        "publisher $",
-        &publisher,
-        "my-app-v1",
-        "hello from my app v1",
+    doc.para("You will give an immutable item a family of operational names, move and remove those names, then serve and refresh one across an index boundary. Afterwards, you will understand why tags are GC-rooted pointers rather than build inputs and how ordinary Nix caches carry the bytes.");
+
+    doc.para("## One demystifying aside: an item is a tree");
+    doc.para("Normally `cix build` writes this tree for you. At the boundary, however, an item is simply a Nix store tree with `cix-manifest.json`; this is the tour's one hand-assembled example, kept short so you can see that no image format is hiding underneath.");
+    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
+
+    doc.para("## Names come after builds");
+    doc.para("The store path already has its complete identity. Tags add mutable operational vocabulary and GC roots after that build, so changing a tag never changes the item it points at. A slash groups related members into a family; the explicit suffix is always a tag, with no magic `latest`.");
+    doc.sh("cix tag my-app:v1 guide/web:v1", true);
+    doc.sh("cix tag my-app:v1 guide/web:stable", true);
+    let family = doc.sh("cix ls -l guide/", true);
+    assert!(family.contains("guide/web:v1"));
+    assert!(family.contains("guide/web:stable"));
+    assert!(family.contains(&first));
+
+    let inspected = doc.sh(
+        "cix inspect guide/web:v1 | jq '{kind, reference, storePath}'",
+        true,
     );
+    assert!(inspected.contains("\"kind\": \"artifact\""));
+    assert!(inspected.contains("\"reference\": \"guide/web:v1\""));
+    assert!(inspected.contains(&first));
+
+    doc.para("There is no mutable image object to rename or delete. Move a name by tagging the destination and untagging the source; remove one with `cix untag`. Nix garbage collection may reclaim an item only after no cix tag or other GC root reaches it.");
+    doc.sh(
+        "cix tag guide/web:v1 guide/web:release && cix untag guide/web:stable",
+        true,
+    );
+    let moved_names = doc.sh("cix ls guide/", true);
+    assert!(moved_names.contains("guide/web:release"));
+    assert!(!moved_names.contains("guide/web:stable"));
+
+    let second = add_raw_item(&doc, "my-app-v2", "hello from my app v2\n");
+    doc.para("Moving `guide/web:v1` to a new build changes only that pointer. The immutable v1 path still exists wherever another root retains it.");
+    doc.sh(&format!("cix tag {second} guide/web:v1"), true);
+    let moved = doc.sh("cix ls -l guide/", true);
+    assert!(moved.contains(&second));
+    assert!(moved.contains(&first));
+
+    doc.para("## Serve and pull");
+    doc.para("`cix serve --with-store` exposes the bare local tag database and a standard Nix binary cache. One content-negotiated URL returns HTML to a browser and the index entry to a cix client; the index resolves names, while Nix signatures and NAR hashes protect content.");
     let listen = next_listen();
     doc.background(
         "publisher $",
@@ -551,385 +1183,529 @@ fn chapter_distribution() -> String {
         "publisher $",
         &publisher,
         &format!(
-            "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://{listen}/my-app:v1"
+            "curl -s -H 'Accept: application/vnd.cix+json;version=1' http://{listen}/guide/web:v1 | jq '{{outputs, substituters}}'"
         ),
         true,
     );
-    assert!(entry.contains("\"outputs\":"));
-    assert!(entry.contains("\"substituters\":"));
-    assert!(entry.contains(&first));
+    assert!(entry.contains("\"outputs\""));
+    assert!(entry.contains(&second));
+    assert!(entry.contains("/store"));
 
-    doc.para("The same URL serves an informative HTML representation to a browser; content negotiation keeps one public name instead of a separate API URL.");
-    let html = doc.sh_in(
-        "publisher $",
-        &publisher,
-        &format!("curl -s http://{listen}/my-app:v1 | head -c 120"),
-        true,
-    );
-    assert!(html.contains("<!doctype html>"));
-
-    doc.para("## Pull");
-    doc.para("The qualified ref names both its origin and tag. `--as` adopts it under a bare local name while retaining the upstream needed for later refreshes.");
+    doc.para("A qualified ref carries its origin. `--as` adopts it under a bare local name while remembering that upstream, and a later bare `cix pull` refreshes every such moving tag.");
     let pulled = doc.sh_in(
         "consumer $",
         &consumer,
-        &format!("cix pull {listen}/my-app:v1 --as my-app:v1"),
+        &format!("cix pull {listen}/guide/web:v1 --as guide/web:v1"),
         true,
     );
     assert!(pulled.contains("updated 1 tag(s)"));
     let local = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
-    assert!(local.contains("my-app:v1"));
-    assert!(local.contains(&first));
+    assert!(local.contains("guide/web:v1"));
+    assert!(local.contains(&second));
     assert!(local.contains(&listen));
 
-    doc.para("## Follow a moving tag");
-    doc.para("The publisher can move `my-app:v1` to a new immutable path. A bare `cix pull` refreshes every local tag that remembers an upstream.");
-    let second = fixture_in(
-        &mut doc,
+    let third = add_raw_item(&doc, "my-app-v3", "hello from my app v3\n");
+    doc.sh_in(
         "publisher $",
         &publisher,
-        "my-app-v2",
-        "hello from my app v2",
+        &format!("cix tag {third} guide/web:v1"),
+        true,
     );
     let refreshed = doc.sh_in("consumer $", &consumer, "cix pull", true);
     assert!(refreshed.contains("updated 1 tag(s)"));
     let updated = doc.sh_in("consumer $", &consumer, "cix ls -l", true);
-    assert!(updated.contains(&second));
-    assert!(!updated.contains(&first));
-    doc.para("GC follows those pins: after the refresh, the consumer roots the new path rather than the old one.");
+    assert!(updated.contains(&third));
+    assert!(!updated.contains(&second));
     drop(server);
+
+    doc.para("The result is deliberately small: mutable HTTP names select immutable store paths, and standard Nix substitution moves their closures. No daemon-owned image graph or default registry is required.");
     doc.finish()
 }
 
-fn chapter_build_run_debug() -> String {
-    let mut doc = Doc::new("build-run-debug");
-    fs::write(doc.base.join("greeting.txt"), "hello from Cixfile\n")
-        .expect("writing Cixfile greeting fixture");
-    fs::write(doc.base.join("tour-app"), "exec \"$@\"\n").expect("writing Cixfile script fixture");
+fn chapter_runtime_contract() -> String {
+    let mut doc = Doc::new("runtime-contract");
+    fs::write(
+        doc.base.join("server.py"),
+        r#"from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b"runtime healthy\n"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format, *args):
+        pass
+
+print("runtime service started", flush=True)
+HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
+"#,
+    )
+    .expect("writing runtime HTTP server");
     fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
-ITEM tour-assets
-COPY ${src}/greeting.txt /share/greeting
+SERVICE web
+IMPORT ${pkgs.python3}
+COPY server.py /srv/app/server.py
+START python3 /srv/app/server.py
+PORT http = 18086
+STATEDIR /var/lib/runtime-guide
+SECRET db-password AS DB_PASSWORD_FILE
+READINESS http :18086/healthz IN 10s
+LIVENESS http :18086/livez EVERY 2s
 
-SERVICE tour-app
-COPY ${src}/greeting.txt /share/greeting
-COPY ${src}/tour-app /bin/tour-app
-START ${pkgs.bash}/bin/sh ${src}/tour-app ${pkgs.coreutils}/bin/sleep 300
+APP cleanup
+IMPORT ${pkgs.coreutils}
+START true
+
+SERVICE observer
+IMPORT ${pkgs.coreutils}
+START sleep 300
 "#,
     )
-    .expect("writing Cixfile fixture");
-    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
-        .expect("writing Cixfile lock fixture");
+    .expect("writing runtime Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing runtime lock");
 
-    doc.para("A Cixfile turns source material plus pinned package inputs into a store item with a runtime manifest. We start by looking at every input this tiny build will use.");
-    doc.para("## Build");
-    doc.sh("ls -1 Cixfile Cixfile.lock greeting.txt tour-app", true);
-    let cixfile = doc.sh("cat Cixfile greeting.txt tour-app", true);
-    assert!(cixfile.contains("ITEM tour-assets"));
-    assert!(cixfile.contains("SERVICE tour-app"));
-    assert!(cixfile.contains("COPY ${src}/tour-app /bin/tour-app"));
-    assert!(cixfile.contains("START ${pkgs.bash}/bin/sh"));
-    let lock = doc.sh("cat Cixfile.lock", true);
-    assert!(lock.contains("\"narHash\""));
+    doc.para("You will inspect a tagged HTTP service with health contracts at the honest rootless boundary, then debug and schedule its run-to-completion sibling. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.");
 
-    doc.para("The package universe is pinned by revision and content hash. These ITEM and SERVICE blocks perform only assembly, so they need no BUILDER: builders exist only when FETCH or RUN has work to do.");
-    doc.para("A directory can carry a translation twin beside its default Cixfile: `cix build --file Cixfile.dissolved .` selects that named file and writes its independent sibling lock, `Cixfile.dissolved.lock`.");
-    let built = doc.sh("cix build . --namespace tour -t v1", true);
-    let store_path = built_store_path(&built, "-cix-item-tour-app");
-    let assets_path = built_store_path(&built, "-cix-item-tour-assets");
+    doc.para("## The item owns needs; the operator owns values");
+    doc.para("The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.");
+    let source = doc.sh("cat Cixfile server.py", true);
+    assert!(source.contains("STATEDIR /var/lib/runtime-guide"));
+    assert!(source.contains("COPY server.py /srv/app/server.py"));
+    assert!(source.contains("START python3 /srv/app/server.py"));
+    assert!(!source.contains("${src}"));
+    assert!(source.contains("SECRET db-password AS DB_PASSWORD_FILE"));
+    assert!(source.contains("READINESS http :18086/healthz IN 10s"));
+    assert!(source.contains("LIVENESS http :18086/livez EVERY 2s"));
+    assert!(source.contains("APP cleanup"));
+    assert!(source.contains("SERVICE observer"));
+    assert!(source.contains("START sleep 300"));
+    let built = doc.sh("cix build . --namespace runtime -t v1", true);
+    assert!(built.contains("\"web\""));
+    assert!(built.contains("\"cleanup\""));
+    assert!(built.contains("\"observer\""));
+    let web_path = proj1_item_path(&built, "web");
 
-    doc.para("The ITEM is a pure store tree. It deliberately has no runtime manifest, so it can be tagged and copied from but cannot become a systemd unit.");
-    let assets = doc.sh(&format!("find {assets_path} -type f | sort"), true);
-    assert!(assets.contains("share/greeting"));
-    assert!(!assets.contains("cix-manifest.json"));
-    let item_run_error = doc.sh("cix run tour/tour-assets:v1 --user", false);
-    assert!(item_run_error.contains("manifest-less ITEM (D68)"));
-
-    doc.para("## Copy from a tagged item");
-    doc.para("A tagged cix item is a third FROM input kind. It is a source tree—not a package namespace or inherited root filesystem—so a second Cixfile can copy one declared path from it.");
-    let prebuilt = doc.base.join("prebuilt");
-    fs::create_dir(&prebuilt).expect("creating tagged-item consumer directory");
-    fs::write(
-        prebuilt.join("Cixfile"),
-        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM tour/tour-assets:v1 AS prior
-
-APP copied-greeting
-COPY ${prior}/share/greeting /share/greeting
-START /bin/true
-"#,
-    )
-    .expect("writing tagged-item consumer Cixfile");
-    fs::write(prebuilt.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
-        .expect("writing tagged-item consumer lock");
-    let consumer = doc.sh("cat prebuilt/Cixfile", true);
-    assert!(consumer.contains("FROM tour/tour-assets:v1 AS prior"));
-    assert!(consumer.contains("COPY ${prior}/share/greeting"));
-    let copied = doc.sh("cix build prebuilt", true);
-    let copied_path = built_store_path(&copied, "-cix-item-copied-greeting");
-    let greeting = doc.sh(&format!("cat {copied_path}/share/greeting"), true);
-    assert_eq!(greeting.trim(), "hello from Cixfile");
-    doc.para("The generated lock pins the tag's selected store path and NAR hash. A later tag move does not affect this consumer until `cix build --update-lock prior prebuilt` deliberately refreshes that binder.");
-    let consumer_lock = doc.sh("cat prebuilt/Cixfile.lock", true);
-    assert!(consumer_lock.contains("\"artifacts\""));
-    assert!(consumer_lock.contains("tour/tour-assets:v1"));
-    assert!(consumer_lock.contains("\"outputs\""));
-
-    doc.para("Before running anything, inspect the generated manifest. It is the hash-covered runtime contract baked into the item: one version-0 service definition, its executable, and any capabilities or writable directories it declares.");
-    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
-    assert!(manifest.contains("\"cixManifest\":0"));
-    assert!(!manifest.contains("\"children\""));
-    assert!(manifest.contains("/bin/sh"));
-
-    doc.para("## Run");
-    doc.para("The tag is enough to start a transient service. `--user` is the explicitly degraded rootless development path; production uses the system manager with DynamicUser and the full hardening profile.");
-    let started = doc.sh("cix run tour/tour-app:v1 --detach --user", true);
-    let unit_name = started
-        .lines()
-        .find(|line| line.starts_with("cix-run-tour-app-") && line.ends_with(".service"))
-        .expect("cix run printed a transient unit name")
-        .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
-    };
-    let own_units = [unit_name.clone()];
-    let running = doc.sh_ps_units(true, &own_units);
-    assert!(running.contains(&unit_name));
-    assert!(running.contains("active/running"));
-
-    doc.para("## Debug");
-    doc.para("`cix debug` resolves the same TAG and compiles the same fresh sandbox, but replaces the declared entrypoint with an operator command. Omitting `-- command` opens an interactive shell.");
-    let debugged = doc.sh(
-        "cix debug tour/tour-app:v1 --user -- /bin/sh -c 'test -n \"$CIX_APP\" && echo debug-command-ran'",
+    doc.para("## Inspect the item, then cross the system-manager boundary");
+    doc.para("`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins. Because D13 permits a user manager to reject that mount namespace, the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.");
+    let parsed = doc.sh(
+        &format!(
+            "{web_path}/bin/python3 -c 'compile(open(\"{web_path}/srv/app/server.py\").read(), \"server.py\", \"exec\"); print(\"copied server parses\")'"
+        ),
         true,
     );
-    assert!(debugged.contains("debug-command-ran"));
+    assert!(parsed.contains("copied server parses"));
+    doc.para("`cix debug` still resolves an item by tag and replaces its entrypoint inside the service sandbox. The finite cleanup sibling has no mount or health dependency, so it is the honest rootless target for that receipt.");
+    let before_debug = user_cix_units().expect("listing user units before cix debug");
+    let debugged = doc.sh("cix debug runtime/cleanup:v1 --user -- true", true);
     assert!(debugged.contains("cix debug --user is degraded"));
+    stop_user_units_created_since(&before_debug, "cix-debug-cleanup-", "the cix debug receipt");
+    stop_empty_cix_run_slice("the cix debug receipt");
 
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    let stopped = doc.sh_ps_units(true, &own_units);
-    assert!(!stopped.contains(&unit_name));
-    doc.finish()
-}
-
-fn chapter_building_with_run() -> String {
-    let mut doc = Doc::new("building-with-run");
-    fs::create_dir(doc.base.join("src")).expect("creating RUN fixture source directory");
-    fs::write(
-        doc.base.join("src/app"),
-        "#!/bin/sh\necho hello-from-run-tour\n",
-    )
-    .expect("writing RUN fixture input");
-    {
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut permissions = fs::metadata(doc.base.join("src/app"))
-            .expect("reading RUN fixture mode")
-            .permissions();
-        permissions.set_mode(0o755);
-        fs::set_permissions(doc.base.join("src/app"), permissions)
-            .expect("making RUN fixture executable");
-    }
-    fs::write(
-        doc.base.join("Cixfile"),
-        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
-
-BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils}
-COPY ${src}/src/ .
-RUN <<BUILD
-if test -e .cix-warm; then
-    printf 'workspace-state: warm\n'
-else
-    printf 'workspace-state: cold\n'
-fi
-mkdir -p result
-tr '[:lower:]' '[:upper:]' < app > result/upper
-touch .cix-warm
-BUILD
-
-SERVICE run-tour
-COPY ${build}/app /bin/app
-COPY ${build}/result/upper /result/upper
-START app
-"#,
-    )
-    .expect("writing RUN Cixfile fixture");
-    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
-        .expect("writing RUN Cixfile lock fixture");
-
-    doc.para("A BUILDER is the workshop side of a Cixfile: it exists because this example has RUN work to perform. First inspect the complete local working directory and the files the build consumes.");
-    doc.sh("ls -R .", true);
-    let input = doc.sh("cat src/app", true);
-    assert!(input.contains("hello-from-run-tour"));
-    let cixfile = doc.sh("cat Cixfile", true);
-    assert!(cixfile.contains("RUN <<BUILD"));
-    doc.sh("cat Cixfile.lock", true);
-
-    doc.para("IMPORT makes bare tools available through the read-only `/bin` union. A command memo combines its directive, imports, environment, and sandbox version with the workspace paths it actually read; unrelated COPY bytes do not invalidate it. The SERVICE consumes only two narrow paths from `${build}`.");
-    let first = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+    doc.para("The observer sibling is deliberately small and long-running, so the observability receipts can assert one tour-owned unit. `ps --json` selects that exact unit instead of formatting an ambient table whose widths depend on unrelated units; the `stats` projection keeps the live counters live while asserting their stable manager, composite, and unit identity.");
+    let started = doc.sh("cix run runtime/observer:v1 --user --detach", true);
+    let observer_unit = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-observer-") && line.ends_with(".service"))
+        .expect("cix run printed an observer unit")
+        .to_owned();
+    let active = doc.run(
+        &doc.state_dir,
+        &format!("systemctl --user is-active {observer_unit}"),
         true,
     );
-    assert!(first.contains("workspace-state: cold"), "{first}");
-    assert!(first.contains("BUILDER build memo miss"), "{first}");
-    let first_path = built_store_path(&first, "-cix-item-run-tour");
-    let transformed = doc.sh(&format!("tail -n 1 {first_path}/result/upper"), true);
-    assert_eq!(transformed.trim(), "ECHO HELLO-FROM-RUN-TOUR");
-
-    doc.para("The lock records just those consumed paths. Repeating the unchanged build materializes them from the store without running the builder.");
-    let second = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+    assert_eq!(String::from_utf8_lossy(&active.stdout).trim(), "active");
+    let ps = doc.sh(
+        &format!(
+            "cix ps --json | jq --arg unit '{observer_unit}' '.[] | select(.unit == $unit) | {{manager, service, unit, state}}'"
+        ),
         true,
     );
-    assert!(second.contains("BUILDER build memo hit"), "{second}");
-    let second_path = built_store_path(&second, "-cix-item-run-tour");
-    assert_eq!(first_path, second_path);
+    assert!(ps.contains("\"manager\": \"user\""));
+    assert!(ps.contains("\"service\": \"observer\""));
+    assert!(ps.contains(&format!("\"unit\": \"{observer_unit}\"")));
+    assert!(ps.contains("\"state\": \"active/running\""));
+    stop_user_unit(&observer_unit, "the cix ps receipt");
+    stop_empty_cix_run_slice("the cix ps receipt");
 
-    doc.para("Changing a declared input changes the chain key. The builder runs again in its persistent workspace, so its private marker is warm while the selected outputs still depend only on declared inputs.");
-    doc.sh(
-        "sed -i 's/hello-from-run-tour/hello-from-run-tour-edited/' src/app",
+    let stats_started = doc.run(
+        &doc.state_dir,
+        "cix run runtime/observer:v1 --user --detach",
         true,
     );
-    let warm = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+    let stats_output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&stats_started.stdout),
+        String::from_utf8_lossy(&stats_started.stderr)
+    );
+    let stats_unit = stats_output
+        .lines()
+        .find(|line| line.starts_with("cix-run-observer-") && line.ends_with(".service"))
+        .expect("cix run printed a stats observer unit");
+    let active = doc.run(
+        &doc.state_dir,
+        &format!("systemctl --user is-active {stats_unit}"),
         true,
     );
-    assert!(warm.contains("workspace-state: warm"), "{warm}");
-    let warm_path = built_store_path(&warm, "-cix-item-run-tour");
-
-    doc.para("`--cold` samples the same chain with an empty workspace and now audits the command's read set as well as its selected outputs. This RUN deliberately reads the warm-only marker, so the audit identifies that path-dependent input and fails at the source line.");
-    let cold = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build --cold .",
-        false,
+    assert_eq!(String::from_utf8_lossy(&active.stdout).trim(), "active");
+    let stats = doc.sh(
+        &format!("cix stats 2>/dev/null | awk -v unit='{stats_unit}' 'NR == 1 || $3 == unit'"),
+        true,
     );
-    assert!(cold.contains("workspace-state: cold"), "{cold}");
+    let mut stats_lines = stats.lines();
+    assert_eq!(
+        stats_lines.next(),
+        Some("MANAGER  COMPOSITE  SERVICE  MEMORY  CPU  TASKS  IO  IP")
+    );
+    let stats_row = stats_lines
+        .next()
+        .expect("cix stats printed the observer row");
     assert!(
-        cold.contains("recorded read set differs between warm and cold"),
-        "{cold}"
+        stats_lines.next().is_none(),
+        "unexpected cix stats rows: {stats}"
     );
+    let stats_fields = stats_row.split_whitespace().collect::<Vec<_>>();
+    assert!(
+        stats_fields.len() >= 8,
+        "unexpected cix stats row: {stats_row}"
+    );
+    assert_eq!(&stats_fields[..3], &["user", "run", stats_unit]);
+    stop_user_unit(stats_unit, "the cix stats receipt");
+    stop_empty_cix_run_slice("the cix stats receipt");
 
-    doc.para("A workspace is only an acceleration structure. Removing it is always safe: the unchanged chain still replays the recorded paths and returns the same item.");
-    doc.sh("rm -rf ../.workspaces-run", true);
-    let wiped = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-run cix build .",
+    let logs = doc.sh("cix logs run/observer --explain", true);
+    assert!(logs.contains("journalctl CIX_COMPOSITE=run CIX_SERVICE=observer"));
+
+    doc.para("## The system-manager guarantees");
+    doc.para("The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. The rootless contract does not guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.");
+    doc.para("`STATEDIR /var/lib/runtime-guide` survives service restarts and belongs to cix until an explicit purge; the item never chooses a host backing path. `SECRET db-password` similarly names no value: compose supplies a root-owned file, systemd projects it below `$CREDENTIALS_DIRECTORY`, and `DB_PASSWORD_FILE` receives only that path. The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.");
+
+    doc.para("## Schedule the APP");
+    doc.para("An APP runs to completion instead of staying active. `--schedule` writes a transient service/timer pair using systemd's `OnCalendar` syntax and prints the timer name; no polling daemon is involved.");
+    let scheduled = doc.sh(
+        "cix run runtime/cleanup:v1 --user --schedule '*-*-* 00:00:00'",
         true,
     );
-    assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
-    assert_eq!(built_store_path(&wiped, "-cix-item-run-tour"), warm_path);
+    let timer = scheduled
+        .lines()
+        .find(|line| line.starts_with("cix-run-cleanup-") && line.ends_with(".timer"))
+        .expect("scheduled APP printed its timer")
+        .to_owned();
+    let _timer = ScheduledUserUnit {
+        timer: timer.clone(),
+    };
+    let active = doc.sh(&format!("systemctl --user is-active {timer}"), true);
+    assert_eq!(active.trim(), "active");
+
+    doc.para("You now have the complete ownership split: artifacts declare their process needs, compose supplies host policy and secrets, and systemd owns lifecycle, health, logs, timers, and accounting.");
     doc.finish()
 }
 
-fn chapter_advanced() -> String {
-    let mut doc = Doc::new("advanced");
+fn chapter_compose() -> String {
+    let mut doc = Doc::new("compose");
 
-    doc.para("The basic chapters use ordinary port declarations and single services. This chapter shows two places where composix deliberately exposes the underlying systemd and Nix shapes instead of hiding them.");
-    doc.para("## Socket activation");
+    doc.para("You will connect two independently built services with a Unix edge and shared state, validate and diff their compose generation, and exercise the socket-activation primitive beneath named listeners. Afterwards, you will understand compose's resolve/build/activate lifecycle, unary `cix run`, rollback boundary, pod option, and journal namespace without mistaking rootless dry-runs for system activation.");
+
+    doc.para("## Named listeners are systemd sockets");
     let listener_path = listener_fixture(&doc);
-    doc.para("The fixture is not opaque: it contains an executable that consumes systemd file descriptor 3 and a version-0 manifest declaring the named `http` listener.");
-    doc.sh("ls -R listener-fixture", true);
-    let fixture = doc.sh(
+    doc.para("A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.");
+    let listener_source = doc.sh(
         "cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json",
         true,
     );
-    assert!(fixture.contains("socket.fromfd(3"));
-    assert!(fixture.contains("\"listeners\""));
-
+    assert!(listener_source.contains("socket.fromfd(3"));
+    assert!(listener_source.contains("\"listeners\""));
     let listen = next_listen();
     let started = doc.sh(
         &format!("cix run {listener_path} --user -p http={listen} --detach"),
         true,
     );
-    let unit_name = started
+    let listener_unit = started
         .lines()
         .find(|line| line.starts_with("cix-run-") && line.ends_with(".service"))
-        .expect("cix run printed a listener unit name")
+        .expect("cix run printed a listener unit")
         .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
+    let _listener = UserUnit {
+        name: listener_unit.clone(),
     };
     wait_for_http(&listen, "LISTEN_FDS=1; no socket() authority");
     let response = doc.sh(&format!("curl -fsS http://{listen}"), true);
     assert_eq!(response.trim(), "LISTEN_FDS=1; no socket() authority");
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    doc.para("Stopping the transient service also removes its companion `.socket` unit.");
+    doc.sh(&format!("systemctl --user stop {listener_unit}"), true);
 
-    doc.para("## Compose");
-    let compose_app = doc.base.join("compose-app");
-    fs::create_dir(&compose_app).expect("creating compose Cixfile directory");
-    write_compose_cixfile(&compose_app, "v1");
-    fs::write(compose_app.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
-        .expect("writing compose Cixfile lock");
-    doc.para("Compose now starts from a real Cixfile-built service rather than a harness-created store path. Its complete build input is visible before use.");
-    doc.sh("ls -1 compose-app", true);
-    let first_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
-    assert!(first_cixfile.contains("COPY ${src}/web /bin/web"));
-    assert!(first_cixfile.contains("START ${pkgs.bash}/bin/sh"));
-    assert!(first_cixfile.contains("compose fixture v1"));
-    doc.sh("cat compose-app/Cixfile.lock", true);
-    let first_build = doc.sh("cix build compose-app -t current", true);
-    let first = built_store_path(&first_build, "-cix-item-web");
+    doc.para("## Two items, one operator document");
+    for (name, extra) in [("producer", "RUNDIR /run/producer\n"), ("consumer", "")] {
+        let directory = doc.base.join(name);
+        fs::create_dir(&directory).expect("creating compose member directory");
+        fs::write(
+            directory.join("Cixfile"),
+            format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\n\nSERVICE {name}\nIMPORT ${{pkgs.coreutils}}\nSTART sleep 300\nENV VERSION = v1\nSTATEDIR /var/lib/shared\n{extra}"
+            ),
+        )
+        .expect("writing compose member Cixfile");
+        fs::write(directory.join("Cixfile.lock"), TOUR_CIXFILE_LOCK)
+            .expect("writing compose member lock");
+    }
+    let members = doc.sh("cat producer/Cixfile consumer/Cixfile", true);
+    assert!(members.contains("RUNDIR /run/producer"));
+    assert_eq!(members.matches("STATEDIR /var/lib/shared").count(), 2);
+    let producer_build = doc.sh("cix build producer -t current", true);
+    let first_producer = built_store_path(&producer_build, "-cix-item-producer");
+    let consumer_build = doc.sh("cix build consumer -t v1", true);
+    let consumer = built_store_path(&consumer_build, "-cix-item-consumer");
 
     fs::write(
         doc.base.join("compose.json"),
         r#"{
   "cixCompose": 1,
-  "name": "tour-compose",
+  "name": "tour-stack",
+  "logNamespace": true,
   "children": {
-    "web": {
-      "item": "web:current",
-      "update": "track"
+    "producer": {
+      "item": "producer:current",
+      "update": "track",
+      "dirs": {"/var/lib/shared": {"shared": "payload"}}
+    },
+    "consumer": {
+      "item": "consumer:v1",
+      "dirs": {"/var/lib/shared": {"shared": "payload"}}
+    }
+  },
+  "edges": {
+    "producer-api": {
+      "producer": {"child": "producer", "path": "/run/producer"},
+      "consumers": {"consumer": {}}
     }
   }
 }
 "#,
     )
-    .expect("writing compose declaration");
+    .expect("writing compose fixture");
+    doc.para("The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.");
     let compose = doc.sh("cat compose.json", true);
-    assert!(compose.contains("\"update\": \"track\""));
+    assert!(compose.contains("\"shared\": \"payload\""));
+    assert!(compose.contains("\"producer-api\""));
+    assert!(compose.contains("\"logNamespace\": true"));
     let checked = doc.sh("cix compose check compose.json", true);
     assert_eq!(
         checked.trim(),
-        "compose tour-compose: 1 services, 0 edges, valid"
+        "compose tour-stack: 2 services, 1 edges, valid"
     );
 
-    write_resolved_compose_lock(&doc, &doc.base.join("compose.json"), "web:current");
-    doc.para("`check` resolves and validates without activation. Root `cix up` owns the persistent lock write, so this rootless chapter records the checked tag's actual values before showing the lock and dry diff.");
+    write_resolved_compose_lock_entries(
+        &doc,
+        &doc.base.join("compose.json"),
+        &[
+            ("producer", "producer:current"),
+            ("consumer", "consumer:v1"),
+        ],
+    );
     let lock = doc.sh("cat cix.lock", true);
-    assert!(lock.contains(&first));
-    let initial_diff = doc.sh_after_warming("cix compose diff compose.json", true);
-    assert!(initial_diff.contains(&first));
+    assert!(lock.contains(&first_producer));
+    assert!(lock.contains(&consumer));
+    let initial = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(
+        initial.contains("cix-tour\x2dstack-producer.service"),
+        "{initial}"
+    );
+    assert!(
+        initial.contains("cix-tour\x2dstack-consumer.service"),
+        "{initial}"
+    );
 
-    write_compose_cixfile(&compose_app, "v2");
-    doc.para("Changing the copied script makes a new immutable item; rebuilding with the same tracked tag moves only the name.");
-    let second_cixfile = doc.sh("cat compose-app/Cixfile compose-app/web", true);
-    assert!(second_cixfile.contains("compose fixture v2"));
-    let second_build = doc.sh("cix build compose-app -t current", true);
-    let second = built_store_path(&second_build, "-cix-item-web");
-    assert_ne!(first, second);
-    let changed_diff = doc.sh_after_warming("cix compose diff compose.json", true);
-    assert!(changed_diff.contains(&second));
-    assert!(!changed_diff.contains(&first));
+    doc.para("`cix run` is the unary form of the same contract compiler. It gives one item a transient lifecycle; compose adds stable names, edges, shared backing, operator values, and retained generations.");
+    let unary = doc.sh("cix run producer:current --user --detach", true);
+    let unary_unit = unary
+        .lines()
+        .find(|line| line.starts_with("cix-run-producer-") && line.ends_with(".service"))
+        .expect("unary run printed a producer unit")
+        .to_owned();
+    let _unary = UserUnit {
+        name: unary_unit.clone(),
+    };
+    doc.sh(&format!("systemctl --user stop {unary_unit}"), true);
 
-    doc.para("`cix up`, `cix rollback`, and `cix down` use the system manager and therefore require root. The [stack example](../../examples/compose/stack/) VM check covers activation, selective update, rollback, and cleanup.");
+    doc.para("Change only the tracked producer item. The dry diff resolves its moved tag and builds a candidate generation without touching the active system manager.");
+    doc.sh(
+        "sed -i 's/ENV VERSION = v1/ENV VERSION = v2/' producer/Cixfile",
+        true,
+    );
+    let producer_v2 = doc.sh("cix build producer -t current", true);
+    let second_producer = built_store_path(&producer_v2, "-cix-item-producer");
+    assert_ne!(first_producer, second_producer);
+    let changed = doc.sh_after_warming("cix compose diff compose.json", true);
+    assert!(changed.contains(&second_producer), "{changed}");
+
+    doc.para("## Activation is the privileged receipt");
+    doc.para("This harness intentionally stops at `check` and `diff`: `cix up compose.json`, `cix rollback tour-stack`, and `cix down tour-stack` manage `/etc/systemd/system`, a root profile, shared backing ownership, and the system manager. The [stack VM scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/lib.nix) executes that exact up → selective change → diff → rollback → down lifecycle, and [the dirs scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix) asserts both writers see the same setgid shared directory.");
+    doc.para("`network: \"pod\"` places a subtree in one private network namespace; named networks and service-DNS policy stay separate concerns. The [network-namespace scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/netns.nix) proves pod co-location, isolation, publication, and cleanup. `logNamespace: true` similarly asks systemd for one journal namespace for this compose tree; `cix logs tour-stack[/child]` selects its stamped fields, with the [observability scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/observability.nix) carrying the privileged receipt.");
     doc.finish()
 }
 
-fn write_compose_cixfile(directory: &Path, version: &str) {
+fn chapter_dev_loop() -> String {
+    let mut doc = Doc::new("dev-loop");
+
+    doc.para("You will keep one artifact rebuilding through an edit, then build faithful and dissolved Docker translations side by side with independent locks. Afterwards, you will understand where `cix watch` fits in the development loop, how `--file` preserves honest alternatives, and where to continue when migrating real Docker projects.");
+
+    doc.para("## Watch the artifact, not a mutable container");
+    let cache_root = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .expect("HOME is set for the tour")
+        .join(".cache/cix/tmp");
+    fs::create_dir_all(&cache_root).expect("creating cix cache temp root");
+    let watch_temp = tempfile::Builder::new()
+        .prefix("tour-watch-")
+        .tempdir_in(&cache_root)
+        .expect("creating watch fixture outside ignored target paths");
+    let watch_dir = watch_temp.path().to_owned();
+    fs::create_dir(watch_dir.join(".git")).expect("marking watch fixture as its own repository");
+    std::os::unix::fs::symlink(&watch_dir, doc.base.join("watch-app"))
+        .expect("linking watch fixture into the tour story");
+    fs::write(watch_dir.join("message"), "first\n").expect("writing watch message");
     fs::write(
-        directory.join("web"),
-        format!("echo compose fixture {version}\n"),
+        watch_dir.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+ITEM watched
+COPY message /message
+"#,
     )
-    .expect("writing compose script");
+    .expect("writing watch Cixfile");
+    fs::write(watch_dir.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing watch lock");
+    let watch_source = doc.sh("cat watch-app/Cixfile watch-app/message", true);
+    assert!(watch_source.contains("ITEM watched"));
+    assert!(watch_source.contains("first"));
+
+    let mut path = doc.bin_dir.display().to_string();
+    if let Some(existing) = std::env::var_os("PATH") {
+        path.push(':');
+        path.push_str(&existing.to_string_lossy());
+    }
+    let mut watcher = Command::new(doc.bin_dir.join("cix"))
+        .args(["watch", "watch-app"])
+        .current_dir(&doc.base)
+        .env("CIX_STATE_DIR", &doc.state_dir)
+        .env(
+            "CIX_BUILD_WORKSPACE_DIR",
+            doc.base.join(".watch-workspaces"),
+        )
+        .env("CIX_WATCH_DEBOUNCE_MS", "30")
+        .env("PATH", path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("starting cix watch");
+    let stdout = watcher.stdout.take().expect("watch stdout");
+    let (lines_sender, lines) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            let _ = lines_sender.send(line.expect("watch stdout line"));
+        }
+    });
+    let stderr = watcher.stderr.take().expect("watch stderr");
+    let (errors_sender, errors) = mpsc::channel();
+    std::thread::spawn(move || {
+        for line in BufReader::new(stderr).lines() {
+            let _ = errors_sender.send(line.expect("watch stderr line"));
+        }
+    });
+    let watching = errors
+        .recv_timeout(Duration::from_secs(5))
+        .expect("watcher announces its root");
+    assert!(watching.starts_with("watching "));
+    doc.background("$", "cix watch watch-app");
+    doc.output(&watching.replace(
+        watch_dir.to_string_lossy().as_ref(),
+        doc.base.join("watch-app").to_string_lossy().as_ref(),
+    ));
+    std::thread::sleep(Duration::from_millis(100));
+    doc.sh("printf 'changed\\n' > watch-app/message", true);
+    let rebuilt = match lines.recv_timeout(Duration::from_secs(60)) {
+        Ok(line) => line,
+        Err(error) => {
+            unsafe {
+                libc::kill(watcher.id() as i32, libc::SIGINT);
+            }
+            let _ = watcher.wait();
+            panic!(
+                "edited watch context should rebuild ({error}); watcher stderr: {:?}",
+                errors.try_iter().collect::<Vec<_>>()
+            );
+        }
+    };
+    assert!(rebuilt.starts_with("/nix/store/"), "{rebuilt}");
+    doc.output(&rebuilt);
+    unsafe {
+        libc::kill(watcher.id() as i32, libc::SIGINT);
+    }
+    assert!(watcher.wait().expect("waiting for cix watch").success());
+    assert!(errors.try_iter().next().is_none());
+    drop(watch_temp);
+
+    doc.para("The watcher coalesces edit bursts, warm-builds the affected Cixfile, and prints the new item. It ignores `.git`, `target`, Cixfile locks, its own workspaces, and gitignored paths, so its outputs do not trigger loops. In a directory with `compose.json`, the same outer loop selectively restarts only services whose rebuilt item changed; framework hot reload stays in `nix develop`.");
+
+    doc.para("## Keep faithful and dissolved translations together");
+    let twins = doc.base.join("twins");
+    fs::create_dir(&twins).expect("creating translation twins");
+    fs::write(twins.join("payload"), "same runtime payload\n").expect("writing twin payload");
     fs::write(
-        directory.join("Cixfile"),
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nSERVICE web\nCOPY ${src}/web /bin/web\nSTART ${pkgs.bash}/bin/sh ${src}/web\n",
+        twins.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER faithful-build
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+COPY ${src}/payload .
+RUN cp payload result
+
+ITEM translation
+COPY ${faithful-build}/result /payload
+"#,
     )
-    .expect("writing compose Cixfile");
+    .expect("writing faithful Cixfile");
+    fs::write(twins.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing faithful lock");
+    fs::write(
+        twins.join("Cixfile.dissolved"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+ITEM translation
+COPY payload /payload
+"#,
+    )
+    .expect("writing dissolved Cixfile");
+    fs::write(twins.join("Cixfile.dissolved.lock"), TOUR_CIXFILE_LOCK)
+        .expect("writing dissolved lock");
+
+    doc.para("A faithful twin preserves upstream build choreography when that behavior matters; a dissolved twin selects the nix-native result directly when the ceremony adds no contract. `--file` chooses one without renaming files or mixing trust state, and each Cixfile writes its own sibling lock.");
+    let twin_source = doc.sh("cat twins/Cixfile twins/Cixfile.dissolved", true);
+    assert!(twin_source.contains("BUILDER faithful-build"));
+    assert!(twin_source.contains("ITEM translation\nCOPY payload /payload"));
+    let faithful = doc.sh(
+        "CIX_BUILD_WORKSPACE_DIR=$PWD/.twin-workspaces cix build twins",
+        true,
+    );
+    let faithful_path = built_store_path(&faithful, "-cix-item-translation");
+    let dissolved = doc.sh("cix build --file Cixfile.dissolved twins", true);
+    let dissolved_path = built_store_path(&dissolved, "-cix-item-translation");
+    assert_eq!(
+        fs::read_to_string(Path::new(&faithful_path).join("payload"))
+            .expect("reading faithful payload"),
+        fs::read_to_string(Path::new(&dissolved_path).join("payload"))
+            .expect("reading dissolved payload")
+    );
+    let locks = doc.sh("ls -1 twins/Cixfile*.lock", true);
+    assert!(locks.contains("twins/Cixfile.lock"));
+    assert!(locks.contains("twins/Cixfile.dissolved.lock"));
+
+    doc.para("## Continue with real migrations");
+    doc.para("Use the [Docker-to-Cixfile translation guide](../migrate.html) for directive-by-directive choices and the faithful-versus-dissolved decision. Browse the [migration corpus gallery](../corpus/index.html) for worked pairs, source context, receipts, and explicit remaining gaps. Start with behavior you can probe, keep every FETCH pinned, and let the resulting Cixfile become the same artifact contract you have just watched and built here.");
+    doc.finish()
 }
 
 fn built_store_path(output: &str, suffix: &str) -> String {
@@ -937,96 +1713,6 @@ fn built_store_path(output: &str, suffix: &str) -> String {
         .into_values()
         .find(|path| path.ends_with(suffix))
         .unwrap_or_else(|| panic!("build did not print an item ending in {suffix:?}:\n{output}"))
-}
-
-fn chapter_proj1() -> String {
-    let mut doc = Doc::new("proj1");
-    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/build/proj1");
-    for relative in PROJ1_FILES {
-        let destination = doc.base.join(relative);
-        fs::create_dir_all(destination.parent().expect("project file has a parent"))
-            .expect("creating proj1 directory");
-        fs::copy(source.join(relative), destination).expect("copying proj1 fixture");
-    }
-
-    doc.para("This small Rust workspace makes persistent workspaces and narrow output records concrete. First inspect its complete tree, then read the Cixfile that turns it into two independent service artifacts.");
-    doc.sh("ls -R .", true);
-    let cixfile = doc.sh("cat Cixfile", true);
-    assert!(cixfile.contains("BUILDER build"));
-    assert!(cixfile.contains("IMPORT ${pkgs.bash}"));
-    assert!(!cixfile.contains("\nCACHE "));
-    assert!(cixfile.contains("COPY ${src}/rust/ ."));
-    assert!(cixfile.contains("COPY ${build}/target/release/proj1-api"));
-    assert!(cixfile.contains("RUN <<BUILD"));
-
-    doc.para("One directory COPY stages the declared Rust sources. Cargo's `target/` tree and the marker written by RUN remain in the persistent workspace automatically, while the two SERVICE blocks consume only their own release binaries. The first build is cold.");
-    let first = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build . --namespace proj1 -t v1",
-        true,
-    );
-    assert!(first.contains("BUILDER build memo miss"), "{first}");
-    assert!(first.contains("workspace-state: cold"), "{first}");
-    let first_api = proj1_item_path(&first, "proj1-api");
-    let first_worker = proj1_item_path(&first, "proj1-worker");
-
-    doc.para("Changing only worker source changes the chain key and runs the builder in its warm workspace. Cargo rebuilds what changed. Because the lock records each consumed binary separately, the API item does not move.");
-    let worker_source = doc.sh("cat rust/worker/src/main.rs", true);
-    assert!(worker_source.contains("proj1-worker"));
-    doc.sh(
-        "sed -i 's/proj1-worker/proj1-worker-edited/' rust/worker/src/main.rs",
-        true,
-    );
-    let edited = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
-        true,
-    );
-    assert!(edited.contains("BUILDER build memo miss"), "{edited}");
-    assert!(edited.contains("workspace-state: warm"), "{edited}");
-    let edited_api = proj1_item_path(&edited, "proj1-api");
-    let edited_worker = proj1_item_path(&edited, "proj1-worker");
-    assert_eq!(edited_api, first_api);
-    assert_ne!(edited_worker, first_worker);
-    let unchanged = doc.sh(
-        &format!("test {first_api} = {edited_api} && echo 'api item unchanged: yes'"),
-        true,
-    );
-    assert_eq!(unchanged.trim(), "api item unchanged: yes");
-
-    doc.para("A sampled `--cold` rebuild uses an empty workspace and checks the RUN's traced inputs before accepting its outputs. This fixture deliberately reads warm Cargo state and its marker, so the audit reports the first warm/cold read-set difference instead of silently accepting output coincidence.");
-    let clean = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build --cold .",
-        false,
-    );
-    assert!(clean.contains("workspace-state: cold"), "{clean}");
-    assert!(
-        clean.contains("recorded read set differs between warm and cold"),
-        "{clean}"
-    );
-
-    doc.para("The warm workspace remains disposable. Delete it and the unchanged chain replays the two recorded binaries without changing either item.");
-    doc.sh("rm -rf ../.workspaces-proj1", true);
-    let wiped = doc.sh(
-        "CIX_BUILD_WORKSPACE_DIR=$PWD/../.workspaces-proj1 cix build .",
-        true,
-    );
-    assert!(wiped.contains("BUILDER build memo hit"), "{wiped}");
-    assert_eq!(proj1_item_path(&wiped, "proj1-api"), edited_api);
-    assert_eq!(proj1_item_path(&wiped, "proj1-worker"), edited_worker);
-
-    let started = doc.sh("cix run proj1/proj1-api:v1 --user --detach", true);
-    let unit_name = started
-        .lines()
-        .find(|line| line.starts_with("cix-run-proj1-api-") && line.ends_with(".service"))
-        .expect("cix run printed the proj1 api unit")
-        .to_owned();
-    let _unit = UserUnit {
-        name: unit_name.clone(),
-    };
-    wait_for_http("127.0.0.1:18084", "hello from proj1-api");
-    let response = doc.sh("curl -fsS http://127.0.0.1:18084", true);
-    assert_eq!(response.trim(), "hello from proj1-api");
-    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
-    doc.finish()
 }
 
 fn proj1_item_path(output: &str, name: &str) -> String {
@@ -1067,7 +1753,7 @@ fn auto_generated_notice() -> String {
 
 fn render_index(scenarios: &[Scenario]) -> String {
     let mut index = format!(
-        "# cix — tour\n\n{}\nThis executable tour follows composix from naming and distribution through building, running, debugging, and composing. Each chapter is one continuous story: inputs are shown before use, commands are real, and assertions keep the prose honest.\n\n## Chapters\n",
+        "# composix — new-user guide\n\n{}\nComposix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that declare exactly what enters an item and what its process may use.\n\nStart at [Chapter 1](01-hello-composix.html) and follow the guide in order; every shown command is executed by the tour harness.\n\n## Chapters\n",
         auto_generated_notice()
     );
     for scenario in scenarios {
@@ -1113,40 +1799,50 @@ fn render_tour() -> Vec<GeneratedFile> {
     let _lock = TOUR_RENDER_LOCK.lock().expect("locking tour renderer");
     let scenarios = vec![
         Scenario {
-            filename: "01-index.md",
-            title: "Chapter 1: The index",
-            description: "Tag, inspect, move, and remove one local name.",
-            body: chapter_index(),
+            filename: "01-hello-composix.md",
+            title: "Chapter 1: Hello, composix",
+            description: "Build your first canonical service item and probe the rootless boundary.",
+            body: chapter_hello(),
         },
         Scenario {
-            filename: "02-distribution.md",
-            title: "Chapter 2: Distribution",
-            description: "Serve an index and store, pull it elsewhere, and follow a moving tag.",
-            body: chapter_distribution(),
+            filename: "02-cixfile-language.md",
+            title: "Chapter 2: The Cixfile language",
+            description:
+                "Learn binders, assembly, runtime declarations, and the directive vocabulary.",
+            body: chapter_cixfile_language(),
         },
         Scenario {
-            filename: "03-build-run-debug.md",
-            title: "Chapter 3: Build, run, debug",
-            description: "Read a Cixfile, build its manifest, run by tag, and debug the same tag.",
-            body: chapter_build_run_debug(),
+            filename: "03-building.md",
+            title: "Chapter 3: Building: BUILDERs, FETCH, and the lock",
+            description:
+                "Pin network inputs, reuse audited work, repair an FHS binary, and build proj1.",
+            body: chapter_building(),
         },
         Scenario {
-            filename: "04-building-with-run.md",
-            title: "Chapter 4: Building with RUN",
-            description: "Build through a persistent workspace and replay only consumed paths.",
-            body: chapter_building_with_run(),
+            filename: "04-naming-distribution.md",
+            title: "Chapter 4: Naming and distribution",
+            description:
+                "Tag immutable items, manage families, serve a cache, and follow a moving ref.",
+            body: chapter_naming_distribution(),
         },
         Scenario {
-            filename: "05-proj1.md",
-            title: "Chapter 5: proj1",
-            description: "Build two services from one Rust workspace and run the API.",
-            body: chapter_proj1(),
+            filename: "05-runtime-contract.md",
+            title: "Chapter 5: Running: the runtime contract",
+            description:
+                "Inspect health and observability, debug by tag, and schedule an APP.",
+            body: chapter_runtime_contract(),
         },
         Scenario {
-            filename: "06-advanced.md",
-            title: "Chapter 6: Advanced",
-            description: "Inspect socket activation, then compose a real Cixfile-built service.",
-            body: chapter_advanced(),
+            filename: "06-compose.md",
+            title: "Chapter 6: Compose",
+            description: "Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.",
+            body: chapter_compose(),
+        },
+        Scenario {
+            filename: "07-dev-loop-docker.md",
+            title: "Chapter 7: The dev loop and coming from Docker",
+            description: "Watch artifact rebuilds, keep translation twins, and continue into the migration corpus.",
+            body: chapter_dev_loop(),
         },
     ];
     let mut files = Vec::with_capacity(scenarios.len() + 1);

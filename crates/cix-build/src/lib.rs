@@ -32,6 +32,7 @@ pub(crate) use cix_timing;
 
 mod build_chain;
 mod codegen;
+mod eval_plan;
 mod fetch;
 mod fhs;
 mod lock;
@@ -45,6 +46,7 @@ pub use codegen::{
     generate_fetch_context_nix, generate_fetch_offer_nix, generate_nix,
     generate_nix_with_snapshots, generate_spec_json,
 };
+pub use eval_plan::{EvalPlan, EVAL_PLAN_VERSION};
 pub use fetch::revoke_fetch_consent;
 pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, ArtifactPin, ConsumedPath, DevEnvironment,

@@ -86,6 +86,7 @@ pub fn build_family_with_stats_file(
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    let record_eval_plan = selector.is_none() && file_name == "Cixfile";
     let mut cixfile = match selector {
         Some(member) => cixfile.backward_slice(member).with_context(|| {
             format!(
@@ -179,6 +180,16 @@ pub fn build_family_with_stats_file(
     );
     save_lock(&lock_path, &lock)?;
     let (snapshots, executed_steps) = execution?;
+    if record_eval_plan {
+        match cix_build::EvalPlan::from_cixfile(&cixfile, content_hash(source.as_bytes()), &lock) {
+            Ok(plan) => lock.eval_plan = Some(plan),
+            Err(error) => {
+                lock.eval_plan = None;
+                eprintln!("note: Cixfile.lock is not CIP-94-ready: {error:#}");
+            }
+        }
+        save_lock(&lock_path, &lock)?;
+    }
     let mut outputs = Vec::new();
     for name in &cixfile.artifact_order {
         let expression =
@@ -274,6 +285,13 @@ fn source_tree_hash(directory: &std::path::Path, file_name: &str) -> Result<Stri
     hash_source_tree(directory, directory, file_name, &mut digest)?;
     let digest = digest.finalize();
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn content_hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn build_fingerprint(
@@ -493,6 +511,8 @@ mod tests {
             memo: BTreeMap::new(),
             step_memo: BTreeMap::new(),
             dev_envs: BTreeMap::new(),
+            builder_dev_envs: BTreeMap::new(),
+            eval_plan: None,
             outputs: BTreeMap::new(),
         };
         let before = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();

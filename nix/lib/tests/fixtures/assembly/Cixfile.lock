@@ -1,0 +1,78 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  },
+  "evalPlan": {
+    "version": 1,
+    "cixfileHash": "20eeb643f1716f0cb2a9b1142c4c695b91c013391d53602e82d4db98f94fa98e",
+    "skeleton": "v2:/usr/bin/env->/bin/env;x86_64:/lib64/ld-linux-x86-64.so.2->/lib/cix-loaders/ld-linux-x86-64.so.2,/lib/ld-musl-x86_64.so.1->/lib/cix-loaders/ld-musl-x86_64.so.1",
+    "inputs": {
+      "pkgs": {
+        "url": "github:NixOS/nixpkgs/nixos-unstable",
+        "kind": "package-universe",
+        "overlays": []
+      },
+      "src": {
+        "url": ".",
+        "kind": "source",
+        "overlays": []
+      }
+    },
+    "topLevelFetchCount": 0,
+    "builders": {},
+    "artifacts": {
+      "assembly": {
+        "kind": "item",
+        "imports": [
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "coreutils"
+            }
+          ]
+        ],
+        "copies": [
+          {
+            "src": [
+              {
+                "kind": "binder",
+                "name": "src"
+              },
+              {
+                "kind": "literal",
+                "value": "/payload.txt"
+              }
+            ],
+            "dst": "payload.txt",
+            "mode": "materialize",
+            "line": 6
+          }
+        ],
+        "assembly": [
+          {
+            "kind": "file",
+            "dst": "etc/identity",
+            "contents": [
+              {
+                "kind": "literal",
+                "value": "assembled by both paths\n"
+              }
+            ],
+            "line": 7
+          }
+        ]
+      }
+    }
+  },
+  "outputs": {
+    "assembly": {
+      "sourceHash": "7d884d1b9efbd0cc8aed96e5122daccf7d18afd84daf8b9a88d32049ce456232",
+      "storePath": "/nix/store/dkm1sik3vahi40z7brkq0ibd6b1wnq9z-cix-item-assembly"
+    }
+  }
+}

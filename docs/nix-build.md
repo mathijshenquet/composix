@@ -21,7 +21,8 @@ The distinction from D67 matters before any timings do:
 | --- | --- | --- |
 | Upstream flake | Derivation-native | A flake evaluates to a derivation. Other flakes can depend on it, Nix knows its runtime references, and normal substituters can serve its closure. |
 | crane flake | Derivation-native | The same interoperation, with separate dependency artifacts used to shorten source-only rebuilds. |
-| Cixfile | Store-native | Cix orchestrates networked `FETCH` and warm workspaces, then commits a store tree. It does not produce a derivation that another flake can depend on. Distribution goes through the Cix index. |
+| Cixfile via `cix build` | Store-native | Cix orchestrates networked `FETCH` and warm workspaces, then commits a store tree. Distribution goes through the Cix index. |
+| Locked Cixfile via `buildCixfile` | Derivation-native, bounded | Pure Nix evaluation replays the checked-in cold plan as derivations. Other flakes can depend on the resulting `ITEM`, within the milestone boundary below. |
 
 “Store-native” is deliberately narrower than “derivation-native”. Cix uses
 Nix store paths and NAR identities, but `cix build` is an orchestration command,
@@ -34,6 +35,44 @@ final tree without registering the dynamic library store references embedded
 in its executable. Consequently, the reported Cix closure is incomplete and
 is not evidence of a smaller distributable closure. The closure receipt below
 shows the problem directly.
+
+## Consuming a locked Cixfile from Nix
+
+The CIP-94 library turns the reproducible subset of a checked-in `Cixfile` and
+`Cixfile.lock` into an ordinary derivation, without installing or running cix
+during evaluation or the build:
+
+```nix
+{
+  inputs.cix-lib.url = "github:mathijshenquet/composix?dir=nix/lib";
+
+  outputs = { self, cix-lib, ... }: {
+    packages.x86_64-linux.default = cix-lib.buildCixfile {
+      src = self;
+      item = "my-package";
+    };
+  };
+}
+```
+
+The root composix flake exports the same function as
+`composix.lib.buildCixfile`. The lock carries a content-bound evaluation plan;
+if the Cixfile changed, refresh and commit its lock before evaluating the
+flake. A builder `FETCH` is one fixed-output derivation using the recorded
+post-step NAR hash, and subsequent `RUN` steps are normal offline derivations.
+Neither path nests bubblewrap: Nix supplies the build and network isolation,
+while a namespace-free `proot` view recreates the cix filesystem skeleton and
+synthetic uid 0. This keeps `buildCixfile` usable on hosts that disable
+unprivileged user namespaces; the acceptance check realizes both derivation
+classes under that policy and still requires byte-identical output.
+
+Milestone 1 covers builder-less `ITEM` assembly with `IMPORT`, `COPY`, and
+`FILE`, plus one `BUILDER` using `IMPORT`, `ENV`, `COPY`, `FETCH`, and `RUN`.
+It rejects top-level fetches, artifact-valued `FROM`, multi-builder graphs,
+and `SERVICE`/`APP` output at evaluation time. Builders importing the CIP-95
+FHS loader surface are also rejected explicitly: mount-namespace loader
+aliases cannot be reproduced by a plain Nix derivation yet. Use
+`cix build --cold` for those definitions.
 
 ## What was authored
 

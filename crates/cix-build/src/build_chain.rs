@@ -694,6 +694,7 @@ fn execute_top_fetch(
         fetch.expected.is_some(),
         force,
         actual_paths,
+        &output_hash,
         volatile,
         name,
     )?;
@@ -891,7 +892,7 @@ fn execute_builder(
     let mut copy_index = 0;
     let mut step_results = Vec::with_capacity(builder.steps.len());
     let mut fetch_snapshots =
-        BTreeMap::<String, (bool, Option<String>, BTreeMap<String, VolatilePath>)>::new();
+        BTreeMap::<String, (bool, Option<String>, String, BTreeMap<String, VolatilePath>)>::new();
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
             BuildStep::Env {
@@ -1148,8 +1149,10 @@ fn execute_builder(
                         lock.fetches.insert(id.clone(), FetchPin::automatic());
                     }
                     let snapshot = add_store_object(&workdir, "cix-fetch-snapshot")?;
-                    fetch_snapshots
-                        .insert(id, (expected.is_some(), Some(snapshot.clone()), volatile));
+                    fetch_snapshots.insert(
+                        id,
+                        (expected.is_some(), Some(snapshot.clone()), actual, volatile),
+                    );
                 }
                 let changes_started = Instant::now();
                 let mut changes =
@@ -1260,12 +1263,13 @@ fn execute_builder(
     if !fetch_snapshots.is_empty() {
         let actual_paths = fetch_path_hashes(&workdir, &needed)?;
         report_unconsumed_complement(builder_name, &workdir, &needed);
-        for (id, (expected, snapshot, volatile)) in fetch_snapshots {
+        for (id, (expected, snapshot, snapshot_nar_hash, volatile)) in fetch_snapshots {
             let refreshed = refresh_fetch_pin(
                 lock.fetches.get(&id),
                 expected,
                 update_fetch_pins,
                 actual_paths.clone(),
+                &snapshot_nar_hash,
                 volatile,
                 &id,
             )?;
@@ -1397,6 +1401,8 @@ fn vendored_dev_environment(
         .context("package universe identity was not resolved")?;
     let key = format!("{identity}:{}", hex_hash(imports.join("\0").as_bytes()));
     if let Some(snapshot) = lock.dev_envs.get(&key) {
+        lock.builder_dev_envs
+            .insert(builder_name.to_owned(), key.clone());
         let environment = filter_development_environment(&snapshot.environment);
         if environment != snapshot.environment {
             lock.dev_envs.insert(
@@ -1428,11 +1434,12 @@ fn vendored_dev_environment(
         .collect::<BTreeMap<_, _>>();
     let environment = filter_development_environment(&raw_environment);
     lock.dev_envs.insert(
-        key,
+        key.clone(),
         DevEnvironment {
             environment: environment.clone(),
         },
     );
+    lock.builder_dev_envs.insert(builder_name.to_owned(), key);
     Ok(environment)
 }
 
@@ -3498,6 +3505,7 @@ fn refresh_fetch_pin(
     expected: bool,
     force: bool,
     actual_paths: BTreeMap<String, String>,
+    snapshot_nar_hash: &str,
     volatile: BTreeMap<String, VolatilePath>,
     name: &str,
 ) -> Result<FetchPin> {
@@ -3505,6 +3513,7 @@ fn refresh_fetch_pin(
         let mut pin = previous
             .cloned()
             .context("declared EXPECT pin was not installed")?;
+        pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
         pin.store_path = None;
         if !volatile.is_empty() {
             pin.volatile = volatile;
@@ -3534,6 +3543,7 @@ fn refresh_fetch_pin(
         }
     }
     pin.nar_hash.clear();
+    pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
     pin.paths = actual_paths;
     pin.store_path = None;
     if force {

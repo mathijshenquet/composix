@@ -205,3 +205,66 @@
   checks completed their real TCG guests in 164s and 274s respectively. The
   full flake matrix was deliberately not run: project policy reserves it for
   the orchestrator's independent pre-merge gate.
+
+- 2026-08-04T10:56:25Z — Started track/cip94 milestone 1 from `origin/main`
+  (`1d599dc`). The binding outcome is a pure `nix/lib` eval-from-lock
+  `buildCixfile` whose pure-assembly and one-builder FETCH+RUN fixtures are
+  byte-identical to synchronous `cix build --cold` results. FHS-consuming
+  builders are a loud eval-time boundary; multi-builder and runtime-manifest
+  behavior may be cut only with explicit errors. First step: map the Rust
+  cold builder, lock schema, and flake check conventions before choosing the
+  smallest shared skeleton representation.
+
+- 2026-08-04T11:08:00Z — Added the pure-eval lock substrate. Each FETCH now
+  records the NAR hash of its complete immediate post-step workspace
+  (`snapshotNarHash`), which is the missing hash required to model exactly one
+  fixed-output derivation per FETCH; locks also record the dev-env snapshot
+  selected by each builder. A versioned, Cixfile-content-bound `evalPlan`
+  serializes the resolved parser AST rather than duplicating the Cixfile parser
+  in Nix. Existing locks remain readable and ordinary cold builds merely omit
+  the plan with a loud note until their FETCH pin is refreshed. Focused Rust
+  receipt (44 tests): `env TMPDIR=/dev/shm/composix-cip94-20260804/tmp
+  CARGO_TARGET_DIR=/dev/shm/composix-cip94-20260804/target cargo test -p
+  cix-build -p cix-cixfile --lib` exited 0. Host `/dev/md3` briefly reached
+  ENOSPC and rustfmt truncated `build_chain.rs`; the zero-byte file was caught
+  immediately, restored byte-for-byte from HEAD, and the isolated edits were
+  reapplied before the green receipt. All further build state stays in
+  `/dev/shm`.
+
+- 2026-08-04T11:51:59Z — Implemented `buildCixfile` under `nix/lib` and
+  exposed it through both `?dir=nix/lib` and the root flake `lib`. Milestone 1
+  replays pure assembly and one BUILDER with one FOD per FETCH, normal offline
+  RUN derivations, the recorded development environment, and the shared
+  skeleton fingerprint. Explicit cuts are top-level FETCH, artifact-valued
+  FROM, multi-BUILDER graphs, SERVICE/APP outputs, and builders importing the
+  CIP-95 FHS loader providers; each has a named eval-time error. The focused
+  NixOS VM check ran synchronously in TCG and exited 0 after 50.15s: its
+  network-offline guest compared real `cix build --cold` outputs to the Nix
+  library derivations and observed matching assembly NAR
+  `sha256-ZRz7n5+saF91Ur/koP/FtpND17AtJ8/NlE0Fa5Lsg8I=` and builder NAR
+  `sha256-mJCuDVcxbt6bxVjHyNyPqCYcELx4S5QtKteXuQnrSmk=`; it also confirmed the
+  CIP-95 rejection. Exact command: `env
+  TMPDIR=/dev/shm/composix-cip94-20260804/tmp nix build
+  .#checks.x86_64-linux.build-cixfile-byte-identity --no-link -L`.
+
+- 2026-08-04T11:59:51Z — Final agent tier is green. With command prefix
+  `nice -n 10 env TMPDIR=/dev/shm/composix-cip94-20260804/tmp
+  CARGO_TARGET_DIR=/dev/shm/composix-cip94-20260804/target`, synchronous
+  exit-0 receipts were: `cargo fmt --all --check`; `cargo run -j 6 -- fmt
+  --check examples`; `cargo clippy -j 6 --workspace --all-targets -- -D
+  warnings`; `cargo test -j 6 --workspace`; `cargo test -j 6 -p cix --test
+  tour -- --ignored generate_tour`, then `git diff --exit-code -- docs/tour`
+  and `cargo test -j 6 -p cix --test tour -- --nocapture`. Nix receipts:
+  `nix flake show ./nix/lib --no-write-lock-file`; `nix eval
+  .#lib --apply builtins.attrNames --json` (result:
+  `["buildCixfile","withSpec"]`); and `nice -n 10 nix build
+  .#checks.x86_64-linux.with-spec-redis --no-link -L --max-jobs 6 --cores 4`.
+  The final focused receipt on committed head `ff81690` was `nice -n 10 env
+  TMPDIR=/dev/shm/composix-cip94-20260804/tmp nix build
+  .#checks.x86_64-linux.build-cixfile-byte-identity --no-link -L --max-jobs 6
+  --cores 4`: synchronous exit 0, real TCG guest in 46.66s. The first tour
+  generator attempt encountered a transient Cargo cache SQLite I/O error; its
+  clean-workspace retry and the subsequent full tour harness both exited 0.
+  Per project policy, the full flake matrix is reserved for the orchestrator's
+  independent pre-merge gate and was not run here. No corpus or migration
+  ledger files were touched, as required by the track fence.

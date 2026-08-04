@@ -1,0 +1,88 @@
+# Chapter 7: The dev loop and coming from Docker
+
+> **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.
+> All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.
+> Version **0.1.0**, commit `unknown`.
+> **Do not edit** — re-run the test to regenerate.
+
+You will keep one artifact rebuilding through an edit, then build faithful and dissolved Docker translations side by side with independent locks. Afterwards, you will understand where `cix watch` fits in the development loop, how `--file` preserves honest alternatives, and where to continue when migrating real Docker projects.
+
+## Watch the artifact, not a mutable container
+
+```sh
+$ cat watch-app/Cixfile watch-app/message
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+ITEM watched
+COPY message /message
+first
+```
+
+```sh
+$ cix watch watch-app &
+```
+
+```text
+watching ~/watch-app
+```
+
+```sh
+$ printf 'changed\n' > watch-app/message
+```
+
+```text
+/nix/store/…-cix-item-watched
+```
+
+The watcher coalesces edit bursts, warm-builds the affected Cixfile, and prints the new item. It ignores `.git`, `target`, Cixfile locks, its own workspaces, and gitignored paths, so its outputs do not trigger loops. In a directory with `compose.json`, the same outer loop selectively restarts only services whose rebuilt item changed; framework hot reload stays in `nix develop`.
+
+## Keep faithful and dissolved translations together
+
+A faithful twin preserves upstream build choreography when that behavior matters; a dissolved twin selects the nix-native result directly when the ceremony adds no contract. `--file` chooses one without renaming files or mixing trust state, and each Cixfile writes its own sibling lock.
+
+```sh
+$ cat twins/Cixfile twins/Cixfile.dissolved
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER faithful-build
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+COPY ${src}/payload .
+RUN cp payload result
+
+ITEM translation
+COPY ${faithful-build}/result /payload
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+ITEM translation
+COPY payload /payload
+```
+
+```sh
+$ CIX_BUILD_WORKSPACE_DIR=$PWD/.twin-workspaces cix build twins
+{"translation":"/nix/store/…-cix-item-translation"}
+BUILDER faithful-build workspace <persistent>
+BUILDER faithful-build step 1 COPY /nix/store/…-cix-source/payload -> .
+BUILDER faithful-build step 2 RUN executed
+BUILDER faithful-build memo miss 46eeab62b39c -> /nix/store/…-cix-build-view
+```
+
+```sh
+$ cix build --file Cixfile.dissolved twins
+{"translation":"/nix/store/…-cix-item-translation"}
+```
+
+```sh
+$ ls -1 twins/Cixfile*.lock
+twins/Cixfile.dissolved.lock
+twins/Cixfile.lock
+```
+
+## Continue with real migrations
+
+Use the [Docker-to-Cixfile translation guide](../migrate.html) for directive-by-directive choices and the faithful-versus-dissolved decision. Browse the [migration corpus gallery](../corpus/index.html) for worked pairs, source context, receipts, and explicit remaining gaps. Start with behavior you can probe, keep every FETCH pinned, and let the resulting Cixfile become the same artifact contract you have just watched and built here.
+
+
+---
+
+[← Previous](06-compose.html) · [Tour index](index.html)

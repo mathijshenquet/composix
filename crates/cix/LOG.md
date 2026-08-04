@@ -1,5 +1,81 @@
 # litdoc work log
 
+- 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
+  synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell --
+  cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell --
+  cargo test --workspace -- --test-threads=1`. After staging the intended page,
+  `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`
+  followed by `git diff --exit-code -- docs/tour` proved zero regeneration
+  drift, and the exact `tour_matches_committed_document` test passed. The final
+  three-run determinism receipt is recorded below. The workspace gate also
+  passed `tour_ignores_a_foreign_user_unit`, proving the exact cleanup leaves an
+  ambient unit alone. No implementation behavior, VM scenario, Docker/corpus
+  ledger row, or Cixfile language changed; this tour-only track correctly stops
+  at the standard agent tier. Next: final staged review and commit.
+
+- 2026-08-04T13:45:00Z — Chapter 5 now builds a canonical observer SERVICE
+  (`IMPORT ${pkgs.coreutils}`, bare `START sleep 300`) beside the existing web
+  SERVICE and cleanup APP. The harness snapshots only the debug unit prefix it
+  creates, stops each exact observer unit, waits for systemd collection, and
+  unloads `cix-run.slice` only when no active cix unit shares it. `ps --json`
+  selects the exact observer unit; `stats` selects that same unit and normalizes
+  only its inherently live counters; `logs --explain` names observer. Generated
+  Chapter 5 is the only page changed. Final consecutive synchronous receipts:
+  the exact `generated_tour_is_deterministic` test passed three times in one
+  foreground loop (46.29s, 46.31s, 45.92s). Next: standard agent tier and
+  staged regeneration/no-drift proof.
+
+- 2026-08-04T13:29:45Z — Started `track/tourfix2` from the merged
+  `track/tourfix` head after main CI's exact consecutive-render assertion diff
+  identified chapter 5's ambient table sizing. The bare `cix ps | head -n 1`
+  pipeline formats every manager-visible cix unit before `head`, so a transient
+  debug unit still awaiting systemd collection changes the next render's header
+  width. Scope: synchronously tear down receipt-created units, exercise a
+  canonical long-running observer sibling, select its exact `ps --json` row and
+  stable `stats` identity, keep logs scoped, regenerate, then prove exact
+  determinism three consecutive times plus the standard agent tier.
+
+- 2026-08-04T12:46:00Z — Started the main-CI tour determinism repair on
+  `track/tourfix` after reading the current journal/design context and the
+  historical `track-tour2` blueprint. Fast-forwarded the stale track head to
+  current `main`; preserved the checkout's pre-existing untracked
+  `devenv.lock` in `stash@{0}` because main tracks a different lock. CI's user
+  manager rejects `PrivatePIDs=`, sending cix through the known D13 whole-set
+  degradation without `BindPaths`; Chapter 1's executed `nginx -t` then
+  depends on whether `/var/cache/nginx` was projected. Scope remains the tour:
+  retain the canonical Cixfile, replace the role-directory-dependent receipt
+  with asserted manifest output and clearly labeled system-manager scenario
+  prose, and do not change cix's filed degradation defect. Next: regenerate
+  the tour, inspect drift, and run the focused plus full agent-tier gates.
+
+- 2026-08-04T12:50:00Z — Removed only Chapter 1's executed `nginx -t`
+  receipt; the canonical nginx Cixfile and its generated manifest assertions
+  are unchanged. The replacement is explicitly labeled non-executed prose
+  pointing to `nix/vm-dogfood.nix`, which runs/probes/stops nginx under the
+  production manager. Added the required harness comment naming GitHub
+  Actions CI's `PrivatePIDs=` rejection and resulting no-`BindPaths` D13
+  retry; made Chapter 5's related prose manager-neutral. Focused synchronous
+  receipts pass: `cargo fmt --all --check`; the exact degraded-normalizer
+  regression; ignored tour generation; and the exact twice-rendered tour
+  determinism test. Generated changes are limited to Chapters 1 and 5. Next:
+  run the full standard agent tier, then stage and prove regeneration adds no
+  drift.
+
+- 2026-08-04T13:06:00Z — Final standard agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. After staging the intended generated
+  pages, `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour` followed by `git diff --exit-code -- docs/tour` proved zero
+  regeneration drift; the exact `generated_tour_is_deterministic` test also
+  passed. An earlier workspace attempt hit one transient cache.nixos.org DNS
+  failure; resolver recovery plus the exact failed tour test and the fresh
+  complete suite all passed. No VM implementation or scenario changed, so the
+  track correctly stops at its declared agent tier. Next: final staged review
+  and commit.
+
 - 2026-08-04T00:00:00Z — Started `track/browser3` after reading `AGENTS.md`,
   `.dev/LOG.md`, `docs/design.md`, `docs/corpus.md`'s corpus-maintenance
   loops, and `.dev/specs/track-browser3.md`. Scope is the deterministic corpus
@@ -254,3 +330,134 @@
 - 2026-07-28T20:30:00Z — Started `.dev/specs/track-tour3.md`. Scope is limited to the cix tour harness, generated tour pages, tour links, and any necessary cix dev-dependencies. Read the existing harness, generated tour, D13/D19, and the user-run integration fixture. The new scenario will use a v2 store fixture with one state directory and `--user`; its cleanup guard will stop the generated transient unit on every path. No ambiguity requiring a scope expansion identified.
 - 2026-07-28T20:35:00Z — Replaced the monolithic generated tour with `docs/tour/index.md` and seven numbered scenario pages, each with stable Jekyll `.html` navigation. The drift check now compares the full generated filename set and each page's contents, so stale, deleted, and renamed files all fail. Added the final rootless service scenario: it puts a v2 spec plus shell service in the Nix store, runs it detached via `--user`, lists it with `cix ps`, stops it, and guards cleanup with `systemctl --user stop` on unwind. Unit nonces and multi-line host diagnostics are normalized while the degraded-mode warning remains visible. Generated pages and focused tour tests pass.
 - 2026-07-28T20:40:00Z — Final gate passed three consecutive times in `devenv`: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`. All tour drift/determinism checks and the existing user-manager integration test passed each time. The generated pages were reviewed for complete `.html` index/previous/next links. No deviations or open questions remain.
+
+## 2026-08-04 — track/tour2: new-user guide
+
+- 2026-08-04T00:00:00Z — Started `.dev/specs/track-tour2.md` on
+  `track/tour2` after reading the repository journal, design registry, cix log,
+  current executable tour, and relevant feature/scenario inventory. The fixed
+  plan is seven chapter-sized commits in blueprint order, followed by the
+  generated index/link sweep and the standard bounded agent gate. Scope stays
+  inside `crates/cix/tests/tour.rs`, generated `docs/tour/`, tour links, and
+  this log. Any `ENOSPC` is a reportable stop; no disk workaround will be used.
+
+- 2026-08-04T11:20:00Z — Chapter 1 is implemented and generated as
+  `01-hello-composix.md`. Its real fixture builds an IMPORT-based nginx item,
+  inspects the emitted manifest, runs through the explicitly degraded user
+  manager, probes the served page, and stops the unit. The first probe exposed
+  the documented D13 boundary: this host drops item BindPaths, so the fixture
+  honestly uses its locked source path and private `/tmp` runtime files while
+  retaining the production role-dir declarations. Focused synchronous
+  `generate_tour` passed; no ENOSPC occurred.
+
+- 2026-08-04T11:35:00Z — Chapter 2 is implemented and generated as
+  `02-cixfile-language.md`. The growing real Cixfile proves earlier-wins
+  universal IMPORT, local materialization, package linking, forced
+  materialization below a role mount, interpolated FILE, required ENV, all
+  lifecycle dirs, TCP+UDP ports, LISTENER, and egress/JIT claims; its compact
+  manifest projection and closing directive table are asserted. Focused
+  generation passed synchronously after fixture-path corrections; no ENOSPC.
+
+- 2026-08-04T11:55:00Z — Chapter 3 is implemented and generated as
+  `03-building.md`. One continuous executable story covers author-EXPECT and
+  double-fetched automatic pins, offline RUN, a zero-Nix warm memo receipt,
+  compact lock/dev-env evidence, successful cold replay, then a locally served
+  genuinely FHS-linked ELF whose first RUN emits the real loader/libc IMPORT
+  hint and whose second RUN succeeds after adding glibc. The proj1 capstone
+  proves one warm Cargo workspace, two items, member selection, and unchanged
+  API identity after a worker-only edit. Focused generation passed
+  synchronously; no ENOSPC.
+
+- 2026-08-04T12:10:00Z — Chapter 4 is implemented and generated as
+  `04-naming-distribution.md`. It keeps exactly one short raw-tree aside, then
+  executes post-build family tagging, compact inspection, move-as-tag+untag,
+  removal/GC semantics, a moved tag, content-negotiated serve with a real Nix
+  binary cache, adopted pull, and upstream refresh after a second move. The
+  product has no literal mv/rm image-object verbs, so the prose teaches the
+  actual tag/untag model rather than inventing them. Focused generation passed
+  synchronously; no ENOSPC.
+
+- 2026-08-04T12:30:00Z — Chapter 5 is implemented and generated as
+  `05-runtime-contract.md`. A real tagged Python HTTP service exercises native
+  readiness/liveness adapters, rootless run, probe, debug, filtered ps, stats,
+  and logs explanation; a real APP produces and activates a user timer with
+  deterministic cleanup. Closed-root write denial, STATEDIR restart
+  persistence, credential delivery/rotation, and watchdog restart are stated
+  as system-manager guarantees with exact closedroot/dirs2/secrets/health VM
+  pointers because this host's user manager rejects mount projection. Narrowed
+  age normalization so declared `10s`/`2s` health durations no longer become
+  fake `0s`. Focused generation passed synchronously; no ENOSPC.
+
+- 2026-08-04T12:50:00Z — Chapter 6 is implemented and generated as
+  `06-compose.md`. It executes LISTENER fd-3 socket activation, builds two
+  Cixfile services, validates a Unix edge plus shared STATEDIR and
+  `logNamespace`, records the real two-ref lock, dry-builds/diffs generations,
+  demonstrates unary run, then moves the tracked producer and diffs again.
+  `up`/`rollback`/`down`, setgid sharing, pod netns, and journal namespace are
+  clearly system-manager-only prose with exact lib/dirs2/netns/observability VM
+  pointers. Focused generation passed synchronously; no ENOSPC.
+
+- 2026-08-04T13:10:00Z — Chapter 7 is implemented and generated as
+  `07-dev-loop-docker.md`. Its real watcher rebuilds after an edited source
+  file; the watched workspace is created below cix's prescribed cache temp
+  area because target-tree paths are intentionally ignored, then linked into
+  the continuous story. Faithful and dissolved `--file` Docker twins build
+  independently with their own locks, and the chapter links to the migration
+  workflow and corpus. Rewrote the generated index around the seven-chapter
+  learning path, swept obsolete page names, and removed superseded generator
+  code. Focused `generate_tour` passed synchronously (1 passed in 28.11s); no
+  ENOSPC occurred.
+
+- 2026-08-04T13:25:00Z — The first full workspace test exposed one
+  determinism leak: the FHS fixture's deliberately fresh loopback port changed
+  the real FETCH command memo key between consecutive renders. Normalization
+  now labels that derived receipt `<command-key>` while retaining the
+  content-hash EXPECT and real miss/hit behavior. The exact consecutive-render
+  test passed (1 passed in 55.49s), and regeneration passed (1 passed in
+  28.83s). This was not ENOSPC and no disk workaround was used.
+
+- 2026-08-04T13:45:00Z — Final bounded agent gate passed synchronously
+  on committed head `0ff3131`: `cargo fmt --all --check`; `cix fmt
+  --check examples` (exit 0 with the pre-existing LINK deprecation
+  notices); warning-denied workspace/all-target Clippy; and serial full
+  workspace tests, including tour determinism/drift, the foreign-unit guard,
+  watch, integration suites, and doc tests. One intervening workspace attempt
+  met the fixed decoy name while the preceding test's transient unit was still
+  unloading; read-only inspection immediately showed it absent, and the
+  unchanged guard passed in the complete rerun. Explicit tour regeneration
+  passed (1 passed in 51.93s), followed by `git diff --exit-code -- docs/tour`
+  and the obsolete-page-name sweep at exit 0. All commands used `nice`, six
+  Cargo/Nix jobs, and four Nix cores. No ENOSPC occurred.
+
+- 2026-08-04T14:10:00Z — Began the blocking orchestrator review fix for
+  CIP-91 teaching canon. Chapters 1 and 5 will retain only bare imported
+  commands plus copied absolute item paths in their Cixfiles; this host's
+  rootless receipts will validate the physical built item without using a
+  locked source path to make the service appear runnable. Next: regenerate,
+  review the honest degraded prose, and repeat the bounded agent gate.
+
+- 2026-08-04T14:35:00Z — Chapters 1 and 5 now generate only CIP-91-canonical
+  service declarations: imported bare commands, local files copied into
+  absolute item paths, and no source binder in START argv. Chapter 1's real
+  nginx debug receipt accepts the exact copied config syntax and then exposes
+  the unavailable CACHEDIR instead of serving through a source path. Chapter
+  5 parses its copied Python directly from the immutable item, uses the
+  mount-free APP for its tagged debug receipt, and leaves HTTP health to the
+  linked system-manager scenario. The openings and index no longer promise a
+  rootless HTTP run. Focused generation passed (1 passed in 15.58s) and the
+  exact consecutive-render check passed (1 passed in 28.30s); no ENOSPC.
+
+- 2026-08-04T14:55:00Z — The bounded review-fix gate passed synchronously:
+  `cargo fmt --all --check`; `cix fmt --check examples` (exit 0 with the
+  existing LINK deprecation notices); warning-denied workspace/all-target
+  Clippy; and serial full workspace tests, including tour determinism/drift,
+  foreign-unit isolation, watch, integrations, and doc tests. Final explicit
+  tour regeneration passed (1 passed in 15.63s). All gate commands used
+  `nice`, six Cargo/Nix jobs, and four Nix cores. No ENOSPC occurred.
+
+- 2026-08-04T15:10:00Z — Restored the chapter 5 `cix ps` surface as an
+  honest header-only receipt after removing the unprojectable web unit, then
+  repeated the complete bounded gate on that final source. Formatting,
+  examples formatting, warning-denied Clippy, serial full workspace tests,
+  tour determinism/drift, and explicit regeneration (1 passed in 15.62s) all
+  passed synchronously. No ENOSPC occurred.
