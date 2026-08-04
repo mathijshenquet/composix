@@ -56,10 +56,18 @@
           })
         ];
       };
+      cixSource = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.unions [
+          ./Cargo.toml
+          ./Cargo.lock
+          ./crates
+        ];
+      };
       cix = pkgs.rustPlatform.buildRustPackage {
         pname = "cix";
         version = "0.1.0";
-        src = self;
+        src = cixSource;
         cargoLock.lockFile = ./Cargo.lock;
         cargoBuildFlags = [ "-p" "cix" ];
         doCheck = false;
@@ -69,6 +77,7 @@
             --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix pkgs.strace ]}
         '';
       };
+      progressiveVmCheck = import ./nix/progressive-vm-check.nix { inherit pkgs; };
       composixLib = import ./nix/lib.nix { inherit pkgs; };
       cixfileLib = import ./nix/lib/default.nix;
       withSpecRedis = import ./examples/pack/redis {
@@ -79,6 +88,7 @@
     {
       packages.${system} = {
         cix = cix;
+        progressive-vm-check = progressiveVmCheck;
         withSpecRedis = withSpecRedis;
         # On-demand diagnostic harness (compiles a patched systemd) — deliberately a
         # package, not a check, so `nix flake check` never builds it in CI.
@@ -88,6 +98,10 @@
           inherit systemd257;
           inherit kernel617Packages;
         };
+      };
+      apps.${system}.progressive-vm-check = {
+        type = "app";
+        program = "${progressiveVmCheck}/bin/cix-progressive-vm-check";
       };
       lib = composixLib // cixfileLib;
       checks.${system} = {
