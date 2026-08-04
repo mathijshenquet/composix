@@ -1,8 +1,8 @@
-# emit-nix — cix build as the *2nix that ends *2nix
+# build-cixfile — nix consumes Cixfile + lock natively (né emit-nix)
 
-Status: **draft v2, adoption-ready** (2026-08-02; v2 2026-08-04 after
-Mathijs's read: "heel mooi, waarschijnlijk oppak waardig" with all four
-open questions answered — see §6/§7. Scope narrowed to pure tier 1.)
+Status: **CIP-94, adopted 2026-08-04** (drafted 2026-08-02 as
+"emit-nix"; renamed at adoption — with tier 2's emitter cut, nothing is
+emitted: nix *consumes* the Cixfile and lock via eval-from-lock).
 
 ## 1. The problem
 
@@ -275,3 +275,27 @@ should confirm where the DX win concentrates.
 4. One-FOD-per-FETCH, fixed ("ik zou me er niet aan branden") — no
    per-dependency splitting, no ecosystem awareness through the back
    door.
+
+## 8. Decision
+
+Adopted 2026-08-04 (Mathijs), renamed from emit-nix (misnomer once tier
+2 was cut). Scope: **pure tier 1** — `cix-lib.buildCixfile`
+(eval-from-lock, zero generated files) in this repo (`?dir=nix/lib`),
+guarded by the load-bearing byte-identity acceptance test against
+`cix build --cold`; the CIP dies rather than drift if that test cannot
+be kept. Deferred (cips/deferred/ where separate): tier 2 `--emit-nix`,
+`cix vendor`, the FETCH checksum cross-check
+([deferred/fetch-checksum-crosscheck](../deferred/fetch-checksum-crosscheck.md)),
+dynamic-drvs, nixpkgs upstream. Granularity fixed at one-FOD-per-FETCH.
+Known tension recorded: CIP-95's FHS path surface (mount-namespace
+aliases) is not reproducible inside a plain nix derivation sandbox, so
+FHS-dependent builders are outside buildCixfile's reproducible set
+until deferred FIXUP logic exists
+([deferred/fixup-elf](../deferred/fixup-elf.md)); the acceptance test
+scopes to non-FHS builders and states that boundary loudly.
+
+## Changelog
+
+- 2026-08-02: drafted as emit-nix.
+- 2026-08-04: v2 (pure tier 1, cross-check split out); adopted and
+  renamed build-cixfile; FHS-incompatibility boundary recorded.

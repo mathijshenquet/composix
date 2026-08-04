@@ -1,10 +1,8 @@
-# fhs-interpreter — downloaded native binaries in bare builders
+# fhs-paths — downloaded native binaries in bare builders (né fhs-interpreter)
 
-Status: **draft v5** (2026-08-04; v4's IMPORT-wiring kept, but Mathijs's
-"waarom eigenlijk de ELF-route en niet gewoon die dingen op het pad
-zetten?" reframes the mechanism: provide the FHS paths instead of
-rewriting binaries. v5 makes that the recommendation and demotes
-patching to the verified escape.)
+Status: **CIP-95, adopted 2026-08-04** (v1–v4 same day; adopted at v5
+after Mathijs's reframe — provide the FHS paths instead of rewriting
+binaries — with build-first priority).
 
 ## 1. The problem
 
@@ -132,3 +130,28 @@ rejected per-target shapes (manual `FIXUP ELF`, IMPORT-adjacency,
 - Directus regen is the acceptance case: `IMPORT ${pkgs.glibc}` with
   zero patchelf lines must build (modulo the separate bare
   `Error: Not a directory` defect).
+
+## 5. Decision
+
+Adopted 2026-08-04 (Mathijs: "fhs path based approach lijkt me ideaal,
+laten we dat als eerste bouwen"). §3 as written: (G) lib/-union +
+skeleton loader aliases, (E) trace-driven diagnostics teaching the
+IMPORT, (A) the patchelf RUN pattern taught as escape. Build order:
+first — ahead of regen wave 2 (directus is the acceptance case). The
+round-2 spike (ld.so search wiring vs RUNPATH shadowing) opens the
+implementation track and may still fall back per §3.
+
+Recorded boundary: this approach relies on cix's constructed mount
+namespace and is therefore invisible to CIP-94's `buildCixfile` (a nix
+derivation cannot create `/lib64/…`). FHS-consuming builders are
+excluded from the eval-from-lock reproducible set; if that boundary
+ever matters in practice, the deferred FIXUP auto-patching
+([deferred/fixup-elf](../deferred/fixup-elf.md)) is the
+emit-compatible companion, since patched ELFs rebuild fine inside nix.
+
+## Changelog
+
+- 2026-08-04: v1 (spike mandate) → v2 (four syntax shapes on spike
+  evidence) → v3 (trace-driven detection + declared-provider repair) →
+  v4 (IMPORT-wired, per-target shapes cut) → v5 (path surface instead
+  of byte rewriting) → adopted, renamed fhs-paths, build-first.
