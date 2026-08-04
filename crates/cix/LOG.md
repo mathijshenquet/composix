@@ -1,5 +1,17 @@
 # litdoc work log
 
+- 2026-08-04T20:05:00Z — Chapter 4 explicit regeneration passes. The hand-made
+  item is now honestly labelled taggable-but-not-runnable, `nix store add`, GC
+  roots, tag argument order, platform metadata, and the inspect `artifact`
+  label are explained in plain terms. V2 and v3 directories are each created,
+  shown, added, captured, and only then tagged. Families are scoped to their
+  actual namespace/list behavior. Distribution now establishes separate
+  publisher/consumer indexes, gives the qualified-ref grammar before use,
+  defines closure/download behavior, and distinguishes the unsigned loopback
+  receipt from TLS + signed-cache + trusted-public-key production setup. Next:
+  commit Chapter 4 and replace Chapter 5's parse-only web story with a live
+  readiness/state/restart lifecycle.
+
 - 2026-08-04T19:40:00Z — Chapter 3 regeneration passes with the original real
   warm/cold/FHS/proj1 builds intact. The prose now labels FETCH grammar and
   trust modes, defines memo/build-view/lock/dev-env at first use, states the
