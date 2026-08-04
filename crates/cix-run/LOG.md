@@ -1,5 +1,93 @@
 # cix-run work log
 
+## track/netnsrace
+
+- 2026-08-04 07:34 UTC — Final current-tree agent tier is green after
+  merging current `origin/main` (`7f98bc1`), which supplied its independent
+  corpus-browser drift correction. The initial workspace test had failed only
+  that pre-existing generated-page drift; after integration,
+  `devenv shell -- cargo test --workspace` passed synchronously. Explicit tour
+  regeneration and the following tour drift/determinism test both passed, with
+  no generated tour diff. Current-tree fmt, examples fmt, and warning-denied
+  workspace/all-target clippy all exited 0. The bounded focused receipt
+  `nice -n 10 nix build .#checks.x86_64-linux.scenario-netns --no-link -L
+  --max-jobs 6 --cores 4` also exited 0 synchronously under TCG: closed-root
+  reactivation succeeded, both netns teardowns completed, and both immediate
+  namespace-path absence assertions passed. The specified implementation,
+  deterministic regression coverage, bounded 20-run before/after experiment,
+  and open-question closure are complete. Next: independent orchestrator
+  verification and merge.
+
+- 2026-08-04 07:25 UTC — The announced post-fix campaign completed
+  synchronously: **20/20 contended VMs passed**, with zero netns stop
+  timeouts, zero stale namespace paths, and zero activation failures. This is
+  the same independently named, six-at-once TCG contention shape that produced
+  17/20 passes before the fix (one exact activation failure plus two stale
+  final paths). Updated `docs/open-questions.md` to move the item out of the
+  agent-open queue and record the graph proof, teardown/re-entry mechanism,
+  narrow fix, and before/after rates. Next: run the complete standard agent
+  tier and a current-HEAD focused netns VM, then record exact synchronous
+  receipts.
+
+- 2026-08-04 07:13 UTC — Implemented the mechanism-scoped fix: generated
+  netns oneshots now carry `TimeoutStopSec=10s`, so namespace deletion does
+  not inherit the scenario's intentionally global 1-second service budget.
+  CIP-86's manifest and network semantics are unchanged. The golden fixture
+  pins the projection; `scenario-netns` asserts the effective systemd value
+  and once again requires both namespace paths to be absent immediately after
+  synchronous `cix down`, removing the earlier wait that masked interrupted
+  teardown. Synchronous receipts: fmt check, the focused compose golden test,
+  warning-denied all-target cix-compose clippy, and bounded focused
+  `scenario-netns` VM all passed. In that VM the first down → closed-root up
+  transition passed, the effective timeout was exactly 10s, both netns
+  `ExecStop`s completed successfully, and both final immediate absence checks
+  passed. Before the next long experiment: I will repeat 20 independently
+  named contended VMs with the same single aggregate `nice -n 10` Nix build,
+  `--keep-going --max-jobs 6 --cores 4`; raw output remains outside the repo.
+
+- 2026-08-04 07:06 UTC — Reproduced and root-caused before changing code.
+  One bounded baseline passed synchronously. The announced 20-run contended
+  campaign then completed synchronously with 17 passes and three failures:
+  one exact closed-root activation failure (run 17, 5%) and two final stale
+  namespace-path failures (runs 15/20, another 10%). The aggregate command
+  was `nice -n 10 nix build ... --keep-going --max-jobs 6 --cores 4`; each
+  run was a uniquely named override of `scenario-netns`, so Nix executed 20
+  independent VMs (six at once), and lack of host KVM forced additional TCG
+  contention. This is not the suspected member-before-oneshot race. The
+  realized graph has both directions of the ordering assertion: the netns
+  unit says `Before=cix-netns-b-fixed.service`, while the member says
+  `Requires=cix-netns-b-netns.service` and
+  `After=cix-netns-b-netns.service`. Run 17's exact interleaving was:
+  `cix down` started the b-netns `ExecStop=ip netns delete` at guest
+  138.668s; the scenario-wide `DefaultTimeoutStopSec=1s` expired at
+  139.549s and systemd SIGTERM'd the control process; the unit stopped with
+  result `timeout`, leaving `/run/netns/cix-netns-b-netns`; the immediately
+  following closed-root `cix up` started the b netns oneshot at 150.693s;
+  `ip netns add` reported `Cannot create namespace file ...: File exists`
+  at 151.579s; the oneshot failed at 151.699s; and the correctly ordered
+  b-fixed member then failed with result `dependency` at 151.766s. Runs 15
+  and 20 independently proved the same interrupted teardown by retaining the
+  b namespace path for the full 60-second final assertion. Mechanism and fix
+  boundary: netns deletion is lifecycle infrastructure and must have its own
+  stop budget instead of inheriting the deliberately tiny scenario/host
+  manager default. Next: give only the generated netns oneshot a bounded
+  `TimeoutStopSec`, assert that projection in the golden and focused VM, then
+  rerun contended instances.
+
+- 2026-08-04 06:49 UTC — Started the bounded reproduction campaign after
+  reading the track spec, current project log, D43/D49, CIP-86, and the
+  generated compose network/activation code. The current graph already gives
+  every pod member `Requires=` + `After=` on its netns oneshot, and the
+  oneshot also gives all members `Before=`; the campaign must therefore test
+  the recorded activation failure rather than assume the suspected missing
+  edge. I will run at least 20 independently named `scenario-netns` test
+  derivations under deliberate parallel contention, in batches no larger than
+  three VMs, with every Nix invocation bounded by `nice -n 10`,
+  `--max-jobs 6`, and `--cores 4`. Raw synchronous results and failed build
+  logs, if any, go to a temporary directory outside the repository. Next:
+  execute the baseline and contended batches, then inspect journals and the
+  realized unit graph for any failure before changing code.
+
 - 2026-08-02 UTC — Fix round for the orchestrator's lock_nix flakes. The
   boundary refactor had generated a new workspace for each build invocation,
   breaking the two tests that intentionally observe one test-local warm
