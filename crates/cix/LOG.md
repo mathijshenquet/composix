@@ -1,5 +1,20 @@
 # litdoc work log
 
+- 2026-08-04T16:29:14Z — Final bounded agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`, `devenv shell --
+  cargo run -p cix -- fmt --check examples`, `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`, and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. Explicit ignored tour regeneration exited
+  0 and `git diff --exit-code -- docs/tour` proved no drift. The exact
+  `generated_tour_is_deterministic` test passed three consecutive foreground
+  runs (50.59 s, 51.41 s, 53.06 s). Recursive `grep` found no `START` line
+  containing `${`, `git diff --check` passed, and no active user `cix-*` unit
+  remained. The df guard started with 40 GiB root space and 175454 `/tmp`
+  inodes free and ended with 36 GiB and 181923 free. No focused VM scenario is
+  applicable because this track changes only the executed tour harness and
+  generated guide; the orchestrator retains the full flake matrix gate. Track
+  is complete and ready for the requested orchestrator prose pass.
+
 - 2026-08-04T22:10:00Z — Chapter 7 and the cross-chapter cold-reader audit
   regenerate successfully. Watch now captures its PID, executes SIGINT cleanup,
   states default workspace/memo behavior, and gives the exact privileged
