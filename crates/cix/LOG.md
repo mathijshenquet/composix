@@ -1,5 +1,41 @@
 # litdoc work log
 
+- 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
+  synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell --
+  cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell --
+  cargo test --workspace -- --test-threads=1`. After staging the intended page,
+  `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`
+  followed by `git diff --exit-code -- docs/tour` proved zero regeneration
+  drift, and the exact `tour_matches_committed_document` test passed. The final
+  three-run determinism receipt is recorded below. The workspace gate also
+  passed `tour_ignores_a_foreign_user_unit`, proving the exact cleanup leaves an
+  ambient unit alone. No implementation behavior, VM scenario, Docker/corpus
+  ledger row, or Cixfile language changed; this tour-only track correctly stops
+  at the standard agent tier. Next: final staged review and commit.
+
+- 2026-08-04T13:45:00Z — Chapter 5 now builds a canonical observer SERVICE
+  (`IMPORT ${pkgs.coreutils}`, bare `START sleep 300`) beside the existing web
+  SERVICE and cleanup APP. The harness snapshots only the debug unit prefix it
+  creates, stops each exact observer unit, waits for systemd collection, and
+  unloads `cix-run.slice` only when no active cix unit shares it. `ps --json`
+  selects the exact observer unit; `stats` selects that same unit and normalizes
+  only its inherently live counters; `logs --explain` names observer. Generated
+  Chapter 5 is the only page changed. Final consecutive synchronous receipts:
+  the exact `generated_tour_is_deterministic` test passed three times in one
+  foreground loop (46.29s, 46.31s, 45.92s). Next: standard agent tier and
+  staged regeneration/no-drift proof.
+
+- 2026-08-04T13:29:45Z — Started `track/tourfix2` from the merged
+  `track/tourfix` head after main CI's exact consecutive-render assertion diff
+  identified chapter 5's ambient table sizing. The bare `cix ps | head -n 1`
+  pipeline formats every manager-visible cix unit before `head`, so a transient
+  debug unit still awaiting systemd collection changes the next render's header
+  width. Scope: synchronously tear down receipt-created units, exercise a
+  canonical long-running observer sibling, select its exact `ps --json` row and
+  stable `stats` identity, keep logs scoped, regenerate, then prove exact
+  determinism three consecutive times plus the standard agent tier.
+
 - 2026-08-04T12:46:00Z — Started the main-CI tour determinism repair on
   `track/tourfix` after reading the current journal/design context and the
   historical `track-tour2` blueprint. Fast-forwarded the stale track head to

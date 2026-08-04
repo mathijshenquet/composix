@@ -2,6 +2,7 @@
 //!
 //! Run `cargo test --test tour -- --ignored generate_tour` to update the documents.
 
+use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -61,7 +62,142 @@ struct UserUnit {
 impl Drop for UserUnit {
     fn drop(&mut self) {
         let _ = cix_run::runtime::stop_service(&self.name, true);
+        let _ = wait_for_user_units_gone([self.name.as_str()]);
     }
+}
+
+fn user_cix_units() -> Result<BTreeSet<String>, String> {
+    let output = Command::new("systemctl")
+        .args([
+            "--user",
+            "list-units",
+            "cix-*",
+            "--all",
+            "--output=json",
+            "--no-pager",
+            "--no-legend",
+        ])
+        .output()
+        .map_err(|error| format!("listing user cix units: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "listing user cix units failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let units: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("parsing user cix units: {error}"))?;
+    units
+        .into_iter()
+        .map(|unit| {
+            unit.get("unit")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+                .ok_or_else(|| "systemctl user unit has no string unit field".to_owned())
+        })
+        .collect()
+}
+
+fn wait_for_user_units_gone<'a>(units: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
+    let units = units.into_iter().map(str::to_owned).collect::<Vec<_>>();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let present = user_cix_units()?;
+        let remaining = units
+            .iter()
+            .filter(|unit| present.contains(*unit))
+            .cloned()
+            .collect::<Vec<_>>();
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "timed out waiting for user units to unload: {}",
+                remaining.join(", ")
+            ));
+        }
+        // `systemd-run --collect` unloads asynchronously after stop. Waiting here keeps the
+        // next tour receipt from observing a unit created by the preceding receipt.
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+fn stop_user_units_created_since(before: &BTreeSet<String>, prefix: &str, receipt: &str) {
+    let after =
+        user_cix_units().unwrap_or_else(|error| panic!("listing units after {receipt}: {error}"));
+    let mut created = after
+        .difference(before)
+        .filter(|unit| unit.starts_with(prefix))
+        .cloned()
+        .collect::<Vec<_>>();
+    created.sort_by_key(|unit| unit.ends_with(".slice"));
+    for unit in &created {
+        let output = Command::new("systemctl")
+            .args(["--user", "stop", unit])
+            .output()
+            .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error}"));
+        if !output.status.success()
+            && user_cix_units()
+                .unwrap_or_else(|error| panic!("checking {unit} after {receipt}: {error}"))
+                .contains(unit)
+        {
+            panic!(
+                "stopping {unit} after {receipt} failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
+    }
+    wait_for_user_units_gone(created.iter().map(String::as_str))
+        .unwrap_or_else(|error| panic!("tearing down units after {receipt}: {error}"));
+}
+
+fn stop_user_unit(unit: &str, receipt: &str) {
+    cix_run::runtime::stop_service(unit, true)
+        .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error:#}"));
+    wait_for_user_units_gone([unit])
+        .unwrap_or_else(|error| panic!("tearing down {unit} after {receipt}: {error}"));
+}
+
+fn stop_empty_cix_run_slice(receipt: &str) {
+    let active = Command::new("systemctl")
+        .args([
+            "--user",
+            "list-units",
+            "cix-run-*.service",
+            "cix-debug-*.service",
+            "cix-run-*.socket",
+            "cix-run-*.timer",
+            "--state=active",
+            "--no-pager",
+            "--no-legend",
+        ])
+        .output()
+        .unwrap_or_else(|error| panic!("checking active cix units after {receipt}: {error}"));
+    assert!(
+        active.status.success(),
+        "checking active cix units after {receipt} failed: {}",
+        String::from_utf8_lossy(&active.stderr).trim()
+    );
+    if !active.stdout.is_empty() {
+        return;
+    }
+    let units = user_cix_units()
+        .unwrap_or_else(|error| panic!("checking cix-run.slice after {receipt}: {error}"));
+    if !units.contains("cix-run.slice") {
+        return;
+    }
+    let output = Command::new("systemctl")
+        .args(["--user", "stop", "cix-run.slice"])
+        .output()
+        .unwrap_or_else(|error| panic!("stopping cix-run.slice after {receipt}: {error}"));
+    assert!(
+        output.status.success(),
+        "stopping cix-run.slice after {receipt} failed: {}",
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
+    wait_for_user_units_gone(["cix-run.slice"])
+        .unwrap_or_else(|error| panic!("tearing down cix-run.slice after {receipt}: {error}"));
 }
 
 struct ScheduledUserUnit {
@@ -86,6 +222,13 @@ impl Drop for ScheduledUserUnit {
         let _ = Command::new("systemctl")
             .args(["--user", "daemon-reload"])
             .output();
+        let service = format!("{stem}.service");
+        let root_service = format!("{stem}-root.service");
+        let _ = wait_for_user_units_gone([
+            self.timer.as_str(),
+            service.as_str(),
+            root_service.as_str(),
+        ]);
     }
 }
 
@@ -236,6 +379,8 @@ fn normalize(raw: &str, base: &Path) -> String {
             .expect("valid cargo progress regex");
     let unit_name = Regex::new(r"cix-run-([a-z][a-z0-9-]*)-[0-9a-f]+\.(service|timer)")
         .expect("valid unit name regex");
+    let observer_stats = Regex::new(r"(?m)^(user  run  cix-run-observer-[0-9a-f]+\.service)  .+$")
+        .expect("valid observer stats regex");
     let stale_failed_unit =
         Regex::new(r"(?m)^user\s+cix-run-[a-z][a-z0-9-]*-NONCE\.service\s+failed/failed.*\n?")
             .expect("valid stale unit regex");
@@ -261,6 +406,9 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized =
         builder_workspace.replace_all(&normalized, "BUILDER ${1} workspace <persistent>");
     let normalized = cargo_progress.replace_all(&normalized, "");
+    // Accounting values are live by definition; retain the asserted row identity and schema.
+    let normalized =
+        observer_stats.replace_all(&normalized, "${1}  <live>  <live>  <live>  <live>  <live>");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.${2}");
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
@@ -1113,6 +1261,10 @@ LIVENESS http :18086/livez EVERY 2s
 APP cleanup
 IMPORT ${pkgs.coreutils}
 START true
+
+SERVICE observer
+IMPORT ${pkgs.coreutils}
+START sleep 300
 "#,
     )
     .expect("writing runtime Cixfile");
@@ -1121,7 +1273,7 @@ START true
     doc.para("You will inspect a tagged HTTP service with health contracts at the honest rootless boundary, then debug and schedule its run-to-completion sibling. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.");
 
     doc.para("## The item owns needs; the operator owns values");
-    doc.para("The service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The APP beside it has a finite entrypoint and is therefore eligible for timer scheduling.");
+    doc.para("The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.");
     let source = doc.sh("cat Cixfile server.py", true);
     assert!(source.contains("STATEDIR /var/lib/runtime-guide"));
     assert!(source.contains("COPY server.py /srv/app/server.py"));
@@ -1131,9 +1283,12 @@ START true
     assert!(source.contains("READINESS http :18086/healthz IN 10s"));
     assert!(source.contains("LIVENESS http :18086/livez EVERY 2s"));
     assert!(source.contains("APP cleanup"));
+    assert!(source.contains("SERVICE observer"));
+    assert!(source.contains("START sleep 300"));
     let built = doc.sh("cix build . --namespace runtime -t v1", true);
     assert!(built.contains("\"web\""));
     assert!(built.contains("\"cleanup\""));
+    assert!(built.contains("\"observer\""));
     let web_path = proj1_item_path(&built, "web");
 
     doc.para("## Inspect the item, then cross the system-manager boundary");
@@ -1146,14 +1301,85 @@ START true
     );
     assert!(parsed.contains("copied server parses"));
     doc.para("`cix debug` still resolves an item by tag and replaces its entrypoint inside the service sandbox. The finite cleanup sibling has no mount or health dependency, so it is the honest rootless target for that receipt.");
+    let before_debug = user_cix_units().expect("listing user units before cix debug");
     let debugged = doc.sh("cix debug runtime/cleanup:v1 --user -- true", true);
     assert!(debugged.contains("cix debug --user is degraded"));
-    let ps = doc.sh("cix ps | head -n 1", true);
-    assert!(ps.contains("MANAGER  COMPOSITE  SERVICE"));
-    let stats = doc.sh("cix stats 2>/dev/null | head -n 1", true);
-    assert!(stats.contains("MANAGER  COMPOSITE  SERVICE"));
-    let logs = doc.sh("cix logs run/web --explain", true);
-    assert!(logs.contains("journalctl CIX_COMPOSITE=run CIX_SERVICE=web"));
+    stop_user_units_created_since(&before_debug, "cix-debug-cleanup-", "the cix debug receipt");
+    stop_empty_cix_run_slice("the cix debug receipt");
+
+    doc.para("The observer sibling is deliberately small and long-running, so the observability receipts can assert one tour-owned unit. `ps --json` selects that exact unit instead of formatting an ambient table whose widths depend on unrelated units; the `stats` projection keeps the live counters live while asserting their stable manager, composite, and unit identity.");
+    let started = doc.sh("cix run runtime/observer:v1 --user --detach", true);
+    let observer_unit = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-observer-") && line.ends_with(".service"))
+        .expect("cix run printed an observer unit")
+        .to_owned();
+    let active = doc.run(
+        &doc.state_dir,
+        &format!("systemctl --user is-active {observer_unit}"),
+        true,
+    );
+    assert_eq!(String::from_utf8_lossy(&active.stdout).trim(), "active");
+    let ps = doc.sh(
+        &format!(
+            "cix ps --json | jq --arg unit '{observer_unit}' '.[] | select(.unit == $unit) | {{manager, service, unit, state}}'"
+        ),
+        true,
+    );
+    assert!(ps.contains("\"manager\": \"user\""));
+    assert!(ps.contains("\"service\": \"observer\""));
+    assert!(ps.contains(&format!("\"unit\": \"{observer_unit}\"")));
+    assert!(ps.contains("\"state\": \"active/running\""));
+    stop_user_unit(&observer_unit, "the cix ps receipt");
+    stop_empty_cix_run_slice("the cix ps receipt");
+
+    let stats_started = doc.run(
+        &doc.state_dir,
+        "cix run runtime/observer:v1 --user --detach",
+        true,
+    );
+    let stats_output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&stats_started.stdout),
+        String::from_utf8_lossy(&stats_started.stderr)
+    );
+    let stats_unit = stats_output
+        .lines()
+        .find(|line| line.starts_with("cix-run-observer-") && line.ends_with(".service"))
+        .expect("cix run printed a stats observer unit");
+    let active = doc.run(
+        &doc.state_dir,
+        &format!("systemctl --user is-active {stats_unit}"),
+        true,
+    );
+    assert_eq!(String::from_utf8_lossy(&active.stdout).trim(), "active");
+    let stats = doc.sh(
+        &format!("cix stats 2>/dev/null | awk -v unit='{stats_unit}' 'NR == 1 || $3 == unit'"),
+        true,
+    );
+    let mut stats_lines = stats.lines();
+    assert_eq!(
+        stats_lines.next(),
+        Some("MANAGER  COMPOSITE  SERVICE  MEMORY  CPU  TASKS  IO  IP")
+    );
+    let stats_row = stats_lines
+        .next()
+        .expect("cix stats printed the observer row");
+    assert!(
+        stats_lines.next().is_none(),
+        "unexpected cix stats rows: {stats}"
+    );
+    let stats_fields = stats_row.split_whitespace().collect::<Vec<_>>();
+    assert!(
+        stats_fields.len() >= 8,
+        "unexpected cix stats row: {stats_row}"
+    );
+    assert_eq!(&stats_fields[..3], &["user", "run", stats_unit]);
+    stop_user_unit(stats_unit, "the cix stats receipt");
+    stop_empty_cix_run_slice("the cix stats receipt");
+
+    let logs = doc.sh("cix logs run/observer --explain", true);
+    assert!(logs.contains("journalctl CIX_COMPOSITE=run CIX_SERVICE=observer"));
 
     doc.para("## The system-manager guarantees");
     doc.para("The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. The rootless contract does not guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.");
