@@ -52,6 +52,7 @@ pub use lock::{
 
 pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");
 pub use model::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, Dirs, Env, Fetch,
-    Input, InputKind, Liveness, Port, Probe, Readiness, Secret, Service, Template, TemplatePart,
+    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
+    Env, Fetch, Input, InputKind, Liveness, Port, Probe, Readiness, Secret, Service, Template,
+    TemplatePart,
 };

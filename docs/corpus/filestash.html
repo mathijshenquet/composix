@@ -61,11 +61,11 @@
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/filestash/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with D70 + CIP-88</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
       <li>The page-wide <code>CPATH</code>/<code>LIBRARY_PATH</code>/<code>PKG_CONFIG_PATH</code> preamble predates CIP-88(a): the vendored dev-env snapshot now supplies toolchain search paths from the IMPORTed packages; regeneration verifies the coverage. → case (stale, CIP-88)</li>
       <li>The required coherent static C-library set cannot be selected from the locked nixpkgs packages: <code>pkgsStatic.giflib</code> itself fails, but D70 overlays now provide the <code>.nix</code> package-customization escape for a regenerated case. → case</li>
-      <li>Four helper binaries are linked one by one into <code>/bin</code>, the same artifact toolset slop as the larger Wallos pile. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>Four helper binaries are linked one by one into <code>/bin</code>, the same artifact toolset slop as the larger Wallos pile. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>The runtime moved the upstream <code>/app</code> tree into <code>/bin</code>, <code>/share</code>, and <code>/var/lib/filestash</code>; mirror the application layout or explain each deliberate split. → prompt</li>
       <li>Go generation is joined to dependency download in a networked <code>FETCH</code>, whose generated cache snapshot changed between runs. → evidence</li>
       <li>The Docker receipt followed moving <code>master</code> while the Cix side used a recorded revision, so the two probes are not proven against identical source bytes. → evidence</li>

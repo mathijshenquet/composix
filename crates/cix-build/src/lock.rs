@@ -454,6 +454,9 @@ pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<
         }
     }
     for artifact in cixfile.artifacts.values_mut() {
+        for import in &mut artifact.imports {
+            resolve_template_metadata(import, &inputs, lock)?;
+        }
         for copy in &mut artifact.copies {
             resolve_template_metadata(&mut copy.src, &inputs, lock)?;
         }

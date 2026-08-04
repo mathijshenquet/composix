@@ -3,6 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use cix_build::generate_nix_with_snapshots;
 use cix_cixfile::{build, build_family, generate_nix, parse, ArtifactPin, BuildOptions, LockFile};
 
 fn test_workspace_directory() -> PathBuf {
@@ -68,6 +69,223 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
         expression,
     ])?;
     Ok(PathBuf::from(output.trim()))
+}
+
+fn add_store_path(path: &Path) -> PathBuf {
+    let path = path.to_str().expect("temporary path is UTF-8");
+    let output = cix_common::nix(&["store", "add-path", path]).unwrap();
+    PathBuf::from(output.trim())
+}
+
+#[test]
+fn store_aware_copy_spike_covers_tomcat_directus_and_realpath() {
+    let source = tempfile::tempdir().unwrap();
+    fs::write(source.path().join("seed"), "builder placeholder\n").unwrap();
+    fs::write(source.path().join("patch"), "tomcat patch\n").unwrap();
+    fs::write(source.path().join("marker"), "force materialization\n").unwrap();
+
+    let snapshot = tempfile::tempdir().unwrap();
+    fs::create_dir_all(snapshot.path().join("tomcat/conf")).unwrap();
+    fs::write(snapshot.path().join("tomcat/conf/base"), "tomcat base\n").unwrap();
+    fs::create_dir_all(snapshot.path().join("dist/lib")).unwrap();
+    fs::write(snapshot.path().join("dist/lib/server.js"), "directus\n").unwrap();
+    fs::create_dir_all(snapshot.path().join("tree/lib")).unwrap();
+    fs::write(snapshot.path().join("tree/lib/probe.js"), "probe\n").unwrap();
+    let snapshot = add_store_path(snapshot.path());
+    let snapshots = std::collections::BTreeMap::from([(
+        "build".to_owned(),
+        snapshot.to_string_lossy().into_owned(),
+    )]);
+
+    let cixfile = parse(
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build
+COPY seed seed
+ITEM tomcat
+COPY ${build}/tomcat /tomcat
+COPY patch /tomcat/conf/patch
+SERVICE directus
+COPY ${build}/dist /app
+STATEDIR /app/database
+START ${pkgs.coreutils}/bin/true
+ITEM linked-realpath
+COPY ${build}/tree /app
+ITEM materialized-realpath
+COPY ${build}/tree /app
+COPY marker /app/marker
+"#,
+    )
+    .unwrap();
+    let build = |name| {
+        let expression = generate_nix_with_snapshots(
+            &cixfile,
+            name,
+            source.path(),
+            &committed_lock(),
+            "x86_64-linux",
+            &snapshots,
+        )
+        .unwrap();
+        build_expression(&expression).unwrap()
+    };
+
+    let tomcat = build("tomcat");
+    assert!(tomcat.join("tomcat").is_dir());
+    assert_eq!(
+        fs::read_to_string(tomcat.join("tomcat/conf/base")).unwrap(),
+        "tomcat base\n"
+    );
+    assert_eq!(
+        fs::read_to_string(tomcat.join("tomcat/conf/patch")).unwrap(),
+        "tomcat patch\n"
+    );
+
+    let directus = build("directus");
+    assert!(directus.join("app").is_dir());
+    assert!(!fs::symlink_metadata(directus.join("app"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert!(directus.join("app/lib/server.js").is_file());
+
+    let linked = build("linked-realpath");
+    let materialized = build("materialized-realpath");
+    assert!(fs::symlink_metadata(linked.join("app"))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+    assert!(materialized.join("app").is_dir());
+    let linked_realpath = fs::canonicalize(linked.join("app/lib/probe.js")).unwrap();
+    let materialized_realpath = fs::canonicalize(materialized.join("app/lib/probe.js")).unwrap();
+    eprintln!("linked realpath: {}", linked_realpath.display());
+    eprintln!("materialized realpath: {}", materialized_realpath.display());
+    assert!(
+        linked_realpath.starts_with("/nix/store"),
+        "{linked_realpath:?}"
+    );
+    assert!(!linked_realpath.starts_with(&linked), "{linked_realpath:?}");
+    assert!(
+        materialized_realpath.starts_with(&materialized),
+        "{materialized_realpath:?}"
+    );
+}
+
+#[test]
+fn artifact_import_unions_packages_for_services_apps_and_items() {
+    let source = tempfile::tempdir().unwrap();
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    for package in [first.path(), second.path()] {
+        fs::create_dir_all(package.join("bin")).unwrap();
+        fs::create_dir_all(package.join("etc/tool")).unwrap();
+        fs::create_dir_all(package.join("share/tool")).unwrap();
+    }
+    fs::write(first.path().join("bin/collision"), "first\n").unwrap();
+    fs::set_permissions(
+        first.path().join("bin/collision"),
+        fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    fs::write(first.path().join("etc/tool/first"), "first\n").unwrap();
+    fs::write(second.path().join("bin/collision"), "second\n").unwrap();
+    fs::set_permissions(
+        second.path().join("bin/collision"),
+        fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    fs::write(second.path().join("etc/tool/second"), "second\n").unwrap();
+    fs::write(second.path().join("share/tool/data"), "shared\n").unwrap();
+    let snapshots = std::collections::BTreeMap::from([
+        (
+            "first".to_owned(),
+            add_store_path(first.path()).to_string_lossy().into_owned(),
+        ),
+        (
+            "second".to_owned(),
+            add_store_path(second.path()).to_string_lossy().into_owned(),
+        ),
+    ]);
+    let cixfile = parse(
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER first
+BUILDER second
+SERVICE union
+IMPORT ${first} ${second}
+START collision --flag
+APP app
+IMPORT ${pkgs.coreutils}
+START true
+ITEM item
+IMPORT ${pkgs.coreutils}
+"#,
+    )
+    .unwrap();
+    let build = |name| {
+        build_expression(
+            &generate_nix_with_snapshots(
+                &cixfile,
+                name,
+                source.path(),
+                &committed_lock(),
+                "x86_64-linux",
+                &snapshots,
+            )
+            .unwrap(),
+        )
+        .unwrap()
+    };
+
+    let union = build("union");
+    assert_eq!(
+        fs::read_to_string(union.join("bin/collision")).unwrap(),
+        "first\n"
+    );
+    assert_eq!(
+        fs::read_to_string(union.join("etc/tool/first")).unwrap(),
+        "first\n"
+    );
+    assert_eq!(
+        fs::read_to_string(union.join("etc/tool/second")).unwrap(),
+        "second\n"
+    );
+    assert_eq!(
+        fs::read_to_string(union.join("share/tool/data")).unwrap(),
+        "shared\n"
+    );
+    let spec = cix_run::spec::Spec::load(&union).unwrap();
+    assert_eq!(
+        spec.select_service(None).unwrap().1.start,
+        ["bin/collision", "--flag"]
+    );
+    assert_eq!(
+        spec.select_service(None)
+            .unwrap()
+            .1
+            .mounts
+            .as_deref()
+            .unwrap(),
+        [
+            PathBuf::from("/bin/collision"),
+            PathBuf::from("/etc/tool"),
+            PathBuf::from("/share/tool")
+        ]
+    );
+
+    let app = build("app");
+    assert!(app.join("bin/true").is_file());
+    assert_eq!(
+        cix_run::spec::Spec::load(&app)
+            .unwrap()
+            .select_service(None)
+            .unwrap()
+            .1
+            .start,
+        ["bin/true"]
+    );
+
+    let item = build("item");
+    assert!(item.join("bin/true").is_file());
+    assert!(!item.join("cix-manifest.json").exists());
 }
 
 #[test]

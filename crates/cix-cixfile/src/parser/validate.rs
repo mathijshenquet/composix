@@ -540,9 +540,8 @@ pub(super) fn validate_copy_source(
     source: &str,
 ) -> Result<(), ParseError> {
     match template.parts.as_slice() {
-      [TemplatePart::Literal(path)] => {
-          validate_copy_relative_path(path, "COPY source", line, source)
-      }
+      [TemplatePart::Literal(path)] if path.starts_with("/nix/store/") => Ok(()),
+      [TemplatePart::Literal(path)] => validate_copy_relative_path(path, "COPY source", line, source),
       [TemplatePart::Package { .. } | TemplatePart::Binder { .. }] => Ok(()),
       [
           TemplatePart::Package { .. } | TemplatePart::Binder { .. },
