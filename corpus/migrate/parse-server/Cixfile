@@ -1,34 +1,41 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
+
+BUILDER deps
+  IMPORT ${pkgs.nodejs_22} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.cacert} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.git} ${pkgs.python3}
+  COPY context/ .
+  ENV npm_config_fetch_retries = 5
+  ENV npm_config_fetch_retry_mintimeout = 60000
+  ENV npm_config_fetch_retry_maxtimeout = 300000
+  ENV npm_config_cache = /tmp/parse-server-npm-cache-clean
+  FETCH bash -c 'npm ci --omit=dev --ignore-scripts'
+  RUN cp -R node_modules prod_node_modules
+  FETCH bash -c 'npm ci --ignore-scripts'
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.python3} \
-    ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.git} ${pkgs.cacert}
-ENV npm_config_fetch_retries = 5
-ENV npm_config_fetch_retry_mintimeout = 60000
-ENV npm_config_fetch_retry_maxtimeout = 300000
-COPY ${src}/context/ .
-FETCH npm ci --ignore-scripts --no-audit --no-fund
-RUN npm run build
-RUN npm prune --omit=dev --ignore-scripts --offline --no-audit --no-fund
+  IMPORT ${pkgs.nodejs_22} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.cacert} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.git} ${pkgs.python3}
+  COPY context/ .
+  COPY ${deps}/node_modules node_modules
+  RUN npm rebuild
+  RUN npm run build
 
 SERVICE parse-server
-COPY ${build}/node_modules /parse-server/node_modules
-COPY ${build}/lib /parse-server/lib
-COPY ${build}/bin/parse-server /parse-server/bin/parse-server
-COPY ${build}/package.json /parse-server/package.json
-COPY ${build}/package-lock.json /parse-server/package-lock.json
-COPY ${build}/public /parse-server/public
-COPY ${build}/views /parse-server/views
-LINK ${pkgs.nodejs_22}/bin/node /bin/node
-START node /parse-server/bin/parse-server
-ENV PORT = 18091
-ENV PARSE_SERVER_APPLICATION_ID required
-ENV PARSE_SERVER_MASTER_KEY secret
-ENV PARSE_SERVER_DATABASE_URI required
-ENV PARSE_SERVER_URL required
-ENV PARSE_SERVER_LOGS_FOLDER = /var/log/parse-server
-PORT http = $PORT
-LOGDIR /var/log/parse-server
-CLAIM egress
-CLAIM jit
+  IMPORT ${pkgs.nodejs_22}
+  COPY ${deps}/prod_node_modules /parse-server/node_modules
+  COPY ${build}/lib /parse-server/lib
+  COPY context/package.json /parse-server/package.json
+  COPY context/package-lock.json /parse-server/package-lock.json
+  COPY context/bin /parse-server/bin
+  COPY context/public /parse-server/public
+  COPY context/views /parse-server/views
+  ENV PORT = 18091
+  ENV PARSE_SERVER_APPLICATION_ID = ""
+  ENV PARSE_SERVER_MASTER_KEY = ""
+  ENV PARSE_SERVER_DATABASE_URI = ""
+  ENV PARSE_SERVER_URL = ""
+  PORT http = $PORT
+  STATEDIR /parse-server/cloud
+  CONFIGDIR /etc/parse-server
+  LOGDIR /parse-server/logs
+  CLAIM egress
+  CLAIM jit
+  START node /parse-server/bin/parse-server

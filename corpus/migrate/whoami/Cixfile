@@ -1,14 +1,9 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.go} ${pkgs.gnumake} ${pkgs.cacert}
-  ENV GOMODCACHE = $PWD/.gomodcache
-  # Each networked stage is independently pinned; RUN only consumes its snapshot.
-  FETCH git clone https://github.com/traefik/whoami.git .
-  FETCH go mod download
-  RUN make build
-
 SERVICE whoami
-  COPY ${build}/whoami /bin/whoami
+  IMPORT ${pkgs.whoami}
+  COPY ${pkgs.whoami}/bin/whoami /whoami
+  COPY ${pkgs.tzdata}/share/zoneinfo /usr/share/zoneinfo
+  COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
   START whoami
   PORT http = 80

@@ -1,8 +1,7 @@
-Generated: migrate.md@dd2f39a · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- A login page passes, but the conversion drops upstream's PHP extensions, opcache/session/misc INI settings, upload limits, timezone, and upload-progress module. → case
-- `config.inc.php`, `helpers.php`, and the entrypoint's runtime configuration generation are absent, so configuration parity is untested and largely unimplemented. → case
-- `/var/www/html`, `/etc/phpmyadmin`, `/sessions`, and `/var/www/html/tmp` were replaced by `/srv/phpmyadmin` plus an unused `/var/lib/phpmyadmin` state role without a stated layout rationale. → prompt
-- PHP is exposed through an implicit `/bin` link rather than an explicit artifact tool declaration. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The receipt has no completed Docker transcript; the probe establishes page reachability only and must not be read as config parity. → evidence
+- The faithful source archive, published SHA-256, detached signature, config helpers, PHP tuning defaults, sessions path, and upstream application layout are now carried, but the exact `bz2`, `gd`, `mysqli`, `opcache`, `zip`, `bcmath`, and `uploadprogress` extension build remains dissolved into a generic packaged PHP runtime. → case
+- Apache, `remoteip`, the upstream entrypoint's base64 config replacement and PHP-version hiding, and its `*_FILE` secret bridge are not reproduced by the PHP built-in server wrapper. → case
+- The service listens directly on 8080 to satisfy the repository probe, while the Docker container listens on 80 and relies on host publication for 8080. → evidence
+- No dissolved twin applies: an attribute-name audit of locked nixpkgs revision `643809054d65fdd466a63e3155b8c498cb483c04` found neither `phpmyadmin`/`phpMyAdmin` nor a phpPackages match. → evidence

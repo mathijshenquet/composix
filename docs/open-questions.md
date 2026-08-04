@@ -64,6 +64,15 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
 
 ## Open for agents
 
+- **Duplicate COPY against an already populated warm builder root**
+  (regen wave 2, luna's Watchtower): Cix rejects a direct duplicate file
+  destination when the builder's warm root is already populated. With
+  `COPY context/ .` before `FETCH`, repeating `COPY context/go.mod go.mod`
+  afterward fails on the next warm build with `BUILDER block destination
+  "go.mod" is already populated`; the same applies to the other direct
+  duplicate file copies. This is a warm-workspace product constraint, not a
+  translation requirement; reproduce from the Watchtower regeneration and
+  decide whether identical rewrites should be accepted or diagnosed earlier.
 - **Bare `Error: Not a directory` from cix build** (track/fhsspike,
   2026-08-04): the patched directus build died with a context-free error
   after the full pnpm build stream — no path, no step attribution. A

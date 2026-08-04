@@ -40,3 +40,18 @@ consumed `dist` bytes differ across clean runs, so D69 records rather than
 excludes it. Forced lock refresh also reaches the historical missing
 `shared_cert.pem` source failure. Independently, no faithful Cix runtime exists:
 Dozzle requires Docker's host socket/API, which remains an explicit boundary.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker evidence: the staged ordinary build completed the normalized frontend
+and backend module fetch, then exited 1 at `main.go:36:12: pattern
+shared_cert.pem: no matching files found`; no item existed for the supplied
+probe. Its cold audit exited 1 at a frontend root read-set divergence.
+
+After `bash corpus/migrate/fetch.sh dozzle` exited 0, the assembler reproduced
+that boundary twice. `target/debug/cix build corpus/migrate/dozzle` and the
+ordinary build inside `./check.sh cix` each completed the pnpm/Vite frontend and
+Go module fetch, then exited 1 at the missing embedded certificate. The explicit
+`--cold` build exited 1 earlier because the frontend FETCH observed different
+warm/cold hashes for `.`. No item or health response was claimed, no missing
+certificate was fabricated, and Docker mode was not rerun.

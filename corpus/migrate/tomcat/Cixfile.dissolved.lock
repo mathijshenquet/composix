@@ -8,9 +8,9 @@
     }
   },
   "outputs": {
-    "whoami": {
-      "sourceHash": "90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6",
-      "storePath": "/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami"
+    "tomcat": {
+      "sourceHash": "4e8b397afdd22a4bc32bf5e1beffd2be13842037a8bbfdbac64df7f809a1ff14",
+      "storePath": "/nix/store/cffy1xg2019nx265gd2k4rvhlpymd5fl-cix-item-tomcat"
     }
   }
 }

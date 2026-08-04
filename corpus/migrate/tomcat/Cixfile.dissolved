@@ -1,0 +1,10 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE tomcat
+  IMPORT ${pkgs.tomcat10} ${pkgs.jdk21} ${pkgs.coreutils}
+  COPY ${pkgs.tomcat10} /share/tomcat
+  ENV CATALINA_HOME = /share/tomcat
+  START catalina.sh run
+  PORT http = 8080
+  PORT shutdown = 8005
+  CLAIM jit

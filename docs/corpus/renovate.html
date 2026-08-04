@@ -56,19 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / renovate</nav>
   <h1>renovate</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — no repository work, config/credentials, job-policy parity, or faithful twin · <strong>Evidence:</strong> closed-root · receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Sealed-root timer activation, renovate --version, and indexed logs · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Faithful to the supplied narrow CronJob contract; repository config, credentials, actual renovation, and richer job policy remain absent · <strong>Evidence:</strong> build+schedule validation · closed-root (timer/version contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Both nixpkgs-authoritative twins build warm/cold and the daily calendar/compose contract validates; the sealed-root audit separately proves timer/version/log activation · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/renovate/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@0f63d00 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with CIP-81</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The scheduled APP runs only <code>renovate --version</code>; it never performs a repository renovation, so the green timer/log receipt is a mechanism probe rather than an application conversion. → case</li>
-      <li>Repository configuration and tokens are entirely absent even though they are required for useful execution; make that loss prominent wherever the case is summarized. → browser</li>
-      <li>CIP-81 now provides credential files, but the case has not converted the upstream config/secret delivery or demonstrated Renovate consuming it. → case</li>
-      <li>The upstream CronJob&#39;s schedule options, concurrency/deadline/retry policy, cache, command hooks, and pod placement knobs are reduced to hard-coded <code>daily</code> plus persistence without itemized dispositions. → case</li>
-      <li>This nixpkgs-only mechanism demo has no upstream-faithful CronJob twin. → case: add upstream-faithful twin</li>
-      <li>The closed-root receipt proves timer activation, a version command, and indexed logs only; it is not evidence for authenticated repository work. → evidence</li>
+      <li>The available source contract proves a daily scheduled Renovate APP, but supplies no repository configuration, credentials, or target; no repository renovation is exercised. → case</li>
+      <li>Kubernetes concurrency, deadline, retry/history, cache, command-hook, security-context, placement, and secret-volume machinery has no concrete supplied value and is not represented by the APP. → case</li>
+      <li>The normal and dissolved Cixfiles are intentionally identical because locked nixpkgs is authoritative and the supplied source is a CronJob template rather than a Dockerfile-faithful application build. → evidence</li>
+      <li>The acceptance receipt proves build, calendar parsing, and compose validation only; it does not prove authenticated repository work. → evidence</li>
     </ul>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
@@ -352,23 +350,71 @@ configuration and credential delivery remain outside the receipt&#39;s claim.
     </section>
     <section class="column">
       <h2>composix</h2>
-      <section class="file">
+      <section class="variant-tabs">
+        <input id="tabs-renovate-0-faithful" name="tabs-renovate-0" type="radio" checked>
+        <label for="tabs-renovate-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-renovate-0-dissolved" name="tabs-renovate-0" type="radio">
+        <label for="tabs-renovate-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">APP</span> renovate
-  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.renovate}</span>/bin/renovate --version
-  <span class="tok-directive">CLAIM</span> jit
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.renovate}</span>
+  <span class="tok-directive">START</span> renovate
+  <span class="tok-directive">CLAIM</span> egress
 </code></pre>
       </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+APP renovate
+  IMPORT ${pkgs.renovate}
+  START renovate
+  CLAIM egress
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;renovate&quot;: {
+      &quot;sourceHash&quot;: &quot;ef0f74d841ef2a864dd164057e33bc49d5fc55876b0595cd761201fc53c80eef&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
       <details class="file">
         <summary>Cixfile.lock</summary>
         <pre><code>{
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;renovate&quot;: {
+      &quot;sourceHash&quot;: &quot;ef0f74d841ef2a864dd164057e33bc49d5fc55876b0595cd761201fc53c80eef&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate&quot;
     }
   }
 }
@@ -475,6 +521,19 @@ target/debug/cix logs corpus-renovate/renovate \
 `CIX_COMPOSITE=corpus-renovate`, `CIX_SERVICE=renovate`, and the invocation ID.
 Cleanup used `cix down corpus-renovate` and removed both temporary user/root
 `renovate:regrade` tags.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged primary and dissolved APP builds passed, and
+the supplied acceptance checked the default build, `systemd-analyze calendar
+daily`, and compose validation.
+
+The assembler&#39;s primary and `--file Cixfile.dissolved` builds each exited 0 with
+`/nix/store/75bngsgl12n02dmlb6s4825prk3dh3ji-cix-item-renovate`. Running
+`corpus/migrate/renovate/check.sh` with this worktree&#39;s cix exited 0 and printed
+`PASS cix build, calendar, and compose validation`. Both builds repeated with
+`--cold` exited 0 with the same item. This case has no Dockerfile/context;
+Docker mode was not run.
 </code></pre>
       </details>
     </section>

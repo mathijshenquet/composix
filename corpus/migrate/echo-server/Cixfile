@@ -1,16 +1,29 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.git} ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.cacert}
-  ENV NPM_CONFIG_CACHE = $PWD/.npm
-  FETCH git clone https://github.com/Ealenn/Echo-Server.git . && git checkout 2b735482f942cbd889f1d49f3ff892364d0519ac
-  FETCH npm ci --ignore-scripts --no-audit --no-fund
-  RUN npm ci --offline --ignore-scripts --no-audit --no-fund && npm run build
+BUILDER dependencies-direct
+  IMPORT ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.bash} ${pkgs.cacert}
+  ENV npm_config_cache = /tmp/cix-echo-server-npm-cache
+  ENV npm_config_logs_dir = /tmp/cix-echo-server-npm-logs
+  COPY context/package.json package.json
+  COPY context/package-lock.json package-lock.json
+  COPY install-dependencies.sh install-dependencies.sh
+  FETCH bash install-dependencies.sh --direct EXPECT sha256-MFqh9XfZ43Pa4nlE/vi0Q081ZpscMZtMTn0qv7vRubQ=
+
+BUILDER build-output
+  IMPORT ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.bash}
+  ENV npm_config_cache = /tmp/cix-echo-server-npm-cache
+  ENV npm_config_logs_dir = /tmp/cix-echo-server-npm-logs
+  COPY ${dependencies-direct}/node_modules node_modules
+  COPY context/package.json package.json
+  COPY context/src src
+  COPY context/webpack.config.js webpack.config.js
+  RUN npm run build
 
 SERVICE echo-server
-  COPY ${build}/src/global.json /global.json
-  COPY ${build}/dist/webserver.js /webserver.js
-  LINK ${pkgs.nodejs}/bin/node /bin/node
-  START node webserver.js
-  PORT http = 80
+  IMPORT ${pkgs.nodejs}
+  COPY ${build-output}/dist/webserver.js /app/webserver.js
+  COPY ${build-output}/src/global.json /app/global.json
+  START node /app/webserver.js
+  ENV PORT = 80 required
+  PORT http = $PORT
   CLAIM jit
