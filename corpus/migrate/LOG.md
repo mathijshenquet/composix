@@ -718,3 +718,84 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   only the empty `cix-corpus.slice` and `cix-run.slice` are active. Worktree
   state is exactly this policy-required, unstaged `corpus/migrate/LOG.md`
   update. Track is ready for independent pre-merge verification.
+
+## 2026-08-04 — track/regen2 wave-2 assembly
+
+- 2026-08-04T12:07:08Z — Loaded `AGENTS.md`, `.dev/specs/track-regen2.md`,
+  the mirrored regen1 procedure, `docs/corpus.md` maintenance loops,
+  `docs/design.md`, and all twelve staging inventories/notes. Branch
+  `track/regen2` starts clean at `66f60f4`; direnv is allowed and loaded.
+  Byte comparison against repository history shows every staged `MIGRATE.md`
+  exactly matches `docs/migrate.md@e1978b6`, so that commit will be used in
+  every generated provenance header. Next: assemble only the requested Cix
+  artifacts and referenced auxiliaries, then write current routed ledgers
+  before collecting independent warm/cold receipts without changing EXPECT.
+
+- 2026-08-04T12:24:51Z — Assembled all staged Cixfiles/locks and their
+  referenced conversion auxiliaries, keeping fetched upstream trees ignored.
+  Adminer's two conversion-owned helpers moved from staging `context/` to
+  tracked case-root files so `fetch.sh adminer` cannot erase them; only those
+  two COPY source paths changed. Fresh context fetches for all ten context-backed
+  cases exited 0, and `devenv shell -- cargo build -p cix` exited 0. Rewrote
+  all twelve routed ledgers with `migrate.md@e1978b6` provenance, verified the
+  locked phpMyAdmin universe has no matching package attribute, and promoted
+  Watchtower's duplicate-COPY warm-root finding to `docs/open-questions.md`.
+  Next: fold the exact independent warm/cold outcomes below into per-case
+  receipts and final ledger wording; no `--update-lock` command has been run.
+
+- 2026-08-04T12:24:51Z — Independent ordinary/probe layer complete. Wallos,
+  Tomcat (both twins), Whoami (both twins), Renovate (both twins plus calendar/
+  compose acceptance), Excalidraw build, phpMyAdmin build/probe, Parse Server's
+  Mongo-backed probe, and Watchtower build all exited 0. Adminer and Echo Server
+  fresh ordinary builds failed their unchanged EXPECTs respectively with
+  fetched `sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=` and
+  `sha256-NV8V74j/GO7g6Zvh7zLa6g85KCtl3kiSlDJxLlH93Qw=`; their probes failed
+  at the same build boundary. Parse Server's first ordinary run rejected
+  `prod_node_modules` (`0s/8…` pinned vs `wYd…` fetched), while the probe's
+  second fetch matched its staged observation, built, and passed health against
+  MongoDB. Verdaccio reached `pnpm --filter "./packages/**" build`/deploy and
+  failed `Not a directory`; its probe rerun also exposed the populated warm
+  deploy-dir failure. Dozzle consistently stopped at missing embedded
+  `shared_cert.pem`; Watchtower's supplied probe exited 4 after the built item
+  could not leave a loaded unit. Excalidraw's supplied probe exited 1 at the
+  known runner-path `203/EXEC` before its separate hard-coded-18090 issue.
+
+- 2026-08-04T12:24:51Z — Explicit cold layer complete. Cold passed for
+  Wallos, both Tomcat twins, phpMyAdmin, both Whoami twins, both Renovate twins,
+  Excalidraw, and Adminer's dissolved twin, producing the same staged store
+  items. Adminer's primary and Echo Server had no replay snapshot because their
+  preceding fresh EXPECT checks failed. Cold failed honestly for Verdaccio at
+  `.cache/node/corepack/v1/pnpm` (warm Directory, cold Absent), Parse Server at
+  `node_modules` (warm Directory, cold Absent), Watchtower at a Go build-cache
+  read (`warm Absent, cold None`), and Dozzle at the frontend root directory
+  hash. These are evidence, not pin-update invitations: every declared EXPECT
+  and its fetch pin remains byte-for-byte staged.
+
+- 2026-08-04T12:32:01Z — Finalized all twelve receipts and achievement-first
+  `docs/corpus.md` rows, including the phpMyAdmin worker-cold/assembler-cold
+  contrast and the newly reproducible-but-not-sealed-root classification for
+  Echo Server, Excalidraw, Wallos, and Whoami. No `→ prompt` finding emerged,
+  so `docs/migrate.md` is correctly untouched. Canonical Cix formatting exposed
+  and fixed only staged indentation in phpMyAdmin, Verdaccio, and Dozzle.
+  Corpus browser regeneration plus determinism passed; after the formatting
+  change a committed-page drift test correctly went red, regeneration was
+  repeated, and the exact drift test then exited 0. The 2.4 GiB task-local
+  temporary tree was removed after making its immutable generated files
+  owner-writable. Committed case artifacts/receipts as `8c268ad` and ledgers,
+  Watchtower promotion, and generated browser as `055ad44`; only this policy
+  LOG remains unstaged. `df -h /` reports 92 GiB free (>40 GiB), so the focused
+  VM gate is authorized. Next: run the complete standard agent tier and the
+  synchronous `scenario-closedroot-audit` check.
+
+- 2026-08-04T12:41:46Z — Complete track gate exited 0 synchronously:
+  `cargo fmt --all --check`, `cix fmt --check examples`, warning-denied full
+  workspace clippy, and `cargo test --workspace`. Tour generation produced no
+  diff and both exact committed-document/determinism tests passed; corpus
+  browser generation likewise produced no diff and both exact drift/determinism
+  tests passed. With 92 GiB free, the focused
+  `scenario-closedroot-audit` NixOS VM check exited 0 under TCG, including the
+  regenerated Adminer/phpMyAdmin runtime samples and full Mastodon compose
+  teardown. Final `git diff --check` passed; the two logical commits touch only
+  `corpus/migrate/`, `docs/corpus.md`, generated `docs/corpus/`, and
+  `docs/open-questions.md`, leaving the fenced `nix/`, `crates/`, `docs/tour/`,
+  and `docs/nix-build.md` surfaces unchanged. Only this policy LOG is unstaged.
