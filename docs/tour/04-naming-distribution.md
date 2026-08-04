@@ -12,7 +12,7 @@ You will give an immutable item a family of operational names, move and remove t
 Normally `cix build` writes this tree for you. At the boundary, however, an item is simply a Nix store tree with `cix-manifest.json`; this is the tour's one hand-assembled example, kept short so you can see that no image format is hiding underneath.
 
 ```sh
-$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":0,"start":["message"]}' > my-app-v1/cix-manifest.json
+$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && jq -n '{ cixManifest: 0, start: ["message"] }' > my-app-v1/cix-manifest.json
 ```
 
 ```sh
@@ -22,58 +22,18 @@ message
 ```
 
 ```sh
-$ cat my-app-v1/message
+$ cat my-app-v1/message my-app-v1/cix-manifest.json
 hello from my app v1
+{
+  "cixManifest": 0,
+  "start": [
+    "message"
+  ]
+}
 ```
 
 ```sh
 $ cix tag "$(nix store add my-app-v1)" my-app:v1
-```
-
-```sh
-$ cix inspect my-app:v1
-{
-  "kind": "artifact",
-  "reference": "my-app:v1",
-  "storePath": "/nix/store/…-my-app-v1",
-  "narHash": "sha256-iUMlkbB006RUsAvCgp43+tHkb8uxbWjnGu7KbTSMo7w=",
-  "outputs": {
-    "x86_64-linux": {
-      "storePath": "/nix/store/…-my-app-v1",
-      "narHash": "sha256-iUMlkbB006RUsAvCgp43+tHkb8uxbWjnGu7KbTSMo7w="
-    }
-  },
-  "manifest": {
-    "cixManifest": 0,
-    "dirs": {
-      "cache": [],
-      "config": [],
-      "data": [],
-      "logs": [],
-      "run": null,
-      "state": []
-    },
-    "egress": false,
-    "env": {},
-    "jit": null,
-    "listeners": {},
-    "liveness": null,
-    "mounts": null,
-    "network": null,
-    "ports": {},
-    "readiness": null,
-    "secrets": {},
-    "shm": null,
-    "start": [
-      "message"
-    ],
-    "start_pre": null
-  },
-  "closureSize": 544,
-  "trustedKeys": [],
-  "upstream": null,
-  "drvPath": null
-}
 ```
 
 ## Names come after builds

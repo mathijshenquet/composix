@@ -50,76 +50,43 @@ $ cix build .
 ```
 
 ```sh
-$ cix inspect /nix/store/…-cix-item-hello
+$ cat /nix/store/…-cix-item-hello/cix-manifest.json
 {
-  "kind": "artifact",
-  "reference": null,
-  "storePath": "/nix/store/…-cix-item-hello",
-  "narHash": "sha256-0DufGeBmzpILtURx52crrGrKocyx0Mzxgi1ymuLWEFo=",
-  "outputs": {
-    "x86_64-linux": {
-      "storePath": "/nix/store/…-cix-item-hello",
-      "narHash": "sha256-0DufGeBmzpILtURx52crrGrKocyx0Mzxgi1ymuLWEFo="
+  "cixManifest": 0,
+  "dirs": {
+    "cache": [
+      "/var/cache/nginx"
+    ],
+    "run": [
+      "/run/nginx"
+    ]
+  },
+  "env": {
+    "PATH": {
+      "default": "bin"
     }
   },
-  "manifest": {
-    "cixManifest": 0,
-    "dirs": {
-      "cache": [
-        "/var/cache/nginx"
-      ],
-      "config": [],
-      "data": [],
-      "logs": [],
-      "run": [
-        "/run/nginx"
-      ],
-      "state": []
-    },
-    "egress": false,
-    "env": {
-      "PATH": {
-        "default": "bin",
-        "required": false,
-        "secret": false,
-        "type": null
-      }
-    },
-    "jit": null,
-    "listeners": {},
-    "liveness": null,
-    "mounts": [
-      "/bin/nginx",
-      "/etc/nginx",
-      "/share/man",
-      "/srv/www"
-    ],
-    "network": null,
-    "ports": {
-      "http": {
-        "env": null,
-        "protocol": "tcp",
-        "value": 18085
-      }
-    },
-    "readiness": null,
-    "secrets": {},
-    "shm": null,
-    "start": [
-      "bin/nginx",
-      "-c",
-      "/etc/nginx/nginx.conf",
-      "-e",
-      "stderr",
-      "-g",
-      "pid /run/nginx/nginx.pid;"
-    ],
-    "start_pre": null
+  "mounts": [
+    "/bin/nginx",
+    "/etc/nginx",
+    "/share/man",
+    "/srv/www"
+  ],
+  "ports": {
+    "http": {
+      "protocol": "tcp",
+      "value": 18085
+    }
   },
-  "closureSize": 3104,
-  "trustedKeys": [],
-  "upstream": null,
-  "drvPath": null
+  "start": [
+    "bin/nginx",
+    "-c",
+    "/etc/nginx/nginx.conf",
+    "-e",
+    "stderr",
+    "-g",
+    "pid /run/nginx/nginx.pid;"
+  ]
 }
 ```
 

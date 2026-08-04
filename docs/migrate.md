@@ -338,8 +338,8 @@ Keep the three layers separate:
 3. Tags are index metadata supplied at the command line.
 
 `cix build .` prints one stable, indented JSON member map and tags nothing, even for one member.
-Every cix JSON stdout response is pretty-printed deterministically, including through pipes, so
-it remains directly consumable by tools such as `jq`:
+Every cix JSON surface is pretty-printed deterministically: stdout remains directly consumable by
+tools such as `jq`, and generated manifests, locks, and compose artifacts stay readable on disk:
 
 ```console
 $ cix build .

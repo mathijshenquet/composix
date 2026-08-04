@@ -1,5 +1,48 @@
 # litdoc work log
 
+- 2026-08-04T15:49:50Z — Staged regenerated tour chapters 1, 4, and 6, then
+  reran the ignored generator synchronously (exit 0) with zero unstaged tour
+  drift. Final serializer audit finds the only remaining non-pretty
+  `serde_json` calls construct internal hashes/cache keys, never written JSON.
+  `git diff --check` is clean and neither staged nor unstaged paths include
+  `corpus/`. Next: stage the scoped implementation, inspect the staged diff,
+  and commit the all-JSON formatting amendment with this journal.
+
+- 2026-08-04T15:48:46Z — The amended complete agent tier is green with
+  synchronous exit-0 receipts: `cargo fmt --all --check`, `cix fmt --check
+  examples`, warning-denied workspace clippy, and serialized workspace tests.
+  The initially failing full suite exposed the expected compact index JSON
+  golden; both HTTP list-body fixtures now assert the indented response and
+  its targeted integration test passes. The amended tour determinism receipt
+  passed three consecutive foreground runs (31.04s, 32.84s, 33.12s). Next:
+  stage the generated tour, repeat regeneration against the staged pages for
+  drift, review the all-JSON writer audit, and commit. The orchestrator still
+  owns the one-per-track full flake-matrix gate.
+
+- 2026-08-04T15:45:00Z — Focused amended-policy receipts are green:
+  `cargo fmt --all --check`, the real-Nix manifest fixture
+  `real_nix_build_assembles_files_links_and_spec`, and ignored tour
+  regeneration all exited 0 synchronously. The real-Nix test now reads the
+  assembled `cix-manifest.json` itself and requires two-space indentation plus
+  its terminating newline. Regenerated chapters 1, 4, and 6 demonstrate those
+  pretty on-disk manifests with plain `cat`; the item and compose lock NARs
+  changed as expected from the new item bytes. No `corpus/` path is modified.
+  Next: repeat the three deterministic tour receipts and the complete standard
+  agent tier, then stage/recheck regeneration drift and commit the amendment.
+
+- 2026-08-04T15:40:00Z — Mathijs superseded the prior stdout-only boundary:
+  every JSON cix writes is now in scope, including item manifests, locks,
+  compose artifacts/state, index API bodies, and local build caches. Alpha
+  permits the resulting item hashes and memo cache identities to roll. The
+  `corpus/` fence remains explicit: do not rewrite its checked-in locks; cases
+  will roll forward when their owning tracks rebuild them. Audit found all
+  public locks and compose artifacts already pretty, while the generated Nix
+  manifest, builder workspace/cache records, compose secret state, and index
+  HTTP response were compact. Updated those writes and restored plain `cat`
+  manifest receipts in the tour, with its hand-assembled fixture now pretty as
+  well. Next: format and focused real-Nix/tour receipts, regenerate goldens,
+  then rerun the complete agent tier.
+
 - 2026-08-04T15:34:33Z — Committed the complete JSON stdout formatting track
   as `8dba887` (`cix: pretty-print JSON stdout`), including this journal's
   prior receipts. `git status --short --branch` was clean immediately after.

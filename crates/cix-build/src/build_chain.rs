@@ -2441,7 +2441,7 @@ fn load_workspace_state(path: &Path) -> Option<WorkspaceState> {
 
 fn save_workspace_state(path: &Path, state: &WorkspaceState) -> Result<()> {
     let temporary = path.with_extension("json.next");
-    fs::write(&temporary, serde_json::to_vec(state)?)
+    fs::write(&temporary, serde_json::to_vec_pretty(state)?)
         .with_context(|| format!("writing builder workspace state {}", temporary.display()))?;
     fs::rename(&temporary, path)
         .with_context(|| format!("replacing builder workspace state {}", path.display()))
@@ -2994,7 +2994,7 @@ fn cache_context(expression: &str, directory: &Path, context: &BuildContext) -> 
     let parent = file.parent().expect("context cache file has a parent");
     fs::create_dir_all(parent)
         .with_context(|| format!("creating context cache {}", parent.display()))?;
-    let payload = serde_json::to_vec(&CachedContext {
+    let payload = serde_json::to_vec_pretty(&CachedContext {
         source_root,
         context: context.clone(),
     })?;

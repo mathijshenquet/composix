@@ -12,7 +12,7 @@ You will connect two independently built services with a Unix edge and shared st
 A `LISTENER` does not let the process call `socket()` for that port. Systemd owns the socket and passes file descriptor 3; this real fixture checks `LISTEN_FDS` and serves one HTTP response from the inherited descriptor.
 
 ```sh
-$ cat listener-fixture/bin/listenfds
+$ cat listener-fixture/bin/listenfds listener-fixture/cix-manifest.json
 #!/usr/bin/python3
 import os
 import socket
@@ -34,55 +34,16 @@ while True:
             + b"Content-Length: " + str(len(body)).encode() + b"\r\n"
             + b"Connection: close\r\n\r\n" + body
         )
-```
-
-```sh
-$ cix inspect /nix/store/…-listener-fixture
 {
-  "kind": "artifact",
-  "reference": null,
-  "storePath": "/nix/store/…-listener-fixture",
-  "narHash": "sha256-gfEjKh9+oHz9uR8uHT3IfF3h7Ib2k8MsFR8HvHRmmbM=",
-  "outputs": {
-    "x86_64-linux": {
-      "storePath": "/nix/store/…-listener-fixture",
-      "narHash": "sha256-gfEjKh9+oHz9uR8uHT3IfF3h7Ib2k8MsFR8HvHRmmbM="
+  "cixManifest": 0,
+  "start": [
+    "bin/listenfds"
+  ],
+  "listeners": {
+    "http": {
+      "type": "stream"
     }
-  },
-  "manifest": {
-    "cixManifest": 0,
-    "dirs": {
-      "cache": [],
-      "config": [],
-      "data": [],
-      "logs": [],
-      "run": null,
-      "state": []
-    },
-    "egress": false,
-    "env": {},
-    "jit": null,
-    "listeners": {
-      "http": {
-        "type": "stream"
-      }
-    },
-    "liveness": null,
-    "mounts": null,
-    "network": null,
-    "ports": {},
-    "readiness": null,
-    "secrets": {},
-    "shm": null,
-    "start": [
-      "bin/listenfds"
-    ],
-    "start_pre": null
-  },
-  "closureSize": 1512,
-  "trustedKeys": [],
-  "upstream": null,
-  "drvPath": null
+  }
 }
 ```
 
@@ -174,12 +135,12 @@ $ cat cix.lock
 {
   "paths": {
     "consumer": {
-      "narHash": "sha256-vB9zwJqxm4ZFP/r4ggfqqfAz2GcB1PuPFOXWSj0ONVI=",
+      "narHash": "sha256-7iODRRqFnnKMdPDks8KJXgFJ4wAa7xazu8UBWnSBDvg=",
       "ref": "consumer:v1",
       "storePath": "/nix/store/…-cix-item-consumer"
     },
     "producer": {
-      "narHash": "sha256-Zw7L+1NaI5diZ2PM2elZAsxIVKhNv04qTlbFqidXa6o=",
+      "narHash": "sha256-B5dRnQ8cJfzVmdHg2mLRdFwGgKJXw8EVgVxY/WlA+8Q=",
       "ref": "producer:current",
       "storePath": "/nix/store/…-cix-item-producer"
     }

@@ -35,7 +35,7 @@ fn json_response<T: Serialize>(
     status: StatusCode,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     negotiated_response(
-        serde_json::to_vec(value).expect("serializing API response"),
+        serde_json::to_vec_pretty(value).expect("serializing API response"),
         status,
         "application/vnd.cix+json;version=1",
     )
