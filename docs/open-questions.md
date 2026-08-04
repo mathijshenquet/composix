@@ -62,23 +62,22 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   VM and 20/20 identically contended post-fix runs passed with no netns stop,
   stale-path, or activation failure.
 
+- **Build-side defect trio** (resolved 2026-08-04): declared FETCH EXPECTs
+  are now compared with their recorded lock pins before completed-output or
+  step memos can return, and a mismatch names the source line plus both hash
+  values without rewriting the lock. The regression uses the traefik shape:
+  two distinct warm-memoized FETCHes followed by a copy-pasted second EXPECT.
+  Builder COPY is sequential, so a repeated destination after a warm plan edit
+  now reconciles normally; artifact assembly destinations remain unique. The
+  Directus ENOTDIR was a traced lookup below a file
+  (`.../popper.js/index.d.ts`): like ENOENT, that lookup is an absent read
+  dependency rather than a fatal recorder error. Other trace I/O errors now
+  carry the path and the attributed Cixfile step. The fhsspike build crosses
+  the former `pnpm run build` blocker and reaches its later offline deploy
+  command.
+
 ## Open for agents
 
-- **Duplicate COPY against an already populated warm builder root**
-  (regen wave 2, luna's Watchtower): Cix rejects a direct duplicate file
-  destination when the builder's warm root is already populated. With
-  `COPY context/ .` before `FETCH`, repeating `COPY context/go.mod go.mod`
-  afterward fails on the next warm build with `BUILDER block destination
-  "go.mod" is already populated`; the same applies to the other direct
-  duplicate file copies. This is a warm-workspace product constraint, not a
-  translation requirement; reproduce from the Watchtower regeneration and
-  decide whether identical rewrites should be accepted or diagnosed earlier.
-- **Bare `Error: Not a directory` from cix build** (track/fhsspike,
-  2026-08-04): the patched directus build died with a context-free error
-  after the full pnpm build stream — no path, no step attribution. A
-  diagnosability defect (D73 spirit) and the actual remaining directus
-  blocker; reproduce from the fhsspike branch and give the error its
-  path + step context.
 - **Degradation fallback drops the whole property set** (tour CI red,
   2026-08-04): a user manager that rejects one directive
   (`PrivatePIDs=` on CI's older systemd) makes cix retry without
@@ -118,17 +117,6 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   nsswitch.conf) — or an explicit decision that services must not
   assume `localhost`.
 
-- **EXPECT not validated against the recorded pin on warm builds**
-  (regen wave 1, luna's traefik, verified 2026-08-04): a Cixfile with a
-  wrong/copy-pasted EXPECT builds green indefinitely while the fetch
-  memo-hits — the mismatch only fires on a true refetch. Observed: both
-  traefik fetches declare the same EXPECT, the lock records the same
-  narHash for both pins while its stepMemos show different content, and
-  corrupting one EXPECT surfaced a mismatch naming the *old* declared
-  value. cix should cross-check declared EXPECT against the recorded
-  pin at plan time (string compare) and error on divergence; reproduce
-  from `track/regen1`'s traefik case and root-cause the identical-pin
-  recording.
 - **Unstable-API FETCH content is EXPECT-hostile** (same case): pinning
   GitHub's release-metadata JSON captures download counters that mutate
   every refetch, so the pin fails on any cache loss. Teaching nuance
