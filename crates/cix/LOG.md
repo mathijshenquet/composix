@@ -254,3 +254,22 @@
 - 2026-07-28T20:30:00Z — Started `.dev/specs/track-tour3.md`. Scope is limited to the cix tour harness, generated tour pages, tour links, and any necessary cix dev-dependencies. Read the existing harness, generated tour, D13/D19, and the user-run integration fixture. The new scenario will use a v2 store fixture with one state directory and `--user`; its cleanup guard will stop the generated transient unit on every path. No ambiguity requiring a scope expansion identified.
 - 2026-07-28T20:35:00Z — Replaced the monolithic generated tour with `docs/tour/index.md` and seven numbered scenario pages, each with stable Jekyll `.html` navigation. The drift check now compares the full generated filename set and each page's contents, so stale, deleted, and renamed files all fail. Added the final rootless service scenario: it puts a v2 spec plus shell service in the Nix store, runs it detached via `--user`, lists it with `cix ps`, stops it, and guards cleanup with `systemctl --user stop` on unwind. Unit nonces and multi-line host diagnostics are normalized while the degraded-mode warning remains visible. Generated pages and focused tour tests pass.
 - 2026-07-28T20:40:00Z — Final gate passed three consecutive times in `devenv`: `cargo fmt --check`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`. All tour drift/determinism checks and the existing user-manager integration test passed each time. The generated pages were reviewed for complete `.html` index/previous/next links. No deviations or open questions remain.
+
+## 2026-08-04 — track/tour2: new-user guide
+
+- 2026-08-04T00:00:00Z — Started `.dev/specs/track-tour2.md` on
+  `track/tour2` after reading the repository journal, design registry, cix log,
+  current executable tour, and relevant feature/scenario inventory. The fixed
+  plan is seven chapter-sized commits in blueprint order, followed by the
+  generated index/link sweep and the standard bounded agent gate. Scope stays
+  inside `crates/cix/tests/tour.rs`, generated `docs/tour/`, tour links, and
+  this log. Any `ENOSPC` is a reportable stop; no disk workaround will be used.
+
+- 2026-08-04T11:20:00Z — Chapter 1 is implemented and generated as
+  `01-hello-composix.md`. Its real fixture builds an IMPORT-based nginx item,
+  inspects the emitted manifest, runs through the explicitly degraded user
+  manager, probes the served page, and stops the unit. The first probe exposed
+  the documented D13 boundary: this host drops item BindPaths, so the fixture
+  honestly uses its locked source path and private `/tmp` runtime files while
+  retaining the production role-dir declarations. Focused synchronous
+  `generate_tour` passed; no ENOSPC occurred.

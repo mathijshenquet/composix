@@ -480,50 +480,88 @@ fn root_filename() -> &'static str {
     "bXktYXBw"
 }
 
-fn chapter_index() -> String {
-    let mut doc = Doc::new("index");
-    doc.para("The index gives mutable, memorable names to immutable Nix store paths. This chapter follows one tag through its complete local life.");
+fn chapter_hello() -> String {
+    let mut doc = Doc::new("hello");
+    fs::write(
+        doc.base.join("index.html"),
+        "<h1>hello from your first composix service</h1>\n",
+    )
+    .expect("writing hello page");
+    fs::write(
+        doc.base.join("nginx.conf"),
+        r#"daemon off;
+pid /tmp/cix-tour-nginx.pid;
+error_log stderr info;
+events { }
+http {
+  access_log off;
+  client_body_temp_path /tmp/cix-tour-nginx-body;
+  server { listen 18085; root .; }
+}
+"#,
+    )
+    .expect("writing hello nginx config");
+    fs::write(
+        doc.base.join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-    doc.para("## Tag");
-    let first = fixture(&mut doc, "my-app-v1", "hello from my app v1");
-    let listing = doc.sh("cix ls -l", true);
-    assert!(listing.contains("my-app:v1"));
-    assert!(listing.contains(&first));
+SERVICE hello
+IMPORT ${pkgs.nginx}
+COPY index.html /srv/www/index.html
+COPY nginx.conf /etc/nginx/nginx.conf
+START nginx -p ${src}/ -c nginx.conf -e stderr
+PORT http = 18085
+CACHEDIR /var/cache/nginx
+RUNDIR /run/nginx
+"#,
+    )
+    .expect("writing hello Cixfile");
+    fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing hello lock");
 
-    doc.para("The name points at an immutable tag table. Cix roots that table, which in turn keeps the store paths in its current entries alive.");
-    let roots = doc.sh("ls \"$CIX_STATE_DIR/roots/names\"", true);
-    assert_eq!(roots.trim(), root_filename());
-    let table = doc.sh(
-        &format!(
-            "cat \"$(readlink $CIX_STATE_DIR/roots/names/{}/table)/table.json\"",
-            root_filename()
-        ),
-        true,
+    doc.para("You will build and run a small nginx service from a Cixfile. Afterwards, you will understand the shortest path from checked-in files to a supervised process.");
+    doc.para("Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.");
+
+    doc.para("## Before you start");
+    doc.para("You need Nix with flakes enabled, `cix`, a running systemd user manager for this rootless walkthrough, and `curl`. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
+    doc.para("Because a restricted user manager cannot project item mounts on this host, the development probe reads its checked-in page through the locked source path and uses private `/tmp` files. The same item still declares nginx's production cache and runtime paths; Chapter 5 returns to that runtime boundary explicitly.");
+
+    doc.para("## Build the item");
+    doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
+    let source = doc.sh("cat Cixfile index.html nginx.conf", true);
+    assert!(source.contains("IMPORT ${pkgs.nginx}"));
+    assert!(source.contains("START nginx"));
+    assert!(source.contains("CACHEDIR /var/cache/nginx"));
+    assert!(source.contains("RUNDIR /run/nginx"));
+
+    let built = doc.sh("cix build .", true);
+    let store_path = built_store_path(&built, "-cix-item-hello");
+    let manifest = doc.sh(&format!("cat {store_path}/cix-manifest.json"), true);
+    assert!(manifest.contains("/bin/nginx"));
+    assert!(manifest.contains("\"/var/cache/nginx\""));
+    assert!(manifest.contains("\"/run/nginx\""));
+
+    doc.para("## Run, probe, stop");
+    let started = doc.sh(&format!("cix run {store_path} --user --detach"), true);
+    let unit_name = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-hello-") && line.ends_with(".service"))
+        .expect("cix run printed the hello unit")
+        .to_owned();
+    let _unit = UserUnit {
+        name: unit_name.clone(),
+    };
+    wait_for_http(
+        "127.0.0.1:18085",
+        "<h1>hello from your first composix service</h1>",
     );
-    assert!(table.contains("\"cixTagTable\": 1"));
-    assert!(table.contains(&first));
-
-    doc.para("## Inspect");
-    doc.para("Inspection resolves the tag, then combines its per-system index entry with the parsed runtime manifest and measured Nix closure as stable JSON.");
-    let inspected = doc.sh("cix inspect my-app:v1", true);
-    assert!(inspected.contains("\"kind\": \"artifact\""));
-    assert!(inspected.contains("\"outputs\": {"));
-    assert!(inspected.contains("\"closureSize\":"));
-    assert!(inspected.contains("\"manifest\":"));
-
-    doc.para("## Move");
-    doc.para("Retagging atomically moves the name to a newer immutable build. The old path does not change; this name simply stops pinning it.");
-    let second = fixture(&mut doc, "my-app-v2", "hello from my app v2");
-    let moved = doc.sh("cix ls -l", true);
-    assert!(moved.contains(&second));
-    assert!(!moved.contains(&first));
-
-    doc.para("## Untag");
-    doc.para("Removing the tag writes a new table with no `v1` entry. The history remains inspectable in immutable predecessor tables, but fresh resolution no longer offers the tag.");
-    doc.sh("cix untag my-app:v1", true);
-    let empty = doc.sh("cix ls", true);
-    assert!(empty.trim().is_empty());
-    doc.para("The next `nix-collect-garbage` may reclaim bytes that no other root still reaches.");
+    let response = doc.sh("curl -fsS http://127.0.0.1:18085", true);
+    assert_eq!(
+        response.trim(),
+        "<h1>hello from your first composix service</h1>"
+    );
+    doc.sh(&format!("systemctl --user stop {unit_name}"), true);
+    doc.para("You have now built an immutable item, run its declared service, reached it on its declared port, and stopped the transient unit. The next chapters unpack the language and operational model behind those five minutes.");
     doc.finish()
 }
 
@@ -1113,10 +1151,10 @@ fn render_tour() -> Vec<GeneratedFile> {
     let _lock = TOUR_RENDER_LOCK.lock().expect("locking tour renderer");
     let scenarios = vec![
         Scenario {
-            filename: "01-index.md",
-            title: "Chapter 1: The index",
-            description: "Tag, inspect, move, and remove one local name.",
-            body: chapter_index(),
+            filename: "01-hello-composix.md",
+            title: "Chapter 1: Hello, composix",
+            description: "Build, run, probe, and stop your first Cixfile service.",
+            body: chapter_hello(),
         },
         Scenario {
             filename: "02-distribution.md",

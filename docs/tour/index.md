@@ -9,7 +9,7 @@ This executable tour follows composix from naming and distribution through build
 
 ## Chapters
 
-- [Chapter 1: The index](01-index.html) — Tag, inspect, move, and remove one local name.
+- [Chapter 1: Hello, composix](01-hello-composix.html) — Build, run, probe, and stop your first Cixfile service.
 
 - [Chapter 2: Distribution](02-distribution.html) — Serve an index and store, pull it elsewhere, and follow a moving tag.
 

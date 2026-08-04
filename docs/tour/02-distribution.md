@@ -100,4 +100,4 @@ GC follows those pins: after the refresh, the consumer roots the new path rather
 
 ---
 
-[← Previous](01-index.html) · [Tour index](index.html) · [Next →](03-build-run-debug.html)
+[← Previous](01-hello-composix.html) · [Tour index](index.html) · [Next →](03-build-run-debug.html)
