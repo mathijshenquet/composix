@@ -2,8 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 SERVICE web
+  IMPORT ${pkgs.postgresql} ${pkgs.python3} ${pkgs.redis}
   COPY ${src}/web.py /opt/mastodon/web.py
-  START ${pkgs.python3}/bin/python3 /opt/mastodon/web.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  START python3 /opt/mastodon/web.py psql redis-cli
   SECRET db-password
   PORT http = 33000
   STATEDIR /mastodon/public/system

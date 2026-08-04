@@ -56,13 +56,13 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / mastodon</nav>
   <h1>docker / mastodon</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent · <strong>Evidence:</strong> closed-root · receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Six-member sealed-root composition: credentials, Unix edges, shared-rw state, health, timer, logs, and purge · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/mastodon/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent · <strong>Evidence:</strong> closed-root · modernized in-place receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Fresh six-member in-place CIP-91/92 receipt: credentials, Unix edges, shared-rw state, health, timer, logs, and purge · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/mastodon/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/mastodon/SOURCE">Pinned upstream source notes</a></p>
   <p class="status"><strong>Mastodon tag provenance:</strong> compose children reference <code>corpus-mastodon-&lt;member&gt;:checked</code> tags produced by <code>check.sh</code> from the per-member Cixfiles shown below.</p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@4e76da0 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with systemd-257 adapter-liveness regression</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@4e76da0 · unknown · 2026-08-02 · <strong>Status:</strong> modernized in place · gpt-5.6-terra · 2026-08-04</p>
     <ul>
       <li>The checked conversion substitutes Python/nginx shape stubs for Mastodon&#39;s web, Sidekiq, and streaming applications and adds a sixth cleanup member; it proves composition mechanisms, not a Mastodon application migration. → case</li>
       <li>Only <code>compose.json</code> is visible in the browser even though <code>corpus-mastodon-*:checked</code> tags are produced from six member Cixfiles by <code>check.sh</code>; surface that provenance and the member sources. → browser</li>
@@ -242,8 +242,9 @@ the approved lightweight fallback instead of building Mastodon and its assets.
 FROM . AS src
 
 APP cleanup
+  IMPORT ${pkgs.bash} ${pkgs.postgresql}
   COPY ${src}/cleanup.sh /opt/mastodon/cleanup.sh
-  START ${pkgs.bash}/bin/sh /opt/mastodon/cleanup.sh ${pkgs.postgresql}/bin/psql
+  START bash /opt/mastodon/cleanup.sh psql
   SECRET db-password
 </code></pre>
       </section>
@@ -253,14 +254,13 @@ APP cleanup
 FROM . AS src
 
 SERVICE postgres
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.postgresql}
   COPY ${src}/runtime-env.sh /opt/postgres/runtime-env.sh
   COPY ${src}/setup.sh /opt/postgres/setup.sh
   COPY ${src}/start.sh /opt/postgres/start.sh
-  LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
-  LINK ${pkgs.bash}/bin/sh /bin/sh
-  START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup.sh
-  START ${pkgs.bash}/bin/sh /opt/postgres/start.sh ${pkgs.postgresql}/bin/postgres
-  ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
+  COPY ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
+  START_PRE bash /opt/postgres/setup.sh
+  START bash /opt/postgres/start.sh postgres
   ENV LANG = C
   ENV LC_ALL = C
   SECRET db-password
@@ -276,8 +276,9 @@ SERVICE postgres
 FROM . AS src
 
 SERVICE redis
+  IMPORT ${pkgs.redis}
   COPY ${src}/redis.conf /etc/redis/redis.conf
-  START ${pkgs.redis}/bin/redis-server /etc/redis/redis.conf
+  START redis-server /etc/redis/redis.conf
   ENV LANG = C
   ENV LC_ALL = C
   PORT redis = 36379
@@ -291,8 +292,9 @@ SERVICE redis
 FROM . AS src
 
 SERVICE sidekiq
+  IMPORT ${pkgs.postgresql} ${pkgs.python3} ${pkgs.redis}
   COPY ${src}/worker.py /opt/mastodon/worker.py
-  START ${pkgs.python3}/bin/python3 /opt/mastodon/worker.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  START python3 /opt/mastodon/worker.py psql redis-cli
   SECRET db-password
   PORT control = 33001
   STATEDIR /mastodon/public/system
@@ -307,10 +309,11 @@ SERVICE sidekiq
 FROM . AS src
 
 SERVICE streaming
+  IMPORT ${pkgs.bash} ${pkgs.nginx} ${pkgs.postgresql} ${pkgs.redis}
   COPY ${src}/nginx.conf /etc/nginx/nginx.conf
   COPY ${src}/verify-dependencies.sh /opt/mastodon/verify-dependencies.sh
-  START_PRE ${pkgs.bash}/bin/sh /opt/mastodon/verify-dependencies.sh ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
-  START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
+  START_PRE bash /opt/mastodon/verify-dependencies.sh psql redis-cli
+  START nginx -c /etc/nginx/nginx.conf -e stderr
   SECRET db-password
   PORT streaming = 34000
   CACHEDIR /var/cache/nginx
@@ -324,8 +327,9 @@ SERVICE streaming
 FROM . AS src
 
 SERVICE web
+  IMPORT ${pkgs.postgresql} ${pkgs.python3} ${pkgs.redis}
   COPY ${src}/web.py /opt/mastodon/web.py
-  START ${pkgs.python3}/bin/python3 /opt/mastodon/web.py ${pkgs.postgresql}/bin/psql ${pkgs.redis}/bin/redis-cli
+  START python3 /opt/mastodon/web.py psql redis-cli
   SECRET db-password
   PORT http = 33000
   STATEDIR /mastodon/public/system
@@ -444,15 +448,15 @@ printf &#39;PASS cix: shared-rw, readiness, credential, timer, and member logs\n
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;cleanup&quot;: {
-      &quot;sourceHash&quot;: &quot;19cb9863f7267873209c1c90d93254a317f55ea54bca1b21ac0e8dc976c58292&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/wf46a8q03rcjm72nqbzy9n3xpl7f6hh7-cix-item-cleanup&quot;
+      &quot;sourceHash&quot;: &quot;55ef790258451e6994f808d196ff6d27881a8b232f89bcb6b293fafcf24a2337&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/xvyx25a61w408dksz09jcyv7gmmy59xq-cix-item-cleanup&quot;
     }
   }
 }
@@ -544,15 +548,15 @@ printf &#39;mastodon cleanup fired\n&#39;
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;postgres&quot;: {
-      &quot;sourceHash&quot;: &quot;af43381b1059d439deb3bf59d1efd204eca0f662139088492d1f8ec440b1fc57&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres&quot;
+      &quot;sourceHash&quot;: &quot;224c084229634a79d321822a0ed3658c8e6557f13a4a5a0843bcdada641e60cf&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/rlvrgga96ibd97c6fvvcpcanh66afmkz-cix-item-postgres&quot;
     }
   }
 }
@@ -581,7 +585,7 @@ export LD_PRELOAD=/opt/postgres/libnss_wrapper.so
 . /opt/postgres/runtime-env.sh
 
 if test ! -s &quot;$data_dir/PG_VERSION&quot;; then
-  initdb \
+  &quot;$(readlink -f &quot;$(command -v initdb)&quot;)&quot; \
     --pgdata=&quot;$data_dir&quot; \
     --username=mastodon \
     --pwfile=&quot;$CREDENTIALS_DIRECTORY/db-password&quot; \
@@ -598,7 +602,7 @@ chmod 0700 &quot;$data_dir&quot;
         <pre><code>set -eu
 . /opt/postgres/runtime-env.sh
 
-exec &quot;$1&quot; \
+exec &quot;$(readlink -f &quot;$(command -v &quot;$1&quot;)&quot;)&quot; \
   -D &quot;$data_dir&quot; \
   -p 35432 \
   -h 127.0.0.1 \
@@ -660,15 +664,16 @@ long-running members.
 
 ## Synchronous receipt
 
-`./check.sh cix` exited 0 on 2026-08-02. Its final items were:
+The CIP-91/92 in-place modernization reran `./check.sh cix` and exited 0
+synchronously on 2026-08-04. Its final items were:
 
 ```text
-postgres  /nix/store/sgi81gdjb7y91plmq60bg76k5z32crqn-cix-item-postgres
-redis     /nix/store/94pyzpkfryrjbxm92mrp8qa2h3dbhdsa-cix-item-redis
-web       /nix/store/afc7xdw294x7vhk6q6rripry1xiys3vk-cix-item-web
-sidekiq   /nix/store/p0aafmd6j6mvrx409avj5xpahrnykw6m-cix-item-sidekiq
-streaming /nix/store/lpwp6923950n3rkv32flld7wdmqlnqw0-cix-item-streaming
-cleanup   /nix/store/wf46a8q03rcjm72nqbzy9n3xpl7f6hh7-cix-item-cleanup
+postgres  /nix/store/rlvrgga96ibd97c6fvvcpcanh66afmkz-cix-item-postgres
+redis     /nix/store/ncasnv8rpcvri8dr3xlik0nnnnpklqrw-cix-item-redis
+web       /nix/store/4kw4nh1lpw6dcbb8d9zpw2w95pf71nac-cix-item-web
+sidekiq   /nix/store/f13zgdsxzmpr8s9dfsa4jamv7rip1hhb-cix-item-sidekiq
+streaming /nix/store/ja9qyk1m0ldczqa42nh230gfrpyvq26r-cix-item-streaming
+cleanup   /nix/store/xvyx25a61w408dksz09jcyv7gmmy59xq-cix-item-cleanup
 ```
 
 The compose check reported six services and two Unix edges. During activation,
@@ -686,7 +691,7 @@ EXIT cleanup completed with status 0, including `cix down --purge --yes`.
 The final rerun used `devenv shell -- ./corpus/migrate/docker/mastodon/check.sh cix`
 and exited 0 synchronously. It refreshes the `pkgs` lock before every member
 build so a locally cached item cannot hide a garbage-collected external runtime
-path. A second refresh of all six `Cixfile.lock` files produced no byte changes.
+path.
 
 ## Closed-root receipt
 
@@ -711,15 +716,15 @@ closed-root directories after `down --purge`.
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;redis&quot;: {
-      &quot;sourceHash&quot;: &quot;1e29e2b77b5eeb80001e65ebb8b5050586d7f0354d689e78bbeba84491d8eaeb&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/94pyzpkfryrjbxm92mrp8qa2h3dbhdsa-cix-item-redis&quot;
+      &quot;sourceHash&quot;: &quot;a43c76e6073539a8e85c70701794773bd2ee9046e506befba4daf87da03eae18&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/ncasnv8rpcvri8dr3xlik0nnnnpklqrw-cix-item-redis&quot;
     }
   }
 }
@@ -744,15 +749,15 @@ unixsocketperm 770
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;sidekiq&quot;: {
-      &quot;sourceHash&quot;: &quot;94c18d3433ac66a974a624c6d3b756124ed6e724f2bc60a8bb2202455215e83d&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/p0aafmd6j6mvrx409avj5xpahrnykw6m-cix-item-sidekiq&quot;
+      &quot;sourceHash&quot;: &quot;1ce522cd4f270e16de8435a9eaedb34ab1bafadab8aa6ad1d8d61e28efdf3a74&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/f13zgdsxzmpr8s9dfsa4jamv7rip1hhb-cix-item-sidekiq&quot;
     }
   }
 }
@@ -834,15 +839,15 @@ while True:
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;streaming&quot;: {
-      &quot;sourceHash&quot;: &quot;81357a2b815cfd62c5dc76caa775f7d7be95a1990a898a66b1a2ebdcb3e50e1c&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/lpwp6923950n3rkv32flld7wdmqlnqw0-cix-item-streaming&quot;
+      &quot;sourceHash&quot;: &quot;d3d1a94ea85f1e0ba79086ba19f0158083fb7e4f4bc151d51737ccbbc22d708e&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/ja9qyk1m0ldczqa42nh230gfrpyvq26r-cix-item-streaming&quot;
     }
   }
 }
@@ -887,15 +892,15 @@ printf &#39;mastodon streaming dependencies ready\n&#39;
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
     }
   },
   &quot;outputs&quot;: {
     &quot;web&quot;: {
-      &quot;sourceHash&quot;: &quot;025cdc38c1bb190abea4124bcc8ac8f1a49c640030834445e90af36017f4f6c0&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/afc7xdw294x7vhk6q6rripry1xiys3vk-cix-item-web&quot;
+      &quot;sourceHash&quot;: &quot;e42d1be9825290d8a9d0bfacfeee471bd53a834966bb6297521c6efafda9e18a&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/4kw4nh1lpw6dcbb8d9zpw2w95pf71nac-cix-item-web&quot;
     }
   }
 }
