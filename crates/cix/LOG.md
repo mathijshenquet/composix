@@ -1,5 +1,19 @@
 # litdoc work log
 
+- 2026-08-04T18:30:00Z — Started `track/tour4` from clean `310022e` after
+  reading the track spec, both cold-reader `CONFUSIONS.md` reports in full,
+  the repository/design journals, the existing seven-chapter generator, and
+  the runtime/compose/build implementation seams needed for honest commands.
+  Every report bullet is acceptance scope. Direct `cix run` has no credential
+  source flag: implemented runtime credentials are compose-level
+  `secrets` consumed by root-owned `cix run --compose`/`cix up`; compose
+  activation likewise requires root. The tour will execute the portable
+  rootless service, persistence, timer, listener, and Unix-probe receipts,
+  while labeling exact credential/activation commands as non-executed instead
+  of fabricating privilege. Planned commits are index/infrastructure followed
+  by one commit per chapter; final gate is the standard agent tier, three
+  consecutive deterministic renders, the `${` START canon scan, and df guard.
+
 - 2026-08-04T16:20:00Z — Final `track/tourpolish` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
   `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell

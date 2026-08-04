@@ -297,6 +297,22 @@ impl Doc {
         raw
     }
 
+    fn sh_with_env(
+        &mut self,
+        command: &str,
+        variables: &[(&str, &str)],
+        expect_success: bool,
+    ) -> String {
+        let output = self.run_with_env(&self.state_dir, command, variables, expect_success);
+        let raw = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        self.record("$", command, &raw);
+        raw
+    }
+
     fn record(&mut self, prompt: &str, command: &str, output: &str) {
         let displayed_command = normalize(command, &self.base);
         writeln!(self.text, "```sh\n{prompt} {displayed_command}").expect("writing command");
@@ -311,16 +327,31 @@ impl Doc {
     }
 
     fn run(&self, state_dir: &Path, command: &str, expect_success: bool) -> std::process::Output {
+        self.run_with_env(state_dir, command, &[], expect_success)
+    }
+
+    fn run_with_env(
+        &self,
+        state_dir: &Path,
+        command: &str,
+        variables: &[(&str, &str)],
+        expect_success: bool,
+    ) -> std::process::Output {
         let mut path = self.bin_dir.display().to_string();
         if let Some(existing) = std::env::var_os("PATH") {
             path.push(':');
             path.push_str(&existing.to_string_lossy());
         }
-        let output = Command::new("sh")
+        let mut process = Command::new("sh");
+        process
             .args(["-c", command])
             .current_dir(&self.base)
             .env("CIX_STATE_DIR", state_dir)
-            .env("PATH", path)
+            .env("PATH", path);
+        for (name, value) in variables {
+            process.env(name, value);
+        }
+        let output = process
             .output()
             .unwrap_or_else(|error| panic!("running `{command}`: {error}"));
         let raw = format!(
@@ -443,6 +474,9 @@ fn normalize(raw: &str, base: &Path) -> String {
     let stale_failed_unit =
         Regex::new(r"(?m)^user\s+cix-run-[a-z][a-z0-9-]*-NONCE\.service\s+failed/failed.*\n?")
             .expect("valid stale unit regex");
+    let degraded_user =
+        Regex::new(r"(?m)^warning: --user is degraded development mode;[^\r\n]*(?:\r?\n|$)")
+            .expect("valid --user warning regex");
     // The user manager determines both the rejected controls and the error text — and on
     // permissive kernels (unrestricted userns) the manager accepts everything and the pair
     // never appears at all. Presence is host-specific, so the pair is removed entirely.
@@ -469,6 +503,10 @@ fn normalize(raw: &str, base: &Path) -> String {
     let normalized =
         observer_stats.replace_all(&normalized, "${1}  <live>  <live>  <live>  <live>  <live>");
     let normalized = unit_name.replace_all(&normalized, "cix-run-${1}-NONCE.${2}");
+    let normalized = degraded_user.replace_all(
+        &normalized,
+        "[manager degradation warnings vary by host — elided]\n",
+    );
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
@@ -839,22 +877,41 @@ error_log stderr info;
 events { }
 http {
   access_log off;
-  client_body_temp_path /var/cache/nginx/client-body;
-  server { listen 18085; root /srv/www; }
+  client_body_temp_path /tmp/cix-tour-nginx-client-body;
+  server { listen 8420; root srv/www; }
 }
 "#,
     )
     .expect("writing hello nginx config");
     fs::write(
+        doc.base.join("start-hello"),
+        r#"#!/usr/bin/env bash
+set -eu
+prefix=${CIX_APP:-/}
+exec nginx -p "$prefix" -c etc/nginx/nginx.conf -e stderr -g 'pid /tmp/cix-tour-nginx.pid;'
+"#,
+    )
+    .expect("writing hello launcher");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(doc.base.join("start-hello"))
+            .expect("reading hello launcher permissions")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(doc.base.join("start-hello"), permissions)
+            .expect("making hello launcher executable");
+    }
+    fs::write(
         doc.base.join("Cixfile"),
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE hello
-IMPORT ${pkgs.nginx}
+IMPORT ${pkgs.nginx} ${pkgs.bash} ${pkgs.coreutils}
 COPY index.html /srv/www/index.html
 COPY nginx.conf /etc/nginx/nginx.conf
-START nginx -c /etc/nginx/nginx.conf -e stderr -g 'pid /run/nginx/nginx.pid;'
-PORT http = 18085
+COPY start-hello /bin/start-hello
+START start-hello
+PORT http = 8420
 CACHEDIR /var/cache/nginx
 RUNDIR /run/nginx
 "#,
@@ -862,36 +919,78 @@ RUNDIR /run/nginx
     .expect("writing hello Cixfile");
     fs::write(doc.base.join("Cixfile.lock"), TOUR_CIXFILE_LOCK).expect("writing hello lock");
 
-    doc.para("You will build a small nginx service from a canonical Cixfile and inspect the resulting runtime contract. Afterwards, you will understand the shortest path from checked-in files to a production service and why its live receipt belongs to the system-manager scenario.");
-    doc.para("Composix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that say exactly what enters an item and what its process may use.");
+    doc.para("You will build and run a small nginx service from ordinary checked-in files. A build result is an **item**: one immutable directory in `/nix/store` containing the program, its files, and a machine-readable service manifest. A Cixfile is the declaration that assembles that directory and states the process's runtime needs.");
 
     doc.para("## Before you start");
-    doc.para("You need Nix with flakes enabled, `cix`, and a running systemd user manager for this rootless walkthrough. Production uses the system manager; `--user` is the deliberately degraded development path and says so when you invoke it.");
-    doc.para("Production `cix run` projects the item and its writable role directories. A user manager may reject sandbox properties that the system manager accepts, so this rootless chapter stops at a host-independent inspection and Chapter 5 completes the runtime story.");
+    doc.para("Install the current alpha with `nix profile install github:mathijshenquet/composix#cix`, or use `cix` from this repository's `devenv` shell. The commands below require Linux, Nix, and a per-user systemd manager; macOS, non-systemd Linux, and containers or WSL sessions without user systemd can follow the build sections but cannot run the service lifecycle.");
+    let nix_version = doc.sh("nix --version", true);
+    assert!(nix_version.contains("nix"));
+    let flakes = doc.sh(
+        "nix flake metadata --no-write-lock-file github:NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e >/dev/null && printf 'flakes: available\\n'",
+        true,
+    );
+    assert_eq!(flakes.trim(), "flakes: available");
+    let manager = doc.sh(
+        "systemctl --user is-system-running >/dev/null 2>&1 && printf 'user manager: running\\n' || { state=$(systemctl --user is-system-running 2>/dev/null); test \"$state\" = degraded && printf 'user manager: running (degraded)\\n'; }",
+        true,
+    );
+    assert!(manager.contains("user manager: running"));
+    doc.para("Here **rootless** means that `cix run --user` asks your per-user systemd manager to start the unit without root privileges. This development path lacks `DynamicUser=` and may lose mount-namespace, device, PID, and capability restrictions that the system manager provides; cix prints that degradation instead of implying production-equivalent isolation.");
 
     doc.para("## Build the item");
-    doc.para("Your first Cixfile imports nginx, copies two ordinary project files, names its entrypoint and port, and declares nginx's cache- and runtime-lifetime writable directories.");
-    let source = ["Cixfile", "index.html", "nginx.conf"]
+    doc.para("`FROM … AS pkgs` selects a Nix package collection; the adjacent `Cixfile.lock` records its immutable Git revision and NAR hash, a fingerprint of the serialized source tree. `IMPORT` adds selected packages' command and data trees to the item, so `nginx` and `bash` can be named without host-installed copies. `${pkgs.nginx}` means the `nginx` package from the earlier `pkgs` name; `${…}` is Cixfile build-time substitution, not a shell variable.");
+    doc.para("The service copies its page, configuration, and launcher; names its entrypoint and inbound port; and declares two **role directories**, writable paths whose lifecycle systemd manages. `CACHEDIR` data may be cleaned and survives an ordinary restart, while `RUNDIR` is recreated for each service lifetime. The launcher uses the real item path exposed as `CIX_APP` only on the degraded user path, so this demo keeps working when that manager cannot project the copied `/etc` and `/srv` paths.");
+    let source = ["Cixfile", "index.html", "nginx.conf", "start-hello"]
         .map(|path| doc.show_file(path))
         .join("");
     assert!(source.contains("IMPORT ${pkgs.nginx}"));
-    assert!(source.contains("START nginx -c /etc/nginx/nginx.conf -e stderr"));
-    assert!(!source.contains("${src}"));
+    assert!(source.contains("START start-hello"));
     assert!(source.contains("CACHEDIR /var/cache/nginx"));
     assert!(source.contains("RUNDIR /run/nginx"));
 
-    let built = doc.sh("cix build .", true);
-    let store_path = built_store_path(&built, "-cix-item-hello");
-    let manifest = doc.show_file(Path::new(&store_path).join("cix-manifest.json"));
-    assert!(manifest.contains("/bin/nginx"));
+    doc.para("Run from the directory containing these four files and `Cixfile.lock`. Capture a one-member build with a selector; this teaches the reusable shell idiom for every later command. The ellipsis in displayed output is normalization only: `$item` contains the complete path.");
+    let built = doc.sh("item=$(cix build .#hello); printf '%s\\n' \"$item\"", true);
+    let store_path = built
+        .lines()
+        .find(|line| line.starts_with("/nix/store/"))
+        .expect("selected hello build printed an item")
+        .to_owned();
+    doc.para("`cix-manifest.json` is generated inside the item, not in the project. The build compiler derives its absolute command, read-only projections (mounts), port grant, and writable directory roles from the Cixfile; the runtime validates this manifest before compiling a unit.");
+    let manifest = doc.sh_with_env(
+        "jq '{start, mounts:[.mounts[] | select(. == \"/etc/nginx\" or . == \"/srv/www\")], ports, dirs}' \"$item/cix-manifest.json\"",
+        &[("item", &store_path)],
+        true,
+    );
+    assert!(manifest.contains("bin/start-hello"));
     assert!(manifest.contains("\"/var/cache/nginx\""));
     assert!(manifest.contains("\"/run/nginx\""));
 
-    doc.para("## Run the production contract");
-    // GitHub Actions CI's user systemd manager rejects PrivatePIDs=; cix's D13 retry then omits
-    // BindPaths, so a role-directory-dependent nginx probe cannot be a deterministic tour command.
-    doc.para("> **Not executed here — system-manager scenario:** run the item with `cix run <item> --detach`, request its HTTP port, then stop the printed unit. The [VM dogfood scenario](https://github.com/mathijshenquet/composix/blob/main/nix/vm-dogfood.nix) executes that lifecycle with the item mounts, cache directory, and runtime directory projected by the production manager.");
-    doc.para("You have now built an immutable item whose imported command, copied absolute-path configuration, port, and writable directories are asserted directly from its manifest. The next chapters unpack the language and runtime model behind it.");
+    doc.para("## Run, probe, and stop it");
+    doc.para("A **projection** is a read-only bind mount that makes an item path such as `$item/srv/www` appear at its declared service path such as `/srv/www`. The production system manager supplies those projections and stronger isolation; this rootless demo also has the `CIX_APP` fallback described above. The harness normalizes host-varying manager degradation warnings to the fixed marker line `[manager degradation warnings vary by host — elided]`; the service, HTTP probe, and stop command still really execute.");
+    let started = doc.sh_with_env(
+        "unit=$(cix run \"$item\" --user --detach); printf '%s\\n' \"$unit\"",
+        &[("item", &store_path)],
+        true,
+    );
+    let unit = started
+        .lines()
+        .find(|line| line.starts_with("cix-run-hello-") && line.ends_with(".service"))
+        .expect("hello run printed its unit")
+        .to_owned();
+    wait_for_http(
+        TOUR_LISTEN,
+        "<h1>hello from your first composix service</h1>",
+    );
+    let response = doc.sh("curl -fsS http://127.0.0.1:8420", true);
+    assert_eq!(
+        response.trim(),
+        "<h1>hello from your first composix service</h1>"
+    );
+    doc.sh_with_env("systemctl --user stop \"$unit\"", &[("unit", &unit)], true);
+    wait_for_user_units_gone([unit.as_str()]).expect("hello unit unloads after stop");
+    stop_empty_cix_run_slice("the Chapter 1 lifecycle");
+
+    doc.para("You now have the complete first loop: checked-in files became one immutable item, its manifest became a named systemd unit, an HTTP request reached the real process, and the exact printed unit was stopped.");
     doc.finish()
 }
 
@@ -1803,16 +1902,13 @@ struct Scenario {
 }
 
 fn auto_generated_notice() -> String {
-    let version = env!("CARGO_PKG_VERSION");
-    let commit = option_env!("GIT_COMMIT_HASH").unwrap_or("unknown");
-    format!(
-        "> **Auto-generated** by `cargo test --test tour -- --ignored generate_tour`.\n> All outputs reflect actual behavior: each scenario drives the real `cix` binary in an isolated local index.\n> Version **{version}**, commit `{commit}`.\n> **Do not edit** — re-run the test to regenerate.\n"
-    )
+    "> Auto-generated by `cargo test --test tour -- --ignored generate_tour`.\n> Every command below really ran, in a throwaway cix index (the local\n> database mapping names to store paths) so nothing from the generating\n> machine leaks in. Outputs are asserted; store-path ellipses appear in\n> outputs only, never in commands you are meant to type.\n"
+        .to_owned()
 }
 
 fn render_index(scenarios: &[Scenario]) -> String {
     let mut index = format!(
-        "# composix — new-user guide\n\n{}\nComposix is a nix-native Docker analogue. Images become immutable Nix store items, and containers become hardened systemd units. Dockerfiles become Cixfiles that declare exactly what enters an item and what its process may use.\n\nStart at [Chapter 1](01-hello-composix.html) and follow the guide in order; every shown command is executed by the tour harness.\n\n## Chapters\n",
+        "# composix — new-user guide\n\n{}\nComposix builds and runs services the way Nix builds software: a\nbuild produces an immutable directory in the Nix store (an \"item\"),\nand running it asks systemd to start a locked-down unit whose\nfilesystem is assembled from that item. If you know Docker: items\nplay the role of images, units of containers, the Cixfile of the\nDockerfile. If you have never used Docker: you need nothing from it —\na Cixfile is a small declaration of what goes into the item and what\nthe process may touch at runtime.\n\nThe local index is the per-user database that maps mutable names to immutable item paths. Each generated chapter uses a fresh index, so its names cannot read or alter your normal cix state. Start at [Chapter 1](01-hello-composix.html) and follow the guide in order.\n\n## Chapters\n",
         auto_generated_notice()
     );
     for scenario in scenarios {
@@ -1860,47 +1956,47 @@ fn render_tour() -> Vec<GeneratedFile> {
         Scenario {
             filename: "01-hello-composix.md",
             title: "Chapter 1: Hello, composix",
-            description: "Build your first canonical service item and probe the rootless boundary.",
+            description: "Build, run, request, and stop one service without root privileges.",
             body: chapter_hello(),
         },
         Scenario {
             filename: "02-cixfile-language.md",
             title: "Chapter 2: The Cixfile language",
             description:
-                "Learn binders, assembly, runtime declarations, and the directive vocabulary.",
+                "Learn how declarations name inputs, assemble files, and grant runtime capabilities.",
             body: chapter_cixfile_language(),
         },
         Scenario {
             filename: "03-building.md",
             title: "Chapter 3: Building: BUILDERs, FETCH, and the lock",
             description:
-                "Pin network inputs, reuse audited work, repair an FHS binary, and build proj1.",
+                "Pin downloaded bytes, reuse checked build work, repair a Linux binary, and build proj1.",
             body: chapter_building(),
         },
         Scenario {
             filename: "04-naming-distribution.md",
             title: "Chapter 4: Naming and distribution",
             description:
-                "Tag immutable items, manage families, serve a cache, and follow a moving ref.",
+                "Group slash-prefixed names, serve their store contents, and refresh a name that moved.",
             body: chapter_naming_distribution(),
         },
         Scenario {
             filename: "05-runtime-contract.md",
             title: "Chapter 5: Running: the runtime contract",
             description:
-                "Inspect health and observability, debug by tag, and schedule an APP.",
+                "Run and probe a service, inspect its systemd state, and schedule a finite command.",
             body: chapter_runtime_contract(),
         },
         Scenario {
             filename: "06-compose.md",
             title: "Chapter 6: Compose",
-            description: "Connect two items with Unix and shared-dir edges, then inspect lifecycle boundaries.",
+            description: "Connect producer and consumer paths, share writable data, and inspect deployment generations.",
             body: chapter_compose(),
         },
         Scenario {
             filename: "07-dev-loop-docker.md",
             title: "Chapter 7: The dev loop and coming from Docker",
-            description: "Watch artifact rebuilds, keep translation twins, and continue into the migration corpus.",
+            description: "Rebuild after edits, compare two migration strategies, and browse worked migrations.",
             body: chapter_dev_loop(),
         },
     ];
