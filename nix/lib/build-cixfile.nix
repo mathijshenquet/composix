@@ -90,8 +90,8 @@ let
     else [ ];
 
   shellQuote = lib.escapeShellArg;
-  envArgs = environment: lib.concatStringsSep " " (lib.mapAttrsToList (
-    name: value: "--setenv ${shellQuote name} ${shellQuote value}"
+  envAssignments = environment: lib.concatStringsSep " " (lib.mapAttrsToList (
+    name: value: shellQuote "${name}=${value}"
   ) environment);
   exportPrelude = declared: lib.concatStringsSep "" (lib.mapAttrsToList (
     name: value: "export ${name}=${shellQuote value};"
@@ -151,24 +151,24 @@ let
   }: ''
     ${importUnionScript imports network}
     test -x "$union/bin/bash" || { echo "CIP-94 buildCixfile: line ${toString line}: RUN/FETCH requires bash in an IMPORTed package" >&2; exit 1; }
-    bwrap_args=(
-      --die-with-parent --new-session --unshare-user --uid 0 --gid 0
-      --unshare-pid --unshare-uts --unshare-ipc --unshare-cgroup
-    )
-    ${lib.optionalString (!network) ''bwrap_args+=(--unshare-net)''}
-    bwrap_args+=(
-      --ro-bind /nix/store /nix/store
-      --dir /usr --dir /usr/bin --symlink /bin/env /usr/bin/env
+    root="$TMPDIR/cix-root"
+    rm -rf "$root"
+    mkdir -p "$root"/{bin,etc,share,usr/bin,work,tmp,proc,dev,nix/store}
+    ln -s /bin/env "$root/usr/bin/env"
+    proot_args=(
+      -0 -r "$root"
+      -b /nix/store:/nix/store
+      -b "$out:/work"
+      -b /proc:/proc
+      -b /dev:/dev
+      -w /work
     )
     for subtree in bin etc share; do
-      if [ -d "$union/$subtree" ]; then bwrap_args+=(--ro-bind "$union/$subtree" "/$subtree"); fi
+      if [ -d "$union/$subtree" ]; then proot_args+=(-b "$union/$subtree:/$subtree"); fi
     done
-    if [ ! -d "$union/etc" ]; then bwrap_args+=(--dir /etc); fi
-    bwrap_args+=(
-      --bind "$out" /work --proc /proc --dev /dev --tmpfs /tmp --chdir /work --clearenv
-      ${envArgs environment}
-    )
-    ${pkgs.bubblewrap}/bin/bwrap "''${bwrap_args[@]}" /bin/bash -c ${shellQuote "umask 022; ${exportPrelude declared}eval \"\$1\""} cix-build ${shellQuote command}
+    ${pkgs.proot}/bin/proot "''${proot_args[@]}" \
+      ${pkgs.coreutils}/bin/env -i ${envAssignments environment} \
+      /bin/bash -c ${shellQuote "umask 022; ${exportPrelude declared}eval \"\$1\""} cix-build ${shellQuote command}
   '';
 
   restoreScript = snapshot: lib.optionalString (snapshot != null) ''
@@ -209,6 +209,7 @@ let
         actions = [ ];
         environment = baseEnvironment builder.environment;
         declared = { };
+        fetches = [ ];
         fetchNumber = 0;
       };
       state = builtins.foldl' (state: step:
@@ -233,7 +234,7 @@ let
             output = pkgs.stdenvNoCC.mkDerivation {
               name = "cix-fetch-${name}-${toString fetchNumber}";
               dontUnpack = true;
-              nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.bubblewrap ] ++ allPackages;
+              nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.proot ] ++ allPackages;
               outputHashMode = "recursive";
               outputHashAlgo = "sha256";
               outputHash = step.snapshotNarHash;
@@ -255,6 +256,7 @@ let
           state // {
             snapshot = output;
             actions = [ ];
+            fetches = state.fetches ++ [ output ];
             inherit fetchNumber;
           }
         else
@@ -262,7 +264,10 @@ let
       ) initial builder.steps;
     in
     pkgs.runCommand "cix-builder-${name}" {
-      nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.bubblewrap ] ++ allPackages;
+      nativeBuildInputs = [ pkgs.bash pkgs.coreutils pkgs.proot ] ++ allPackages;
+      # The VM check imports the FOD's prerequisites without realizing its output,
+      # so FETCH itself still runs after the guest disables user namespaces.
+      passthru.cip94FetchInputDerivations = map (fetch: fetch.inputDerivation) state.fetches;
     } ''
       set -euo pipefail
       mkdir "$out"
@@ -301,6 +306,9 @@ let
   artifactResult = pkgs.runCommand "cix-item-${item}" {
     preferLocalBuild = true;
     allowSubstitutes = false;
+    passthru.cip94FetchInputDerivations = lib.concatMap (
+      builder: builder.cip94FetchInputDerivations
+    ) (builtins.attrValues builderOutputs);
   } ''
     set -eu
     mkdir -p "$out"

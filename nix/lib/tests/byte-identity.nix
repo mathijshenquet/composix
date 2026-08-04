@@ -51,13 +51,13 @@ pkgs.testers.runNixOSTest {
     environment.etc."cip94-project".source = project;
     environment.etc."cip94-nixpkgs".source = nixpkgsSource;
     nix.settings.experimental-features = [ "nix-command" "flakes" ];
-    system.extraDependencies = [
+    system.extraDependencies = builderBuild.cip94FetchInputDerivations ++ [
       assemblyBuild
-      builderBuild
       pkgs.bash
       pkgs.bubblewrap
       pkgs.coreutils
       pkgs.patchelf
+      pkgs.proot
       pkgs.stdenvNoCC
     ];
     virtualisation.cores = 4;
@@ -91,7 +91,12 @@ pkgs.testers.runNixOSTest {
 
     builder = fixture("builder")
     machine.succeed("env CIX_STATE_DIR=/var/lib/cix-index CIX_BUILD_WORKSPACE_DIR=/var/lib/cix-workspaces ${offlineCix}/bin/cix build --update-lock=build " + builder)
-    assert_same_nar(cold(builder, "builder"), "${builderBuild}")
+    cold_builder = cold(builder, "builder")
+    machine.succeed("sysctl -w user.max_user_namespaces=0")
+    machine.succeed("test $(sysctl -n user.max_user_namespaces) = 0")
+    machine.fail("runuser -u nixbld1 -- unshare --user true")
+    eval_builder = machine.succeed("env PATH=${offlinePath} nix build --impure --print-out-paths --no-link --expr '(import ${project}/nix/lib/default.nix).buildCixfile { src = " + builder + "; item = \"builder\"; system = \"x86_64-linux\"; }'").strip()
+    assert_same_nar(cold_builder, eval_builder)
 
     fhs = fixture("fhs-boundary")
     status, output = machine.execute("env PATH=${offlinePath} nix build --impure --no-link --expr '(import ${project}/nix/lib/default.nix).buildCixfile { src = " + fhs + "; item = \"fhs-boundary\"; system = \"x86_64-linux\"; }' 2>&1")
