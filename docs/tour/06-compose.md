@@ -55,6 +55,151 @@ $ listener_item=$(cix build listener-fixture | jq -r '.["listener-demo"]'); prin
 /nix/store/…-cix-item-listener-demo
 ```
 
+#### `cix-manifest.json`
+
+```json
+{
+  "cixManifest": 0,
+  "env": {
+    "PATH": {
+      "default": "bin"
+    }
+  },
+  "listeners": {
+    "http": {
+      "type": "stream"
+    }
+  },
+  "mounts": [
+    "/bin/[",
+    "/bin/b2sum",
+    "/bin/base32",
+    "/bin/base64",
+    "/bin/basename",
+    "/bin/basenc",
+    "/bin/cat",
+    "/bin/chcon",
+    "/bin/chgrp",
+    "/bin/chmod",
+    "/bin/chown",
+    "/bin/chroot",
+    "/bin/cksum",
+    "/bin/comm",
+    "/bin/coreutils",
+    "/bin/cp",
+    "/bin/csplit",
+    "/bin/cut",
+    "/bin/date",
+    "/bin/dd",
+    "/bin/df",
+    "/bin/dir",
+    "/bin/dircolors",
+    "/bin/dirname",
+    "/bin/du",
+    "/bin/echo",
+    "/bin/env",
+    "/bin/expand",
+    "/bin/expr",
+    "/bin/factor",
+    "/bin/false",
+    "/bin/fmt",
+    "/bin/fold",
+    "/bin/groups",
+    "/bin/head",
+    "/bin/hostid",
+    "/bin/id",
+    "/bin/idle",
+    "/bin/idle3",
+    "/bin/idle3.14",
+    "/bin/install",
+    "/bin/join",
+    "/bin/kill",
+    "/bin/link",
+    "/bin/listenfds",
+    "/bin/ln",
+    "/bin/logname",
+    "/bin/ls",
+    "/bin/md5sum",
+    "/bin/mkdir",
+    "/bin/mkfifo",
+    "/bin/mknod",
+    "/bin/mktemp",
+    "/bin/mv",
+    "/bin/nice",
+    "/bin/nl",
+    "/bin/nohup",
+    "/bin/nproc",
+    "/bin/numfmt",
+    "/bin/od",
+    "/bin/paste",
+    "/bin/pathchk",
+    "/bin/pinky",
+    "/bin/pr",
+    "/bin/printenv",
+    "/bin/printf",
+    "/bin/ptx",
+    "/bin/pwd",
+    "/bin/pydoc",
+    "/bin/pydoc3",
+    "/bin/pydoc3.14",
+    "/bin/python",
+    "/bin/python-config",
+    "/bin/python3",
+    "/bin/python3-config",
+    "/bin/python3.14",
+    "/bin/python3.14-config",
+    "/bin/readlink",
+    "/bin/realpath",
+    "/bin/rm",
+    "/bin/rmdir",
+    "/bin/runcon",
+    "/bin/seq",
+    "/bin/sha1sum",
+    "/bin/sha224sum",
+    "/bin/sha256sum",
+    "/bin/sha384sum",
+    "/bin/sha512sum",
+    "/bin/shred",
+    "/bin/shuf",
+    "/bin/sleep",
+    "/bin/sort",
+    "/bin/split",
+    "/bin/stat",
+    "/bin/stdbuf",
+    "/bin/stty",
+    "/bin/sum",
+    "/bin/sync",
+    "/bin/tac",
+    "/bin/tail",
+    "/bin/tee",
+    "/bin/test",
+    "/bin/timeout",
+    "/bin/touch",
+    "/bin/tr",
+    "/bin/true",
+    "/bin/truncate",
+    "/bin/tsort",
+    "/bin/tty",
+    "/bin/uname",
+    "/bin/unexpand",
+    "/bin/uniq",
+    "/bin/unlink",
+    "/bin/uptime",
+    "/bin/users",
+    "/bin/vdir",
+    "/bin/wc",
+    "/bin/who",
+    "/bin/whoami",
+    "/bin/yes",
+    "/share/gdb",
+    "/share/man"
+  ],
+  "start": [
+    "bin/listenfds"
+  ]
+}
+```
+
 ```sh
 $ unit=$(cix run "$listener_item" --user -p http=127.0.0.1:8420 --detach); printf '%s\n' "$unit"
 cix-run-listener-demo-NONCE.service
@@ -208,12 +353,12 @@ compose tour-stack: 2 services, 1 edges, valid
 {
   "paths": {
     "consumer": {
-      "narHash": "sha256-MKX3UazCNlzZ+aOLoWDySLFjS+MgKSCR8CWIf5kOlqk=",
+      "narHash": "sha256-4KwXV2iESbDwOjZszjHyu7PbiizSmJ8yhGHHyUZkKa0=",
       "ref": "consumer:v1",
       "storePath": "/nix/store/…-cix-item-consumer"
     },
     "producer": {
-      "narHash": "sha256-Ub2epj+/57lf+Ul3at3rCE7suY6NH5vVmOpGKAXL/H8=",
+      "narHash": "sha256-VUSxLEAH0D6UHxlP1hMpMEalDuWKVh+Ayns67NA64ns=",
       "ref": "producer:current",
       "storePath": "/nix/store/…-cix-item-producer-v1"
     }

@@ -13,7 +13,7 @@ You will name immutable items, move and remove those names, then serve one local
 Normally `cix build` writes this tree for you. At the boundary, however, an item is simply a Nix store tree with `cix-manifest.json`. This hand-written manifest intentionally makes a taggable inspection fixture, not a runnable service: `message` is data rather than an executable. `nix store add` recursively serializes the directory as a Nix archive, copies it to a content-addressed store path, and prints that path; it neither validates the cix manifest nor protects the result from garbage collection.
 
 ```sh
-$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":0,"start":["message"]}' > my-app-v1/cix-manifest.json
+$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && jq -n '{ cixManifest: 0, start: ["message"] }' > my-app-v1/cix-manifest.json
 ```
 
 ```sh
@@ -31,7 +31,12 @@ hello from my app v1
 #### `my-app-v1/cix-manifest.json`
 
 ```json
-{"cixManifest":0,"start":["message"]}
+{
+  "cixManifest": 0,
+  "start": [
+    "message"
+  ]
+}
 ```
 
 ```sh

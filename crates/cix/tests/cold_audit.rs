@@ -4,7 +4,7 @@
 //! Run the prescribed gate with:
 //! `devenv shell -- cargo test -p cix --test cold_audit -- --ignored`
 //!
-//! Set `COLD_AUDIT=<corpus-pair>` to fetch and audit one `corpus/migrate/<corpus-pair>`
+//! Set `COLD_AUDIT=<corpus-pair>` to fetch and audit one `corpus/migrate/docker/<corpus-pair>`
 //! Cixfile as well. For example: `COLD_AUDIT=adminer devenv shell -- cargo test -p cix
 //! --test cold_audit -- --ignored`.
 
@@ -256,19 +256,20 @@ fn selected_corpus_pair_matches_a_clean_rebuild() {
     };
     assert!(
         !pair.is_empty() && !pair.contains('/') && !pair.contains(std::path::MAIN_SEPARATOR),
-        "COLD_AUDIT must name one corpus/migrate directory, got {pair:?}"
+        "COLD_AUDIT must name one Docker corpus case, got {pair:?}"
     );
 
     let root = repository_root();
-    let corpus = root.join("corpus/migrate");
+    let corpus_root = root.join("corpus/migrate");
+    let corpus = corpus_root.join("docker");
     let fetch = Command::new("bash")
         .args(["fetch.sh", &pair])
-        .current_dir(&corpus)
+        .current_dir(&corpus_root)
         .output()
-        .expect("running corpus/migrate/fetch.sh");
+        .expect("running corpus/migrate/docker/fetch.sh");
     assert!(
         fetch.status.success(),
-        "`corpus/migrate/fetch.sh {pair}` failed with {}\nstdout:\n{}\nstderr:\n{}",
+        "`corpus/migrate/docker/fetch.sh {pair}` failed with {}\nstdout:\n{}\nstderr:\n{}",
         fetch.status,
         String::from_utf8_lossy(&fetch.stdout),
         String::from_utf8_lossy(&fetch.stderr),
@@ -277,13 +278,13 @@ fn selected_corpus_pair_matches_a_clean_rebuild() {
     let source_directory = corpus.join(&pair);
     assert!(
         source_directory.join("Cixfile").is_file(),
-        "COLD_AUDIT={pair:?} has no corpus/migrate/{pair}/Cixfile"
+        "COLD_AUDIT={pair:?} has no corpus/migrate/docker/{pair}/Cixfile"
     );
     let temp = test_tempdir(&format!("corpus-{pair}"));
     let directory = temp.path().join(&pair);
     copy_tree(&source_directory, &directory);
     let audit = Audit::new(root, temp.path());
-    audit_pair(&audit, &format!("corpus/migrate/{pair}"), &directory)
+    audit_pair(&audit, &format!("corpus/migrate/docker/{pair}"), &directory)
         .unwrap_or_else(|error| panic!("{error}"));
 }
 

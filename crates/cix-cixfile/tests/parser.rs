@@ -642,13 +642,14 @@ START /bin/true \
     #[test]
     fn directories_accept_arbitrary_paths_and_dir_modes() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /srv/web/state\nCACHEDIR /app/cache\nLOGDIR /app/logs\nRUNDIR /tmp/web/run\nDIR /media:ro\nDIR /consume:rw\nDIR /scratch\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nSTATEDIR /srv/web/state\nCACHEDIR /app/cache\nLOGDIR /app/logs\nCONFIGDIR /config/web\nRUNDIR /tmp/web/run\nDIR /media:ro\nDIR /consume:rw\nDIR /scratch\n",
         )
         .unwrap();
         let dirs = &parsed.artifacts["web"].service.dirs;
         assert!(dirs.state.contains("/srv/web/state"));
         assert!(dirs.cache.contains("/app/cache"));
         assert!(dirs.logs.contains("/app/logs"));
+        assert!(dirs.config.contains("/config/web"));
         assert!(dirs.run.contains("/tmp/web/run"));
         assert_eq!(dirs.data.get("/media"), Some(&true));
         assert_eq!(dirs.data.get("/consume"), Some(&false));
@@ -789,6 +790,25 @@ START /bin/true \
             );
             assert!(error.message.contains("/bin") || error.message.contains("/etc"));
         }
+    }
+
+    #[test]
+    fn builder_copies_are_sequential_but_artifact_destinations_stay_unique() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nCOPY first value\nRUN true\nCOPY second value\nITEM result\nCOPY ${build}/value /value\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.builders["build"].steps.len(), 3);
+
+        let duplicate = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM result\nCOPY first /value\nCOPY second /value\n",
+        )
+        .unwrap_err();
+        assert_eq!(duplicate.line, 4);
+        assert!(
+            duplicate.message.contains("already populated"),
+            "{duplicate}"
+        );
     }
 
     #[test]

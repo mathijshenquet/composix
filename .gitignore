@@ -11,7 +11,8 @@ devenv.local.yaml
 
 # Rust
 target/
-corpus/migrate/*/context/
+corpus/migrate/docker/*/context/
+corpus/migrate/k8s/*/context/
 
 # nix build outputs
 result

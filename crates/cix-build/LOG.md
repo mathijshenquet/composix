@@ -268,3 +268,68 @@
   Per project policy, the full flake matrix is reserved for the orchestrator's
   independent pre-merge gate and was not run here. No corpus or migration
   ledger files were touched, as required by the track fence.
+
+- 2026-08-04T12:15:00Z — Started track/buildfixes at `8420a95`. Scope is the
+  three verified build-side defects from `.dev/specs/track-buildfixes.md`:
+  reproduce then fix warm EXPECT-versus-lock validation (including the
+  identical-pin recording path), context-free builder I/O errors from the
+  fhsspike Directus shape, and warm-workspace duplicate COPY rejection after a
+  plan edit. Corpus files, especially the traefik living repro, remain
+  untouched. The worktree is clean, `track/buildfixes` is active, and direnv's
+  devenv is loaded. Next: make scratch copies of the three recorded cases and
+  capture synchronous pre-fix receipts.
+
+- 2026-08-04T12:52:00Z — Captured all three pre-fix defects without touching
+  corpus files. Traefik scratch replay showed the volatile live-fetch control
+  failing its first EXPECT and its copied lock independently proves both FETCH
+  pins contain the same declared narHash despite distinct stepMemo writes; code
+  tracing found `install_declared_expectations` mutates those pins before
+  verification. Watchtower scratch: initial ordinary build exited 0; adding one
+  overlapping direct go.mod COPY after FETCH also exited 0; adding the recorded
+  second direct go.mod COPY then exited 1 at parse time with `line 10: BUILDER
+  block destination "go.mod" is already populated`. Directus scratch was fetched
+  through the unchanged `corpus/migrate/fetch.sh`, paired with track/fhsspike's
+  Cixfile and 148171-line lock, and run synchronously: every pnpm workspace
+  package completed its build, then cix exited 1 with only `Error: Not a
+  directory (os error 20)`. Timing locates that ENOTDIR before post-RUN read-set
+  metrics, inside trace dependency recording. Next: add path+step context to
+  expose the exact node, then decide whether ENOTDIR is a narrow transient-path
+  case that should record `Absent`.
+
+- 2026-08-04T15:54:49Z — Implemented the three narrow product fixes. Declared
+  EXPECTs are compared with the exact command-derived lock pin before completed
+  output reuse and again after builder-context resolution before any step memo;
+  mismatches retain the recorded pin and name the source line plus declared and
+  locked values. The two-FETCH Traefik-shaped regression has two distinct
+  workspace NARs and proves a copy-pasted second EXPECT fails with warm step
+  memos present. Directus instrumentation identified
+  `node_modules/@popperjs/core/dist/cjs/popper.js/index.d.ts`: `popper.js` is a
+  regular file, so the child probe's ENOTDIR is semantically the same absent
+  dependency as ENOENT. The recorder now handles that case and adds path and
+  Cixfile-step context to all other surfaced trace I/O errors. A synchronous
+  post-fix scratch replay crossed the former line-16 `pnpm run build` boundary
+  and reached line 17's separate networkless deploy command before its expected
+  `EAI_AGAIN`; the corpus checkout remained unchanged. Finally, builder COPY
+  destinations are sequential while artifact assembly destinations remain
+  unique; the warm-workspace regression reuses the old prefix, overwrites the
+  repeated destination, and executes the edited suffix. Focused synchronous
+  receipts are green: the ENOTDIR unit test, the parser test, both real-Nix
+  `lock_nix` regressions, all 45 cix-build/cix-cixfile library tests, and all 32
+  parser integration tests. Next: split logical commits, then run the complete
+  agent gate and focused VM scenario.
+
+- 2026-08-04T16:03:02Z — Final agent tier is green on the finished source.
+  Synchronous exit-0 receipts: `cargo fmt --all --check`; `cargo run -- fmt
+  --check examples`; `cargo clippy --workspace --all-targets -- -D warnings`;
+  `cargo test --workspace`; `cargo test -p cix --test corpus -- --ignored
+  generate_corpus_browser`, followed by the workspace corpus drift and
+  determinism tests; `cargo test -p cix --test tour -- --ignored generate_tour`;
+  `git diff --exit-code -- docs/tour`; and the exact committed-tour drift test.
+  The final focused receipt, `nix build
+  .#checks.x86_64-linux.vm-dogfood --no-link -L`, built cix from this dirty
+  Git source and exited 0 after its real TCG guest completed in 160.40s and
+  removed every cix unit and GC root. `git diff --exit-code -- corpus` also
+  exits 0: no migration case, lock, receipt, or GAPS file changed; generated
+  `docs/corpus/` pages changed only because the required ledger ribbons did.
+  The full flake matrix remains reserved for the orchestrator's independent
+  pre-merge gate. Ready for final documentation commit and handoff.

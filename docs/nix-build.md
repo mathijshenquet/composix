@@ -190,7 +190,9 @@ First, all three pinned definitions built successfully:
 $ nix build github:mathijshenquet/gitsitter/29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd --no-link -L
 $ nix build path:./examples/compare/gitsitter/crane --no-link -L
 $ target/debug/cix build examples/compare/gitsitter/cix#gitsitter
-{"gitsitter":"/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter"}
+{
+  "gitsitter": "/nix/store/fniw9p1i9k9xchyzak5clj66vpxn8vgy-cix-item-gitsitter"
+}
 ```
 
 The measured matrix was:
@@ -287,7 +289,23 @@ also emitted this work receipt (abridged only to the two command steps):
 ```console
 BUILDER build step 3 FETCH memo hit 5bbd3f90629a
 BUILDER build step 4 RUN executed
-{"stats":{"nixSubprocesses":9,"steps":[{"kind":"FETCH","name":"build:3","status":"memo-hit"},{"kind":"RUN","name":"build:4","status":"executed"}]}}
+{
+  "stats": {
+    "nixSubprocesses": 9,
+    "steps": [
+      {
+        "kind": "FETCH",
+        "name": "build:3",
+        "status": "memo-hit"
+      },
+      {
+        "kind": "RUN",
+        "name": "build:4",
+        "status": "executed"
+      }
+    ]
+  }
+}
 ```
 
 Of the 8.31 s / 8.84 s steady-warm receipts, about 5.9 s is cargo's own floor

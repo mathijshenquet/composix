@@ -234,7 +234,7 @@ let
       run = [ "/run/tomcat" ];
     };
   } {
-    "/bin/tomcat-setup" = ../../corpus/migrate/tomcat/setup.sh;
+    "/bin/tomcat-setup" = ../../corpus/migrate/docker/tomcat/setup.sh;
     "/coreutils" = pkgs.coreutils;
     "/gnused" = pkgs.gnused;
     "/tomcat" = pkgs.tomcat10;
@@ -252,9 +252,9 @@ let
 
   mastodonPostgresPayload = pkgs.runCommand "closedroot-audit-mastodon-postgres" { } ''
     mkdir -p "$out"
-    install -m0644 ${../../corpus/migrate/mastodon/postgres/runtime-env.sh} "$out/runtime-env.sh"
-    install -m0644 ${../../corpus/migrate/mastodon/postgres/setup.sh} "$out/setup.sh"
-    install -m0644 ${../../corpus/migrate/mastodon/postgres/start.sh} "$out/start.sh"
+    install -m0644 ${../../corpus/migrate/docker/mastodon/postgres/runtime-env.sh} "$out/runtime-env.sh"
+    install -m0644 ${../../corpus/migrate/docker/mastodon/postgres/setup.sh} "$out/setup.sh"
+    install -m0644 ${../../corpus/migrate/docker/mastodon/postgres/start.sh} "$out/start.sh"
     ln -s ${pkgs.nss_wrapper}/lib/libnss_wrapper.so "$out/libnss_wrapper.so"
   '';
   mastodonPostgres = item "corpus-mastodon-postgres" {
@@ -288,7 +288,7 @@ let
   };
 
   mastodonRedisConfig = pkgs.runCommand "closedroot-audit-mastodon-redis" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/redis/redis.conf} "$out/redis.conf"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/redis/redis.conf} "$out/redis.conf"
   '';
   mastodonRedis = item "corpus-mastodon-redis" {
     cixManifest = 0;
@@ -311,7 +311,7 @@ let
   };
 
   mastodonWebPayload = pkgs.runCommand "closedroot-audit-mastodon-web" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/web/web.py} "$out/web.py"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/web/web.py} "$out/web.py"
   '';
   mastodonWeb = item "corpus-mastodon-web" {
     cixManifest = 0;
@@ -341,7 +341,7 @@ let
   };
 
   mastodonSidekiqPayload = pkgs.runCommand "closedroot-audit-mastodon-sidekiq" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/sidekiq/worker.py} "$out/worker.py"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/sidekiq/worker.py} "$out/worker.py"
   '';
   mastodonSidekiq = item "corpus-mastodon-sidekiq" {
     cixManifest = 0;
@@ -371,10 +371,10 @@ let
   };
 
   mastodonStreamingConfig = pkgs.runCommand "closedroot-audit-mastodon-streaming-nginx" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/streaming/nginx.conf} "$out/nginx.conf"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/streaming/nginx.conf} "$out/nginx.conf"
   '';
   mastodonStreamingPayload = pkgs.runCommand "closedroot-audit-mastodon-streaming" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/streaming/verify-dependencies.sh} "$out/verify-dependencies.sh"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/streaming/verify-dependencies.sh} "$out/verify-dependencies.sh"
   '';
   mastodonStreaming = item "corpus-mastodon-streaming" {
     cixManifest = 0;
@@ -410,7 +410,7 @@ let
   };
 
   mastodonCleanupPayload = pkgs.runCommand "closedroot-audit-mastodon-cleanup" { } ''
-    install -Dm0644 ${../../corpus/migrate/mastodon/cleanup/cleanup.sh} "$out/cleanup.sh"
+    install -Dm0644 ${../../corpus/migrate/docker/mastodon/cleanup/cleanup.sh} "$out/cleanup.sh"
   '';
   mastodonCleanup = item "corpus-mastodon-cleanup" {
     cixManifest = 0;
@@ -477,12 +477,16 @@ let
   });
 
   auditedPacks = [ "caddy" "devices" "listenfds" "nginx" "node-app" "postgres" "redis" ];
-  auditedCorpus = [ "adminer" "caddy" "mastodon" "memcached" "nats" "nginx" "phpmyadmin" "redis" "renovate" "tomcat" "traefik" ];
-  downgradedCorpus = [ "directus" "dozzle" "echo-server" "excalidraw" "filestash" "parse-server" "verdaccio" "wallos" "watchtower" "whoami" ];
+  auditedCorpus = [ "docker/adminer" "docker/caddy" "docker/mastodon" "docker/memcached" "docker/nats" "docker/nginx" "docker/phpmyadmin" "docker/redis" "docker/renovate" "docker/tomcat" "docker/traefik" ];
+  downgradedCorpus = [ "docker/directus" "docker/dozzle" "docker/echo-server" "docker/excalidraw" "docker/filestash" "docker/parse-server" "docker/verdaccio" "docker/wallos" "docker/watchtower" "docker/whoami" ];
   packNames = builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../examples/pack));
-  corpusNames = builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../corpus/migrate));
+  corpusAxes = builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../corpus/migrate));
+  corpusNames = builtins.concatMap (axis:
+    map (name: "${axis}/${name}")
+      (builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../corpus/migrate/${axis})))) corpusAxes;
   inventoryComplete =
     assert pkgs.lib.sort builtins.lessThan auditedPacks == packNames;
+    assert pkgs.lib.sort builtins.lessThan corpusAxes == [ "docker" "k8s" ];
     assert pkgs.lib.sort builtins.lessThan (auditedCorpus ++ downgradedCorpus) == corpusNames;
     true;
 in

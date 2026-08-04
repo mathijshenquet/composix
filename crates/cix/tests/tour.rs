@@ -518,13 +518,14 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         prompt,
         state_dir,
         &format!(
-            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":0,\"start\":[\"message\"]}}' > {name}/cix-manifest.json"
+            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && jq -n '{{ cixManifest: 0, start: [\"message\"] }}' > {name}/cix-manifest.json"
         ),
         true,
     );
     doc.sh_in(prompt, state_dir, &format!("ls -1 {name}"), true);
     doc.show_file(format!("{name}/message"));
-    doc.show_file(format!("{name}/cix-manifest.json"));
+    let manifest = doc.show_file(format!("{name}/cix-manifest.json"));
+    assert!(manifest.contains("\"cixManifest\": 0"));
     let added = doc.sh_in(
         prompt,
         state_dir,
@@ -1148,7 +1149,7 @@ COPY ${{assemble}}/result /result
         true,
     );
     assert!(warm.contains("memo-hit"), "{warm}");
-    assert!(warm.contains("\"nixSubprocesses\":0"), "{warm}");
+    assert!(warm.contains("\"nixSubprocesses\": 0"), "{warm}");
     doc.para("That hit is not a timestamp promise. For example, `RUN cat expected resolved > result` records reads of those two files: changing either produces a miss, while adding an unread `notes` file does not. Directory enumeration, metadata-only probes, and an absent file are fingerprinted too; nondeterministic reads therefore cause a miss or a warm-versus-cold audit error instead of becoming invisible state. A persistent workspace is an acceleration structure, not hidden build input.");
 
     doc.para("`--update-lock` and `--cold` are the audit pair. The first permits the network, writes the pin to `Cixfile.lock`, stores fetched bytes as a Nix store snapshot, and records a receipt below `~/.cache/cix/fetch-snapshots`. `--cold` creates an empty builder workspace, never contacts the network, replays those pinned bytes from the local snapshot cache, and compares the new reads and outputs. A different machine must first perform an ordinary pin-verifying build or receive that cached store closure; if the receipt or store snapshot was garbage-collected, cold replay refuses and tells you to repopulate it rather than refetching silently.");
@@ -1845,8 +1846,7 @@ fn chapter_compose() -> String {
         .find(|line| line.starts_with("/nix/store/"))
         .expect("listener build printed its captured item")
         .to_owned();
-    let manifest = fs::read_to_string(Path::new(&listener_path).join("cix-manifest.json"))
-        .expect("reading built listener manifest");
+    let manifest = doc.show_file(Path::new(&listener_path).join("cix-manifest.json"));
     assert!(manifest.contains("\"listeners\""));
     let listen = next_listen();
     let started = doc.sh_with_env(
@@ -2464,11 +2464,13 @@ fn proj1_item_path(output: &str, name: &str) -> String {
 }
 
 fn build_member_map(output: &str) -> std::collections::BTreeMap<String, String> {
-    let json = output
-        .lines()
-        .find(|line| line.starts_with('{'))
+    let json_start = output
+        .find('{')
         .unwrap_or_else(|| panic!("build did not print a JSON member map:\n{output}"));
-    serde_json::from_str(json)
+    serde_json::Deserializer::from_str(&output[json_start..])
+        .into_iter::<std::collections::BTreeMap<String, String>>()
+        .next()
+        .expect("a JSON member map starts with an object")
         .unwrap_or_else(|error| panic!("build printed invalid member JSON: {error}\n{output}"))
 }
 

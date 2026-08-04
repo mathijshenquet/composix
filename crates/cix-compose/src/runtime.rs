@@ -219,7 +219,7 @@ fn save_secret_state(name: &str, state: &SecretState) -> Result<()> {
     fs::create_dir_all(parent).context("creating composite secret state directory")?;
     let temporary =
         tempfile::NamedTempFile::new_in(parent).context("creating composite secret state")?;
-    serde_json::to_writer(temporary.reopen()?, state)?;
+    serde_json::to_writer_pretty(temporary.reopen()?, state)?;
     fs::rename(temporary.path(), path).context("saving composite secret state")
 }
 
@@ -1102,7 +1102,7 @@ mod tests {
         };
         fs::write(
             path.join("manifest.json"),
-            serde_json::to_vec(&manifest).unwrap(),
+            serde_json::to_vec_pretty(&manifest).unwrap(),
         )
         .unwrap();
         path

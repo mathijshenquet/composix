@@ -113,7 +113,11 @@ exec sleep 300
 
 ```sh
 $ cix build . --namespace runtime -t v1
-{"cleanup":"/nix/store/…-cix-item-cleanup","observer":"/nix/store/…-cix-item-observer","web":"/nix/store/…-cix-item-web"}
+{
+  "cleanup": "/nix/store/…-cix-item-cleanup",
+  "observer": "/nix/store/…-cix-item-observer",
+  "web": "/nix/store/…-cix-item-web"
+}
 ```
 
 ```sh

@@ -136,8 +136,9 @@ pub fn build_family_with_stats_file(
     let state = cix_index::Store::open(options.state_directory.clone())?;
     let mut lock = ensure_lock(&state, &lock_path, &cixfile.inputs, input_update)?;
     resolve_input_metadata(&mut cixfile, &lock)?;
+    let expectations_validated = cix_build::validate_declared_expectations(&cixfile, &lock)?;
     let source_hash = build_fingerprint(&directory, &lock, file_name)?;
-    if !options.cold && options.update_lock.is_none() && tags.is_empty() {
+    if !options.cold && options.update_lock.is_none() && tags.is_empty() && expectations_validated {
         let cached = cixfile
             .artifact_order
             .iter()
