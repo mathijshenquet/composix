@@ -1,5 +1,22 @@
 # litdoc work log
 
+- 2026-08-04T16:20:00Z — Final `track/tourpolish` agent tier is green with
+  synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell
+  -- cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell
+  -- cargo test --workspace -- --test-threads=1`. Explicit `devenv shell --
+  cargo test -p cix --test tour -- --ignored generate_tour` followed by `git
+  diff --exit-code -- docs/tour` proved zero regeneration drift. One foreground
+  `bash -c` loop with `set -e` then ran the exact
+  `generated_tour_is_deterministic` test three consecutive times; all passed
+  synchronously in 36.50s, 36.99s, and 35.13s. Final audits find a clean
+  worktree before this receipt entry, zero generated `$ cat` prompts, no raw
+  listener-manifest fixture, and no abstract Chapter 2 service/path remnants.
+  This track changes only the tour harness and generated prose, so no focused
+  VM scenario or Docker/corpus ledger row is affected; the orchestrator retains
+  the full flake-matrix gate. Next: commit this receipt and hand off the two
+  logical implementation commits for independent verification.
+
 - 2026-08-04T15:55:00Z — Chapter polish is complete. Chapter 6 now writes a
   canonical `listener-fixture/Cixfile`, imports coreutils + Python, copies the
   executable checked-in `listenfds.py` probe, starts it by the imported bare
