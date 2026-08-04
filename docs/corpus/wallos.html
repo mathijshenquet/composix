@@ -56,19 +56,19 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / wallos</nav>
   <h1>wallos</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — readiness is undeclared, in-unit supervision remains, and closed-root reproduction is pending · <strong>Evidence:</strong> runtime probe (historical)</p>
-  <p class="status"><strong>Receipt status:</strong> Historical Docker and Cix /health.php probes through the overlay universe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added · <strong>Evidence:</strong> runtime probe + cold build</p>
+  <p class="status"><strong>Receipt status:</strong> The complete app/state assembly builds cold and the independent /health.php probe returns OK · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/wallos/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@666cf74 · unknown · 2026-08-02 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The nginx/PHP-FPM configuration pair remains inline only because it embeds store paths; under CIP-91 assembly the configs reference stable runtime paths (<code>COPY</code> mime.types/fastcgi_params into <code>/etc/nginx/</code>) and become real checked-in files — FILE…FROM was rejected as unneeded. → case (stale, CIP-91)</li>
-      <li><code>mime.types</code> and <code>fastcgi_params</code> are immutable package assets embedded as store paths inside the nginx heredoc; place those files with <code>LINK</code> and keep the authored config package-agnostic. → case</li>
-      <li>Six package binaries are linked individually into <code>/bin</code>, the corpus&#39;s clearest artifact toolset pile. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>The wrapper still supervises nginx, PHP-FPM, and supercronic inside one service; split them into compose members or state why their coordination requires one unit. → case</li>
-      <li>Docker&#39;s <code>/health.php</code> check passes only in <code>check.sh</code>; add native HTTP <code>READINESS</code> now that CIP-79 is built. → case</li>
-      <li>The historical runtime probe has not been reproduced from source in the closed-root audit. → evidence</li>
+      <li>The application webroot is <code>/app</code> rather than upstream <code>/var/www</code> because the latter collides with Cix&#39;s artifact mount and cannot contain the declared state descendants. → language (artifact-root/role-path collision)</li>
+      <li>The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case</li>
+      <li>Upstream&#39;s <code>dcron</code> service and <code>/etc/cron.d/cronjobs</code> schedule are not activated, so only the startup maintenance jobs run. → case</li>
+      <li>Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case</li>
+      <li>Docker&#39;s <code>/health.php</code> check is exercised only by <code>check.sh</code>; the service does not declare the equivalent native HTTP <code>READINESS</code>. → case</li>
+      <li>Port 18092 and its second nginx listener exist only because the supplied Cix probe hard-codes that host port without a runtime port override; port 80 remains the faithful listener. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -664,89 +664,31 @@ Retrieved: 2026-07-31
       <h2>composix</h2>
       <section class="file">
         <h3>Cixfile</h3>
-        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable OVERLAY ./php.nix AS pkgs
-<span class="tok-directive">FROM</span> . AS src
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">BUILDER</span> app
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span>
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ app
-  <span class="tok-directive">RUN</span> rm -rf app/Dockerfile app/nginx.conf app/nginx.default.conf app/startup.sh app/db app/images/uploads/logos
-  <span class="tok-directive">RUN</span> mkdir -p app/images/uploads
-  <span class="tok-directive">RUN</span> ln -s /var/lib/wallos/db app/db
-  <span class="tok-directive">RUN</span> ln -s /var/lib/wallos/logos app/images/uploads/logos
-  <span class="tok-directive">RUN</span> sed &#39;s#/usr/local/bin/php#/bin/php#g; s#/var/log/cron#/var/log/wallos#g&#39; app/cronjobs &gt; app/cronjobs.cix
-  <span class="tok-directive">RUN</span> mv app/cronjobs.cix app/cronjobs
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
+  <span class="tok-directive">COPY</span> context/ .
+  <span class="tok-directive">COPY</span> startup.cix.sh startup.sh
+  <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
+<span class="tok-heredoc">rm -f nginx.conf nginx.default.conf</span>
+<span class="tok-heredoc">rm -rf db images/uploads/logos</span>
+<span class="tok-heredoc">ln -s /data/db db</span>
+<span class="tok-heredoc">ln -s /data/logos images/uploads/logos</span>
+<span class="tok-directive">ASSEMBLE</span>
 
 <span class="tok-directive">SERVICE</span> wallos
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/app /var/www/html
-  <span class="tok-directive">COPY</span> setup.sh /bin/setup
-  <span class="tok-directive">COPY</span> start.sh /bin/start
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/bash
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.coreutils}</span>/bin/mkdir /bin/mkdir
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php}</span>/bin/php /bin/php
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.php}</span>/bin/php-fpm /bin/php-fpm
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx /bin/nginx
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.supercronic}</span>/bin/supercronic /bin/supercronic
-  <span class="tok-comment"># Kept inline until FILE … FROM because the config pair includes package interpolation.</span>
-  <span class="tok-directive">FILE</span> /etc/php-fpm.conf &lt;&lt;PHP
-<span class="tok-heredoc">[global]</span>
-<span class="tok-heredoc">error_log = /var/log/wallos/php-fpm.log</span>
-<span class="tok-heredoc">daemonize = no</span>
-
-<span class="tok-heredoc">[www]</span>
-<span class="tok-heredoc">listen = /run/wallos/php-fpm.sock</span>
-<span class="tok-heredoc">listen.mode = 0660</span>
-<span class="tok-heredoc">pm = dynamic</span>
-<span class="tok-heredoc">pm.max_children = 15</span>
-<span class="tok-heredoc">pm.start_servers = 2</span>
-<span class="tok-heredoc">pm.min_spare_servers = 1</span>
-<span class="tok-heredoc">pm.max_spare_servers = 3</span>
-<span class="tok-heredoc">pm.max_requests = 500</span>
-<span class="tok-heredoc">catch_workers_output = yes</span>
-<span class="tok-heredoc">clear_env = no</span>
-<span class="tok-directive">PHP</span>
-  <span class="tok-directive">FILE</span> /etc/nginx.conf &lt;&lt;NGINX
-<span class="tok-heredoc">daemon off;</span>
-<span class="tok-heredoc">pid /run/wallos/nginx.pid;</span>
-<span class="tok-heredoc">error_log stderr info;</span>
-<span class="tok-heredoc">events { worker_connections 1024; }</span>
-<span class="tok-heredoc">http {</span>
-<span class="tok-heredoc">  include </span><span class="tok-interpolation">${pkgs.nginx}</span><span class="tok-heredoc">/conf/mime.types;</span>
-<span class="tok-heredoc">  default_type application/octet-stream;</span>
-<span class="tok-heredoc">  access_log /var/log/wallos/nginx-access.log;</span>
-<span class="tok-heredoc">  client_body_temp_path /var/cache/wallos/body;</span>
-<span class="tok-heredoc">  proxy_temp_path /var/cache/wallos/proxy;</span>
-<span class="tok-heredoc">  fastcgi_temp_path /var/cache/wallos/fastcgi;</span>
-<span class="tok-heredoc">  uwsgi_temp_path /var/cache/wallos/uwsgi;</span>
-<span class="tok-heredoc">  scgi_temp_path /var/cache/wallos/scgi;</span>
-<span class="tok-heredoc">  server {</span>
-<span class="tok-heredoc">    listen 18092;</span>
-<span class="tok-heredoc">    root /var/www/html;</span>
-<span class="tok-heredoc">    index index.php;</span>
-<span class="tok-heredoc">    location / { try_files $uri $uri/ /index.php?$args; }</span>
-<span class="tok-heredoc">    location ~ \.php$ {</span>
-<span class="tok-heredoc">      include </span><span class="tok-interpolation">${pkgs.nginx}</span><span class="tok-heredoc">/conf/fastcgi_params;</span>
-<span class="tok-heredoc">      fastcgi_pass unix:/run/wallos/php-fpm.sock;</span>
-<span class="tok-heredoc">      fastcgi_index index.php;</span>
-<span class="tok-heredoc">      fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;</span>
-<span class="tok-heredoc">    }</span>
-<span class="tok-heredoc">    location ~ \.db$ { deny all; return 403; }</span>
-<span class="tok-heredoc">    location ~* images/uploads/logos/.*\.php$ { deny all; return 403; }</span>
-<span class="tok-heredoc">    location ~* \.tmp/.*\.php$ { deny all; return 403; }</span>
-<span class="tok-heredoc">    location ~* ^/includes/.*\.php$ { deny all; return 403; }</span>
-<span class="tok-heredoc">  }</span>
-<span class="tok-heredoc">}</span>
-<span class="tok-directive">NGINX</span>
-  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/start
-  <span class="tok-directive">START_PRE</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/bash /bin/setup
-  <span class="tok-directive">STATEDIR</span> /var/lib/wallos/db
-  <span class="tok-directive">STATEDIR</span> /var/lib/wallos/logos
-  <span class="tok-directive">CACHEDIR</span> /var/cache/wallos
-  <span class="tok-directive">LOGDIR</span> /var/log/wallos
-  <span class="tok-directive">RUNDIR</span> /run/wallos
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.nginx}</span> <span class="tok-interpolation">${pkgs.php83}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /app
+  <span class="tok-directive">COPY</span> nginx.cix.conf /etc/nginx/nginx.conf
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.nginx}</span>/conf/mime.types /etc/nginx/mime.types
+  <span class="tok-directive">COPY</span> php-fpm.cix.conf /etc/wallos/php-fpm.conf
+  <span class="tok-directive">START</span> bash /app/startup.sh
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">PORT</span> probe = 18092
   <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">CLAIM</span> jit
-  <span class="tok-directive">PORT</span> http = 18092
+  <span class="tok-directive">STATEDIR</span> /data/db
+  <span class="tok-directive">STATEDIR</span> /data/logos
 </code></pre>
       </section>
       <details class="file">
@@ -755,48 +697,164 @@ Retrieved: 2026-07-31
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;148bab9c1c3c53136ecb44a6ea356a0ed5b39b06&quot;,
-      &quot;narHash&quot;: &quot;sha256-KoTsyMQqnXQZq8deCEnu4QkyldkwH/bpMMhUcfMdGIw=&quot;,
-      &quot;lastModified&quot;: 1785571196
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
     }
   },
   &quot;memo&quot;: {
-    &quot;17839cf20ab2a32b90bc25b5624c547a997e1dd46f08b1224d18b976d5c75696&quot;: {
+    &quot;2fa5e65ee479e070bc1bd67ad394cad8a4cb811ed67d00d3dfe4903a63b36054&quot;: {
       &quot;paths&quot;: {
-        &quot;app&quot;: {
-          &quot;narHash&quot;: &quot;sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=&quot;,
-          &quot;storePath&quot;: &quot;/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed&quot;
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-63dxHULsCJPftnmQq1FOyKQp7tp6d0Xi1g2wD2QYxSk=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hy93kdmz98wqmgxkx4ccgqbmdp80ijy1-cix-build-consumed&quot;
         }
       }
     },
-    &quot;2f2f728a49870e164c2fc6762177c5513804060eaf4bbe110c2f85223ff7f1fb&quot;: {
+    &quot;3436a56b771bec3d951f58597af928b364ab27358fa481eca7adfde5c16445bb&quot;: {
       &quot;paths&quot;: {
-        &quot;app&quot;: {
-          &quot;narHash&quot;: &quot;sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=&quot;,
-          &quot;storePath&quot;: &quot;/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed&quot;
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-AaB/WiHo6go+nrI2KlUVSGl67jwk94SvJlZaGHljMhU=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/49gh11773dzw5lbfhsniqky6vxy70x7x-cix-build-consumed&quot;
         }
       }
     },
-    &quot;59d894dd0ad6f332936192c9f7381e441e782b845da997feccdbe9721a09478c&quot;: {
+    &quot;4a325b97fc4b8bea20116889a62300392db5f64947025289bab2f55e4d88d910&quot;: {
       &quot;paths&quot;: {
-        &quot;app&quot;: {
-          &quot;narHash&quot;: &quot;sha256-YtKdec0vBVNFj6OUYoZTrZNdKQaBLEdy/26JRQb7kZk=&quot;,
-          &quot;storePath&quot;: &quot;/nix/store/5xqs3wfjx157c7h539imw9g6jv6lb5s4-cix-build-consumed&quot;
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-JS1jjKczUsijUBuyIaUOM3OKcxBBnIhDnQKley3O9bs=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/36w7pyb73zmq9np4znps67ly9by7qyxg-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;4c4df3691db6009cd48a0d2cb74bdfb642a55b3fa826d9f3e7fd22460688b5e4&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-63dxHULsCJPftnmQq1FOyKQp7tp6d0Xi1g2wD2QYxSk=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hy93kdmz98wqmgxkx4ccgqbmdp80ijy1-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;64f0cf73984c3e2795f6aa58f39fceb0a547e91eed0dc4b5b43005d39e5672f5&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-C9P4o0pctMe0tGdwNJg7Hy3QkLYOIkIEIFF6cOTPlbg=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/dqkqy1mdnidrwgz8msw1hbmdmk4gjs12-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;68da7ceca6a3ad7226dcc8036cdd8c84b5b4f44bbc0959e62a1c9bf0a688d5c2&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-EgRPjMxMdakClJtyGl4JW1MOsmYfe4k2rjW+42ukTO0=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/bcwwlnim5l3bvp1c6nd45l9p6w77b7gm-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;8f888eb7ca36c6ddc4b22383291ef53f8667c31e5a04b9271b4043be2000892c&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-l4VSRkB4Tkd9nCnziXLh3plafYprSnoSHML5RcQ2GxM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/zw2hqhgdbijax5vsvdl60hiazggkm9h4-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;a53909c3039c75faad407dad2096d591f4789b35a511f5776dff94f1142791bb&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-4ch27ohnc7LTAk9fsgDRb5QGDplrZJQZUZZW4B5xobw=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/fxamqx526jqw2qfqv9i8jcclk3q6ly14-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;c2685503a11cd875cce6751664cfa929c590d78312921ba27fd75971e6f2577f&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-DUePZg4l/mHqAYFQDtNhntgMGnTmOwlCwT4dkWGLScU=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/zqlnfkn15yfx444g4aacn9i45fxb2qp2-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;f060dcd9a9d77c915954c2025932fee577e417e67ff9afe3af522c93acf0eca4&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-XCFinNYdtmCBSWcdjM+2H1sfmazQAgcsDkg+zkV8CSA=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/37gyz2fff04xh707fg3pwmbqpf7cgmy6-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:app:1&quot;: {
+      &quot;key&quot;: &quot;974f94fc6d3626eaa81f6c0f59bd5286cf91470ca5034777b075657879758103&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;db&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02&quot;
+        },
+        &quot;images/uploads/logos&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;db&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;db/wallos.empty.db&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.default.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      }
+    },
+    &quot;builder:app:2&quot;: {
+      &quot;key&quot;: &quot;b6a3a409dbfa9e10ae3ea70183c5cae6fab0975817b4364f5fc679b3fbbc7225&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;db&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02&quot;
+        },
+        &quot;images/uploads/logos&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;db&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;db/wallos.empty.db&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.default.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
         }
       }
     }
   },
   &quot;devEnvs&quot;: {
-    &quot;0323a3c59391e994460672c325fb1bdba7d925376992900d404d629de7293e27:21b08f30f7a4b14cf66d1a298d37f67294c769afdaed94ce941c02d9a430e880&quot;: {
+    &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099&quot;: {
       &quot;environment&quot;: {
-        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/7mfsmbhsd3arnypipwm251rcd0b45riy-gnused-4.10/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
       }
     }
   },
   &quot;outputs&quot;: {
     &quot;wallos&quot;: {
-      &quot;sourceHash&quot;: &quot;7eb451a46ff5f1a9c62f34b0a7e75b06af99d29fbb344b607c50d548a0f96fe4&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/rds1fgd05lf8hh46i7h67inc2kxyw28c-cix-item-wallos&quot;
+      &quot;sourceHash&quot;: &quot;9ad7c1fa0d0589aab8ce080095d0ccdd0d14d28c878953ea897332dfe5ea0337&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos&quot;
     }
   }
 }
@@ -853,6 +911,103 @@ esac
 </code></pre>
       </details>
       <section class="file">
+        <h3>nginx.cix.conf</h3>
+        <pre><code>worker_processes 1;
+error_log /dev/null crit;
+pid /dev/shm/wallos-cix/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log off;
+    client_body_temp_path /dev/shm/wallos-cix/nginx-client;
+    proxy_temp_path /dev/shm/wallos-cix/nginx-proxy;
+    fastcgi_temp_path /dev/shm/wallos-cix/fastcgi-temp;
+    uwsgi_temp_path /dev/shm/wallos-cix/uwsgi-temp;
+    scgi_temp_path /dev/shm/wallos-cix/scgi-temp;
+
+    server {
+        listen [::]:80 ipv6only=off;
+        listen [::]:18092 ipv6only=off;
+        server_name localhost;
+
+        location / {
+            root /app;
+            index index.php;
+        }
+
+        location ~ \.php$ {
+            root /app;
+            fastcgi_pass unix:/dev/shm/wallos-cix/php-fpm.sock;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param QUERY_STRING $query_string;
+            fastcgi_param REQUEST_METHOD $request_method;
+            fastcgi_param CONTENT_TYPE $content_type;
+            fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+            fastcgi_param REQUEST_URI $request_uri;
+            fastcgi_param DOCUMENT_URI $document_uri;
+            fastcgi_param DOCUMENT_ROOT $document_root;
+            fastcgi_param SERVER_PROTOCOL $server_protocol;
+            fastcgi_param REQUEST_SCHEME $scheme;
+            fastcgi_param HTTPS $https if_not_empty;
+            fastcgi_param GATEWAY_INTERFACE CGI/1.1;
+            fastcgi_param SERVER_SOFTWARE nginx/$nginx_version;
+            fastcgi_param REMOTE_ADDR $remote_addr;
+            fastcgi_param REMOTE_PORT $remote_port;
+            fastcgi_param SERVER_ADDR $server_addr;
+            fastcgi_param SERVER_PORT $server_port;
+            fastcgi_param SERVER_NAME $server_name;
+            fastcgi_param REDIRECT_STATUS 200;
+        }
+
+        location ~ \.db$ {
+            deny all;
+            return 403;
+        }
+
+        location ~* images/uploads/logos/.*\.php$ {
+            deny all;
+            return 403;
+        }
+
+        location ~* \.tmp/.*\.php$ {
+            deny all;
+            return 403;
+        }
+
+        location ~* ^/includes/.*\.php$ {
+            deny all;
+            return 403;
+        }
+    }
+}
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>php-fpm.cix.conf</h3>
+        <pre><code>[global]
+daemonize = no
+error_log = /dev/null
+
+[www]
+listen = /dev/shm/wallos-cix/php-fpm.sock
+pm = dynamic
+pm.max_children = 15
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+pm.max_requests = 500
+catch_workers_output = yes
+php_admin_value[session.save_path] = /dev/shm/wallos-cix/sessions
+</code></pre>
+      </section>
+      <section class="file">
         <h3>php.nix</h3>
         <pre><code>final: prev: {
   php = prev.php83.withExtensions ({ enabled, all }: enabled ++ (<span class="tok-directive">with</span> all; [ calendar gd intl pdo_sqlite zip ]));
@@ -897,6 +1052,24 @@ configuration heredocs remain together only because nginx configuration needs
 Overlay experience: package customization stays a concise native Nix function,
 while the service contract, roles, readiness, setup, and process supervision
 remain typed Cixfile declarations.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: the staged ordinary build and supplied `/health.php`
+probe exited 0 (`PASS cix`), producing
+`/nix/store/gxv88a6f0q2jp469pb8590c39fif13lr-cix-item-wallos`.
+
+After `bash corpus/migrate/fetch.sh wallos` exited 0, the assembler observed:
+
+- `target/debug/cix build corpus/migrate/wallos` exited 0 with
+  `/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos`.
+- `CIX=/home/mathijs/worktrees/composix/track-regen2/target/debug/cix
+  ./check.sh cix` exited 0 synchronously from the case directory; the bounded
+  probe returned exact `OK` and printed `PASS cix`.
+- `target/debug/cix build --cold corpus/migrate/wallos` exited 0 with the same
+  item after executing the assembly RUN from a cold workspace.
+
+Docker mode was not rerun.
 </code></pre>
       </details>
       <section class="file">
@@ -930,6 +1103,55 @@ cron_pid=$!
 nginx -c /etc/nginx.conf -e stderr &amp;
 nginx_pid=$!
 wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>startup.cix.sh</h3>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+cd /app
+runtime_dir=/dev/shm/wallos-cix-$$
+mkdir -p /data/db /data/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
+
+fpm_conf=&quot;$runtime_dir/php-fpm.conf&quot;
+nginx_conf=&quot;$runtime_dir/nginx.conf&quot;
+while IFS= read -r line; do
+  line=${line//\/dev\/shm\/wallos-cix/$runtime_dir}
+  printf &#39;%s\n&#39; &quot;$line&quot; &gt;&gt; &quot;$fpm_conf&quot;
+done &lt; /etc/wallos/php-fpm.conf
+while IFS= read -r line; do
+  line=${line//\/dev\/shm\/wallos-cix/$runtime_dir}
+  printf &#39;%s\n&#39; &quot;$line&quot; &gt;&gt; &quot;$nginx_conf&quot;
+done &lt; /etc/nginx/nginx.conf
+export TMPDIR=&quot;$runtime_dir&quot;
+
+shutdown_in_progress=0
+PHP_FPM_PID=
+NGINX_PID=
+
+shutdown_once() {
+  shutdown_in_progress=1
+  nginx -c &quot;$nginx_conf&quot; -s quit || true
+  [ -n &quot;${PHP_FPM_PID}&quot; ] &amp;&amp; kill -QUIT &quot;${PHP_FPM_PID}&quot; 2&gt;/dev/null || true
+}
+
+trap shutdown_once SIGTERM SIGINT SIGQUIT
+
+php-fpm -F -y &quot;$fpm_conf&quot; &amp;
+PHP_FPM_PID=$!
+nginx -c &quot;$nginx_conf&quot; -e stderr -g &#39;daemon off;&#39; &amp;
+NGINX_PID=$!
+
+sleep 1
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/createdatabase.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/db/migrate.php
+mkdir -p /data/logos/avatars
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updatenextpayment.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updateexchange.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/checkforupdates.php
+
+wait
 </code></pre>
       </section>
     </section>

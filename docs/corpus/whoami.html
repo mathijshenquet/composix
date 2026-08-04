@@ -56,17 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / whoami</nav>
   <h1>whoami</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — runtime assets, reproducible closed-root evidence, and dissolved twin are missing · <strong>Evidence:</strong> runtime probe (historical)</p>
-  <p class="status"><strong>Receipt status:</strong> Historical Cix HTTP probe · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime certificate/timezone layout and twin regained; absent upstream context leaves the source build unproved · <strong>Evidence:</strong> runtime probe + cold twin builds</p>
+  <p class="status"><strong>Receipt status:</strong> Both Docker-shaped and dissolved twins build warm/cold and the HTTP probe passes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/whoami/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@6ccf252 · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>Copying the built binary into <code>/bin</code> and invoking it by a bare name relies on implicit self-import rather than a declared artifact tool contract. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>The historical HTTP receipt consumed an unpinned/moving clone and has not been reproduced from the recorded source for the closed-root audit. → evidence</li>
-      <li>Upstream copies timezone and CA-certificate trees into its scratch runtime, while the conversion silently omits both. → case</li>
-      <li>nixpkgs packages Whoami, but this source-build conversion has no dissolved twin for side-by-side comparison. → case: add dissolved twin</li>
+      <li>The supplied pair has no checked-out Go build context, and the attempted source reconstruction hit Cix&#39;s context-free <code>Not a directory</code> builder failure; the primary file therefore uses the nixpkgs binary in the Docker runtime layout rather than proving the upstream source build. → evidence</li>
+      <li>Docker&#39;s scratch-root identity dissolves into Cix&#39;s isolated dynamic service identity; fixed root ownership is not preserved. → case</li>
     </ul>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
@@ -112,89 +110,74 @@ Fetched: 2026-07-30
     </section>
     <section class="column">
       <h2>composix</h2>
-      <section class="file">
+      <section class="variant-tabs">
+        <input id="tabs-whoami-0-faithful" name="tabs-whoami-0" type="radio" checked>
+        <label for="tabs-whoami-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-whoami-0-dissolved" name="tabs-whoami-0" type="radio">
+        <label for="tabs-whoami-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-<span class="tok-directive">BUILDER</span> build
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.go}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> GOMODCACHE = $PWD/.gomodcache
-  <span class="tok-comment"># Each networked stage is independently pinned; RUN only consumes its snapshot.</span>
-  <span class="tok-directive">FETCH</span> git clone https://github.com/traefik/whoami.git .
-  <span class="tok-directive">FETCH</span> go mod download
-  <span class="tok-directive">RUN</span> make build
-
 <span class="tok-directive">SERVICE</span> whoami
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/whoami /bin/whoami
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.whoami}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.whoami}</span>/bin/whoami /whoami
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tzdata}</span>/share/zoneinfo /usr/share/zoneinfo
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.cacert}</span>/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
   <span class="tok-directive">START</span> whoami
   <span class="tok-directive">PORT</span> http = 80
 </code></pre>
       </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE whoami
+  IMPORT ${pkgs.whoami}
+  START whoami
+  PORT http = 80
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;whoami&quot;: {
+      &quot;sourceHash&quot;: &quot;90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/1j7fzvgv6izkkhhy73rr9dr45zzwvxp5-cix-item-whoami&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
       <details class="file">
         <summary>Cixfile.lock</summary>
         <pre><code>{
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
-      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
     }
   },
-  &quot;fetches&quot;: {
-    &quot;builder:build:0-1efcc24b6ab5&quot;: {
-      &quot;narHash&quot;: &quot;sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE=&quot;
-    },
-    &quot;builder:build:1-1b1da2a6a3d8&quot;: {
-      &quot;narHash&quot;: &quot;sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s=&quot;
-    },
-    &quot;builder:build:1-27b58dcd6983&quot;: {
-      &quot;narHash&quot;: &quot;sha256-tlqh63S9lnbcmOfO5kZAXG/pQSZxAdNThZ7LUMXRHwg=&quot;
-    },
-    &quot;builder:build:2-42a8263a643c&quot;: {
-      &quot;narHash&quot;: &quot;sha256-9M0AkvtAzsOYNGxFP8wMLqR9Im70h+BR/8h1pAzQs5E=&quot;
-    },
-    &quot;src&quot;: {
-      &quot;narHash&quot;: &quot;sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0=&quot;
-    }
-  },
-  &quot;memo&quot;: {
-    &quot;0ca21c0c8d15603995c3be42a2a761033ce52657c41c4b90af55d1e78935fd57&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-lPmmXxSshngM8Yb6GcAY3tdMzUD1cIIIi53litZ5wT0=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/av30i6l84v4f5y88hy2xkzkh31cmbmzy-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 1144
-    },
-    &quot;73b409fc87bb5cc9281b114ee5dd3820a21b4a2d60f1ab2e8bbc892a43f16bed&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-FFTGBmk3Br/jgKpIj20A4S/223K/RAVvDvgelrc3r6s=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/r4hwf34z2ahq6piljcmrxr0sav5qs53m-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 592
-    },
-    &quot;7f7350b70bbccf2dae6df1a60df020fbe5d00bbfd196c59fc1878d85f295df04&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-+CVGgJjWd1KThfI0xExKGZPCffxF4BsxFOooAMiO8D8=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/7l36h0badcgz22acl0n8c3s2mb2ppxx4-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 3724
-    },
-    &quot;809f558ddf4286aee97ab186b85267ff6cde3f4f5f0f98c81704d4f3a062d372&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-apmlQtnNWS8+dvnLYkD99YDgTnH6/6f8I3NotH/2tA4=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/rcsvk7f1va6x0vplrs9rp78ppyppfy11-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 6437
-    },
-    &quot;adf7dc34e8d3c567a702c55fc5524ce9f6b537c8bef3a6b80b186bb6f8ff9f27&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-bFSdQt/+QClAZVOTXm/Dc3Gg893X87fLZF7vMHD0ojE=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/53gfms5rg2mi1azv3d7i9jyh0plmgsp0-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 672
-    },
-    &quot;fd8401ceb89b27827993d60465772a77a840be8e1064b67ba7f4e1598fe06da4&quot;: {
-      &quot;outputNarHash&quot;: &quot;sha256-kbQ2Is0WxwurR56xrNPPj0vSoH9k6AZISRGXvuvprEE=&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/ywhk4k8rh44c5z2g9zbsm04xj4hijr21-cix-build-snapshot&quot;,
-      &quot;wallMs&quot;: 714
-    },
-    &quot;fdfcf51098c4fc502b6dfede33c247f6bf9374f9bc6666894ce5e385eb89811b&quot;: {
-      &quot;paths&quot;: {
-        &quot;whoami&quot;: {
-          &quot;narHash&quot;: &quot;sha256-PGesaKnYMmvgp7XYL1rVlTNPgnvUsGu/EvJAwEKk6wg=&quot;,
-          &quot;storePath&quot;: &quot;/nix/store/nqxmz348wlc8mryvyw5zas5nk280mdsg-cix-build-consumed&quot;
-        }
-      }
+  &quot;outputs&quot;: {
+    &quot;whoami&quot;: {
+      &quot;sourceHash&quot;: &quot;90babc661778ac483a6c2cc568f3e933b0d4c87e8ccfa155cd6e3aaad4dc6fe6&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami&quot;
     }
   }
 }
@@ -275,6 +258,20 @@ PASS cix
 ```
 
 Exit status: 0. The HTTP probe passed.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker warm evidence: both staged twins built and the supplied HTTP probe exited
+0. The primary item was `/nix/store/8rpibhpfz2v69qr6xn29w6jh1c4c7qz1-cix-item-whoami`;
+the dissolved item was `/nix/store/1j7fzvgv6izkkhhy73rr9dr45zzwvxp5-cix-item-whoami`.
+
+The assembler observed the same two items from
+`target/debug/cix build corpus/migrate/whoami` and the `--file
+Cixfile.dissolved` twin command, both exit 0. The supplied probe, run
+synchronously from the case directory with this worktree&#39;s `CIX`, exited 0 and
+printed the HTTP request plus `PASS cix`. Repeating both builds with `--cold`
+also exited 0 with the same items. Whoami has no fetched local context, and
+Docker mode was not rerun.
 </code></pre>
       </details>
     </section>

@@ -56,18 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / tomcat</nav>
   <h1>tomcat</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — virtual layout, disabled shutdown listener, application behavior, and faithful twin remain · <strong>Evidence:</strong> closed-root · receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Sealed-root empty-server HTTP reachability · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Tomcat 10.1.57/JRE21 runtime, ports, and twins regained; Tomcat Native and writable work/log trees remain losses · <strong>Evidence:</strong> runtime probe · closed-root</p>
+  <p class="status"><strong>Receipt status:</strong> Both twins build warm/cold and the empty-server HTTP probe passes; the sealed-root audit proves the same reachability class · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/tomcat/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>Whole packages are copied to ad-hoc <code>/coreutils</code>, <code>/gnused</code>, <code>/tomcat</code>, and <code>/jre</code> roots and stitched together with a hand-built <code>PATH</code>. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>The virtual filesystem diverges from upstream <code>CATALINA_HOME=/usr/local/tomcat</code> and its ordinary JRE/package layout; mirror those paths or state why the alternate projection is required. → prompt</li>
-      <li>Setup disables Tomcat&#39;s private shutdown listener on 8005 to satisfy the declared-port sandbox; retain that deliberate behavioral change as a visible loss. → case</li>
-      <li>The bounded probe accepts the expected empty-server 404, proving reachability but no deployed web application behavior. → evidence</li>
-      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+      <li>The faithful twin uses nixpkgs&#39; Tomcat 10.1.57 tree instead of reproducing the Docker image&#39;s separately compiled Tomcat Native library, and it omits the upstream <code>configtest</code> assertion that the native library loaded. → case</li>
+      <li><code>CATALINA_HOME</code> is <code>/share/tomcat</code> rather than upstream <code>/usr/local/tomcat</code>; the package tree and Docker cross-image copy are behaviorally close but not path-identical. → case</li>
+      <li>Tomcat&#39;s <code>logs</code>, <code>temp</code>, and <code>work</code> directories remain under the immutable package assembly even though the Docker writable layer permits runtime writes there. → case</li>
+      <li>The bounded HTTP probe accepts the expected empty-server response, proving reachability but no deployed web application behavior. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -204,39 +203,84 @@ Build context: repository archive in context/; this Dockerfile has no local COPY
     </section>
     <section class="column">
       <h2>composix</h2>
-      <section class="file">
+      <section class="variant-tabs">
+        <input id="tabs-tomcat-0-faithful" name="tabs-tomcat-0" type="radio" checked>
+        <label for="tabs-tomcat-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-tomcat-0-dissolved" name="tabs-tomcat-0" type="radio">
+        <label for="tabs-tomcat-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">SERVICE</span> tomcat
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.coreutils}</span> /coreutils
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.gnused}</span> /gnused
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> /tomcat
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.jdk21_headless}</span> /jre
-  <span class="tok-directive">COPY</span> setup.sh /bin/tomcat-setup
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.tomcat10}</span>/bin/catalina.sh /bin/catalina.sh
-  <span class="tok-directive">STATEDIR</span> /var/lib/tomcat
-  <span class="tok-directive">LOGDIR</span> /var/log/tomcat
-  <span class="tok-directive">RUNDIR</span> /run/tomcat
-  <span class="tok-directive">ENV</span> CATALINA_HOME = /tomcat
-  <span class="tok-directive">ENV</span> CATALINA_BASE = /var/lib/tomcat
-  <span class="tok-directive">ENV</span> CATALINA_TMPDIR = /run/tomcat
-  <span class="tok-directive">ENV</span> JRE_HOME = /jre
-  <span class="tok-directive">ENV</span> PATH = /coreutils/bin:/gnused/bin:/bin
-  <span class="tok-directive">START_PRE</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/sh /bin/tomcat-setup
-  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.bash}</span>/bin/sh /tomcat/bin/catalina.sh run
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> <span class="tok-interpolation">${pkgs.jdk21}</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> /share/tomcat
+  <span class="tok-directive">ENV</span> CATALINA_HOME = /share/tomcat
+  <span class="tok-directive">ENV</span> TOMCAT_NATIVE_LIBDIR = /share/tomcat/native-jni-lib
+  <span class="tok-directive">ENV</span> LD_LIBRARY_PATH = /share/tomcat/native-jni-lib
+  <span class="tok-directive">ENV</span> TOMCAT_MAJOR = 10
+  <span class="tok-directive">ENV</span> TOMCAT_VERSION = 10.1.57
+  <span class="tok-directive">ENV</span> TOMCAT_SHA512 = 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
+  <span class="tok-directive">START</span> catalina.sh run
   <span class="tok-directive">PORT</span> http = 8080
+  <span class="tok-directive">PORT</span> shutdown = 8005
   <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE tomcat
+  IMPORT ${pkgs.tomcat10} ${pkgs.jdk21} ${pkgs.coreutils}
+  COPY ${pkgs.tomcat10} /share/tomcat
+  ENV CATALINA_HOME = /share/tomcat
+  START catalina.sh run
+  PORT http = 8080
+  PORT shutdown = 8005
+  CLAIM jit
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;tomcat&quot;: {
+      &quot;sourceHash&quot;: &quot;4e8b397afdd22a4bc32bf5e1beffd2be13842037a8bbfdbac64df7f809a1ff14&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/cffy1xg2019nx265gd2k4rvhlpymd5fl-cix-item-tomcat&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
       <details class="file">
         <summary>Cixfile.lock</summary>
         <pre><code>{
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
-      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;tomcat&quot;: {
+      &quot;sourceHash&quot;: &quot;4e8b397afdd22a4bc32bf5e1beffd2be13842037a8bbfdbac64df7f809a1ff14&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/s58jpph2qgzj18xwwam5is3jkzhqa9mf-cix-item-tomcat&quot;
     }
   }
 }
@@ -279,6 +323,26 @@ item carries the complete Tomcat 10.1.57 and JRE 21 trees, seeds a writable
 on port 8005 by default; the setup disables it because the service declares only
 8080. The natural probe regards any HTTP response at `/` as reachable, matching
 the candidate wording and Tomcat&#39;s expected no-application 404.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Worker evidence: both staged twins built warm and cold, the supplied HTTP probe
+exited 0, and a direct dissolved probe passed. The primary item was
+`/nix/store/s58jpph2qgzj18xwwam5is3jkzhqa9mf-cix-item-tomcat`; the dissolved
+item was `/nix/store/cffy1xg2019nx265gd2k4rvhlpymd5fl-cix-item-tomcat`.
+
+After `bash corpus/migrate/fetch.sh tomcat` exited 0, the assembler ran the exact
+ordinary and cold twin commands:
+
+- `target/debug/cix build corpus/migrate/tomcat` and
+  `target/debug/cix build --file Cixfile.dissolved corpus/migrate/tomcat`
+  exited 0 with the two items above.
+- `CIX=/home/mathijs/worktrees/composix/track-regen2/target/debug/cix
+  ./check.sh cix` exited 0 synchronously from the case directory and printed
+  `PASS cix`.
+- The same two builds with `--cold` each exited 0 and returned the same items.
+
+Docker mode was not rerun.
 </code></pre>
       </details>
       <section class="file">
