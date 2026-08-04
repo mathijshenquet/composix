@@ -104,7 +104,7 @@ pub(crate) fn render_netns_unit(
         requires.push_str("Requires=systemd-networkd.service\n");
     }
     format!(
-        "[Unit]\nDescription=cix compose network namespace: {description}\nPartOf={target}\n{before}{requires}{after}\n[Service]\nType=oneshot\nRemainAfterExit=yes\nSlice={}.slice\nExecStart=/bin/sh -ec '{start}'\nExecStop=/bin/sh -ec '/run/current-system/sw/bin/ip link delete {} 2>/dev/null || true; /run/current-system/sw/bin/ip netns delete {namespace}'\n",
+        "[Unit]\nDescription=cix compose network namespace: {description}\nPartOf={target}\n{before}{requires}{after}\n[Service]\nType=oneshot\nRemainAfterExit=yes\nTimeoutStopSec=10s\nSlice={}.slice\nExecStart=/bin/sh -ec '{start}'\nExecStop=/bin/sh -ec '/run/current-system/sw/bin/ip link delete {} 2>/dev/null || true; /run/current-system/sw/bin/ip netns delete {namespace}'\n",
         target.trim_end_matches(".target"),
         veth_name(composite, path, 'h')
     )

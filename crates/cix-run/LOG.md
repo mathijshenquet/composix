@@ -1,5 +1,93 @@
 # cix-run work log
 
+## track/netnsrace
+
+- 2026-08-04 07:34 UTC — Final current-tree agent tier is green after
+  merging current `origin/main` (`7f98bc1`), which supplied its independent
+  corpus-browser drift correction. The initial workspace test had failed only
+  that pre-existing generated-page drift; after integration,
+  `devenv shell -- cargo test --workspace` passed synchronously. Explicit tour
+  regeneration and the following tour drift/determinism test both passed, with
+  no generated tour diff. Current-tree fmt, examples fmt, and warning-denied
+  workspace/all-target clippy all exited 0. The bounded focused receipt
+  `nice -n 10 nix build .#checks.x86_64-linux.scenario-netns --no-link -L
+  --max-jobs 6 --cores 4` also exited 0 synchronously under TCG: closed-root
+  reactivation succeeded, both netns teardowns completed, and both immediate
+  namespace-path absence assertions passed. The specified implementation,
+  deterministic regression coverage, bounded 20-run before/after experiment,
+  and open-question closure are complete. Next: independent orchestrator
+  verification and merge.
+
+- 2026-08-04 07:25 UTC — The announced post-fix campaign completed
+  synchronously: **20/20 contended VMs passed**, with zero netns stop
+  timeouts, zero stale namespace paths, and zero activation failures. This is
+  the same independently named, six-at-once TCG contention shape that produced
+  17/20 passes before the fix (one exact activation failure plus two stale
+  final paths). Updated `docs/open-questions.md` to move the item out of the
+  agent-open queue and record the graph proof, teardown/re-entry mechanism,
+  narrow fix, and before/after rates. Next: run the complete standard agent
+  tier and a current-HEAD focused netns VM, then record exact synchronous
+  receipts.
+
+- 2026-08-04 07:13 UTC — Implemented the mechanism-scoped fix: generated
+  netns oneshots now carry `TimeoutStopSec=10s`, so namespace deletion does
+  not inherit the scenario's intentionally global 1-second service budget.
+  CIP-86's manifest and network semantics are unchanged. The golden fixture
+  pins the projection; `scenario-netns` asserts the effective systemd value
+  and once again requires both namespace paths to be absent immediately after
+  synchronous `cix down`, removing the earlier wait that masked interrupted
+  teardown. Synchronous receipts: fmt check, the focused compose golden test,
+  warning-denied all-target cix-compose clippy, and bounded focused
+  `scenario-netns` VM all passed. In that VM the first down → closed-root up
+  transition passed, the effective timeout was exactly 10s, both netns
+  `ExecStop`s completed successfully, and both final immediate absence checks
+  passed. Before the next long experiment: I will repeat 20 independently
+  named contended VMs with the same single aggregate `nice -n 10` Nix build,
+  `--keep-going --max-jobs 6 --cores 4`; raw output remains outside the repo.
+
+- 2026-08-04 07:06 UTC — Reproduced and root-caused before changing code.
+  One bounded baseline passed synchronously. The announced 20-run contended
+  campaign then completed synchronously with 17 passes and three failures:
+  one exact closed-root activation failure (run 17, 5%) and two final stale
+  namespace-path failures (runs 15/20, another 10%). The aggregate command
+  was `nice -n 10 nix build ... --keep-going --max-jobs 6 --cores 4`; each
+  run was a uniquely named override of `scenario-netns`, so Nix executed 20
+  independent VMs (six at once), and lack of host KVM forced additional TCG
+  contention. This is not the suspected member-before-oneshot race. The
+  realized graph has both directions of the ordering assertion: the netns
+  unit says `Before=cix-netns-b-fixed.service`, while the member says
+  `Requires=cix-netns-b-netns.service` and
+  `After=cix-netns-b-netns.service`. Run 17's exact interleaving was:
+  `cix down` started the b-netns `ExecStop=ip netns delete` at guest
+  138.668s; the scenario-wide `DefaultTimeoutStopSec=1s` expired at
+  139.549s and systemd SIGTERM'd the control process; the unit stopped with
+  result `timeout`, leaving `/run/netns/cix-netns-b-netns`; the immediately
+  following closed-root `cix up` started the b netns oneshot at 150.693s;
+  `ip netns add` reported `Cannot create namespace file ...: File exists`
+  at 151.579s; the oneshot failed at 151.699s; and the correctly ordered
+  b-fixed member then failed with result `dependency` at 151.766s. Runs 15
+  and 20 independently proved the same interrupted teardown by retaining the
+  b namespace path for the full 60-second final assertion. Mechanism and fix
+  boundary: netns deletion is lifecycle infrastructure and must have its own
+  stop budget instead of inheriting the deliberately tiny scenario/host
+  manager default. Next: give only the generated netns oneshot a bounded
+  `TimeoutStopSec`, assert that projection in the golden and focused VM, then
+  rerun contended instances.
+
+- 2026-08-04 06:49 UTC — Started the bounded reproduction campaign after
+  reading the track spec, current project log, D43/D49, CIP-86, and the
+  generated compose network/activation code. The current graph already gives
+  every pod member `Requires=` + `After=` on its netns oneshot, and the
+  oneshot also gives all members `Before=`; the campaign must therefore test
+  the recorded activation failure rather than assume the suspected missing
+  edge. I will run at least 20 independently named `scenario-netns` test
+  derivations under deliberate parallel contention, in batches no larger than
+  three VMs, with every Nix invocation bounded by `nice -n 10`,
+  `--max-jobs 6`, and `--cores 4`. Raw synchronous results and failed build
+  logs, if any, go to a temporary directory outside the repository. Next:
+  execute the baseline and contended batches, then inspect journals and the
+  realized unit graph for any failure before changing code.
+
 - 2026-08-02 UTC — Fix round for the orchestrator's lock_nix flakes. The
   boundary refactor had generated a new workspace for each build invocation,
   breaking the two tests that intentionally observe one test-local warm
@@ -516,6 +604,86 @@
   scenario also passed while competing with the full parallel VM load. Final
   audit found no whitespace errors or unrelated worktree changes. The track is
   ready to commit; next step is orchestrator re-verification and merge.
+
+## track/adapterlive
+
+- 2026-08-04 UTC — Started the systemd-257 adapter-liveness retention repair on
+  `track/adapterlive`. Read the track spec, CIP-79, current journals, health
+  compiler/prober, and VM scenario. The ordinary `scenario-health` flake check
+  currently imports the moving nixos-unstable `pkgs` set (not the pinned v257
+  package); the flake already carries a `systemd257` compatibility package for
+  NixOS VM use. Current implementation forks the `ExecStartPost` pinger and
+  returns its parent successfully, exactly matching the Mastodon receipt's
+  failure mechanism. Next: run the focused current VM as a baseline and make a
+  narrow v257 health VM reproduction before selecting a retention mechanism.
+
+- 2026-08-04 UTC — Reproduction result: `scenario-health` passed on the
+  flake/CI package set (systemd 261), and the same focused scenario passed with
+  its PID 1 proven to be the flake-pinned systemd 257.6 compatibility package.
+  It keeps the cix-owned HTTP pinger healthy for seven seconds after activation,
+  exceeding the emitted three-second watchdog window; the recorded Mastodon
+  loss is therefore not reproducible in the available in-tree 257 universe.
+  Mechanism assessment: a companion cannot send `WATCHDOG=1` to the parent
+  service because systemd authorizes notifications by the sending unit's
+  cgroup; re-parenting intentionally evades systemd supervision; and a version
+  gate would silently remove liveness despite the negative reproduction. No
+  product mechanism change is warranted without the original manager/package
+  and generated-unit evidence. Added the 257 check and survival assertion as
+  regression coverage, updated the open-item disposition, and marked the
+  exhibiting Mastodon gap stale. Next: run formatter and focused current/v257
+  VM receipts, then commit this evidence-backed resolution.
+
+- 2026-08-04 UTC — Synchronous focused receipts passed: `devenv shell -- nix
+  build .#checks.x86_64-linux.scenario-health --no-link -L` (PID 1 systemd
+  261) and `devenv shell -- nix build
+  .#checks.x86_64-linux.scenario-health-systemd257 --no-link -L` (PID 1 pinned
+  systemd 257.6). Both retain the healthy HTTP pinger through the new
+  seven-second / three-second-watchdog assertion and complete the existing
+  failed-probe restart recovery. `devenv shell -- cargo fmt --all --check`,
+  `devenv shell -- cargo run -p cix -- fmt --check examples`, and `git diff
+  --check` also pass. Next: complete the standard Rust and tour gates, audit,
+  and commit.
+
+- 2026-08-04 UTC — `devenv shell -- cargo clippy --workspace --all-targets --
+  -D warnings` passed. `devenv shell -- cargo test --workspace` reached the
+  corpus-browser drift check and failed only because the required Mastodon
+  `GAPS.md` stale disposition changes generated `docs/corpus/mastodon.html`;
+  the test first reports unrelated pre-existing `docs/corpus/filestash.html`
+  drift too. Regenerating either page requires editing `docs/corpus*`, which
+  this track's explicit fence forbids. This is a scope/ledger-output conflict,
+  not a product failure; leave the generated-browser refresh to its owning
+  track or explicit orchestration. No green full-workspace receipt is claimed.
+  Next: run the independent tour drift gate, audit the allowed changes, and
+  report the honest stop rather than crossing the fence.
+
+- 2026-08-04 UTC — `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour` passed and `git diff --exit-code -- docs/tour` was clean. The
+  focused health receipts, Rust formatter/examples formatter, warning-denied
+  clippy, and tour gate are green. The only unfinished prescribed gate is the
+  full workspace suite's forbidden corpus-browser regeneration; do not commit
+  a falsely green track or alter `docs/corpus*` without direction.
+
+- 2026-08-04 UTC — Orchestrator lifted the `docs/corpus*` fence after the
+  content track merged. Committed the retention regression and ledger finding
+  as `76a00c8`, fetched, and merged `origin/main` (CIP-91/92 plus Filestash
+  browser regeneration) cleanly. `devenv shell -- cargo test -p cix --test
+  corpus -- --ignored generate_corpus_browser` exited 0 and refreshed the
+  Mastodon generated browser page for its stale adapter-liveness evidence.
+  Next: commit that generated artifact, then rerun the full workspace gate.
+
+- 2026-08-04 UTC — Committed the generated Mastodon browser refresh as
+  `b5c05f7`. A concurrent `track/netnsrace` twenty-VM contention matrix is
+  active, so the final full workspace gate is deliberately deferred until it
+  finishes; project policy forbids overlapping full VM gates. Next: wait for
+  that external gate to clear, then run the full workspace test synchronously.
+
+- 2026-08-04 UTC — After the corpus refresh, `devenv shell -- cargo test
+  --workspace` exited 0 synchronously: the corpus browser determinism and
+  committed-page checks are green again, alongside all workspace suites. This
+  closes the previously honest gate stop. The agent-tier receipts are now
+  formatter, examples formatter, warning-denied clippy, focused health VMs on
+  systemd 261 and 257.6, generated corpus/tour drift, and the full workspace
+  suite. Next: audit status, commit this final gate receipt, and hand off.
 
 ## track/secrets
 

@@ -204,6 +204,7 @@ scenario.nodeWith {
   machine.succeed("systemctl cat cix-netns-a-allowed.service | grep -F 'BindReadOnlyPaths=/run/systemd/resolve/resolv.conf:/etc/resolv.conf'")
   machine.succeed("systemctl cat cix-netns-a-denied.service | grep -F 'IPAddressDeny=any'")
   machine.succeed("systemctl cat cix-netns-a-allowed.service | grep -F 'NetworkNamespacePath=/run/netns/cix-netns-a-netns'")
+  machine.succeed("test \"$(systemctl show cix-netns-b-netns.service --property=TimeoutStopUSec --value)\" = 10s")
 
   lease = machine.succeed("jq -r '.leases[\"netns/a\"].host' /var/lib/cix-compose/ipam.json").strip()
   machine.succeed("sed -i 's/\\\"MESSAGE\\\": \\\"v1\\\"/\\\"MESSAGE\\\": \\\"v2\\\"/' /tmp/scenario/cix.json")
@@ -219,10 +220,8 @@ scenario.nodeWith {
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix down netns")
   machine.succeed("systemctl stop scenario-dns.service")
   machine.succeed("systemctl stop scenario-egress-target.service")
-  # Netns teardown is asynchronous (StopWhenUnneeded); under parallel VM
-  # load the unlink can lag a fixed-point assert (timer-gc lesson).
-  machine.wait_until_succeeds("test ! -e /run/netns/cix-netns-a-netns", timeout=60)
-  machine.wait_until_succeeds("test ! -e /run/netns/cix-netns-b-netns", timeout=60)
+  machine.succeed("test ! -e /run/netns/cix-netns-a-netns")
+  machine.succeed("test ! -e /run/netns/cix-netns-b-netns")
   machine.succeed("test -n $(jq -r '.leases[\"netns/a\"].host' /var/lib/cix-compose/ipam.json)")
   machine.succeed("systemctl reset-failed 'cix-netns*' || true")
   machine.succeed("test -z \"$(systemctl list-units --all --no-legend 'cix-netns*' | awk 'NF { print $1 }')\"")
