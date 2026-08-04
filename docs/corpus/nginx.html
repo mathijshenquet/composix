@@ -56,18 +56,18 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / nginx</nav>
   <h1>nginx</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — synthetic config omits entrypoint behavior, version parity, and a faithful twin · <strong>Evidence:</strong> closed-root · receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Sealed-root fixed HTTP response and indexed journald query · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — the Alpine hook, Docker log symlinks, fixed uid, stop signal, and parts of the entrypoint contract differ · <strong>Evidence:</strong> build (runtime failure) · closed-root (synthetic contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Both twins build, but the faithful runtime exits on missing /var/log/nginx files; a synthetic nginx response remains sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nginx/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The package-only conversion replaces upstream&#39;s normal nginx contract and entrypoint-driven template/resolver/worker tuning with a synthetic one-server config that returns a fixed string. → case</li>
-      <li>The non-interpolating nginx configuration is an unnecessary heredoc instead of a normal checked-in file. → case</li>
-      <li>The receipt reports nixpkgs nginx 1.30.4 while the Dockerfile pins 1.31.3, and Docker mode was not rerun. → evidence</li>
-      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; the manifest has no stop-signal declaration and silently uses systemd&#39;s default. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
-      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+      <li>The faithful twin preserves the upstream entrypoint scripts, but its Alpine-specific IPv6 hook cannot validate <code>apk manifest nginx</code> against the nixpkgs package and therefore does not perform that Docker mutation. → case</li>
+      <li>Docker&#39;s stdout/stderr log symlinks are not reproduced, and the faithful runtime probe is red because the packaged configuration opens <code>/var/log/nginx/error.log</code> and <code>access.log</code> while the service declares no <code>LOGDIR</code>. systemd captures process output, but that does not satisfy those file paths. → case</li>
+      <li>Docker&#39;s fixed nginx uid/gid 101 is replaced by Cix/systemd&#39;s managed service identity. → language (fixed service identity)</li>
+      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix has no stop-signal declaration, so systemd&#39;s stop behavior applies. → language (<a href="../../../docs/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>The copied worker-autotune hook&#39;s Docker cgroup paths and operator-supplied envsubst/stream templates are not covered by the HTTP probe. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -304,36 +304,83 @@ Build context: repository archive in context/; sibling entrypoint files are in c
     </section>
     <section class="column">
       <h2>composix</h2>
-      <section class="file">
+      <section class="variant-tabs">
+        <input id="tabs-nginx-0-faithful" name="tabs-nginx-0" type="radio" checked>
+        <label for="tabs-nginx-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-nginx-0-dissolved" name="tabs-nginx-0" type="radio">
+        <label for="tabs-nginx-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">SERVICE</span> nginx
-  <span class="tok-directive">FILE</span> /etc/nginx/nginx.conf &lt;&lt;NGINX
-<span class="tok-heredoc">daemon off;</span>
-<span class="tok-heredoc">events { }</span>
-<span class="tok-heredoc">http {</span>
-<span class="tok-heredoc">  access_log off;</span>
-<span class="tok-heredoc">  server {</span>
-<span class="tok-heredoc">    listen 8080;</span>
-<span class="tok-heredoc">    location / { return 200 &quot;nginx\n&quot;; }</span>
-<span class="tok-heredoc">  }</span>
-<span class="tok-heredoc">}</span>
-<span class="tok-directive">NGINX</span>
-  <span class="tok-directive">LOGDIR</span> /var/log/nginx
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nginxMainline}</span> <span class="tok-interpolation">${pkgs.busybox}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gettext}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">ENV</span> NGINX_VERSION = 1.31.3
+  <span class="tok-directive">ENV</span> PKG_RELEASE = 1
+  <span class="tok-directive">ENV</span> DYNPKG_RELEASE = 1
+  <span class="tok-directive">COPY</span> context/mainline/alpine-slim/docker-entrypoint.sh /docker-entrypoint.sh
+  <span class="tok-directive">COPY</span> context/mainline/alpine-slim/10-listen-on-ipv6-by-default.sh /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+  <span class="tok-directive">COPY</span> context/mainline/alpine-slim/15-local-resolvers.envsh /docker-entrypoint.d/15-local-resolvers.envsh
+  <span class="tok-directive">COPY</span> context/mainline/alpine-slim/20-envsubst-on-templates.sh /docker-entrypoint.d/20-envsubst-on-templates.sh
+  <span class="tok-directive">COPY</span> context/mainline/alpine-slim/30-tune-worker-processes.sh /docker-entrypoint.d/30-tune-worker-processes.sh
+  <span class="tok-directive">START</span> sh /docker-entrypoint.sh nginx -g &#39;daemon off;&#39;
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">CACHEDIR</span> /var/cache/nginx
   <span class="tok-directive">RUNDIR</span> /run/nginx
-  <span class="tok-directive">START</span> <span class="tok-interpolation">${pkgs.nginx}</span>/bin/nginx -c /etc/nginx/nginx.conf -e stderr
-  <span class="tok-directive">PORT</span> http = 8080
 </code></pre>
       </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nginx
+  IMPORT ${pkgs.nginxMainline} ${pkgs.tzdata}
+  START nginx -g &#39;daemon off;&#39;
+  PORT http = 80
+  CACHEDIR /var/cache/nginx
+  RUNDIR /run/nginx
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nginx&quot;: {
+      &quot;sourceHash&quot;: &quot;4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/h6rdgrdjxy4n0a820wa15gajjb2v9cv5-cix-item-nginx&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
       <details class="file">
         <summary>Cixfile.lock</summary>
         <pre><code>{
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
-      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nginx&quot;: {
+      &quot;sourceHash&quot;: &quot;4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx&quot;
     }
   }
 }
@@ -385,6 +432,36 @@ indexed `journalctl` query using `CIX_COMPOSITE`, `CIX_SERVICE`, and the current
 invocation ID. Runtime used the existing D36 PrivatePIDs fallback. Docker mode
 and upstream version parity were not re-verified. Cleanup used `cix down` and
 removed both temporary tags.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun.
+
+```text
+devenv shell -- cargo build -p cix
+bash corpus/migrate/fetch.sh nginx
+./target/debug/cix build corpus/migrate/nginx
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/nginx
+cd corpus/migrate/nginx &amp;&amp; CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+The compiler, fetch, and both builds completed synchronously with exit status 0;
+the fetch reconstructed revision `e0f008fab4e1ce252c9451590c6a2aff305dd03c`.
+The faithful build produced
+`/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx`; the dissolved
+build produced `/nix/store/h6rdgrdjxy4n0a820wa15gajjb2v9cv5-cix-item-nginx`.
+
+The unchanged Cix probe completed synchronously with exit status 1. After the
+documented D36 PrivatePIDs fallback, nginx exited status 1 before HTTP became
+reachable. The unit journal reported:
+
+```text
+nginx: [alert] could not open error log file: open() &quot;/var/log/nginx/error.log&quot; failed (2: No such file or directory)
+nginx: [emerg] open() &quot;/var/log/nginx/access.log&quot; failed (2: No such file or directory)
+```
+
+The final cleanup also reported that the original unit name was no longer loaded.
+The probe was not weakened; this is a faithful-twin runtime finding.
 </code></pre>
       </details>
     </section>
