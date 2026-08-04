@@ -1,5 +1,16 @@
 # litdoc work log
 
+- 2026-08-04T20:45:00Z — Chapter 5 explicit regeneration exits 0 with a real
+  rootless web lifecycle: readiness succeeds, the generated manager properties
+  are inspected, state is written and read after restart, and the tour restores
+  any pre-existing user-state value afterward. The chapter now validates the
+  implemented compose secret source and gives the exact privileged supply
+  commands, defines the debug delimiter and observability columns/selectors,
+  scopes closed-root as an opt-in audit, and creates, inspects, removes, and
+  unloads a scheduled APP timer pair. Host-specific manager warnings and live
+  accounting remain declared normalizations. Next: commit Chapter 5, then make
+  Chapter 6's Unix producer/consumer edge and compose update receipts concrete.
+
 - 2026-08-04T20:05:00Z — Chapter 4 explicit regeneration passes. The hand-made
   item is now honestly labelled taggable-but-not-runnable, `nix store add`, GC
   roots, tag argument order, platform metadata, and the inspect `artifact`

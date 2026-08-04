@@ -6,11 +6,13 @@
 > machine leaks in. Outputs are asserted; store-path ellipses appear in
 > outputs only, never in commands you are meant to type.
 
-You will inspect a tagged HTTP service with health contracts at the honest rootless boundary, then debug and schedule its run-to-completion sibling. Afterwards, you will understand the runtime boundary—immutable world, declared writable state, credential files, health supervision, timers, and journald/accounting observability—including which guarantees require the system-manager VM gate.
+You will run an HTTP service twice, observe readiness, preserve state across the restart, inspect its systemd unit, validate the real credential-supply document, and schedule a finite command. The rootless receipts exercise process, port, health, managed state, timer, and observability behavior; production-only secret delivery and sealed filesystem isolation are labelled where they require the root system manager.
 
 ## The item owns needs; the operator owns values
 
-The web service declares a direct port, persistent application-native state, one credential-file need, and real HTTP readiness and liveness endpoints. The finite APP is eligible for timer scheduling, while the minimal observer service stays alive long enough for scoped observability receipts.
+The web item declares the process needs: a direct TCP port, application-native persistent state, one credential filename, and HTTP health checks. `READINESS http :8420/healthz IN 10s` means the native cix probe retries localhost until one successful HTTP response or a ten-second startup timeout. `LIVENESS http :8420/livez EVERY 2s` probes every two seconds; three missed intervals trigger systemd's bounded `Restart=on-failure` policy. No curl or shell is added to the runtime item for those probes.
+
+The checked-in server uses `$STATE_DIRECTORY` at the native path when the manager can project it and the documented user backing below `~/.local/state/cix-run-web` otherwise. It does not treat `CIX_APP` as an application API: that variable exists only on the degraded user path to identify the physical store item, and is absent in the production system unit. The finite cleanup APP is eligible for scheduling; the minimal observer stays alive for scoped accounting receipts.
 
 #### `Cixfile`
 
@@ -18,32 +20,65 @@ The web service declares a direct port, persistent application-native state, one
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE web
-IMPORT ${pkgs.python3}
-COPY server.py /srv/app/server.py
-START python3 /srv/app/server.py
-PORT http = 18086
+IMPORT ${pkgs.coreutils} ${pkgs.python3}
+COPY server.py /bin/runtime-server
+START runtime-server
+PORT http = 8420
 STATEDIR /var/lib/runtime-guide
 SECRET db-password AS DB_PASSWORD_FILE
-READINESS http :18086/healthz IN 10s
-LIVENESS http :18086/livez EVERY 2s
+READINESS http :8420/healthz IN 10s
+LIVENESS http :8420/livez EVERY 2s
 
 APP cleanup
 IMPORT ${pkgs.coreutils}
 START true
 
 SERVICE observer
-IMPORT ${pkgs.coreutils}
-START sleep 300
+IMPORT ${pkgs.bash} ${pkgs.coreutils}
+COPY observer.sh /bin/runtime-observer
+START runtime-observer
 ```
 
 #### `server.py`
 
 ```python
+#!/usr/bin/env python3
+import os
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
+
+def state_root():
+    native = Path(os.environ["STATE_DIRECTORY"].split(":")[0])
+    cache = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state"))
+    fallback = cache / "cix-run-web/var/lib/runtime-guide"
+    for candidate in (native, fallback):
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write-probe"
+            probe.write_text("ok")
+            probe.unlink()
+            return candidate
+        except PermissionError:
+            continue
+    raise RuntimeError("no writable managed state directory")
+
+state_file = state_root() / "value"
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = b"runtime healthy\n"
+        if self.path == "/state":
+            body = state_file.read_bytes() if state_file.exists() else b"empty\n"
+        else:
+            body = b"runtime healthy\n"
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_PUT(self):
+        length = int(self.headers.get("Content-Length", "0"))
+        state_file.write_bytes(self.rfile.read(length) + b"\n")
+        body = b"stored\n"
         self.send_response(200)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -53,7 +88,16 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 print("runtime service started", flush=True)
-HTTPServer(("127.0.0.1", 18086), Handler).serve_forever()
+HTTPServer(("127.0.0.1", 8420), Handler).serve_forever()
+```
+
+#### `observer.sh`
+
+```
+#!/bin/bash
+set -eu
+printf '%s\n' 'observer ready'
+exec sleep 300
 ```
 
 ```sh
@@ -61,16 +105,109 @@ $ cix build . --namespace runtime -t v1
 {"cleanup":"/nix/store/…-cix-item-cleanup","observer":"/nix/store/…-cix-item-observer","web":"/nix/store/…-cix-item-web"}
 ```
 
-## Inspect the item, then cross the system-manager boundary
-
-`cix run` resolves the tag and compiles the manifest into a transient unit. Production projects `/srv/app/server.py` from the item before readiness and liveness supervision begins. Because D13 permits a user manager to reject that mount namespace, the rootless receipt parses the copied program through its physical item path instead of claiming a live HTTP service.
-
 ```sh
-$ /nix/store/…-cix-item-web/bin/python3 -c 'compile(open("/nix/store/…-cix-item-web/srv/app/server.py").read(), "server.py", "exec"); print("copied server parses")'
-copied server parses
+$ cix ls runtime/
+runtime/cleanup:v1
+runtime/observer:v1
+runtime/web:v1
 ```
 
-`cix debug` still resolves an item by tag and replaces its entrypoint inside the service sandbox. The finite cleanup sibling has no mount or health dependency, so it is the honest rootless target for that receipt.
+The build command's `--namespace runtime -t v1` creates the three refs printed above: `runtime/web:v1`, `runtime/cleanup:v1`, and `runtime/observer:v1`. `cix run` resolves one ref and compiles its manifest into a transient systemd service plus native health helpers.
+
+## Run, write state, restart, and read it
+
+This uses the degraded development path (decision D13): `--user` targets the per-user manager without `DynamicUser=` and may lose the sandbox controls listed in Chapter 1, but the process, readiness gate, port, and managed state still run. Host-varying degradation text is normalized to the declared marker.
+
+```sh
+$ unit=$(cix run runtime/web:v1 --user --detach); printf '%s\n' "$unit"
+cix-run-web-NONCE.service
+[manager degradation warnings vary by host — elided]
+```
+
+```sh
+$ curl -fsS http://127.0.0.1:8420/healthz
+runtime healthy
+```
+
+```sh
+$ curl -fsS -X PUT --data 'kept across restart' http://127.0.0.1:8420/state
+stored
+```
+
+```sh
+$ cix inspect --runtime --user "$unit" | jq '{unit, state, properties:{PrivateNetwork:.properties.PrivateNetwork, ProtectSystem:.properties.ProtectSystem, StateDirectory:.properties.StateDirectory}}'
+{
+  "unit": "cix-run-web-NONCE.service",
+  "state": {
+    "load": "loaded",
+    "active": "active",
+    "sub": "running"
+  },
+  "properties": {
+    "PrivateNetwork": "no",
+    "ProtectSystem": "no",
+    "StateDirectory": "cix-run-web/var/lib/runtime-guide"
+  }
+}
+```
+
+```sh
+$ systemctl --user show "$unit" -p TimeoutStartUSec -p WatchdogUSec -p Restart
+Restart=on-failure
+TimeoutStartUSec=10s
+WatchdogUSec=6s
+```
+
+The readiness adapter is an `ExecStartPost` process run by cix: it retries the HTTP target and delays the service's active state until success. The liveness adapter is a second cix process that pings every two seconds and notifies systemd; the six-second watchdog below is the three-miss threshold, and systemd performs the restart.
+
+```sh
+$ systemctl --user stop "$unit"
+```
+
+```sh
+$ unit=$(cix run runtime/web:v1 --user --detach); printf '%s\n' "$unit"
+cix-run-web-NONCE.service
+[manager degradation warnings vary by host — elided]
+```
+
+```sh
+$ curl -fsS http://127.0.0.1:8420/state
+kept across restart
+```
+
+```sh
+$ systemctl --user stop "$unit"
+```
+
+`STATEDIR /var/lib/runtime-guide` is cix-owned durable data, not part of the item or a container layer. In this user demo its backing is `~/.local/state/cix-run-web/var/lib/runtime-guide`; production uses `/var/lib/cix-run-web/var/lib/runtime-guide`. Back it up as application data. A named compose deployment retains it across `down`; `cix down runtime-guide --purge --yes` is the explicit destructive purge.
+
+## Supply the declared secret
+
+#### `runtime-compose.json`
+
+```json
+{
+  "cixCompose": 1,
+  "name": "runtime-guide",
+  "secrets": {
+    "db-password": {"file": "/run/cix-runtime-guide-db-password"}
+  },
+  "children": {
+    "web": {"item": "runtime/web:v1"}
+  }
+}
+```
+
+Direct `cix run` intentionally has no secret-value flag. The implemented supplying side is the top-level compose `secrets` map: the exact production setup is `sudo install -m 0600 runtime-secret /run/cix-runtime-guide-db-password` followed by `sudo env CIX_STATE_DIR=/var/lib/cix-index cix run --compose runtime-compose.json`. Systemd then uses `LoadCredential=db-password:/run/cix-runtime-guide-db-password`, mounts the root-owned file at `$CREDENTIALS_DIRECTORY/db-password`, and sets `DB_PASSWORD_FILE` to that path. The rootless harness can validate this document but cannot honestly activate its root-owned credential.
+
+```sh
+$ cix compose check runtime-compose-check.json
+compose runtime-guide: 1 services, 0 edges, valid
+```
+
+## Debug and observe
+
+`cix debug` resolves an item and replaces its normal START command in a fresh sandbox. The first `--user` is a cix option; the second bare `--` ends cix option parsing, so everything after it is the replacement argv. Replace `true` with a diagnostic command that is present in the item's imported PATH.
 
 ```sh
 $ cix debug runtime/cleanup:v1 --user -- true
@@ -78,7 +215,7 @@ warning: cix debug --user is degraded development mode; it does not provide the 
 === cix debug: degraded service sandbox; service=cleanup; identity=caller (--user) ===
 ```
 
-The observer sibling is deliberately small and long-running, so the observability receipts can assert one tour-owned unit. `ps --json` selects that exact unit instead of formatting an ambient table whose widths depend on unrelated units; the `stats` projection keeps the live counters live while asserting their stable manager, composite, and unit identity.
+The observer sibling prints one journal message and remains alive, so every receipt can select one tour-owned unit. `ps --json` selects that exact unit instead of formatting an ambient table whose widths depend on unrelated units. In `cix stats`, MANAGER says which systemd manager owns the unit, COMPOSITE is `run` for a unary invocation, and the SERVICE column contains that invocation's concrete transient unit name; the remaining columns are live accounting counters.
 
 ```sh
 $ cix run runtime/observer:v1 --user --detach
@@ -97,7 +234,7 @@ $ cix ps --json | jq --arg unit 'cix-run-observer-NONCE.service' '.[] | select(.
 ```
 
 ```sh
-$ cix stats 2>/dev/null | awk -v unit='cix-run-observer-NONCE.service' 'NR == 1 || $3 == unit'
+$ cix stats 2>/dev/null | awk -v unit="$unit" 'NR == 1 || $3 == unit'
 MANAGER  COMPOSITE  SERVICE  MEMORY  CPU  TASKS  IO  IP
 user  run  cix-run-observer-NONCE.service  <live>  <live>  <live>  <live>  <live>
 ```
@@ -107,25 +244,43 @@ $ cix logs run/observer --explain
 journalctl CIX_COMPOSITE=run CIX_SERVICE=observer
 ```
 
+```sh
+$ cix logs run/observer -n 20 >/dev/null 2>&1
+```
+
+Unary `cix run` stamps `CIX_COMPOSITE=run` and `CIX_SERVICE=observer` into the unit's journal metadata, which is why `run/observer` is the exact log selector. `--explain` prints the equivalent journal fields without reading entries; omitting it, as in the preceding command, asks journald for the last 20 matching entries. Its host-formatted output is discarded here because some user-journal configurations do not retain custom fields; the production system-manager receipt is the authoritative log-content check.
+
 ## The system-manager guarantees
 
-The ordinary production path runs in a read-only world: in `--closed-root` audit mode even undeclared host paths are absent, while the whole Nix store and the item's projections remain read-only. Only declared role directories are writable. The rootless contract does not guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.
+The normal system-manager path applies the declared hardening while retaining a conventional host root. `--closed-root` is a stricter, opt-in audit mode; try it on the secret-free observer with `sudo env CIX_STATE_DIR=/var/lib/cix-index cix run runtime/observer:v1 --closed-root --detach`. The sealed unit sees the Nix store, the item's read-only projections, generated identity and resolver files, declared role directories, and manager-projected sockets or credentials; an undeclared host path is absent. The rootless contract cannot guarantee that mount namespace, so the [closed-root audit scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/closedroot-audit.nix) executes the failed undeclared access and sealed-root inventory under the system manager.
 
-`STATEDIR /var/lib/runtime-guide` survives service restarts and belongs to cix until an explicit purge; the item never chooses a host backing path. `SECRET db-password` similarly names no value: compose supplies a root-owned file, systemd projects it below `$CREDENTIALS_DIRECTORY`, and `DB_PASSWORD_FILE` receives only that path. The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.
+The [directory lifecycle scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/dirs2.nix), [secrets scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/secrets.nix), and [health scenario](https://github.com/mathijshenquet/composix/blob/main/nix/scenarios/health.nix) execute production persistence, credential rotation, readiness blocking, and liveness restart without faking host privileges here.
 
 ## Schedule the APP
 
-An APP runs to completion instead of staying active. `--schedule` writes a transient service/timer pair using systemd's `OnCalendar` syntax and prints the timer name; no polling daemon is involved.
+An APP runs to completion instead of staying active. `systemd-analyze calendar` validates and normalizes the same `OnCalendar` expression. `--schedule` creates a service/timer pair and arms it for the next matching time; it does not run the APP immediately and no polling daemon is involved.
 
 ```sh
-$ cix run runtime/cleanup:v1 --user --schedule '*-*-* 00:00:00'
+$ systemd-analyze calendar '*-*-* 00:00:00' | sed -n '1p'
+Normalized form: *-*-* 00:00:00
+```
+
+```sh
+$ timer=$(cix run runtime/cleanup:v1 --user --schedule '*-*-* 00:00:00'); printf '%s\n' "$timer"
 cix-run-cleanup-NONCE.timer
 [manager degradation warnings vary by host — elided]
 ```
 
 ```sh
-$ systemctl --user is-active cix-run-cleanup-NONCE.timer
-active
+$ systemctl --user show "$timer" -p Id -p ActiveState -p Unit
+Unit=cix-run-cleanup-NONCE.service
+Id=cix-run-cleanup-NONCE.timer
+ActiveState=active
+```
+
+```sh
+$ systemctl --user stop "$timer"; stem=${timer%.timer}; rm -f "$XDG_RUNTIME_DIR/systemd/user/$stem.timer" "$XDG_RUNTIME_DIR/systemd/user/$stem.service" "$XDG_RUNTIME_DIR/systemd/user/$stem-root.service"; systemctl --user daemon-reload; systemctl --user is-active "$timer"
+inactive
 ```
 
 You now have the complete ownership split: artifacts declare their process needs, compose supplies host policy and secrets, and systemd owns lifecycle, health, logs, timers, and accounting.
