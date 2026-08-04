@@ -1,5 +1,51 @@
 # litdoc work log
 
+- 2026-08-04T00:00:00Z — Started `track/browser3` after reading `AGENTS.md`,
+  `.dev/LOG.md`, `docs/design.md`, `docs/corpus.md`'s corpus-maintenance
+  loops, and `.dev/specs/track-browser3.md`. Scope is the deterministic corpus
+  browser generator/output plus fetched upstream `context.files` manifests and
+  the fetch helper; corpus ledgers, GAPS content, Cixfiles, locks, receipts,
+  and checks remain fenced. Current browser only discovers selected top-level
+  files, so implementation will make recursive artifact discovery explicit,
+  add fixture coverage for variants/gap panels, and add the real-parser rot
+  guard before regenerating pages and running the declared agent tier.
+
+- 2026-08-04T00:20:00Z — Extended `corpus/migrate/fetch.sh` to write sorted
+  `<relative-path>\t<bytes>` `context.files` after each successful fetch, then
+  fetched all 15 cases whose SOURCE supplies the helper's required repository,
+  immutable revision, and context path: adminer, directus, dozzle, echo-server,
+  excalidraw, filestash, memcached, nginx, parse-server, phpmyadmin, redis,
+  tomcat, verdaccio, wallos, and watchtower. Each synchronous invocation exited
+  0 and produced its checked-in manifest. The remaining SOURCE records cannot
+  honestly produce a context manifest with their checked-in provenance: caddy
+  reports `SOURCE does not declare a context path`; mastodon and renovate report
+  `SOURCE lacks a parseable resolved revision`; nats, traefik, and whoami report
+  `SOURCE lacks a parseable repository URL`. Their pages deliberately say
+  "context not fetched". Exact repros: `bash corpus/migrate/fetch.sh <case>`.
+
+- 2026-08-04T01:10:00Z — Browser implementation and regenerated `docs/corpus/`
+  are complete in two logical commits: `0c271dd` records the fetched manifests
+  and `fd1e1ad` expands recursive artifact discovery/rendering. The new focused
+  corpus suite passes synchronously, including real-parser rot guard and fixture
+  tests for faithful-default Cixfile tabs, tabless solo Cixfiles, and stale gap
+  panel markdown. A denied-warning clippy run found and the final source change
+  fixes one `push_str("`")` lint in the inline markdown renderer; corpus was
+  regenerated again afterward with no additional drift.
+
+- 2026-08-04T01:20:00Z — Final agent-tier receipts, all synchronous exit 0:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix
+  -- fmt --check examples`; `devenv shell -- cargo clippy --workspace
+  --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace --
+  --test-threads=1` (the foreground status-capture wrapper recorded `0` in
+  `/tmp/track-browser3-workspace.status`); `devenv shell -- cargo test -p cix
+  --test tour -- --ignored generate_tour`; and `git diff --exit-code --
+  docs/tour`. The first ordinary parallel workspace attempt exposed a live-tour
+  user-manager race in `tour_ignores_a_foreign_user_unit`; its exact isolated
+  repro then passed, and the complete serialized suite was used for the final
+  green receipt. Corpus regeneration and its ordinary drift/determinism test
+  both passed after the final lint fix; `git diff --exit-code -- docs/corpus`
+  was clean. No VM scenarios are in this track's scope.
+
 - 2026-07-31T23:00:00Z — Started `track-cigreen2` after reading `AGENTS.md`,
   the repository/design journals, and `.dev/specs/track-cigreen2.md`. Scope:
   eliminate the cix-index serve/pull listen race and the systemd-261

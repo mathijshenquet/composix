@@ -856,7 +856,7 @@ fn render_inline_markdown(source: &str) -> String {
                     .expect("rendering inline code");
                 rest = &after_open[end + 1..];
             } else {
-                output.push_str("`");
+                output.push('`');
                 rest = after_open;
             }
         } else if let Some(after_open) = rest.strip_prefix('[') {
