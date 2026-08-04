@@ -55,13 +55,51 @@ http {
 
 ```sh
 $ cix build .
-{"hello":"/nix/store/…-cix-item-hello"}
+{
+  "hello": "/nix/store/…-cix-item-hello"
+}
 ```
 
 #### `cix-manifest.json`
 
 ```json
-{"cixManifest":0,"dirs":{"cache":["/var/cache/nginx"],"run":["/run/nginx"]},"env":{"PATH":{"default":"bin"}},"mounts":["/bin/nginx","/etc/nginx","/share/man","/srv/www"],"ports":{"http":{"protocol":"tcp","value":18085}},"start":["bin/nginx","-c","/etc/nginx/nginx.conf","-e","stderr","-g","pid /run/nginx/nginx.pid;"]}
+{
+  "cixManifest": 0,
+  "dirs": {
+    "cache": [
+      "/var/cache/nginx"
+    ],
+    "run": [
+      "/run/nginx"
+    ]
+  },
+  "env": {
+    "PATH": {
+      "default": "bin"
+    }
+  },
+  "mounts": [
+    "/bin/nginx",
+    "/etc/nginx",
+    "/share/man",
+    "/srv/www"
+  ],
+  "ports": {
+    "http": {
+      "protocol": "tcp",
+      "value": 18085
+    }
+  },
+  "start": [
+    "bin/nginx",
+    "-c",
+    "/etc/nginx/nginx.conf",
+    "-e",
+    "stderr",
+    "-g",
+    "pid /run/nginx/nginx.pid;"
+  ]
+}
 ```
 
 ## Run the production contract

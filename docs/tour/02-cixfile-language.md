@@ -63,7 +63,9 @@ state=/var/lib/guide-site
 
 ```sh
 $ cix build .
-{"guide-site":"/nix/store/…-cix-item-guide-site"}
+{
+  "guide-site": "/nix/store/…-cix-item-guide-site"
+}
 ```
 
 ```sh

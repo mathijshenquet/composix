@@ -12,7 +12,7 @@ You will give an immutable item a family of operational names, move and remove t
 Normally `cix build` writes this tree for you. At the boundary, however, an item is simply a Nix store tree with `cix-manifest.json`; this is the tour's one hand-assembled example, kept short so you can see that no image format is hiding underneath.
 
 ```sh
-$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && printf '%s\n' '{"cixManifest":0,"start":["message"]}' > my-app-v1/cix-manifest.json
+$ mkdir my-app-v1 && printf '%s\n' 'hello from my app v1' > my-app-v1/message && jq -n '{ cixManifest: 0, start: ["message"] }' > my-app-v1/cix-manifest.json
 ```
 
 ```sh
@@ -30,7 +30,12 @@ hello from my app v1
 #### `my-app-v1/cix-manifest.json`
 
 ```json
-{"cixManifest":0,"start":["message"]}
+{
+  "cixManifest": 0,
+  "start": [
+    "message"
+  ]
+}
 ```
 
 ```sh
@@ -104,7 +109,7 @@ publisher $ curl -s -H 'Accept: application/vnd.cix+json;version=1' http://127.0
   "outputs": {
     "x86_64-linux": {
       "storePath": "/nix/store/…-my-app-v2",
-      "narHash": "sha256-KXXUskqxQDjPHhzCKBZjWcvnl6wuoCuV0/Q0pnNHcBQ="
+      "narHash": "sha256-RjCaiJXTUouWsFOI8t0XLrynb/9J9LsP74fOO2J+ebM="
     }
   },
   "substituters": [

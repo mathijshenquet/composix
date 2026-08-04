@@ -597,12 +597,17 @@ Configuration is resolved at the CLI boundary before build and runtime code run.
 
 `SERVICE`, `APP`, and `ITEM` names are the declared member names. They are not bytes in the
 generated manifest or tree: the same source can be forked, promoted, or tagged under another
-family without a rebuild. `cix build .` prints only a stable JSON member map, even for one
-member, and does not tag anything:
+family without a rebuild. `cix build .` prints only a stable, indented JSON member map, even
+for one member, and does not tag anything. Every cix JSON surface is deterministically indented:
+stdout remains pipe-safe for `jq` or another JSON consumer, and generated manifests, locks, and
+compose artifacts are readable on disk too:
 
 ```sh
 $ cix build .
-{"api":"/nix/store/…-cix-item-api","worker":"/nix/store/…-cix-item-worker"}
+{
+  "api": "/nix/store/…-cix-item-api",
+  "worker": "/nix/store/…-cix-item-worker"
+}
 ```
 
 `cix build .#api` builds only `api` and the backward FETCH/BUILDER slice it consumes, then

@@ -1,5 +1,33 @@
 # litdoc work log
 
+- 2026-08-04T16:14:29Z — Committed the resolved `origin/main` merge as
+  `f298152` (`Merge origin/main into track/jsonpretty`). Both journal histories
+  are retained; main's `show_file` tour structure is authoritative and this
+  track's pretty JSON fixture/generated-manifest displays are adapted onto it.
+  Regenerated tour pages have zero drift, all merge receipts above are
+  synchronous, and the worktree was clean immediately after the merge. The
+  orchestrator retains the independent full flake-matrix gate.
+
+- 2026-08-04T16:13:32Z — Merge verification is green with synchronous
+  receipts: `cargo fmt --all --check`, `cix fmt --check examples`,
+  warning-denied workspace clippy, and serialized workspace tests. The first
+  explicit deterministic run encountered stale failed listener-demo units in
+  the user manager; after resetting those exact inactive unit states, three
+  fresh foreground runs passed consecutively in 35.27s, 32.90s, and 34.02s.
+  The resolved tour keeps main's typed `show_file` output and displays the
+  pretty hand-assembled and generated manifests. Next: stage regenerated
+  pages, prove zero regeneration drift, review the merge, and commit it.
+
+- 2026-08-04T16:06:41Z — Began resolving the in-progress `origin/main`
+  merge. Kept both append-only journal histories. The semantic tour merge
+  retains main's `Doc::show_file` harness and its canonical Cixfile-built
+  listener, while reapplying this track's pretty JSON displays: the
+  hand-assembled manifest is generated with `jq -n`, raw-item fixture bytes
+  are indented, and the generated listener manifest is shown through
+  `show_file`. Generated tour pages are intentionally deferred to regeneration
+  after code resolution. Next: resolve/stage all generated page conflicts,
+  regenerate, then run the complete agent tier and three deterministic receipts.
+
 - 2026-08-04T16:20:00Z — Final `track/tourpolish` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
   `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell
@@ -57,6 +85,102 @@
   service. Planned commits separate the harness/file-display migration from
   chapter fixture/prose changes. Final gate is the standard agent tier plus
   three consecutive synchronous tour determinism runs.
+
+- 2026-08-04T15:50:16Z — Committed the amended all-JSON policy as `fb64abf`
+  (`cix: pretty-print all JSON writes`): cix item manifests are formatted by
+  the generated Nix build, build-state/cache and compose secret writes use
+  pretty serializers, and index JSON API responses are indented. Existing
+  pretty lock/compose artifact writers remain unchanged; no corpus locks were
+  rewritten. The tour is committed with plain `cat` manifest receipts and all
+  final agent-tier and three-run determinism receipts recorded above. The
+  required post-commit journal receipt is `d5010b3`; the worktree was clean
+  afterward. The orchestrator owns the independent full flake-matrix gate.
+
+- 2026-08-04T15:49:50Z — Staged regenerated tour chapters 1, 4, and 6, then
+  reran the ignored generator synchronously (exit 0) with zero unstaged tour
+  drift. Final serializer audit finds the only remaining non-pretty
+  `serde_json` calls construct internal hashes/cache keys, never written JSON.
+  `git diff --check` is clean and neither staged nor unstaged paths include
+  `corpus/`. Next: stage the scoped implementation, inspect the staged diff,
+  and commit the all-JSON formatting amendment with this journal.
+
+- 2026-08-04T15:48:46Z — The amended complete agent tier is green with
+  synchronous exit-0 receipts: `cargo fmt --all --check`, `cix fmt --check
+  examples`, warning-denied workspace clippy, and serialized workspace tests.
+  The initially failing full suite exposed the expected compact index JSON
+  golden; both HTTP list-body fixtures now assert the indented response and
+  its targeted integration test passes. The amended tour determinism receipt
+  passed three consecutive foreground runs (31.04s, 32.84s, 33.12s). Next:
+  stage the generated tour, repeat regeneration against the staged pages for
+  drift, review the all-JSON writer audit, and commit. The orchestrator still
+  owns the one-per-track full flake-matrix gate.
+
+- 2026-08-04T15:45:00Z — Focused amended-policy receipts are green:
+  `cargo fmt --all --check`, the real-Nix manifest fixture
+  `real_nix_build_assembles_files_links_and_spec`, and ignored tour
+  regeneration all exited 0 synchronously. The real-Nix test now reads the
+  assembled `cix-manifest.json` itself and requires two-space indentation plus
+  its terminating newline. Regenerated chapters 1, 4, and 6 demonstrate those
+  pretty on-disk manifests with plain `cat`; the item and compose lock NARs
+  changed as expected from the new item bytes. No `corpus/` path is modified.
+  Next: repeat the three deterministic tour receipts and the complete standard
+  agent tier, then stage/recheck regeneration drift and commit the amendment.
+
+- 2026-08-04T15:40:00Z — Mathijs superseded the prior stdout-only boundary:
+  every JSON cix writes is now in scope, including item manifests, locks,
+  compose artifacts/state, index API bodies, and local build caches. Alpha
+  permits the resulting item hashes and memo cache identities to roll. The
+  `corpus/` fence remains explicit: do not rewrite its checked-in locks; cases
+  will roll forward when their owning tracks rebuild them. Audit found all
+  public locks and compose artifacts already pretty, while the generated Nix
+  manifest, builder workspace/cache records, compose secret state, and index
+  HTTP response were compact. Updated those writes and restored plain `cat`
+  manifest receipts in the tour, with its hand-assembled fixture now pretty as
+  well. Next: format and focused real-Nix/tour receipts, regenerate goldens,
+  then rerun the complete agent tier.
+
+- 2026-08-04T15:34:33Z — Committed the complete JSON stdout formatting track
+  as `8dba887` (`cix: pretty-print JSON stdout`), including this journal's
+  prior receipts. `git status --short --branch` was clean immediately after.
+  The code changes only CLI stdout rendering and its parser-facing tour
+  harness; no manifest, lock, state, hash, or HTTP API serialization changed.
+  The track is ready for the orchestrator's independent full flake-matrix
+  gate.
+
+- 2026-08-04T15:34:03Z — Final standard agent tier is green with synchronous
+  exit-0 receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo run -p cix -- fmt --check examples`; `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`; and `devenv shell -- cargo test
+  --workspace -- --test-threads=1`. The exact
+  `generated_tour_is_deterministic` check passed three consecutive foreground
+  runs in 37.57s, 38.99s, and 44.17s. After staging generated pages, ignored
+  tour regeneration exited 0 and `git diff --exit-code -- docs/tour` was
+  clean. This output-only track has no focused VM scenario; the full flake
+  matrix remains the orchestrator's independent pre-merge gate. Next: stage
+  the scoped feature (including this required journal), review, and commit.
+
+- 2026-08-04T15:30:00Z — Focused formatting and output receipts are green:
+  the cix-cixfile pretty-render unit test and ignored tour regeneration both
+  exited 0 synchronously. The tour harness now parses the complete JSON value
+  before trailing build diagnostics, so its path assertions remain valid with
+  multiline stdout. Regeneration changed every build-map golden to indented
+  JSON and replaced all raw manifest `cat` displays with `cix inspect`; the
+  remaining manifest `jq` view is already indented. An explicit serializer
+  audit leaves all non-stdout JSON (manifests, locks, state, hashes, and index
+  HTTP responses) on their prior code paths. Next: three consecutive tour
+  determinism receipts, committed-tour drift check, then standard agent tier.
+
+- 2026-08-04T15:23:49Z — Started `track/jsonpretty` from the current main
+  head. Scope is only CLI JSON stdout formatting, its output tests, generated
+  tour receipts, and docs; artifact and lock serialization bytes remain fenced.
+  Audit found `cix inspect` and `cix ps --json` already use
+  `to_string_pretty`; the only compact cix stdout JSON was the Cixfile build
+  member map (including `--stats`). Switched those three rendering branches to
+  pretty serialization with a focused indentation regression. Reworked the
+  tour's raw manifest `cat` receipts to `cix inspect`, while leaving manifest
+  creation/storage untouched. Updated build-output documentation to describe
+  deterministic, pipe-safe indentation. Next: format, focused tests, regenerate
+  the tour, inspect all generated JSON and then run the standard agent tier.
 
 - 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
@@ -144,7 +268,7 @@
   add fixture coverage for variants/gap panels, and add the real-parser rot
   guard before regenerating pages and running the declared agent tier.
 
-- 2026-08-04T00:20:00Z — Extended `corpus/migrate/docker/fetch.sh` to write sorted
+- 2026-08-04T00:20:00Z — Extended `corpus/migrate/fetch.sh` to write sorted
   `<relative-path>\t<bytes>` `context.files` after each successful fetch, then
   fetched all 15 cases whose SOURCE supplies the helper's required repository,
   immutable revision, and context path: adminer, directus, dozzle, echo-server,
@@ -155,7 +279,7 @@
   reports `SOURCE does not declare a context path`; mastodon and renovate report
   `SOURCE lacks a parseable resolved revision`; nats, traefik, and whoami report
   `SOURCE lacks a parseable repository URL`. Their pages deliberately say
-  "context not fetched". Exact repros: `bash corpus/migrate/docker/fetch.sh <case>`.
+  "context not fetched". Exact repros: `bash corpus/migrate/fetch.sh <case>`.
 
 - 2026-08-04T01:10:00Z — Browser implementation and regenerated `docs/corpus/`
   are complete in two logical commits: `0c271dd` records the fetched manifests
@@ -333,7 +457,7 @@
   `CIX_STATE_DIR` and `CIX_BUILD_WORKSPACE_DIR`, seeds the documented `my-nginx:v1`
   producer for `build/from-item`, then compares the real warm and `--cold` JSON member
   maps member by member. `COLD_AUDIT=<pair>` fetches one corpus context with
-  `bash corpus/migrate/docker/fetch.sh <pair>` before auditing its snapshot. The ignored proof
+  `bash corpus/migrate/fetch.sh <pair>` before auditing its snapshot. The ignored proof
   `nondeterministic_builder_is_rejected` passed with `cargo test -p cix --test
   cold_audit -- --ignored nondeterministic_builder_is_rejected`; it confirms the real
   cold bridge reports `COPY ${build}/x (line 6) differs between warm and cold`.

@@ -588,6 +588,9 @@ START hello
         .ends_with("/bin/hello"));
 
     let spec = cix_run::spec::Spec::load(&output).unwrap();
+    let manifest = fs::read_to_string(output.join("cix-manifest.json")).unwrap();
+    assert!(manifest.starts_with("{\n  \"cixManifest\""), "{manifest}");
+    assert!(manifest.ends_with("}\n"), "{manifest}");
     assert_eq!(spec.cix_manifest, 0);
     assert_eq!(spec.select_service(None).unwrap().1.start, ["bin/hello"]);
     assert_eq!(

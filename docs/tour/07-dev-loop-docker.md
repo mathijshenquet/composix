@@ -72,7 +72,9 @@ COPY payload /payload
 
 ```sh
 $ CIX_BUILD_WORKSPACE_DIR=$PWD/.twin-workspaces cix build twins
-{"translation":"/nix/store/…-cix-item-translation"}
+{
+  "translation": "/nix/store/…-cix-item-translation"
+}
 BUILDER faithful-build workspace <persistent>
 BUILDER faithful-build step 1 COPY /nix/store/…-cix-source/payload -> .
 BUILDER faithful-build step 2 RUN executed
@@ -81,7 +83,9 @@ BUILDER faithful-build memo miss 46eeab62b39c -> /nix/store/…-cix-build-view
 
 ```sh
 $ cix build --file Cixfile.dissolved twins
-{"translation":"/nix/store/…-cix-item-translation"}
+{
+  "translation": "/nix/store/…-cix-item-translation"
+}
 ```
 
 ```sh

@@ -73,7 +73,14 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
             .content_type()
             .starts_with("application/vnd.cix+json;version=1"));
         assert_eq!(response.header("Vary"), Some("Accept"));
-        assert_eq!(response.body, r#"{"names":["family/member"]}"#);
+        assert_eq!(
+            response.body,
+            r#"{
+  "names": [
+    "family/member"
+  ]
+}"#
+        );
     }
     assert!(
         get(port, "/?format=json", "text/html", "index.example.test")
@@ -235,7 +242,12 @@ fn serve_and_pull_follow_the_bare_tag_web_contract() {
         "mirror.example.test",
     );
     assert_eq!(mirror_names.status, 200);
-    assert_eq!(mirror_names.body, r#"{"names":[]}"#);
+    assert_eq!(
+        mirror_names.body,
+        r#"{
+  "names": []
+}"#
+    );
 
     fs::remove_dir_all(server_state).unwrap();
     fs::remove_dir_all(client_state).unwrap();

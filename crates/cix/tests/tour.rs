@@ -498,13 +498,14 @@ fn fixture_in(doc: &mut Doc, prompt: &str, state_dir: &Path, name: &str, content
         prompt,
         state_dir,
         &format!(
-            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && printf '%s\\n' '{{\"cixManifest\":0,\"start\":[\"message\"]}}' > {name}/cix-manifest.json"
+            "mkdir {name} && printf '%s\\n' '{contents}' > {name}/message && jq -n '{{ cixManifest: 0, start: [\"message\"] }}' > {name}/cix-manifest.json"
         ),
         true,
     );
     doc.sh_in(prompt, state_dir, &format!("ls -1 {name}"), true);
     doc.show_file(format!("{name}/message"));
-    doc.show_file(format!("{name}/cix-manifest.json"));
+    let manifest = doc.show_file(format!("{name}/cix-manifest.json"));
+    assert!(manifest.contains("\"cixManifest\": 0"));
     doc.sh_in(
         prompt,
         state_dir,
@@ -537,7 +538,13 @@ fn add_raw_item(doc: &Doc, name: &str, contents: &str) -> String {
     fs::write(directory.join("message"), contents).expect("writing raw item payload");
     fs::write(
         directory.join("cix-manifest.json"),
-        r#"{"cixManifest":0,"start":["message"]}"#,
+        r#"{
+  "cixManifest": 0,
+  "start": [
+    "message"
+  ]
+}
+"#,
     )
     .expect("writing raw item manifest");
     let output = Command::new("nix")
@@ -1051,7 +1058,7 @@ COPY ${{assemble}}/result /result
         true,
     );
     assert!(warm.contains("memo-hit"), "{warm}");
-    assert!(warm.contains("\"nixSubprocesses\":0"), "{warm}");
+    assert!(warm.contains("\"nixSubprocesses\": 0"), "{warm}");
     doc.para("That hit is not a timestamp promise. Cix rehashes exactly the files, directory listings, metadata probes, and absent paths the command read; unrelated workspace bytes cannot invalidate the step, while a changed observed input does. A persistent workspace is therefore an acceleration structure, not hidden build input.");
 
     doc.para("`--update-lock` and `--cold` are the audit pair: the first is an explicit trust-moving network operation for a selected non-EXPECT FETCH, while the second never contacts the network and replays the pinned bytes in an empty workspace before comparing reads and consumed outputs.");
@@ -1470,8 +1477,7 @@ fn chapter_compose() -> String {
     assert!(listener_source.contains("LISTENER http"));
     let listener_build = doc.sh("cix build listener-fixture", true);
     let listener_path = built_store_path(&listener_build, "-cix-item-listener-demo");
-    let manifest = fs::read_to_string(Path::new(&listener_path).join("cix-manifest.json"))
-        .expect("reading built listener manifest");
+    let manifest = doc.show_file(Path::new(&listener_path).join("cix-manifest.json"));
     assert!(manifest.contains("\"listeners\""));
     let listen = next_listen();
     let started = doc.sh(
@@ -1781,11 +1787,13 @@ fn proj1_item_path(output: &str, name: &str) -> String {
 }
 
 fn build_member_map(output: &str) -> std::collections::BTreeMap<String, String> {
-    let json = output
-        .lines()
-        .find(|line| line.starts_with('{'))
+    let json_start = output
+        .find('{')
         .unwrap_or_else(|| panic!("build did not print a JSON member map:\n{output}"));
-    serde_json::from_str(json)
+    serde_json::Deserializer::from_str(&output[json_start..])
+        .into_iter::<std::collections::BTreeMap<String, String>>()
+        .next()
+        .expect("a JSON member map starts with an object")
         .unwrap_or_else(|error| panic!("build printed invalid member JSON: {error}\n{output}"))
 }
 

@@ -102,11 +102,18 @@ pub fn generate_nix_with_snapshots(
         }
     }
     if artifact.kind.is_runnable() {
+        writeln!(expression, "  manifestJson = builtins.toJSON spec;")?;
         writeln!(
             expression,
-            "  manifestFile = universes.{}.writeText \"cix-manifest.json\" (builtins.toJSON spec + \"\\n\");",
-            nix_attr(primary)
+            "  manifestFile = universes.{}.runCommand \"cix-manifest.json\" {{ nativeBuildInputs = [ universes.{}.jq ]; inherit manifestJson; }} ''",
+            nix_attr(primary),
+            nix_attr(primary),
         )?;
+        writeln!(
+            expression,
+            "    printf '%s\\n' \"$manifestJson\" | jq . > \"$out\""
+        )?;
+        writeln!(expression, "  '';")?;
     }
     writeln!(expression, "in")?;
     writeln!(

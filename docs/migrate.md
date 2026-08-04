@@ -337,11 +337,16 @@ Keep the three layers separate:
 2. `SERVICE` and `APP` names are declared member names, but do not enter manifest bytes.
 3. Tags are index metadata supplied at the command line.
 
-`cix build .` prints one stable JSON member map and tags nothing, even for one member:
+`cix build .` prints one stable, indented JSON member map and tags nothing, even for one member.
+Every cix JSON surface is pretty-printed deterministically: stdout remains directly consumable by
+tools such as `jq`, and generated manifests, locks, and compose artifacts stay readable on disk:
 
 ```console
 $ cix build .
-{"api":"/nix/store/...-cix-item-api","worker":"/nix/store/...-cix-item-worker"}
+{
+  "api": "/nix/store/...-cix-item-api",
+  "worker": "/nix/store/...-cix-item-worker"
+}
 ```
 
 `cix build .#api` builds only `api` and its backward dependency slice, then prints its bare

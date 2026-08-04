@@ -51,7 +51,154 @@ while True:
 
 ```sh
 $ cix build listener-fixture
-{"listener-demo":"/nix/store/…-cix-item-listener-demo"}
+{
+  "listener-demo": "/nix/store/…-cix-item-listener-demo"
+}
+```
+
+#### `cix-manifest.json`
+
+```json
+{
+  "cixManifest": 0,
+  "env": {
+    "PATH": {
+      "default": "bin"
+    }
+  },
+  "listeners": {
+    "http": {
+      "type": "stream"
+    }
+  },
+  "mounts": [
+    "/bin/[",
+    "/bin/b2sum",
+    "/bin/base32",
+    "/bin/base64",
+    "/bin/basename",
+    "/bin/basenc",
+    "/bin/cat",
+    "/bin/chcon",
+    "/bin/chgrp",
+    "/bin/chmod",
+    "/bin/chown",
+    "/bin/chroot",
+    "/bin/cksum",
+    "/bin/comm",
+    "/bin/coreutils",
+    "/bin/cp",
+    "/bin/csplit",
+    "/bin/cut",
+    "/bin/date",
+    "/bin/dd",
+    "/bin/df",
+    "/bin/dir",
+    "/bin/dircolors",
+    "/bin/dirname",
+    "/bin/du",
+    "/bin/echo",
+    "/bin/env",
+    "/bin/expand",
+    "/bin/expr",
+    "/bin/factor",
+    "/bin/false",
+    "/bin/fmt",
+    "/bin/fold",
+    "/bin/groups",
+    "/bin/head",
+    "/bin/hostid",
+    "/bin/id",
+    "/bin/idle",
+    "/bin/idle3",
+    "/bin/idle3.14",
+    "/bin/install",
+    "/bin/join",
+    "/bin/kill",
+    "/bin/link",
+    "/bin/listenfds",
+    "/bin/ln",
+    "/bin/logname",
+    "/bin/ls",
+    "/bin/md5sum",
+    "/bin/mkdir",
+    "/bin/mkfifo",
+    "/bin/mknod",
+    "/bin/mktemp",
+    "/bin/mv",
+    "/bin/nice",
+    "/bin/nl",
+    "/bin/nohup",
+    "/bin/nproc",
+    "/bin/numfmt",
+    "/bin/od",
+    "/bin/paste",
+    "/bin/pathchk",
+    "/bin/pinky",
+    "/bin/pr",
+    "/bin/printenv",
+    "/bin/printf",
+    "/bin/ptx",
+    "/bin/pwd",
+    "/bin/pydoc",
+    "/bin/pydoc3",
+    "/bin/pydoc3.14",
+    "/bin/python",
+    "/bin/python-config",
+    "/bin/python3",
+    "/bin/python3-config",
+    "/bin/python3.14",
+    "/bin/python3.14-config",
+    "/bin/readlink",
+    "/bin/realpath",
+    "/bin/rm",
+    "/bin/rmdir",
+    "/bin/runcon",
+    "/bin/seq",
+    "/bin/sha1sum",
+    "/bin/sha224sum",
+    "/bin/sha256sum",
+    "/bin/sha384sum",
+    "/bin/sha512sum",
+    "/bin/shred",
+    "/bin/shuf",
+    "/bin/sleep",
+    "/bin/sort",
+    "/bin/split",
+    "/bin/stat",
+    "/bin/stdbuf",
+    "/bin/stty",
+    "/bin/sum",
+    "/bin/sync",
+    "/bin/tac",
+    "/bin/tail",
+    "/bin/tee",
+    "/bin/test",
+    "/bin/timeout",
+    "/bin/touch",
+    "/bin/tr",
+    "/bin/true",
+    "/bin/truncate",
+    "/bin/tsort",
+    "/bin/tty",
+    "/bin/uname",
+    "/bin/unexpand",
+    "/bin/uniq",
+    "/bin/unlink",
+    "/bin/uptime",
+    "/bin/users",
+    "/bin/vdir",
+    "/bin/wc",
+    "/bin/who",
+    "/bin/whoami",
+    "/bin/yes",
+    "/share/gdb",
+    "/share/man"
+  ],
+  "start": [
+    "bin/listenfds"
+  ]
+}
 ```
 
 ```sh
@@ -98,12 +245,16 @@ STATEDIR /var/lib/shared
 
 ```sh
 $ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+{
+  "producer": "/nix/store/…-cix-item-producer"
+}
 ```
 
 ```sh
 $ cix build consumer -t v1
-{"consumer":"/nix/store/…-cix-item-consumer"}
+{
+  "consumer": "/nix/store/…-cix-item-consumer"
+}
 ```
 
 The compose file owns host policy rather than rebuilding either item. Both members opt the same declared STATEDIR into compose-local shared backing, while the edge projects the producer's `/run/producer` Unix surface into the consumer and orders startup structurally.
@@ -146,12 +297,12 @@ compose tour-stack: 2 services, 1 edges, valid
 {
   "paths": {
     "consumer": {
-      "narHash": "sha256-vB9zwJqxm4ZFP/r4ggfqqfAz2GcB1PuPFOXWSj0ONVI=",
+      "narHash": "sha256-7iODRRqFnnKMdPDks8KJXgFJ4wAa7xazu8UBWnSBDvg=",
       "ref": "consumer:v1",
       "storePath": "/nix/store/…-cix-item-consumer"
     },
     "producer": {
-      "narHash": "sha256-Zw7L+1NaI5diZ2PM2elZAsxIVKhNv04qTlbFqidXa6o=",
+      "narHash": "sha256-B5dRnQ8cJfzVmdHg2mLRdFwGgKJXw8EVgVxY/WlA+8Q=",
       "ref": "producer:current",
       "storePath": "/nix/store/…-cix-item-producer"
     }
@@ -191,7 +342,9 @@ $ sed -i 's/ENV VERSION = v1/ENV VERSION = v2/' producer/Cixfile
 
 ```sh
 $ cix build producer -t current
-{"producer":"/nix/store/…-cix-item-producer"}
+{
+  "producer": "/nix/store/…-cix-item-producer"
+}
 ```
 
 ```sh
