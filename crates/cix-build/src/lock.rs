@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{Assembly, BuildStep, Cixfile, Input, InputKind, Template, TemplatePart};
+use crate::{Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, Template, TemplatePart};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -32,6 +32,14 @@ pub struct LockFile {
         skip_serializing_if = "BTreeMap::is_empty"
     )]
     pub dev_envs: BTreeMap<String, DevEnvironment>,
+    #[serde(
+        default,
+        rename = "builderDevEnvs",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub builder_dev_envs: BTreeMap<String, String>,
+    #[serde(default, rename = "evalPlan", skip_serializing_if = "Option::is_none")]
+    pub eval_plan: Option<EvalPlan>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub outputs: BTreeMap<String, OutputReceipt>,
 }
@@ -84,6 +92,14 @@ pub struct FetchPin {
     /// automatic pins also retain their former whole-tree value until refreshed.
     #[serde(rename = "narHash", default, skip_serializing_if = "String::is_empty")]
     pub nar_hash: String,
+    /// NAR hash of the complete builder workspace immediately after this
+    /// FETCH. CIP-94 consumes it as one fixed-output derivation per FETCH.
+    #[serde(
+        rename = "snapshotNarHash",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub snapshot_nar_hash: String,
     /// Automatic pins cover only paths that later consumers can observe.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub paths: BTreeMap<String, String>,
@@ -109,6 +125,7 @@ impl FetchPin {
     pub fn expected(nar_hash: String) -> Self {
         Self {
             nar_hash,
+            snapshot_nar_hash: String::new(),
             paths: BTreeMap::new(),
             store_path: None,
             volatile: BTreeMap::new(),
@@ -118,6 +135,7 @@ impl FetchPin {
     pub fn automatic() -> Self {
         Self {
             nar_hash: String::new(),
+            snapshot_nar_hash: String::new(),
             paths: BTreeMap::new(),
             store_path: None,
             volatile: BTreeMap::new(),
@@ -338,6 +356,8 @@ where
         memo: BTreeMap::new(),
         step_memo: BTreeMap::new(),
         dev_envs: BTreeMap::new(),
+        builder_dev_envs: BTreeMap::new(),
+        eval_plan: None,
         outputs: BTreeMap::new(),
     });
     let mut changed = false;
@@ -681,6 +701,12 @@ impl LockFile {
                     pin.nar_hash
                 );
             }
+            if !pin.snapshot_nar_hash.is_empty() && !pin.snapshot_nar_hash.starts_with("sha256-") {
+                bail!(
+                    "lock FETCH pin {name:?}.snapshotNarHash must be an SRI sha256 hash, got {:?}",
+                    pin.snapshot_nar_hash
+                );
+            }
             for (path, hash) in &pin.paths {
                 if !hash.starts_with("sha256-") {
                     bail!(
@@ -694,6 +720,11 @@ impl LockFile {
                         "lock FETCH pin {name:?}.storePath must be a Nix store path, got {path:?}"
                     );
                 }
+            }
+        }
+        for (builder, key) in &self.builder_dev_envs {
+            if !self.dev_envs.contains_key(key) {
+                bail!("lock builderDevEnvs[{builder:?}] names missing devEnvs entry {key:?}");
             }
         }
         for (key, entry) in &self.memo {

@@ -33,6 +33,8 @@ fn committed_lock() -> LockFile {
         memo: std::collections::BTreeMap::new(),
         step_memo: std::collections::BTreeMap::new(),
         dev_envs: std::collections::BTreeMap::new(),
+        builder_dev_envs: std::collections::BTreeMap::new(),
+        eval_plan: None,
         outputs: std::collections::BTreeMap::new(),
     }
 }

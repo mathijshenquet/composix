@@ -53,9 +53,11 @@ $ jq '{fetches, devEnvCount:(.devEnvs | length)}' fetch-demo/Cixfile.lock
 {
   "fetches": {
     "expected": {
-      "narHash": "sha256-FMDQ1JAsOcmebFh//goocO3F9g7aCK37MJxrDuzvqw8="
+      "narHash": "sha256-FMDQ1JAsOcmebFh//goocO3F9g7aCK37MJxrDuzvqw8=",
+      "snapshotNarHash": "sha256-FMDQ1JAsOcmebFh//goocO3F9g7aCK37MJxrDuzvqw8="
     },
     "resolved": {
+      "snapshotNarHash": "sha256-KXVOmvVnbYiNQBMX1YMpSLPRx1QstB/LJbCq7DsNSyI=",
       "paths": {
         "resolved": "sha256-SFdDQrQHvg7nYptmG8okQasC+OpS9QI1Ke44XO7Qox4="
       }

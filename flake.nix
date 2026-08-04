@@ -70,6 +70,7 @@
         '';
       };
       composixLib = import ./nix/lib.nix { inherit pkgs; };
+      cixfileLib = import ./nix/lib/default.nix;
       withSpecRedis = import ./examples/pack/redis {
         inherit pkgs;
         composix = composixLib;
@@ -88,13 +89,18 @@
           inherit kernel617Packages;
         };
       };
-      lib.withSpec = composixLib.withSpec;
+      lib = composixLib // cixfileLib;
       checks.${system} = {
         source-size = pkgs.runCommand "composix-source-size" { } ''
           cd ${self}
           ${pkgs.bash}/bin/bash ${./scripts/check-source-size.sh}
           touch "$out"
         '';
+        build-cixfile-byte-identity = import ./nix/lib/tests/byte-identity.nix {
+          inherit pkgs cix;
+          project = self;
+          nixpkgsSource = nixpkgs;
+        };
         compose-fallback-vm = import ./nix/compose-fallback-vm.nix { inherit pkgs cix; };
         vm-dogfood = import ./nix/vm-dogfood.nix { inherit pkgs cix; };
         scenario-lifecycle = import ./nix/scenarios/lifecycle.nix { inherit pkgs cix; };

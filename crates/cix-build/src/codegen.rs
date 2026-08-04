@@ -1374,6 +1374,8 @@ mod tests {
             memo: BTreeMap::new(),
             step_memo: BTreeMap::new(),
             dev_envs: BTreeMap::new(),
+            builder_dev_envs: BTreeMap::new(),
+            eval_plan: None,
             outputs: BTreeMap::new(),
         }
     }
