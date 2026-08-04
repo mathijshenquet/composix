@@ -60,6 +60,11 @@ The root composix flake exports the same function as
 if the Cixfile changed, refresh and commit its lock before evaluating the
 flake. A builder `FETCH` is one fixed-output derivation using the recorded
 post-step NAR hash, and subsequent `RUN` steps are normal offline derivations.
+Neither path nests bubblewrap: Nix supplies the build and network isolation,
+while a namespace-free `proot` view recreates the cix filesystem skeleton and
+synthetic uid 0. This keeps `buildCixfile` usable on hosts that disable
+unprivileged user namespaces; the acceptance check realizes both derivation
+classes under that policy and still requires byte-identical output.
 
 Milestone 1 covers builder-less `ITEM` assembly with `IMPORT`, `COPY`, and
 `FILE`, plus one `BUILDER` using `IMPORT`, `ENV`, `COPY`, `FETCH`, and `RUN`.

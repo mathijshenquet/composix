@@ -98,8 +98,13 @@ Under the hood, per lock entry: each FETCH pin becomes a fixed-output
 derivation re-running the recorded command with network, output =
 exactly the consumed set, `outputHash` from the lock; the RUN becomes
 a normal sandboxed derivation over (sources, FODs, the versioned cix
-skeleton). Emitted semantics are the COLD path by definition — the
-underlay/warm world stays cix-side.
+skeleton). Nix's build sandbox is the isolation boundary: the FETCH
+FOD receives Nix's networked build environment and an ordinary RUN
+receives Nix's network-isolated one. A user-namespace-free `proot`
+view supplies only the cix-visible root, `/work`, IMPORT union, and
+synthetic uid 0; `buildCixfile` does not nest bubblewrap or require
+unprivileged user namespaces. Emitted semantics are the COLD path by
+definition — the underlay/warm world stays cix-side.
 
 **Tier 1b — the in-nixpkgs form** (assume cix itself is packaged in
 nixpkgs). `buildNpmPackage`/`importCargoLock`-shaped in-tree builder:
@@ -135,7 +140,11 @@ Two structural upgrades over tier 1:
   moves: cix's inner sandbox (bubblewrap/userns) must run nested
   inside the nix build sandbox, or grow a mode that trusts the outer
   nix sandbox for isolation and only arranges the filesystem view —
-  that mode is the honest open item of this tier.
+  that mode is the honest open item of this tier. Tier 1 established
+  that boundary: Nix provides isolation and a namespace-free `proot`
+  view provides the filesystem skeleton. The acceptance check builds
+  FETCH and RUN after setting `user.max_user_namespaces=0` and still
+  requires exact NAR identity with the cold path.
 
 **The pure-build cut** (what composix-without-compose-and-pack IS,
 precisely — the seam tier 1b exposes): the D41/D68 line turns out to
@@ -292,10 +301,19 @@ aliases) is not reproducible inside a plain nix derivation sandbox, so
 FHS-dependent builders are outside buildCixfile's reproducible set
 until deferred FIXUP logic exists
 ([deferred/fixup-elf](../deferred/fixup-elf.md)); the acceptance test
-scopes to non-FHS builders and states that boundary loudly.
+scopes to non-FHS builders and states that boundary loudly. The
+accepted non-FHS path has no unprivileged-user-namespace host
+requirement: Nix owns FETCH/RUN isolation and namespace-free `proot`
+reconstructs the cix filesystem view. The byte-identity check disables
+user namespaces before realizing both derivation classes and remains
+the acceptance bar.
 
 ## Changelog
 
 - 2026-08-02: drafted as emit-nix.
 - 2026-08-04: v2 (pure tier 1, cross-check split out); adopted and
   renamed build-cixfile; FHS-incompatibility boundary recorded.
+- 2026-08-04: nested-userns boundary corrected: Nix owns build
+  isolation, namespace-free `proot` supplies the replay skeleton, and
+  the byte-identity check now realizes FETCH/RUN with user namespaces
+  disabled.
