@@ -148,3 +148,21 @@
   --exact --nocapture` (1 passed). The latter manufactures RPATH-free GNU and
   musl FHS ELFs in Nix, then executes both in real fresh Cix builders whose
   Cixfile contains zero patchelf lines.
+
+- 2026-08-04T09:57:00Z — Implemented (E) without persisting negative trace
+  state: only a failing step reparses its temporary syscall file for workdir
+  execs/execve-ENOENT, known FHS loader misses, and failed SONAME opens. A
+  small in-tree ELF reader correlates PT_INTERP + DT_NEEDED with the ordered
+  imported libc provider. The missing-loader report names the binary, loader,
+  needed libc SONAMEs, and `IMPORT ${pkgs.glibc}`/`${pkgs.musl}`; an imported
+  loader plus an unresolved non-libc DT_NEEDED instead says plainly that v1
+  has no `/lib` search path and points at `IMPORT ${pkgs.patchelf}` plus the
+  taught RUN escape. Focused trace/FHS unit tests passed. Real-Nix diagnostic
+  receipts passed synchronously with `/tmp`-inode-safe invocations:
+  `env TMPDIR=$PWD/target/fhspaths-tmp devenv shell -- env
+  TMPDIR=$PWD/target/fhspaths-tmp RUSTC_WRAPPER= cargo test -p cix-cixfile
+  --test lock_nix missing_fhs_loader_diagnostic_suggests_the_libc_import --
+  --exact --nocapture`, the analogous
+  `beyond_libc_diagnostic_names_the_alias_boundary_and_patchelf_escape`, and
+  warning-denied focused clippy for cix-build+cix-cixfile. Host `/tmp` has
+  free bytes but zero free inodes; no shared entries were removed.

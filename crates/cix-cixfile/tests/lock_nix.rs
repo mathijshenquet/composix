@@ -132,24 +132,7 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
 
 #[test]
 fn fhs_glibc_and_musl_elfs_run_from_loader_aliases_without_cixfile_fixups() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let root = root.canonicalize().unwrap();
-    let fixture = build_expression(&format!(
-        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in
-pkgs.runCommand "cix-fhs-elf" {{ nativeBuildInputs = [ pkgs.gcc pkgs.patchelf ]; }} ''
-  printf '#include <stdio.h>\nint main(void) {{ puts("fhs-alias-ok"); return 0; }}\n' > probe.c
-  cc probe.c -o probe
-  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath probe
-  ${{pkgs.pkgsMusl.stdenv.cc}}/bin/cc probe.c -o musl-probe
-  patchelf --set-interpreter /lib/ld-musl-x86_64.so.1 --remove-rpath musl-probe
-  mkdir -p "$out"
-  cp probe "$out/fhs-probe"
-  cp musl-probe "$out/musl-fhs-probe"
-''"#,
-        root.display()
-    ))
-    .unwrap();
-
+    let fixture = fhs_elf_fixture();
     let directory = tempfile::tempdir().unwrap();
     fs::copy(
         fixture.join("fhs-probe"),
@@ -180,24 +163,8 @@ COPY ${musl}/musl-result /result
 "#,
     )
     .unwrap();
-    fs::write(
-        directory.path().join("Cixfile.lock"),
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&committed_lock()).unwrap()
-        ),
-    )
-    .unwrap();
-    let built = build(&BuildOptions {
-        directory: directory.path().to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: true,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
-    })
-    .unwrap();
+    write_committed_lock(directory.path());
+    let built = build(&fhs_build_options(directory.path())).unwrap();
 
     for item in &built {
         assert_eq!(
@@ -209,6 +176,126 @@ COPY ${musl}/musl-result /result
     }
     let cixfile = fs::read_to_string(directory.path().join("Cixfile")).unwrap();
     assert!(!cixfile.contains("patchelf"));
+}
+
+fn fhs_elf_fixture() -> PathBuf {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = root.canonicalize().unwrap();
+    build_expression(&format!(
+        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in
+pkgs.runCommand "cix-fhs-elf" {{ nativeBuildInputs = [ pkgs.gcc pkgs.patchelf ]; }} ''
+  printf '#include <stdio.h>\nint main(void) {{ puts("fhs-alias-ok"); return 0; }}\n' > probe.c
+  cc probe.c -o probe
+  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath probe
+  ${{pkgs.pkgsMusl.stdenv.cc}}/bin/cc probe.c -o musl-probe
+  patchelf --set-interpreter /lib/ld-musl-x86_64.so.1 --remove-rpath musl-probe
+  printf 'int cix_extra(void) {{ return 95; }}\n' > extra.c
+  cc -fPIC -shared -Wl,-soname,libcix-extra.so.1 extra.c -o libcix-extra.so.1
+  printf '#include <stdio.h>\nint cix_extra(void);\nint main(void) {{ printf("%d\\n", cix_extra()); return 0; }}\n' > needed.c
+  cc needed.c -L. -Wl,-l:libcix-extra.so.1 -o needed-probe
+  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath needed-probe
+  mkdir -p "$out"
+  cp probe "$out/fhs-probe"
+  cp musl-probe "$out/musl-fhs-probe"
+  cp needed-probe libcix-extra.so.1 "$out/"
+''"#,
+        root.display()
+    ))
+    .unwrap()
+}
+
+fn write_committed_lock(directory: &Path) {
+    fs::write(
+        directory.join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+}
+
+fn fhs_build_options(directory: &Path) -> BuildOptions {
+    BuildOptions {
+        directory: directory.to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
+    }
+}
+
+#[test]
+fn missing_fhs_loader_diagnostic_suggests_the_libc_import() {
+    let fixture = fhs_elf_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    fs::copy(
+        fixture.join("fhs-probe"),
+        directory.path().join("fhs-probe"),
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER missing
+IMPORT ${pkgs.bash}
+COPY ${src}/fhs-probe .
+RUN ./fhs-probe
+ITEM unreachable
+COPY ${src}/fhs-probe /unreachable
+"#,
+    )
+    .unwrap();
+    write_committed_lock(directory.path());
+    let error = format!(
+        "{:#}",
+        build(&fhs_build_options(directory.path())).unwrap_err()
+    );
+    assert!(
+        error.contains("fhs-probe requires the FHS loader"),
+        "{error}"
+    );
+    assert!(error.contains("/lib64/ld-linux-x86-64.so.2"), "{error}");
+    assert!(error.contains("libc.so.6"), "{error}");
+    assert!(error.contains("IMPORT ${pkgs.glibc}"), "{error}");
+}
+
+#[test]
+fn beyond_libc_diagnostic_names_the_alias_boundary_and_patchelf_escape() {
+    let fixture = fhs_elf_fixture();
+    let directory = tempfile::tempdir().unwrap();
+    for name in ["needed-probe", "libcix-extra.so.1"] {
+        fs::copy(fixture.join(name), directory.path().join(name)).unwrap();
+    }
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER beyond
+IMPORT ${pkgs.bash} ${pkgs.glibc}
+COPY ${src}/ .
+RUN ./needed-probe
+ITEM unreachable
+COPY ${src}/needed-probe /unreachable
+"#,
+    )
+    .unwrap();
+    write_committed_lock(directory.path());
+    let error = format!(
+        "{:#}",
+        build(&fhs_build_options(directory.path())).unwrap_err()
+    );
+    assert!(error.contains("libraries beyond that libc"), "{error}");
+    assert!(error.contains("libcix-extra.so.1"), "{error}");
+    assert!(error.contains("does not add a /lib search path"), "{error}");
+    assert!(error.contains("IMPORT ${pkgs.patchelf}"), "{error}");
+    assert!(
+        error.contains("docs/migrate.md#fhs-linked-native-binaries"),
+        "{error}"
+    );
 }
 
 fn add_store_path(path: &Path) -> PathBuf {

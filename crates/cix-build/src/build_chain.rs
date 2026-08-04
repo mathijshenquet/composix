@@ -3238,6 +3238,14 @@ fn run_sandbox(
                 "\nhint: /usr/bin/env is a fixed alias to /bin/env; IMPORT ${pkgs.coreutils} or another package that supplies env",
             );
         }
+        if let Ok(trace_text) = fs::read_to_string(&trace_path) {
+            if let Some(hint) =
+                fhs::failure_hint(workdir, imports, &trace::parse_failure(&trace_text))
+            {
+                failure.push('\n');
+                failure.push_str(&hint);
+            }
+        }
         let stderr = String::from_utf8_lossy(&output.stderr);
         if !stderr.trim().is_empty() {
             failure.push_str("\ncommand stderr:\n");

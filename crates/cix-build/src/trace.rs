@@ -26,6 +26,14 @@ pub(crate) struct Capture {
     pub(crate) writes: BTreeSet<String>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct FailureTrace {
+    pub(crate) work_execs: Vec<String>,
+    pub(crate) exec_enoent: BTreeSet<String>,
+    pub(crate) missing_loaders: BTreeSet<String>,
+    pub(crate) missing_sonames: BTreeSet<String>,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct ValidationMetrics {
     pub(crate) rehashed_files: usize,
@@ -209,6 +217,85 @@ pub(crate) fn parse(trace: &str) -> Capture {
         observations,
         writes,
     }
+}
+
+pub(crate) fn parse_failure(trace: &str) -> FailureTrace {
+    let mut failure = FailureTrace::default();
+    let mut cwd = BTreeMap::<u32, PathBuf>::new();
+    for line in trace.lines() {
+        let Some((pid, call)) = split_pid(line) else {
+            continue;
+        };
+        let Some(open) = call.find('(') else {
+            continue;
+        };
+        let syscall = &call[..open];
+        let arguments = &call[open + 1..];
+        let succeeded = !call.contains(" = -1 ");
+        if matches!(syscall, "clone" | "clone3" | "fork" | "vfork") && succeeded {
+            if let Some(child) = return_value(call).and_then(|value| value.parse::<u32>().ok()) {
+                if let Some(parent_cwd) = cwd.get(&pid).cloned() {
+                    cwd.insert(child, parent_cwd);
+                }
+            }
+            continue;
+        }
+
+        let quoted = quoted_strings(arguments);
+        let base = annotated_base(arguments);
+        let absolute = quoted.first().and_then(|path| {
+            resolve_path(
+                path,
+                base.as_deref()
+                    .or_else(|| cwd.get(&pid).map(PathBuf::as_path))
+                    .or(Some(Path::new("/work"))),
+            )
+        });
+        if syscall == "chdir" && succeeded {
+            if let Some(path) = absolute.clone() {
+                cwd.insert(pid, path);
+            }
+        } else if syscall == "fchdir" && succeeded {
+            if let Some(path) = annotated_fd_path(arguments) {
+                cwd.insert(pid, path);
+            }
+        }
+
+        let enoent = call.contains(" = -1 ENOENT ");
+        if matches!(syscall, "execve" | "execveat") {
+            if let Some(relative) = absolute.clone().and_then(work_relative) {
+                if !failure.work_execs.contains(&relative) {
+                    failure.work_execs.push(relative.clone());
+                }
+                if enoent {
+                    failure.exec_enoent.insert(relative);
+                }
+            }
+        }
+        if !enoent {
+            continue;
+        }
+        let Some(path) = absolute else {
+            continue;
+        };
+        if crate::fhs::loader_aliases()
+            .iter()
+            .any(|alias| Path::new(alias.interpreter) == path)
+        {
+            failure
+                .missing_loaders
+                .insert(path.to_string_lossy().into_owned());
+        }
+        if matches!(syscall, "open" | "openat" | "openat2") {
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if name.starts_with("lib") && (name.ends_with(".so") || name.contains(".so.")) {
+                failure.missing_sonames.insert(name.to_owned());
+            }
+        }
+    }
+    failure
 }
 
 pub(crate) fn read_dependencies(
@@ -650,6 +737,26 @@ mod tests {
                     }
                 ),
             ])
+        );
+    }
+
+    #[test]
+    fn failure_parse_keeps_only_ephemeral_exec_loader_and_soname_facts() {
+        let trace = r#"100 chdir("/work/bin") = 0
+100 execve("./dart", ["./dart"], 0x1) = -1 ENOENT (No such file or directory)
+100 openat(AT_FDCWD</work/bin>, "/lib64/ld-linux-x86-64.so.2", O_RDONLY) = -1 ENOENT (No such file or directory)
+101 execve("/work/native", ["/work/native"], 0x1) = 0
+101 openat(AT_FDCWD</work>, "/nix/store/lib/libextra.so.1", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)
+101 openat(AT_FDCWD</work>, "/nix/store/lib/not-a-library", O_RDONLY) = -1 ENOENT (No such file or directory)
+"#;
+        assert_eq!(
+            parse_failure(trace),
+            FailureTrace {
+                work_execs: vec!["bin/dart".into(), "native".into()],
+                exec_enoent: BTreeSet::from(["bin/dart".into()]),
+                missing_loaders: BTreeSet::from(["/lib64/ld-linux-x86-64.so.2".into()]),
+                missing_sonames: BTreeSet::from(["libextra.so.1".into()]),
+            }
         );
     }
 
