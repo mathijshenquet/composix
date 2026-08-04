@@ -16,6 +16,7 @@ use crate::codegen::{
     generate_fetch_context_nix, generate_fetch_offer_nix,
 };
 use crate::fetch::{CredentialMount, HostCredentials};
+use crate::fhs;
 use crate::seccomp;
 use crate::trace;
 use crate::{
@@ -79,7 +80,7 @@ enum TemplateKeyPart<'a> {
 
 // Bump whenever the fixed bubblewrap filesystem skeleton changes: memoized
 // commands must not be reused across a different execution environment.
-const SANDBOX_SKELETON: &str = "v1:/usr/bin/env->/bin/env";
+const SANDBOX_SKELETON: &str = fhs::SKELETON_FINGERPRINT;
 // Bump this when codegen-relevant Cixfile semantics change without a package
 // version bump.  It keeps memo keys isolated across concurrently-built checkouts.
 const CODEGEN_FINGERPRINT: &str = crate::BUILDER_FINGERPRINT;
@@ -3127,6 +3128,7 @@ fn run_sandbox(
     credentials: &[&CredentialMount],
 ) -> Result<trace::Capture> {
     let import_union = prepare_import_union(imports, run_network.is_none())?;
+    let loader_surface = fhs::LoaderSurface::new(imports)?;
     let env_is_missing = !import_union.path().join("bin/env").is_file();
     let trace_directory = tempfile::Builder::new()
         .prefix("cix-read-trace-")
@@ -3167,6 +3169,7 @@ fn run_sandbox(
     process.args(["--dir", "/nix", "--dir", "/nix/store"]);
     process.args(["--dir", "/usr", "--dir", "/usr/bin"]);
     process.args(["--symlink", "/bin/env", "/usr/bin/env"]);
+    loader_surface.mount(&mut process);
     for path in offered_closure {
         process.args(["--ro-bind", path, path]);
     }

@@ -126,3 +126,25 @@
   because musl's default search path includes `/lib`. Per CIP-95's fallback
   boundary and the track spec, phase 2 was not started and no auto-patching
   fallback was improvised.
+
+- 2026-08-04T09:47:00Z — Pulled `origin/main` and read the adopted CIP-95
+  post-spike amendment. Phase 2 resumes on its narrowed v1 contract: an
+  always-present, skeleton-versioned GNU+musl alias pair backed by only the
+  matching loader file from ordered IMPORTs; no `lib/` union or default
+  library search path. Failure-only trace facts will feed (E): workdir
+  execve-ENOENT, loader-path lookups, and missing SONAME opens, correlated
+  with the executed ELF and the imported loader provider. Missing libc gets
+  an IMPORT hint; dependencies outside that libc get an explicit aliases-only
+  boundary and the taught patchelf escape.
+
+- 2026-08-04T09:51:00Z — Implemented the narrowed loader-only skeleton as a
+  separate `fhs` stratum. On x86_64 the fixed aliases point at an internal
+  loader bridge populated from the first matching ordered IMPORT; absent
+  glibc/musl leaves the target dangling. The skeleton fingerprint is v2, and
+  the ordinary IMPORT union remains exactly `bin/etc/share`. Synchronous
+  receipts: `devenv shell -- cargo test -p cix-build fhs::tests -- --nocapture`
+  (2 passed), and `devenv shell -- cargo test -p cix-cixfile --test lock_nix
+  fhs_glibc_and_musl_elfs_run_from_loader_aliases_without_cixfile_fixups --
+  --exact --nocapture` (1 passed). The latter manufactures RPATH-free GNU and
+  musl FHS ELFs in Nix, then executes both in real fresh Cix builders whose
+  Cixfile contains zero patchelf lines.

@@ -130,6 +130,87 @@ fn build_expression(expression: &str) -> anyhow::Result<PathBuf> {
     Ok(PathBuf::from(output.trim()))
 }
 
+#[test]
+fn fhs_glibc_and_musl_elfs_run_from_loader_aliases_without_cixfile_fixups() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let root = root.canonicalize().unwrap();
+    let fixture = build_expression(&format!(
+        r#"let pkgs = import (builtins.getFlake "path:{}").inputs.nixpkgs {{ system = "x86_64-linux"; }}; in
+pkgs.runCommand "cix-fhs-elf" {{ nativeBuildInputs = [ pkgs.gcc pkgs.patchelf ]; }} ''
+  printf '#include <stdio.h>\nint main(void) {{ puts("fhs-alias-ok"); return 0; }}\n' > probe.c
+  cc probe.c -o probe
+  patchelf --set-interpreter /lib64/ld-linux-x86-64.so.2 --remove-rpath probe
+  ${{pkgs.pkgsMusl.stdenv.cc}}/bin/cc probe.c -o musl-probe
+  patchelf --set-interpreter /lib/ld-musl-x86_64.so.1 --remove-rpath musl-probe
+  mkdir -p "$out"
+  cp probe "$out/fhs-probe"
+  cp musl-probe "$out/musl-fhs-probe"
+''"#,
+        root.display()
+    ))
+    .unwrap();
+
+    let directory = tempfile::tempdir().unwrap();
+    fs::copy(
+        fixture.join("fhs-probe"),
+        directory.path().join("fhs-probe"),
+    )
+    .unwrap();
+    fs::copy(
+        fixture.join("musl-fhs-probe"),
+        directory.path().join("musl-fhs-probe"),
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+BUILDER gnu
+IMPORT ${pkgs.bash} ${pkgs.glibc}
+COPY ${src}/fhs-probe .
+RUN ./fhs-probe > gnu-result
+BUILDER musl
+IMPORT ${pkgs.bash} ${pkgs.musl}
+COPY ${src}/musl-fhs-probe .
+RUN ./musl-fhs-probe > musl-result
+ITEM gnu-result
+COPY ${gnu}/gnu-result /result
+ITEM musl-result
+COPY ${musl}/musl-result /result
+"#,
+    )
+    .unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let built = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: true,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+        state_directory: test_state_directory(),
+    })
+    .unwrap();
+
+    for item in &built {
+        assert_eq!(
+            fs::read_to_string(Path::new(&item.store_path).join("result")).unwrap(),
+            "fhs-alias-ok\n",
+            "{}",
+            item.name
+        );
+    }
+    let cixfile = fs::read_to_string(directory.path().join("Cixfile")).unwrap();
+    assert!(!cixfile.contains("patchelf"));
+}
+
 fn add_store_path(path: &Path) -> PathBuf {
     let path = path.to_str().expect("temporary path is UTF-8");
     let output = cix_common::nix(&["store", "add-path", path]).unwrap();
