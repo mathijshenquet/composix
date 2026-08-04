@@ -59,14 +59,14 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — PHP extensions/tuning, config generation, session layout, and Docker parity are missing · <strong>Evidence:</strong> closed-root · receipt</p>
   <p class="status"><strong>Receipt status:</strong> Sealed-root login-page response · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/phpmyadmin/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/phpmyadmin/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@dd2f39a · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
       <li>A login page passes, but the conversion drops upstream&#39;s PHP extensions, opcache/session/misc INI settings, upload limits, timezone, and upload-progress module. → case</li>
       <li><code>config.inc.php</code>, <code>helpers.php</code>, and the entrypoint&#39;s runtime configuration generation are absent, so configuration parity is untested and largely unimplemented. → case</li>
       <li><code>/var/www/html</code>, <code>/etc/phpmyadmin</code>, <code>/sessions</code>, and <code>/var/www/html/tmp</code> were replaced by <code>/srv/phpmyadmin</code> plus an unused <code>/var/lib/phpmyadmin</code> state role without a stated layout rationale. → prompt</li>
-      <li>PHP is exposed through an implicit <code>/bin</code> link rather than an explicit artifact tool declaration. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>PHP is exposed through an implicit <code>/bin</code> link rather than an explicit artifact tool declaration. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>The receipt has no completed Docker transcript; the probe establishes page reachability only and must not be read as config parity. → evidence</li>
     </ul>
   </aside>

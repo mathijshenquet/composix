@@ -59,12 +59,12 @@
   <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — upstream config/cluster listener, version proof, message round-trip, and faithful twin are missing · <strong>Evidence:</strong> closed-root · receipt</p>
   <p class="status"><strong>Receipt status:</strong> Sealed-root monitoring health response · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@a5d6a3b · terra · 2026-07-30 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@a5d6a3b · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
     <ul>
       <li>The upstream <code>nats-server.conf</code> is dropped and replaced by <code>-m 8222</code>; the cluster listener on 6222 and the upstream config contract are therefore absent. → case</li>
-      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/draft/artifact-import.md">artifact-import draft</a>)</li>
+      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
       <li>The monitoring health probe does not establish selected-package version parity with upstream 2.12.14 or exercise a client message round-trip. → evidence</li>
       <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
     </ul>
