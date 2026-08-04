@@ -149,9 +149,29 @@ ever matters in practice, the deferred FIXUP auto-patching
 ([deferred/fixup-elf](../deferred/fixup-elf.md)) is the
 emit-compatible companion, since patched ELFs rebuild fine inside nix.
 
+## Amendment 2026-08-04 (post-spike scope)
+
+The round-2 spike (track/fhspaths `6554242`, hermetic repro in
+`.dev/spikes/fhs-paths/repro.sh`) settled the wiring question with
+receipts: PT_INTERP aliases work for GNU and musl; the aliased nix
+ld.so resolves glibc's own libraries via its store fallback, so the
+alias ALONE covers the glibc-only DT_NEEDED class (the observed corpus
+class, incl. the directus acceptance case); but a `/etc/ld.so.cache` in
+the union is ignored (nix glibc hardcodes its cache path) and
+`LD_LIBRARY_PATH=/lib` shadows RUNPATH-carrying nix binaries — the
+load-bearing assertion failed, so the general `/lib` search promise is
+withdrawn. **v1 scope = loader aliases + (E) diagnostics, no `/lib`
+union.** Third-party-library prebuilds route to the taught patchelf
+escape (§A), with deferred fixup-elf as the eventual automatic answer.
+A patched-glibc union (cache-path override) was considered and rejected
+as a version-coupled universe intervention.
+
 ## Changelog
 
 - 2026-08-04: v1 (spike mandate) → v2 (four syntax shapes on spike
   evidence) → v3 (trace-driven detection + declared-provider repair) →
   v4 (IMPORT-wired, per-target shapes cut) → v5 (path surface instead
   of byte rewriting) → adopted, renamed fhs-paths, build-first.
+- 2026-08-04 (same day, post-spike): v1 scope narrowed to aliases-only
+  + diagnostics; `/lib` union withdrawn on RUNPATH-shadowing and
+  hardcoded-cache evidence.
