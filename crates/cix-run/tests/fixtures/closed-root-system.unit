@@ -18,7 +18,7 @@ LogsDirectory=cix-run-audit cix-run-audit/var/log/app
 LogsDirectoryMode=0700
 BindPaths=/var/log/cix-run-audit/var/log/app:/var/log/app
 TemporaryFileSystem=/etc:ro
-ConfigurationDirectory=cix-run-audit/etc/app
+ConfigurationDirectory=cix-run-audit cix-run-audit/etc/app
 ConfigurationDirectoryMode=0700
 BindPaths=/etc/cix-run-audit/etc/app:/etc/app
 RuntimeDirectory=cix-run-audit/run/app
@@ -68,4 +68,5 @@ ExecStart="/nix/store/00000000000000000000000000000000-app/bin/app"
 Environment="STATE_DIRECTORY=/var/lib/app"
 Environment="CACHE_DIRECTORY=/cache"
 Environment="LOGS_DIRECTORY=/var/log/app"
+Environment="CONFIGURATION_DIRECTORY=/etc/app"
 Environment="RUNTIME_DIRECTORY=/run/app"

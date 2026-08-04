@@ -1,5 +1,63 @@
 # litdoc work log
 
+- 2026-08-04T16:20:00Z — Final `track/tourpolish` agent tier is green with
+  synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
+  `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell
+  -- cargo clippy --workspace --all-targets -- -D warnings`; and `devenv shell
+  -- cargo test --workspace -- --test-threads=1`. Explicit `devenv shell --
+  cargo test -p cix --test tour -- --ignored generate_tour` followed by `git
+  diff --exit-code -- docs/tour` proved zero regeneration drift. One foreground
+  `bash -c` loop with `set -e` then ran the exact
+  `generated_tour_is_deterministic` test three consecutive times; all passed
+  synchronously in 36.50s, 36.99s, and 35.13s. Final audits find a clean
+  worktree before this receipt entry, zero generated `$ cat` prompts, no raw
+  listener-manifest fixture, and no abstract Chapter 2 service/path remnants.
+  This track changes only the tour harness and generated prose, so no focused
+  VM scenario or Docker/corpus ledger row is affected; the orchestrator retains
+  the full flake-matrix gate. Next: commit this receipt and hand off the two
+  logical implementation commits for independent verification.
+
+- 2026-08-04T15:55:00Z — Chapter polish is complete. Chapter 6 now writes a
+  canonical `listener-fixture/Cixfile`, imports coreutils + Python, copies the
+  executable checked-in `listenfds.py` probe, starts it by the imported bare
+  name, declares `LISTENER http`, builds it with real `cix build`, asserts the
+  generated manifest's listener field, and runs/probes that built item. The
+  env shebang uses the runtime skeleton's documented `/usr/bin/env` route, so
+  the copied script remains compatible with the rootless no-mount fallback.
+  Chapter 2's service and app-native paths are now coherently named
+  `guide-site`; its prose explicitly identifies `STATEDIR /opt/nginx/state` as
+  a deliberate CIP-91 linked-branch materialization demonstration. Focused
+  synchronous receipts pass: explicit tour generation (including the live
+  built listener), fmt, committed-document match, and `git diff --check`.
+  Next: commit this unit, then run the full agent tier and final three-run
+  determinism receipt.
+
+- 2026-08-04T15:35:00Z — The file-display unit is complete. `Doc::show_file`
+  reads the real file, returns its raw bytes-as-text for the existing semantic
+  assertions, and renders normalized content beneath a relative-path H4 label;
+  store outputs are labeled relative to their item root. Cixfiles (including
+  `Cixfile.dissolved`) use `dockerfile`; nix, nginx config, Python, JSON, and
+  HTML extensions use their requested fences; other files use an untagged
+  fence. All 17 generated `$ cat` transcripts are gone, including single-file
+  built outputs and the raw-item aside; the only remaining `cat` is the RUN
+  command that genuinely demonstrates concatenation. Focused synchronous
+  receipts pass: fmt, the language-routing regression, explicit tour
+  generation, the committed-document match, `git diff --check`, and a generated
+  tour grep finding zero `$ cat` prompts. Next: commit this unit, then rebuild
+  the listener through a Cixfile and polish Chapter 2.
+
+- 2026-08-04T15:15:00Z — Started `track/tourpolish` from current main after
+  reading the repository journal, design decisions, cix tour log, tour source,
+  and the prior tour blueprint/voice rules. Scope is recorded in
+  `.dev/specs/track-tourpolish.md`: replace all 17 generated `$ cat` file dumps
+  with per-file typed blocks sourced from real files; rebuild Chapter 6's
+  listener item from a canonical `LISTENER` Cixfile and checked-in Python
+  probe; retain and explicitly explain Chapter 2's deliberate CIP-91
+  mount-below-linked-tree materialization example; and rename its demo-site
+  service. Planned commits separate the harness/file-display migration from
+  chapter fixture/prose changes. Final gate is the standard agent tier plus
+  three consecutive synchronous tour determinism runs.
+
 - 2026-08-04T13:45:52Z — Final `track/tourfix2` agent tier is green with
   synchronous exit-0 receipts: `devenv shell -- cargo fmt --all --check`;
   `devenv shell -- cargo run -p cix -- fmt --check examples`; `devenv shell --

@@ -56,12 +56,12 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / caddy</nav>
   <h1>docker / caddy</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Real upstream contract regained — config, welcome page, all four sockets incl. udp:443, both twins; residual deviations trace to two recorded cix defects (config-role path, missing localhost) · <strong>Evidence:</strong> runtime probe · closed-root (package contract)</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Real upstream contract regained — config, welcome page, all four sockets incl. udp:443, both twins; the recorded CONFIGDIR and localhost deviations are stale pending regeneration · <strong>Evidence:</strong> runtime probe · closed-root (package contract)</p>
   <p class="status"><strong>Receipt status:</strong> Faithful v2.11.4 config/assets serve HTTP; the package-level responder is separately sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/caddy/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/caddy/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CONFIGDIR path freedom and service localhost</p>
     <ul>
       <li>Caddy&#39;s upstream <code>/config/caddy</code> autosave cannot use <code>CONFIGDIR</code>: build accepts it, but run rejects configuration roles outside <code>/etc</code>, and an <code>/etc</code> role would overlap the immutable Caddyfile. The conversion is therefore forced to fold <code>XDG_CONFIG_HOME</code> into <code>/data</code>; this is the verified <a href="../../../docs/open-questions.md#configdir-is-not-path-free-regen-wave-1-lunas-caddy-verified-2026-08-04">CONFIGDIR product defect</a>, not a preferred layout. → language (CONFIGDIR path freedom)</li>
       <li>The service carries a minimal <code>/etc/hosts</code> <code>FILE</code> because the sandbox supplies no <code>localhost</code>, unlike Docker; remove it only when the verified <a href="../../../docs/open-questions.md#no-localhost-in-the-service-sandbox-same-wave-caddy">sandbox hosts defect</a> is resolved. → language (service localhost)</li>
