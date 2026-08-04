@@ -1,10 +1,8 @@
 # artifact-import — one way to assemble an artifact's toolset
 
-Status: **draft v2** (2026-08-04; v1 same day from Mathijs's corpus review,
-v2 after his design round: STATEDIR-direct kills runtime-path links, LINK
-itself is on the table, and the governing principle is *fewer ways to do
-the same thing* — the current degrees of freedom are disorienting and
-footgunny).
+Status: **CIP-91, adopted 2026-08-04** (drafted, revised to v2 in Mathijs's
+design round, and adopted the same day; governing principle: *fewer ways to
+do the same thing*).
 
 ## 1. The problem
 
@@ -125,3 +123,31 @@ redis, tomcat, verdaccio, wallos, watchtower, whoami) flip
   spike.)
 - Does `ENV PATH = …` replacing the default still make sense once IMPORT
   is the canon, or should explicit PATH become a lint alongside (c)?
+
+## 5. Decision
+
+Adopted 2026-08-04 (Mathijs) as recommended in v2:
+
+- (a) IMPORT is universal across BUILDER/SERVICE/APP/ITEM.
+- (b) LINK dissolves into store-aware COPY, **spike-first**: link-by-rule
+  for store sources, with the two statically-known materialization
+  triggers (role-dir/DIR mount beneath the destination; later assembly
+  writes beneath). LINK survives as fallback if the spike sours; during
+  the transition LINK parses with a deprecation hint toward COPY, and the
+  regeneration sweep removes remaining uses before the alias is deleted
+  (alpha rule: no long-lived compat).
+- (c) The canon for executables is IMPORT + bare argv. Interpolated store
+  paths in START/START_PRE stay legal; the lint lands with the
+  regeneration sweep.
+- (d) State binds at the app-native path via role dirs; v1's runtime-path
+  LINK is rejected.
+
+Open-question answers at adoption: top-level prelude IMPORT spill is
+deferred (block-local first; revisit on regeneration evidence — Mathijs:
+"maybe"); COPY union semantics are delegated to the spike; the explicit
+`ENV PATH` question joins the (c) lint round.
+
+## Changelog
+
+- 2026-08-04: drafted (v1), revised (v2: STATEDIR-direct, LINK
+  dissolution, single canon), and adopted, same day.

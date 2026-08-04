@@ -1,7 +1,7 @@
 # port-protocols — protocol-aware inbound port declarations (UDP first)
 
-Status: **draft** (2026-08-04, promoted from the corpusgaps sweep: caddy's
-GAPS.md, loop-1).
+Status: **CIP-92, adopted 2026-08-04** (promoted from the corpusgaps sweep:
+caddy's GAPS.md, loop-1; adopted the same day).
 
 ## 1. The problem
 
@@ -26,7 +26,7 @@ Extend the grammar with an optional trailing protocol word, default `tcp`:
 
 ```dockerfile
 PORT http = 443
-PORT http3 = 443 udp
+PORT http3 = udp:443
 ```
 
 Compile it through to `SocketBindAllow=udp:443` (and the deny mirror), the
@@ -43,3 +43,18 @@ consumer.
 - Does compose `publish` need protocol plumbing in the same leg, or is
   declare+bind-allow the honest v0?
 - SCTP: refuse until asked, or reserve the grammar now?
+
+## 5. Decision
+
+Adopted 2026-08-04 (Mathijs). Syntax: the **systemd style** is the single
+form — `PORT http3 = udp:443`, bare `PORT http = 8080` keeps the tcp
+default — matching the `SocketBindAllow=` vocabulary it compiles into.
+The Docker spelling `443/udp` is a parse error whose diagnostic hints the
+systemd form. Compose publish keeps declare+bind-allow as the honest v0;
+protocol plumbing through publish arrives when a corpus case demands it.
+SCTP is refused until asked, with no grammar reserved.
+
+## Changelog
+
+- 2026-08-04: drafted and adopted same day; syntax fixed to systemd style
+  with a Docker-form hint.
