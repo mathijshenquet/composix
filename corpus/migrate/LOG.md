@@ -641,3 +641,80 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   endings, and existing local link targets; the living table has 21 rows;
   `git diff --check` exits 0; changed paths stay inside the track fence. No focused
   VM scenario applies because this track changes no runtime behavior.
+## 2026-08-04 — track/regen1 wave-1 assembly
+
+- 2026-08-04T09:00:00Z — Loaded `AGENTS.md`, `.dev/specs/track-regen1.md`,
+  `docs/corpus.md` maintenance loops, `docs/design.md`, `docs/migrate.md`, the
+  six existing case ledgers/receipts, staging notes, and the relevant verified
+  product-defect entries in `docs/open-questions.md`. Branch `track/regen1`
+  starts clean at `a271c03`; direnv is allowed and loaded. Scope is the staged
+  caddy, memcached, nats, nginx, redis, and traefik twins plus their ledgers,
+  the two migration-prompt addenda, `docs/corpus.md`, and generated browser
+  output. Next: assemble the staged artifacts without copying staging-only
+  files, write fresh routed gaps, and add prompt guidance before running the
+  synchronous per-case build/probe receipts.
+
+- 2026-08-04T09:20:00Z — Copied and byte-compared the four staged Cix artifacts
+  for all six cases, plus Redis's referenced `redis-start.sh`; no staging-only
+  `bin/`, task, migration, notes, or context files were copied. Rewrote all six
+  `GAPS.md` files with the required luna provenance/current status and routed
+  the remaining deviations, including the three verified product defects.
+  Added the dissolved-twin and volatile-metadata contracts to `docs/migrate.md`.
+  Traefik's identical FETCH EXPECT values remain untouched as the required
+  defect reproduction. Next: build this worktree's cix, fetch each reproducible
+  context, and run both twin builds plus each existing Cix probe sequentially.
+
+- 2026-08-04T09:55:00Z — Synchronous regeneration receipts complete. Exact
+  common compiler command `devenv shell -- cargo build -p cix` exited 0.
+  Context fetches for memcached (`53ac0ecb`), nginx (`e0f008fa`), and Redis
+  (`2ac6f46c`) exited 0; Caddy/Traefik have no fetched context and NATS remains
+  unfetchable by SOURCE provenance. For each case,
+  `./target/debug/cix build corpus/migrate/<case>` and
+  `./target/debug/cix build --file Cixfile.dissolved
+  corpus/migrate/<case>` exited 0 synchronously. Unchanged probes with
+  `CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix
+  ./check.sh cix` exited 0 for caddy, memcached (`VERSION 1.6.45`), nats,
+  Redis, and Traefik. nginx exited 1: the process could not open
+  `/var/log/nginx/error.log` or `access.log`, exited status 1, and never became
+  HTTP-reachable within the probe bound. The red probe is recorded unchanged
+  as a finding. Appended exact commands, statuses, and store paths to all six
+  receipts; Docker mode is explicitly not rerun. Regraded `docs/corpus.md` to
+  distinguish faithful runtime evidence from the CIP-84 package/synthetic
+  closed-root contracts. Next: regenerate/review the corpus browser, then
+  commit the assembly and ledger units before the full prescribed gate.
+
+- 2026-08-04T10:10:00Z — Corpus browser generation exited 0 and changed only
+  `docs/corpus/{index,caddy,memcached,nats,nginx,redis,traefik}.html`.
+  All six pages expose faithful/nixpkgs-direct tabs and the current gap panels.
+  Focused browser committed-page drift and deterministic-render tests both
+  exited 0; all six case Cixfiles and all example Cixfiles passed
+  `target/debug/cix fmt --check` (pre-existing example LINK deprecation
+  warnings only); `git diff --check` exited 0. Committed the contracts,
+  locks, gaps, receipts, and prompt addenda as `d8d9b62`, then the ledger and
+  generated browser as `dbd8a0a`. This LOG remains unstaged by policy. Next:
+  run the complete agent gate synchronously, including the focused
+  `scenario-closedroot-audit` VM, then audit final scope and receipts.
+
+- 2026-08-04T09:06:10Z — Complete agent gate observed synchronously. `devenv
+  shell -- cargo fmt --all --check`, example `cix fmt --check`, `devenv shell
+  -- cargo clippy --workspace --all-targets -- -D warnings`, and `devenv shell
+  -- cargo test --workspace` each exited 0. Tour regeneration exited 0 and left
+  `docs/tour` unchanged; its exact committed-drift and deterministic-render
+  tests exited 0. The exact corpus-browser committed-drift test also exited 0
+  (generation plus its focused drift/determinism tests had already exited 0
+  before commit). Finally, `nice -n 10 nix build
+  .#checks.x86_64-linux.scenario-closedroot-audit --no-link -L --max-jobs 6
+  --cores 4` exited 0 after the VM ran under TCG when KVM was unavailable. The
+  roster exercised the package/synthetic caddy, memcached, nats, nginx, Redis,
+  and Traefik closed-root fixtures along with the broader audit. This does not
+  overwrite nginx's distinct faithful-runtime red receipt: that unchanged
+  probe still fails because `/var/log/nginx/{error,access}.log` is absent.
+  Next: final static scope/worktree audit; leave this ignored LOG unstaged.
+
+- 2026-08-04T09:06:55Z — Final audit complete. `git diff --check` exited 0,
+  the two commits change only the six assigned case directories,
+  `docs/migrate.md`, `docs/corpus.md`, and the seven affected generated corpus
+  pages, and the index has no staged changes. No probe service remains loaded;
+  only the empty `cix-corpus.slice` and `cix-run.slice` are active. Worktree
+  state is exactly this policy-required, unstaged `corpus/migrate/LOG.md`
+  update. Track is ready for independent pre-merge verification.
