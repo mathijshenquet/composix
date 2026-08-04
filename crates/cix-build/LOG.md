@@ -230,3 +230,19 @@
   immediately, restored byte-for-byte from HEAD, and the isolated edits were
   reapplied before the green receipt. All further build state stays in
   `/dev/shm`.
+
+- 2026-08-04T11:51:59Z — Implemented `buildCixfile` under `nix/lib` and
+  exposed it through both `?dir=nix/lib` and the root flake `lib`. Milestone 1
+  replays pure assembly and one BUILDER with one FOD per FETCH, normal offline
+  RUN derivations, the recorded development environment, and the shared
+  skeleton fingerprint. Explicit cuts are top-level FETCH, artifact-valued
+  FROM, multi-BUILDER graphs, SERVICE/APP outputs, and builders importing the
+  CIP-95 FHS loader providers; each has a named eval-time error. The focused
+  NixOS VM check ran synchronously in TCG and exited 0 after 50.15s: its
+  network-offline guest compared real `cix build --cold` outputs to the Nix
+  library derivations and observed matching assembly NAR
+  `sha256-ZRz7n5+saF91Ur/koP/FtpND17AtJ8/NlE0Fa5Lsg8I=` and builder NAR
+  `sha256-mJCuDVcxbt6bxVjHyNyPqCYcELx4S5QtKteXuQnrSmk=`; it also confirmed the
+  CIP-95 rejection. Exact command: `env
+  TMPDIR=/dev/shm/composix-cip94-20260804/tmp nix build
+  .#checks.x86_64-linux.build-cixfile-byte-identity --no-link -L`.

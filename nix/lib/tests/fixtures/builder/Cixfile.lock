@@ -1,0 +1,207 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  },
+  "fetches": {
+    "builder:build:1-f0857ab29d78": {
+      "snapshotNarHash": "sha256-Q2IPCQCfU/0xLnitfR+KGlDlNXOSeCjtliinDdrfYgA=",
+      "paths": {
+        "result.txt": "sha256-wRg/XjslB1J+9ArdiCDczLe/zs6PIpg222KEEp4zBvo="
+      }
+    }
+  },
+  "memo": {
+    "123afbee0d6747cc5ff44dce936e09d52e33335057616e4c25212a04b37b7e5c": {
+      "paths": {
+        "result.txt": {
+          "narHash": "sha256-wRg/XjslB1J+9ArdiCDczLe/zs6PIpg222KEEp4zBvo=",
+          "storePath": "/nix/store/nzssyns2w2b7asv79rsrp7vagwsnz57g-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:build:1": {
+      "key": "d0640681096d1c37d67bfef36fa88258ba2be659810f149f507a95182e238a67",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        }
+      },
+      "outputSnapshot": "/nix/store/8wgqkshncq2alb4n455z00jvw5by5i9g-cix-step-output",
+      "changes": {
+        "fetched.txt": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "fetched.txt": {
+          "content": "3b435c468ef879519f8aeb80b5d0d1fe1f96d91e13fc4126ad4d84391111fc27"
+        }
+      }
+    },
+    "builder:build:2": {
+      "key": "49e4ed590ed0987413706a1703b829d327609fed71a297d0b1b81d4f63726c99",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "fetched.txt": {
+          "kind": "file",
+          "hash": "1b7230e3a19f735c709b6ea5411ad561381e9403c028a8733cbb2a5dd80ddb32",
+          "fingerprint": {
+            "dev": 29,
+            "inode": 723008,
+            "mtimeNs": 308681958,
+            "size": 23,
+            "len": 23,
+            "mode": 33188
+          }
+        },
+        "input.txt": {
+          "kind": "file",
+          "hash": "7c10541e6a78153a00963cf4a5f18a07d4c98def201f54338c379da7bd2de549",
+          "fingerprint": {
+            "dev": 29,
+            "inode": 723007,
+            "mtimeNs": 308673001,
+            "size": 14,
+            "len": 14,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "result.txt": {
+          "kind": "present"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "3883ea4312a5b18baf11e64caf7e0f609c23e25e66c7fb2760f148e3547f9473:77ca61a1cc152e3195ae8fd5fcac3ca6b6773e07e23de3dad83e56412232a59b": {
+      "environment": {
+        "XDG_DATA_DIRS": "/nix/store/dddwfz7nph37q3cjky9lhpy9kb90rrrx-bash-interactive-5.3p15/share:/nix/store/f13cgj4sypbjrwwpshfc2x4fd11is8dp-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "builderDevEnvs": {
+    "build": "3883ea4312a5b18baf11e64caf7e0f609c23e25e66c7fb2760f148e3547f9473:77ca61a1cc152e3195ae8fd5fcac3ca6b6773e07e23de3dad83e56412232a59b"
+  },
+  "evalPlan": {
+    "version": 1,
+    "cixfileHash": "88ee77f0f56a98608f18bacd694c3a1028ad0c2ba215d5259a681d3d65cae0f9",
+    "skeleton": "v2:/usr/bin/env->/bin/env;x86_64:/lib64/ld-linux-x86-64.so.2->/lib/cix-loaders/ld-linux-x86-64.so.2,/lib/ld-musl-x86_64.so.1->/lib/cix-loaders/ld-musl-x86_64.so.1",
+    "inputs": {
+      "pkgs": {
+        "url": "github:NixOS/nixpkgs/nixos-unstable",
+        "kind": "package-universe",
+        "overlays": []
+      },
+      "src": {
+        "url": ".",
+        "kind": "source",
+        "overlays": []
+      }
+    },
+    "topLevelFetchCount": 0,
+    "builders": {
+      "build": {
+        "imports": [
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "bash"
+            }
+          ],
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "coreutils"
+            }
+          ]
+        ],
+        "environment": {
+          "XDG_DATA_DIRS": "/nix/store/dddwfz7nph37q3cjky9lhpy9kb90rrrx-bash-interactive-5.3p15/share:/nix/store/f13cgj4sypbjrwwpshfc2x4fd11is8dp-patchelf-0.15.2/share"
+        },
+        "steps": [
+          {
+            "kind": "copy",
+            "copy": {
+              "src": [
+                {
+                  "kind": "binder",
+                  "name": "src"
+                },
+                {
+                  "kind": "literal",
+                  "value": "/input.txt"
+                }
+              ],
+              "dst": "input.txt",
+              "mode": "materialize",
+              "line": 6
+            }
+          },
+          {
+            "kind": "fetch",
+            "command": [
+              {
+                "kind": "literal",
+                "value": "printf 'fetched offline replay\\n' > fetched.txt"
+              }
+            ],
+            "line": 7,
+            "snapshotNarHash": "sha256-Q2IPCQCfU/0xLnitfR+KGlDlNXOSeCjtliinDdrfYgA="
+          },
+          {
+            "kind": "run",
+            "command": [
+              {
+                "kind": "literal",
+                "value": "cat input.txt fetched.txt > result.txt"
+              }
+            ],
+            "line": 8
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "builder": {
+        "kind": "item",
+        "imports": [],
+        "copies": [
+          {
+            "src": [
+              {
+                "kind": "binder",
+                "name": "build"
+              },
+              {
+                "kind": "literal",
+                "value": "/result.txt"
+              }
+            ],
+            "dst": "result.txt",
+            "mode": "link-normalized",
+            "line": 11
+          }
+        ],
+        "assembly": []
+      }
+    }
+  },
+  "outputs": {
+    "builder": {
+      "sourceHash": "3333136e954648e8ef722292036decb9a00bd2871b250348987816c1dee04ad1",
+      "storePath": "/nix/store/hm5xylp9nb9xdphlml1hs3bdxsxgslyi-cix-item-builder"
+    }
+  }
+}

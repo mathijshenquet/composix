@@ -1,0 +1,114 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "624af665418d3c65d544145b4d34ad696439570e",
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+    }
+  },
+  "memo": {
+    "15cafcc23ceace45f23031d4366678367bc7637d02ecdd415a27695537be74db": {
+      "paths": {
+        "result.txt": {
+          "narHash": "sha256-HiDm3qTPXEDBWtZpBRsCWnV3V7wmrqGuLmSaG4gejnc=",
+          "storePath": "/nix/store/77byp6s5ii6zvjgs4n518ni0c9rzgxqw-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "3883ea4312a5b18baf11e64caf7e0f609c23e25e66c7fb2760f148e3547f9473:cd31abe93d7ce58ffc44860f3621eea35ddefab77eefafa36d3b9e64e680255e": {
+      "environment": {
+        "XDG_DATA_DIRS": "/nix/store/dddwfz7nph37q3cjky9lhpy9kb90rrrx-bash-interactive-5.3p15/share:/nix/store/l8si8gnvvq93yzms1jsgh5aixyf9rl5x-glibc-2.42-67/share:/nix/store/f13cgj4sypbjrwwpshfc2x4fd11is8dp-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "builderDevEnvs": {
+    "build": "3883ea4312a5b18baf11e64caf7e0f609c23e25e66c7fb2760f148e3547f9473:cd31abe93d7ce58ffc44860f3621eea35ddefab77eefafa36d3b9e64e680255e"
+  },
+  "evalPlan": {
+    "version": 1,
+    "cixfileHash": "b019bdf3fe4b57325966f139e0687ecc0260b8056d8accf4c40d0e40a1023ee1",
+    "skeleton": "v2:/usr/bin/env->/bin/env;x86_64:/lib64/ld-linux-x86-64.so.2->/lib/cix-loaders/ld-linux-x86-64.so.2,/lib/ld-musl-x86_64.so.1->/lib/cix-loaders/ld-musl-x86_64.so.1",
+    "inputs": {
+      "pkgs": {
+        "url": "github:NixOS/nixpkgs/nixos-unstable",
+        "kind": "package-universe",
+        "overlays": []
+      }
+    },
+    "topLevelFetchCount": 0,
+    "builders": {
+      "build": {
+        "imports": [
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "bash"
+            }
+          ],
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "coreutils"
+            }
+          ],
+          [
+            {
+              "kind": "package",
+              "namespace": "pkgs",
+              "attrpath": "glibc"
+            }
+          ]
+        ],
+        "environment": {
+          "XDG_DATA_DIRS": "/nix/store/dddwfz7nph37q3cjky9lhpy9kb90rrrx-bash-interactive-5.3p15/share:/nix/store/l8si8gnvvq93yzms1jsgh5aixyf9rl5x-glibc-2.42-67/share:/nix/store/f13cgj4sypbjrwwpshfc2x4fd11is8dp-patchelf-0.15.2/share"
+        },
+        "steps": [
+          {
+            "kind": "run",
+            "command": [
+              {
+                "kind": "literal",
+                "value": "printf 'must not replay through CIP-94\\n' > result.txt"
+              }
+            ],
+            "line": 5
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "fhs-boundary": {
+        "kind": "item",
+        "imports": [],
+        "copies": [
+          {
+            "src": [
+              {
+                "kind": "binder",
+                "name": "build"
+              },
+              {
+                "kind": "literal",
+                "value": "/result.txt"
+              }
+            ],
+            "dst": "result.txt",
+            "mode": "link-normalized",
+            "line": 8
+          }
+        ],
+        "assembly": []
+      }
+    }
+  },
+  "outputs": {
+    "fhs-boundary": {
+      "sourceHash": "05a6ada23ce1ac654b2c71b17c1b1960c9b9b59d707741b3488fb98b21cf9d68",
+      "storePath": "/nix/store/pf302ywl873396likz3zr00jia6hac2s-cix-item-fhs-boundary"
+    }
+  }
+}
