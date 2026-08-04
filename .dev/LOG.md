@@ -1,5 +1,51 @@
 # composix work log
 
+## 2026-08-04 night (train closed: hand-holding tour, defect rounds, k8s axis, progressive selector, all-pretty JSON)
+
+- **Merged since the evening entry** (order): tourpolish (show_file
+  typed blocks; ch6 listener from a real Cixfile); batch1 = corpusk8s
+  (corpus/migrate/{docker,k8s} axis, 21 cases moved with history, k8s
+  skeleton+CANDIDATES) + inspectremote (`cix inspect` on qualified
+  remote refs, pull-grammar reuse — Mathijs's CLI-verb ask, resolved as
+  extend-inspect); runfixes (CONFIGDIR path freedom via the STATEDIR
+  mirror; localhost skeleton /etc/hosts with item override — two wave
+  findings FIXED); buildfixes (EXPECT validated against the recorded
+  pin before memo reuse; traced ENOTDIR as absent read — the real
+  directus blocker, now clear; warm-root sequential COPY reconciles);
+  jsonpretty ×2 (ALL JSON pretty — stdout and on-disk, alpha hash
+  shifts accepted, Mathijs's fuck-the-hashes call); batch2 = tour4
+  (hand-holding round) + cip93 leg 1 (derivation-diff VM selector:
+  docs/corpus 0/13, code 13/13, loud, --full escape) + mastodon2 (six
+  members on CIP-91 canon, full six-member probe + closed-root green).
+- **The tour pipeline proved the mixed model**: sol restructure →
+  orchestrator review (caught interpolated-argv canon leak) → two
+  fresh-context cold readers (Docker-persona + Nix-persona, 306 lines
+  of quoted confusion) → orchestrator editorial spec with verbatim
+  load-bearing prose → sol execution → orchestrator prose pass on the
+  branch. Chapter 1 now really runs the service rootless with declared
+  normalization markers; every command typeable. Mathijs's detailed
+  read is the remaining round.
+- **Open-questions personally rewritten** (Mathijs): resolved items
+  out, every entry self-contained, no bare D-numbers; six items
+  promoted to drafts; **CIP-light format minted** (one screen:
+  Problem/Proposal/Effort). Draft inbox now: granular-degradation,
+  lock-scale, volatile-fetch, optional-env, artifact-root-collision,
+  tmp-relocate — plus the contextualized disposition batch in
+  open-questions.
+- **Process minted today** (CLAUDE.md + memory): 10-minute heartbeat
+  with active-PM questions (parallelize? PM harder?); df-guards
+  (blocks AND inodes) before gates/fan-outs; CI watches never blocking;
+  serial full gates with integration-batch gating for disjoint tracks
+  (tree-identity verified at merge); codex swallow-verify; luna-first
+  ladder (model table updated with luna 9/6?/5? on 18/18 cold
+  translations + caveats); agents resolve their own semantic merges.
+- **Open for agents next**: wave-3 regen (directus NOW unblocked —
+  CIP-95 + ENOTDIR fixed; filestash via CIP-88/D70 verify); k8s wave 1
+  from the new CANDIDATES; docker CANDIDATES expansion; volatile-fetch
+  corpus sweep (behind its draft's adoption); CIP-93 stratification
+  follow-up; tour ch4 inspect-remote weave-in. **Open with Mathijs**:
+  the six drafts + contextualized dispositions; tour detail feedback.
+
 ## 2026-08-04 evening (the whole corpus on the new canon; tour rebuilt; CI-portability cascade closed)
 
 - **Wave-2 regen MERGED** (`c3acdac`): all twelve remaining cases cold
