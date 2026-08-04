@@ -73,6 +73,11 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   compose-mechanical follow-up work.
 - **`docker init` generator** ❓ → the migrate prompt is the current
   generator; a `cix init` skeleton is tooling-era ⏳.
+- **`ENV NAME=value` (Docker form, no spaces)** (Mathijs, 2026-08-04
+  corpus review) → currently a parse error: `=` must be its own
+  whitespace-separated token. Proposed disposition: keep one canonical
+  form, improve the diagnostic to suggest `ENV NAME = value` — migrator
+  muscle memory deserves a good error, not a second grammar.
 - **Docker Offload** ❓ → ❌; nix remote builders are the delegation
   story.
 - **AppArmor/SELinux labeling** ❓ → host policy, out of manifest scope;

@@ -21,6 +21,54 @@ Ribbons:
 - ❌ outside the thesis (with the honest why)
 - Effort = S/M/L/XL: Cixfile+compose lines plus thinking, for a competent adopter.
 
+## How this corpus is maintained (the loops)
+
+Adopted 2026-08-04 (Mathijs's corpus review). The corpus is human-consumable
+first: today it is the dev-loop instrument, later it is adopter-facing
+documentation. Clarity of the rendered page and cleanliness of every checked-in
+file are requirements, not niceties.
+
+Each case carries a `GAPS.md` next to its Cixfile: free-form markdown whose
+only machine-read lines are the header pair
+
+```
+Generated: migrate.md@<commit> · <model> · <date>
+Status: current            (or: stale — regenerate with <feature/CIP>)
+```
+
+Every gap is one prose bullet ending in an arrow that routes it to where the
+fix lives: `→ case` (this conversion), `→ prompt` (docs/migrate.md),
+`→ language (<CIP/draft>)`, `→ evidence` (receipt/reproducibility work),
+`→ refused` (thesis boundary, stated). The vocabulary is deliberately open —
+the arrow is routing, not taxonomy; invent a new target when none fits.
+
+Three loops drain the ledger:
+
+1. **Corpus → CIPs → features → corpus.** `→ language` gaps are promoted to
+   `cips/draft/` entries citing their exhibiting cases. A track that lands a
+   feature greps `corpus/migrate/*/GAPS.md` for its CIP/draft name and flips
+   the exhibiting cases to `Status: stale — …` in the same track (this extends
+   the ledger-currency rule in AGENTS.md). Stale cases form the regeneration
+   queue.
+2. **Prompt → corpus → prompt.** Regeneration is always cold: a fresh agent
+   gets `docs/migrate.md` + the Dockerfile + its context, nothing else; the
+   `Generated:` header records prompt version and model. A hand-edit to a
+   canon Cixfile must carry, in the same commit, the migrate.md addendum that
+   would have generated it — the one exception is an edit justified as
+   "obsoleted by CIP-N implementation", which the staleness loop covers.
+   Periodically, cold-regen a sample with 2–3 models and diff against canon:
+   that measures whether the prompt teaches, and feeds both prompt edits and
+   the model table.
+3. **(Later) automation.** Once cold regeneration reliably matches canon, the
+   prompt plus the paired `check.sh` probes are the regression suite for a
+   `cix migrate` assistant. Recorded intent, deliberately unbuilt.
+
+Verification tiers: CI parses every corpus Cixfile with the real parser (rot
+guard); `check.sh {docker|cix}` receipts are rerun per-track when a case is
+touched; the CIP-84 closed-root VM audits the green set exhaustively. Cases
+that dissolve entirely into nixpkgs additionally carry a Dockerfile-faithful
+twin so the page can show both translations side by side.
+
 ## The living migration corpus (21)
 
 These are the checked-in conversions under `corpus/migrate/`, not a second
