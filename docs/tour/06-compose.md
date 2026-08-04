@@ -165,7 +165,7 @@ consumer connected to /tmp/cix-tour-edge-TMP/service.sock: producer v1 received 
 producer v1 listening at /tmp/cix-tour-edge-TMP/service.sock
 ```
 
-The compose file supplies host policy without rebuilding either item. The `producer-api` edge gives the producer a writable `/run/producer` directory and bind-projects that same directory at `/run/upstream` in the consumer; therefore the producer creates `/run/producer/service.sock` and the consumer opens `/run/upstream/service.sock`. The edge unit owns a private group shared by those two dynamic users and starts the producer before the consumer.
+The compose file supplies host policy without rebuilding either item. The `producer-api` edge gives the producer a writable `/run/producer` directory and bind-projects that same directory at `/run/upstream` in the consumer; therefore the producer creates `/run/producer/service.sock` and the consumer opens `/run/upstream/service.sock`. The edge unit owns a private group shared by those two dynamic users and starts the producer unit before the consumer unit. That ordering is not an application-readiness gate, so `consumer.py` still retries until the socket accepts connections.
 
 #### `compose.json`
 
@@ -200,7 +200,7 @@ $ cix compose check compose.json
 compose tour-stack: 2 services, 1 edges, valid
 ```
 
-`update: "track"` re-resolves the producer tag on every check, diff, or activation. `update: "pin"` reuses the consumer's existing `cix.lock` entry until `cix up --update-lock consumer compose.json` explicitly refreshes it; pin is also the default. Here `payload` is the compose-local volume identity, scoped below the `tour-stack` root. Its host backing is `/var/lib/cix-compose/tour-stack/shared/payload`, mode 2770 with setgid and a private supplemental group containing both services. Rollback and ordinary `down` retain the data; `sudo cix down tour-stack --purge --yes` removes it.
+`update: "track"` re-resolves the producer tag on every check, diff, or activation. `update: "pin"` reuses the consumer's existing `cix.lock` entry until `cix up --update-lock consumer compose.json` explicitly refreshes it; pin is also the default. Here `payload` is the compose-local volume identity, scoped below the `tour-stack` root. Every participating item must declare the mapped path as writable state (both do), and compose rejects incompatible roles. Its host backing is `/var/lib/cix-compose/tour-stack/shared/payload`, mode 2770 with setgid and a private supplemental group containing both services. Rollback and ordinary `down` retain the data; `sudo cix down tour-stack --purge --yes` removes it.
 
 #### `cix.lock`
 
@@ -221,7 +221,7 @@ compose tour-stack: 2 services, 1 edges, valid
 }
 ```
 
-Only `cix up compose.json` writes this resolved `cix.lock`; commit it with the compose file. `cix compose check` and `cix compose diff` are read-only with respect to the lock. Because this harness cannot perform root activation, it materialized the same checked v1 resolution before displaying the lock, then runs the real dry-build below.
+Only `cix up compose.json` writes this resolved `cix.lock`; commit it with the compose file. `cix compose check` and `cix compose diff` are read-only with respect to the lock. Because this harness cannot perform root activation, it materialized the same checked v1 resolution before displaying the lock, then runs the real dry-build below. No root profile is active for this tour stack, so the first diff compares against an empty baseline and `-` means that no prior service item exists.
 
 ```sh
 $ cix compose diff compose.json

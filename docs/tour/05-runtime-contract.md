@@ -10,7 +10,7 @@ You will run an HTTP service twice, observe readiness, preserve state across the
 
 ## The item owns needs; the operator owns values
 
-The web item declares the process needs: a direct TCP port, application-native persistent state, one credential filename, and HTTP health checks. `READINESS http :8420/healthz IN 10s` means the native cix probe retries localhost until one successful HTTP response or a ten-second startup timeout. `LIVENESS http :8420/livez EVERY 2s` probes every two seconds; three missed intervals trigger systemd's bounded `Restart=on-failure` policy. No curl or shell is added to the runtime item for those probes.
+The web item declares the process needs: a direct TCP port, application-native persistent state, one credential filename, and HTTP health checks. `READINESS http :8420/healthz IN 10s` means the native cix probe tries localhost every 250 milliseconds, accepts an HTTP status from 200 through 399, and makes startup fail if none succeeds within ten seconds. `LIVENESS http :8420/livez EVERY 2s` probes every two seconds; three missed intervals trigger systemd's bounded `Restart=on-failure` policy. No curl or shell is added to the runtime item for those probes.
 
 The checked-in server uses `$STATE_DIRECTORY` at the native path when the manager can project it and the documented user backing below `~/.local/state/cix-run-web` otherwise. It does not treat `CIX_APP` as an application API: that variable exists only on the degraded user path to identify the physical store item, and is absent in the production system unit. The finite cleanup APP is eligible for scheduling; the minimal observer stays alive for scoped accounting receipts.
 
@@ -63,14 +63,25 @@ def state_root():
     raise RuntimeError("no writable managed state directory")
 
 state_file = state_root() / "value"
+liveness_ok = True
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        global liveness_ok
         if self.path == "/state":
             body = state_file.read_bytes() if state_file.exists() else b"empty\n"
+            status = 200
+        elif self.path == "/fail-live":
+            liveness_ok = False
+            body = b"liveness will fail\n"
+            status = 200
+        elif self.path == "/livez" and not liveness_ok:
+            body = b"unhealthy\n"
+            status = 503
         else:
             body = b"runtime healthy\n"
-        self.send_response(200)
+            status = 200
+        self.send_response(status)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -158,7 +169,13 @@ TimeoutStartUSec=10s
 WatchdogUSec=6s
 ```
 
-The readiness adapter is an `ExecStartPost` process run by cix: it retries the HTTP target and delays the service's active state until success. The liveness adapter is a second cix process that pings every two seconds and notifies systemd; the six-second watchdog below is the three-miss threshold, and systemd performs the restart.
+The readiness adapter is an `ExecStartPost` process run by cix: it retries the HTTP target and delays the service's active state until success. The liveness adapter is a second cix process that pings every two seconds and notifies systemd; the six-second watchdog shown above is the three-miss threshold, and systemd performs the restart.
+
+```sh
+$ pid_before=$(systemctl --user show "$unit" -p MainPID --value); curl -fsS http://127.0.0.1:8420/fail-live; pid_after=$pid_before; for attempt in $(seq 1 50); do pid_after=$(systemctl --user show "$unit" -p MainPID --value); if test "$pid_after" != "$pid_before" && test "$pid_after" != 0; then break; fi; sleep 0.25; done; test "$pid_after" != "$pid_before"; printf '%s\n' 'liveness watchdog restarted the service'
+liveness will fail
+liveness watchdog restarted the service
+```
 
 ```sh
 $ systemctl --user stop "$unit"
@@ -207,10 +224,11 @@ compose runtime-guide: 1 services, 0 edges, valid
 
 ## Debug and observe
 
-`cix debug` resolves an item and replaces its normal START command in a fresh sandbox. The first `--user` is a cix option; the second bare `--` ends cix option parsing, so everything after it is the replacement argv. Replace `true` with a diagnostic command that is present in the item's imported PATH.
+`cix debug` resolves an item and replaces its normal START command in a fresh sandbox. The first `--user` is a cix option; the second bare `--` ends cix option parsing, so everything after it is the replacement argv. This receipt runs imported `printenv` to expose the sandbox's item-derived PATH; substitute any diagnostic command present in the item's imports.
 
 ```sh
-$ cix debug runtime/cleanup:v1 --user -- true
+$ cix debug runtime/cleanup:v1 --user -- printenv PATH
+/nix/store/…-cix-item-cleanup/bin
 warning: cix debug --user is degraded development mode; it does not provide the full system-manager sandbox or DynamicUser identity
 === cix debug: degraded service sandbox; service=cleanup; identity=caller (--user) ===
 ```

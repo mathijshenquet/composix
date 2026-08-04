@@ -1,5 +1,19 @@
 # litdoc work log
 
+- 2026-08-04T22:10:00Z — Chapter 7 and the cross-chapter cold-reader audit
+  regenerate successfully. Watch now captures its PID, executes SIGINT cleanup,
+  states default workspace/memo behavior, and gives the exact privileged
+  compose-watch boundary. A pinned two-platform flake executes a real
+  `nix develop` tool receipt. Faithful and dissolved runnable APPs now derive
+  from the same displayed five-line Dockerfile, both print `Hello, world!`, and
+  their independent nixpkgs locks and `--file` resolution/update commands are
+  explicit. The local migration bridge defines source context, receipts, and
+  gaps. The final bullet audit also added index prerequisites, Chapter 1 role
+  backing/service-kind context, correct Cargo.lock highlighting, explicit
+  compose readiness/baseline/shared-role rules, and a real Chapter 5 watchdog
+  restart plus debug PATH receipt. Next: commit, then run df guard and the full
+  bounded agent gate including three deterministic renders and canon scan.
+
 - 2026-08-04T21:25:00Z — Chapter 6 explicit regeneration exits 0. Named
   listener commands now capture the real item and unit. New executable Python
   fixtures create and connect to a real AF_UNIX socket, while compose projects

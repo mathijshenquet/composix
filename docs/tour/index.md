@@ -15,7 +15,7 @@ Dockerfile. If you have never used Docker: you need nothing from it —
 a Cixfile is a small declaration of what goes into the item and what
 the process may touch at runtime.
 
-The local index is the per-user database that maps mutable names to immutable item paths. Each generated chapter uses a fresh index, so its names cannot read or alter your normal cix state. Start at [Chapter 1](01-hello-composix.html) and follow the guide in order.
+The local index is the per-user database that maps mutable names to immutable item paths. Each generated chapter uses a fresh index, so its names cannot read or alter your normal cix state. To follow every receipt you need Linux, Nix with flakes, `cix`, and a running systemd user manager; other hosts can still follow the build-only chapters. The rootless receipts ask that user manager to own process lifetime and accounting without root, but they explicitly lose some production sandbox controls; Chapter 1 names the exact boundary and checks every prerequisite. Start at [Chapter 1](01-hello-composix.html) and follow the guide in order.
 
 ## Chapters
 
