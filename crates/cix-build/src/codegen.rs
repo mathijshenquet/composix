@@ -6,17 +6,16 @@ use anyhow::{bail, Context, Result};
 use serde_json::{Map, Value};
 
 use crate::{
-    Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, InputKind, InputLock, LockFile,
-    Port, Probe, Service, Template, TemplatePart,
+    Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, InputKind, InputLock,
+    LockFile, Port, Probe, Service, Template, TemplatePart,
 };
 
 fn bare_command(arguments: &[Template]) -> Option<String> {
-    match arguments {
-        [Template { parts }] => match parts.as_slice() {
+    match arguments.first()? {
+        Template { parts } => match parts.as_slice() {
             [TemplatePart::Literal(command)] if !command.contains('/') => Some(command.clone()),
             _ => None,
         },
-        _ => None,
     }
 }
 
@@ -24,6 +23,9 @@ pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     let (_, artifact) = only_artifact(cixfile)?;
     if !artifact.kind.is_runnable() {
         bail!("ITEM blocks are content-only and do not have runtime manifests; see docs/cixfile.md#item");
+    }
+    if !artifact.imports.is_empty() {
+        bail!("an artifact with IMPORT needs Nix evaluation to enumerate its sparse mounts");
     }
     let value = literal_spec(artifact)?;
     let mut json = serde_json::to_string_pretty(&value)?;
@@ -64,11 +66,25 @@ pub fn generate_nix_with_snapshots(
     if artifact.kind.is_runnable() {
         writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
     }
+    for (index, import) in artifact.imports.iter().enumerate() {
+        writeln!(expression, "  import{index} = {};", nix_template(import))?;
+    }
+    if !artifact.imports.is_empty() {
+        writeln!(
+            expression,
+            "  artifactImports = [ {} ];",
+            (0..artifact.imports.len())
+                .map(|index| format!("import{index}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
+        writeln!(expression, "  importMounts = builtins.concatMap (package: builtins.concatMap (subtree: let directory = builtins.toString package + \"/\" + subtree; in if builtins.pathExists directory then map (name: \"/\" + subtree + \"/\" + name) (builtins.attrNames (builtins.readDir directory)) else []) [ \"bin\" \"etc\" \"share\" ]) artifactImports;")?;
+    }
     for (index, copy) in artifact.copies.iter().enumerate() {
         writeln!(
             expression,
             "  copy{index} = {};",
-            nix_copy_source(&copy.src)
+            nix_artifact_copy_source(copy)
         )?;
     }
     for (index, assembly) in artifact.assembly.iter().enumerate() {
@@ -102,6 +118,45 @@ pub fn generate_nix_with_snapshots(
     )?;
     writeln!(expression, "  set -eu")?;
     writeln!(expression, "  mkdir -p \"$out\"")?;
+    if !artifact.imports.is_empty() {
+        writeln!(expression, "  merge_import() {{")?;
+        writeln!(
+            expression,
+            "    local source=\"$1\" destination=\"$2\" entry target"
+        )?;
+        writeln!(expression, "    mkdir -p \"$destination\"")?;
+        writeln!(
+            expression,
+            "    for entry in \"$source\"/* \"$source\"/.[!.]* \"$source\"/..?*; do"
+        )?;
+        writeln!(
+            expression,
+            "      if [ ! -e \"$entry\" ] && [ ! -L \"$entry\" ]; then continue; fi"
+        )?;
+        writeln!(expression, "      target=\"$destination/''${{entry##*/}}\"")?;
+        writeln!(
+            expression,
+            "      if [ -d \"$entry\" ] && [ ! -L \"$entry\" ]; then"
+        )?;
+        writeln!(
+            expression,
+            "        if [ ! -e \"$target\" ] && [ ! -L \"$target\" ]; then mkdir \"$target\"; fi"
+        )?;
+        writeln!(expression, "        if [ -d \"$target\" ] && [ ! -L \"$target\" ]; then merge_import \"$entry\" \"$target\"; fi")?;
+        writeln!(
+            expression,
+            "      elif [ ! -e \"$target\" ] && [ ! -L \"$target\" ]; then"
+        )?;
+        writeln!(expression, "        ln -s \"$entry\" \"$target\"")?;
+        writeln!(expression, "      fi")?;
+        writeln!(expression, "    done")?;
+        writeln!(expression, "  }}")?;
+        for index in 0..artifact.imports.len() {
+            for subtree in ["bin", "etc", "share"] {
+                writeln!(expression, "  if [ -d \"${{import{index}}}/{subtree}\" ]; then merge_import \"${{import{index}}}/{subtree}\" \"$out/{subtree}\"; fi")?;
+            }
+        }
+    }
     for directory in artifact_directories(artifact) {
         writeln!(
             expression,
@@ -572,16 +627,26 @@ fn emit_copy(expression: &mut String, index: usize, copy: &Copy) -> Result<()> {
         "  if [ ! -e \"${{copy{index}}}\" ] && [ ! -L \"${{copy{index}}}\" ]; then echo {} >&2; exit 1; fi",
         nix_string(&format!("line {}: COPY source does not exist", copy.line))
     )?;
-    if copy.dst == "." {
+    if matches!(copy.mode, CopyMode::Link | CopyMode::LinkNormalized) {
+        writeln!(
+            expression,
+            "  ln -s \"${{copy{index}}}\" \"$out/{}\"",
+            shell_double_quoted(&copy.dst)
+        )?;
+    } else if copy.dst == "." {
         writeln!(
             expression,
             "  if [ -d \"${{copy{index}}}\" ]; then cp -a \"${{copy{index}}}/.\" \"$out/\"; else cp -a \"${{copy{index}}}\" \"$out/\"; fi"
         )?;
     } else {
+        // Store directory modes are read-only; descendant assembly writes need a writable private copy.
         writeln!(
             expression,
-            "  cp -a \"${{copy{index}}}\" \"$out/{}\"",
-            shell_double_quoted(&copy.dst)
+            "  if [ -d \"${{copy{index}}}\" ]; then mkdir -p \"$out/{}\"; cp -a \"${{copy{index}}}/.\" \"$out/{}/\"; chmod -R u+w \"$out/{}\"; else cp -a \"${{copy{index}}}\" \"$out/{}\"; fi",
+            shell_double_quoted(&copy.dst),
+            shell_double_quoted(&copy.dst),
+            shell_double_quoted(&copy.dst),
+            shell_double_quoted(&copy.dst),
         )?;
     }
     Ok(())
@@ -590,10 +655,20 @@ fn emit_copy(expression: &mut String, index: usize, copy: &Copy) -> Result<()> {
 fn nix_copy_source(template: &Template) -> String {
     match template.parts.as_slice() {
         [TemplatePart::Literal(path)] if path == "." => "\"${sourceRoot}\"".to_owned(),
+        [TemplatePart::Literal(path)] if path.starts_with("/nix/store/") => nix_string(path),
         [TemplatePart::Literal(path)] => {
             format!("\"${{sourceRoot}}/{}\"", escape_nix_string(path))
         }
         _ => nix_template(template),
+    }
+}
+
+fn nix_artifact_copy_source(copy: &Copy) -> String {
+    let source = nix_copy_source(&copy.src);
+    if copy.mode == CopyMode::LinkNormalized {
+        format!("builtins.path {{ path = {source}; name = \"cix-copy\"; }}")
+    } else {
+        source
     }
 }
 
@@ -616,7 +691,17 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     let service = &artifact.service;
     let mut output = String::from("{");
     write!(output, " start = {};", nix_command(&service.start))?;
-    if !mounts.is_empty() {
+    if !artifact.imports.is_empty() {
+        write!(
+            output,
+            " mounts = builtins.attrNames (builtins.listToAttrs (map (name: {{ inherit name; value = null; }}) ([ {} ] ++ importMounts)));",
+            mounts
+                .iter()
+                .map(|mount| nix_string(mount))
+                .collect::<Vec<_>>()
+                .join(" ")
+        )?;
+    } else if !mounts.is_empty() {
         write!(
             output,
             " mounts = [ {} ];",
@@ -940,7 +1025,7 @@ fn only_artifact(cixfile: &Cixfile) -> Result<(&str, &Artifact)> {
 }
 
 fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
-    artifact
+    let mut directories = artifact
         .copies
         .iter()
         .map(|copy| &copy.dst)
@@ -953,7 +1038,11 @@ fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
                 .filter(|parent| !parent.as_os_str().is_empty())
                 .map(|parent| parent.to_string_lossy().into_owned())
         })
-        .collect()
+        .collect::<BTreeSet<_>>();
+    if !artifact.imports.is_empty() {
+        directories.extend(["bin".to_owned(), "etc".to_owned(), "share".to_owned()]);
+    }
+    directories
 }
 
 fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
@@ -989,7 +1078,7 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
                 [] => None,
             }
         })
-        .collect()
+        .collect::<BTreeSet<_>>()
 }
 
 fn literal_spec(artifact: &Artifact) -> Result<Value> {

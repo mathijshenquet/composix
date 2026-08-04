@@ -266,6 +266,7 @@ impl Parser<'_> {
                 validate_service_references(&artifact.service, &self.metadata[name])?;
             }
         }
+        materialize_structural_copy_ancestors(&mut self.artifacts);
         Ok(Cixfile {
             inputs: self.inputs,
             fetches: self.fetches,
@@ -276,4 +277,58 @@ impl Parser<'_> {
             artifact_order: self.artifact_order,
         })
     }
+}
+
+fn materialize_structural_copy_ancestors(artifacts: &mut BTreeMap<String, Artifact>) {
+    for artifact in artifacts.values_mut() {
+        let role_paths = artifact
+            .service
+            .dirs
+            .state
+            .iter()
+            .chain(&artifact.service.dirs.cache)
+            .chain(&artifact.service.dirs.logs)
+            .chain(&artifact.service.dirs.config)
+            .chain(&artifact.service.dirs.run)
+            .chain(artifact.service.dirs.data.keys())
+            .filter_map(|path| path.strip_prefix('/'))
+            .collect::<Vec<_>>();
+        let later_writes = artifact
+            .copies
+            .iter()
+            .map(|copy| (copy.line, copy.dst.clone()))
+            .chain(artifact.assembly.iter().map(|assembly| match assembly {
+                Assembly::File { dst, line, .. } | Assembly::Link { dst, line, .. } => {
+                    (*line, dst.clone())
+                }
+            }))
+            .collect::<Vec<_>>();
+        for copy in &mut artifact.copies {
+            if copy.mode == CopyMode::Materialize {
+                continue;
+            }
+            let destination = copy.dst.as_str();
+            let has_role_mount = role_paths
+                .iter()
+                .any(|path| path_is_at_or_beneath(path, destination));
+            let has_later_write = later_writes.iter().any(|(line, path)| {
+                *line > copy.line && path_is_strictly_beneath(path, destination)
+            });
+            if destination == "." || has_role_mount || has_later_write {
+                copy.mode = CopyMode::Materialize;
+            }
+        }
+    }
+}
+
+fn path_is_at_or_beneath(path: &str, ancestor: &str) -> bool {
+    ancestor == "."
+        || path == ancestor
+        || path
+            .strip_prefix(ancestor)
+            .is_some_and(|suffix| suffix.starts_with('/'))
+}
+
+fn path_is_strictly_beneath(path: &str, ancestor: &str) -> bool {
+    path != ancestor && path_is_at_or_beneath(path, ancestor)
 }

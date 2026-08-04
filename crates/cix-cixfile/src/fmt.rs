@@ -146,6 +146,12 @@ fn same_builder(left: &Builder, right: &Builder) -> bool {
 
 fn same_artifact(left: &Artifact, right: &Artifact) -> bool {
     left.kind == right.kind
+        && left.imports.len() == right.imports.len()
+        && left
+            .imports
+            .iter()
+            .zip(&right.imports)
+            .all(|(left, right)| same_template(left, right))
         && left.copies.len() == right.copies.len()
         && left
             .copies
@@ -162,20 +168,24 @@ fn same_artifact(left: &Artifact, right: &Artifact) -> bool {
                     Assembly::File {
                         dst: left_dst,
                         contents: left_contents,
+                        ..
                     },
                     Assembly::File {
                         dst: right_dst,
                         contents: right_contents,
+                        ..
                     },
                 ) => left_dst == right_dst && same_template(left_contents, right_contents),
                 (
                     Assembly::Link {
                         dst: left_dst,
                         target: left_target,
+                        ..
                     },
                     Assembly::Link {
                         dst: right_dst,
                         target: right_target,
+                        ..
                     },
                 ) => left_dst == right_dst && same_template(left_target, right_target),
                 _ => false,
@@ -184,7 +194,7 @@ fn same_artifact(left: &Artifact, right: &Artifact) -> bool {
 }
 
 fn same_copy(left: &Copy, right: &Copy) -> bool {
-    left.dst == right.dst && same_template(&left.src, &right.src)
+    left.dst == right.dst && left.mode == right.mode && same_template(&left.src, &right.src)
 }
 
 fn same_service(left: &Service, right: &Service) -> bool {

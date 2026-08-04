@@ -50,11 +50,8 @@ impl Cixfile {
 }
 
 fn artifact_templates(artifact: &Artifact) -> Vec<&Template> {
-    let mut templates = artifact
-        .copies
-        .iter()
-        .map(|copy| &copy.src)
-        .collect::<Vec<_>>();
+    let mut templates = artifact.imports.iter().collect::<Vec<_>>();
+    templates.extend(artifact.copies.iter().map(|copy| &copy.src));
     templates.extend(artifact.assembly.iter().map(|assembly| match assembly {
         Assembly::File { contents, .. } => contents,
         Assembly::Link { target, .. } => target,
@@ -169,14 +166,31 @@ pub enum BuildStep {
 pub struct Copy {
     pub src: Template,
     pub dst: String,
+    pub mode: CopyMode,
     pub line: usize,
     pub source: String,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CopyMode {
+    Link,
+    /// Keeps a narrow builder/FETCH consumer keyed to that subpath, not its changing view root.
+    LinkNormalized,
+    Materialize,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Assembly {
-    File { dst: String, contents: Template },
-    Link { dst: String, target: Template },
+    File {
+        dst: String,
+        contents: Template,
+        line: usize,
+    },
+    Link {
+        dst: String,
+        target: Template,
+        line: usize,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -211,6 +225,7 @@ impl ArtifactKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Artifact {
     pub kind: ArtifactKind,
+    pub imports: Vec<Template>,
     pub copies: Vec<Copy>,
     pub assembly: Vec<Assembly>,
     pub service: Service,
@@ -221,6 +236,7 @@ impl Artifact {
     pub fn empty(kind: ArtifactKind, line: usize) -> Self {
         Self {
             kind,
+            imports: Vec::new(),
             copies: Vec::new(),
             assembly: Vec::new(),
             service: Service::empty(),

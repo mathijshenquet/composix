@@ -190,14 +190,17 @@ impl Parser<'_> {
         arguments: &str,
     ) -> Result<(), ParseError> {
         let fields = at_least_one_field(arguments, line, source, "IMPORT <pkg-ref>…")?;
-        let Some(CurrentBlock::Builder(name)) = self.current.clone() else {
-            return Err(ParseError::new(
+        let block = self.current.clone().ok_or_else(|| {
+            ParseError::new(
                 line,
                 source,
-                "IMPORT is only legal inside a BUILDER block",
-            ));
+                "IMPORT is outside a block; put it inside BUILDER, SERVICE, APP, or ITEM",
+            )
+        })?;
+        let existing = match &block {
+            CurrentBlock::Builder(name) => &self.builders[name].imports,
+            CurrentBlock::Artifact(name) => &self.artifacts[name].imports,
         };
-        let existing = &self.builders[&name].imports;
         let mut additions = Vec::new();
         for field in fields {
             reject_runtime_variable(field, "IMPORT package", line, source)?;
@@ -216,11 +219,20 @@ impl Parser<'_> {
             }
             additions.push(package);
         }
-        self.builders
-            .get_mut(&name)
-            .expect("builder exists")
-            .imports
-            .extend(additions);
+        match block {
+            CurrentBlock::Builder(name) => self
+                .builders
+                .get_mut(&name)
+                .expect("builder exists")
+                .imports
+                .extend(additions),
+            CurrentBlock::Artifact(name) => self
+                .artifacts
+                .get_mut(&name)
+                .expect("artifact exists")
+                .imports
+                .extend(additions),
+        }
         Ok(())
     }
 
@@ -299,9 +311,14 @@ impl Parser<'_> {
                 ),
             ));
         }
+        let mode = match &block {
+            CurrentBlock::Builder(_) => CopyMode::Materialize,
+            CurrentBlock::Artifact(_) => self.artifact_copy_mode(&src),
+        };
         let copy = Copy {
             src,
             dst: destination.to_owned(),
+            mode,
             line,
             source: source.to_owned(),
         };
@@ -444,6 +461,7 @@ impl Parser<'_> {
         let assembly = Assembly::File {
             dst: destination.to_owned(),
             contents,
+            line,
         };
         self.artifacts
             .get_mut(&artifact_name)
@@ -515,14 +533,44 @@ impl Parser<'_> {
                 "LINK target must not be empty",
             ));
         }
+        validate_copy_source(&target, line, source)?;
+        let mode = self.artifact_copy_mode(&target);
         self.claim_artifact_destination(destination, line, source)?;
+        eprintln!(
+            "warning: line {line}: LINK is deprecated; use COPY {} {}",
+            fields[0], fields[1]
+        );
         self.current_artifact_mut("LINK", line, source)?
-            .assembly
-            .push(Assembly::Link {
+            .copies
+            .push(Copy {
+                src: target,
                 dst: destination.to_owned(),
-                target,
+                mode,
+                line,
+                source: source.to_owned(),
             });
         Ok(())
+    }
+
+    fn artifact_copy_mode(&self, source: &Template) -> CopyMode {
+        match source.parts.first() {
+            Some(TemplatePart::Package { .. }) => CopyMode::Link,
+            Some(TemplatePart::Literal(path)) if path.starts_with("/nix/store/") => CopyMode::Link,
+            Some(TemplatePart::Binder { name, .. })
+                if self.builders.contains_key(name) || self.fetches.contains_key(name) =>
+            {
+                CopyMode::LinkNormalized
+            }
+            Some(TemplatePart::Binder { name, .. })
+                if self
+                    .inputs
+                    .get(name)
+                    .is_some_and(|input| input.kind == InputKind::Artifact) =>
+            {
+                CopyMode::Link
+            }
+            _ => CopyMode::Materialize,
+        }
     }
 
     pub(super) fn start(
