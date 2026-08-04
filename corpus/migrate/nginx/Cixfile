@@ -1,18 +1,16 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nginx
-  FILE /etc/nginx/nginx.conf <<NGINX
-daemon off;
-events { }
-http {
-  access_log off;
-  server {
-    listen 8080;
-    location / { return 200 "nginx\n"; }
-  }
-}
-NGINX
-  LOGDIR /var/log/nginx
+  IMPORT ${pkgs.nginxMainline} ${pkgs.busybox} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gettext} ${pkgs.gnused} ${pkgs.gnugrep} ${pkgs.tzdata}
+  ENV NGINX_VERSION = 1.31.3
+  ENV PKG_RELEASE = 1
+  ENV DYNPKG_RELEASE = 1
+  COPY context/mainline/alpine-slim/docker-entrypoint.sh /docker-entrypoint.sh
+  COPY context/mainline/alpine-slim/10-listen-on-ipv6-by-default.sh /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+  COPY context/mainline/alpine-slim/15-local-resolvers.envsh /docker-entrypoint.d/15-local-resolvers.envsh
+  COPY context/mainline/alpine-slim/20-envsubst-on-templates.sh /docker-entrypoint.d/20-envsubst-on-templates.sh
+  COPY context/mainline/alpine-slim/30-tune-worker-processes.sh /docker-entrypoint.d/30-tune-worker-processes.sh
+  START sh /docker-entrypoint.sh nginx -g 'daemon off;'
+  PORT http = 80
+  CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
-  START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
-  PORT http = 8080

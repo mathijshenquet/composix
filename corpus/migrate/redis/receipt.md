@@ -27,3 +27,22 @@ Exit status: 0. The first run exposed and corrected the stale corpus spelling
 explicitly. The final Redis PING probe passed after the existing D36 fallback,
 and runtime inspection showed the full `/data` mirror under the unit-scoped
 state root. Docker mode and upstream version parity were not re-verified.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun.
+
+```text
+devenv shell -- cargo build -p cix
+bash corpus/migrate/fetch.sh redis
+./target/debug/cix build corpus/migrate/redis
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/redis
+cd corpus/migrate/redis && CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+Every command completed synchronously with exit status 0. The fetch reconstructed
+revision `2ac6f46c6ba6f3ece54183a518a2bfd865390368`. The faithful build produced
+`/nix/store/kh91y700ig4sxrza0rl5rcq465xvjlkj-cix-item-redis`; the dissolved
+build produced `/nix/store/f8xsydbpl1bmn3vr348fqyfxcp6lzm4h-cix-item-redis`.
+The unchanged PING probe initially observed connection refusal while the service
+started, then passed within its existing bound after the documented D36 fallback.

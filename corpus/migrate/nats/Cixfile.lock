@@ -2,8 +2,181 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5",
-      "narHash": "sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY="
+      "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+      "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+      "lastModified": 1785692966
+    }
+  },
+  "fetches": {
+    "builder:final:3-11bbc8e4e546": {
+      "narHash": "sha256-0a7KA8SV3F8VxIqNAIJNipngAvAW0YUdTiLFSoc3B7w="
+    },
+    "builder:runtime:3-11bbc8e4e546": {
+      "narHash": "sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838="
+    }
+  },
+  "memo": {
+    "2caa09f5cff8319735a338573aed7979a0ba6a4176db0ccbee0d11a766ece065": {
+      "paths": {
+        "output/bin/nats-server": {
+          "narHash": "sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=",
+          "storePath": "/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed"
+        }
+      }
+    },
+    "82a9a2199f13376f87200da17f4a5aa10d10d3962966029e249b40d1030611cf": {
+      "paths": {
+        "output/bin/nats-server": {
+          "narHash": "sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=",
+          "storePath": "/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed"
+        }
+      }
+    },
+    "a9cadd838fd3ca7191f3ae0c228b14ae274320d650083d1a742f15188a64906c": {
+      "paths": {
+        "output/bin/nats-server": {
+          "narHash": "sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=",
+          "storePath": "/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:final:3": {
+      "key": "c3e4823dec67737754d3ef40c6046705941f45b253f72969e475e139f7346f43",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output",
+      "changes": {
+        "nats-server.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "nats-server.tar.gz": {
+          "content": "99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884"
+        }
+      }
+    },
+    "builder:final:4": {
+      "key": "40056e06a1a0fff4be7baccc8641ead9b2d08b29e394fd5a70c0b8ff4552591d",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "nats-server.tar.gz": {
+          "kind": "file",
+          "hash": "3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726873,
+            "mtimeNs": 0,
+            "size": 6675238,
+            "len": 6675238,
+            "mode": 33188
+          }
+        },
+        "output": {
+          "kind": "directory",
+          "hash": "466632db08c575a09300c9dd0d45f977e606a75b772bd6ea4c923aaf53165d19"
+        },
+        "output/bin": {
+          "kind": "directory",
+          "hash": "057a700148865ec991d439febaacd490c6c410b1a5e215c707e63c12d7116c8f"
+        }
+      },
+      "changes": {
+        "output": {
+          "kind": "directory",
+          "mode": 16877
+        },
+        "output/bin": {
+          "kind": "directory",
+          "mode": 16877
+        },
+        "output/bin/nats-server": {
+          "kind": "present"
+        }
+      }
+    },
+    "builder:runtime:3": {
+      "key": "87c9a4d471e7d9f5674345cd0fd61976ecc178a35fa242e68eef027ecaf04aef",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output",
+      "changes": {
+        "nats-server.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "nats-server.tar.gz": {
+          "content": "99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884"
+        }
+      }
+    },
+    "builder:runtime:4": {
+      "key": "2c169534a0c97ae6a8dbb5a381762846d05ea2f050b322bc9d4451f8757b3b26",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "nats-server.tar.gz": {
+          "kind": "file",
+          "hash": "3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12727623,
+            "mtimeNs": 686293023,
+            "size": 6675238,
+            "len": 6675238,
+            "mode": 33188
+          }
+        },
+        "output": {
+          "kind": "absent"
+        }
+      },
+      "changes": {
+        "output/bin": {
+          "kind": "present"
+        },
+        "output/bin/nats-server": {
+          "kind": "present"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:a83c8a6e6670e2476df97ef6e047e6edc3c154a0c338593d411e611beb699b4a": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "outputs": {
+    "nats": {
+      "sourceHash": "a7773552e8ddbce1d97e583b653e596e2a1cbb0e6c0d7ee0e213defb6dc26483",
+      "storePath": "/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats"
     }
   }
 }

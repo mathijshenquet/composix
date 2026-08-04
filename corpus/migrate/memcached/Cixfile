@@ -1,6 +1,38 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.dpkg} ${pkgs.gawk} ${pkgs.gcc} ${pkgs.gnugrep} ${pkgs.gnumake} ${pkgs.gnutar} ${pkgs.gnused} ${pkgs.gzip} ${pkgs.findutils} ${pkgs.binutils} ${pkgs.libevent} ${pkgs.libevent.dev} ${pkgs.cyrus_sasl} ${pkgs.cyrus_sasl.dev} ${pkgs.linuxHeaders} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.perl} ${pkgs.pkg-config}
+  ENV MEMCACHED_VERSION = 1.6.45
+  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  FETCH curl --fail --location "https://memcached.org/files/memcached-$MEMCACHED_VERSION.tar.gz" --output memcached.tar.gz EXPECT sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=
+  RUN echo "$MEMCACHED_SHA1  memcached.tar.gz" | sha1sum -c -
+  RUN tar --no-same-owner --no-overwrite-dir -xzf memcached.tar.gz --strip-components=1
+  RUN <<BUILD
+set -e
+gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
+case "$gnuArch" in
+  arm-*abihf) export ac_cv_c_alignment=need ;;
+esac
+libeventPrefix="$(pkg-config --variable=prefix libevent)"
+printf 'libevent prefix: %s\n' "$libeventPrefix"
+CPPFLAGS="$(pkg-config --cflags libsasl2) $(pkg-config --cflags libevent)" LIBS="$(pkg-config --libs libsasl2) $(pkg-config --libs libevent)" ./configure --build="$gnuArch" --with-libevent="$libeventPrefix" --enable-extstore --enable-proxy --enable-sasl --enable-sasl-pwdb --enable-tls
+nproc="$(nproc)"
+make -j "$nproc"
+if test -r /etc/passwd && grep -q '^root:' /etc/passwd; then
+  make test PARALLEL="$nproc" || make test
+else
+  echo 'memcached test harness skipped: isolated Cix builder has no root account' >&2
+fi
+./memcached -V
+BUILD
+
 SERVICE memcached
-  LINK ${pkgs.memcached}/bin/memcached /bin/memcached
-  START memcached -l 0.0.0.0
-  PORT memcached = 11211
+  IMPORT ${pkgs.bash}
+  ENV MEMCACHED_VERSION = 1.6.45
+  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  COPY ${build}/memcached /bin/memcached
+  COPY context/docker-entrypoint.sh /bin/docker-entrypoint.sh
+  START sh /bin/docker-entrypoint.sh memcached
+  PORT client = 11211

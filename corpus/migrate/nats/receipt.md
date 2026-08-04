@@ -12,3 +12,22 @@ cix item /nix/store/6nj4ggg4wmfpy6hw6hlp3wwnrn66w6ic-cix-item-nats
 ```
 
 Exit status: 0.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun. No context fetch was possible: this case's `SOURCE`
+does not identify a reproducible repository for the missing configuration and
+entrypoint files.
+
+```text
+devenv shell -- cargo build -p cix
+./target/debug/cix build corpus/migrate/nats
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/nats
+cd corpus/migrate/nats && CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+All four commands completed synchronously with exit status 0. The faithful build
+produced `/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats`; the
+dissolved build produced
+`/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats`. The unchanged
+monitoring probe returned `{"status":"ok"}` and `PASS cix`.

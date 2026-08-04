@@ -1,7 +1,6 @@
-Generated: migrate.md@a5d6a3b · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The upstream `nats-server.conf` is dropped and replaced by `-m 8222`; the cluster listener on 6222 and the upstream config contract are therefore absent. → case
-- The package binary is exposed through an implicit `/bin` link instead of a declared artifact tool import. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The monitoring health probe does not establish selected-package version parity with upstream 2.12.14 or exercise a client message round-trip. → evidence
-- This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin
+- The `SOURCE` record cannot reconstruct the upstream context, so `nats-server.conf` and `docker-entrypoint.sh` remain unreadable. The conversion starts with `--http_port 8222` to make the supplied health probe observable, but this does not preserve the missing config-file or entrypoint contract. → evidence + case
+- The faithful source twin packages only the upstream amd64 release even though the Dockerfile dispatches across eight architectures. → case
+- The monitoring `/healthz` receipt does not exercise a client publish/subscribe round trip; the dissolved twin also follows nixpkgs' version rather than upstream 2.12.14 by design. → evidence

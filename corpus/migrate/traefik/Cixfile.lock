@@ -2,8 +2,203 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5",
-      "narHash": "sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY="
+      "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+      "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+      "lastModified": 1785692966
+    }
+  },
+  "fetches": {
+    "builder:release:1-5dd05e82158e": {
+      "narHash": "sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw="
+    },
+    "builder:release:2-901089f09bf8": {
+      "narHash": "sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw="
+    }
+  },
+  "memo": {
+    "19f8587fa7507d5be50b870e45a71826d27d7c8e1cc95f9bea8ce5aec95d7130": {
+      "paths": {
+        "output/traefik": {
+          "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
+          "storePath": "/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed"
+        }
+      }
+    },
+    "b2f971b78c5459c712aeedd659d81e6d797308930960fbe94a095a77c43848d3": {
+      "paths": {
+        "output/traefik": {
+          "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
+          "storePath": "/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed"
+        }
+      }
+    },
+    "d75ab1add5d228cf939edade2958c1a16842765e6f345a1331482a907c727d59": {
+      "paths": {
+        "output/traefik": {
+          "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
+          "storePath": "/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed"
+        }
+      }
+    },
+    "ff83bd496be21ed456a8b7c84de011d33b5a7a13fdccf1b03d869de45dd8267c": {
+      "paths": {
+        "output/traefik": {
+          "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
+          "storePath": "/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:release:1": {
+      "key": "2c7324019ec4709977a53a121083154357a113a9fcd494202053c3fdc302c086",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/b9izvl0f0xa7svs6p8fksr4bnvxnvnyv-cix-step-output",
+      "changes": {
+        "release.json": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "release.json": {
+          "content": "eec66b5742132c9f31605b32b8f93f963b42b139090d2de95c40f57d626c275c"
+        }
+      }
+    },
+    "builder:release:2": {
+      "key": "6b23ae3205d0d7eb1ba9b4b58ee9c66ded790ca5e6b54b9329bfdfc9ff388a8f",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        },
+        ".jq": {
+          "kind": "absent"
+        },
+        "jq": {
+          "kind": "absent"
+        },
+        "jq/main.jq": {
+          "kind": "absent"
+        },
+        "release.json": {
+          "kind": "file",
+          "hash": "c506bebef0e058291b1c9844f7465446aba46fa8ee63032d117dee67a7c863c4",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726893,
+            "mtimeNs": 127961991,
+            "size": 42824,
+            "len": 42824,
+            "mode": 33188
+          }
+        }
+      },
+      "outputSnapshot": "/nix/store/wv40scb8pnlv65d5pn05r6772iqs3d57-cix-step-output",
+      "changes": {
+        "traefik.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "traefik.tar.gz": {
+          "content": "3e3193f7a57b717d0015bbc873ca8777697dd3e2807d16f9a920985501e39def"
+        }
+      }
+    },
+    "builder:release:3": {
+      "key": "88fb2fa48463b70f40236d53ae8c9be0db95490e436123324778ee54cc82ec7c",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "traefik.tar.gz": {
+          "kind": "file",
+          "hash": "180a10923242afdd4a4c4118a6a8af859a7c34c62accba04bcd3381f63576a77",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726894,
+            "mtimeNs": 224090342,
+            "size": 46325856,
+            "len": 46325856,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "traefik": {
+          "kind": "present"
+        }
+      }
+    },
+    "builder:release:4": {
+      "key": "a28e246a766f8dda81ac5f9722d9e65e890cfbe3b60d20f6ac4a9e101d6b798c",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "output": {
+          "kind": "directory-exists"
+        },
+        "traefik": {
+          "kind": "file",
+          "hash": "83264cd9ea59a373410d8ac631945a3dfdbc453517fa15a818a37b97afa7fba1",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726890,
+            "mtimeNs": 0,
+            "size": 171536568,
+            "len": 171536568,
+            "mode": 33261
+          }
+        }
+      },
+      "changes": {
+        "output/traefik": {
+          "kind": "present"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:2cb310efce9c429297353e07ac51dd04bc0131b35fb810371930588475212a73": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    },
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:47519b1c576a767b580005b9de3dd2dccca0dbf4a29c3c74e7f678870e3b80f3": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    },
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:ea32cad0e73778633c1e68cea4d2e8d9184225a11ed723bd101535e04650c754": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/ic1qsvxgbc1zfi55g2wmxa8d2zri0qqw-wget-1.25.0/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "outputs": {
+    "traefik": {
+      "sourceHash": "6d2e61c2bde5504a0a47d07f7a6e9a54428743947957eaf57d76e8b36567a897",
+      "storePath": "/nix/store/hs71647jq7ny98451vv9j18gng3c3vad-cix-item-traefik"
     }
   }
 }

@@ -150,6 +150,15 @@ Search nixpkgs before preserving an install or compilation stage. If the desired
 tool is packaged, use `${pkgs.package}` directly in the artifact and remove the base image,
 package manager, cleanup commands, and copied shared libraries together.
 
+When the corpus also carries a Dockerfile-faithful twin, keep the two contracts distinct.
+The faithful Cixfile retains upstream structure and build inputs; the dissolved twin treats
+nixpkgs as authoritative. Drop upstream version and checksum environment variables from the
+dissolved twin, along with entrypoint wrappers, labels, and other Docker ceremony, unless they
+change runtime behavior. Preserve the behavioral contract that remains observable: ports,
+state, claims, startup semantics, and the behavior exercised by the probe. A nixpkgs version
+difference belongs in the receipt; it is not a reason to smuggle upstream build metadata back
+into the dissolved service.
+
 ### 2. Bind inputs, then choose the smallest graph
 
 Use one nixpkgs `FROM ... AS pkgs`. Bind a source tree only when naming its origin improves
@@ -215,6 +224,13 @@ FETCH snapshots without network access, so it proves the offline builder suffix 
 remains the fetched-input trust boundary. The cache is keyed by the stable pin and is deliberately
 not serialized into `Cixfile.lock`; if it is absent, `--cold` fails rather than refetching.
 `FETCH` deliberately has no heredoc: split network steps.
+
+Do not pin mutable API metadata verbatim. Release JSON often contains download counters or
+other fields that change while the release itself does not, making its complete-work-directory
+`EXPECT` unstable. Normalize the response inside `FETCH` to exactly the fields consumed by
+later steps, or fetch the stable asset URL directly. Pinning the whole response and hoping the
+cache never misses is not reproducibility.
+
 Offline transformations such as checkout, extraction, compilation, and copying belong in `RUN`.
 
 Builder `ENV NAME = value` is plain text and applies to subsequent steps in declaration

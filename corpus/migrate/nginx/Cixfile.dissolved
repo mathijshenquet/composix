@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nginx
+  IMPORT ${pkgs.nginxMainline} ${pkgs.tzdata}
+  START nginx -g 'daemon off;'
+  PORT http = 80
+  CACHEDIR /var/cache/nginx
+  RUNDIR /run/nginx
