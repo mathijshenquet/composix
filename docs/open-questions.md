@@ -70,6 +70,14 @@ adopted board is CI-confirmed; later legs remain explicit in their CIPs.
   diagnosability defect (D73 spirit) and the actual remaining directus
   blocker; reproduce from the fhsspike branch and give the error its
   path + step context.
+- **Degradation fallback drops the whole property set** (tour CI red,
+  2026-08-04): a user manager that rejects one directive
+  (`PrivatePIDs=` on CI's older systemd) makes cix retry without
+  PrivateUsers, ProtectSystem, ProtectHome, PrivateTmp, AND BindPaths
+  together — so one unknown directive costs the mount projection that
+  chapter-1's nginx needed, and run output diverges per host. Degrade
+  granularly: drop only what the manager rejected, keep the rest;
+  D13's degraded path stays the floor, not the first fallback.
 - **cix probe/audit tooling litters /tmp** (2026-08-04 incident): four
   `cix-fetch-probe-*` dirs (~1.1G each) and five `cix-build-cold-*`
   dirs (377M each) from past sessions survived on the tmpfs and
