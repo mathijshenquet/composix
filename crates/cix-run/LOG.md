@@ -575,6 +575,14 @@
   full workspace suite's forbidden corpus-browser regeneration; do not commit
   a falsely green track or alter `docs/corpus*` without direction.
 
+- 2026-08-04 UTC — Orchestrator lifted the `docs/corpus*` fence after the
+  content track merged. Committed the retention regression and ledger finding
+  as `76a00c8`, fetched, and merged `origin/main` (CIP-91/92 plus Filestash
+  browser regeneration) cleanly. `devenv shell -- cargo test -p cix --test
+  corpus -- --ignored generate_corpus_browser` exited 0 and refreshed the
+  Mastodon generated browser page for its stale adapter-liveness evidence.
+  Next: commit that generated artifact, then rerun the full workspace gate.
+
 ## track/secrets
 
 - 2026-08-02 10:00 UTC — Started CIP-81 from `.dev/specs/track-secrets.md` on
