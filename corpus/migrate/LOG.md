@@ -573,3 +573,42 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   from an unadopted draft was taught. `git diff --check` exited 0. Next: regrade
   the living table on independent fidelity/evidence axes and cross-check every row
   against its ledger.
+
+## 2026-08-04 — living corpus regraded on two axes
+
+- Replaced the single living-corpus ribbon with independent Fidelity and Evidence
+  columns. Fidelity now says faithful/declared losses/blocked/refused plus one
+  case-specific clause; Evidence says build/runtime probe/closed-root and links
+  the relevant receipt. The closed-root labels also link the exhaustive CIP-84
+  audit section so the stronger tier is not attributed to an older per-case
+  receipt. Sections 1–3 retain their existing survey grades unchanged.
+- Caddy is the canary: its sealed-root `caddy respond` receipt remains strong
+  evidence, while Fidelity now names it as a toy that omits upstream config,
+  ports, state layout, and the faithful twin. The same separation prevents the
+  Memcached/NATS/nginx/phpMyAdmin/Redis/Tomcat/Traefik probes and Renovate's
+  version-only timer from implying untested parity.
+- Follow-up correction to the earlier stale roster: Filestash is also stale with
+  D70. Artifact `IMPORT` still needs its draft, but D70 overlays already provide
+  the `.nix` package-customization escape for the broken static package set; that
+  finding is therefore routed back to the case, not promoted as new language.
+- Static receipt: the living-table slice contains exactly 21 numbered rows and
+  `git diff --check` exited 0.
+
+## 2026-08-04 — Language-gap candidates for the orchestrator
+
+- Builder support for downloaded FHS-linked ELF interpreters — Directus — bare
+  builder `IMPORT` cannot provide/patch the requested dynamic loader; artifact
+  imports/runtime-path links and development header/library search paths do not
+  change an executable's ELF interpreter.
+- Protocol-aware inbound ports, beginning with UDP — Caddy — the manifest/`PORT`
+  surface records TCP only, so the upstream 443/UDP QUIC listener cannot be
+  declared or sandbox-authorized; neither existing import draft touches network
+  protocols.
+- Per-service stop signal/timeout semantics — Adminer and nginx — the upstream
+  SIGINT/SIGQUIT contracts fall back to systemd's default because manifests expose
+  neither `KillSignal=` nor `TimeoutStopSec=`; this is already recorded as an open
+  mechanical field, not covered by either import draft.
+- Exact named/multi-network membership and internal-network egress policy —
+  Mastodon — CIP-86's pod namespace gives isolation and egress machinery but
+  cannot express the upstream external+internal memberships or `internal: true`;
+  D26/D27 remain the recorded frontier and the import drafts are orthogonal.

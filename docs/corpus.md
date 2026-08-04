@@ -1,24 +1,26 @@
 # The wild corpus — real Dockerfiles, compose files, and k8s shapes, triaged
 
-Status: surveyed 2026-07-30; regraded 2026-08-02 after the D47/D74 and
-CIP-75/76/80/82/83 implementation wave. Grading is maintained per-track from
-this sweep onward. Ledger-style sibling of docs/docker.md: docker.md maps
+Status: surveyed 2026-07-30; regraded 2026-08-04 from the per-case gap audit,
+after the D47/D74 and CIP-75/76/80/82/83 implementation wave. Grading is
+maintained per-track from this sweep onward. Ledger-style sibling of
+docs/docker.md: docker.md maps
 *features*, this maps *real artifacts*. **[Browse every checked-in migration
 side by side](corpus/index.html)**: upstream on the left, Cixfile/Nix and
 compose artifacts on the right, with the receipt scope attached.
 
-> **Honesty caveat (Mathijs's review): the Evidence column distinguishes a
-> reading-based `desk` grade from a `receipt` produced in the cited round. A
-> ✅ desk grade is still a mechanism claim, not a successful port. Receipts prove
-> only the behavior they name, not untested configuration or version parity: a
-> Dockerfile-pinned release and the package selected by pinned nixpkgs may differ.**
+Grading keys:
 
-Ribbons:
-
-- ✅ expressible today (with which mechanism)
-- 🔶 expressible with a known workaround / honest loss (stated)
-- ⏳ blocked on a recorded-but-unbuilt decision (D-number)
-- ❌ outside the thesis (with the honest why)
+- **Living-corpus Fidelity:** ✅ faithful; 🔶 declared losses; ⏳ blocked before a
+  faithful item/runtime; ❌ refused as outside the thesis. Every cell states the
+  case-specific reason; the icon alone is never the claim.
+- **Living-corpus Evidence:** `desk` (reading only), `build` (compiler/item
+  result), `runtime probe` (the named behavior ran), or `closed-root` (the named
+  behavior ran under the CIP-84 sealed root). A higher tier proves only the
+  behavior named in that row; it does not promote fidelity or imply config/version
+  parity.
+- Sections 1–3 retain their survey ribbons without regrading: ✅ expressible,
+  🔶 workaround or declared loss, ⏳ recorded-but-unbuilt, and ❌ outside the
+  thesis.
 - Effort = S/M/L/XL: Cixfile+compose lines plus thinking, for a competent adopter.
 
 ## How this corpus is maintained (the loops)
@@ -39,8 +41,9 @@ Status: current            (or: stale — regenerate with <feature/CIP>)
 Every gap is one prose bullet ending in an arrow that routes it to where the
 fix lives: `→ case` (this conversion), `→ prompt` (docs/migrate.md),
 `→ language (<CIP/draft>)`, `→ evidence` (receipt/reproducibility work),
-`→ refused` (thesis boundary, stated). The vocabulary is deliberately open —
-the arrow is routing, not taxonomy; invent a new target when none fits.
+`→ refused` (thesis boundary, stated), or `→ browser` (rendered-page clarity).
+The vocabulary is deliberately open — the arrow is routing, not taxonomy;
+invent a new target when none fits.
 
 Three loops drain the ledger:
 
@@ -72,33 +75,32 @@ twin so the page can show both translations side by side.
 ## The living migration corpus (21)
 
 These are the checked-in conversions under `corpus/migrate/`, not a second
-historical grade set. The ribbon describes the whole conversion represented by
-the receipt; “receipt” still proves only the named build/runtime probe. Open any
-case in the [side-by-side browser](corpus/index.html).
+historical grade set. Fidelity grades the translation; Evidence grades only the
+named receipt. Open any case in the [side-by-side browser](corpus/index.html).
 
-| # | Case | What the receipt establishes | Ribbon | Effort | Evidence |
-|---:|---|---|---|:---:|---|
-| 1 | Adminer | Cix build and login-page probe pass; dynamic design/plugin entrypoint behavior is outside the probe | 🔶 base service passes; optional runtime mutation remains unconverted | S | [receipt](../corpus/migrate/adminer/receipt.md) |
-| 2 | Caddy | Cix build and HTTP probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/caddy/receipt.md) |
-| 3 | Directus | Docker passes; Cix reaches an FHS-loader-dependent native binary and fails the build | 🔶 blocked on the native-binary/FHS loader gap | M | [receipt](../corpus/migrate/directus/receipt.md) |
-| 4 | Dozzle | Conversion evidence records unstable fetch output; the runtime contract also requires Docker’s socket/API | ❌ Docker-control-plane workload; build receipt is non-green | M | [receipt](../corpus/migrate/dozzle/receipt.md) |
-| 5 | Echo Server | Historical Cix offline build and bounded HTTP probe pass; consumed build tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/echo-server/receipt.md) |
-| 6 | Excalidraw | Historical Docker and Cix HTTP probes pass; consumed build tree is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/excalidraw/receipt.md) |
-| 7 | Filestash | Docker passes; Cix stops at unavailable static-library linkage | 🔶 package/static-link composition gap | L | [receipt](../corpus/migrate/filestash/receipt.md) |
-| 8 | Memcached | Cix build and protocol version probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/memcached/receipt.md) |
-| 9 | NATS | Cix build and monitoring health probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/nats/receipt.md) |
-| 10 | nginx | Cix build, HTTP request, and indexed journald query pass | ✅ package selection + native logging projection | S | [receipt](../corpus/migrate/nginx/receipt.md) |
-| 11 | Parse Server | Stable pinned Cix build passes; Mongo-backed runtime was not exercised | 🔶 build-only receipt; runtime/config path remains open | M | [receipt](../corpus/migrate/parse-server/receipt.md) |
-| 12 | phpMyAdmin | Cix build and login-page probe pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/phpmyadmin/receipt.md) |
-| 13 | Redis | Cix build, direct `/data` state projection, and PING pass | ✅ package selection + arbitrary-path state | S | [receipt](../corpus/migrate/redis/receipt.md) |
-| 14 | Renovate | Cix timer activation, execution, and indexed logs pass; token/config delivery is unconverted | 🔶 schedule/logging pass; credentials await CIP-81 implementation | S | [receipt](../corpus/migrate/renovate/receipt.md) |
-| 15 | Tomcat | Cix build and bounded HTTP reachability probe pass | ✅ complete package tree + idempotent setup | S | [receipt](../corpus/migrate/tomcat/receipt.md) |
-| 16 | Traefik | Cix build and ping endpoint pass | ✅ package selection + direct service contract | S | [receipt](../corpus/migrate/traefik/receipt.md) |
-| 17 | Verdaccio | Cix Corepack/pnpm build sequence fails before producing an item | 🔶 package-manager build remains non-green | M | [receipt](../corpus/migrate/verdaccio/receipt.md) |
-| 18 | Wallos | Docker and Cix health probes pass through the Cixfile overlay universe; declarative readiness remains untranslated and the consumed app tree is not yet reproducible for the closed-root audit | 🔶 runtime passes; READINESS undeclared; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/wallos/receipt.md) |
-| 19 | Watchtower | Go build succeeds, but faithful runtime requires Docker’s socket/API | ❌ competing Docker control plane | M | [receipt](../corpus/migrate/watchtower/receipt.md) |
-| 20 | Whoami | Historical Cix build and bounded HTTP probe pass; unpinned consumed source is not reproducible for closed-root audit | 🔶 runtime receipt exists; closed-root evidence pending reproducible inputs | M | [receipt](../corpus/migrate/whoami/receipt.md) |
-| 21 | Mastodon | Six-member compose passes ordinary and closed-root integration: credential, Unix edges, shared-rw state, readiness/liveness, timer, scoped logs, and purge | 🔶 integration passes; D26/D27 network segmentation remains an explicit loss | M | [receipt](../corpus/migrate/mastodon/receipt.md) |
+| # | Case | What the receipt establishes | Fidelity | Evidence | Effort |
+|---:|---|---|---|---|:---:|
+| 1 | Adminer | Base Cix login page under a sealed root; optional entrypoint behavior is outside the probe | 🔶 Declared losses — PHP tuning, upstream layout, and dynamic design/plugin assembly are missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/adminer/receipt.md) | S |
+| 2 | Caddy | A sealed-root `caddy respond` HTTP probe | 🔶 Declared losses — probe toy, upstream config/ports, split state layout, and faithful twin are missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/caddy/receipt.md) | S |
+| 3 | Directus | Docker probe passes; Cix fails before producing an item at an FHS-loader-dependent Sass binary | ⏳ Blocked — downloaded native binary cannot run in the builder; state assembly remains provisional | [build (Cix failure)](../corpus/migrate/directus/receipt.md) | M |
+| 4 | Dozzle | Cix UI build is non-reproducible; a backend-only experiment isolates D69 behavior | ❌ Refused — useful runtime requires Docker's socket/API; complete build is also non-green | [build (Cix failure)](../corpus/migrate/dozzle/receipt.md) | M |
+| 5 | Echo Server | Historical Cix offline build and bounded HTTP probe | 🔶 Declared losses — upstream layout/tool assembly diverges and closed-root reproduction is pending | [runtime probe (historical)](../corpus/migrate/echo-server/receipt.md) | M |
+| 6 | Excalidraw | Historical Docker and Cix title probes | 🔶 Declared losses — build environment/layout differ and Docker health is not declared as readiness | [runtime probe (historical)](../corpus/migrate/excalidraw/receipt.md) | M |
+| 7 | Filestash | Docker probe passes; Cix reaches static-library linkage and fails before an item | ⏳ Blocked — development imports and a coherent static C-library package set are unavailable | [build (Cix failure)](../corpus/migrate/filestash/receipt.md) | L |
+| 8 | Memcached | Sealed-root package build and protocol `VERSION` response | 🔶 Declared losses — upstream is 1.6.45, receipt reports 1.6.42, feature parity and faithful twin are missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/memcached/receipt.md) | S |
+| 9 | NATS | Sealed-root monitoring health response | 🔶 Declared losses — upstream config/cluster listener, version proof, message round-trip, and faithful twin are missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/nats/receipt.md) | S |
+| 10 | nginx | Sealed-root fixed HTTP response and indexed journald query | 🔶 Declared losses — synthetic config omits entrypoint behavior, version parity, and a faithful twin | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/nginx/receipt.md) | S |
+| 11 | Parse Server | Stable pinned Cix item build; Mongo-backed runtime is not exercised | 🔶 Declared losses — config volumes/log path and Node version diverge; runtime remains unproved | [build](../corpus/migrate/parse-server/receipt.md) | M |
+| 12 | phpMyAdmin | Sealed-root login-page response | 🔶 Declared losses — PHP extensions/tuning, config generation, session layout, and Docker parity are missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/phpmyadmin/receipt.md) | S |
+| 13 | Redis | Sealed-root direct `/data` state projection and PING | 🔶 Declared losses — upstream version/build/entrypoint parity and a faithful twin are unproved | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/redis/receipt.md) | S |
+| 14 | Renovate | Sealed-root timer activation, `renovate --version`, and indexed logs | 🔶 Declared losses — no repository work, config/credentials, job-policy parity, or faithful twin | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/renovate/receipt.md) | S |
+| 15 | Tomcat | Sealed-root empty-server HTTP reachability | 🔶 Declared losses — virtual layout, disabled shutdown listener, application behavior, and faithful twin remain | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/tomcat/receipt.md) | S |
+| 16 | Traefik | Sealed-root synthetic ping endpoint | 🔶 Declared losses — ports/start contract and version/proxy parity differ; faithful twin is missing | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/traefik/receipt.md) | S |
+| 17 | Verdaccio | Corepack/pnpm exits non-zero before producing an item | ⏳ Blocked — build diagnostic, runtime layout, and environment parity remain unresolved | [build (Cix failure)](../corpus/migrate/verdaccio/receipt.md) | M |
+| 18 | Wallos | Historical Docker and Cix `/health.php` probes through the overlay universe | 🔶 Declared losses — readiness is undeclared, in-unit supervision remains, and closed-root reproduction is pending | [runtime probe (historical)](../corpus/migrate/wallos/receipt.md) | M |
+| 19 | Watchtower | Cix source build succeeds; Docker's CI-provided binary is absent | ❌ Refused — useful runtime requires Docker's socket/API and the upstream supply contract is unreproducible | [build](../corpus/migrate/watchtower/receipt.md) | M |
+| 20 | Whoami | Historical Cix HTTP probe | 🔶 Declared losses — runtime assets, reproducible closed-root evidence, and dissolved twin are missing | [runtime probe (historical)](../corpus/migrate/whoami/receipt.md) | M |
+| 21 | Mastodon | Six-member sealed-root composition: credentials, Unix edges, shared-rw state, health, timer, logs, and purge | 🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent | [closed-root](#cip-84-closed-root-audit) · [receipt](../corpus/migrate/mastodon/receipt.md) | M |
 
 ### CIP-84 closed-root audit
 
