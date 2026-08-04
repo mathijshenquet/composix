@@ -13,3 +13,24 @@ PASS cix
 ```
 
 Exit status: 0.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun.
+
+```text
+devenv shell -- cargo build -p cix
+bash corpus/migrate/fetch.sh memcached
+./target/debug/cix build corpus/migrate/memcached
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/memcached
+cd corpus/migrate/memcached && CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+Every command completed synchronously with exit status 0. The fetch reconstructed
+revision `53ac0ecb0bf88b471a0110f8996ce791baf1a667`. The faithful build produced
+`/nix/store/vj6jca5s0j4fgi3wqdlyyyh1gvqc69ld-cix-item-memcached`; the
+dissolved build produced
+`/nix/store/jipgr1jay2wx2d7dsw63nm6z9263jsm9-cix-item-memcached`. The
+unchanged protocol probe returned `VERSION 1.6.45` and `PASS cix`. The faithful
+builder reported that the upstream test harness was skipped because its isolated
+environment has no root account; compilation and the version/runtime checks passed.

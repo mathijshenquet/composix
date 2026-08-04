@@ -1,0 +1,9 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nats
+  IMPORT ${pkgs.nats-server} ${pkgs.cacert} ${pkgs.tzdata}
+  START nats-server --http_port 8222
+  PORT client = 4222
+  PORT monitor = 8222
+  PORT cluster = 6222
+  CLAIM egress

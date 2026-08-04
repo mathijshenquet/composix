@@ -56,17 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / nats</nav>
   <h1>nats</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — upstream config/cluster listener, version proof, message round-trip, and faithful twin are missing · <strong>Evidence:</strong> closed-root · receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Sealed-root monitoring health response · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — source provenance cannot recover the config/entrypoint contract, the faithful twin is amd64-only, and no message round-trip is probed · <strong>Evidence:</strong> runtime probe · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 2.12.14 binary answers monitoring health; the nixpkgs monitoring contract is separately sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/nats/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@a5d6a3b · terra · 2026-07-30 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The upstream <code>nats-server.conf</code> is dropped and replaced by <code>-m 8222</code>; the cluster listener on 6222 and the upstream config contract are therefore absent. → case</li>
-      <li>The package binary is exposed through an implicit <code>/bin</code> link instead of a declared artifact tool import. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>The monitoring health probe does not establish selected-package version parity with upstream 2.12.14 or exercise a client message round-trip. → evidence</li>
-      <li>This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin</li>
+      <li>The <code>SOURCE</code> record cannot reconstruct the upstream context, so <code>nats-server.conf</code> and <code>docker-entrypoint.sh</code> remain unreadable. The conversion starts with <code>--http_port 8222</code> to make the supplied health probe observable, but this does not preserve the missing config-file or entrypoint contract. → evidence + case</li>
+      <li>The faithful source twin packages only the upstream amd64 release even though the Dockerfile dispatches across eight architectures. → case</li>
+      <li>The monitoring <code>/healthz</code> receipt does not exercise a client publish/subscribe round trip; the dissolved twin also follows nixpkgs&#39; version rather than upstream 2.12.14 by design. → evidence</li>
     </ul>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
@@ -129,25 +128,259 @@ Fetched: 2026-07-30
     </section>
     <section class="column">
       <h2>composix</h2>
-      <section class="file">
+      <section class="variant-tabs">
+        <input id="tabs-nats-0-faithful" name="tabs-nats-0" type="radio" checked>
+        <label for="tabs-nats-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-nats-0-dissolved" name="tabs-nats-0" type="radio">
+        <label for="tabs-nats-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+<span class="tok-directive">BUILDER</span> runtime
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
+  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
+  <span class="tok-directive">ENV</span> NATS_ARCH = amd64
+  <span class="tok-directive">ENV</span> NATS_SHA256 = 84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa
+  <span class="tok-directive">FETCH</span> curl --fail --location https://github.com/nats-io/nats-server/releases/download/v$NATS_SERVER/nats-server-v$NATS_SERVER-linux-$NATS_ARCH.tar.gz --output nats-server.tar.gz &amp;&amp; chmod 644 nats-server.tar.gz &amp;&amp; touch -d @0 nats-server.tar.gz EXPECT sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">echo &quot;$NATS_SHA256 *nats-server.tar.gz&quot; | sha256sum -c -</span>
+<span class="tok-heredoc">rm -rf output</span>
+<span class="tok-heredoc">mkdir -p output/bin</span>
+<span class="tok-heredoc">tar -xOf nats-server.tar.gz &quot;nats-server-v$NATS_SERVER-linux-$NATS_ARCH/nats-server&quot; &gt; output/bin/nats-server</span>
+<span class="tok-heredoc">chmod +x output/bin/nats-server</span>
+<span class="tok-directive">BUILD</span>
+
 <span class="tok-directive">SERVICE</span> nats
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nats-server}</span>/bin/nats-server /bin/nats-server
-  <span class="tok-directive">START</span> nats-server -m 8222
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${runtime}</span>/output/bin/nats-server /bin/nats-server
+  <span class="tok-directive">START</span> nats-server --http_port 8222
   <span class="tok-directive">PORT</span> client = 4222
   <span class="tok-directive">PORT</span> monitor = 8222
+  <span class="tok-directive">PORT</span> cluster = 6222
+  <span class="tok-directive">CLAIM</span> egress
 </code></pre>
       </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE nats
+  IMPORT ${pkgs.nats-server} ${pkgs.cacert} ${pkgs.tzdata}
+  START nats-server --http_port 8222
+  PORT client = 4222
+  PORT monitor = 8222
+  PORT cluster = 6222
+  CLAIM egress
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nats&quot;: {
+      &quot;sourceHash&quot;: &quot;ad51054cb86b53719f8690bf09daf4bbafe0ebab0914b25505d913ade7d35c84&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
       <details class="file">
         <summary>Cixfile.lock</summary>
         <pre><code>{
   &quot;inputs&quot;: {
     &quot;pkgs&quot;: {
       &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
-      &quot;rev&quot;: &quot;0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5&quot;,
-      &quot;narHash&quot;: &quot;sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY=&quot;
+      &quot;rev&quot;: &quot;643809054d65fdd466a63e3155b8c498cb483c04&quot;,
+      &quot;narHash&quot;: &quot;sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=&quot;,
+      &quot;lastModified&quot;: 1785692966
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:final:3-11bbc8e4e546&quot;: {
+      &quot;narHash&quot;: &quot;sha256-0a7KA8SV3F8VxIqNAIJNipngAvAW0YUdTiLFSoc3B7w=&quot;
+    },
+    &quot;builder:runtime:3-11bbc8e4e546&quot;: {
+      &quot;narHash&quot;: &quot;sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;2caa09f5cff8319735a338573aed7979a0ba6a4176db0ccbee0d11a766ece065&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;82a9a2199f13376f87200da17f4a5aa10d10d3962966029e249b40d1030611cf&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;a9cadd838fd3ca7191f3ae0c228b14ae274320d650083d1a742f15188a64906c&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/nats-server&quot;: {
+          &quot;narHash&quot;: &quot;sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:final:3&quot;: {
+      &quot;key&quot;: &quot;c3e4823dec67737754d3ef40c6046705941f45b253f72969e475e139f7346f43&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;content&quot;: &quot;99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884&quot;
+        }
+      }
+    },
+    &quot;builder:final:4&quot;: {
+      &quot;key&quot;: &quot;40056e06a1a0fff4be7baccc8641ead9b2d08b29e394fd5a70c0b8ff4552591d&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 12726873,
+            &quot;mtimeNs&quot;: 0,
+            &quot;size&quot;: 6675238,
+            &quot;len&quot;: 6675238,
+            &quot;mode&quot;: 33188
+          }
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;466632db08c575a09300c9dd0d45f977e606a75b772bd6ea4c923aaf53165d19&quot;
+        },
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;057a700148865ec991d439febaacd490c6c410b1a5e215c707e63c12d7116c8f&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;mode&quot;: 16877
+        },
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;mode&quot;: 16877
+        },
+        &quot;output/bin/nats-server&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      }
+    },
+    &quot;builder:runtime:3&quot;: {
+      &quot;key&quot;: &quot;87c9a4d471e7d9f5674345cd0fd61976ecc178a35fa242e68eef027ecaf04aef&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/6bfvfdi5pdq5ag6adxwwj9v1hdyn068d-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;content&quot;: &quot;99398383e671fb46acc0b22c38b34c9f4004892977da9190d301093f4e4b0884&quot;
+        }
+      }
+    },
+    &quot;builder:runtime:4&quot;: {
+      &quot;key&quot;: &quot;2c169534a0c97ae6a8dbb5a381762846d05ea2f050b322bc9d4451f8757b3b26&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;nats-server.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 12727623,
+            &quot;mtimeNs&quot;: 686293023,
+            &quot;size&quot;: 6675238,
+            &quot;len&quot;: 6675238,
+            &quot;mode&quot;: 33188
+          }
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/bin/nats-server&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      }
+    }
+  },
+  &quot;devEnvs&quot;: {
+    &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:a83c8a6e6670e2476df97ef6e047e6edc3c154a0c338593d411e611beb699b4a&quot;: {
+      &quot;environment&quot;: {
+        &quot;SYSTEM_CERTIFICATE_PATH&quot;: &quot;/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt&quot;,
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+      }
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;nats&quot;: {
+      &quot;sourceHash&quot;: &quot;a7773552e8ddbce1d97e583b653e596e2a1cbb0e6c0d7ee0e213defb6dc26483&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats&quot;
     }
   }
 }
@@ -235,6 +468,25 @@ cix item /nix/store/6nj4ggg4wmfpy6hw6hlp3wwnrn66w6ic-cix-item-nats
 ```
 
 Exit status: 0.
+
+## 2026-08-04 regeneration (cold, gpt-5.6-luna)
+
+Docker mode was not rerun. No context fetch was possible: this case&#39;s `SOURCE`
+does not identify a reproducible repository for the missing configuration and
+entrypoint files.
+
+```text
+devenv shell -- cargo build -p cix
+./target/debug/cix build corpus/migrate/nats
+./target/debug/cix build --file Cixfile.dissolved corpus/migrate/nats
+cd corpus/migrate/nats &amp;&amp; CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
+```
+
+All four commands completed synchronously with exit status 0. The faithful build
+produced `/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats`; the
+dissolved build produced
+`/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats`. The unchanged
+monitoring probe returned `{&quot;status&quot;:&quot;ok&quot;}` and `PASS cix`.
 </code></pre>
       </details>
     </section>

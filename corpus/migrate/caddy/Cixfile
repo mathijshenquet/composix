@@ -1,9 +1,37 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+BUILDER upstream
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnused} ${pkgs.gnutar} ${pkgs.gzip}
+  ENV CADDY_VERSION = v2.11.4
+  ENV CADDY_RELEASE = 2.11.4
+  ENV CADDY_ARCH = amd64
+  ENV CADDY_ARCHIVE = caddy_2.11.4_linux_amd64.tar.gz
+  ENV CADDY_SHA512 = 8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9
+  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-snk74Gj7SqdxRp57wVNRC0Yx8ABlamD+RqLdx4txxTE=
+  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-7/bTSAJ7EUYh+SL6S4JCrhDs5uJ8b7cJ0teM1I31UhU=
+  FETCH curl --fail --location --show-error https://github.com/caddyserver/caddy/releases/download/$CADDY_VERSION/$CADDY_ARCHIVE --output caddy.tar.gz EXPECT sha256-k42/SsWMoYwE8ExndcbKut17xC+airW1FsIpNE2kDGY=
+  RUN <<BUILD
+printf '%s  %s\n' "$CADDY_SHA512" caddy.tar.gz | sha512sum -c -
+sed -E 's/:80[0-9]*/:8080/g' Caddyfile > Caddyfile.normalized
+tar xzf caddy.tar.gz --no-same-owner -C . caddy
+BUILD
+
 SERVICE caddy
-  STATEDIR /var/lib/caddy
-  ENV XDG_CONFIG_HOME = /var/lib/caddy/config
-  ENV XDG_DATA_HOME = /var/lib/caddy/data
-  LINK ${pkgs.caddy}/bin/caddy /bin/caddy
-  START caddy respond --listen :8080 Caddy
+  IMPORT ${pkgs.cacert} ${pkgs.mailcap}
+  FILE /etc/hosts <<HOSTS
+127.0.0.1 localhost
+::1 localhost
+HOSTS
+  COPY ${upstream}/Caddyfile.normalized /etc/caddy/Caddyfile
+  COPY ${upstream}/index.html /usr/share/caddy/index.html
+  COPY ${upstream}/caddy /bin/caddy
+  ENV CADDY_VERSION = v2.11.4
+  ENV XDG_CONFIG_HOME = /data
+  ENV XDG_DATA_HOME = /data
+  START caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
   PORT http = 8080
+  PORT https = 443
+  PORT https-udp = udp:443
+  PORT admin = 2019
+  STATEDIR /data/caddy
+  CLAIM egress

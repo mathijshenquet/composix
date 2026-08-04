@@ -1,6 +1,6 @@
-Generated: migrate.md@c43ae9b · terra · 2026-07-30
-Status: stale — regenerate with CIP-91
+Generated: migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- The package binary is exposed through an implicit `/bin` link instead of a declared artifact tool import. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The receipt exposes concrete version skew—upstream 1.6.45 versus nixpkgs 1.6.42—and does not establish parity for the upstream SASL, TLS, extstore, or proxy build features. → evidence
-- This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin
+- Docker's fixed `memcache` uid/gid 11211 is replaced by Cix/systemd's managed unprivileged identity; the protocol probe does not depend on the numeric identity. → language (fixed service identity)
+- The upstream `make test` harness expects a root account that the isolated Cix builder does not provide, so the faithful build skips that harness while keeping compilation, `memcached -V`, and the runtime protocol probe fatal. → evidence
+- The dissolved twin incorrectly retains upstream version, URL, and checksum environment variables even though nixpkgs selects the packaged version and those values are behavior-free Docker build metadata. → prompt

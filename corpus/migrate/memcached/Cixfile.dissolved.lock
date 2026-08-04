@@ -8,9 +8,9 @@
     }
   },
   "outputs": {
-    "nginx": {
-      "sourceHash": "4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3",
-      "storePath": "/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx"
+    "memcached": {
+      "sourceHash": "7ac6a23d69b298713baee95ace10ed9aa0baf454617913c14e737c83f25fab2e",
+      "storePath": "/nix/store/jipgr1jay2wx2d7dsw63nm6z9263jsm9-cix-item-memcached"
     }
   }
 }

@@ -2,8 +2,372 @@
   "inputs": {
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
-      "rev": "0954f7ee2f6bb3dc7d4e3d0d8bcb8fd4bde4cfc5",
-      "narHash": "sha256-dN6Ou5x/+23FZLEpYP3IffO+NyJFzUlGumt1uu3MMaY="
+      "rev": "643809054d65fdd466a63e3155b8c498cb483c04",
+      "narHash": "sha256-vUfIeBEfpbAfZ5zjgIkYk7eHBeVfCYVjLbWnMkseYnk=",
+      "lastModified": 1785692966
+    }
+  },
+  "fetches": {
+    "builder:upstream:4-8bd06970913c": {
+      "narHash": "sha256-C5e183p8LpaudoaFczrtvXf4VUzbcakRbYGu4RPpR8Q="
+    },
+    "builder:upstream:5-8bd06970913c": {
+      "narHash": "sha256-snk74Gj7SqdxRp57wVNRC0Yx8ABlamD+RqLdx4txxTE="
+    },
+    "builder:upstream:5-ef65ace43f8d": {
+      "narHash": "sha256-C5e183p8LpaudoaFczrtvXf4VUzbcakRbYGu4RPpR8Q="
+    },
+    "builder:upstream:6-9be4185522ec": {
+      "narHash": "sha256-C5e183p8LpaudoaFczrtvXf4VUzbcakRbYGu4RPpR8Q="
+    },
+    "builder:upstream:6-eefcc5f32072": {
+      "narHash": "sha256-C5e183p8LpaudoaFczrtvXf4VUzbcakRbYGu4RPpR8Q="
+    },
+    "builder:upstream:6-ef65ace43f8d": {
+      "narHash": "sha256-7/bTSAJ7EUYh+SL6S4JCrhDs5uJ8b7cJ0teM1I31UhU="
+    },
+    "builder:upstream:7-c8f14960eff1": {
+      "narHash": "sha256-k42/SsWMoYwE8ExndcbKut17xC+airW1FsIpNE2kDGY="
+    }
+  },
+  "memo": {
+    "065412f98050080356fdf7a178f95f6834be44a9314d720f17f66ba6e8dfbb3a": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ixstwSlQcp0ljAMb8ReHfThhv903twdfRY3aO4r5euI=",
+          "storePath": "/nix/store/nkv9dycks0l7jnvdy9mhbsldslzqki8a-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "5596f365a0e4355bfb959f4d4c681cd88e2c477e038e94ee61e706ce3e9a9f79": {
+      "paths": {
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/Caddyfile": {
+          "narHash": "sha256-ju5B6TcxOruChEq3DNg9z99m0uelxYUPeCMkyWN1D5U=",
+          "storePath": "/nix/store/nbjan1lpw8iji80j4h77vyj90s7zry29-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "80f129507c86e7e876d3d9cb2b69e123a9ea2bc3b68d3a389e73b9b76b15276f": {
+      "paths": {
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/Caddyfile": {
+          "narHash": "sha256-hXWakhebD60f0gT0u7VE3nzsoAu9XCCuevFkybmT35Y=",
+          "storePath": "/nix/store/rwnqlsnf68l6kp150z5wvmk4mwaj6i9k-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "927663696a7063e0b68530161c6531d2b0c89869c0fd8a645f26efd85afc9573": {
+      "paths": {
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/Caddyfile": {
+          "narHash": "sha256-979XQLSgCjDlLPielLV7k52xJlzoxgj3Hj8HUjdpAWM=",
+          "storePath": "/nix/store/9ki36aq4ypk36chr1a6d3r3wgfchyw31-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "988aefd4a87b748ed3f49a4e21c9268a3c1835bd904fdb63f3f1fa95d39648c8": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ixstwSlQcp0ljAMb8ReHfThhv903twdfRY3aO4r5euI=",
+          "storePath": "/nix/store/nkv9dycks0l7jnvdy9mhbsldslzqki8a-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "9aeb0009011922743cdb2153a939c6938ad5acd7fe3771711e71054e2413790d": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ixstwSlQcp0ljAMb8ReHfThhv903twdfRY3aO4r5euI=",
+          "storePath": "/nix/store/nkv9dycks0l7jnvdy9mhbsldslzqki8a-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "a01783bd1dd9b772c2669f21ad0047879e91ad43d12fc02e45b636b39950abfe": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ju5B6TcxOruChEq3DNg9z99m0uelxYUPeCMkyWN1D5U=",
+          "storePath": "/nix/store/nbjan1lpw8iji80j4h77vyj90s7zry29-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "baf7d0b3da57ffa68797a597e4bf200b2e2a1313425fb14380a6963ed74026da": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ixstwSlQcp0ljAMb8ReHfThhv903twdfRY3aO4r5euI=",
+          "storePath": "/nix/store/nkv9dycks0l7jnvdy9mhbsldslzqki8a-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "c8b61d83cd6fe3d9b2335385dea3e391d4aff3fee3bd498f69cd5e93c7562c5e": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-ju5B6TcxOruChEq3DNg9z99m0uelxYUPeCMkyWN1D5U=",
+          "storePath": "/nix/store/nbjan1lpw8iji80j4h77vyj90s7zry29-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "d40805b8a3c2547ed6393c7fcabf86899e10ea7802f45587301345bcd1befaf4": {
+      "paths": {
+        "Caddyfile": {
+          "narHash": "sha256-/SUEOwdDFKgXiiVmMdGY1rDgSzX6+3Pz26cFYM8rdXY=",
+          "storePath": "/nix/store/l5c07dzw9ljpj369yl7lk9kjqgmaml50-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        },
+        "output/caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        }
+      }
+    },
+    "e20fd5c10e6580ffdeefb79f9ed8dcc8deea64dffc33745b394462f773fd59b4": {
+      "paths": {
+        "Caddyfile.normalized": {
+          "narHash": "sha256-hXWakhebD60f0gT0u7VE3nzsoAu9XCCuevFkybmT35Y=",
+          "storePath": "/nix/store/rwnqlsnf68l6kp150z5wvmk4mwaj6i9k-cix-build-consumed"
+        },
+        "caddy": {
+          "narHash": "sha256-3ACay3v8KX5fM+ie5ckTrXazo9czf95wCVUP36ptxcQ=",
+          "storePath": "/nix/store/x2n3i8c0r4gyjap0vmffj23mmprxinz0-cix-build-consumed"
+        },
+        "index.html": {
+          "narHash": "sha256-uJtnzo3Z27Iu2mG78VR4VvMZFcHkkEVRxc5ZJbQ3otg=",
+          "storePath": "/nix/store/7nj3nasw8sp4q028rv5k6msnr5698jxp-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:upstream:4": {
+      "key": "d2115882cf9ab4c1bb5e3ed0d3ba2fad44d8e7daa0882e140c8f1bcaacf7d39e",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/fcdjrlni2vhi6bc4rshd72bd9wgq37sp-cix-step-output",
+      "changes": {
+        "Caddyfile": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "Caddyfile": {
+          "content": "4e79d9daeaf07dbdac455070b4b5b67a36f0e0154022d72771d0b3b0ff142433"
+        }
+      }
+    },
+    "builder:upstream:5": {
+      "key": "8d76b2e1405dc849595b2db6c4bdc90f522a3483608be1ef622c48c506714032",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/fcdjrlni2vhi6bc4rshd72bd9wgq37sp-cix-step-output",
+      "changes": {
+        "Caddyfile": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "Caddyfile": {
+          "content": "4e79d9daeaf07dbdac455070b4b5b67a36f0e0154022d72771d0b3b0ff142433"
+        }
+      }
+    },
+    "builder:upstream:6": {
+      "key": "72cb25ce8571ec9f486c311832d387f1a7280affda4794b21866f063c2f9847e",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/2jqfg17qd7m10l1swj10f44snxzff5d8-cix-step-output",
+      "changes": {
+        "index.html": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "index.html": {
+          "content": "5f72c1eabbf95bdc8508fbd6df04c48925195725a79a551d340bdcd9c3b52206"
+        }
+      }
+    },
+    "builder:upstream:7": {
+      "key": "203589d24b85bb14c540ce2b729498efd647322bd98a885d2c76943142df6042",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/26c31h0dk7159pwss6qchz11ld7j2p7m-cix-step-output",
+      "changes": {
+        "caddy.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "caddy.tar.gz": {
+          "content": "a841118fe910aa9f4cfa9169c1cbd7a901c3f6dd001991f96e810577f240aa91"
+        }
+      }
+    },
+    "builder:upstream:8": {
+      "key": "abedf415d5c96a39e591fb3f43b44d6750fa32347515ed7de2f9954d06a1cb71",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "Caddyfile": {
+          "kind": "file",
+          "hash": "a47217cd879b147a8d071d60f02dc71a85e8cb3d17a6cde638fe8624270b3507",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726916,
+            "mtimeNs": 771494859,
+            "size": 769,
+            "len": 769,
+            "mode": 33188
+          }
+        },
+        "caddy.tar.gz": {
+          "kind": "file",
+          "hash": "6ccd170bbb8c67d5cb5ae7e70079266c2b0f78adf27a4d113bc0338aa64e7b25",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 12726918,
+            "mtimeNs": 772725194,
+            "size": 17238873,
+            "len": 17238873,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "Caddyfile.normalized": {
+          "kind": "present"
+        },
+        "caddy": {
+          "kind": "present"
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    },
+    "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:a978efed74743ac52fd425b951f7f5d10297a58c4a274185daf4094ae82c348e": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/7mfsmbhsd3arnypipwm251rcd0b45riy-gnused-4.10/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "outputs": {
+    "caddy": {
+      "sourceHash": "0ee49def7195dd3b11b09da2a3ba0343bb5d1cded3453b6accb85327eba30909",
+      "storePath": "/nix/store/pnrn7yc3df094g759kabla8zyfqc757a-cix-item-caddy"
     }
   }
 }

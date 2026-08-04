@@ -1,8 +1,50 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+BUILDER redis-build
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gcc} ${pkgs.gnugrep} ${pkgs.gnumake} ${pkgs.gnutar} ${pkgs.gnused} ${pkgs.binutils} ${pkgs.gzip} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.pkg-config} ${pkgs.which}
+  ENV REDIS_VERSION = 7.4.8
+  ENV REDIS_DOWNLOAD_URL = http://download.redis.io/releases/redis-7.4.8.tar.gz
+  ENV REDIS_DOWNLOAD_SHA = f6773cb7d63be236c59c2917a82f1f08e47b77d89b2f0c9f53becb22b8ea4172
+  FETCH curl --fail --location "$REDIS_DOWNLOAD_URL" --output redis.tar.gz EXPECT sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=
+  RUN <<BUILD
+echo "$REDIS_DOWNLOAD_SHA *redis.tar.gz" | sha256sum -c -
+mkdir -p redis
+tar -xzf redis.tar.gz -C redis --strip-components=1
+rm redis.tar.gz
+grep -E '^ *createBoolConfig[(]"protected-mode",.*, *1 *,.*[)],$' redis/src/config.c
+sed -ri 's!^( *createBoolConfig[(]"protected-mode",.*, *)1( *,.*[)],)$!\10\2!' redis/src/config.c
+grep -E '^ *createBoolConfig[(]"protected-mode",.*, *0 *,.*[)],$' redis/src/config.c
+gnuArch="$(gcc -dumpmachine)"
+extraJemallocConfigureFlags="--build=$gnuArch"
+case "$gnuArch" in
+  x86_64-* | i?86-* | x86_64-linux-gnux32) extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-page=12" ;;
+  *) extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-page=16" ;;
+esac
+extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-hugepage=21"
+grep -F 'cd jemalloc && ./configure ' redis/deps/Makefile
+sed -ri 's!cd jemalloc && ./configure !&'"$extraJemallocConfigureFlags"' !' redis/deps/Makefile
+grep -F "cd jemalloc && ./configure $extraJemallocConfigureFlags " redis/deps/Makefile
+OPENSSL_CFLAGS="$(pkg-config --cflags openssl)"
+OPENSSL_LIBS="$(pkg-config --libs openssl)"
+make -C redis BUILD_TLS=yes CFLAGS="$OPENSSL_CFLAGS" LDFLAGS="$OPENSSL_LIBS" -j "$(nproc)" all
+make -C redis PREFIX="$PWD/output" install
+serverMd5="$(md5sum output/bin/redis-server | cut -d' ' -f1)"
+export serverMd5
+find output/bin/redis* -maxdepth 0 -type f -not -name redis-server \
+  -exec sh -eux -c 'md5="$(md5sum "$1" | cut -d" " -f1)"; test "$md5" = "$serverMd5"' -- '{}' ';' \
+  -exec ln -svfT redis-server '{}' ';'
+BUILD
+
 SERVICE redis
-  STATEDIR /data
-  ENV LANG = C
-  ENV LC_ALL = C
-  START ${pkgs.redis}/bin/redis-server --dir /data --port 6379
+  IMPORT ${pkgs.busybox} ${pkgs.tzdata} ${pkgs.openssl}
+  COPY ${redis-build}/output/bin/redis-server /bin/redis-server
+  COPY ${redis-build}/output/bin/redis-sentinel /bin/redis-sentinel
+  COPY ${redis-build}/output/bin/redis-cli /bin/redis-cli
+  COPY ${redis-build}/output/bin/redis-benchmark /bin/redis-benchmark
+  COPY ${redis-build}/output/bin/redis-check-aof /bin/redis-check-aof
+  COPY ${redis-build}/output/bin/redis-check-rdb /bin/redis-check-rdb
+  COPY context/7.4/alpine/docker-entrypoint.sh /bin/docker-entrypoint.sh
+  COPY redis-start.sh /bin/redis-start.sh
+  START sh /bin/redis-start.sh redis-server
   PORT redis = 6379
+  STATEDIR /data

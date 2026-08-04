@@ -10,7 +10,7 @@
   "outputs": {
     "nginx": {
       "sourceHash": "4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3",
-      "storePath": "/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx"
+      "storePath": "/nix/store/h6rdgrdjxy4n0a820wa15gajjb2v9cv5-cix-item-nginx"
     }
   }
 }

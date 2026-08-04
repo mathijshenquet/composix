@@ -1,7 +1,17 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
+BUILDER release
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.jq} ${pkgs.gzip}
+  ENV VERSION = 3.5.6
+  FETCH curl --fail --location --silent --show-error "https://api.github.com/repos/traefik/traefik/releases/tags/v$VERSION" --output release.json EXPECT sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=
+  FETCH bash -c 'set -e; arch=$(uname -m); case "$arch" in armhf) arch=armv6 ;; aarch64) arch=arm64 ;; x86_64) arch=amd64 ;; riscv64) arch=riscv64 ;; s390x) arch=s390x ;; ppc64le) arch=ppc64le ;; *) echo "unsupported architecture: $arch" >&2; exit 1 ;; esac; name="traefik_v$VERSION""_linux_$arch.tar.gz"; export ASSET_NAME="$name"; asset=$(jq -r ".assets[] | select(.name == env.ASSET_NAME) | .url" release.json); digest=$(jq -r ".assets[] | select(.name == env.ASSET_NAME) | .digest" release.json); digest=$(printf "%s\\n" "$digest" | cut -d: -f2-); curl --fail --location --silent --show-error -H "Accept: application/octet-stream" "$asset" --output traefik.tar.gz; printf "%s  %s\\n" "$digest" traefik.tar.gz | sha256sum --check --status -' EXPECT sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=
+  RUN tar --no-same-owner -xzf traefik.tar.gz traefik
+  RUN mkdir -p output && cp traefik output/traefik
+
 SERVICE traefik
-  LINK ${pkgs.traefik}/bin/traefik /bin/traefik
-  START traefik --ping=true --entryPoints.web.address=:8081
-  PORT http = 8081
-  PORT monitor = 8080
+  IMPORT ${pkgs.cacert} ${pkgs.tzdata}
+  COPY ${release}/output/traefik /bin/traefik
+  START traefik --ping=true
+  PORT http = 80
+  PORT ping = 8080
+  CLAIM egress

@@ -8,9 +8,9 @@
     }
   },
   "outputs": {
-    "nginx": {
-      "sourceHash": "4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3",
-      "storePath": "/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx"
+    "nats": {
+      "sourceHash": "ad51054cb86b53719f8690bf09daf4bbafe0ebab0914b25505d913ade7d35c84",
+      "storePath": "/nix/store/sncljqjd4jgw8kvmf57m0f4j7qsqikyp-cix-item-nats"
     }
   }
 }

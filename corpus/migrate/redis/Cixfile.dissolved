@@ -1,0 +1,9 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE redis
+  IMPORT ${pkgs.busybox} ${pkgs.openssl} ${pkgs.redis} ${pkgs.tzdata}
+  COPY context/7.4/alpine/docker-entrypoint.sh /bin/docker-entrypoint.sh
+  COPY redis-start.sh /bin/redis-start.sh
+  START sh /bin/redis-start.sh redis-server
+  PORT redis = 6379
+  STATEDIR /data

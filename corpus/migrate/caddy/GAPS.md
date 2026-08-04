@@ -1,10 +1,6 @@
-Generated: migrate.md@c43ae9b · terra · 2026-07-30
-Status: stale — regenerate with CIP-92
+Generated: migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04
+Status: current
 
-- `START caddy respond` is a probe-shaped toy, not the upstream `caddy run --config /etc/caddy/Caddyfile --adapter caddyfile` contract; the upstream Caddyfile and welcome page are absent. → case
-- Only port 8080 is declared: upstream HTTP/HTTPS/admin ports 80, 443, and 2019 are not represented. → case
-- Upstream also exposes QUIC on 443/UDP, while `PORT` has no protocol spelling for a faithful declaration. → language (candidate: UDP ports)
-- `/config` and `/data` were collapsed below one `/var/lib/caddy` state role even though role-directory paths can now mirror both upstream paths directly. → prompt
-- The package binary is exposed through an implicit `/bin` link instead of a declared artifact tool import. → language ([CIP-91](../../../cips/accepted/0091-artifact-import.md))
-- The receipt proves only the toy HTTP responder and does not compare the selected nixpkgs Caddy version with upstream 2.11.4. → evidence
-- This nixpkgs-only conversion has no Dockerfile-faithful twin. → case: add Dockerfile-faithful twin
+- Caddy's upstream `/config/caddy` autosave cannot use `CONFIGDIR`: build accepts it, but run rejects configuration roles outside `/etc`, and an `/etc` role would overlap the immutable Caddyfile. The conversion is therefore forced to fold `XDG_CONFIG_HOME` into `/data`; this is the verified [CONFIGDIR product defect](../../../docs/open-questions.md#configdir-is-not-path-free-regen-wave-1-lunas-caddy-verified-2026-08-04), not a preferred layout. → language (CONFIGDIR path freedom)
+- The service carries a minimal `/etc/hosts` `FILE` because the sandbox supplies no `localhost`, unlike Docker; remove it only when the verified [sandbox hosts defect](../../../docs/open-questions.md#no-localhost-in-the-service-sandbox-same-wave-caddy) is resolved. → language (service localhost)
+- The faithful twin preserves the upstream configuration/assets and all four exposed sockets, but normalizes HTTP from `:80` to `:8080` so the existing Cix probe can bind directly without Docker's host-port remap. → case
