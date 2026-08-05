@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE httpd
+  IMPORT ${pkgs.apacheHttpd} ${pkgs.bash} ${pkgs.coreutils}
+  START httpd -DFOREGROUND
+  PORT http = 80
+  RUNDIR /run/httpd
+  STOPSIGNAL SIGWINCH

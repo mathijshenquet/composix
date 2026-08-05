@@ -1,0 +1,38 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER httpd-build
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.cacert} ${pkgs.curl} ${pkgs.gnupg} ${pkgs.gnutar} ${pkgs.bzip2} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.glibc} ${pkgs.glibc.bin} ${pkgs.gnused} ${pkgs.gnugrep} ${pkgs.gawk} ${pkgs.findutils} ${pkgs.patch} ${pkgs.perl} ${pkgs.dpkg} ${pkgs.pkg-config} ${pkgs.libxcrypt} ${pkgs.openldap.dev} ${pkgs.apr.dev} ${pkgs.aprutil.dev} ${pkgs.pcre2.dev} ${pkgs.openssl.dev} ${pkgs.zlib.dev} ${pkgs.brotli.dev} ${pkgs.nghttp2.dev} ${pkgs.libxml2.dev} ${pkgs.lua} ${pkgs.jansson.dev}
+  ENV HTTPD_VERSION=2.4.68
+  ENV HTTPD_SHA256=68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06
+  ENV HTTPD_PREFIX=/usr/local/apache2
+  FETCH bash -c 'rm -rf .gnupg src output && curl --fail --location https://archive.apache.org/dist/httpd/httpd-$HTTPD_VERSION.tar.bz2 --output httpd.tar.bz2 && curl --fail --location https://archive.apache.org/dist/httpd/httpd-$HTTPD_VERSION.tar.bz2.asc --output httpd.tar.bz2.asc && curl --fail --location https://downloads.apache.org/httpd/KEYS --output KEYS && echo "$HTTPD_SHA256 *httpd.tar.bz2" | sha256sum -c - && gpg --batch --import KEYS && gpg --batch --verify httpd.tar.bz2.asc httpd.tar.bz2 && rm -rf .gnupg httpd.tar.bz2.asc KEYS' EXPECT sha256-scD5NGTPwH0AsHCMCv2ewVVUNyPkgnlFCee8P3ofgbU=
+  RUN <<EXTRACT
+rm -rf src output
+mkdir -p src
+tar --no-same-owner -xf httpd.tar.bz2 -C src --strip-components=1
+EXTRACT
+  RUN <<BUILD
+set -e
+cd src
+./configure --prefix="$HTTPD_PREFIX" --enable-mods-shared=reallyall --enable-mpms-shared=all
+make -C server export_files
+# nixpkgs' APR-util has no LDAP support; its generated export scan otherwise includes this unused header.
+sed -i '/\/apr_ldap.*\.h$/d; /\/util_ldap\.h$/d' server/export_files
+rm -f server/exports.c
+make -C server exports.c
+make CRYPT_LIBS="-L${pkgs.libxcrypt}/lib -lcrypt" -j "$(nproc)"
+make install DESTDIR="$PWD/../output"
+sed -ri -e 's!^([[:space:]]*CustomLog)[[:space:]]+[^[:space:]]+!\1 /var/log/httpd/access_log!g' -e 's!^([[:space:]]*ErrorLog)[[:space:]]+[^[:space:]]+!\1 /var/log/httpd/error_log!g' -e 's!^([[:space:]]*TransferLog)[[:space:]]+[^[:space:]]+!\1 /var/log/httpd/access_log!g' -e 's!^([[:space:]]*User)[[:space:]]+daemon[[:space:]]*$!\1 www-data!g' -e 's!^([[:space:]]*Group)[[:space:]]+daemon[[:space:]]*$!\1 www-data!g' "../output$HTTPD_PREFIX/conf/httpd.conf" "../output$HTTPD_PREFIX/conf/extra/httpd-ssl.conf"
+BUILD
+
+SERVICE httpd
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused}
+  COPY ${httpd-build}/output/usr/local/apache2 /usr/local/apache2
+  COPY context/httpd-foreground /usr/local/bin/httpd-foreground
+  ENV PATH=/usr/local/apache2/bin:bin
+  START_PRE rm -f /var/log/httpd/access_log /var/log/httpd/error_log
+  START sh /usr/local/bin/httpd-foreground
+  PORT http = 80
+  RUNDIR /usr/local/apache2/logs
+  LOGDIR /var/log/httpd
+  STOPSIGNAL SIGWINCH
