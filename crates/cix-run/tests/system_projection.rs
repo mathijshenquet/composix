@@ -2,8 +2,8 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::{symlink, PermissionsExt};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::path::Path;
+use std::process::Command;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -11,6 +11,7 @@ use anyhow::{bail, Context, Result};
 use cix_run::config::ResolvedConfig;
 use cix_run::runtime::{start_service, stop_service};
 use cix_run::spec::Spec;
+use cix_test_support::{add_to_store, command_succeeds, find_program};
 
 #[test]
 fn system_projection_shadows_host_dirs_blocks_symlink_escape_and_handles_volume() -> Result<()> {
@@ -284,26 +285,6 @@ fn is_root() -> bool {
         .is_ok_and(|output| output.status.success() && output.stdout == b"0\n")
 }
 
-fn command_succeeds(program: &str, args: &[&str]) -> bool {
-    Command::new(program)
-        .args(args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
-}
-
-fn find_program(name: &str) -> Result<String> {
-    let output = Command::new("sh")
-        .args(["-c", "command -v \"$1\"", "sh", name])
-        .output()
-        .with_context(|| format!("failed to find {name}"))?;
-    if !output.status.success() {
-        bail!("could not find {name}");
-    }
-    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
-}
-
 fn make_executable(path: &Path) -> Result<()> {
     let mut permissions = fs::metadata(path)?.permissions();
     permissions.set_mode(0o755);
@@ -363,26 +344,4 @@ fn auto_root_exists(root: &Path) -> Result<bool> {
         }
     }
     Ok(false)
-}
-
-fn add_to_store(path: &Path) -> Result<PathBuf> {
-    let nix = if Command::new("nix").arg("--version").output().is_ok() {
-        "nix"
-    } else {
-        "/nix/var/nix/profiles/default/bin/nix"
-    };
-    let output = Command::new(nix)
-        .args(["store", "add-path"])
-        .arg(path)
-        .output()
-        .context("failed to invoke nix store add-path")?;
-    if !output.status.success() {
-        bail!(
-            "nix store add-path failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    Ok(PathBuf::from(
-        String::from_utf8(output.stdout)?.trim().to_owned(),
-    ))
 }

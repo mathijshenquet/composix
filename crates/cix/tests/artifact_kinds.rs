@@ -1,8 +1,9 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Output};
 
 use anyhow::{bail, Context, Result};
+use cix_test_support::{add_to_store, command_succeeds, find_program};
 
 #[test]
 fn app_propagates_exit_status() -> Result<()> {
@@ -63,34 +64,6 @@ fn write_manifest(directory: &Path, value: serde_json::Value) -> Result<()> {
     Ok(())
 }
 
-fn add_to_store(path: &Path) -> Result<PathBuf> {
-    let output = Command::new("nix")
-        .args(["store", "add-path"])
-        .arg(path)
-        .output()
-        .context("failed to invoke nix store add-path")?;
-    if !output.status.success() {
-        bail!(
-            "nix store add-path failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    Ok(PathBuf::from(
-        String::from_utf8(output.stdout)?.trim().to_owned(),
-    ))
-}
-
-fn find_program(name: &str) -> Result<String> {
-    let output = Command::new("sh")
-        .args(["-c", "command -v \"$1\"", "sh", name])
-        .output()
-        .with_context(|| format!("failed to find {name}"))?;
-    if !output.status.success() {
-        bail!("could not find {name}");
-    }
-    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
-}
-
 fn store_shell() -> Result<String> {
     // Tests may use the ambient registry only to replace a host PATH shell with a store path.
     let output = Command::new("nix")
@@ -111,15 +84,6 @@ fn store_shell() -> Result<String> {
         .find(|shell| shell.starts_with("/nix/store") && shell.is_file())
         .map(|shell| shell.to_string_lossy().into_owned())
         .context("nix build nixpkgs#bash did not provide /nix/store/.../bin/sh")
-}
-
-fn command_succeeds(program: &str, args: &[&str]) -> bool {
-    Command::new(program)
-        .args(args)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
 }
 
 fn path_str(path: &Path) -> Result<&str> {

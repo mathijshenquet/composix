@@ -1,6 +1,0 @@
-Type=exec
-WatchdogSec=30s
-Restart=on-failure
-RestartSec=10s
-StartLimitIntervalSec=5min
-StartLimitBurst=5

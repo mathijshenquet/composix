@@ -18,6 +18,7 @@ serde_json.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
+cix-test-support.workspace = true
 libc.workspace = true
 regex = "1"
 tempfile = "3"
