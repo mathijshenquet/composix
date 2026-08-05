@@ -1052,6 +1052,21 @@ fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
                 .map(|parent| parent.to_string_lossy().into_owned())
         })
         .collect::<BTreeSet<_>>();
+    if artifact.kind.is_runnable() {
+        directories.extend(
+            artifact
+                .service
+                .dirs
+                .state
+                .iter()
+                .chain(&artifact.service.dirs.cache)
+                .chain(&artifact.service.dirs.logs)
+                .chain(&artifact.service.dirs.config)
+                .chain(&artifact.service.dirs.run)
+                .filter_map(|path| path.strip_prefix('/'))
+                .map(str::to_owned),
+        );
+    }
     if !artifact.imports.is_empty() {
         directories.extend(["bin".to_owned(), "etc".to_owned(), "share".to_owned()]);
     }
@@ -1415,6 +1430,22 @@ mod tests {
         assert!(nix.contains("kind = \"app\";"), "{nix}");
         assert!(
             nix.contains("copy0 = \"${binders.\"src\"}/payload\";"),
+            "{nix}"
+        );
+    }
+
+    #[test]
+    fn role_directories_are_baked_as_artifact_mount_points() {
+        let directory = tempfile::tempdir().unwrap();
+        let cixfile = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nCOPY payload /var/www/payload\nSTATEDIR /var/www/db\nSTATEDIR /var/www/images/uploads/logos\nSTART /bin/true\n",
+        )
+        .unwrap();
+        let nix =
+            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
+        assert!(nix.contains("mkdir -p \"$out/var/www/db\""), "{nix}");
+        assert!(
+            nix.contains("mkdir -p \"$out/var/www/images/uploads/logos\""),
             "{nix}"
         );
     }

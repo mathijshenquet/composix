@@ -43,6 +43,19 @@
   cix-run suite, progressive VM selector, Wallos fetch and build), the CIP-98
   agent tier is genuinely green.
 
+- 2026-08-05 UTC — Independent full gate correctly rejected the prior green
+  claim: the exact focused reproduction `nix build
+  .#checks.x86_64-linux.scenario-dirs2 --no-link -L` recorded `1` in
+  `.dev/scratch/cip98-dirs2-repro.exit`. systemd could not create
+  `/var/www/db` through the read-only artifact bind. Fixed Cixfile codegen to
+  create every declared writable role path in the artifact at build time, and
+  made the raw VM item model the same generated artifact shape. The first
+  retry reached the fixed namespace but exposed a missing coreutils reference
+  in the new fixture; corrected it. The final exact same focused command
+  recorded `0` in `.dev/scratch/cip98-dirs2-fixed2.exit`: the service started,
+  wrote both nested paths, and the purge listed both mirrored backings. Next:
+  commit the fix and repeat the complete agent gate tier.
+
 - 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
   current project context. The collision is the cix-run mount/role overlap
   validator plus property emission order. Conventional implementation choice:

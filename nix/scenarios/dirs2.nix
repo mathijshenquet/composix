@@ -30,13 +30,13 @@ let
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
   nested = pkgs.runCommand "scenario-dirs2-nested" { } ''
-    mkdir -p "$out/bin" "$out/var/www/images/uploads/logos"
+    mkdir -p "$out/bin" "$out/var/www/db" "$out/var/www/images/uploads/logos"
     printf 'artifact\n' > "$out/var/www/immutable-marker"
     cat > "$out/bin/start" <<'SH'
     #!${shell}
     set -eu
-    test "$(cat /var/www/immutable-marker)" = artifact
-    touch /var/www/db/nested-state /var/www/images/uploads/logos/nested-logo
+    test "$( ${pkgs.coreutils}/bin/cat /var/www/immutable-marker)" = artifact
+    ${pkgs.coreutils}/bin/touch /var/www/db/nested-state /var/www/images/uploads/logos/nested-logo
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
     SH
     chmod 0755 "$out/bin/start"
