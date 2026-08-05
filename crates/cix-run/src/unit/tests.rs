@@ -295,42 +295,28 @@ fn health_property_snapshots_cover_every_probe_consumer_and_mode() {
 }
 
 fn health_snapshot(consumer: &str, probe_type: &str, mode: UnitMode) -> &'static str {
-    match (consumer, probe_type, mode) {
-        ("readiness", "notify", UnitMode::System) => {
+    assert!(
+        matches!(mode, UnitMode::System | UnitMode::UserFull),
+        "health snapshots do not cover degraded rendering"
+    );
+    match (consumer, probe_type) {
+        ("readiness", "notify") => {
             include_str!("../../tests/fixtures/health-readiness-notify-system.unit")
         }
-        ("readiness", "notify", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-readiness-notify-user.unit")
-        }
-        ("readiness", "http", UnitMode::System) => {
+        ("readiness", "http") => {
             include_str!("../../tests/fixtures/health-readiness-http-system.unit")
         }
-        ("readiness", "http", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-readiness-http-user.unit")
-        }
-        ("readiness", "tcp", UnitMode::System) => {
+        ("readiness", "tcp") => {
             include_str!("../../tests/fixtures/health-readiness-tcp-system.unit")
         }
-        ("readiness", "tcp", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-readiness-tcp-user.unit")
-        }
-        ("liveness", "notify", UnitMode::System) => {
+        ("liveness", "notify") => {
             include_str!("../../tests/fixtures/health-liveness-notify-system.unit")
         }
-        ("liveness", "notify", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-liveness-notify-user.unit")
-        }
-        ("liveness", "http", UnitMode::System) => {
+        ("liveness", "http") => {
             include_str!("../../tests/fixtures/health-liveness-http-system.unit")
         }
-        ("liveness", "http", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-liveness-http-user.unit")
-        }
-        ("liveness", "tcp", UnitMode::System) => {
+        ("liveness", "tcp") => {
             include_str!("../../tests/fixtures/health-liveness-tcp-system.unit")
-        }
-        ("liveness", "tcp", UnitMode::UserFull) => {
-            include_str!("../../tests/fixtures/health-liveness-tcp-user.unit")
         }
         _ => unreachable!(),
     }
