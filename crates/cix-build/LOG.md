@@ -1,5 +1,62 @@
 # cix-build work log
 
+- 2026-08-05T15:57:00Z — After semantic merge of `origin/main` at
+  `54c03a5`, the CIP-93b contract-keyed gate selected the complete 14-scenario
+  matrix for the accumulated merge diff. Its retained synchronous log at
+  `/tmp/cip99-progressive-post-cip93b.log` ends `VM selection: build exit 0;
+  total wall-clock 699.699s.` Health also completed within that run. The
+  quiet-window receipt set is now clean: workspace exit 0; health SOLO exit
+  0; post-merge progressive VM exit 0.
+
+- 2026-08-05T15:05:00Z — Quiet-window health discrimination is green: the
+  actual check attr `devenv shell -- nix --max-jobs 1 --cores 1 build -L
+  .#checks.x86_64-linux.scenario-health`, retained at
+  `/tmp/cip99-health-solo.log`, synchronously exited 0. (A prior `.#scenario-health`
+  package-attr probe exited 1 without running a VM and is not a scenario
+  receipt.) The earlier progressive health exit 1 versus this solo exit 0
+  attributes that failure to VM contention; per the stated conditional, no
+  `origin/main` scratch control is required. Merge CIP-93b and rerun the
+  contract-keyed progressive selector before closing.
+
+- 2026-08-05T14:40:00Z — Quiet-window part 1 receipt is green: `devenv shell
+  -- cargo test --workspace -- --test-threads=1`, retained at
+  `/tmp/cip99-workspace-quiet.log`, synchronously exited 0. This clears the
+  former tour/user-manager failure; continue to hold all VM discrimination
+  until the orchestrator declares the VM axis quiet.
+
+- 2026-08-05T14:30:00Z — Orchestrator has not accepted the two non-green
+  receipts as environmental. Stand by while CIP-106 and CIP-93b occupy the
+  tour/VM capacity. On an explicit quiet-window ping: (1) rerun the complete
+  serialized workspace suite with synchronous retained-log capture; (2) rerun
+  the failing health-watchdog VM scenario SOLO with retained-log capture. If
+  health still fails alone, run the identical scenario from a scratch checkout
+  at `origin/main`, as CIP-105 did, before making any environmental claim.
+
+- 2026-08-05T14:20:00Z — Final agent-tier receipts: fmt, example fmt,
+  warning-denied clippy, corpus-browser generation, and corpus drift all exit
+  0. The serialized workspace receipt exits 101 only in the pre-existing
+  user-manager tour race: the foreign test’s 60-second decoy ends before its
+  cleanup after rendering, then poisons the renderer lock. The isolated tour
+  generator exits 0 and leaves no `docs/tour` drift; a fresh independent
+  renderer run reproduces the host-only `second web run printed its unit`
+  assertion. The bounded automatic VM selector (`--max-jobs 2 --cores 2`)
+  exits 1 in the unrelated health scenario: under concurrent VM load its
+  watchdog kills the service before the journal assertion, followed by the
+  runner’s `Invalid BuildResult status` error. Do not call this track green
+  until the orchestrator has a clean serialized VM/tour environment.
+
+- 2026-08-05T14:00:00Z — Implemented CIP-99 lock-scale. `ReadDependency`
+  now has a recursive `subtree` digest selected only for a bottom-up complete
+  stable tree (listed directories plus content observations of every child);
+  validation re-walks the same tree and any narrower/volatile observation
+  stays per-path. Complete output trees use one replay-root change record;
+  wholly removed trees use one absent root. Focused trace tests pass. Clean
+  HEAD controls and this branch produced the same current output store paths
+  for parse-server, echo-server, and phpMyAdmin. Regenerated lock counts:
+  parse-server 197,888 -> 54,915; echo-server 19,622 -> 19,620 (partial
+  reads deliberately cannot collapse); phpMyAdmin 15,539 -> 461. Next: full
+  agent tier and focused VM receipt.
+
 - 2026-08-05T00:35:00Z — Committed CIP-108 (`Add CIP-108 structural
   guardrails`) after the staged whitespace review. The branch is ready for
   independent orchestrator review and its full flake gate; do not merge from

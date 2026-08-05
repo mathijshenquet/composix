@@ -1,6 +1,6 @@
-# probe-url — URL-shaped probe targets, path-only sugar (CIP-light)
+# CIP-109: probe-url — URL-shaped probe targets, path-only sugar (CIP-light)
 
-Status: **draft, CIP-light** (2026-08-05; CIP-79 amendment proposal).
+Status: **accepted** (2026-08-05; CIP-light; amends CIP-79).
 
 **Problem (measured).** Two independent cold agents (terra on an
 earlier wave, luna on wallos today) tripped over the probe grammar
@@ -36,3 +36,14 @@ people write URLs).**
 diagnostics + parser tests + mechanical corpus/examples sweep of
 existing probe lines; no unit-generation change (resolution at
 compile).
+
+## Decision
+
+Adopted 2026-08-05 (Mathijs: "ja go"). URL form canonical (scheme =
+probe kind, standard URL port defaulting), path-only sugar for
+single-port services, teaching diagnostics both ways, old two-token
+form rejected with a rewrite hint. Implementation queued (S/M incl.
+the corpus/examples probe-line sweep).
+
+Changelog:
+- 2026-08-05 — adopted as CIP-109.
