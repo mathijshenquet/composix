@@ -1,23 +1,20 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER builder
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.nodejs_24} ${pkgs.corepack} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert}
+BUILDER build
+  IMPORT ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.bash} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.gnused}
   ENV NODE_ENV=development
   ENV VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
-  ENV OUTPUT=$PWD/output
   COPY ${src}/context/ .
-  FETCH corepack install
-  RUN pnpm config set registry "$VERDACCIO_BUILD_REGISTRY"
-  RUN rm -rf node_modules
-  FETCH pnpm install --frozen-lockfile --ignore-scripts --node-linker=hoisted
-  FETCH pnpm run build && pnpm --filter verdaccio --prod --legacy deploy "$OUTPUT/verdaccio-deploy" && rm -rf node_modules
+  FETCH rm -rf node_modules && pnpm config set registry $VERDACCIO_BUILD_REGISTRY && pnpm install --frozen-lockfile --ignore-scripts
+  RUN pnpm run build
+  RUN pnpm --filter verdaccio --prod --legacy deploy /work/deploy
 
 SERVICE verdaccio
-  IMPORT ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.openssl}
-  COPY ${builder}/output/verdaccio-deploy /opt/verdaccio
-  COPY context/packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
-  COPY start-verdaccio /bin/start-verdaccio
+  IMPORT ${pkgs.nodejs_24}
+  COPY ${build}/deploy /opt/verdaccio
+  COPY ${src}/context/docker-bin/uid_entrypoint /opt/verdaccio/docker-bin/uid_entrypoint
+  COPY ${src}/context/packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
   ENV VERDACCIO_APPDIR=/opt/verdaccio
   ENV VERDACCIO_USER_NAME=verdaccio
   ENV VERDACCIO_USER_UID=10001
@@ -25,8 +22,7 @@ SERVICE verdaccio
   ENV VERDACCIO_PROTOCOL=http
   ENV VERDACCIO_ADDRESS=[::]
   ENV HOME=/opt/verdaccio
-  START sh /bin/start-verdaccio
+  START node /opt/verdaccio/bin/verdaccio --config /verdaccio/conf/config.yaml --listen $VERDACCIO_PROTOCOL://$VERDACCIO_ADDRESS:$VERDACCIO_PORT
   PORT http = 4873
   STATEDIR /verdaccio/storage
-  CACHEDIR /verdaccio/plugins
   CLAIM egress

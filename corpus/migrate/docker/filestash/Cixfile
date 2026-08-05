@@ -1,38 +1,42 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go_1_26} ${pkgs.gnumake} \
-      ${pkgs.gcc} ${pkgs.pkg-config} ${pkgs.cacert} ${pkgs.libjpeg} \
-      ${pkgs.libtiff} ${pkgs.libpng} ${pkgs.libwebp} ${pkgs.libraw} \
-      ${pkgs.libheif} ${pkgs.giflib} ${pkgs.vips} ${pkgs.ffmpeg} \
-      ${pkgs.glib} ${pkgs.lcms2} ${pkgs.zlib} ${pkgs.brotli} \
-      ${pkgs.brotli.dev} ${pkgs.libjpeg.dev} ${pkgs.libpng.dev} \
-      ${pkgs.libraw.dev} \
-      ${pkgs.ffmpeg.dev} ${pkgs.glib.dev} ${pkgs.gcc.cc.lib} \
-      ${pkgs.pkgsStatic.libjpeg.out} ${pkgs.pkgsStatic.libpng.out} \
-      ${pkgs.pkgsStatic.libwebp} ${pkgs.pkgsStatic.libraw.lib} \
-      ${pkgs.pkgsStatic.lcms2.out} ${pkgs.pkgsStatic.zlib.out}
-  ENV GOMODCACHE=$PWD/.gomodcache
+BUILDER backend
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go_1_26} ${pkgs.git} ${pkgs.curl} ${pkgs.cacert} ${pkgs.pkg-config} ${pkgs.gcc} \
+      ${pkgs.brotli} ${pkgs.libraw} ${pkgs.ffmpeg} ${pkgs.libjpeg} ${pkgs.libtiff} \
+      ${pkgs.libpng} ${pkgs.libwebp} ${pkgs.libheif} ${pkgs.giflib} ${pkgs.vips} \
+      ${pkgs.zlib} ${pkgs.lcms2} ${pkgs.libyuv} ${pkgs.glib}
+  IMPORT ${pkgs.brotli.dev} ${pkgs.libraw.dev} ${pkgs.ffmpeg.dev}
+  ENV GOMODCACHE=$PWD/gomodcache
+  FETCH \
+      mkdir -p gomodcache && \
+      curl --fail --location https://raw.githubusercontent.com/mickael-kerjean/filestash/master/go.mod --output go.mod && \
+      curl --fail --location https://raw.githubusercontent.com/mickael-kerjean/filestash/master/go.sum --output go.sum && \
+      GOMODCACHE=$PWD/gomodcache go mod download all && \
+      curl --fail --location https://raw.githubusercontent.com/nothings/stb/5736b15f7ea0ffb08dd38af21067c314d6a3aae9/stb_image.h --output image_psd_vendor.h && \
+      curl --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/xterm.js --output xterm.js && \
+      curl --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/addons/fit/fit.js --output fit.js && \
+      curl --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/xterm.css --output xterm.css
   COPY ${src}/context/ .
-  FETCH go mod download && go generate -x ./server/...
-  RUN CPATH=${pkgs.brotli.dev}/include:${pkgs.libjpeg.dev}/include:${pkgs.libpng.dev}/include:${pkgs.libwebp}/include:${pkgs.libraw.dev}/include:${pkgs.giflib}/include \
-      LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib \
-      PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig \
-      go build --tags fts5 -o dist/filestash cmd/main.go
+  RUN <<BUILD
+set -e
+mkdir -p server/plugin/plg_image_c server/plugin/plg_handler_console/src server/plugin/plg_widget_console/assets/vendor
+cp image_psd_vendor.h server/plugin/plg_image_c/image_psd_vendor.h
+cat xterm.js fit.js > server/plugin/plg_handler_console/src/xterm.js
+cp xterm.css server/plugin/plg_handler_console/src/xterm.css
+cat xterm.js fit.js > server/plugin/plg_widget_console/assets/vendor/xterm.js
+cp xterm.css server/plugin/plg_widget_console/assets/vendor/xterm.css
+(cd server/common && go run ../generator/mime.go && go run ../generator/constants.go)
+mkdir -p dist/data/state/config
+go build --tags fts5 -o dist/filestash cmd/main.go
+cp config/config.json dist/data/state/config/config.json
+BUILD
 
 SERVICE filestash
-  COPY ${build}/dist/filestash /bin/filestash
-  COPY ${src}/context/config/config.json /share/filestash-config.json
-  COPY setup.sh /bin/filestash-setup
-  LINK ${pkgs.ffmpeg}/bin/ffmpeg /bin/ffmpeg
-  LINK ${pkgs.ffmpeg}/bin/ffprobe /bin/ffprobe
-  LINK ${pkgs.poppler-utils}/bin/pdftotext /bin/pdftotext
-  LINK ${pkgs.poppler-utils}/bin/pdfinfo /bin/pdfinfo
-  START_PRE filestash-setup
-  START filestash
-  ENV FILESTASH_PATH=/var/lib/filestash
-  ENV FILESTASH_PORT=18094
-  PORT http = $FILESTASH_PORT
-  STATEDIR /var/lib/filestash
+  IMPORT ${pkgs.glibc} ${pkgs.cacert} ${pkgs.curl} ${pkgs.ffmpeg} ${pkgs.poppler-utils} ${pkgs.brotli}
+  COPY ${backend}/dist /app
+  START /app/filestash
+  PORT http = 8334
+  STATEDIR /app/data
+  CACHEDIR /app/cache
   CLAIM egress

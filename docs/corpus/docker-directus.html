@@ -56,20 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / directus</nav>
   <h1>docker / directus</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Stale — the checked-in receipt predates both product fixes; the running regeneration re-grades its remaining offline deploy boundary · <strong>Evidence:</strong> historical build receipt · buildfixes scratch receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Docker probe passes; CIP-95 acceptance proves imported glibc removes the unpatched Sass loader failure. The buildfixes scratch replay then crosses the former traced-ENOTDIR recorder failure and reaches the later offline deploy command · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 A current package/lock mismatch blocks an item before deploy or probe · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>Receipt status:</strong> The former loader and ENOTDIR walls are cleared; frozen offline install now stops on the stale root lockfile · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-95</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The Cix build fails when the downloaded Sass executable requests an FHS dynamic loader; the corpus page must say plainly that no item is produced, rather than presenting an unexplained orange state. → browser</li>
-      <li>Reproduce and retain the exact loader diagnostic in a fresh build receipt once the pinned source is materialized again. → evidence</li>
-      <li>Builders cannot provision or patch a downloaded FHS-linked ELF&#39;s interpreter through today&#39;s bare <code>IMPORT</code> surface. → language (candidate: builder ELF loader support)</li>
-      <li>The builder&#39;s <code>mkdir</code>/<code>rm</code>/<code>ln</code> dance redirects application-relative state paths, and the service separately links Node into <code>/bin</code>; CIP-91 now replaces both with native-path role dirs and artifact IMPORT. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>Keep the good narrow handoff <code>COPY ${build}/dist /directus</code> when regenerating; it copies the deploy unit instead of leaking the whole workshop. → case</li>
-      <li>Split at least one of database, extensions, or uploads into a second <code>STATEDIR</code> to demonstrate role multiplicity directly, as Wallos already does for database and logos. → case</li>
-      <li><code>NPM_CONFIG_UPDATE_NOTIFIER=false</code> disappears without an explicit “runtime package manager dissolved” disposition; parity review requires the disposition even when the environment is intentionally unnecessary. → case</li>
+      <li>Imported glibc and traced ENOTDIR both clear their former walls, but the pinned root <code>pnpm-lock.yaml</code> is stale for the copied <code>package.json</code>: offline frozen install refuses its 18 missing development specifiers before an item exists. → case</li>
+      <li>Fixed Docker numeric ownership and PM2 supervision dissolve into cix/systemd identity and service supervision. → case</li>
     </ul>
   </aside>
   <details class="context">
@@ -4678,38 +4673,35 @@ Retrieved: 2026-07-31
 <span class="tok-directive">FROM</span> . AS src
 
 <span class="tok-directive">BUILDER</span> build
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> \
-      <span class="tok-directive">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm_10}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.python311Packages.setuptools}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.glibc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> npm_config_python=/bin/python3.11
   <span class="tok-directive">ENV</span> NODE_OPTIONS=--max-old-space-size=8192
-  <span class="tok-directive">ENV</span> npm_config_workspace_concurrency=2
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
-  <span class="tok-directive">FETCH</span> pnpm fetch
+  <span class="tok-directive">ENV</span> COREPACK_ENABLE_PROJECT_SPEC=0
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/package.json .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-lock.yaml .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-workspace.yaml .
+  <span class="tok-directive">FETCH</span> pnpm fetch --frozen-lockfile
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/. .
   <span class="tok-directive">RUN</span> pnpm install --recursive --offline --frozen-lockfile
-  <span class="tok-directive">RUN</span> pnpm run build
-  <span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod dist
-  <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
-<span class="tok-heredoc">cd dist</span>
-<span class="tok-heredoc">node -e &#39;const f=&quot;package.json&quot;,{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))&#39;</span>
-<span class="tok-heredoc">mkdir -p database extensions uploads</span>
-<span class="tok-heredoc">rm -rf database extensions uploads</span>
-<span class="tok-heredoc">ln -s /var/lib/directus/database database</span>
-<span class="tok-heredoc">ln -s /var/lib/directus/extensions extensions</span>
-<span class="tok-heredoc">ln -s /var/lib/directus/uploads uploads</span>
-<span class="tok-directive">ASSEMBLE</span>
+  <span class="tok-directive">RUN</span> npm_config_workspace_concurrency=2 pnpm run build
+  <span class="tok-directive">RUN</span> node -e &#39;const fs=require(&quot;fs&quot;), p=JSON.parse(fs.readFileSync(&quot;package.json&quot;)); delete p.devDependencies; fs.writeFileSync(&quot;package.json&quot;, JSON.stringify(p))&#39;
+  <span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod --offline deploy
+  <span class="tok-directive">RUN</span> mkdir -p deploy/database deploy/extensions deploy/uploads
 
 <span class="tok-directive">SERVICE</span> directus
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist /directus
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>/bin/node /bin/node
-  <span class="tok-directive">START_PRE</span> node /directus/cli.js bootstrap
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/deploy /directus
   <span class="tok-directive">START</span> node /directus/cli.js start
+  <span class="tok-directive">START_PRE</span> node /directus/cli.js bootstrap
   <span class="tok-directive">ENV</span> DB_CLIENT=sqlite3
   <span class="tok-directive">ENV</span> DB_FILENAME=/directus/database/database.sqlite
   <span class="tok-directive">ENV</span> NODE_ENV=production
-  <span class="tok-directive">ENV</span> PORT=18093
-  <span class="tok-directive">PORT</span> http = $PORT
-  <span class="tok-directive">STATEDIR</span> /var/lib/directus
+  <span class="tok-directive">ENV</span> NPM_CONFIG_UPDATE_NOTIFIER=false
+  <span class="tok-directive">PORT</span> http = 8055
+  <span class="tok-directive">STATEDIR</span> /directus/database
+  <span class="tok-directive">STATEDIR</span> /directus/extensions
+  <span class="tok-directive">STATEDIR</span> /directus/uploads
   <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
       <details class="file">
@@ -4752,36 +4744,15 @@ esac
         <summary>receipt.md</summary>
         <pre><code># directus migration receipt
 
-Source revision: `b1d7a45a77661fd13928a53448c06649f36b56f5` (2026-07-31).
+2026-08-05, generated `migrate.md@f474d3f` (gpt-5.6-luna). Docker mode was not rerun.
 
-Docker: `./check.sh docker` passed on 2026-07-31. Image:
-`sha256:1f0b93fb3d7cbb737e1b13e164c01266a85b824fe9510195492bd768435b1498`.
-
-Cix: build-fail. After explicit `gnused` and Python 3.11 provisioning,
-`../../../target/debug/cix build --update-lock build .#directus` completed pnpm
-FETCH/native sqlite compilation and reached the offline monorepo build. It then
-failed with:
+`./check.sh cix` reached the glibc-backed native sqlite build, clearing the former Sass loader and traced-ENOTDIR walls, then exited non-zero at the offline install:
 
 ```text
-spawn .../sass-embedded-linux-x64/dart-sass/src/dart ENOENT
+ERR_PNPM_OUTDATED_LOCKFILE: pnpm-lock.yaml is not up to date with &lt;ROOT&gt;/package.json
 ```
 
-The downloaded ELF expects an FHS dynamic loader. D58 deliberately excludes
-`lib` from IMPORT, so this is classified as a language gap; no runtime pass is
-claimed.
-
-CIP-95 acceptance (2026-08-04): a disposable copy of this pinned case added
-only `${pkgs.glibc}` to the builder IMPORT and retained zero patchelf lines.
-The downloaded Sass executable remained unpatched with PT_INTERP
-`/lib64/ld-linux-x86-64.so.2`; the former `spawn … ENOENT` disappeared, Sass
-produced the app asset, and the recursive monorepo build proceeded to the
-separate known `Error: Not a directory (os error 20)`. This is track evidence,
-not a green case receipt: the checked-in Cixfile still awaits regeneration and
-no item or runtime pass is claimed.
-
-The conversion dissolves PM2 into systemd,
-keeps `bootstrap` as an idempotent setup hook, persists SQLite/extensions/uploads,
-and probes `GET /server/ping` for exact `pong`.
+The report names 18 removed development specifiers. No item or runtime probe is claimed.
 </code></pre>
       </details>
     </section>

@@ -1,18 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER build
-  IMPORT ${pkgs.bash} ${pkgs.go} ${pkgs.git} ${pkgs.cacert}
-  COPY context/ .
-  ENV GOPATH=/work/.gopath
-  ENV GOMODCACHE=/work/.gopath/pkg/mod
-  FETCH bash -c 'go telemetry off && go mod download'
-  RUN <<BUILD
-CGO_ENABLED=0 go build -o watchtower -ldflags "-X github.com/containrrr/watchtower/internal/meta.Version=ca0e86e824ec05389ab972ea97d04d4bf0476e90"
-BUILD
-
 SERVICE watchtower
+  IMPORT ${pkgs.glibc} ${pkgs.cacert} ${pkgs.tzdata}
+  COPY context/oryxBuildBinary /watchtower
   COPY ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
   COPY ${pkgs.tzdata}/share/zoneinfo /usr/share/zoneinfo
-  COPY ${build}/watchtower /bin/watchtower
-  START watchtower
+  START /watchtower
   PORT http = 8080
+  CLAIM egress
+  DIR /var/run/docker.sock:ro

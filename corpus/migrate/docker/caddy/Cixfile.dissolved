@@ -1,26 +1,20 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
-BUILDER upstream
-  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnused}
-  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-84v+HnEZ/9AwHhsD3ZeZ4DuCgyrw8/LEL6PTxGwsUrY=
-  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-rBR2z6KgBLjXqhqVUKjUsqCnrUaqoig+OGdPJK2f/XM=
-  RUN sed -E 's/:80[0-9]*/:8080/g' Caddyfile > Caddyfile.normalized
+BUILDER assets
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.curl}
+  FETCH curl --fail --location https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-84v+HnEZ/9AwHhsD3ZeZ4DuCgyrw8/LEL6PTxGwsUrY=
+  FETCH curl --fail --location https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-rBR2z6KgBLjXqhqVUKjUsqCnrUaqoig+OGdPJK2f/XM=
 
 SERVICE caddy
-  IMPORT ${pkgs.caddy} ${pkgs.cacert} ${pkgs.mailcap}
-  FILE /etc/hosts <<HOSTS
-127.0.0.1 localhost
-::1 localhost
-HOSTS
-  COPY ${upstream}/Caddyfile.normalized /etc/caddy/Caddyfile
-  COPY ${upstream}/index.html /usr/share/caddy/index.html
-  ENV CADDY_VERSION=v2.11.4
-  ENV XDG_CONFIG_HOME=/data
+  IMPORT ${pkgs.caddy} ${pkgs.cacert}
+  COPY ${assets}/Caddyfile /etc/caddy/Caddyfile
+  COPY ${assets}/index.html /usr/share/caddy/index.html
+  ENV XDG_CONFIG_HOME=/config
   ENV XDG_DATA_HOME=/data
   START caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
-  PORT http = 8080
+  PORT http = 80
   PORT https = 443
   PORT https-udp = udp:443
   PORT admin = 2019
+  STATEDIR /config/caddy
   STATEDIR /data/caddy
-  CLAIM egress

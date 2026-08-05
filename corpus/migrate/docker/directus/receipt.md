@@ -1,32 +1,11 @@
 # directus migration receipt
 
-Source revision: `b1d7a45a77661fd13928a53448c06649f36b56f5` (2026-07-31).
+2026-08-05, generated `migrate.md@f474d3f` (gpt-5.6-luna). Docker mode was not rerun.
 
-Docker: `./check.sh docker` passed on 2026-07-31. Image:
-`sha256:1f0b93fb3d7cbb737e1b13e164c01266a85b824fe9510195492bd768435b1498`.
-
-Cix: build-fail. After explicit `gnused` and Python 3.11 provisioning,
-`../../../target/debug/cix build --update-lock build .#directus` completed pnpm
-FETCH/native sqlite compilation and reached the offline monorepo build. It then
-failed with:
+`./check.sh cix` reached the glibc-backed native sqlite build, clearing the former Sass loader and traced-ENOTDIR walls, then exited non-zero at the offline install:
 
 ```text
-spawn .../sass-embedded-linux-x64/dart-sass/src/dart ENOENT
+ERR_PNPM_OUTDATED_LOCKFILE: pnpm-lock.yaml is not up to date with <ROOT>/package.json
 ```
 
-The downloaded ELF expects an FHS dynamic loader. D58 deliberately excludes
-`lib` from IMPORT, so this is classified as a language gap; no runtime pass is
-claimed.
-
-CIP-95 acceptance (2026-08-04): a disposable copy of this pinned case added
-only `${pkgs.glibc}` to the builder IMPORT and retained zero patchelf lines.
-The downloaded Sass executable remained unpatched with PT_INTERP
-`/lib64/ld-linux-x86-64.so.2`; the former `spawn … ENOENT` disappeared, Sass
-produced the app asset, and the recursive monorepo build proceeded to the
-separate known `Error: Not a directory (os error 20)`. This is track evidence,
-not a green case receipt: the checked-in Cixfile still awaits regeneration and
-no item or runtime pass is claimed.
-
-The conversion dissolves PM2 into systemd,
-keeps `bootstrap` as an idempotent setup hook, persists SQLite/extensions/uploads,
-and probes `GET /server/ping` for exact `pong`.
+The report names 18 removed development specifiers. No item or runtime probe is claimed.

@@ -56,17 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / dozzle</nav>
   <h1>docker / dozzle</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Socket-bridge rewrite queued (decision 2026-08-05): the Cixfile declares the host docker socket and ships untested against a live daemon; the supplied source remains independently incomplete — the old blanket refusal retires with the rewrite · <strong>Evidence:</strong> build (exact warm/cold failures)</p>
-  <p class="status"><strong>Receipt status:</strong> The full frontend builds, then the backend stops at the source&#39;s missing embedded certificates; cold replay also diverges before any item exists · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Socket bridge is intentionally desk/unprobed without gate dockerd; no frontend item exists · <strong>Evidence:</strong> daemonless receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Daemonless socket-bridge declaration formats/parses; frontend fetch exceeds the five-minute bound · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>A useful Dozzle runtime requires <code>/var/run/docker.sock</code> and Docker&#39;s control API, which composix deliberately refuses; <code>CLAIM egress</code> is not a substitute. → refused</li>
-      <li><code>main.go</code> embeds <code>shared_cert.pem</code> and <code>shared_key.pem</code>, but the supplied source context lacks both files, so the backend cannot produce an item without fabricating inputs. → evidence</li>
-      <li>The frontend FETCH is cold-unstable: replay reports a warm/cold read-set difference at <code>.</code> after earlier isolated pnpm runs stalled; do not repin or weaken the graph, and normalize it in the volatile-fetch fix round. → case (cold stability)</li>
-      <li>Docker&#39;s exact Node/pnpm selection, cross-platform arguments, and configurable <code>CLOUD_URL</code> become locked-host packages and an explicit default; custom cross-build/cloud inputs require editing the Cixfile. → case</li>
+      <li>The docker-socket bridge declares <code>/var/run/docker.sock:ro</code>; activation requires <code>--dir /var/run/docker.sock=host:/var/run/docker.sock --identity &lt;stable-identity&gt;</code>. It is desk evidence only: no gate dockerd exists. Journald/<code>cix logs</code> and Nix pins/<code>cix</code> updates are the native answers; this bridge demonstrates coexistence, not migration. → evidence</li>
+      <li><code>pnpm fetch --ignore-scripts</code> exceeded the independently applied 300-second update-lock bound, so no frontend artifact or runtime item is claimed. → case</li>
     </ul>
   </aside>
   <details class="context">
@@ -682,63 +680,48 @@ Build context: repository archive in context/ (Dockerfile copies source trees an
       <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> frontend
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.nodejs}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+<span class="tok-directive">BUILDER</span> web
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.pnpm}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-lock.yaml .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-workspace.yaml .
+  <span class="tok-directive">FETCH</span> pnpm fetch --ignore-scripts
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/package.json .
+  <span class="tok-directive">RUN</span> pnpm install --offline --ignore-scripts
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/vite.config.ts .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/tsconfig.json .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/.prettierrc.cjs .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/.npmrc .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/assets assets
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/locales locales
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/public public
   <span class="tok-directive">ENV</span> CI=true
-  <span class="tok-directive">ENV</span> CLOUD_URL=https://cloud.dozzle.dev
-  <span class="tok-directive">ENV</span> COREPACK_HOME=$PWD/.corepack
-  <span class="tok-directive">ENV</span> PNPM_HOME=$PWD/.pnpm-home
-  <span class="tok-directive">COPY</span> context/pnpm-lock.yaml pnpm-lock.yaml
-  <span class="tok-directive">COPY</span> context/pnpm-workspace.yaml pnpm-workspace.yaml
-  <span class="tok-directive">COPY</span> context/package.json package.json
-  <span class="tok-directive">FETCH</span> corepack pnpm fetch --ignore-scripts --store-dir $PWD/.pnpm-store &amp;&amp; test -r package.json
-  <span class="tok-directive">COPY</span> context/vite.config.ts vite.config.ts
-  <span class="tok-directive">COPY</span> context/tsconfig.json tsconfig.json
-  <span class="tok-directive">COPY</span> context/.prettierrc.cjs .prettierrc.cjs
-  <span class="tok-directive">COPY</span> context/.npmrc .npmrc
-  <span class="tok-directive">COPY</span> context/assets assets
-  <span class="tok-directive">COPY</span> context/locales locales
-  <span class="tok-directive">COPY</span> context/public public
-  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
-<span class="tok-heredoc">frontend_root=$PWD</span>
-<span class="tok-heredoc">frontend_tmp=/tmp/dozzle-frontend</span>
-<span class="tok-heredoc">rm -rf &quot;$frontend_tmp&quot;</span>
-<span class="tok-heredoc">mkdir -p &quot;$frontend_tmp&quot;</span>
-<span class="tok-heredoc">cp package.json pnpm-lock.yaml pnpm-workspace.yaml vite.config.ts tsconfig.json .prettierrc.cjs .npmrc &quot;$frontend_tmp&quot;/</span>
-<span class="tok-heredoc">cp -r assets locales public &quot;$frontend_tmp&quot;/</span>
-<span class="tok-heredoc">cd &quot;$frontend_tmp&quot;</span>
-<span class="tok-heredoc">node &quot;$frontend_root/.corepack/v1/pnpm/11.17.0/bin/pnpm.cjs&quot; install --offline --frozen-lockfile --ignore-scripts --store-dir &quot;$frontend_root/.pnpm-store&quot; --node-linker=hoisted</span>
-<span class="tok-heredoc">node node_modules/vite/bin/vite.js build</span>
-<span class="tok-heredoc">rm -rf &quot;$frontend_root/dist&quot;</span>
-<span class="tok-heredoc">cp -r dist &quot;$frontend_root/dist&quot;</span>
-<span class="tok-heredoc">find &quot;$frontend_root/dist&quot; -exec touch -d @0 {} +</span>
-<span class="tok-heredoc">rm -rf &quot;$frontend_tmp&quot;</span>
-<span class="tok-directive">BUILD</span>
+  <span class="tok-directive">ENV</span> CLOUD_URL=
+  <span class="tok-directive">RUN</span> pnpm build
 
-<span class="tok-directive">BUILDER</span> backend
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> CGO_ENABLED=0
-  <span class="tok-directive">ENV</span> TAG=dev
-  <span class="tok-directive">COPY</span> context/go.mod go.mod
-  <span class="tok-directive">COPY</span> context/go.sum go.sum
-  <span class="tok-directive">ENV</span> GOPATH=$PWD/.go
-  <span class="tok-directive">ENV</span> GOCACHE=$PWD/.cache/go-build
+<span class="tok-directive">BUILDER</span> go-build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.openssl}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/go.mod .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/go.sum .
   <span class="tok-directive">FETCH</span> go mod download
-  <span class="tok-directive">COPY</span> context/internal internal
-  <span class="tok-directive">COPY</span> context/proto proto
-  <span class="tok-directive">COPY</span> context/types types
-  <span class="tok-directive">COPY</span> context/main.go main.go
-  <span class="tok-directive">COPY</span> context/protos protos
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${frontend}</span>/dist dist
-  <span class="tok-directive">RUN</span> mkdir -p bin &amp;&amp; go build -ldflags &quot;-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG&quot; -o bin/dozzle
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/internal internal
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/proto proto
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/types types
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/main.go .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/protos protos
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${web}</span>/dist dist
+  <span class="tok-directive">RUN</span> openssl genpkey -algorithm Ed25519 -out shared_key.pem
+  <span class="tok-directive">RUN</span> openssl req -new -key shared_key.pem -out shared_request.csr -subj &quot;/C=US/ST=California/L=San Francisco/O=Dozzle&quot;
+  <span class="tok-directive">RUN</span> openssl x509 -req -in shared_request.csr -signkey shared_key.pem -out shared_cert.pem -days 1825 &amp;&amp; rm shared_request.csr
+  <span class="tok-directive">RUN</span> GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags &quot;-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=dev&quot; -o dozzle
 
 <span class="tok-directive">SERVICE</span> dozzle
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${backend}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">START</span> dozzle
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${go-build}</span>/dozzle /dozzle
+  <span class="tok-directive">START</span> /dozzle
   <span class="tok-directive">PORT</span> http = 8080
   <span class="tok-directive">STATEDIR</span> /data
-  <span class="tok-directive">CLAIM</span> egress
+  <span class="tok-directive">DIR</span> /var/run/docker.sock:ro
 </code></pre>
       </section>
       <details class="file">
@@ -253826,7 +253809,7 @@ mode=${1:?usage: ./check.sh docker|cix}; CIX=${CIX:-../../../../target/debug/cix
 root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
 if [[ ! -d $root/context ]]; then echo &#39;context/ missing — run ../../fetch.sh dozzle first&#39; &gt;&amp;2; exit 1; fi
 cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }; trap cleanup EXIT
-if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run -d --rm --name &quot;$name&quot; -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#dozzle); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile context; docker run -d --rm --name &quot;$name&quot; -p 8080:8080 -v /var/run/docker.sock:/var/run/docker.sock &quot;$name&quot; &gt;/dev/null; else &quot;$CIX&quot; fmt --check Cixfile; rg -Fx &#39;  DIR /var/run/docker.sock:ro&#39; Cixfile; exit 0; fi
 for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:8080/healthcheck &gt;/dev/null &amp;&amp; exit 0; sleep 1; done
 exit 1
 </code></pre>
@@ -253835,61 +253818,11 @@ exit 1
         <summary>receipt.md</summary>
         <pre><code># dozzle migration receipt
 
-Cix refresh: 2026-07-31. Language generation: D56–D64 (`IMPORT`, builder `ENV`, and `STATEDIR`).
+2026-08-05, generated `migrate.md@f474d3f` (gpt-5.6-luna). Docker mode and live socket runtime were intentionally not run.
 
-Docker side: historical 2026-07-30 receipt, not rerun. The Docker runtime contract includes `/var/run/docker.sock`.
+`timeout 300 target/debug/cix build --update-lock web .#dozzle` did not finish `pnpm fetch --ignore-scripts` within the synchronous five-minute bound (exit 124). The bridge declaration itself formats/parses; no item is claimed.
 
-## `./check.sh cix`
-
-```text
-Error: line 10: FETCH output changed
-  | &quot;  FETCH pnpm fetch --ignore-scripts&quot;
-```
-
-Exit status: non-zero. The currently pinned UI cache is also unstable. The
-requested independent two-run `go mod download` reproduction found the precise
-backend cause: the common 33,862 files were byte-identical, while run 1 retained
-seven extra Go checksum-database tile files totaling 35,808 bytes:
-
-```text
-8192  5ce1866f...  tile/8/0/x227/780
-2624  04139b3c...  tile/8/0/x227/780.p/82
-3456  128cf09f...  tile/8/0/x228/452.p/108
-8192  9fb9ad92...  tile/8/1/889
-6272  7cb74e70...  tile/8/1/889.p/196
-3200  483bc44b...  tile/8/1/892.p/100
-3872  7372f718...  tile/8/2/003.p/121
-```
-
-Thus the mismatch is not changed module source: concurrent sumdb cache
-population chooses a different valid tile subset. A disposable backend-only D69
-reproduction (the exact source revision, a minimal generated `dist`, and
-placeholder absent cert files solely to make the historical source compile) ran
-`cix build --update-lock build .` twice, then `cix build .`. Both probes produced
-`/nix/store/l8l5vlf0v4zzhz0vv7xrimqm7la36l3d-cix-item-proof`; the second pair&#39;s
-ordinary build memo-hit. Its automatic pin is only `dozzle`, while the recorded
-volatile facts include the sumdb tile paths above. This proves D69 consumed-set
-keying handles the Go-side FETCH without representing the full service conversion
-as passing. The UI remains the honest normalization case: its pnpm/Vite-generated
-consumed `dist` bytes differ across clean runs, so D69 records rather than
-excludes it. Forced lock refresh also reaches the historical missing
-`shared_cert.pem` source failure. Independently, no faithful Cix runtime exists:
-Dozzle requires Docker&#39;s host socket/API, which remains an explicit boundary.
-
-## 2026-08-04 regeneration (cold, gpt-5.6-luna)
-
-Worker evidence: the staged ordinary build completed the normalized frontend
-and backend module fetch, then exited 1 at `main.go:36:12: pattern
-shared_cert.pem: no matching files found`; no item existed for the supplied
-probe. Its cold audit exited 1 at a frontend root read-set divergence.
-
-After `bash corpus/migrate/docker/fetch.sh dozzle` exited 0, the assembler reproduced
-that boundary twice. `target/debug/cix build corpus/migrate/docker/dozzle` and the
-ordinary build inside `./check.sh cix` each completed the pnpm/Vite frontend and
-Go module fetch, then exited 1 at the missing embedded certificate. The explicit
-`--cold` build exited 1 earlier because the frontend FETCH observed different
-warm/cold hashes for `.`. No item or health response was claimed, no missing
-certificate was fabricated, and Docker mode was not rerun.
+The daemonless acceptance is the static declaration: `DIR /var/run/docker.sock:ro`; a real host activation additionally requires `--dir /var/run/docker.sock=host:/var/run/docker.sock --identity &lt;stable-identity&gt;`.
 </code></pre>
       </details>
     </section>
