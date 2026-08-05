@@ -835,3 +835,15 @@
   contract manifest correctly forcing all scenarios. Next: independently
   execute both matrices with bounded parallelism, then repeat the complete
   agent tier on the merged tree.
+
+- 2026-08-05T13:39:38Z — Post-merge gate is synchronously green. Against
+  `origin/main` at `d0b1f84`, the old selector selected 14/14 and exited 0 in
+  678.075s; the new selector classified every track path, selected 14/14, and
+  an independent `--rebuild` exited 0 in 667.960s. Both runs were exclusive,
+  used one Nix build client, and never exceeded two QEMU guests. The merged
+  non-VM gate then captured: source-size/module-map guardrail 0; workspace fmt
+  0; examples fmt 0; warning-denied workspace/all-target Clippy 0; serial full
+  workspace tests 0; explicit tour generation 0; post-generation tour tests
+  0; committed tour drift 0; diff check 0; aggregate `.gate-exit` 0. No tour
+  drift or other worktree change remained. Next: commit this receipt entry and
+  leave the merged track clean for independent verification.
