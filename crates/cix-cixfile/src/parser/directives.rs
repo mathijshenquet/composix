@@ -644,24 +644,40 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
+        let fields = argv_fields(arguments, line, source, "ENV")?;
+        if fields.get(1).is_some_and(|field| field == "=") {
+            return Err(ParseError::new(
+                line,
+                source,
+                "ENV assignments do not allow spaces around '='; write `ENV NAME=value`",
+            ));
+        }
+        let assignment = fields[0].split_once('=');
+        let name = assignment.map_or(fields[0].as_str(), |(name, _)| name);
+        validate_env_name(name, line, source)?;
         if matches!(self.current, Some(CurrentBlock::Builder(_))) {
-            let fields = exact_fields(arguments, 3, line, source, "ENV <name> = <value>")?;
-            validate_env_name(fields[0], line, source)?;
-            if fields[1] != "=" {
+            let Some((_, value)) = assignment else {
                 return Err(ParseError::new(
                     line,
                     source,
-                    "builder ENV name must be followed by '='",
+                    "builder ENV defaults must use `NAME=value`",
+                ));
+            };
+            if fields.len() != 1 {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    "expected builder ENV NAME=value",
                 ));
             }
-            let name = self.current_builder_name("ENV", line, source)?.to_owned();
-            let value = self.build_template(fields[2], line, source, false)?;
+            let builder_name = self.current_builder_name("ENV", line, source)?.to_owned();
+            let value = self.build_template(value, line, source, false)?;
             self.builders
-                .get_mut(&name)
+                .get_mut(&builder_name)
                 .expect("current builder exists")
                 .steps
                 .push(BuildStep::Env {
-                    name: fields[0].to_owned(),
+                    name: name.to_owned(),
                     value,
                     line,
                     source: source.to_owned(),
@@ -674,19 +690,8 @@ impl Parser<'_> {
             source,
             &[ArtifactKind::Service, ArtifactKind::App],
         )?;
-        let fields = at_least_one_field(arguments, line, source, "ENV")?;
-        validate_env_name(fields[0], line, source)?;
-        let mut index = 1;
-        let default = if fields.get(index) == Some(&"=") {
-            index += 1;
-            let value = fields.get(index).ok_or_else(|| {
-                ParseError::new(
-                    line,
-                    source,
-                    "ENV '=' must be followed by one default value",
-                )
-            })?;
-            index += 1;
+        let index = 1;
+        let default = if let Some((_, value)) = assignment {
             reject_runtime_variable(value, "ENV default", line, source)?;
             Some(self.build_template(value, line, source, false)?)
         } else {
@@ -695,7 +700,7 @@ impl Parser<'_> {
         let mut required = false;
         let mut secret = false;
         for flag in &fields[index..] {
-            match *flag {
+            match flag.as_str() {
                 "required" if !required => required = true,
                 "secret" if !secret => secret = true,
                 "required" | "secret" => {
@@ -714,21 +719,28 @@ impl Parser<'_> {
                 }
             }
         }
+        if required && default.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "ENV required forbids a default; write either `ENV NAME=value` or `ENV NAME required`",
+            ));
+        }
         let artifact_name = self.current_artifact_name("ENV", line, source)?.to_owned();
         let service = &mut self
             .artifacts
             .get_mut(&artifact_name)
             .expect("artifact exists")
             .service;
-        if service.env.contains_key(fields[0]) {
+        if service.env.contains_key(name) {
             return Err(ParseError::new(
                 line,
                 source,
-                format!("ENV {:?} is already declared", fields[0]),
+                format!("ENV {name:?} is already declared"),
             ));
         }
         service.env.insert(
-            fields[0].to_owned(),
+            name.to_owned(),
             Env {
                 default,
                 required,

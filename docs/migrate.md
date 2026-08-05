@@ -121,7 +121,7 @@ all ELFs to one loader misrepairs the other variant.
 
 The runtime toolset is the artifact's imported `bin/`. Every SERVICE and APP gets `PATH=bin` by
 default, and a bare command is checked against that assembled tree at build time, including when
-arguments follow it. An explicit `ENV PATH = …` replaces that runtime default, but does not change
+arguments follow it. An explicit `ENV PATH=…` replaces that runtime default, but does not change
 the build-time command check. Interpolated store paths remain valid in FILE content and COPY
 sources; do not use them as the taught START spelling:
 
@@ -225,8 +225,8 @@ independent ingredient; a `FETCH` inside a builder advances that builder's work 
 Split independent network operations so each has its own pin. Do not hide a clone, dependency
 download, and build in one shell command.
 
-When upstream publishes a checksum, use it to establish and review the fetched output, then
-declare that output's SRI hash with `EXPECT`:
+When upstream publishes a checksum, use it to establish and review a stable fetched artifact,
+then declare that output's SRI hash with `EXPECT`:
 
 ```dockerfile
 # Fragment — directives inside a BUILDER with curl, TLS roots, and bash imported.
@@ -246,32 +246,33 @@ checksum and the complete-work-directory SRI are distinct, reviewable claims.
 Replace the placeholder with the real SRI hash; never guess one. The value hashes the complete
 FETCH work directory, including names and modes, rather than merely re-encoding one file's
 published digest. `EXPECT` removes the trust-on-first-use window and a mismatch reports
-declared versus fetched content. Without `EXPECT`, the automatic lock pin covers only paths
-later consumers read; incidental package-manager cache files outside that set are diagnosed by
-the update probe but do not become false instability. `cix build --update-lock <fetch-or-builder>`
-runs the fetch twice and records differing names and sizes as facts. If a volatile byte reaches
-a consumed path, normalize it in the fetch command (for example, keep package-manager metadata
-outside the workdir); cix does not guess exclusions. `cix build --cold` replays locally cached
-FETCH snapshots without network access, so it proves the offline builder suffix while the pin
-remains the fetched-input trust boundary. The cache is keyed by the stable pin and is deliberately
-not serialized into `Cixfile.lock`; if it is absent, `--cold` fails rather than refetching.
+declared versus fetched content.
+
+Use `EXPECT` only for stable artifacts such as release tarballs and tagged files. For volatile or
+ecosystem-managed fetches, omit it and let `cix build --update-lock <fetch-or-builder>` record
+TOFU consumed pins; incidental package-manager cache files outside later reads do not become
+false instability. When author trust matters, keep the upstream verification inside `FETCH` — for
+example `sha256sum -c` against the vendor-published value — rather than pinning a volatile whole
+work tree. `cix build --cold` replays locally cached FETCH snapshots without network access, so it
+proves the offline builder suffix while the pin remains the fetched-input trust boundary. The cache
+is keyed by the stable pin and is deliberately not serialized into `Cixfile.lock`; if it is absent,
+`--cold` fails rather than refetching.
 `FETCH` deliberately has no heredoc: split network steps.
 
-Do not pin mutable API metadata verbatim. Release JSON often contains download counters or
-other fields that change while the release itself does not, making its complete-work-directory
-`EXPECT` unstable. Normalize the response inside `FETCH` to exactly the fields consumed by
-later steps, or fetch the stable asset URL directly. Pinning the whole response and hoping the
-cache never misses is not reproducibility.
+Do not put `EXPECT` on mutable API metadata. Release JSON often contains download counters or
+other fields that change while the release itself does not. Use TOFU consumed pins for that fetch,
+or fetch a stable asset URL directly. Pinning the whole response and hoping the cache never misses
+is not reproducibility.
 
 Offline transformations such as checkout, extraction, compilation, and copying belong in `RUN`.
 
-Builder `ENV NAME = value` is plain text and applies to subsequent steps in declaration
+Builder `ENV NAME=value` is plain text and applies to subsequent steps in declaration
 order. It is part of the build key and expands through each step shell, so values such as
 `$PWD/.cache` refer to that builder's `/work` directory. A multiline `RUN` uses a heredoc:
 
 ```dockerfile
 # Fragment — directives inside a BUILDER.
-ENV CARGO_HOME = $PWD/.cargo
+ENV CARGO_HOME=$PWD/.cargo
 RUN <<BUILD
 mkdir -p output
 cargo build --release --locked --offline
@@ -289,12 +290,14 @@ comments are not Cixfile syntax; within `RUN` or `FETCH`, `#` belongs to the she
 
 Use `SERVICE` for a daemon and `APP` for a command that completes. `START` combines Docker's
 entrypoint and command into one argv contract. Runtime environment declarations use
-`ENV NAME = value`, optionally followed by `required`, or `ENV NAME secret`. A service can
+`ENV NAME=value`, or `ENV NAME required` for a mandatory value. A bare `ENV NAME` declares an
+optional value that remains unset unless the operator supplies it. `ENV NAME=value required` is
+a parse error: required values have no default. A service can
 connect a numeric default to an inbound capability declaration with:
 
 ```dockerfile
 # Fragment — directives inside a SERVICE.
-ENV PORT = 8080 required
+ENV PORT required
 PORT http = $PORT
 ```
 
@@ -379,13 +382,13 @@ There is no implicit `:latest`. Docker muscle memory is wrong here: every ref pa
 | `apt`, `apk`, `dnf`, or a vendor package repository | Select packages from `${pkgs}`; `IMPORT ${pkgs.x}` in the BUILDER/SERVICE/APP/ITEM that uses it, then invoke commands by bare name | Do not reproduce package-manager state, repository keys, cleanup, or image layers. Missing/version-sensitive packages may require a real builder or the `.nix` escape hatch. |
 | `RUN command` | Offline `RUN` inside a named `BUILDER` | Import every command as a whole package and invoke it by bare name. |
 | Downloaded FHS-linked executable | IMPORT `${pkgs.glibc}` or `${pkgs.musl}` for its x86-64 loader alias; use the explicit patchelf RUN escape for other libraries | The aliases do not create an FHS root or `/lib` search path. GNU v1 covers only `DT_NEEDED` libraries supplied by imported glibc. |
-| Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, preferably with `EXPECT` | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
+| Networked `RUN`, `curl`, `wget`, clone, or dependency download | `FETCH`, with `EXPECT` only for stable artifacts | `RUN` remains networkless. Use explicit `${pkgs.cacert}` import for public TLS. |
 | Multi-stage `COPY --from=build` | `COPY ${build}/path /destination` | Blocks refer backward; prefer a narrow output path. |
 | Cross-image `COPY --from=<image>` | `FROM family/member:v3 AS prebuilt`, then `COPY ${prebuilt}/path /destination` | The index ref must have an explicit tag. It is NAR-verified and lock-pinned; a moved tag takes effect only through `--update-lock prebuilt`. |
 | Context `COPY` | `COPY path /destination` or `COPY ${src}/path /destination` | Artifact destinations are absolute in the item's runtime world; BUILDER destinations stay relative. Read every copied script/config first. Directory COPY is preferred when contents move together. |
 | `ADD` URL or automatic tar extraction | `FETCH` the URL, then `RUN` an explicit extractor | There is no implicit URL fetch or archive extraction. |
 | `RUN --mount=type=cache` | Delete it | Builder workspaces persist by default, including the builder's own last end-state on a re-run; workspace bytes never enter keys. Use `cix build --cold` as the clean-output audit. |
-| `ENV` / build `ARG` | Builder `ENV NAME = value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
+| `ENV` / build `ARG` | Builder `ENV NAME=value` for later build steps; artifact `ENV` for runtime/operator input | There is no ambient CLI build-arg channel. Make build inputs explicit in source or generated Cixfile text. |
 | `ENTRYPOINT` plus `CMD` | One `START` argv; use quote-aware words | `START` does not invoke a shell. Copy and explicitly run a shell script only when needed. |
 | `EXPOSE 8080` | `PORT http = 8080` | `PORT` is an enforced inbound capability declaration, not documentation. |
 | `VOLUME /data` | Use `STATEDIR /data` (or another role) for cix-managed private data; use `DIR /data` only when the operator supplies the content | Compose `as:` can change lifecycle treatment loudly when it makes data less durable; `DIR` never becomes an empty private volume. |
@@ -435,7 +438,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER payload
 IMPORT ${pkgs.bash} ${pkgs.curl} ${pkgs.coreutils} ${pkgs.cacert}
-ENV OUTPUT = $PWD/output
+ENV OUTPUT=$PWD/output
 FETCH \
     curl --fail --location \
     https://raw.githubusercontent.com/NixOS/nixpkgs/624af665418d3c65d544145b4d34ad696439570e/README.md \

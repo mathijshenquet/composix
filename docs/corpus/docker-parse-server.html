@@ -642,10 +642,10 @@ Retrieved: 2026-07-31
 <span class="tok-directive">BUILDER</span> deps
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.python3}</span>
   <span class="tok-directive">COPY</span> context/ .
-  <span class="tok-directive">ENV</span> npm_config_fetch_retries = 5
-  <span class="tok-directive">ENV</span> npm_config_fetch_retry_mintimeout = 60000
-  <span class="tok-directive">ENV</span> npm_config_fetch_retry_maxtimeout = 300000
-  <span class="tok-directive">ENV</span> npm_config_cache = /tmp/parse-server-npm-cache-clean
+  <span class="tok-directive">ENV</span> npm_config_fetch_retries=5
+  <span class="tok-directive">ENV</span> npm_config_fetch_retry_mintimeout=60000
+  <span class="tok-directive">ENV</span> npm_config_fetch_retry_maxtimeout=300000
+  <span class="tok-directive">ENV</span> npm_config_cache=/tmp/parse-server-npm-cache-clean
   <span class="tok-directive">FETCH</span> bash -c &#39;npm ci --omit=dev --ignore-scripts&#39;
   <span class="tok-directive">RUN</span> cp -R node_modules prod_node_modules
   <span class="tok-directive">FETCH</span> bash -c &#39;npm ci --ignore-scripts&#39;
@@ -666,11 +666,11 @@ Retrieved: 2026-07-31
   <span class="tok-directive">COPY</span> context/bin /parse-server/bin
   <span class="tok-directive">COPY</span> context/public /parse-server/public
   <span class="tok-directive">COPY</span> context/views /parse-server/views
-  <span class="tok-directive">ENV</span> PORT = 18091
-  <span class="tok-directive">ENV</span> PARSE_SERVER_APPLICATION_ID = &quot;&quot;
-  <span class="tok-directive">ENV</span> PARSE_SERVER_MASTER_KEY = &quot;&quot;
-  <span class="tok-directive">ENV</span> PARSE_SERVER_DATABASE_URI = &quot;&quot;
-  <span class="tok-directive">ENV</span> PARSE_SERVER_URL = &quot;&quot;
+  <span class="tok-directive">ENV</span> PORT=18091
+  <span class="tok-directive">ENV</span> PARSE_SERVER_APPLICATION_ID=&quot;&quot;
+  <span class="tok-directive">ENV</span> PARSE_SERVER_MASTER_KEY=&quot;&quot;
+  <span class="tok-directive">ENV</span> PARSE_SERVER_DATABASE_URI=&quot;&quot;
+  <span class="tok-directive">ENV</span> PARSE_SERVER_URL=&quot;&quot;
   <span class="tok-directive">PORT</span> http = $PORT
   <span class="tok-directive">STATEDIR</span> /parse-server/cloud
   <span class="tok-directive">CONFIGDIR</span> /etc/parse-server

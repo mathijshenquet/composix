@@ -22,10 +22,10 @@ FILE /etc/app.conf <<E
 source=${src}
 E
 	LINK ${pkgs.bash}/bin/bash /bin/sh
-	ENV PATH = bin
+	ENV PATH=bin
 START web
 START_PRE /bin/web
-ENV PORT = 8080 required
+ENV PORT required
 PORT http = $PORT
 LISTENER admin
 STATEDIR /var/lib/web
@@ -38,7 +38,7 @@ CLAIM egress
 APP migrate
 COPY ${ingredient} /payload
 START /bin/true
-ENV MODE = once
+ENV MODE=once
 STATEDIR /var/lib/migrate
 	CACHEDIR /var/cache/migrate
 	CLAIM egress
@@ -54,9 +54,47 @@ STATEDIR /var/lib/migrate
     }
 
     #[test]
+    fn env_uses_equals_assignments_and_bare_optionals() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nENV PORT=8080\nENV API_TOKEN required\nENV THEME\nENV MESSAGE=\"hello world\"\nSTART /bin/true\n",
+        )
+        .unwrap();
+        let env = &parsed.artifacts["app"].service.env;
+        assert_eq!(
+            env["PORT"]
+                .default
+                .as_ref()
+                .unwrap()
+                .literal_value()
+                .as_deref(),
+            Some("8080")
+        );
+        assert!(env["API_TOKEN"].required);
+        assert!(env["THEME"].default.is_none());
+        assert!(!env["THEME"].required);
+        assert_eq!(
+            env["MESSAGE"]
+                .default
+                .as_ref()
+                .unwrap()
+                .literal_value()
+                .as_deref(),
+            Some("hello world")
+        );
+
+        for declaration in ["ENV PORT = 8080", "ENV PORT=8080 required"] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\n{declaration}\nSTART /bin/true\n"
+            ))
+            .unwrap_err();
+            assert!(error.message.contains("ENV NAME=value"), "{error}");
+        }
+    }
+
+    #[test]
     fn ports_default_to_tcp_and_accept_systemd_udp_spelling() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nENV PORT = 5353\nPORT http = 8080\nPORT dns = udp:$PORT\nSTART /bin/true\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nENV PORT=5353\nPORT http = 8080\nPORT dns = udp:$PORT\nSTART /bin/true\n",
         )
         .unwrap();
         assert_eq!(
@@ -188,7 +226,7 @@ STATEDIR /var/lib/migrate
                 .unwrap_err();
         assert_eq!(
             service_path.message,
-            "PATH was removed; use ENV PATH = <value>; see docs/cixfile.md#runtime-path"
+            "PATH was removed; use ENV PATH=<value>; see docs/cixfile.md#runtime-path"
         );
     }
 
@@ -489,7 +527,7 @@ START /bin/true \
     #[test]
     fn builder_env_is_ordered_plain_text_and_exec_argv_is_quote_aware() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nENV COREPACK_HOME = $PWD/.corepack\nRUN printf '%s\\n' ok\nSERVICE web\nSTART ${pkgs.nginx}/bin/nginx -g 'daemon off;'\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build\nIMPORT ${pkgs.bash}\nENV COREPACK_HOME=$PWD/.corepack\nRUN printf '%s\\n' ok\nSERVICE web\nSTART ${pkgs.nginx}/bin/nginx -g 'daemon off;'\n",
         )
         .unwrap();
         assert!(matches!(
@@ -702,7 +740,7 @@ START /bin/true \
             ("LOGDIR /var/log/job", "LOGDIR is not allowed inside APP"),
             ("CONFIGDIR /etc/job", "CONFIGDIR is not allowed inside APP"),
             ("RUNDIR /run/job", "RUNDIR is not allowed inside APP"),
-            ("PATH bin", "PATH was removed; use ENV PATH = <value>"),
+            ("PATH bin", "PATH was removed; use ENV PATH=<value>"),
         ] {
             let input = format!("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nSTART /bin/true\n{directive}\n");
             let error = parse(&input).unwrap_err();
@@ -724,7 +762,7 @@ START /bin/true \
         for directive in [
             "START /bin/hello",
             "START_PRE /bin/hello",
-            "ENV PATH = bin",
+            "ENV PATH=bin",
             "PORT http = 8080",
             "LISTENER http",
             "STATEDIR /var/lib/data",
@@ -879,7 +917,7 @@ use cix_cixfile::{parse, BuildStep, TemplatePart};
 #[test]
 fn from_lock_metadata_is_a_builder_env_template() {
     let parsed = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/rev AS src\nBUILDER build\nIMPORT ${pkgs.bash}\nENV GIT_COMMIT_HASH = ${src.rev}\nRUN true\nITEM app\nCOPY ${build}/out /out\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/rev AS src\nBUILDER build\nIMPORT ${pkgs.bash}\nENV GIT_COMMIT_HASH=${src.rev}\nRUN true\nITEM app\nCOPY ${build}/out /out\n",
     )
     .unwrap();
     assert!(matches!(

@@ -246,6 +246,17 @@ mod tests {
     }
 
     #[test]
+    fn leaves_bare_optional_environment_unset_until_overridden() {
+        let resolved = ResolvedConfig::resolve(&service(), &["COUNT=1".into()], &[]).unwrap();
+        assert!(!resolved.env.contains_key("ENABLED"));
+
+        let resolved =
+            ResolvedConfig::resolve(&service(), &["COUNT=1".into(), "ENABLED=false".into()], &[])
+                .unwrap();
+        assert_eq!(resolved.env["ENABLED"], "false");
+    }
+
+    #[test]
     fn rejects_non_port_env_overrides_for_ports_referenced_variables() {
         let error =
             ResolvedConfig::resolve(&service(), &["COUNT=1".into(), "PORT=nope".into()], &[])

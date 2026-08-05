@@ -1444,7 +1444,7 @@ mod tests {
         );
 
         let explicit =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH = /tools/bin\nSTART /bin/true\n")
+            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH=/tools/bin\nSTART /bin/true\n")
                 .unwrap();
         let explicit_spec = generate_spec_json(&explicit).unwrap();
         assert!(

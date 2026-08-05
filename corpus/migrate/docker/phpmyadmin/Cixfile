@@ -2,10 +2,10 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER package3
   IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.findutils} ${pkgs.gnupg} ${pkgs.gnused} ${pkgs.gnutar} ${pkgs.xz}
-  ENV VERSION = 5.2.3
-  ENV SHA256 = 57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
-  ENV URL = https://files.phpmyadmin.net/phpMyAdmin/$VERSION/phpMyAdmin-$VERSION-all-languages.tar.xz
-  FETCH bash -c 'set -eu; export GNUPGHOME="$PWD/gnupg"; mkdir -m 700 "$GNUPGHOME"; curl --fail --location --output phpMyAdmin.tar.xz "$URL"; curl --fail --location --output phpMyAdmin.tar.xz.asc "$URL.asc"; echo "$SHA256 *phpMyAdmin.tar.xz" | sha256sum -c -; curl --fail --location https://keys.openpgp.org/vks/v1/by-fingerprint/3D06A59ECE730EB71B511C17CE752F178259BD92 | gpg --batch --import; gpg --batch --verify phpMyAdmin.tar.xz.asc phpMyAdmin.tar.xz; gpgconf --kill all; rm -rf "$GNUPGHOME"' EXPECT sha256-0UThvehGmRwp33q84MI46oZv0gZMGeQ3T9xaObyPlKw=
+  ENV VERSION=5.2.3
+  ENV SHA256=57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
+  ENV URL=https://files.phpmyadmin.net/phpMyAdmin/$VERSION/phpMyAdmin-$VERSION-all-languages.tar.xz
+  FETCH bash -c 'set -eu; export GNUPGHOME="$PWD/gnupg"; mkdir -m 700 "$GNUPGHOME"; curl --fail --location --output phpMyAdmin.tar.xz "$URL"; curl --fail --location --output phpMyAdmin.tar.xz.asc "$URL.asc"; echo "$SHA256 *phpMyAdmin.tar.xz" | sha256sum -c -; curl --fail --location https://keys.openpgp.org/vks/v1/by-fingerprint/3D06A59ECE730EB71B511C17CE752F178259BD92 | gpg --batch --import; gpg --batch --verify phpMyAdmin.tar.xz.asc phpMyAdmin.tar.xz; gpgconf --kill all; rm -rf "$GNUPGHOME"'
   RUN mkdir -p output
   RUN <<BUILD
 tar -xf phpMyAdmin.tar.xz
@@ -30,13 +30,13 @@ SERVICE phpmyadmin
   COPY start-pre.sh /bin/phpmyadmin-start-pre
   START_PRE bash /bin/phpmyadmin-start-pre
   START php -S 0.0.0.0:8080 -t /var/www/html
-  ENV PMA_SSL_DIR = /etc/phpmyadmin/ssl
-  ENV MAX_EXECUTION_TIME = 600
-  ENV MEMORY_LIMIT = 512M
-  ENV UPLOAD_LIMIT = 2048K
-  ENV TZ = UTC
-  ENV SESSION_SAVE_PATH = /sessions
-  ENV PHP_INI_SCAN_DIR = /etc/phpmyadmin
+  ENV PMA_SSL_DIR=/etc/phpmyadmin/ssl
+  ENV MAX_EXECUTION_TIME=600
+  ENV MEMORY_LIMIT=512M
+  ENV UPLOAD_LIMIT=2048K
+  ENV TZ=UTC
+  ENV SESSION_SAVE_PATH=/sessions
+  ENV PHP_INI_SCAN_DIR=/etc/phpmyadmin
   PORT http = 8080
   CLAIM egress
   RUNDIR /etc/phpmyadmin

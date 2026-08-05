@@ -197,9 +197,9 @@ The Dockerfile pins memcached 1.6.45 and SHA-1 45038980ea7045a548b9b5b5125ef7116
 
 <span class="tok-directive">BUILDER</span> build
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.dpkg}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gzip}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.binutils}</span> <span class="tok-interpolation">${pkgs.libevent}</span> <span class="tok-interpolation">${pkgs.libevent.dev}</span> <span class="tok-interpolation">${pkgs.cyrus_sasl}</span> <span class="tok-interpolation">${pkgs.cyrus_sasl.dev}</span> <span class="tok-interpolation">${pkgs.linuxHeaders}</span> <span class="tok-interpolation">${pkgs.openssl}</span> <span class="tok-interpolation">${pkgs.openssl.dev}</span> <span class="tok-interpolation">${pkgs.perl}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span>
-  <span class="tok-directive">ENV</span> MEMCACHED_VERSION = 1.6.45
-  <span class="tok-directive">ENV</span> MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  <span class="tok-directive">ENV</span> MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  <span class="tok-directive">ENV</span> MEMCACHED_VERSION=1.6.45
+  <span class="tok-directive">ENV</span> MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  <span class="tok-directive">ENV</span> MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   <span class="tok-directive">FETCH</span> curl --fail --location &quot;https://memcached.org/files/memcached-$MEMCACHED_VERSION.tar.gz&quot; --output memcached.tar.gz EXPECT sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=
   <span class="tok-directive">RUN</span> echo &quot;$MEMCACHED_SHA1  memcached.tar.gz&quot; | sha1sum -c -
   <span class="tok-directive">RUN</span> tar --no-same-owner --no-overwrite-dir -xzf memcached.tar.gz --strip-components=1
@@ -224,9 +224,9 @@ The Dockerfile pins memcached 1.6.45 and SHA-1 45038980ea7045a548b9b5b5125ef7116
 
 <span class="tok-directive">SERVICE</span> memcached
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span>
-  <span class="tok-directive">ENV</span> MEMCACHED_VERSION = 1.6.45
-  <span class="tok-directive">ENV</span> MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  <span class="tok-directive">ENV</span> MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  <span class="tok-directive">ENV</span> MEMCACHED_VERSION=1.6.45
+  <span class="tok-directive">ENV</span> MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  <span class="tok-directive">ENV</span> MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/memcached /bin/memcached
   <span class="tok-directive">COPY</span> context/docker-entrypoint.sh /bin/docker-entrypoint.sh
   <span class="tok-directive">START</span> sh /bin/docker-entrypoint.sh memcached
@@ -240,9 +240,9 @@ The Dockerfile pins memcached 1.6.45 and SHA-1 45038980ea7045a548b9b5b5125ef7116
 
 SERVICE memcached
   IMPORT ${pkgs.memcached} ${pkgs.bash}
-  ENV MEMCACHED_VERSION = 1.6.45
-  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  ENV MEMCACHED_VERSION=1.6.45
+  ENV MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   COPY context/docker-entrypoint.sh /bin/docker-entrypoint.sh
   START sh /bin/docker-entrypoint.sh memcached
   PORT client = 11211

@@ -1005,7 +1005,7 @@ FILE /etc/guide-site/build-origin <<ORIGIN
 packages=${pkgs.coreutils}
 ORIGIN
 START sleep 60
-ENV SITE_NAME = guide
+ENV SITE_NAME=guide
 ENV API_TOKEN required
 STATEDIR /var/lib/guide-site
 STATEDIR /opt/nginx/state
@@ -1071,7 +1071,7 @@ CLAIM jit
     assert!(generated.contains("packages=/nix/store/") && generated.contains("-coreutils-"));
 
     doc.para("## Runtime declarations are grants");
-    doc.para("`ENV SITE_NAME = guide` supplies a default. `ENV API_TOKEN required` names a required non-secret operator value: direct run supplies it as `cix run \"$item\" -e API_TOKEN=example`, while a compose child uses `\"env\": {\"API_TOKEN\": \"example\"}`. Secret values instead use `SECRET` and the credential-file mechanism described below.");
+    doc.para("`ENV SITE_NAME=guide` supplies a default. `ENV API_TOKEN required` names a required non-secret operator value; bare `ENV THEME` declares an optional value that stays unset unless supplied. Direct run supplies a value as `cix run \"$item\" -e API_TOKEN=example`, while a compose child uses `\"env\": {\"API_TOKEN\": \"example\"}`. Secret values instead use `SECRET` and the credential-file mechanism described below.");
     doc.para("Role directories use the application's native absolute paths. Systemd creates unit-scoped backing below the host's state, cache, log, configuration, and runtime roots and binds it to the declared path: state survives until explicit purge, cache is expendable, logs are retained until cleaning policy removes them, writable config is operator-managed, and run data disappears on stop. An operator can replace a declared role with existing content using `--dir /etc/guide-site=host:/srv/guide-config --identity guide-site`; compose places the same `host:` materialization in the child's `dirs` map. For a compose named `stack`, `cix clean stack --what cache` removes only expendable cache, while `cix down stack --purge --yes` explicitly removes cix-owned state and shared data; host-backed `DIR` data is never deleted.");
     doc.para("A bare port is TCP; the `udp:` prefix is the single UDP spelling. `LISTENER admin` declares no address: the operator assigns one with `-p admin=127.0.0.1:8420`, systemd owns that TCP socket, and the process receives file descriptor 3 with `LISTEN_FDS=1` and `LISTEN_FDNAMES=admin`. Compose publishes a named listener in Chapter 6.");
     doc.para("Claims form a closed vocabulary: `egress` permits outbound networking, `jit` drops `MemoryDenyWriteExecute=`, `gpu` opens the `/dev/dri` class, and `device /dev/name` opens exactly one device. Without egress the compiler uses a private or deny-by-default network; without jit writable executable memory stays denied. These declarations still describe the intended unit under `--user`, but an incapable user manager may emit the degradation marker taught in Chapter 1.");

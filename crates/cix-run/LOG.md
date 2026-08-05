@@ -2,6 +2,18 @@
 
 ## track/stopdispo
 
+- 2026-08-05 UTC — Merged `origin/main` at `8bb160f`, incorporating the
+  ENV `NAME=value` grammar canon and CIP-102 EXPECT sweep. Resolved the
+  Adminer corpus overlap semantically: its GAPS file retains main's mandatory
+  SHA-256/TOFU and cold-design-divergence finding while marking only the now
+  representable STOPSIGNAL item stale; nginx's independently carried stale
+  STOPSIGNAL finding remains intact. `docs/corpus.md` likewise retains the
+  main findings and adds the stale stop-signal note. Removed conflicted
+  browser outputs and synchronously regenerated them with `devenv shell --
+  cargo test --test corpus -- --ignored generate_corpus_browser` (exit 0),
+  rather than hand-merging generated files. Next: commit this merge, reset
+  stale `cix-*` user units, and rerun the complete agent gate tier.
+
 - 2026-08-05 UTC — Implemented `STOPSIGNAL <signal>` for SERVICE/APP
   Cixfiles, validated against Linux signal names, serialized as manifest
   `stopSignal`, and projected by cix-run to `KillSignal=`. Compose gains the

@@ -695,7 +695,7 @@ fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.coreutils}/bin/true /bin/true
-ENV PATH = ${pkgs.bash}/bin
+ENV PATH=${pkgs.bash}/bin
 START_PRE true
 START true
 "#,
@@ -726,7 +726,7 @@ fn bare_commands_ignore_explicit_path_when_resolving() {
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
 LINK ${pkgs.bash}/bin/bash /bin/bash
-ENV PATH = ${pkgs.coreutils}/bin
+ENV PATH=${pkgs.coreutils}/bin
 START bash
 "#,
     )
@@ -783,7 +783,7 @@ FROM . AS src
 BUILDER build
 IMPORT ${pkgs.bash} ${pkgs.coreutils}
 COPY ${src}/input input
-ENV OUTPUT = $PWD/output
+ENV OUTPUT=$PWD/output
 RUN <<BUILD
 # A RUN heredoc is sent to the same builder shell as a one-line RUN.
 cp input "$OUTPUT"

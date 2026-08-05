@@ -9,10 +9,16 @@
   },
   "fetches": {
     "builder:release:1-5dd05e82158e": {
-      "narHash": "sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw="
+      "snapshotNarHash": "sha256-4FP6p6zfnSgVPgMB9Ie6VlSrK6/2RomxTcU5S7YUdM4=",
+      "paths": {
+        "output/traefik": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto="
+      }
     },
     "builder:release:2-901089f09bf8": {
-      "narHash": "sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw="
+      "snapshotNarHash": "sha256-dwK9JraOQJr3AneSPN8itW4XDwkSqJi4bKql6HGPw/Y=",
+      "paths": {
+        "output/traefik": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto="
+      }
     }
   },
   "memo": {
@@ -25,6 +31,14 @@
       }
     },
     "b2f971b78c5459c712aeedd659d81e6d797308930960fbe94a095a77c43848d3": {
+      "paths": {
+        "output/traefik": {
+          "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
+          "storePath": "/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed"
+        }
+      }
+    },
+    "c3124debccfd4ec58b7a2021d5a8ad8fb2cff1e21bab486e16e0a24e0307f8a6": {
       "paths": {
         "output/traefik": {
           "narHash": "sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=",
@@ -51,7 +65,7 @@
   },
   "stepMemo": {
     "builder:release:1": {
-      "key": "2c7324019ec4709977a53a121083154357a113a9fcd494202053c3fdc302c086",
+      "key": "5a83163cf10cf66f0c0c814e0117b488c207c18b76c607a55c4c1fb12a33e848",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -63,7 +77,7 @@
           "kind": "absent"
         }
       },
-      "outputSnapshot": "/nix/store/b9izvl0f0xa7svs6p8fksr4bnvxnvnyv-cix-step-output",
+      "outputSnapshot": "/nix/store/7ksjq68agvx7s9l5nvkp8x2lhmkhd8d3-cix-step-output",
       "changes": {
         "release.json": {
           "kind": "present"
@@ -71,12 +85,12 @@
       },
       "outputHashes": {
         "release.json": {
-          "content": "eec66b5742132c9f31605b32b8f93f963b42b139090d2de95c40f57d626c275c"
+          "content": "68cabc4cca871e89009fd6e42462fb25cb9f852048e027908591eb235e3ab2c0"
         }
       }
     },
     "builder:release:2": {
-      "key": "6b23ae3205d0d7eb1ba9b4b58ee9c66ded790ca5e6b54b9329bfdfc9ff388a8f",
+      "key": "850a7a7bd0bd4c125529672a1567c5b781ecb1d983a51a2e4e4c2f24f000eaf3",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -98,11 +112,11 @@
         },
         "release.json": {
           "kind": "file",
-          "hash": "c506bebef0e058291b1c9844f7465446aba46fa8ee63032d117dee67a7c863c4",
+          "hash": "a3805d9c33af237aee6e5ddcb287a6d2ff6f2be18c2ed13c6b1a54e741c8c210",
           "fingerprint": {
             "dev": 2307,
-            "inode": 12726893,
-            "mtimeNs": 127961991,
+            "inode": 19936963,
+            "mtimeNs": 940030261,
             "size": 42824,
             "len": 42824,
             "mode": 33188
@@ -122,7 +136,7 @@
       }
     },
     "builder:release:3": {
-      "key": "88fb2fa48463b70f40236d53ae8c9be0db95490e436123324778ee54cc82ec7c",
+      "key": "e16edc7f8c4bf3806c8f13bf5e5b78ccee2173791660e4aed937b6844b8484ba",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -132,8 +146,8 @@
           "hash": "180a10923242afdd4a4c4118a6a8af859a7c34c62accba04bcd3381f63576a77",
           "fingerprint": {
             "dev": 2307,
-            "inode": 12726894,
-            "mtimeNs": 224090342,
+            "inode": 19937028,
+            "mtimeNs": 947678907,
             "size": 46325856,
             "len": 46325856,
             "mode": 33188
@@ -147,12 +161,9 @@
       }
     },
     "builder:release:4": {
-      "key": "a28e246a766f8dda81ac5f9722d9e65e890cfbe3b60d20f6ac4a9e101d6b798c",
+      "key": "5eb54afb1aa12efc4bedf2a91d8ff0fce6247ca9855df6a322f4e0b2c9f6ed93",
       "reads": {
         ".": {
-          "kind": "directory-exists"
-        },
-        "output": {
           "kind": "directory-exists"
         },
         "traefik": {
@@ -160,7 +171,7 @@
           "hash": "83264cd9ea59a373410d8ac631945a3dfdbc453517fa15a818a37b97afa7fba1",
           "fingerprint": {
             "dev": 2307,
-            "inode": 12726890,
+            "inode": 19937038,
             "mtimeNs": 0,
             "size": 171536568,
             "len": 171536568,
@@ -195,10 +206,13 @@
       }
     }
   },
+  "builderDevEnvs": {
+    "release": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:2cb310efce9c429297353e07ac51dd04bc0131b35fb810371930588475212a73"
+  },
   "outputs": {
     "traefik": {
-      "sourceHash": "6d2e61c2bde5504a0a47d07f7a6e9a54428743947957eaf57d76e8b36567a897",
-      "storePath": "/nix/store/hs71647jq7ny98451vv9j18gng3c3vad-cix-item-traefik"
+      "sourceHash": "cd43df248f7d668a61b348a3f82a83be5e4c1999902297e5e520e46d399bc82d",
+      "storePath": "/nix/store/3b3fy3i4waczrpdliwldcaqqfc9sah8h-cix-item-traefik"
     }
   }
 }
