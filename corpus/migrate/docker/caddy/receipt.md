@@ -11,3 +11,7 @@ The Cixfiles declare `80/tcp`, `443/tcp`, `443/udp`, and `2019/tcp`.
 ## 2026-08-05 assembly rerun
 
 `./check.sh cix` exited non-zero before assembly: Cix's sandbox FETCH returned the same 769-byte body (`sha256-XnQDFzyLvpWytEFT1E48D4X0IY4QxmuuGtje8R+jyvE=`) for distinct raw GitHub asset URLs, so the first stable EXPECT pin rejected it. Direct host curl returned the distinct raw Caddyfile/index assets. No pin was changed.
+
+## 2026-08-05 clean-worktree recheck
+
+`./check.sh cix` exited 0 after its Cix-mode probe was corrected to declared port 80. The faithful item `/nix/store/9cxyg2hx2c44gp5xw2pqwqs8d9f0xi18-cix-item-caddy` served the Caddy welcome page in an independent run. The prior 769-byte same-body receipt was environment-tainted.

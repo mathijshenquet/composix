@@ -44,8 +44,8 @@ Blocks have distinct jobs:
 | Block | Purpose | Current directives |
 | --- | --- | --- |
 | `BUILDER <name>` | A persistent, disposable workshop for network or command work | `IMPORT`, `COPY`, `FETCH`, `ENV`, `RUN` |
-| `SERVICE <name>` | A long-running artifact | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`; deprecated `LINK` parses as `COPY` |
-| `APP <name>` | A run-to-completion artifact | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `STATEDIR`, `CACHEDIR`, `CLAIM`; deprecated `LINK` parses as `COPY` |
+| `SERVICE <name>` | A long-running artifact | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS`, `STOPSIGNAL`; deprecated `LINK` parses as `COPY` |
+| `APP <name>` | A run-to-completion artifact | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `STATEDIR`, `CACHEDIR`, `CLAIM`, `READINESS`, `LIVENESS`, `STOPSIGNAL`; deprecated `LINK` parses as `COPY` |
 | `ITEM <name>` | A pure store tree, with no manifest | `IMPORT`, `COPY`, `FILE`; deprecated `LINK` parses as `COPY` |
 
 `SERVICE`, `APP`, and `ITEM` block names are the real member names. `BUILDER` names are local
@@ -319,6 +319,11 @@ directory root and binds it back into the service:
 - `LOGDIR /var/log/app` for service-managed logs;
 - `CONFIGDIR /etc/app` for writable configuration; and
 - `RUNDIR /run/app` for ephemeral runtime data.
+
+Put runtime state such as pid files and Unix sockets in the declared `RUNDIR`,
+never in `/tmp`. A role path makes the ownership and lifecycle explicit: for
+example, nginx should use `RUNDIR /run/nginx` with `pid /run/nginx/nginx.pid;`,
+and a PHP-FPM socket should live below its declared runtime role.
 
 Prefer stdout/stderr over a log directory when the application supports it. `APP` permits
 only `STATEDIR` and `CACHEDIR`; it has no ports, listeners, setup hook, or log/config/run role

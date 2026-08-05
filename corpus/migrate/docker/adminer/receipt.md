@@ -45,3 +45,7 @@ in the FETCH commands; their whole-tree `EXPECT`s were removed in favor of TOFU 
 pins. `target/debug/cix build --cold corpus/migrate/docker/adminer#adminer` exited 1 at
 the independent `designs` read-set divergence (warm directory, cold absent), without a
 network fetch.
+
+## 2026-08-05 STOPSIGNAL regeneration
+
+Current `target/debug/cix` captured the faithful build, `./check.sh cix`, faithful `--cold`, and dissolved `--cold` with exit status 0. The faithful item was `/nix/store/nqlf99y0hqqsis7msmjfg9sdgbpbsdr2-cix-item-adminer`; the login probe printed `PASS cix`. Both FETCH snapshots replayed cold, so the staged generated-output wall did not reproduce.

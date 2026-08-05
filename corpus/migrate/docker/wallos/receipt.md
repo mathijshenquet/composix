@@ -52,3 +52,7 @@ After `bash corpus/migrate/docker/fetch.sh wallos` exited 0, the assembler obser
   item after executing the assembly RUN from a cold workspace.
 
 Docker mode was not rerun.
+
+## 2026-08-05 CIP-98 regeneration
+
+Current warm and cold builds each exited 0, producing `/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos`. `./check.sh cix` exited 1 because its unit post-probe tried to execute the workspace-local cix binary inside `ProtectHome` and received `203/EXEC`; no HTTP success is claimed.

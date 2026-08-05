@@ -11,7 +11,10 @@ must be host:port`), then `http 127.0.0.1:80 /health.php` (path must
 be glued). The Docker intuition is "a path on my own service" —
 CIP-79 itself records that health commands are nearly always
 `curl -f http://localhost/…`. The explicit host:port is ceremony in
-the standard case, and the corpus keeps paying it.
+the standard case, and the corpus keeps paying it. Wallos's staged NOTES
+also records the same friction while translating Docker's `/health.php`
+check into native readiness/liveness; its final spelling remains the
+awkward `http 127.0.0.1:18092/health.php` form.
 
 **Proposal (v2 — Mathijs: even the explicit form fights intuition;
 people write URLs).**

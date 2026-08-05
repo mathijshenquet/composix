@@ -1,23 +1,50 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-BUILDER app
-  IMPORT ${pkgs.bash} ${pkgs.coreutils}
-  COPY context/ .
-  COPY startup.cix.sh startup.sh
-  RUN <<ASSEMBLE
-rm -f nginx.conf nginx.default.conf
-mkdir -p db images/uploads/logos
-ASSEMBLE
+BUILDER webroot
+  IMPORT ${pkgs.bash}
+  IMPORT ${pkgs.coreutils}
+  COPY ${src}/context/ .
+  RUN rm -rf .github screenshots .dockerignore .gitignore .tmp/.gitignore *.md nginx.conf nginx.default.conf
 
 SERVICE wallos
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.nginx} ${pkgs.php83}
-  COPY ${app}/ /var/www
-  COPY nginx.cix.conf /etc/nginx/nginx.conf
+  IMPORT ${pkgs.bash}
+  IMPORT ${pkgs.coreutils}
+  IMPORT ${pkgs.php}
+  COPY ${webroot}/ /var/www/html
+  COPY ${src}/nginx-cix.conf /etc/wallos-nginx.conf
   COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
-  COPY php-fpm.cix.conf /etc/wallos/php-fpm.conf
-  START bash /var/www/startup.sh
-  PORT http = 80
-  PORT probe = 18092
+  COPY ${src}/fastcgi.params /etc/nginx/fastcgi_params
+  COPY ${src}/php-fpm.conf /etc/wallos-php-fpm.conf
+  COPY ${src}/wallos-start.sh /bin/wallos-start.sh
+  IMPORT ${pkgs.nginx}
+  START bash /bin/wallos-start.sh
+  ENV TZ
+  ENV DEMO_MODE
+  ENV SSRF_ALLOWLIST
+  ENV http_proxy
+  ENV https_proxy
+  ENV all_proxy
+  ENV OIDC_ENABLED
+  ENV OIDC_AUTO_CREATE_USER
+  ENV OIDC_DISABLE_PASSWORD_LOGIN
+  ENV OIDC_REQUIRE_EMAIL_VERIFIED
+  ENV OIDC_ISSUER
+  ENV OIDC_PROVIDER_NAME
+  ENV OIDC_CLIENT_ID
+  ENV OIDC_AUTH_URL
+  ENV OIDC_TOKEN_URL
+  ENV OIDC_USERINFO_URL
+  ENV OIDC_REDIRECT_URL
+  ENV OIDC_LOGOUT_URL
+  ENV OIDC_USER_IDENTIFIER
+  ENV OIDC_SCOPES
+  ENV OIDC_CLIENT_SECRET_FILE
+  PORT http = 18092
+  READINESS http 127.0.0.1:18092/health.php IN 20s
+  LIVENESS http 127.0.0.1:18092/health.php EVERY 2m
+  STATEDIR /var/www/html/db
+  STATEDIR /var/www/html/images/uploads
+  CACHEDIR /var/www/html/.tmp
+  RUNDIR /var/run
   CLAIM egress
-  STATEDIR /var/www/db
-  STATEDIR /var/www/images/uploads/logos

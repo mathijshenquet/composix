@@ -1,4 +1,35 @@
 
+## 2026-08-05 — track/regen4 assembly start
+
+- Read the regen4 and regen3 specifications, corpus maintenance rules, staged NOTES, current case ledgers, and the prior caddy/filestash receipts. The three requested cold-stage outputs are present under `/home/mathijs/regen-stage/docker-{adminer,nginx,wallos}`; their worker claims are not yet accepted. The staged Adminer and nginx files predate the now-landed `STOPSIGNAL` surface, so assembly must add their Docker-requested signals and re-verify with the current binary. Wallos supplies the CIP-98 `/var/www/html` nested-role translation, but its worker runtime receipt is explicitly invalid in this worktree until independently rerun.
+- Next: reconstruct the ignored source contexts from the recorded revisions, apply the staged artifacts plus the required current-language corrections, then capture synchronous build/probe/cold receipts before regrading ledgers and regenerating the browser.
+
+## 2026-08-05 — track/regen4 independent artifact verification
+
+- Reconstructed Adminer, nginx, Wallos, and Filestash contexts with `corpus/migrate/fetch.sh` at their recorded revisions, built the current `cix`, and applied the staged translations. Adminer and nginx now explicitly carry their Dockerfile `STOPSIGNAL` values. The nginx config puts its pid at `/run/nginx/nginx.pid` under `RUNDIR`; `docs/migrate.md` now teaches the same runtime-state rule. Wallos is the staged `/var/www/html` CIP-98 nested-role form, not an invented `/app` layout.
+- Value-checked receipts so far: Adminer faithful check.sh, faithful cold replay, and dissolved cold replay all exit 0; nginx faithful check.sh, faithful cold replay, and dissolved cold replay all exit 0; Wallos warm/cold builds exit 0 but check.sh exits 1 because the generated unit cannot execute the workspace-local cix binary inside `ProtectHome` (`203/EXEC`). Contrary to its worker note, Adminer's current cold replay passes, so no unverified generated-directory language wall is being promoted. Caddy's clean-worktree build now reaches assembly and produces an item, proving the earlier same-769-byte FETCH wall was environmental; its check.sh still exits 1 and needs an independently visible runtime diagnostic. Filestash clean re-verification reached its networked FETCH after the recorded source context was restored; it is still running as this entry is written.
+- Next: finish Filestash and Caddy value checks, replace GAPS/receipts and ribbon rows with the observed outcomes, regenerate browser, then run the complete tier and focused VM selection.
+
+## 2026-08-05 — track/regen4 assembled
+
+- Caddy clean recheck and direct runtime probe passed; its old 769-byte asset anomaly is environment-tainted. Filestash no longer fails DNS but exceeded the case's 20-minute bound while sealing a 2.7 GiB/~69k-file module FETCH, so it is honestly a lock-scale wall. Browser regeneration, Rust fmt, example formatting, and diff-check passed. Full workspace/clippy/tour/VM gates remain for the orchestrator tier; this track changed only corpus/docs and has no focused VM scenario addition.
+
+## 2026-08-05 — regen4 staging-friction harvest
+
+- Adminer staging reported that a generated `output/` directory could not be declared non-input for cold replay. The current cold receipt passed, so this is retained as a disproved staging observation rather than promoted to a false language draft. nginx staging's runtime-state lesson is adopted in `docs/migrate.md`: pid files and Unix sockets belong below declared `RUNDIR`, never `/tmp`. Wallos staging's health-probe grammar stumble is additional evidence in accepted CIP-109; its `ProtectHome` post-probe `203/EXEC` remains a case evidence wall.
+
+## 2026-08-05 — regen4 origin/main integration
+
+- Merged `origin/main` at `bbdc2ce`, including CIP-93 leg 2's contract-keyed progressive VM selector. The merge was clean: its selector/process files do not overlap this track's corpus, receipt, or migration-teaching changes. Next: rerun the complete agent tier with captured exit statuses; a corpus/docs-only diff is expected to select no VM scenarios under the new contract map.
+
+## 2026-08-05 — regen4 CIP-99 integration
+
+- Merged `origin/main` at `2d89569` (CIP-99 lock aggregation) cleanly. Regenerated the corpus browser rather than hand-merging its pages (exit 0); it had no further output drift. Updated the journal's moved probe URL reference to accepted CIP-109. Captured exit-0 receipts: fmt, examples formatting, warning-denied clippy, full workspace tests, tour regeneration, and zero tour drift. The contract-keyed selector inspected the CIP-99 build tracing surfaces but selected 0/14 VM contracts, then exited 0; this is the expected cheap path for this diff.
+
+## 2026-08-05 — regen4 post-merge receipts
+
+- Captured exit-0 receipts: Rust fmt, canonical examples formatting, warning-denied workspace clippy, full workspace tests, and explicit tour regeneration with zero `docs/tour` drift. The contract-keyed progressive selector correctly saw the merged `nix/scenario-contracts.json` as cross-cutting rather than treating this as corpus-only: all 14 scenarios were selected and the selector/build exited 0 in 27.811 seconds. Final next step: commit this journal-only merge receipt and leave the branch clean.
+
 ## 2026-08-05 — track/cip102 start
 
 - Read the track specification, accepted CIP-102, migration and corpus maintenance guidance, and the current case ledgers. Scope is intentionally narrow: add the EXPECT mismatch teaching diagnostic, correct the FETCH teaching, and remove only the four audited volatile EXPECT declarations while preserving their RUN-level/upstream checksum verification.

@@ -23,6 +23,18 @@
         "designs": "sha256-hUO8MmzgJP6aLBSldhnFr+4QkH4HLjmp3rSq0klocNA=",
         "plugins": "sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4="
       }
+    },
+    "builder:release:3-1392e80818ee": {
+      "snapshotNarHash": "sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=",
+      "paths": {
+        "output": "sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing="
+      }
+    },
+    "builder:release:4-982c31cc5beb": {
+      "snapshotNarHash": "sha256-8nps6EKeGZi276DQrqfVwfeC322N+V68vZlfwbXUxf8=",
+      "paths": {
+        "output": "sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing="
+      }
     }
   },
   "memo": {
@@ -55,6 +67,14 @@
         "plugins": {
           "narHash": "sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=",
           "storePath": "/nix/store/6ls4x4qxkawfcfq9gsh09iz0dq5yf72q-cix-build-consumed"
+        }
+      }
+    },
+    "87491bfbbec5dc6afda047ea385578aea4bc66fdc0676b84ef622a01a3ab51fc": {
+      "paths": {
+        "output": {
+          "narHash": "sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=",
+          "storePath": "/nix/store/9i0qdj3m4yq1z43dx4vdrvf698qn017d-cix-build-consumed"
         }
       }
     },
@@ -658,6 +678,525 @@
           "kind": "absent"
         }
       }
+    },
+    "builder:release:3": {
+      "key": "ed22d769655b07b59c0c8ae118ad9a86ea0c2b199b375e1b98da0ed7d8bf97d6",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/r8q1110snn34zjl3w6za1444m5czh5s5-cix-step-output",
+      "changes": {
+        "adminer.php": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "adminer.php": {
+          "content": "dbba8af239d754f14106a8f25cc5825fb1fb8022941e6c95d65ce1006b187635"
+        }
+      }
+    },
+    "builder:release:4": {
+      "key": "51480c50ad646e4fdd7f26d120e2cb7249c27570cf1e1b47f93b5dc3b42ff805",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/24cwsblrb949wmb8588jcr78k10disc2-cix-step-output",
+      "changes": {
+        "source.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "source.tar.gz": {
+          "content": "346e45a9f1a60fb82b4f54aed6fdd83af46f8ce23fa680bd4b75479d6f604659"
+        }
+      }
+    },
+    "builder:release:5": {
+      "key": "b17f2d4fc493cefe96f36551ec63e859d93eab39925da54deb80aa9e762bef24",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "adminer.php": {
+          "kind": "file",
+          "hash": "1834715b7ff0a0538cb72b84728b01e66042725c42a07ddad7c35f53e7267259",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 23392302,
+            "mtimeNs": 109360353,
+            "size": 515911,
+            "len": 515911,
+            "mode": 33188
+          }
+        },
+        "output": {
+          "kind": "absent"
+        },
+        "source.tar.gz": {
+          "kind": "file",
+          "hash": "666b75dca9b12b032389ad74a3e581be3f4c3005aa9f71d17d1555cbbf570ad7",
+          "fingerprint": {
+            "dev": 2307,
+            "inode": 23392303,
+            "mtimeNs": 833367831,
+            "size": 674926,
+            "len": 674926,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "output/adminer.php": {
+          "kind": "present"
+        },
+        "output/designs": {
+          "kind": "present"
+        },
+        "output/designs/README.md": {
+          "kind": "present"
+        },
+        "output/designs/adminer-dark": {
+          "kind": "present"
+        },
+        "output/designs/adminer-dark/README.md": {
+          "kind": "present"
+        },
+        "output/designs/adminer-dark/adminer-dark.css": {
+          "kind": "present"
+        },
+        "output/designs/brade": {
+          "kind": "present"
+        },
+        "output/designs/brade/README.md": {
+          "kind": "present"
+        },
+        "output/designs/brade/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/bueltge": {
+          "kind": "present"
+        },
+        "output/designs/bueltge/README.md": {
+          "kind": "present"
+        },
+        "output/designs/bueltge/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/dracula": {
+          "kind": "present"
+        },
+        "output/designs/dracula/README.md": {
+          "kind": "present"
+        },
+        "output/designs/dracula/adminer-dark.css": {
+          "kind": "present"
+        },
+        "output/designs/esterka": {
+          "kind": "present"
+        },
+        "output/designs/esterka/README.md": {
+          "kind": "present"
+        },
+        "output/designs/esterka/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/flat": {
+          "kind": "present"
+        },
+        "output/designs/flat/README.md": {
+          "kind": "present"
+        },
+        "output/designs/flat/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/galkaev": {
+          "kind": "present"
+        },
+        "output/designs/galkaev/README.md": {
+          "kind": "present"
+        },
+        "output/designs/galkaev/adminer-dark.css": {
+          "kind": "present"
+        },
+        "output/designs/haeckel": {
+          "kind": "present"
+        },
+        "output/designs/haeckel/README.md": {
+          "kind": "present"
+        },
+        "output/designs/haeckel/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/hever": {
+          "kind": "present"
+        },
+        "output/designs/hever/README.md": {
+          "kind": "present"
+        },
+        "output/designs/hever/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/konya": {
+          "kind": "present"
+        },
+        "output/designs/konya/README.md": {
+          "kind": "present"
+        },
+        "output/designs/konya/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/lavender-light": {
+          "kind": "present"
+        },
+        "output/designs/lavender-light/README.md": {
+          "kind": "present"
+        },
+        "output/designs/lavender-light/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/lucas-sandery": {
+          "kind": "present"
+        },
+        "output/designs/lucas-sandery/README.md": {
+          "kind": "present"
+        },
+        "output/designs/lucas-sandery/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/mancave": {
+          "kind": "present"
+        },
+        "output/designs/mancave/README.md": {
+          "kind": "present"
+        },
+        "output/designs/mancave/adminer-dark.css": {
+          "kind": "present"
+        },
+        "output/designs/mvt": {
+          "kind": "present"
+        },
+        "output/designs/mvt/README.md": {
+          "kind": "present"
+        },
+        "output/designs/mvt/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/nette": {
+          "kind": "present"
+        },
+        "output/designs/nette/README.md": {
+          "kind": "present"
+        },
+        "output/designs/nette/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/ng9": {
+          "kind": "present"
+        },
+        "output/designs/ng9/README.md": {
+          "kind": "present"
+        },
+        "output/designs/ng9/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/nicu": {
+          "kind": "present"
+        },
+        "output/designs/nicu/README.md": {
+          "kind": "present"
+        },
+        "output/designs/nicu/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/pappu687": {
+          "kind": "present"
+        },
+        "output/designs/pappu687/README.md": {
+          "kind": "present"
+        },
+        "output/designs/pappu687/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/paranoiq": {
+          "kind": "present"
+        },
+        "output/designs/paranoiq/README.md": {
+          "kind": "present"
+        },
+        "output/designs/paranoiq/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/pepa-linha": {
+          "kind": "present"
+        },
+        "output/designs/pepa-linha/README.md": {
+          "kind": "present"
+        },
+        "output/designs/pepa-linha/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/pokorny": {
+          "kind": "present"
+        },
+        "output/designs/pokorny/README.md": {
+          "kind": "present"
+        },
+        "output/designs/pokorny/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/price": {
+          "kind": "present"
+        },
+        "output/designs/price/README.md": {
+          "kind": "present"
+        },
+        "output/designs/price/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft/README.md": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue-dark": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue-dark/README.md": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue-dark/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue/README.md": {
+          "kind": "present"
+        },
+        "output/designs/rmsoft_blue/adminer.css": {
+          "kind": "present"
+        },
+        "output/designs/win98": {
+          "kind": "present"
+        },
+        "output/designs/win98/README.md": {
+          "kind": "present"
+        },
+        "output/designs/win98/adminer.css": {
+          "kind": "present"
+        },
+        "output/plugins": {
+          "kind": "present"
+        },
+        "output/plugins/README.md": {
+          "kind": "present"
+        },
+        "output/plugins/adminer.js.php": {
+          "kind": "present"
+        },
+        "output/plugins/backward-keys.php": {
+          "kind": "present"
+        },
+        "output/plugins/before-unload.php": {
+          "kind": "present"
+        },
+        "output/plugins/config.php": {
+          "kind": "present"
+        },
+        "output/plugins/dark-switcher.php": {
+          "kind": "present"
+        },
+        "output/plugins/database-hide.php": {
+          "kind": "present"
+        },
+        "output/plugins/designs.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/README.md": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/clickhouse.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/elastic.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/firebird.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/igdb.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/imap.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/mongo.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/redis.php": {
+          "kind": "present"
+        },
+        "output/plugins/drivers/simpledb.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-alter.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-bz2.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-date.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-json.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-php.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-xml.php": {
+          "kind": "present"
+        },
+        "output/plugins/dump-zip.php": {
+          "kind": "present"
+        },
+        "output/plugins/edit-calendar.php": {
+          "kind": "present"
+        },
+        "output/plugins/edit-foreign.php": {
+          "kind": "present"
+        },
+        "output/plugins/edit-textarea.php": {
+          "kind": "present"
+        },
+        "output/plugins/editor-setup.php": {
+          "kind": "present"
+        },
+        "output/plugins/editor-views.php": {
+          "kind": "present"
+        },
+        "output/plugins/email-table.php": {
+          "kind": "present"
+        },
+        "output/plugins/enum-option.php": {
+          "kind": "present"
+        },
+        "output/plugins/file-upload.php": {
+          "kind": "present"
+        },
+        "output/plugins/foreign-system.php": {
+          "kind": "present"
+        },
+        "output/plugins/frames.php": {
+          "kind": "present"
+        },
+        "output/plugins/highlight-codemirror.php": {
+          "kind": "present"
+        },
+        "output/plugins/highlight-monaco.php": {
+          "kind": "present"
+        },
+        "output/plugins/highlight-prism.php": {
+          "kind": "present"
+        },
+        "output/plugins/json-column.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-ip.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-otp.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-password-less.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-reverse-proxy.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-servers.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-ssl.php": {
+          "kind": "present"
+        },
+        "output/plugins/login-table.php": {
+          "kind": "present"
+        },
+        "output/plugins/master-slave.php": {
+          "kind": "present"
+        },
+        "output/plugins/menu-links.php": {
+          "kind": "present"
+        },
+        "output/plugins/pretty-json-column.php": {
+          "kind": "present"
+        },
+        "output/plugins/row-numbers.php": {
+          "kind": "present"
+        },
+        "output/plugins/select-email.php": {
+          "kind": "present"
+        },
+        "output/plugins/slugify.php": {
+          "kind": "present"
+        },
+        "output/plugins/sql-gemini.php": {
+          "kind": "present"
+        },
+        "output/plugins/sql-log.php": {
+          "kind": "present"
+        },
+        "output/plugins/table-indexes-structure.php": {
+          "kind": "present"
+        },
+        "output/plugins/table-structure.php": {
+          "kind": "present"
+        },
+        "output/plugins/tables-filter.php": {
+          "kind": "present"
+        },
+        "output/plugins/timeout.php": {
+          "kind": "present"
+        },
+        "output/plugins/tinymce.php": {
+          "kind": "present"
+        },
+        "output/plugins/translation.php": {
+          "kind": "present"
+        },
+        "output/plugins/version-github.php": {
+          "kind": "present"
+        },
+        "output/plugins/version-noverify.php": {
+          "kind": "present"
+        }
+      }
     }
   },
   "devEnvs": {
@@ -669,12 +1208,13 @@
     }
   },
   "builderDevEnvs": {
-    "adminer-release": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652"
+    "adminer-release": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652",
+    "release": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652"
   },
   "outputs": {
     "adminer": {
-      "sourceHash": "0bf86768c8bcd1fc022c4538ee78320bbe8603a7ea9add33b1a1bcd0fca734fa",
-      "storePath": "/nix/store/bb34sm0n0kq9razwy254zk18dmiiswrj-cix-item-adminer"
+      "sourceHash": "efda07a935df92ef886084c17948c3a750744376a41512ca84db6dfac157e99f",
+      "storePath": "/nix/store/nqlf99y0hqqsis7msmjfg9sdgbpbsdr2-cix-item-adminer"
     }
   }
 }

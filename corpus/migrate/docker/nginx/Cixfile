@@ -1,7 +1,8 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nginx
-  IMPORT ${pkgs.nginxMainline} ${pkgs.busybox} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gettext} ${pkgs.gnused} ${pkgs.gnugrep} ${pkgs.tzdata}
+  IMPORT ${pkgs.nginx} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gnugrep} ${pkgs.gnused} ${pkgs.gettext} ${pkgs.tzdata}
+  COPY nginx.conf /app/nginx.conf
   ENV NGINX_VERSION=1.31.3
   ENV PKG_RELEASE=1
   ENV DYNPKG_RELEASE=1
@@ -10,7 +11,19 @@ SERVICE nginx
   COPY context/mainline/alpine-slim/15-local-resolvers.envsh /docker-entrypoint.d/15-local-resolvers.envsh
   COPY context/mainline/alpine-slim/20-envsubst-on-templates.sh /docker-entrypoint.d/20-envsubst-on-templates.sh
   COPY context/mainline/alpine-slim/30-tune-worker-processes.sh /docker-entrypoint.d/30-tune-worker-processes.sh
-  START sh /docker-entrypoint.sh nginx -g 'daemon off;'
+  ENV TZ
+  ENV NGINX_ENTRYPOINT_QUIET_LOGS
+  ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS
+  ENV NGINX_ENVSUBST_TEMPLATE_DIR
+  ENV NGINX_ENVSUBST_TEMPLATE_SUFFIX
+  ENV NGINX_ENVSUBST_OUTPUT_DIR
+  ENV NGINX_ENVSUBST_STREAM_TEMPLATE_SUFFIX
+  ENV NGINX_ENVSUBST_STREAM_OUTPUT_DIR
+  ENV NGINX_ENVSUBST_FILTER
+  ENV NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE
+  START sh /docker-entrypoint.sh nginx -c /app/nginx.conf -g 'daemon off;'
   PORT http = 80
+  CLAIM egress
   CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
+  STOPSIGNAL SIGQUIT
