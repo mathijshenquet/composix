@@ -141,7 +141,7 @@ pub struct ComposeService {
     pub jitter: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shm: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "stopTimeout", skip_serializing_if = "Option::is_none")]
     pub stop_timeout: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub egress: Option<bool>,
@@ -821,6 +821,23 @@ mod tests {
         )
         .unwrap();
         assert!(Compose::load(&path).unwrap().log_namespace);
+    }
+
+    #[test]
+    fn stop_timeout_uses_the_compose_camel_case_spelling() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("compose.json");
+        fs::write(
+            &path,
+            r#"{"cixCompose":1,"name":"x","children":{"api":{"item":"x:v1","stopTimeout":"30s"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            item(&Compose::load(&path).unwrap(), "api")
+                .stop_timeout
+                .as_deref(),
+            Some("30s")
+        );
     }
 
     #[test]

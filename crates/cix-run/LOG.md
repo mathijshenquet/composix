@@ -2,6 +2,22 @@
 
 ## track/stopdispo
 
+- 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the
+  explicit serde spelling for the otherwise snake-case `stop_timeout` field:
+  generated `stopTimeout` JSON failed at runtime. Added
+  `#[serde(rename = "stopTimeout")]` plus a load-level regression test.
+  After `systemctl --user stop 'cix-*'`, `reset-failed 'cix-*'`, and
+  `daemon-reload` all exited 0, the complete corrected-head agent tier has
+  synchronous exit-0 receipts: `cargo fmt --all --check`; `cargo run -- fmt
+  --check examples`; warning-denied workspace/all-target clippy; serial full
+  workspace tests (`cargo test --workspace --quiet -- --test-threads=1`, which
+  includes corpus and tour drift); explicit corpus-browser regeneration;
+  explicit tour regeneration; and `nix run .#progressive-vm-check`. The VM
+  selected all 14 changed scenarios, including `scenario-stopdispo`, and
+  passed its `stopTimeout`/`KillSignal` assertions. The serial test setting is
+  required for this host's systemd-user transient-unit race; it is still the
+  complete workspace suite, and its observed exit status was 0.
+
 - 2026-08-05 UTC — Merged `origin/main` at `8bb160f`, incorporating the
   ENV `NAME=value` grammar canon and CIP-102 EXPECT sweep. Resolved the
   Adminer corpus overlap semantically: its GAPS file retains main's mandatory
