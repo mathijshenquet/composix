@@ -7,7 +7,7 @@ BUILDER dependencies-direct
   COPY context/package.json package.json
   COPY context/package-lock.json package-lock.json
   COPY install-dependencies.sh install-dependencies.sh
-  FETCH bash install-dependencies.sh --direct EXPECT sha256-MFqh9XfZ43Pa4nlE/vi0Q081ZpscMZtMTn0qv7vRubQ=
+  FETCH bash install-dependencies.sh --direct
 
 BUILDER build-output
   IMPORT ${pkgs.nodejs} ${pkgs.coreutils} ${pkgs.bash}

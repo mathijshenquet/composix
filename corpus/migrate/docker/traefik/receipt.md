@@ -32,3 +32,13 @@ ping probe returned `OK` and `PASS cix`. This was a warm memo-hit receipt: it
 therefore reproduces the product defect that fails to validate the two identical
 copy-pasted `EXPECT` declarations against their recorded pins; it does not
 validate those declarations.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+`target/debug/cix build --update-lock release corpus/migrate/docker/traefik#traefik`,
+`CIX=/home/mathijs/worktrees/composix/track-cip102/target/debug/cix ./check.sh cix`,
+and `target/debug/cix build --cold corpus/migrate/docker/traefik#traefik` each exited
+0 synchronously. Both update-probe reads were identical; the release metadata and
+asset FETCHes now use TOFU consumed pins, while the vendor digest remains checked by
+`sha256sum --check`. The probe returned `OK` and `PASS cix`; the cold replay produced
+`/nix/store/3b3fy3i4waczrpdliwldcaqqfc9sah8h-cix-item-traefik`.

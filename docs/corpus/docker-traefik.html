@@ -56,17 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / traefik</nav>
   <h1>docker / traefik</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> ⏳ Stale by design — the checked-in case remains the untouched defect repro until the later corpus round normalizes the volatile metadata fetch and records the two correct pins · <strong>Evidence:</strong> historical runtime probe · closed-root (package contract)</p>
-  <p class="status"><strong>Receipt status:</strong> The historical faithful 3.5.6 build answers ping on a warm memo hit; current Cix now rejects its deliberately copy-pasted EXPECT against the distinct recorded pin before memo reuse · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/traefik/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The selected release, architecture, and published asset digest are retained; the supplied entrypoint remains unavailable, so arbitrary-argument proxy behavior is unproved · <strong>Evidence:</strong> runtime probe + cold replay · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 3.5.6 answers ping after its release metadata and asset FETCHes move to TOFU pins; their update probes and pinned cold replay pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/traefik/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/traefik/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> CIP-102 volatile-fetch sweep · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
       <li>The Dockerfile&#39;s copied <code>/entrypoint.sh</code> is absent from the supplied context, so its arbitrary-argument behavior cannot be audited. The service starts <code>traefik --ping=true</code> directly and the receipt proves only that ping endpoint, not a reverse-proxy configuration. → evidence + case</li>
       <li>The faithful builder uses GitHub&#39;s release-API asset endpoint because the Dockerfile&#39;s browser-download URL returned 404 from the FETCH sandbox; the selected version, architecture name, and published digest remain the same. → case</li>
-      <li>Both FETCH steps intentionally retain the identical copy-pasted <code>EXPECT</code>. Warm builds never validated it, proving the <a href="../../../../cips/open-questions.md#expect-not-validated-against-the-recorded-pin-on-warm-builds">EXPECT-versus-recorded-pin defect</a>; correcting either value before the product fix would destroy this case&#39;s reproduction. → language (EXPECT validation)</li>
-      <li>The first FETCH pins mutable GitHub release-metadata JSON whose download counters change, making cold refetches EXPECT-hostile. Normalize it to the consumed fields, or bypass it for the stable asset URL, in the same product round that fixes EXPECT validation. → case</li>
+      <li>GitHub release metadata is volatile, so its two FETCH work trees use TOFU consumed pins rather than <code>EXPECT</code>; the asset&#39;s published digest remains verified with <code>sha256sum --check</code>. The 2026-08-05 update probe found each FETCH stable across its two reads and the pinned cold replay passed. → evidence</li>
     </ul>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
@@ -129,8 +128,8 @@ Fetched: 2026-07-30
 <span class="tok-directive">BUILDER</span> release
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.jq}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
   <span class="tok-directive">ENV</span> VERSION=3.5.6
-  <span class="tok-directive">FETCH</span> curl --fail --location --silent --show-error &quot;https://api.github.com/repos/traefik/traefik/releases/tags/v$VERSION&quot; --output release.json EXPECT sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=
-  <span class="tok-directive">FETCH</span> bash -c &#39;set -e; arch=$(uname -m); case &quot;$arch&quot; in armhf) arch=armv6 ;; aarch64) arch=arm64 ;; x86_64) arch=amd64 ;; riscv64) arch=riscv64 ;; s390x) arch=s390x ;; ppc64le) arch=ppc64le ;; *) echo &quot;unsupported architecture: $arch&quot; &gt;&amp;2; exit 1 ;; esac; name=&quot;traefik_v$VERSION&quot;&quot;_linux_$arch.tar.gz&quot;; export ASSET_NAME=&quot;$name&quot;; asset=$(jq -r &quot;.assets[] | select(.name == env.ASSET_NAME) | .url&quot; release.json); digest=$(jq -r &quot;.assets[] | select(.name == env.ASSET_NAME) | .digest&quot; release.json); digest=$(printf &quot;%s\\n&quot; &quot;$digest&quot; | cut -d: -f2-); curl --fail --location --silent --show-error -H &quot;Accept: application/octet-stream&quot; &quot;$asset&quot; --output traefik.tar.gz; printf &quot;%s  %s\\n&quot; &quot;$digest&quot; traefik.tar.gz | sha256sum --check --status -&#39; EXPECT sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=
+  <span class="tok-directive">FETCH</span> curl --fail --location --silent --show-error &quot;https://api.github.com/repos/traefik/traefik/releases/tags/v$VERSION&quot; --output release.json
+  <span class="tok-directive">FETCH</span> bash -c &#39;set -e; arch=$(uname -m); case &quot;$arch&quot; in armhf) arch=armv6 ;; aarch64) arch=arm64 ;; x86_64) arch=amd64 ;; riscv64) arch=riscv64 ;; s390x) arch=s390x ;; ppc64le) arch=ppc64le ;; *) echo &quot;unsupported architecture: $arch&quot; &gt;&amp;2; exit 1 ;; esac; name=&quot;traefik_v$VERSION&quot;&quot;_linux_$arch.tar.gz&quot;; export ASSET_NAME=&quot;$name&quot;; asset=$(jq -r &quot;.assets[] | select(.name == env.ASSET_NAME) | .url&quot; release.json); digest=$(jq -r &quot;.assets[] | select(.name == env.ASSET_NAME) | .digest&quot; release.json); digest=$(printf &quot;%s\\n&quot; &quot;$digest&quot; | cut -d: -f2-); curl --fail --location --silent --show-error -H &quot;Accept: application/octet-stream&quot; &quot;$asset&quot; --output traefik.tar.gz; printf &quot;%s  %s\\n&quot; &quot;$digest&quot; traefik.tar.gz | sha256sum --check --status -&#39;
   <span class="tok-directive">RUN</span> tar --no-same-owner -xzf traefik.tar.gz traefik
   <span class="tok-directive">RUN</span> mkdir -p output &amp;&amp; cp traefik output/traefik
 
@@ -192,10 +191,16 @@ SERVICE traefik
   },
   &quot;fetches&quot;: {
     &quot;builder:release:1-5dd05e82158e&quot;: {
-      &quot;narHash&quot;: &quot;sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=&quot;
+      &quot;snapshotNarHash&quot;: &quot;sha256-4FP6p6zfnSgVPgMB9Ie6VlSrK6/2RomxTcU5S7YUdM4=&quot;,
+      &quot;paths&quot;: {
+        &quot;output/traefik&quot;: &quot;sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=&quot;
+      }
     },
     &quot;builder:release:2-901089f09bf8&quot;: {
-      &quot;narHash&quot;: &quot;sha256-RjKYz3u0AUx2RVvSTC0GUo/rROFYAVrGmb1MucnxMAw=&quot;
+      &quot;snapshotNarHash&quot;: &quot;sha256-dwK9JraOQJr3AneSPN8itW4XDwkSqJi4bKql6HGPw/Y=&quot;,
+      &quot;paths&quot;: {
+        &quot;output/traefik&quot;: &quot;sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=&quot;
+      }
     }
   },
   &quot;memo&quot;: {
@@ -208,6 +213,14 @@ SERVICE traefik
       }
     },
     &quot;b2f971b78c5459c712aeedd659d81e6d797308930960fbe94a095a77c43848d3&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/traefik&quot;: {
+          &quot;narHash&quot;: &quot;sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/4zx9xz4hfg9v8d0r591rrbnm16lrvnrz-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;c3124debccfd4ec58b7a2021d5a8ad8fb2cff1e21bab486e16e0a24e0307f8a6&quot;: {
       &quot;paths&quot;: {
         &quot;output/traefik&quot;: {
           &quot;narHash&quot;: &quot;sha256-BpWJ8opIqgmNEtbg5TIOdCeHnYSBZRd9grY/VuOzwto=&quot;,
@@ -234,7 +247,7 @@ SERVICE traefik
   },
   &quot;stepMemo&quot;: {
     &quot;builder:release:1&quot;: {
-      &quot;key&quot;: &quot;2c7324019ec4709977a53a121083154357a113a9fcd494202053c3fdc302c086&quot;,
+      &quot;key&quot;: &quot;5a83163cf10cf66f0c0c814e0117b488c207c18b76c607a55c4c1fb12a33e848&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -246,7 +259,7 @@ SERVICE traefik
           &quot;kind&quot;: &quot;absent&quot;
         }
       },
-      &quot;outputSnapshot&quot;: &quot;/nix/store/b9izvl0f0xa7svs6p8fksr4bnvxnvnyv-cix-step-output&quot;,
+      &quot;outputSnapshot&quot;: &quot;/nix/store/7ksjq68agvx7s9l5nvkp8x2lhmkhd8d3-cix-step-output&quot;,
       &quot;changes&quot;: {
         &quot;release.json&quot;: {
           &quot;kind&quot;: &quot;present&quot;
@@ -254,12 +267,12 @@ SERVICE traefik
       },
       &quot;outputHashes&quot;: {
         &quot;release.json&quot;: {
-          &quot;content&quot;: &quot;eec66b5742132c9f31605b32b8f93f963b42b139090d2de95c40f57d626c275c&quot;
+          &quot;content&quot;: &quot;68cabc4cca871e89009fd6e42462fb25cb9f852048e027908591eb235e3ab2c0&quot;
         }
       }
     },
     &quot;builder:release:2&quot;: {
-      &quot;key&quot;: &quot;6b23ae3205d0d7eb1ba9b4b58ee9c66ded790ca5e6b54b9329bfdfc9ff388a8f&quot;,
+      &quot;key&quot;: &quot;850a7a7bd0bd4c125529672a1567c5b781ecb1d983a51a2e4e4c2f24f000eaf3&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -281,11 +294,11 @@ SERVICE traefik
         },
         &quot;release.json&quot;: {
           &quot;kind&quot;: &quot;file&quot;,
-          &quot;hash&quot;: &quot;c506bebef0e058291b1c9844f7465446aba46fa8ee63032d117dee67a7c863c4&quot;,
+          &quot;hash&quot;: &quot;a3805d9c33af237aee6e5ddcb287a6d2ff6f2be18c2ed13c6b1a54e741c8c210&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 12726893,
-            &quot;mtimeNs&quot;: 127961991,
+            &quot;inode&quot;: 19936963,
+            &quot;mtimeNs&quot;: 940030261,
             &quot;size&quot;: 42824,
             &quot;len&quot;: 42824,
             &quot;mode&quot;: 33188
@@ -305,7 +318,7 @@ SERVICE traefik
       }
     },
     &quot;builder:release:3&quot;: {
-      &quot;key&quot;: &quot;88fb2fa48463b70f40236d53ae8c9be0db95490e436123324778ee54cc82ec7c&quot;,
+      &quot;key&quot;: &quot;e16edc7f8c4bf3806c8f13bf5e5b78ccee2173791660e4aed937b6844b8484ba&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -315,8 +328,8 @@ SERVICE traefik
           &quot;hash&quot;: &quot;180a10923242afdd4a4c4118a6a8af859a7c34c62accba04bcd3381f63576a77&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 12726894,
-            &quot;mtimeNs&quot;: 224090342,
+            &quot;inode&quot;: 19937028,
+            &quot;mtimeNs&quot;: 947678907,
             &quot;size&quot;: 46325856,
             &quot;len&quot;: 46325856,
             &quot;mode&quot;: 33188
@@ -330,12 +343,9 @@ SERVICE traefik
       }
     },
     &quot;builder:release:4&quot;: {
-      &quot;key&quot;: &quot;a28e246a766f8dda81ac5f9722d9e65e890cfbe3b60d20f6ac4a9e101d6b798c&quot;,
+      &quot;key&quot;: &quot;5eb54afb1aa12efc4bedf2a91d8ff0fce6247ca9855df6a322f4e0b2c9f6ed93&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
-          &quot;kind&quot;: &quot;directory-exists&quot;
-        },
-        &quot;output&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
         },
         &quot;traefik&quot;: {
@@ -343,7 +353,7 @@ SERVICE traefik
           &quot;hash&quot;: &quot;83264cd9ea59a373410d8ac631945a3dfdbc453517fa15a818a37b97afa7fba1&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 12726890,
+            &quot;inode&quot;: 19937038,
             &quot;mtimeNs&quot;: 0,
             &quot;size&quot;: 171536568,
             &quot;len&quot;: 171536568,
@@ -378,10 +388,13 @@ SERVICE traefik
       }
     }
   },
+  &quot;builderDevEnvs&quot;: {
+    &quot;release&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:2cb310efce9c429297353e07ac51dd04bc0131b35fb810371930588475212a73&quot;
+  },
   &quot;outputs&quot;: {
     &quot;traefik&quot;: {
-      &quot;sourceHash&quot;: &quot;6d2e61c2bde5504a0a47d07f7a6e9a54428743947957eaf57d76e8b36567a897&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/hs71647jq7ny98451vv9j18gng3c3vad-cix-item-traefik&quot;
+      &quot;sourceHash&quot;: &quot;cd43df248f7d668a61b348a3f82a83be5e4c1999902297e5e520e46d399bc82d&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/3b3fy3i4waczrpdliwldcaqqfc9sah8h-cix-item-traefik&quot;
     }
   }
 }
@@ -489,6 +502,16 @@ ping probe returned `OK` and `PASS cix`. This was a warm memo-hit receipt: it
 therefore reproduces the product defect that fails to validate the two identical
 copy-pasted `EXPECT` declarations against their recorded pins; it does not
 validate those declarations.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+`target/debug/cix build --update-lock release corpus/migrate/docker/traefik#traefik`,
+`CIX=/home/mathijs/worktrees/composix/track-cip102/target/debug/cix ./check.sh cix`,
+and `target/debug/cix build --cold corpus/migrate/docker/traefik#traefik` each exited
+0 synchronously. Both update-probe reads were identical; the release metadata and
+asset FETCHes now use TOFU consumed pins, while the vendor digest remains checked by
+`sha256sum --check`. The probe returned `OK` and `PASS cix`; the cold replay produced
+`/nix/store/3b3fy3i4waczrpdliwldcaqqfc9sah8h-cix-item-traefik`.
 </code></pre>
       </details>
     </section>

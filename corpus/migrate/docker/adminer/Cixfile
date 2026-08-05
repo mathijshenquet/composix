@@ -6,8 +6,8 @@ BUILDER adminer-release
   ENV ADMINER_VERSION=5.5.0
   ENV ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
   ENV ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
-  FETCH curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c - EXPECT sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=
-  FETCH curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c - EXPECT sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=
+  FETCH curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c -
+  FETCH curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c -
   RUN tar xzf source.tar.gz --strip-components=1 "adminer-$ADMINER_VERSION/designs/" "adminer-$ADMINER_VERSION/plugins/" && rm source.tar.gz
 
 SERVICE adminer

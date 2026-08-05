@@ -3601,7 +3601,9 @@ fn verify_fetch_hash(
     if let Some(expected) = expected {
         if let Some(actual) = actual {
             if expected != actual {
-                bail!("FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}");
+                bail!(
+                    "FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}. If a refetch of unchanged upstream diverges, the fetched tree is volatile: drop EXPECT and run `cix build --update-lock <fetch-or-builder>` to record TOFU consumed pins, or pin a stable asset URL."
+                );
             }
         } else if pin.is_none_or(|pin| pin.nar_hash != expected) {
             bail!("FETCH EXPECT hash mismatch: declared {expected}, lock has no matching pin");
