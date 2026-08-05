@@ -3,6 +3,9 @@ use crate::fetch::{
     concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
     CredentialToken,
 };
+use crate::workspace::{
+    memo_output_hashes, revert_step_writes, stage_input, validate_step_memo, workspace_identity,
+};
 
 fn closure(paths: &[&str]) -> BTreeSet<String> {
     paths.iter().map(|path| (*path).to_owned()).collect()

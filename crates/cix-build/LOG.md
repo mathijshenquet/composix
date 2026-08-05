@@ -1,5 +1,50 @@
 # cix-build work log
 
+- 2026-08-05T12:00:00Z — Started CIP-103 leg 2 (Workspace owner). Read the
+  accepted CIP and P0 audit cluster. Extracted `workspace.rs`: an owned
+  persistent/cold `Workspace` now retains its scratch lifetime and owns
+  persisted state, staging, tree reconciliation, memo snapshots/fingerprints,
+  and store materialization. The build conductor calls its interface; FETCH
+  pin/cache policy remains in `build_chain` for the later FETCH-state leg.
+  Initial synchronous `devenv shell -- cargo check -p cix-build` passed after
+  formatting; next is a representative byte-identical lock/output receipt,
+  focused tests, then the prescribed complete agent tier.
+
+- 2026-08-05T12:20:00Z — Byte-identical representative corpus receipt passed
+  synchronously. Built the base commit (`bbdc2ce`) and this branch separately,
+  against the same isolated fetched Wallos case and separate workspace roots:
+  both emitted `{"wallos":"/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos"}`
+  and both resulting `Cixfile.lock` files hashed
+  `a0815887a1c5bc2367e294c54416e276e32370d801cf01797e2b2277faf5df9c`.
+  The comparison script value-checked both equalities before its zero exit.
+
+- 2026-08-05T12:35:00Z — Repeated the base/current Wallos comparison after
+  the final exact timing/error-context preservation pass; it produced the same
+  value-checked item and `Cixfile.lock` hash again. Focused synchronous
+  `devenv shell -- cargo test -p cix-cixfile --test proj1` passed (2/2).
+  The required shared-state structural audit reports no new shared state;
+  `bash scripts/check-source-size.sh` reports the new `workspace.rs` owner at
+  928 LOC and the reduced conductor at 2,496 LOC.
+
+- 2026-08-05T13:15:00Z — Final implementation receipt remains value-checked:
+  base and extracted Workspace builds of the isolated Wallos corpus case both
+  returned `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos` and
+  `Cixfile.lock` SHA-256
+  `a0815887a1c5bc2367e294c54416e276e32370d801cf01797e2b2277faf5df9c`.
+  Full agent tier synchronous exit-0 receipts: Rust fmt check, examples fmt
+  check, warning-denied workspace/all-target clippy, full workspace tests,
+  tour regeneration plus zero tour diff, and bounded (`--max-jobs 2 --cores
+  2`) contract-keyed progressive VM check. The selector selected all 14
+  scenarios because `cix-build/src/lib.rs` is a cross-cutting module-map input.
+  `git diff --check` remains for the final review; full flake matrix is the
+  orchestrator's independent pre-merge gate.
+
+- 2026-08-05T13:25:00Z — Committed the completed Workspace-owner leg
+  (`Extract build workspace owner`) after a staged whitespace review. The
+  worktree was clean immediately after the commit. Do not merge from this
+  track; the orchestrator still owns the independent full flake matrix and
+  merge decision.
+
 - 2026-08-05T00:35:00Z — Committed CIP-108 (`Add CIP-108 structural
   guardrails`) after the staged whitespace review. The branch is ready for
   independent orchestrator review and its full flake gate; do not merge from
