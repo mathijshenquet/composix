@@ -63,16 +63,24 @@ edges, interpolation); inside it everything is the named interpreter.
    successive RUNs; the FETCH normalization tails
    (`&& chmod 644 && touch -d @0`) are a missing feature, not a
    fence case — see the NORMALIZE open question.
-2. **The fence is the rare form, not the workhorse**:
-   `RUN bash $ <text>` desugars to argv `[interp, "-c", text]`
-   (`-c` is POSIX-standard for shells; the `$` reads as a prompt and
-   documents the interpreter on the line). Legitimate uses shrink to
-   pipes, redirects, and genuinely shell-shaped one-liners; anything
-   longer belongs in a heredoc. The interpreter must resolve into the
-   IMPORTed/locked closure.
-3. **`RUN <interp> <<EOF … EOF`** — heredoc form: body written to a
-   file, interpreter invoked with the filename (the shebang-grade
-   kernel contract; works for any interpreter, no `-c` assumption).
+2. **Heredoc is THE structural form** (Mathijs, 2026-08-05: complex
+   RUNs go through heredoc, full stop — no one-liner shell fence).
+   `RUN <interp> <<EOF … EOF`: the body is written to a file and the
+   interpreter invoked with the filename — the shebang-grade kernel
+   contract. Consequences: no `-c` reliance anywhere (works for any
+   interpreter, node included); no fence-marker syntax exists or
+   needs bikeshedding; no interpreter allowlist — any executable from
+   the IMPORTed/locked closure that accepts a filename qualifies
+   (bash/fish/nushell/pwsh are the documented examples). A one-line
+   pipe costs three lines — deliberate friction that pushes toward
+   decomposition, consistent with the chain ban.
+3. **Node attachments are indented clauses** — one grammatical shape
+   for everything that hangs off a node: `WITH` (environment, below),
+   and `EXPECT` migrates to the same position for heredoc FETCHes
+   (`FETCH bash <<EOF … EOF` + indented `EXPECT sha256-…`), so the
+   phpmyadmin-class GPG pipeline has a home. Simple node = one line;
+   complex node = line + clauses + optional heredoc body — the
+   systemd/GHA block shape, graduated instead of mandatory.
 4. **Binders: LET in, ENV out** (Mathijs, 2026-08-05: explicit
    per-node binding is "obviously correct"):
    - `LET NAME = value` — a text edge: file-local, interpolates as
@@ -160,11 +168,11 @@ lock pins); migrate.md teaches the fence rule in one sentence.
 
 ## 4. Open questions
 
-- **Marker token**: `$` (prompt mnemonic) or an alternative; parse it
-  as a standalone token between interpreter and text.
-- **Heredoc interpreter**: mandatory (`RUN bash <<EOF`) or is a bare
-  `RUN <<EOF` allowed with an implied… no — proposal says mandatory;
-  confirm.
+- **Heredoc interpreter**: mandatory (`RUN bash <<EOF`) — a bare
+  `RUN <<EOF` has no interpreter to name; confirm.
+- **EXPECT-as-clause migration**: do inline `FETCH … EXPECT` suffixes
+  stay valid alongside the clause position, or does the sweep move
+  all of them?
 - **FETCH normalization tails**: the `&& chmod 644 && touch -d @0`
   idiom keeps forcing fences around single-command FETCHes — promote
   to FETCH options (`FETCH … NORMALIZE`) now or later?
