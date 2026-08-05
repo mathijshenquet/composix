@@ -122,7 +122,7 @@ fn closed_root_teaches_explicit_shell_and_env_dependencies() {
     let error = validate_closed_root_executable(output.path(), executable.to_str().unwrap())
         .unwrap_err()
         .to_string();
-    assert!(error.contains("LINK ${pkgs.coreutils}/bin/env"), "{error}");
+    assert!(error.contains("COPY ${pkgs.coreutils}/bin/env"), "{error}");
     std::fs::create_dir_all(output.path().join("bin")).unwrap();
     std::fs::write(output.path().join("bin/env"), "env").unwrap();
     validate_closed_root_executable(output.path(), executable.to_str().unwrap()).unwrap();

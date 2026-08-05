@@ -180,7 +180,13 @@ impl Parser<'_> {
                        "SCRIPT was removed; COPY a script and invoke it with START ${pkgs.bash}/bin/sh /path; see docs/cixfile.md#copy",
                    ));
                 }
-                "LINK" => self.link(line_number, source, arguments)?,
+                "LINK" => {
+                    return Err(ParseError::new(
+                        line_number,
+                        source,
+                        "LINK was removed; use COPY <source> <absolute-destination>; see docs/cixfile.md#link",
+                    ));
+                }
                 "START" => self.start(line_number, source, arguments, false)?,
                 "START_PRE" => self.start(line_number, source, arguments, true)?,
                 "ENV" => self.env(line_number, source, arguments)?,

@@ -501,57 +501,6 @@ impl Parser<'_> {
       ))
     }
 
-    pub(super) fn link(
-        &mut self,
-        line: usize,
-        source: &str,
-        arguments: &str,
-    ) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 2, line, source, "LINK <target> <linkpath>")?;
-        let unmistakably_old_order = (fields[1].contains("${")
-            || fields[1].starts_with("/nix/store/"))
-            && validate_item_path(fields[0], "LINK path", line, source).is_ok();
-        if unmistakably_old_order
-            || validate_item_path(fields[1], "LINK path", line, source).is_err()
-                && validate_item_path(fields[0], "LINK path", line, source).is_ok()
-        {
-            return Err(ParseError::new(
-              line,
-              source,
-              "LINK arguments are target then link path; write LINK <target> <absolute-linkpath>; see docs/cixfile.md#link",
-          ));
-        }
-        let destination = normalize_artifact_destination(fields[1], "LINK path", line, source)?;
-        reject_build_interpolation(fields[1], "LINK path", line, source)?;
-        reject_runtime_variable(fields[1], "LINK path", line, source)?;
-        reject_runtime_variable(fields[0], "LINK target", line, source)?;
-        let target = self.build_template(fields[0], line, source, false)?;
-        if target.is_empty() {
-            return Err(ParseError::new(
-                line,
-                source,
-                "LINK target must not be empty",
-            ));
-        }
-        validate_copy_source(&target, line, source)?;
-        let mode = self.artifact_copy_mode(&target);
-        self.claim_artifact_destination(destination, line, source)?;
-        eprintln!(
-            "warning: line {line}: LINK is deprecated; use COPY {} {}",
-            fields[0], fields[1]
-        );
-        self.current_artifact_mut("LINK", line, source)?
-            .copies
-            .push(Copy {
-                src: target,
-                dst: destination.to_owned(),
-                mode,
-                line,
-                source: source.to_owned(),
-            });
-        Ok(())
-    }
-
     fn artifact_copy_mode(&self, source: &Template) -> CopyMode {
         match source.parts.first() {
             Some(TemplatePart::Package { .. }) => CopyMode::Link,
@@ -1215,21 +1164,6 @@ impl Parser<'_> {
             .get_mut(&name)
             .expect("current artifact exists")
             .service)
-    }
-
-    pub(super) fn current_artifact_mut(
-        &mut self,
-        directive: &str,
-        line: usize,
-        source: &str,
-    ) -> Result<&mut Artifact, ParseError> {
-        let name = self
-            .current_artifact_name(directive, line, source)?
-            .to_owned();
-        Ok(self
-            .artifacts
-            .get_mut(&name)
-            .expect("current artifact exists"))
     }
 
     pub(super) fn current_artifact_name(

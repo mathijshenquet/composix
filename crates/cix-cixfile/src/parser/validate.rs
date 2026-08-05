@@ -737,19 +737,6 @@ pub(super) fn is_env_continue(value: u8) -> bool {
     is_env_start(value) || value.is_ascii_digit()
 }
 
-pub(super) fn validate_item_path(
-    value: &str,
-    label: &str,
-    line: usize,
-    source: &str,
-) -> Result<(), ParseError> {
-    if Path::new(value).is_absolute() {
-        validate_projected_path(value, label, line, source)
-    } else {
-        validate_relative_path(value, label, line, source)
-    }
-}
-
 pub(super) fn normalize_artifact_copy_destination<'a>(
     value: &'a str,
     label: &str,

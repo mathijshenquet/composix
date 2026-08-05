@@ -1,2 +1,2 @@
 line 4: unknown package namespace "pkg"; did you mean "pkgs"?
-  | "LINK ${pkg.hello}/bin/hello /bin/hello"
+  | "COPY ${pkg.hello}/bin/hello /bin/hello"

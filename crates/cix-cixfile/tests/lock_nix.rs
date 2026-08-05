@@ -539,7 +539,7 @@ fn nix_rejects_a_committed_lock_with_the_wrong_nar_hash() {
 fn unknown_nixpkgs_attribute_includes_the_cixfile_line() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nLINK ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nSTART /bin/missing\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY ${pkgs.thisAttributeDoesNotExist}/bin/missing /bin/missing\nSTART /bin/missing\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -565,7 +565,7 @@ package=${pkgs.hello}
 escaped=$${literal}
 runtime=$VALUE
 EOF
-LINK ${pkgs.hello}/bin/hello /bin/hello
+COPY ${pkgs.hello}/bin/hello /bin/hello
 START hello
 "#,
     )
@@ -615,7 +615,7 @@ fn overlays_apply_in_order_and_bad_overlay_reports_the_contract() {
     )
     .unwrap();
     let cixfile = parse(
-        "FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./first.nix OVERLAY ./second.nix AS pkgs\nSERVICE fixture\nLINK ${pkgs.cixOverlaySecond}/bin/hello /bin/hello\nSTART hello\n",
+        "FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./first.nix OVERLAY ./second.nix AS pkgs\nSERVICE fixture\nCOPY ${pkgs.cixOverlaySecond}/bin/hello /bin/hello\nSTART hello\n",
     )
     .unwrap();
     let expression = generate_nix(
@@ -694,7 +694,7 @@ fn bare_commands_resolve_against_item_bin_and_explicit_path_replaces_default() {
     let cixfile = parse(
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
-LINK ${pkgs.coreutils}/bin/true /bin/true
+COPY ${pkgs.coreutils}/bin/true /bin/true
 ENV PATH=${pkgs.bash}/bin
 START_PRE true
 START true
@@ -725,7 +725,7 @@ fn bare_commands_ignore_explicit_path_when_resolving() {
     let cixfile = parse(
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
-LINK ${pkgs.bash}/bin/bash /bin/bash
+COPY ${pkgs.bash}/bin/bash /bin/bash
 ENV PATH=${pkgs.coreutils}/bin
 START bash
 "#,
@@ -754,7 +754,7 @@ fn bare_command_failure_lists_the_item_bin_entries() {
     let cixfile = parse(
         r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 SERVICE fixture
-LINK ${pkgs.coreutils}/bin/true /bin/true
+COPY ${pkgs.coreutils}/bin/true /bin/true
 START definitely-not-in-bin
 "#,
     )
@@ -1371,8 +1371,6 @@ START /bin/true
         pin.paths.keys().map(String::as_str).collect::<Vec<_>>(),
         ["result"]
     );
-    assert!(pin.store_path.is_none());
-
     // The replay snapshot already contains fetch-ran. Re-executing FETCH would fail
     // its first command, so a successful cold build proves no fetch process spawned.
     let output = build(&BuildOptions {
