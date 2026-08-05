@@ -1,5 +1,54 @@
 # composix work log
 
+## 2026-08-05 later (eleven merges: CIP-96..98,100..103,105 implemented; wave-3; ribbon revamp; audit batch adopted)
+
+- **Merged, each behind my independent full flake-check (exit-0
+  receipts)**: envgrammar (CIP-96+100), cip102 (EXPECT sweep, traefik's
+  two pins), stopdispo (STOPSIGNAL/KillSignal + stopTimeout +
+  dispositions applied to docker.md), cip101 (scratch lifecycle,
+  /var/tmp), ribbon revamp (Mathijs's vocabulary: ✅ deliberate-only,
+  🔶🔄 regen-queued, 🔶⌛ pipeline), regen3 (wave-3: caddy workarounds
+  gone, verdaccio's FIRST item, directus past both old walls onto a
+  pnpm lockfile wall, filestash 11-iteration pkgsStatic record,
+  dozzle+watchtower socket-bridge rewrites — Mathijs's call), cip98
+  (nested role dirs via build-time mountpoints; wallos ⌛→🔄), audit1
+  (sol structural audit → 6 drafts), cip103-leg1 (build_chain 4369→
+  3348), cip97 (granular degradation, per-directive drops), cip105
+  (runtime.rs 1969→290; target/app/manager strata).
+- **CIP-103..108 adopted under Mathijs's delegated review** (KPIs:
+  complexity down, seams clean, SLOC controlled) — decisions in each
+  CIP; two amendments on 103 (residual-conductor ≤1500 live target,
+  scheduled legs). Queue: 108+107 launching, 106, 103 M/L legs, 104
+  last; CIP-99 waits behind corpus-lock churn; cip93b (change-keyed
+  selection, sol) next slot.
+- **Gate saves today**: source-size breach (cip97 runtime.rs 2041),
+  scenario-dirs2 mountpoint defect + false green (cip98), a missed
+  merge round (cip105), three detached/quiet-gate corrections, one
+  empty-capture catch. Host-parallelism has three scarce axes —
+  shared user manager, devenv startup lock, VM/TCG capacity — each
+  needs serialization; staggered starts + bounded matrix
+  (--max-jobs 2) are the working mitigations; mastodon-readiness
+  under parallel TCG recorded as harness finding (feeds CIP-93 leg 2).
+- **Process (Mathijs)**: dev speed = standing priority; worker labels
+  cipNN-{slug}; per-worker done/blocked watchers armed AT LAUNCH
+  (relapse caught by Mathijs — recipe now in CLAUDE.md, memory
+  emptied by design into CLAUDE.md); capture-as-epilogue receipts
+  (never pre-touch, empty ≠ receipt); heartbeat = queue-walk against
+  actual gate conditions.
+- **Open with Mathijs**: build-args v3 (partial lock folded in;
+  args×tagging open), shell-directive draft SUPERSEDED by the chat
+  design round (argv-first RUN, `RUN bash $ …` sugar, ${env.*}
+  namespace — awaiting his taste calls: marker, $X refusal, heredoc
+  interpreter); three ribbon borderline ✅ calls (NATS, renovate,
+  whoami); caddy/filestash assembly walls look environmental (one
+  769-byte body for distinct assets; DNS failure) — clean-env
+  re-verification queued.
+- **Open for agents**: cip108-guardrails + cip107-prune (launching),
+  cip106 doc-harness, cip103 M/L legs, cip104 crate strata, cip93b,
+  CIP-99 lock-scale, k8s wave 1, docker CANDIDATES expansion wave
+  (Mathijs wants this visibly next), directus lockfile wall,
+  wave regen for adminer/nginx/wallos (STOPSIGNAL/CIP-98 consumers).
+
 ## 2026-08-05 (dispositions record; fleet sweep; CIP-100..102 adopted; build-args v2)
 
 - **`cips/dispositions.md` minted** (Mathijs's ask): permanent record of
