@@ -1086,7 +1086,10 @@ fn generated_tour_is_deterministic() {
             let l = left.get(i).copied().unwrap_or("<absent>");
             let r = right.get(i).copied().unwrap_or("<absent>");
             if l != r {
-                report.push_str(&format!("line {}:\n  render1: {l}\n  render2: {r}\n", i + 1));
+                report.push_str(&format!(
+                    "line {}:\n  render1: {l}\n  render2: {r}\n",
+                    i + 1
+                ));
                 shown += 1;
                 if shown >= 40 {
                     report.push_str("… (diff capped at 40 lines)\n");
