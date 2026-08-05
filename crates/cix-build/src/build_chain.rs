@@ -22,7 +22,7 @@ use crate::seccomp;
 use crate::trace;
 use crate::{
     BuildStep, Builder, Cixfile, ConsumedPath, Copy, DevEnvironment, Fetch, FetchPin, LockFile,
-    MemoEntry, StepChange, StepMemo, Template, TemplatePart, VolatilePath,
+    MemoEntry, ScratchDir, StepChange, StepMemo, Template, TemplatePart, VolatilePath,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -123,7 +123,7 @@ struct WorkspaceState {
 }
 
 struct FetchProbe {
-    temporary: Option<tempfile::TempDir>,
+    temporary: Option<ScratchDir>,
 }
 
 impl FetchProbe {
@@ -135,7 +135,10 @@ impl FetchProbe {
     }
 
     fn close(mut self) -> Result<()> {
-        cleanup_fetch_probe(self.temporary.take().expect("FETCH probe snapshot is open"))
+        self.temporary
+            .take()
+            .expect("FETCH probe snapshot is open")
+            .close()
     }
 }
 
@@ -144,7 +147,7 @@ impl Drop for FetchProbe {
         let Some(temporary) = self.temporary.take() else {
             return;
         };
-        if let Err(error) = cleanup_fetch_probe(temporary) {
+        if let Err(error) = temporary.close() {
             eprintln!("warning: failed to clean FETCH probe snapshot: {error:#}");
         }
     }
@@ -553,7 +556,8 @@ fn execute_top_fetch(
             .get(&trace_owner)
             .filter(|memo| memo.key == trace_key)
         {
-            let empty = tempfile::tempdir().context("creating cold top-level FETCH audit root")?;
+            let empty = ScratchDir::new("cix-build-cold-")
+                .context("creating cold top-level FETCH audit root")?;
             verify_cold_read_set(memo, empty.path(), fetch.line, &fetch.source)?;
         }
         let pin = lock.fetches.get(name).with_context(|| {
@@ -598,10 +602,7 @@ fn execute_top_fetch(
             }
         }
     }
-    let work = tempfile::Builder::new()
-        .prefix("cix-fetch-work-")
-        .tempdir()
-        .context("creating top-level FETCH workdir")?;
+    let work = ScratchDir::new("cix-fetch-work-").context("creating top-level FETCH workdir")?;
     let trace_before = copied_snapshot(work.path())?;
     let started = Instant::now();
     let credential = credentials.for_command(command)?;
@@ -629,7 +630,7 @@ fn execute_top_fetch(
     let mut step_volatile = BTreeSet::new();
     let volatile = if force && fetch.expected.is_none() {
         let first = copied_snapshot(work.path())?;
-        let empty = tempfile::tempdir()?;
+        let empty = ScratchDir::new("cix-build-cold-")?;
         replace_workspace_tree(empty.path(), work.path())?;
         run_sandbox(
             work.path(),
@@ -880,10 +881,8 @@ fn execute_builder(
     };
     let temporary;
     let (workdir, staging) = if cold {
-        temporary = tempfile::Builder::new()
-            .prefix("cix-build-cold-")
-            .tempdir()
-            .context("creating cold builder workspace")?;
+        temporary =
+            ScratchDir::new("cix-build-cold-").context("creating cold builder workspace")?;
         let staging = temporary.path().join("staged");
         let work = temporary.path().join("work");
         fs::create_dir_all(&staging)?;
@@ -2134,10 +2133,7 @@ fn add_step_output_snapshot(
     changes: &BTreeMap<String, StepChange>,
     excluded: &BTreeSet<String>,
 ) -> Result<String> {
-    let delta = tempfile::Builder::new()
-        .prefix("cix-step-delta-")
-        .tempdir()
-        .context("creating step output delta")?;
+    let delta = ScratchDir::new("cix-step-delta-").context("creating step output delta")?;
     let mut present = changes
         .iter()
         .filter(|(_, change)| matches!(change, StepChange::Present))
@@ -2420,10 +2416,7 @@ fn materialize_view(paths: &BTreeMap<String, ConsumedPath>) -> Result<String> {
     if let Some(whole) = paths.get(".") {
         return Ok(whole.store_path.clone());
     }
-    let view = tempfile::Builder::new()
-        .prefix("cix-build-view-")
-        .tempdir()
-        .context("creating consumed-path view")?;
+    let view = ScratchDir::new("cix-build-view-").context("creating consumed-path view")?;
     for (path, consumed) in paths {
         copy_node(Path::new(&consumed.store_path), &view.path().join(path))?;
     }
@@ -2549,27 +2542,11 @@ fn fetch_snapshot_receipt(directory: &Path, name: &str, pin: &FetchPin) -> Resul
 }
 
 fn copied_snapshot(source: &Path) -> Result<FetchProbe> {
-    let snapshot = tempfile::Builder::new()
-        .prefix("cix-fetch-probe-")
-        .tempdir()
-        .context("creating FETCH probe snapshot")?;
+    let snapshot = ScratchDir::new("cix-fetch-probe-").context("creating FETCH probe snapshot")?;
     copy_tree(source, snapshot.path())?;
     Ok(FetchProbe {
         temporary: Some(snapshot),
     })
-}
-
-fn cleanup_fetch_probe(snapshot: tempfile::TempDir) -> Result<()> {
-    let writable = make_writable(snapshot.path())
-        .context("making FETCH probe snapshot writable before removal");
-    let removed = snapshot.close().context("removing FETCH probe snapshot");
-    match (writable, removed) {
-        (Ok(()), Ok(())) => Ok(()),
-        (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
-        (Err(writable), Err(removed)) => Err(writable.context(format!(
-            "also failed to remove FETCH probe snapshot: {removed:#}"
-        ))),
-    }
 }
 
 fn volatile_paths(first: &Path, second: &Path) -> Result<BTreeMap<String, VolatilePath>> {
@@ -3161,10 +3138,8 @@ fn run_sandbox(
     let import_union = prepare_import_union(imports, run_network.is_none())?;
     let loader_surface = fhs::LoaderSurface::new(imports)?;
     let env_is_missing = !import_union.path().join("bin/env").is_file();
-    let trace_directory = tempfile::Builder::new()
-        .prefix("cix-read-trace-")
-        .tempdir()
-        .context("creating read trace directory")?;
+    let trace_directory =
+        ScratchDir::new("cix-read-trace-").context("creating read trace directory")?;
     let trace_path = trace_directory.path().join("syscalls");
     let mut process = Command::new("strace");
     process
@@ -3292,11 +3267,8 @@ fn run_sandbox(
 fn prepare_import_union(
     imports: &[String],
     include_network_configuration: bool,
-) -> Result<tempfile::TempDir> {
-    let union = tempfile::Builder::new()
-        .prefix("cix-import-union-")
-        .tempdir()
-        .context("creating IMPORT package union")?;
+) -> Result<ScratchDir> {
+    let union = ScratchDir::new("cix-import-union-").context("creating IMPORT package union")?;
     for package in imports {
         let package = Path::new(package);
         if !package.is_absolute() {

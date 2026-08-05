@@ -37,6 +37,7 @@ mod fetch;
 mod fhs;
 mod lock;
 mod model;
+mod scratch;
 mod seccomp;
 mod trace;
 
@@ -52,6 +53,10 @@ pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, validate_declared_expectations, ArtifactPin,
     ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry, OutputHash,
     OutputReceipt, ReadDependency, StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
+};
+pub use scratch::{
+    configure as configure_scratch, install_signal_cleanup, sweep_stale as sweep_stale_scratch,
+    ScratchDir,
 };
 
 pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");

@@ -1,5 +1,51 @@
 # cix-build work log
 
+- 2026-08-05T01:15:00Z — Required track tier results: synchronous exit-0
+  receipts for `devenv shell -- cargo fmt --all --check`, `devenv shell --
+  cargo clippy --workspace --all-targets -- -D warnings`, `devenv shell --
+  cargo test --workspace`, `devenv shell -- cargo run -- fmt --check
+  examples`, and `devenv shell -- nix run .#progressive-vm-check` (the
+  selector reported all 13 scenario derivations changed and completed exit
+  0). `cix build --help` synchronously exposes `--keep-scratch`. Tour drift
+  matching (`cargo test -p cix --test tour tour_matches_committed_document
+  -- --exact`) exited 0. Tour regeneration itself was attempted twice and
+  both attempts hit the existing host-dependent `second web run printed its
+  unit` assertion after deleting its in-progress generated files; each time
+  the exact generator diff was reversed and `git diff --exit-code --
+  docs/tour` returned 0, so this track retains no generated-tour change. Full
+  flake matrix remains reserved for the orchestrator by project policy.
+
+- 2026-08-05T00:30:00Z — Implemented the CIP-101 scratch owner and converted
+  every production large-tree allocation (`cix-build-cold`, `cix-build-view`,
+  `cix-fetch-{probe,work}`, `cix-import-{loaders,union}`, `cix-read-trace`,
+  `cix-step-delta`). Default root is `/var/tmp` because it is disk-backed and
+  tmpfiles-aged; TMPDIR remains the explicit override. `ScratchDir` restores
+  write bits before recursive removal, retains and prints paths with
+  `cix build --keep-scratch`, and a signal listener cleans live owners on
+  INT/TERM/HUP before restoring the default signal action. `cix` startup
+  sweeps own-UID matching scratch prefixes older than one day. The reachable
+  comparison harness now defaults its large benchmark root to `/var/tmp` and
+  retains its existing EXIT cleanup trap. Synchronous focused receipts:
+  `devenv shell -- cargo check -p cix-cixfile -p cix-build -p cix`; `devenv
+  shell -- cargo fmt --all --check`; and `devenv shell -- cargo test -p cix
+  --test fetch_probe_cleanup -- --nocapture` (success, ordinary failure, and
+  SIGTERM each leave no recognized build scratch). A direct startup-sweep
+  receipt created a two-day-old `cix-build-cold-*` under an isolated TMPDIR,
+  ran `target/debug/cix inspect does-not-exist`, observed its expected nonzero
+  inspection result, and synchronously confirmed the stale directory was
+  removed.
+
+- 2026-08-05T00:00:00Z — Started track/cip101 (CIP-101). Read the accepted
+  decision and mapped production scratch owners: cold builder workspaces,
+  FETCH work/probe/audit snapshots, step deltas, consumed-path views, read
+  traces, IMPORT unions, and FHS loader surfaces. The implementation will use
+  `/var/tmp/cix-*` by default (honouring TMPDIR), RAII ownership plus an
+  explicit `--keep-scratch` debugging mode, and startup sweeping of own
+  day-old directories. Test/tooling scratch reachable from the workspace will
+  be audited alongside the production path. `crates/cix-build/LOG.md` is
+  already tracked by the repository despite the general ignored-log guidance;
+  preserve that established project convention for this assigned log.
+
 - 2026-08-01T00:00:00Z — Started track/underlay (D71). Reading the builder
   chain and its persistent-workspace state to replace prefix-reset replay with
   same-builder end-state underlaying, preserve `--cold` as empty/offline, add

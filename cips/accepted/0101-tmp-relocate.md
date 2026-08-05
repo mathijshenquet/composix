@@ -41,3 +41,7 @@ as backstop.
 
 Changelog:
 - 2026-08-05 — adopted as CIP-101.
+- 2026-08-05 — implementation chooses `/var/tmp/cix-*`: it follows the
+  systemd large-temporary-data guidance without making build scratch compete
+  with durable cache entries; an explicit `TMPDIR` still wins for callers and
+  tests.

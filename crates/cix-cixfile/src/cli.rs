@@ -27,6 +27,9 @@ pub enum Command {
         /// Re-run builders with empty persistent workspaces and verify consumed outputs.
         #[arg(long)]
         cold: bool,
+        /// Keep build scratch directories and print their paths for debugging.
+        #[arg(long)]
+        keep_scratch: bool,
         /// Permit host-configured FETCH credentials without an interactive consent prompt (CI only).
         #[arg(long)]
         allow_secret: bool,
@@ -67,11 +70,14 @@ impl Command {
                 namespace,
                 update_lock,
                 cold,
+                keep_scratch,
                 allow_secret,
                 no_cache,
                 stats,
                 workspace_directory,
             } => {
+                cix_build::configure_scratch(keep_scratch);
+                cix_build::install_signal_cleanup();
                 if no_cache {
                     eprintln!("warning: --no-cache is deprecated; use --cold");
                 }
