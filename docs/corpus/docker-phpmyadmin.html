@@ -308,9 +308,9 @@ Build context: repository archive in context/ (includes config.inc.php, helpers.
 
 <span class="tok-directive">BUILDER</span> package3
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gnupg}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.xz}</span>
-  <span class="tok-directive">ENV</span> VERSION = 5.2.3
-  <span class="tok-directive">ENV</span> SHA256 = 57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
-  <span class="tok-directive">ENV</span> URL = https://files.phpmyadmin.net/phpMyAdmin/$VERSION/phpMyAdmin-$VERSION-all-languages.tar.xz
+  <span class="tok-directive">ENV</span> VERSION=5.2.3
+  <span class="tok-directive">ENV</span> SHA256=57881348297c4412f86c410547cf76b4d8a236574dd2c6b7d6a2beebe7fc44e3
+  <span class="tok-directive">ENV</span> URL=https://files.phpmyadmin.net/phpMyAdmin/$VERSION/phpMyAdmin-$VERSION-all-languages.tar.xz
   <span class="tok-directive">FETCH</span> bash -c &#39;set -eu; export GNUPGHOME=&quot;$PWD/gnupg&quot;; mkdir -m 700 &quot;$GNUPGHOME&quot;; curl --fail --location --output phpMyAdmin.tar.xz &quot;$URL&quot;; curl --fail --location --output phpMyAdmin.tar.xz.asc &quot;$URL.asc&quot;; echo &quot;$SHA256 *phpMyAdmin.tar.xz&quot; | sha256sum -c -; curl --fail --location https://keys.openpgp.org/vks/v1/by-fingerprint/3D06A59ECE730EB71B511C17CE752F178259BD92 | gpg --batch --import; gpg --batch --verify phpMyAdmin.tar.xz.asc phpMyAdmin.tar.xz; gpgconf --kill all; rm -rf &quot;$GNUPGHOME&quot;&#39;
   <span class="tok-directive">RUN</span> mkdir -p output
   <span class="tok-directive">RUN</span> &lt;&lt;BUILD
@@ -336,13 +336,13 @@ Build context: repository archive in context/ (includes config.inc.php, helpers.
   <span class="tok-directive">COPY</span> start-pre.sh /bin/phpmyadmin-start-pre
   <span class="tok-directive">START_PRE</span> bash /bin/phpmyadmin-start-pre
   <span class="tok-directive">START</span> php -S 0.0.0.0:8080 -t /var/www/html
-  <span class="tok-directive">ENV</span> PMA_SSL_DIR = /etc/phpmyadmin/ssl
-  <span class="tok-directive">ENV</span> MAX_EXECUTION_TIME = 600
-  <span class="tok-directive">ENV</span> MEMORY_LIMIT = 512M
-  <span class="tok-directive">ENV</span> UPLOAD_LIMIT = 2048K
-  <span class="tok-directive">ENV</span> TZ = UTC
-  <span class="tok-directive">ENV</span> SESSION_SAVE_PATH = /sessions
-  <span class="tok-directive">ENV</span> PHP_INI_SCAN_DIR = /etc/phpmyadmin
+  <span class="tok-directive">ENV</span> PMA_SSL_DIR=/etc/phpmyadmin/ssl
+  <span class="tok-directive">ENV</span> MAX_EXECUTION_TIME=600
+  <span class="tok-directive">ENV</span> MEMORY_LIMIT=512M
+  <span class="tok-directive">ENV</span> UPLOAD_LIMIT=2048K
+  <span class="tok-directive">ENV</span> TZ=UTC
+  <span class="tok-directive">ENV</span> SESSION_SAVE_PATH=/sessions
+  <span class="tok-directive">ENV</span> PHP_INI_SCAN_DIR=/etc/phpmyadmin
   <span class="tok-directive">PORT</span> http = 8080
   <span class="tok-directive">CLAIM</span> egress
   <span class="tok-directive">RUNDIR</span> /etc/phpmyadmin

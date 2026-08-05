@@ -3,9 +3,9 @@ FROM . AS src
 
 BUILDER adminer-release
   IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.gzip}
-  ENV ADMINER_VERSION = 5.5.0
-  ENV ADMINER_DOWNLOAD_SHA256 = d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
-  ENV ADMINER_SRC_DOWNLOAD_SHA256 = df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
+  ENV ADMINER_VERSION=5.5.0
+  ENV ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+  ENV ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
   FETCH curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c -
   FETCH curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c -
   RUN tar xzf source.tar.gz --strip-components=1 "adminer-$ADMINER_VERSION/designs/" "adminer-$ADMINER_VERSION/plugins/" && rm source.tar.gz
@@ -21,9 +21,9 @@ SERVICE adminer
   COPY ${adminer-release}/designs /opt/adminer-seed/designs
   COPY ${adminer-release}/plugins /opt/adminer-seed/plugins
   START sh /usr/local/bin/cix-entrypoint.sh
-  ENV ADMINER_DEFAULT_SERVER = db
-  ENV ADMINER_DESIGN = __cix_unset__
-  ENV ADMINER_PLUGINS = __cix_unset__
+  ENV ADMINER_DEFAULT_SERVER=db
+  ENV ADMINER_DESIGN
+  ENV ADMINER_PLUGINS
   PORT http = 8080
   CLAIM egress
   START_PRE sh /usr/local/bin/prepare-webroot.sh

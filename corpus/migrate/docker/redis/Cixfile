@@ -2,9 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER redis-build
   IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gcc} ${pkgs.gnugrep} ${pkgs.gnumake} ${pkgs.gnutar} ${pkgs.gnused} ${pkgs.binutils} ${pkgs.gzip} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.pkg-config} ${pkgs.which}
-  ENV REDIS_VERSION = 7.4.8
-  ENV REDIS_DOWNLOAD_URL = http://download.redis.io/releases/redis-7.4.8.tar.gz
-  ENV REDIS_DOWNLOAD_SHA = f6773cb7d63be236c59c2917a82f1f08e47b77d89b2f0c9f53becb22b8ea4172
+  ENV REDIS_VERSION=7.4.8
+  ENV REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-7.4.8.tar.gz
+  ENV REDIS_DOWNLOAD_SHA=f6773cb7d63be236c59c2917a82f1f08e47b77d89b2f0c9f53becb22b8ea4172
   FETCH curl --fail --location "$REDIS_DOWNLOAD_URL" --output redis.tar.gz EXPECT sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=
   RUN <<BUILD
 echo "$REDIS_DOWNLOAD_SHA *redis.tar.gz" | sha256sum -c -

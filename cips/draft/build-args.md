@@ -1,10 +1,9 @@
-# build-args — parameterizable Cixfiles: the design space (v2)
+# build-args — parameterizable Cixfiles: the design space (v3)
 
-Status: **draft v2** (2026-08-05; v2 after Mathijs's review of v1:
-lock-pinned ARG creates **state skew** — the lock's content would
-depend on which variant was built last, so building is no longer
-read-only on the checkout and two matrix builds fight over one file.
-This round is the extensive think + prior-art survey he asked for.)
+Status: **draft v3** (2026-08-05; v2 was the prior-art round after v1's
+state-skew rejection; v3 folds in Mathijs's review of v2: partial
+locking yes, coupled args probably not, args×tagging is a real open
+question.)
 
 ## 1. The problem
 
@@ -76,11 +75,18 @@ e.g. `ARG VERSION = 1.24.2 | 1.25.1`). Consequences, each mechanical:
   merely *selects* a declared cell — the CLI can never introduce a
   value that is not in source. Undeclared value → parse-style error
   listing the declared ones.
-- The **lock covers every cell** and stays a pure function of the
-  file: `--update-lock` resolves each combination's arg-dependent
-  fetches (keys already distinguish resolved statements). Zero skew:
-  building anything is read-only, matrix builds cannot race, adding a
-  version is an ordinary file+lock diff in review.
+- The **lock is partial, per cell** (Mathijs, v2 review: locking the
+  whole matrix eagerly is intense; obvious semantics instead). A cell
+  you build for the first time pins through the ordinary
+  first-build/TOFU flow and its entries are appended, keyed by the
+  resolved statements (keys already distinguish these — caddy's lock
+  carries coexisting entries for one line today); a cell already
+  pinned replays read-only; `--all-args` exists for CI to pin or build
+  the full declared matrix in one move. Precision about the invariant:
+  the lock's *coverage* (which cells are pinned) is chosen and visible
+  in review; its *content per covered cell* is a pure function of the
+  file. No mutation skew: cells append independently, they never
+  rewrite each other.
 - The **manifest records the selection** (Helm/Terraform lesson:
   instantiation-side recording), so a built artifact answers "which
   variant am I?" via `cix inspect`.
@@ -106,19 +112,47 @@ generator behind it). Near-term this is a documented idiom plus a
 stability guarantee on canonical formatting; a first-class `cix gen`
 belongs to a later tooling era (same shelf as `docker init`'s ⏳).
 
+### Coupled args (considered; probably unnecessary)
+
+Docker matrices often need value *pairs* — `VERSION` and its
+`DOWNLOAD_SHA256` travel together (the adminer pattern). Do we need
+coupled enumeration, so invalid cross-product cells cannot be
+selected? Mostly no, for a structural reason: **the lock already is
+the coupling mechanism.** Docker needs the hash as a second build-arg
+only because it has no lock; in cix the per-cell pin (TOFU or EXPECT)
+records exactly the url→hash binding for each declared version, so
+the hash never becomes an arg at all — adminer's `*_SHA256` variables
+dissolve into lock entries. The residual edge is the CIP-102 idiom of
+verifying a *vendor-published* checksum inside RUN (authorial trust,
+not integrity): per-version vendor checksums would want a pair table.
+Rare enough to leave out of v1 of the feature; if it bites, the
+answer is enumerating pairs as single values rather than a coupling
+construct across args.
+
 ## 4. Open questions
 
 - **Syntax** for the enumeration and the default: first value is the
   default? explicit marker? is a no-default ARG (operator must pick)
   wanted, mirroring `ENV … required` (CIP-100 family)?
-- **Lock cost**: `--update-lock` now probes arg-dependent fetches per
-  cell — N× fetch cost on lock moves. Acceptable as-is (matrices are
-  small), or does it need per-cell laziness with a completeness check?
-  Interaction with CIP-99 aggregation for lock size.
+- **Args × tagging** (Mathijs, v2 review: "waarschijnlijk wil je ook
+  iets met args en tagging doen, de vraag is wat"). A matrix Cixfile
+  produces per-cell artifacts that want per-cell tags — the Docker
+  idiom is `--build-arg VERSION=… -t app:…` chosen freehand at build
+  time. Sketch: let the tag surface interpolate args
+  (`cix build --arg VERSION=1.25 --tag 'app:${VERSION}'`, or a
+  declared tag template in the file so `--all-args` yields
+  tag-per-cell automatically); the manifest already records the
+  selection, so `cix tag`/`inspect` can resolve it after the fact.
+  Which of these (CLI interpolation, declared template, both) is the
+  right amount of surface is the open call.
 - **Twins vs args**: when both could serve, what's the guidance line?
   (Proposal: args for same-shape variants of one artifact; twins for
   genuinely different build shapes.)
 - **Acceptance test**: does the gitea version-stamp case translate to
   a declared version list cleanly — and does the CI-matrix story
-  (build every declared cell) become a one-liner worth shipping
-  (`cix build --all-args`)?
+  (pin/build every declared cell) become a one-liner worth shipping
+  (`--all-args`)?
+
+Resolved in review (Mathijs, 2026-08-05): the lock is partial per
+cell with first-build-pins semantics — eager full-matrix locking is
+rejected as too heavy; coupled args stay out of v1.

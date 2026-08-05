@@ -10,9 +10,9 @@ SERVICE adminer
   COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
   COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
   START sh /usr/local/bin/cix-entrypoint.sh
-  ENV ADMINER_DEFAULT_SERVER = db
-  ENV ADMINER_DESIGN = __cix_unset__
-  ENV ADMINER_PLUGINS = __cix_unset__
+  ENV ADMINER_DEFAULT_SERVER=db
+  ENV ADMINER_DESIGN
+  ENV ADMINER_PLUGINS
   PORT http = 8080
   CLAIM egress
   START_PRE sh /usr/local/bin/prepare-webroot.sh

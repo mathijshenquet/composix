@@ -316,9 +316,9 @@ Build context: repository archive in context/; sibling entrypoint files are in c
 
 <span class="tok-directive">SERVICE</span> nginx
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nginxMainline}</span> <span class="tok-interpolation">${pkgs.busybox}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gettext}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
-  <span class="tok-directive">ENV</span> NGINX_VERSION = 1.31.3
-  <span class="tok-directive">ENV</span> PKG_RELEASE = 1
-  <span class="tok-directive">ENV</span> DYNPKG_RELEASE = 1
+  <span class="tok-directive">ENV</span> NGINX_VERSION=1.31.3
+  <span class="tok-directive">ENV</span> PKG_RELEASE=1
+  <span class="tok-directive">ENV</span> DYNPKG_RELEASE=1
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/docker-entrypoint.sh /docker-entrypoint.sh
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/10-listen-on-ipv6-by-default.sh /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/15-local-resolvers.envsh /docker-entrypoint.d/15-local-resolvers.envsh

@@ -1865,9 +1865,9 @@ Build context: repository archive in context/ (Dockerfile COPY .).
 
 <span class="tok-directive">BUILDER</span> builder
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.corepack}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.python3}</span> <span class="tok-interpolation">${pkgs.linuxHeaders}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> NODE_ENV = development
-  <span class="tok-directive">ENV</span> VERDACCIO_BUILD_REGISTRY = https://registry.npmjs.org
-  <span class="tok-directive">ENV</span> OUTPUT = $PWD/output
+  <span class="tok-directive">ENV</span> NODE_ENV=development
+  <span class="tok-directive">ENV</span> VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
+  <span class="tok-directive">ENV</span> OUTPUT=$PWD/output
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
   <span class="tok-directive">FETCH</span> corepack install
   <span class="tok-directive">RUN</span> pnpm config set registry &quot;$VERDACCIO_BUILD_REGISTRY&quot;
@@ -1880,13 +1880,13 @@ Build context: repository archive in context/ (Dockerfile COPY .).
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${builder}</span>/output/verdaccio-deploy /opt/verdaccio
   <span class="tok-directive">COPY</span> context/packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
   <span class="tok-directive">COPY</span> start-verdaccio /bin/start-verdaccio
-  <span class="tok-directive">ENV</span> VERDACCIO_APPDIR = /opt/verdaccio
-  <span class="tok-directive">ENV</span> VERDACCIO_USER_NAME = verdaccio
-  <span class="tok-directive">ENV</span> VERDACCIO_USER_UID = 10001
-  <span class="tok-directive">ENV</span> VERDACCIO_PORT = 4873
-  <span class="tok-directive">ENV</span> VERDACCIO_PROTOCOL = http
-  <span class="tok-directive">ENV</span> VERDACCIO_ADDRESS = [::]
-  <span class="tok-directive">ENV</span> HOME = /opt/verdaccio
+  <span class="tok-directive">ENV</span> VERDACCIO_APPDIR=/opt/verdaccio
+  <span class="tok-directive">ENV</span> VERDACCIO_USER_NAME=verdaccio
+  <span class="tok-directive">ENV</span> VERDACCIO_USER_UID=10001
+  <span class="tok-directive">ENV</span> VERDACCIO_PORT=4873
+  <span class="tok-directive">ENV</span> VERDACCIO_PROTOCOL=http
+  <span class="tok-directive">ENV</span> VERDACCIO_ADDRESS=[::]
+  <span class="tok-directive">ENV</span> HOME=/opt/verdaccio
   <span class="tok-directive">START</span> sh /bin/start-verdaccio
   <span class="tok-directive">PORT</span> http = 4873
   <span class="tok-directive">STATEDIR</span> /verdaccio/storage

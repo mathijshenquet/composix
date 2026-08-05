@@ -190,8 +190,8 @@ Retrieved: 2026-07-30
 
 <span class="tok-directive">BUILDER</span> dependencies-direct
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> npm_config_cache = /tmp/cix-echo-server-npm-cache
-  <span class="tok-directive">ENV</span> npm_config_logs_dir = /tmp/cix-echo-server-npm-logs
+  <span class="tok-directive">ENV</span> npm_config_cache=/tmp/cix-echo-server-npm-cache
+  <span class="tok-directive">ENV</span> npm_config_logs_dir=/tmp/cix-echo-server-npm-logs
   <span class="tok-directive">COPY</span> context/package.json package.json
   <span class="tok-directive">COPY</span> context/package-lock.json package-lock.json
   <span class="tok-directive">COPY</span> install-dependencies.sh install-dependencies.sh
@@ -199,8 +199,8 @@ Retrieved: 2026-07-30
 
 <span class="tok-directive">BUILDER</span> build-output
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.bash}</span>
-  <span class="tok-directive">ENV</span> npm_config_cache = /tmp/cix-echo-server-npm-cache
-  <span class="tok-directive">ENV</span> npm_config_logs_dir = /tmp/cix-echo-server-npm-logs
+  <span class="tok-directive">ENV</span> npm_config_cache=/tmp/cix-echo-server-npm-cache
+  <span class="tok-directive">ENV</span> npm_config_logs_dir=/tmp/cix-echo-server-npm-logs
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${dependencies-direct}</span>/node_modules node_modules
   <span class="tok-directive">COPY</span> context/package.json package.json
   <span class="tok-directive">COPY</span> context/src src
@@ -212,7 +212,7 @@ Retrieved: 2026-07-30
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build-output}</span>/dist/webserver.js /app/webserver.js
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build-output}</span>/src/global.json /app/global.json
   <span class="tok-directive">START</span> node /app/webserver.js
-  <span class="tok-directive">ENV</span> PORT = 80 required
+  <span class="tok-directive">ENV</span> PORT required
   <span class="tok-directive">PORT</span> http = $PORT
   <span class="tok-directive">CLAIM</span> jit
 </code></pre>

@@ -3,10 +3,10 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 BUILDER deps
   IMPORT ${pkgs.nodejs_22} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.cacert} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.git} ${pkgs.python3}
   COPY context/ .
-  ENV npm_config_fetch_retries = 5
-  ENV npm_config_fetch_retry_mintimeout = 60000
-  ENV npm_config_fetch_retry_maxtimeout = 300000
-  ENV npm_config_cache = /tmp/parse-server-npm-cache-clean
+  ENV npm_config_fetch_retries=5
+  ENV npm_config_fetch_retry_mintimeout=60000
+  ENV npm_config_fetch_retry_maxtimeout=300000
+  ENV npm_config_cache=/tmp/parse-server-npm-cache-clean
   FETCH bash -c 'npm ci --omit=dev --ignore-scripts'
   RUN cp -R node_modules prod_node_modules
   FETCH bash -c 'npm ci --ignore-scripts'
@@ -27,11 +27,11 @@ SERVICE parse-server
   COPY context/bin /parse-server/bin
   COPY context/public /parse-server/public
   COPY context/views /parse-server/views
-  ENV PORT = 18091
-  ENV PARSE_SERVER_APPLICATION_ID = ""
-  ENV PARSE_SERVER_MASTER_KEY = ""
-  ENV PARSE_SERVER_DATABASE_URI = ""
-  ENV PARSE_SERVER_URL = ""
+  ENV PORT=18091
+  ENV PARSE_SERVER_APPLICATION_ID=""
+  ENV PARSE_SERVER_MASTER_KEY=""
+  ENV PARSE_SERVER_DATABASE_URI=""
+  ENV PARSE_SERVER_URL=""
   PORT http = $PORT
   STATEDIR /parse-server/cloud
   CONFIGDIR /etc/parse-server

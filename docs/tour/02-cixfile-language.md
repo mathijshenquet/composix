@@ -40,7 +40,7 @@ FILE /etc/guide-site/build-origin <<ORIGIN
 packages=${pkgs.coreutils}
 ORIGIN
 START sleep 60
-ENV SITE_NAME = guide
+ENV SITE_NAME=guide
 ENV API_TOKEN required
 STATEDIR /var/lib/guide-site
 STATEDIR /opt/nginx/state
@@ -101,7 +101,7 @@ packages=/nix/store/…-coreutils-9.11
 
 ## Runtime declarations are grants
 
-`ENV SITE_NAME = guide` supplies a default. `ENV API_TOKEN required` names a required non-secret operator value: direct run supplies it as `cix run "$item" -e API_TOKEN=example`, while a compose child uses `"env": {"API_TOKEN": "example"}`. Secret values instead use `SECRET` and the credential-file mechanism described below.
+`ENV SITE_NAME=guide` supplies a default. `ENV API_TOKEN required` names a required non-secret operator value; bare `ENV THEME` declares an optional value that stays unset unless supplied. Direct run supplies a value as `cix run "$item" -e API_TOKEN=example`, while a compose child uses `"env": {"API_TOKEN": "example"}`. Secret values instead use `SECRET` and the credential-file mechanism described below.
 
 Role directories use the application's native absolute paths. Systemd creates unit-scoped backing below the host's state, cache, log, configuration, and runtime roots and binds it to the declared path: state survives until explicit purge, cache is expendable, logs are retained until cleaning policy removes them, writable config is operator-managed, and run data disappears on stop. An operator can replace a declared role with existing content using `--dir /etc/guide-site=host:/srv/guide-config --identity guide-site`; compose places the same `host:` materialization in the child's `dirs` map. For a compose named `stack`, `cix clean stack --what cache` removes only expendable cache, while `cix down stack --purge --yes` explicitly removes cix-owned state and shared data; host-backed `DIR` data is never deleted.
 

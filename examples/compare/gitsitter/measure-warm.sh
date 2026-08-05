@@ -44,7 +44,7 @@ cp -R "$upstream_src"/. "$bench_root/cix/"
 chmod -R u+w "$bench_root/cix"
 sed -i 's|^FROM github:mathijshenquet/gitsitter AS src$|FROM . AS src|' \
   "$bench_root/cix/Cixfile"
-sed -i 's|^  ENV GIT_COMMIT_HASH = ${src.rev}$|  ENV GIT_COMMIT_HASH = 29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd|' \
+sed -i 's|^  ENV GIT_COMMIT_HASH=${src.rev}$|  ENV GIT_COMMIT_HASH=29c8a2dede19b5e7d1bd7e65f81829fa0ac66ecd|' \
   "$bench_root/cix/Cixfile"
 jq 'del(.memo, .outputs)' "$bench_root/cix/Cixfile.lock" > "$bench_root/Cixfile.lock"
 mv "$bench_root/Cixfile.lock" "$bench_root/cix/Cixfile.lock"

@@ -2,9 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER build
   IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.dpkg} ${pkgs.gawk} ${pkgs.gcc} ${pkgs.gnugrep} ${pkgs.gnumake} ${pkgs.gnutar} ${pkgs.gnused} ${pkgs.gzip} ${pkgs.findutils} ${pkgs.binutils} ${pkgs.libevent} ${pkgs.libevent.dev} ${pkgs.cyrus_sasl} ${pkgs.cyrus_sasl.dev} ${pkgs.linuxHeaders} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.perl} ${pkgs.pkg-config}
-  ENV MEMCACHED_VERSION = 1.6.45
-  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  ENV MEMCACHED_VERSION=1.6.45
+  ENV MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   FETCH curl --fail --location "https://memcached.org/files/memcached-$MEMCACHED_VERSION.tar.gz" --output memcached.tar.gz EXPECT sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=
   RUN echo "$MEMCACHED_SHA1  memcached.tar.gz" | sha1sum -c -
   RUN tar --no-same-owner --no-overwrite-dir -xzf memcached.tar.gz --strip-components=1
@@ -29,9 +29,9 @@ BUILD
 
 SERVICE memcached
   IMPORT ${pkgs.bash}
-  ENV MEMCACHED_VERSION = 1.6.45
-  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  ENV MEMCACHED_VERSION=1.6.45
+  ENV MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   COPY ${build}/memcached /bin/memcached
   COPY context/docker-entrypoint.sh /bin/docker-entrypoint.sh
   START sh /bin/docker-entrypoint.sh memcached
