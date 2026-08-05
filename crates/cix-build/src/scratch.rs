@@ -1,10 +1,11 @@
 use std::fs;
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, Once};
+use std::sync::{Mutex, Once, OnceLock};
 use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
@@ -115,11 +116,13 @@ impl ScratchDir {
                 path: path.clone(),
                 owner_lock_path: owner_lock_path.clone(),
             });
-        Ok(Self {
+        let scratch = Self {
             path,
             owner_lock_path,
             _owner_lock: owner_lock,
-        })
+        };
+        signal_scratch_ready(scratch.path())?;
+        Ok(scratch)
     }
 
     pub fn path(&self) -> &Path {
@@ -151,6 +154,35 @@ fn root() -> PathBuf {
     std::env::var_os("TMPDIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/var/tmp"))
+}
+
+fn signal_scratch_ready(path: &Path) -> Result<()> {
+    let Some(signal_path) = std::env::var_os("CIX_SCRATCH_READY_FIFO") else {
+        return Ok(());
+    };
+    // A build may allocate many scratch directories, but the test FIFO has one
+    // reader; cache the first signal result so later allocations cannot block.
+    static READY_SIGNAL: OnceLock<Result<(), String>> = OnceLock::new();
+    let result = READY_SIGNAL.get_or_init(|| {
+        let signal = || -> Result<()> {
+            let mut signal = OpenOptions::new()
+                .write(true)
+                .open(&signal_path)
+                .with_context(|| {
+                    format!(
+                        "opening scratch readiness signal {}",
+                        Path::new(&signal_path).display()
+                    )
+                })?;
+            writeln!(signal, "{}", path.display()).context("writing scratch readiness signal")?;
+            Ok(())
+        };
+        signal().map_err(|error| format!("{error:#}"))
+    });
+    result
+        .as_ref()
+        .map_err(|error| anyhow::anyhow!("{error}"))
+        .map(|_| ())
 }
 
 fn finish(path: PathBuf, owner_lock_path: PathBuf) -> Result<()> {

@@ -1,5 +1,31 @@
 # cix-build work log
 
+- 2026-08-05T21:23:35Z — Reproduced the exact pre-fix CI failure before
+  editing: the real binary under a one-core, nice-19, 2%-CPU user scope exited
+  101 after `sigterm_removes_live_build_scratch` reported `cix did not create
+  scratch under .../temp` (`/var/tmp/cip101-cifix-before-20260805T2115Z/`).
+  Replaced deadline polling with a one-shot `CIX_SCRATCH_READY_FIFO` signal
+  emitted after `ScratchDir` has lock-backed ownership, and serialized the
+  binary's real-CLI tests. This does not lengthen a timing budget: the test
+  blocks for the owner-confirmed path. The identical 2%-CPU receipt exits 0
+  (3/3, 87.20s; `/var/tmp/cip101-cifix-after-20260805T2122Z/`), and the
+  required constrained one-core/nice loop has 20 value-checked exit-0 runs
+  (each 3/3; `/var/tmp/cip101-cifix-after-20260805T2126Z/`). Unconstrained
+  `cargo test -p cix --test fetch_probe_cleanup -- --nocapture`, Rust fmt,
+  warning-denied workspace clippy, `git diff --check`, and the shared-state
+  audit all synchronously exit 0. The new mutex and one-shot signal each have
+  site-local rationale comments. Next: final diff/status review; no VM run is
+  needed for this test-only change, per the track spec.
+
+- 2026-08-05T21:08:31Z — Started `track/cip101-cifix`. Read the assigned
+  spec, current CIP-101 decisions, and the real-CLI cleanup test. The branch
+  is clean at `452028dd`, direnv/devenv is loaded, and the only scoped issue
+  is the slow-CI race in `sigterm_removes_live_build_scratch`: sibling tests
+  in the same binary contend under Cargo's threaded harness before the polling
+  test observes its scratch. Next: obtain a constrained, value-checked
+  pre-fix failure, then make that binary deterministic without increasing its
+  timing budget.
+
 - 2026-08-05T20:11:54Z — Started `track/cip101-livelock` on the main-CI
   regression in `fetch_probe_cleanup::sigterm_removes_live_build_scratch`.
   Current `sweep_stale` decides solely from age, so the six-hour CIP-101
