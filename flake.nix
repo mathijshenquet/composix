@@ -74,7 +74,8 @@
         nativeBuildInputs = [ pkgs.makeWrapper ];
         postInstall = ''
           wrapProgram "$out/bin/cix" \
-            --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix pkgs.strace ]}
+            --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.bubblewrap pkgs.nix pkgs.strace ]} \
+            --set CIX_RUNTIME_HELPER "$out/bin/cix"
         '';
       };
       progressiveVmCheck = import ./nix/progressive-vm-check.nix { inherit pkgs; };

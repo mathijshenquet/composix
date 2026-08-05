@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::mpsc;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use cix_common::Ref;
@@ -49,6 +49,33 @@ const PROJ1_FILES: &[&str] = &[
 static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
 // The fixed-port chapters share a user manager inside this test process.
 static TOUR_RENDER_LOCK: Mutex<()> = Mutex::new(());
+// All renderers need the same immutable helper: probe subprocesses run inside
+// ProtectHome and therefore cannot execute the workspace-linked test binary.
+static TOUR_RUNTIME_HELPER: OnceLock<PathBuf> = OnceLock::new();
+
+fn tour_runtime_helper() -> &'static PathBuf {
+    TOUR_RUNTIME_HELPER.get_or_init(|| {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("cix crate has a workspace root");
+        let output = Command::new("nix")
+            .args(["build", "--no-link", "--print-out-paths", ".#cix"])
+            .current_dir(root)
+            .output()
+            .expect("building the store-backed cix probe helper");
+        assert!(
+            output.status.success(),
+            "building the store-backed cix probe helper failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let output = String::from_utf8(output.stdout)
+            .expect("store-backed cix helper path is UTF-8")
+            .trim()
+            .to_owned();
+        PathBuf::from(output).join("bin/cix")
+    })
+}
 
 fn lock_tour_host_resources() -> fs::File {
     let lock_path = std::env::temp_dir().join("cix-tour-render.lock");
@@ -348,6 +375,7 @@ impl Doc {
             .args(["-c", command])
             .current_dir(&self.base)
             .env("CIX_STATE_DIR", state_dir)
+            .env("CIX_RUNTIME_HELPER", tour_runtime_helper())
             .env("PATH", path);
         for (name, value) in variables {
             process.env(name, value);

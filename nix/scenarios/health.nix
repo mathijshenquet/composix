@@ -56,7 +56,7 @@ let
     PY
     chmod 0755 "$out/opt/health/web.py"
     cat > "$out/cix-manifest.json" <<EOF
-    {"cixManifest":0,"start":["${pkgs.python3}/bin/python3","opt/health/web.py"],"mounts":["/opt/health"],"ports":{"http":{"value":18090,"protocol":"tcp"}},"dirs":{"state":["/var/lib/health"],"run":["/run/health"]},"readiness":{"type":"http","target":":18090/healthz","timeout":"10s"},"liveness":{"type":"http","target":":18090/livez","interval":"1s"}}
+    {"cixManifest":0,"start":["${pkgs.python3}/bin/python3","opt/health/web.py"],"mounts":["/opt/health"],"ports":{"http":{"value":18090,"protocol":"tcp"}},"dirs":{"state":["/var/lib/health"],"run":["/run/health"]},"readiness":{"type":"http","target":"http://127.0.0.1:18090/healthz","timeout":"10s"},"liveness":{"type":"http","target":"http://127.0.0.1:18090/livez","interval":"1s"}}
     EOF
   '';
 
@@ -89,7 +89,7 @@ let
     SH
     chmod 0755 "$out/bin/failing"
     cat > "$out/cix-manifest.json" <<'EOF'
-    {"cixManifest":0,"start":["bin/failing"],"ports":{"http":{"value":18091,"protocol":"tcp"}},"readiness":{"type":"http","target":":18091/healthz","timeout":"2s"}}
+    {"cixManifest":0,"start":["bin/failing"],"ports":{"http":{"value":18091,"protocol":"tcp"}},"readiness":{"type":"http","target":"http://127.0.0.1:18091/healthz","timeout":"2s"}}
     EOF
   '';
 
@@ -141,12 +141,14 @@ scenario.nodeWith (if systemdPackage == null then { } else {
   elapsed = time.time() - started
   assert elapsed >= 2.5, "cix up returned before readiness: {:.2f}s".format(elapsed)
   machine.succeed("systemctl is-active cix-health-web.service cix-health-consumer.service")
-  machine.succeed("journalctl --no-pager -u cix-health-consumer.service | grep -F structural-consumer-after-readiness")
+  machine.wait_until_succeeds("journalctl --no-pager -u cix-health-consumer.service | grep -F structural-consumer-after-readiness")
   machine.succeed("systemctl show cix-health-consumer.service -p After --value | grep -F cix-health-web.service")
   machine.succeed("systemctl show cix-health-web.service -p WatchdogUSec --value | grep -Fx 3s")
   machine.succeed("systemctl show cix-health-web.service -p Restart --value | grep -Fx on-failure")
-  machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"await\" \"http\" \":18090/healthz'")
-  machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"pinger\" \"http\" \":18090/livez'")
+  machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"await\" \"http\" \"http://127.0.0.1:18090/healthz'")
+  machine.succeed("systemctl cat cix-health-web.service | grep -F 'probe\" \"pinger\" \"http\" \"http://127.0.0.1:18090/livez'")
+  machine.succeed("systemctl cat cix-health-web.service | grep -E 'ExecStartPost=.*\"/nix/store/[^\"]+/bin/cix\".*probe'")
+  machine.fail("systemctl cat cix-health-web.service | grep -F target/debug/cix")
   machine.succeed("! systemctl cat cix-health-web.service | grep -E '(curl|/bin/sh)'")
   machine.succeed("sleep 7; systemctl is-active cix-health-web.service")
 
