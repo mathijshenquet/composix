@@ -1,0 +1,9 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE valkey
+  IMPORT ${pkgs.valkey}
+  ENV VALKEY_EXTRA_FLAGS
+  START valkey-server
+  PORT valkey = 6379
+  STATEDIR /data
+  RUNDIR /run/valkey

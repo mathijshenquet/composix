@@ -1,0 +1,57 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.diffutils} ${pkgs.dpkg} ${pkgs.file} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.stdenv.cc} ${pkgs.gnumake} ${pkgs.gnugrep} ${pkgs.gnused} ${pkgs.gnutar} ${pkgs.gzip} ${pkgs.which} ${pkgs.pkg-config} ${pkgs.autoconf} ${pkgs.automake} ${pkgs.libtool} ${pkgs.linuxHeaders} ${pkgs.musl} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.glibc} ${pkgs.util-linux}
+  ENV VALKEY_DOWNLOAD_SHA=f7e927534aaeb3a5f4410375c3e6f2f0c1b9257db8bc573e68f9e2dbb11344f4
+  ENV VALKEY_VERSION=8.1.9
+  FETCH curl --fail --location https://github.com/valkey-io/valkey/archive/refs/tags/$VALKEY_VERSION.tar.gz --output valkey.tar.gz
+  FETCH curl --fail --location https://github.com/ianlancetaylor/libbacktrace/archive/96664e69b1ecdb76e824be1d9e8f475b76dd08cf.tar.gz --output libbacktrace.tar.gz
+  RUN <<BUILD
+set -eux
+rm -rf libbacktrace output
+echo "$VALKEY_DOWNLOAD_SHA *valkey.tar.gz" | sha256sum -c -
+mkdir -p libbacktrace
+tar -xzf libbacktrace.tar.gz -C libbacktrace --strip-components=1
+rm libbacktrace.tar.gz
+mkdir -p output/usr/src/valkey output/usr/local
+tar -xzf valkey.tar.gz -C output/usr/src/valkey --strip-components=1
+rm valkey.tar.gz
+grep -E '^ *createBoolConfig[(]"protected-mode",.*, *1 *,.*[)],$' output/usr/src/valkey/src/config.c
+sed -ri 's!^( *createBoolConfig[(]"protected-mode",.*, *)1( *,.*[)],)$!\10\2!' output/usr/src/valkey/src/config.c
+grep -E '^ *createBoolConfig[(]"protected-mode",.*, *0 *,.*[)],$' output/usr/src/valkey/src/config.c
+gnuArch="$(dpkg-architecture --query DEB_BUILD_GNU_TYPE)"
+extraJemallocConfigureFlags="--build=$gnuArch"
+dpkgArch="$(dpkg --print-architecture)"
+case "$dpkgArch" in
+  amd64 | i386 | x32) extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-page=12" ;;
+  *) extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-page=16" ;;
+esac
+extraJemallocConfigureFlags="$extraJemallocConfigureFlags --with-lg-hugepage=21"
+grep -F 'cd jemalloc && ./configure ' output/usr/src/valkey/deps/Makefile
+sed -ri 's!cd jemalloc && ./configure !&'"$extraJemallocConfigureFlags"' !' output/usr/src/valkey/deps/Makefile
+grep -F "cd jemalloc && ./configure $extraJemallocConfigureFlags " output/usr/src/valkey/deps/Makefile
+cd libbacktrace
+./configure --prefix="$PWD/../output/usr"
+make -j "$(nproc)"
+make install
+cd ../output/usr/src/valkey
+export BUILD_TLS=yes USE_FAST_FLOAT=yes USE_LIBBACKTRACE=yes
+opensslCflags="$(pkg-config --cflags openssl)"
+opensslLdflags="$(pkg-config --libs-only-L openssl)"
+make CFLAGS="$opensslCflags" LDFLAGS="$opensslLdflags" -j "$(nproc)" all
+make PREFIX="$PWD/../../local" install
+echo '{"spdxVersion":"SPDX-2.3","SPDXID":"SPDXRef-DOCUMENT","name":"valkey-server-sbom","packages":[{"name":"valkey-server","versionInfo":"8.1.9","SPDXID":"SPDXRef-Package--valkey-server","externalRefs":[{"referenceCategory":"PACKAGE-MANAGER","referenceType":"purl","referenceLocator":"pkg:generic/valkey-server@8.1.9?os_name=alpine&os_version=3.24"}],"licenseDeclared":"BSD-3-Clause"}]}' > ../../local/valkey.spdx.json
+BUILD
+
+SERVICE valkey
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.util-linux} ${pkgs.glibc} ${pkgs.openssl} ${pkgs.libgcc}
+  COPY ${build}/output/usr/local /usr/local
+  COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  COPY start.sh /usr/local/bin/start.sh
+  ENV VALKEY_VERSION=8.1.9
+  ENV VALKEY_EXTRA_FLAGS
+  ENV PATH=bin:/usr/local/bin
+  START bash /usr/local/bin/start.sh valkey-server
+  PORT valkey = 6379
+  STATEDIR /data
+  RUNDIR /run/valkey
