@@ -64,6 +64,14 @@
         }
       }
     },
+    "a19499e6c190b3bc41f2d3738c1253d6096c5162e49fac78645b4f978a9a7384": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-IY6RnvI/to+lZDRzmagKlcdfcTNH9G6c8001C7opJA0=",
+          "storePath": "/nix/store/n2f7dkbiqwp0m0sacd4jvzfbn5iygp92-cix-build-consumed"
+        }
+      }
+    },
     "a53909c3039c75faad407dad2096d591f4789b35a511f5776dff94f1142791bb": {
       "paths": {
         ".": {
@@ -120,26 +128,16 @@
       }
     },
     "builder:app:2": {
-      "key": "b6a3a409dbfa9e10ae3ea70183c5cae6fab0975817b4364f5fc679b3fbbc7225",
+      "key": "764b555c7b7eed4634be0d82c3c7d6c07310b8c890914587c1ada99198405e57",
       "reads": {
         ".": {
           "kind": "directory-exists"
         },
         "db": {
-          "kind": "directory",
-          "hash": "fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02"
-        },
-        "images/uploads/logos": {
-          "kind": "absent"
+          "kind": "directory-exists"
         }
       },
       "changes": {
-        "db": {
-          "kind": "present"
-        },
-        "db/wallos.empty.db": {
-          "kind": "absent"
-        },
         "nginx.conf": {
           "kind": "absent"
         },
@@ -156,10 +154,13 @@
       }
     }
   },
+  "builderDevEnvs": {
+    "app": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099"
+  },
   "outputs": {
     "wallos": {
-      "sourceHash": "9ad7c1fa0d0589aab8ce080095d0ccdd0d14d28c878953ea897332dfe5ea0337",
-      "storePath": "/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos"
+      "sourceHash": "88dd339f83bd59e6c365c9ecf52c3c9b94a5f8bedaa66a8bbc476f10056836b8",
+      "storePath": "/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos"
     }
   }
 }

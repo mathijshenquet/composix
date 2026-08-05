@@ -23,6 +23,16 @@
   pages were restored after each forced interruption. Do not call this track
   green until those two commands complete with observed exit 0.
 
+- 2026-08-05 UTC — Fetched Wallos with `bash corpus/migrate/fetch.sh wallos`
+  (exit 0) and built `corpus/migrate/docker/wallos#wallos` (exit 0;
+  `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos`). Per the
+  approved explicit-status pattern, the first background full-workspace gate
+  recorded `101` in `.dev/scratch/cip98-workspace.exit`; its only failure was
+  the expected corpus-browser drift caused by now-present Wallos context.
+  Regenerated the browser and its normal corpus drift test exited 0. Next:
+  commit the lock/browser update, then rerun workspace and tour gates with
+  captured numeric statuses.
+
 - 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
   current project context. The collision is the cix-run mount/role overlap
   validator plus property emission order. Conventional implementation choice:
