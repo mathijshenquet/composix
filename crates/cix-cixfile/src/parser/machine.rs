@@ -159,7 +159,7 @@ impl Parser<'_> {
                     let message = match &self.current {
                        Some(CurrentBlock::Builder(_)) => "PATH was removed; use IMPORT ${pkgs.<package>} inside a BUILDER; see docs/cixfile.md#builders",
                        Some(CurrentBlock::Artifact(_)) => {
-                           "PATH was removed; use ENV PATH = <value>; see docs/cixfile.md#runtime-path"
+                           "PATH was removed; use ENV PATH=<value>; see docs/cixfile.md#runtime-path"
                        }
                        None => "PATH was removed; use IMPORT ${pkgs.<package>} inside a BUILDER; see docs/cixfile.md#builders",
                    };

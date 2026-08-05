@@ -1572,40 +1572,40 @@ Retrieved: 2026-07-31
 <span class="tok-directive">FROM</span> . AS src
 
 <span class="tok-directive">BUILDER</span> build
-<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> \
-    <span class="tok-directive">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.libjpeg}</span> \
-    <span class="tok-directive">${pkgs.libtiff}</span> <span class="tok-interpolation">${pkgs.libpng}</span> <span class="tok-interpolation">${pkgs.libwebp}</span> <span class="tok-interpolation">${pkgs.libraw}</span> \
-    <span class="tok-directive">${pkgs.libheif}</span> <span class="tok-interpolation">${pkgs.giflib}</span> <span class="tok-interpolation">${pkgs.vips}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> \
-    <span class="tok-directive">${pkgs.glib}</span> <span class="tok-interpolation">${pkgs.lcms2}</span> <span class="tok-interpolation">${pkgs.zlib}</span> <span class="tok-interpolation">${pkgs.brotli}</span> \
-    <span class="tok-directive">${pkgs.brotli.dev}</span> <span class="tok-interpolation">${pkgs.libjpeg.dev}</span> <span class="tok-interpolation">${pkgs.libpng.dev}</span> \
-    <span class="tok-directive">${pkgs.libraw.dev}</span> \
-    <span class="tok-directive">${pkgs.ffmpeg.dev}</span> <span class="tok-interpolation">${pkgs.glib.dev}</span> <span class="tok-interpolation">${pkgs.gcc.cc.lib}</span> \
-    <span class="tok-directive">${pkgs.pkgsStatic.libjpeg.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libpng.out}</span> \
-    <span class="tok-directive">${pkgs.pkgsStatic.libwebp}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libraw.lib}</span> \
-    <span class="tok-directive">${pkgs.pkgsStatic.lcms2.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.zlib.out}</span>
-<span class="tok-directive">ENV</span> GOMODCACHE = $PWD/.gomodcache
-<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
-<span class="tok-directive">FETCH</span> go mod download &amp;&amp; go generate -x ./server/...
-<span class="tok-directive">RUN</span> CPATH=<span class="tok-interpolation">${pkgs.brotli.dev}</span>/include:<span class="tok-interpolation">${pkgs.libjpeg.dev}</span>/include:<span class="tok-interpolation">${pkgs.libpng.dev}</span>/include:<span class="tok-interpolation">${pkgs.libwebp}</span>/include:<span class="tok-interpolation">${pkgs.libraw.dev}</span>/include:<span class="tok-interpolation">${pkgs.giflib}</span>/include \
-    <span class="tok-directive">LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib</span> \
-    <span class="tok-directive">PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig</span> \
-    <span class="tok-directive">go</span> build --tags fts5 -o dist/filestash cmd/main.go
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> \
+      <span class="tok-directive">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.libjpeg}</span> \
+      <span class="tok-directive">${pkgs.libtiff}</span> <span class="tok-interpolation">${pkgs.libpng}</span> <span class="tok-interpolation">${pkgs.libwebp}</span> <span class="tok-interpolation">${pkgs.libraw}</span> \
+      <span class="tok-directive">${pkgs.libheif}</span> <span class="tok-interpolation">${pkgs.giflib}</span> <span class="tok-interpolation">${pkgs.vips}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> \
+      <span class="tok-directive">${pkgs.glib}</span> <span class="tok-interpolation">${pkgs.lcms2}</span> <span class="tok-interpolation">${pkgs.zlib}</span> <span class="tok-interpolation">${pkgs.brotli}</span> \
+      <span class="tok-directive">${pkgs.brotli.dev}</span> <span class="tok-interpolation">${pkgs.libjpeg.dev}</span> <span class="tok-interpolation">${pkgs.libpng.dev}</span> \
+      <span class="tok-directive">${pkgs.libraw.dev}</span> \
+      <span class="tok-directive">${pkgs.ffmpeg.dev}</span> <span class="tok-interpolation">${pkgs.glib.dev}</span> <span class="tok-interpolation">${pkgs.gcc.cc.lib}</span> \
+      <span class="tok-directive">${pkgs.pkgsStatic.libjpeg.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libpng.out}</span> \
+      <span class="tok-directive">${pkgs.pkgsStatic.libwebp}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libraw.lib}</span> \
+      <span class="tok-directive">${pkgs.pkgsStatic.lcms2.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.zlib.out}</span>
+  <span class="tok-directive">ENV</span> GOMODCACHE=$PWD/.gomodcache
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">FETCH</span> go mod download &amp;&amp; go generate -x ./server/...
+  <span class="tok-directive">RUN</span> CPATH=<span class="tok-interpolation">${pkgs.brotli.dev}</span>/include:<span class="tok-interpolation">${pkgs.libjpeg.dev}</span>/include:<span class="tok-interpolation">${pkgs.libpng.dev}</span>/include:<span class="tok-interpolation">${pkgs.libwebp}</span>/include:<span class="tok-interpolation">${pkgs.libraw.dev}</span>/include:<span class="tok-interpolation">${pkgs.giflib}</span>/include \
+      <span class="tok-directive">LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib</span> \
+      <span class="tok-directive">PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig</span> \
+      <span class="tok-directive">go</span> build --tags fts5 -o dist/filestash cmd/main.go
 
 <span class="tok-directive">SERVICE</span> filestash
-<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist/filestash /bin/filestash
-<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/config/config.json /share/filestash-config.json
-<span class="tok-directive">COPY</span> setup.sh /bin/filestash-setup
-<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffmpeg /bin/ffmpeg
-<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffprobe /bin/ffprobe
-<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdftotext /bin/pdftotext
-<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdfinfo /bin/pdfinfo
-<span class="tok-directive">START_PRE</span> filestash-setup
-<span class="tok-directive">START</span> filestash
-<span class="tok-directive">ENV</span> FILESTASH_PATH = /var/lib/filestash
-<span class="tok-directive">ENV</span> FILESTASH_PORT = 18094
-<span class="tok-directive">PORT</span> http = $FILESTASH_PORT
-<span class="tok-directive">STATEDIR</span> /var/lib/filestash
-<span class="tok-directive">CLAIM</span> egress
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist/filestash /bin/filestash
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/config/config.json /share/filestash-config.json
+  <span class="tok-directive">COPY</span> setup.sh /bin/filestash-setup
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffmpeg /bin/ffmpeg
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffprobe /bin/ffprobe
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdftotext /bin/pdftotext
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdfinfo /bin/pdfinfo
+  <span class="tok-directive">START_PRE</span> filestash-setup
+  <span class="tok-directive">START</span> filestash
+  <span class="tok-directive">ENV</span> FILESTASH_PATH=/var/lib/filestash
+  <span class="tok-directive">ENV</span> FILESTASH_PORT=18094
+  <span class="tok-directive">PORT</span> http = $FILESTASH_PORT
+  <span class="tok-directive">STATEDIR</span> /var/lib/filestash
+  <span class="tok-directive">CLAIM</span> egress
 </code></pre>
       </section>
       <details class="file">

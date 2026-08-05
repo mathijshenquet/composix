@@ -56,15 +56,14 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / adminer</nav>
   <h1>docker / adminer</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; source FETCH is cold-unstable, optional ENV needs a sentinel, and stop-signal semantics differ · <strong>Evidence:</strong> runtime probe (worker warm) + independent cold defect · closed-root (package contract)</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; source FETCH is cold-unstable, and stop-signal semantics differ · <strong>Evidence:</strong> runtime probe (worker warm) + independent cold defect · closed-root (package contract)</p>
   <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins; the worker&#39;s warm login probe passes and the dissolved twin is cold-stable, while an independent source refetch exposes the unchanged EXPECT mismatch · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CIP-96</p>
     <p>This regeneration resolves the earlier version/checksum binder, PHP tuning, webroot layout, dynamic design/plugin assembly, PHP extension import, artifact import, and missing-twin findings.</p>
     <ul>
-      <li><code>ADMINER_DESIGN</code> and <code>ADMINER_PLUGINS</code> use the private <code>__cix_unset__</code> sentinel because Cix cannot declare an optional runtime <code>ENV</code> with no default. → language (optional ENV declaration)</li>
       <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix has no service stop-signal directive, so systemd&#39;s normal termination semantics remain authoritative. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
       <li>The worker&#39;s warm build passed, but the independent fresh fetch is EXPECT-hostile: its published file checksum passes while Cix reports declared <code>sha256-bJPK…</code> versus fetched <code>sha256-XJVI…</code>, leaving no snapshot for cold replay; keep the pin unchanged and normalize the fetch in the volatile-fetch fix round. → case (cold stability)</li>
     </ul>
@@ -174,9 +173,9 @@ The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd
 
 <span class="tok-directive">BUILDER</span> adminer-release
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
-  <span class="tok-directive">ENV</span> ADMINER_VERSION = 5.5.0
-  <span class="tok-directive">ENV</span> ADMINER_DOWNLOAD_SHA256 = d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
-  <span class="tok-directive">ENV</span> ADMINER_SRC_DOWNLOAD_SHA256 = df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
+  <span class="tok-directive">ENV</span> ADMINER_VERSION=5.5.0
+  <span class="tok-directive">ENV</span> ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+  <span class="tok-directive">ENV</span> ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
   <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php &amp;&amp; echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; | sha256sum -c - EXPECT sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=
   <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz &amp;&amp; echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; | sha256sum -c - EXPECT sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=
   <span class="tok-directive">RUN</span> tar xzf source.tar.gz --strip-components=1 &quot;adminer-$ADMINER_VERSION/designs/&quot; &quot;adminer-$ADMINER_VERSION/plugins/&quot; &amp;&amp; rm source.tar.gz
@@ -192,9 +191,9 @@ The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer-release}</span>/designs /opt/adminer-seed/designs
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer-release}</span>/plugins /opt/adminer-seed/plugins
   <span class="tok-directive">START</span> sh /usr/local/bin/cix-entrypoint.sh
-  <span class="tok-directive">ENV</span> ADMINER_DEFAULT_SERVER = db
-  <span class="tok-directive">ENV</span> ADMINER_DESIGN = __cix_unset__
-  <span class="tok-directive">ENV</span> ADMINER_PLUGINS = __cix_unset__
+  <span class="tok-directive">ENV</span> ADMINER_DEFAULT_SERVER=db
+  <span class="tok-directive">ENV</span> ADMINER_DESIGN
+  <span class="tok-directive">ENV</span> ADMINER_PLUGINS
   <span class="tok-directive">PORT</span> http = 8080
   <span class="tok-directive">CLAIM</span> egress
   <span class="tok-directive">START_PRE</span> sh /usr/local/bin/prepare-webroot.sh
@@ -216,9 +215,9 @@ SERVICE adminer
   COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
   COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
   START sh /usr/local/bin/cix-entrypoint.sh
-  ENV ADMINER_DEFAULT_SERVER = db
-  ENV ADMINER_DESIGN = __cix_unset__
-  ENV ADMINER_PLUGINS = __cix_unset__
+  ENV ADMINER_DEFAULT_SERVER=db
+  ENV ADMINER_DESIGN
+  ENV ADMINER_PLUGINS
   PORT http = 8080
   CLAIM egress
   START_PRE sh /usr/local/bin/prepare-webroot.sh
@@ -874,8 +873,6 @@ esac
 set -e
 
 cd /var/www/html
-if [ &quot;$ADMINER_DESIGN&quot; = __cix_unset__ ]; then unset ADMINER_DESIGN; fi
-if [ &quot;$ADMINER_PLUGINS&quot; = __cix_unset__ ]; then unset ADMINER_PLUGINS; fi
 exec /usr/local/bin/entrypoint.sh php -d upload_max_filesize=128M -d post_max_size=128M -d memory_limit=1G -d max_execution_time=600 -d max_input_vars=5000 -S &#39;[::]:8080&#39; -t /var/www/html
 </code></pre>
       </section>

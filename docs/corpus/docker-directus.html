@@ -4678,16 +4678,16 @@ Retrieved: 2026-07-31
 <span class="tok-directive">FROM</span> . AS src
 
 <span class="tok-directive">BUILDER</span> build
-<span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> \
-    <span class="tok-directive">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-<span class="tok-directive">ENV</span> NODE_OPTIONS = --max-old-space-size=8192
-<span class="tok-directive">ENV</span> npm_config_workspace_concurrency = 2
-<span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
-<span class="tok-directive">FETCH</span> pnpm fetch
-<span class="tok-directive">RUN</span> pnpm install --recursive --offline --frozen-lockfile
-<span class="tok-directive">RUN</span> pnpm run build
-<span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod dist
-<span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> \
+      <span class="tok-directive">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> NODE_OPTIONS=--max-old-space-size=8192
+  <span class="tok-directive">ENV</span> npm_config_workspace_concurrency=2
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">FETCH</span> pnpm fetch
+  <span class="tok-directive">RUN</span> pnpm install --recursive --offline --frozen-lockfile
+  <span class="tok-directive">RUN</span> pnpm run build
+  <span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod dist
+  <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
 <span class="tok-heredoc">cd dist</span>
 <span class="tok-heredoc">node -e &#39;const f=&quot;package.json&quot;,{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))&#39;</span>
 <span class="tok-heredoc">mkdir -p database extensions uploads</span>
@@ -4698,18 +4698,18 @@ Retrieved: 2026-07-31
 <span class="tok-directive">ASSEMBLE</span>
 
 <span class="tok-directive">SERVICE</span> directus
-<span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist /directus
-<span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>/bin/node /bin/node
-<span class="tok-directive">START_PRE</span> node /directus/cli.js bootstrap
-<span class="tok-directive">START</span> node /directus/cli.js start
-<span class="tok-directive">ENV</span> DB_CLIENT = sqlite3
-<span class="tok-directive">ENV</span> DB_FILENAME = /directus/database/database.sqlite
-<span class="tok-directive">ENV</span> NODE_ENV = production
-<span class="tok-directive">ENV</span> PORT = 18093
-<span class="tok-directive">PORT</span> http = $PORT
-<span class="tok-directive">STATEDIR</span> /var/lib/directus
-<span class="tok-directive">CLAIM</span> egress
-<span class="tok-directive">CLAIM</span> jit
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist /directus
+  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span>/bin/node /bin/node
+  <span class="tok-directive">START_PRE</span> node /directus/cli.js bootstrap
+  <span class="tok-directive">START</span> node /directus/cli.js start
+  <span class="tok-directive">ENV</span> DB_CLIENT=sqlite3
+  <span class="tok-directive">ENV</span> DB_FILENAME=/directus/database/database.sqlite
+  <span class="tok-directive">ENV</span> NODE_ENV=production
+  <span class="tok-directive">ENV</span> PORT=18093
+  <span class="tok-directive">PORT</span> http = $PORT
+  <span class="tok-directive">STATEDIR</span> /var/lib/directus
+  <span class="tok-directive">CLAIM</span> egress
+  <span class="tok-directive">CLAIM</span> jit
 </code></pre>
       </section>
       <details class="file">

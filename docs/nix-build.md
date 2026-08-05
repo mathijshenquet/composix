@@ -146,7 +146,7 @@ IMPORT ${pkgs.bash} ${pkgs.cargo} ${pkgs.rustc} ${pkgs.pkg-config} \
     ${pkgs.gcc} ${pkgs.coreutils} ${pkgs.cacert} \
     ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.libgit2} ${pkgs.libgit2.dev} \
     ${pkgs.sqlite} ${pkgs.sqlite.dev}
-ENV GIT_COMMIT_HASH = ${src.rev}
+ENV GIT_COMMIT_HASH=${src.rev}
 COPY ${src}/ .
 FETCH mkdir -p .cargo && CARGO_TARGET_DIR=/tmp/cix-vendor-target cargo vendor --locked vendor > .cargo/config.toml
 RUN cargo build --release --locked --offline

@@ -163,11 +163,11 @@ Build context: no sibling files are copied by this Dockerfile.
 
 <span class="tok-directive">BUILDER</span> upstream
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
-  <span class="tok-directive">ENV</span> CADDY_VERSION = v2.11.4
-  <span class="tok-directive">ENV</span> CADDY_RELEASE = 2.11.4
-  <span class="tok-directive">ENV</span> CADDY_ARCH = amd64
-  <span class="tok-directive">ENV</span> CADDY_ARCHIVE = caddy_2.11.4_linux_amd64.tar.gz
-  <span class="tok-directive">ENV</span> CADDY_SHA512 = 8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9
+  <span class="tok-directive">ENV</span> CADDY_VERSION=v2.11.4
+  <span class="tok-directive">ENV</span> CADDY_RELEASE=2.11.4
+  <span class="tok-directive">ENV</span> CADDY_ARCH=amd64
+  <span class="tok-directive">ENV</span> CADDY_ARCHIVE=caddy_2.11.4_linux_amd64.tar.gz
+  <span class="tok-directive">ENV</span> CADDY_SHA512=8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9
   <span class="tok-directive">FETCH</span> curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-snk74Gj7SqdxRp57wVNRC0Yx8ABlamD+RqLdx4txxTE=
   <span class="tok-directive">FETCH</span> curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-7/bTSAJ7EUYh+SL6S4JCrhDs5uJ8b7cJ0teM1I31UhU=
   <span class="tok-directive">FETCH</span> curl --fail --location --show-error https://github.com/caddyserver/caddy/releases/download/$CADDY_VERSION/$CADDY_ARCHIVE --output caddy.tar.gz EXPECT sha256-k42/SsWMoYwE8ExndcbKut17xC+airW1FsIpNE2kDGY=
@@ -186,9 +186,9 @@ Build context: no sibling files are copied by this Dockerfile.
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${upstream}</span>/Caddyfile.normalized /etc/caddy/Caddyfile
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${upstream}</span>/index.html /usr/share/caddy/index.html
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${upstream}</span>/caddy /bin/caddy
-  <span class="tok-directive">ENV</span> CADDY_VERSION = v2.11.4
-  <span class="tok-directive">ENV</span> XDG_CONFIG_HOME = /data
-  <span class="tok-directive">ENV</span> XDG_DATA_HOME = /data
+  <span class="tok-directive">ENV</span> CADDY_VERSION=v2.11.4
+  <span class="tok-directive">ENV</span> XDG_CONFIG_HOME=/data
+  <span class="tok-directive">ENV</span> XDG_DATA_HOME=/data
   <span class="tok-directive">START</span> caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
   <span class="tok-directive">PORT</span> http = 8080
   <span class="tok-directive">PORT</span> https = 443
@@ -217,9 +217,9 @@ SERVICE caddy
 HOSTS
   COPY ${upstream}/Caddyfile.normalized /etc/caddy/Caddyfile
   COPY ${upstream}/index.html /usr/share/caddy/index.html
-  ENV CADDY_VERSION = v2.11.4
-  ENV XDG_CONFIG_HOME = /data
-  ENV XDG_DATA_HOME = /data
+  ENV CADDY_VERSION=v2.11.4
+  ENV XDG_CONFIG_HOME=/data
+  ENV XDG_DATA_HOME=/data
   START caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
   PORT http = 8080
   PORT https = 443

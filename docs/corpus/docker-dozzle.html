@@ -685,10 +685,10 @@ Build context: repository archive in context/ (Dockerfile copies source trees an
 
 <span class="tok-directive">BUILDER</span> frontend
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.nodejs}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> CI = true
-  <span class="tok-directive">ENV</span> CLOUD_URL = https://cloud.dozzle.dev
-  <span class="tok-directive">ENV</span> COREPACK_HOME = $PWD/.corepack
-  <span class="tok-directive">ENV</span> PNPM_HOME = $PWD/.pnpm-home
+  <span class="tok-directive">ENV</span> CI=true
+  <span class="tok-directive">ENV</span> CLOUD_URL=https://cloud.dozzle.dev
+  <span class="tok-directive">ENV</span> COREPACK_HOME=$PWD/.corepack
+  <span class="tok-directive">ENV</span> PNPM_HOME=$PWD/.pnpm-home
   <span class="tok-directive">COPY</span> context/pnpm-lock.yaml pnpm-lock.yaml
   <span class="tok-directive">COPY</span> context/pnpm-workspace.yaml pnpm-workspace.yaml
   <span class="tok-directive">COPY</span> context/package.json package.json
@@ -718,12 +718,12 @@ Build context: repository archive in context/ (Dockerfile copies source trees an
 
 <span class="tok-directive">BUILDER</span> backend
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> CGO_ENABLED = 0
-  <span class="tok-directive">ENV</span> TAG = dev
+  <span class="tok-directive">ENV</span> CGO_ENABLED=0
+  <span class="tok-directive">ENV</span> TAG=dev
   <span class="tok-directive">COPY</span> context/go.mod go.mod
   <span class="tok-directive">COPY</span> context/go.sum go.sum
-  <span class="tok-directive">ENV</span> GOPATH = $PWD/.go
-  <span class="tok-directive">ENV</span> GOCACHE = $PWD/.cache/go-build
+  <span class="tok-directive">ENV</span> GOPATH=$PWD/.go
+  <span class="tok-directive">ENV</span> GOCACHE=$PWD/.cache/go-build
   <span class="tok-directive">FETCH</span> go mod download
   <span class="tok-directive">COPY</span> context/internal internal
   <span class="tok-directive">COPY</span> context/proto proto

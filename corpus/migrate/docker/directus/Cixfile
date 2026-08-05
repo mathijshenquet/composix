@@ -2,16 +2,16 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.pnpm} \
-    ${pkgs.gnused} ${pkgs.python311} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.cacert}
-ENV NODE_OPTIONS = --max-old-space-size=8192
-ENV npm_config_workspace_concurrency = 2
-COPY ${src}/context/ .
-FETCH pnpm fetch
-RUN pnpm install --recursive --offline --frozen-lockfile
-RUN pnpm run build
-RUN pnpm --filter directus deploy --legacy --prod dist
-RUN <<ASSEMBLE
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.nodejs_22} ${pkgs.pnpm} \
+      ${pkgs.gnused} ${pkgs.python311} ${pkgs.gnumake} ${pkgs.gcc} ${pkgs.cacert}
+  ENV NODE_OPTIONS=--max-old-space-size=8192
+  ENV npm_config_workspace_concurrency=2
+  COPY ${src}/context/ .
+  FETCH pnpm fetch
+  RUN pnpm install --recursive --offline --frozen-lockfile
+  RUN pnpm run build
+  RUN pnpm --filter directus deploy --legacy --prod dist
+  RUN <<ASSEMBLE
 cd dist
 node -e 'const f="package.json",{name,version,type,exports,bin}=require(`./$${f}`),{packageManager}=require(`../$${f}`);fs.writeFileSync(f,JSON.stringify({name,version,type,exports,bin,packageManager},null,2))'
 mkdir -p database extensions uploads
@@ -22,15 +22,15 @@ ln -s /var/lib/directus/uploads uploads
 ASSEMBLE
 
 SERVICE directus
-COPY ${build}/dist /directus
-LINK ${pkgs.nodejs_22}/bin/node /bin/node
-START_PRE node /directus/cli.js bootstrap
-START node /directus/cli.js start
-ENV DB_CLIENT = sqlite3
-ENV DB_FILENAME = /directus/database/database.sqlite
-ENV NODE_ENV = production
-ENV PORT = 18093
-PORT http = $PORT
-STATEDIR /var/lib/directus
-CLAIM egress
-CLAIM jit
+  COPY ${build}/dist /directus
+  LINK ${pkgs.nodejs_22}/bin/node /bin/node
+  START_PRE node /directus/cli.js bootstrap
+  START node /directus/cli.js start
+  ENV DB_CLIENT=sqlite3
+  ENV DB_FILENAME=/directus/database/database.sqlite
+  ENV NODE_ENV=production
+  ENV PORT=18093
+  PORT http = $PORT
+  STATEDIR /var/lib/directus
+  CLAIM egress
+  CLAIM jit

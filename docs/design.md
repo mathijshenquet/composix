@@ -349,8 +349,9 @@ arguments), `COPY <src> <dst>` (verbatim sibling file — docker semantics, neve
 `SCRIPT`; real scripts are copied and invoked through an explicit package shell.
 
 Service directives (compile to spec v2): `SERVICE <name>`, `EXEC`, `SETUP`,
-`ENV NAME [= default] [required] [secret]` (docker-compatible: `ENV FOO = bar` behaves like
-docker's), `PORT name = $VAR` (env form) / `PORT name = 8080` (value form), `STATE` `CACHE`
+`ENV NAME=value [secret]`, `ENV NAME required`, or bare `ENV NAME` for an optional unset value;
+spaces around `=` and defaults combined with `required` are parse errors. `PORT name = $VAR` (env
+form) / `PORT name = 8080` (value form), `STATE` `CACHE`
 `LOGS` `CONFIG` `RUNDIR` (role dirs, D11-narrowed paths), `JIT`.
 
 Interpolation rule: `${…}` (build-time) lives in directive arguments and in `FILE`
@@ -1117,7 +1118,7 @@ publish era, and the reconciler.
 
 - ✅ D59 (2026-07-30) — **post-r4 language round: builder ENV + EXEC argv quoting**
   (both straight from corpus round N=8 evidence; Mathijs: "doe maar").
-  (a) **`ENV NAME = value` becomes legal in BUILDER blocks**: applies to all
+  (a) **`ENV NAME=value` becomes legal in BUILDER blocks**: applies to all
   subsequent steps in that builder (docker's from-this-line-on muscle memory),
   plain values only (no typed default/required — that is runtime-contract
   vocabulary), participates in the chain key as declared text, and is injected as
@@ -1273,12 +1274,12 @@ publish era, and the reconciler.
   always be implicit — and that settles "compose a PATH from other dirs" vs
   "assemble your own bin/ tree" in favor of the latter).
   (a) SERVICE and APP get an implicit runtime `PATH=<item>/bin` default. An
-  explicit `ENV PATH = …` REPLACES the default entirely — no merge magic
+  explicit `ENV PATH=…` REPLACES the default entirely — no merge magic
   (D58's YAGNI-return clause stays the escape for genuine multi-dir needs).
   (b) Bare `EXEC <name>` (and SETUP) resolves at build time against the
   *effective* PATH: the item's own `bin/` by default, or the declared
-  `ENV PATH = …` when present (the D31 build-time resolution mechanics under
-  the (a) replacement rule — e.g. `ENV PATH = ${pkgs.redis}/bin` +
+  `ENV PATH=…` when present (the D31 build-time resolution mechanics under
+  the (a) replacement rule — e.g. `ENV PATH=${pkgs.redis}/bin` +
   `EXEC redis-server` resolves into the package); not found = clear error
   listing the searched entries. `EXEC ${pkgs.x}/bin/x` stays valid; the
   relative `EXEC bin/x` form died with D66.

@@ -2,9 +2,9 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE memcached
   IMPORT ${pkgs.memcached} ${pkgs.bash}
-  ENV MEMCACHED_VERSION = 1.6.45
-  ENV MEMCACHED_URL = https://memcached.org/files/memcached-1.6.45.tar.gz
-  ENV MEMCACHED_SHA1 = 45038980ea7045a548b9b5b5125ef7116312a768
+  ENV MEMCACHED_VERSION=1.6.45
+  ENV MEMCACHED_URL=https://memcached.org/files/memcached-1.6.45.tar.gz
+  ENV MEMCACHED_SHA1=45038980ea7045a548b9b5b5125ef7116312a768
   COPY context/docker-entrypoint.sh /bin/docker-entrypoint.sh
   START sh /bin/docker-entrypoint.sh memcached
   PORT client = 11211
