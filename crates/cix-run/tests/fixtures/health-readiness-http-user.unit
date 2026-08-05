@@ -1,4 +1,0 @@
-Type=exec
-ExecStartPost="/nix/store/11111111111111111111111111111111-cix/bin/cix" "probe" "await" "http" ":8080/healthz"
-TimeoutStartSec=90s
-TimeoutStopSec=90s

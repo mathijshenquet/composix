@@ -8,6 +8,7 @@ members = [
   "crates/cix-compose",
   "crates/cix-index",
   "crates/cix-run",
+  "crates/cix-test-support",
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ cix-cixfile = { path = "crates/cix-cixfile" }
 cix-compose = { path = "crates/cix-compose" }
 cix-index = { path = "crates/cix-index" }
 cix-run = { path = "crates/cix-run" }
+cix-test-support = { path = "crates/cix-test-support" }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
