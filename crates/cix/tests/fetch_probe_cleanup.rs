@@ -1,8 +1,10 @@
 use std::fs;
+use std::io::Read;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::{Child, Command, Output};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::sync::Mutex;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 
@@ -18,8 +20,15 @@ const SCRATCH_PREFIXES: &[&str] = &[
     "cix-step-delta-",
 ];
 
+// These real-CLI tests all start cix processes and must not contend for CPU
+// while a sibling waits for a child scratch directory to appear.
+static TEST_SERIALIZATION: Mutex<()> = Mutex::new(());
+
 #[test]
 fn update_lock_removes_all_build_scratch_after_success_and_failure() -> Result<()> {
+    let _serialization = TEST_SERIALIZATION
+        .lock()
+        .expect("serializing fetch cleanup integration tests");
     let root = tempfile::tempdir()?;
     let temp_root = root.path().join("temp");
     fs::create_dir(&temp_root)?;
@@ -66,6 +75,9 @@ START /bin/true
 
 #[test]
 fn sigterm_removes_live_build_scratch() -> Result<()> {
+    let _serialization = TEST_SERIALIZATION
+        .lock()
+        .expect("serializing fetch cleanup integration tests");
     let root = tempfile::tempdir()?;
     let temp_root = root.path().join("temp");
     fs::create_dir(&temp_root)?;
@@ -82,8 +94,14 @@ START /bin/true
 "#,
     )?;
 
-    let mut child = cix_child(&project, &temp_root, &["build", "--update-lock", "build"])?;
-    let scratch = wait_for_scratch(&temp_root)?;
+    let scratch_ready = scratch_ready_fifo(root.path())?;
+    let mut child = cix_child(
+        &project,
+        &temp_root,
+        &["build", "--update-lock", "build"],
+        &scratch_ready,
+    )?;
+    let scratch = wait_for_scratch(&scratch_ready)?;
     age_to_stale(&scratch)?;
     let concurrent = sweep_with_cix(&temp_root)?;
     assert!(
@@ -104,6 +122,9 @@ START /bin/true
 
 #[test]
 fn startup_sweep_removes_unlocked_stale_scratch() -> Result<()> {
+    let _serialization = TEST_SERIALIZATION
+        .lock()
+        .expect("serializing fetch cleanup integration tests");
     let root = tempfile::tempdir()?;
     let temp_root = root.path().join("temp");
     fs::create_dir(&temp_root)?;
@@ -153,11 +174,17 @@ fn cix(directory: &Path, temp_root: &Path, args: &[&str]) -> Result<Output> {
         .context("invoking cix")
 }
 
-fn cix_child(directory: &Path, temp_root: &Path, args: &[&str]) -> Result<Child> {
+fn cix_child(
+    directory: &Path,
+    temp_root: &Path,
+    args: &[&str],
+    scratch_ready: &Path,
+) -> Result<Child> {
     Command::new(env!("CARGO_BIN_EXE_cix"))
         .args(args)
         .arg(directory)
         .env("TMPDIR", temp_root)
+        .env("CIX_SCRATCH_READY_FIFO", scratch_ready)
         .env("CIX_BUILD_WORKSPACE_DIR", directory.join("workspaces"))
         .env("XDG_CACHE_HOME", directory.join("cache"))
         .env("CIX_STATE_DIR", directory.join("state"))
@@ -173,21 +200,29 @@ fn sweep_with_cix(temp_root: &Path) -> Result<Output> {
         .context("invoking cix startup sweep")
 }
 
-fn wait_for_scratch(temp_root: &Path) -> Result<std::path::PathBuf> {
-    let deadline = Instant::now() + Duration::from_secs(15);
-    while Instant::now() < deadline {
-        for entry in fs::read_dir(temp_root)? {
-            let entry = entry?;
-            if SCRATCH_PREFIXES
-                .iter()
-                .any(|prefix| entry.file_name().to_string_lossy().starts_with(prefix))
-            {
-                return Ok(entry.path());
-            }
-        }
-        thread::sleep(Duration::from_millis(50));
+fn scratch_ready_fifo(root: &Path) -> Result<std::path::PathBuf> {
+    let path = root.join("scratch-ready");
+    let path_bytes = std::ffi::CString::new(path.as_os_str().as_bytes())?;
+    if unsafe { libc::mkfifo(path_bytes.as_ptr(), 0o600) } == 0 {
+        Ok(path)
+    } else {
+        Err(std::io::Error::last_os_error()).context("creating scratch readiness FIFO")
     }
-    anyhow::bail!("cix did not create scratch under {}", temp_root.display())
+}
+
+fn wait_for_scratch(scratch_ready: &Path) -> Result<std::path::PathBuf> {
+    let mut signal = fs::File::open(scratch_ready).context("reading scratch readiness FIFO")?;
+    let mut path = String::new();
+    signal
+        .read_to_string(&mut path)
+        .context("waiting for scratch readiness signal")?;
+    let path = std::path::PathBuf::from(path.trim_end());
+    anyhow::ensure!(
+        path.is_dir(),
+        "cix signalled missing scratch {}",
+        path.display()
+    );
+    Ok(path)
 }
 
 fn age_to_stale(path: &Path) -> Result<()> {
