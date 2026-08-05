@@ -162,9 +162,10 @@ making the edge traced) — generators, never runtime. No language slot
 is reserved; frontends emit Cixfiles.
 
 Migration: mechanical corpus/examples/tour sweep — each RUN/FETCH
-either argv-izes or gains its `bash $`/heredoc fence; the ~20
+either argv-izes (chains decomposed per the canon) or becomes a
+heredoc; the ~20
 variable-ENVs become LETs (their sha-values largely dissolve into
-lock pins); migrate.md teaches the fence rule in one sentence.
+lock pins); migrate.md teaches the boundary rule in one sentence.
 
 ## 4. Open questions
 
@@ -174,7 +175,7 @@ lock pins); migrate.md teaches the fence rule in one sentence.
   stay valid alongside the clause position, or does the sweep move
   all of them?
 - **FETCH normalization tails**: the `&& chmod 644 && touch -d @0`
-  idiom keeps forcing fences around single-command FETCHes — promote
+  idiom keeps forcing heredocs around single-command FETCHes — promote
   to FETCH options (`FETCH … NORMALIZE`) now or later?
 - **LET list values** (later): fish-style list expansion into argv
   elements is the growth path that ENV structurally can never follow
