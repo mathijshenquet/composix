@@ -898,3 +898,27 @@ context files and adds the fetch/docs/guard/source-metadata changes only.
   synchronously under TCG. Its exhaustive suite included Mastodon's six
   modernized members, closed-root assertions, credentials, readiness, timer,
   scoped logs, and purge.
+
+## 2026-08-05 — track/regen3 assembly start
+
+- Read `.dev/specs/track-regen3.md`, the corpus rubric, and all seven cold staging bundles (`docker-{caddy,parse-server,directus,verdaccio,filestash,dozzle,watchtower}`). Their reported greens are hypotheses: Directus reports an incomplete build, Filestash a static-closure wall, and Dozzle an unpinned/hung pnpm fetch.
+- `devenv shell -- cargo build -p cix` — synchronous exit 0; rebuilt `target/debug/cix` for independent receipts.
+- Next: materialize each pinned context, stage only regenerated inputs, and reproduce warm/cold/build or daemonless-check results before writing receipts and ribbons.
+
+## 2026-08-05 — track/regen3 independent assembly receipts
+
+- Context fetches for Parse Server, Directus, Verdaccio, Filestash, Dozzle, and Watchtower completed from their pinned `SOURCE` revisions. The seven staged Cixfiles were formatter-normalized before acceptance.
+- Caddy: `./check.sh cix`, cold faithful rebuild, and dissolved build all exited 0. Parse Server: Mongo-backed `./check.sh cix` and explicit cold replay both exited 0, refuting the staged cold-divergence claim.
+- Directus: the former glibc/Sass loader and ENOTDIR walls are clear, but the independent run exits at `ERR_PNPM_OUTDATED_LOCKFILE` (18 root development specifiers absent from the copied lock); no item. Verdaccio ordinary rebuilds produced no item; cold replay independently reports differing warm/cold root directory hashes at pnpm FETCH.
+- Filestash's independent run did not reach static linkage: its FETCH exits on `sum.golang.org` DNS failure, so the staged `pkgsStatic` closure wall is not promoted as reproduced evidence. Dozzle's `timeout 300 ... build --update-lock web` reached its bound (exit 124) in pnpm fetch. Watchtower warm and cold builds both exited 0; manifest inspection confirms port, egress, start argv, and read-only socket DIR.
+- Updated GAPS, per-case receipts, and the corpus ribbons with the qualified current evidence. Socket bridges remain desk/unprobed by decision; their daemonless checks validate only declarations/build/manifest as applicable.
+- Daemonless `check.sh cix` receipts for Dozzle and Watchtower exited 0; browser regeneration (`devenv shell -- cargo test --test corpus -- --ignored generate_corpus_browser`) and `git diff --check` also exited 0.
+- Final static gate receipts: `devenv shell -- cargo fmt --all --check`, `devenv shell -- target/debug/cix fmt --check examples`, and `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings` all exited 0 (examples retain pre-existing LINK deprecation warnings only).
+- Reverted staged lock churn for the four no-item cases (Directus, Verdaccio, Filestash, Dozzle): it captured failed/volatile transient dependency trees (Directus alone was 108 MB) without a successful receipt. Regenerated the browser after the targeted revert; its corpus test exited 0 and `docs/corpus/` returned to 8.7 MB.
+
+## 2026-08-05 — track/regen3 final gate receipts
+
+- Per-case rerun: Dozzle and Watchtower daemonless `check.sh cix` receipts exited 0. Parse Server's rerun completed after its Cix build; Caddy's rerun exited non-zero before assembly because the sandbox returned one identical 769-byte body for two distinct raw GitHub URLs, while direct host curl returned their distinct content. No EXPECT pin was changed; Caddy's current GAPS/receipt records the evidence boundary.
+- `.gate-exit` captured `workspace-tests=0` after `devenv shell -- cargo test --workspace -- --test-threads=1` completed synchronously.
+- `.gate-exit` captured `tour-drift=0` after `devenv shell -- cargo test --test tour -- --ignored generate_tour` completed synchronously.
+- `.gate-exit` captured `progressive-vm=0` after `devenv shell -- nix run .#progressive-vm-check`; it selected no VM because every scenario derivation was unchanged.

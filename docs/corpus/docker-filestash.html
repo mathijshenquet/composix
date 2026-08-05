@@ -56,19 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / filestash</nav>
   <h1>docker / filestash</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Blocked — development imports and a coherent static C-library package set are unavailable; the pkgsStatic missing-lib investigation runs in the current wave · <strong>Evidence:</strong> build (Cix failure)</p>
-  <p class="status"><strong>Receipt status:</strong> Docker probe passes; Cix reaches static-library linkage and fails before an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/filestash/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The static-library loop is not re-established from this DNS-failed receipt; no item exists · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Independent Cix FETCH stops at DNS resolution before C compilation · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/filestash/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/filestash/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@d582f41 · unknown · 2026-07-31 · <strong>Status:</strong> stale — regenerate with CIP-91</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The page-wide <code>CPATH</code>/<code>LIBRARY_PATH</code>/<code>PKG_CONFIG_PATH</code> preamble predates CIP-88(a): the vendored dev-env snapshot now supplies toolchain search paths from the IMPORTed packages; regeneration verifies the coverage. → case (stale, CIP-88)</li>
-      <li>The required coherent static C-library set cannot be selected from the locked nixpkgs packages: <code>pkgsStatic.giflib</code> itself fails, but D70 overlays now provide the <code>.nix</code> package-customization escape for a regenerated case. → case</li>
-      <li>Four helper binaries are linked one by one into <code>/bin</code>, the same artifact toolset slop as the larger Wallos pile. → language (<a href="../../../cips/accepted/0091-artifact-import.md">CIP-91</a>)</li>
-      <li>The runtime moved the upstream <code>/app</code> tree into <code>/bin</code>, <code>/share</code>, and <code>/var/lib/filestash</code>; mirror the application layout or explain each deliberate split. → prompt</li>
-      <li>Go generation is joined to dependency download in a networked <code>FETCH</code>, whose generated cache snapshot changed between runs. → evidence</li>
-      <li>The Docker receipt followed moving <code>master</code> while the Cix side used a recorded revision, so the two probes are not proven against identical source bytes. → evidence</li>
+      <li>The independent FETCH did not reach C compilation: Go module verification could not resolve <code>sum.golang.org</code>. The prior <code>pkgsStatic</code> closure claim is therefore not promoted to this receipt; retry from a DNS-healthy builder before continuing the missing-<code>-l</code> loop. → evidence</li>
+      <li>No Cix item or runtime probe exists; fixed UID/chown and Debian image mechanics dissolve into systemd/Nix. → case</li>
     </ul>
   </aside>
   <details class="context">
@@ -1571,40 +1567,44 @@ Retrieved: 2026-07-31
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 <span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> build
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> \
-      <span class="tok-directive">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.libjpeg}</span> \
-      <span class="tok-directive">${pkgs.libtiff}</span> <span class="tok-interpolation">${pkgs.libpng}</span> <span class="tok-interpolation">${pkgs.libwebp}</span> <span class="tok-interpolation">${pkgs.libraw}</span> \
-      <span class="tok-directive">${pkgs.libheif}</span> <span class="tok-interpolation">${pkgs.giflib}</span> <span class="tok-interpolation">${pkgs.vips}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> \
-      <span class="tok-directive">${pkgs.glib}</span> <span class="tok-interpolation">${pkgs.lcms2}</span> <span class="tok-interpolation">${pkgs.zlib}</span> <span class="tok-interpolation">${pkgs.brotli}</span> \
-      <span class="tok-directive">${pkgs.brotli.dev}</span> <span class="tok-interpolation">${pkgs.libjpeg.dev}</span> <span class="tok-interpolation">${pkgs.libpng.dev}</span> \
-      <span class="tok-directive">${pkgs.libraw.dev}</span> \
-      <span class="tok-directive">${pkgs.ffmpeg.dev}</span> <span class="tok-interpolation">${pkgs.glib.dev}</span> <span class="tok-interpolation">${pkgs.gcc.cc.lib}</span> \
-      <span class="tok-directive">${pkgs.pkgsStatic.libjpeg.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libpng.out}</span> \
-      <span class="tok-directive">${pkgs.pkgsStatic.libwebp}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.libraw.lib}</span> \
-      <span class="tok-directive">${pkgs.pkgsStatic.lcms2.out}</span> <span class="tok-interpolation">${pkgs.pkgsStatic.zlib.out}</span>
-  <span class="tok-directive">ENV</span> GOMODCACHE=$PWD/.gomodcache
+<span class="tok-directive">BUILDER</span> backend
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.go_1_26}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.gcc}</span> \
+      <span class="tok-directive">${pkgs.brotli}</span> <span class="tok-interpolation">${pkgs.libraw}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> <span class="tok-interpolation">${pkgs.libjpeg}</span> <span class="tok-interpolation">${pkgs.libtiff}</span> \
+      <span class="tok-directive">${pkgs.libpng}</span> <span class="tok-interpolation">${pkgs.libwebp}</span> <span class="tok-interpolation">${pkgs.libheif}</span> <span class="tok-interpolation">${pkgs.giflib}</span> <span class="tok-interpolation">${pkgs.vips}</span> \
+      <span class="tok-directive">${pkgs.zlib}</span> <span class="tok-interpolation">${pkgs.lcms2}</span> <span class="tok-interpolation">${pkgs.libyuv}</span> <span class="tok-interpolation">${pkgs.glib}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.brotli.dev}</span> <span class="tok-interpolation">${pkgs.libraw.dev}</span> <span class="tok-interpolation">${pkgs.ffmpeg.dev}</span>
+  <span class="tok-directive">ENV</span> GOMODCACHE=$PWD/gomodcache
+  <span class="tok-directive">FETCH</span> \
+      <span class="tok-directive">mkdir</span> -p gomodcache &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://raw.githubusercontent.com/mickael-kerjean/filestash/master/go.mod --output go.mod &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://raw.githubusercontent.com/mickael-kerjean/filestash/master/go.sum --output go.sum &amp;&amp; \
+      <span class="tok-directive">GOMODCACHE=$PWD/gomodcache</span> go mod download all &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://raw.githubusercontent.com/nothings/stb/5736b15f7ea0ffb08dd38af21067c314d6a3aae9/stb_image.h --output image_psd_vendor.h &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/xterm.js --output xterm.js &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/addons/fit/fit.js --output fit.js &amp;&amp; \
+      <span class="tok-directive">curl</span> --fail --location https://cdnjs.cloudflare.com/ajax/libs/xterm/3.12.2/xterm.css --output xterm.css
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
-  <span class="tok-directive">FETCH</span> go mod download &amp;&amp; go generate -x ./server/...
-  <span class="tok-directive">RUN</span> CPATH=<span class="tok-interpolation">${pkgs.brotli.dev}</span>/include:<span class="tok-interpolation">${pkgs.libjpeg.dev}</span>/include:<span class="tok-interpolation">${pkgs.libpng.dev}</span>/include:<span class="tok-interpolation">${pkgs.libwebp}</span>/include:<span class="tok-interpolation">${pkgs.libraw.dev}</span>/include:<span class="tok-interpolation">${pkgs.giflib}</span>/include \
-      <span class="tok-directive">LIBRARY_PATH=${pkgs.giflib}/lib:${pkgs.pkgsStatic.libwebp}/lib:${pkgs.pkgsStatic.libjpeg.out}/lib:${pkgs.pkgsStatic.libpng.out}/lib:${pkgs.pkgsStatic.zlib.out}/lib:${pkgs.pkgsStatic.libraw.lib}/lib:${pkgs.pkgsStatic.lcms2.out}/lib:${pkgs.gcc.cc.lib}/lib:${pkgs.brotli.out}/lib</span> \
-      <span class="tok-directive">PKG_CONFIG_PATH=${pkgs.ffmpeg.dev}/lib/pkgconfig:${pkgs.glib.dev}/lib/pkgconfig</span> \
-      <span class="tok-directive">go</span> build --tags fts5 -o dist/filestash cmd/main.go
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">set -e</span>
+<span class="tok-heredoc">mkdir -p server/plugin/plg_image_c server/plugin/plg_handler_console/src server/plugin/plg_widget_console/assets/vendor</span>
+<span class="tok-heredoc">cp image_psd_vendor.h server/plugin/plg_image_c/image_psd_vendor.h</span>
+<span class="tok-heredoc">cat xterm.js fit.js &gt; server/plugin/plg_handler_console/src/xterm.js</span>
+<span class="tok-heredoc">cp xterm.css server/plugin/plg_handler_console/src/xterm.css</span>
+<span class="tok-heredoc">cat xterm.js fit.js &gt; server/plugin/plg_widget_console/assets/vendor/xterm.js</span>
+<span class="tok-heredoc">cp xterm.css server/plugin/plg_widget_console/assets/vendor/xterm.css</span>
+<span class="tok-heredoc">(cd server/common &amp;&amp; go run ../generator/mime.go &amp;&amp; go run ../generator/constants.go)</span>
+<span class="tok-heredoc">mkdir -p dist/data/state/config</span>
+<span class="tok-heredoc">go build --tags fts5 -o dist/filestash cmd/main.go</span>
+<span class="tok-heredoc">cp config/config.json dist/data/state/config/config.json</span>
+<span class="tok-directive">BUILD</span>
 
 <span class="tok-directive">SERVICE</span> filestash
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${build}</span>/dist/filestash /bin/filestash
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/config/config.json /share/filestash-config.json
-  <span class="tok-directive">COPY</span> setup.sh /bin/filestash-setup
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffmpeg /bin/ffmpeg
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span>/bin/ffprobe /bin/ffprobe
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdftotext /bin/pdftotext
-  <span class="tok-directive">LINK</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span>/bin/pdfinfo /bin/pdfinfo
-  <span class="tok-directive">START_PRE</span> filestash-setup
-  <span class="tok-directive">START</span> filestash
-  <span class="tok-directive">ENV</span> FILESTASH_PATH=/var/lib/filestash
-  <span class="tok-directive">ENV</span> FILESTASH_PORT=18094
-  <span class="tok-directive">PORT</span> http = $FILESTASH_PORT
-  <span class="tok-directive">STATEDIR</span> /var/lib/filestash
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.glibc}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.ffmpeg}</span> <span class="tok-interpolation">${pkgs.poppler-utils}</span> <span class="tok-interpolation">${pkgs.brotli}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${backend}</span>/dist /app
+  <span class="tok-directive">START</span> /app/filestash
+  <span class="tok-directive">PORT</span> http = 8334
+  <span class="tok-directive">STATEDIR</span> /app/data
+  <span class="tok-directive">CACHEDIR</span> /app/cache
   <span class="tok-directive">CLAIM</span> egress
 </code></pre>
       </section>
@@ -1651,27 +1651,15 @@ esac
         <summary>receipt.md</summary>
         <pre><code># filestash migration receipt
 
-Source revision: `cdcb9566d4d24c065e461b1c8e3220ff68ef98ac` (2026-07-31).
+2026-08-05, generated `migrate.md@f474d3f` (gpt-5.6-luna). Docker mode was not rerun.
 
-Docker: `./check.sh docker` passed on 2026-07-31. Image:
-`sha256:c5bfe487160aa1eb52d3b1afb84ebea8c403e782119ff1594329de43cb54ab51`.
-The natural `/` endpoint returned its `X-Powered-By: Filestash` product header.
-The upstream Dockerfile clones moving `master` rather than using the supplied
-context, which is an upstream reproducibility weakness despite this pair&#39;s
-recorded SOURCE pin.
+`target/debug/cix build .#filestash` exited non-zero in its networked FETCH before C compilation or the claimed static closure:
 
-Cix: build-fail. Networked Go generation had to join dependency download in
-`FETCH`; its generated cache snapshot then changed between runs. After one
-explicit lock acceptance, compilation reached final cgo linking. Normal nixpkgs
-outputs do not ship the static archives hard-coded by Filestash&#39;s cgo directives.
-Selecting the available `pkgsStatic` packages cannot close the gap either: the
-locked nixpkgs `giflib` static derivation itself fails while producing a shared
-object, which cancels static `libwebp` and the rest of the closure. No Cix runtime
-pass is claimed. Classification: language/package-selection gap, plus a product
-FETCH-stability gap.
+```text
+Get &quot;https://sum.golang.org/lookup/cloud.google.com/go/accesscontextmanager@v1.9.7&quot;: dial tcp: lookup sum.golang.org on 127.0.0.53:53: server misbehaving
+```
 
-The attempted runtime maps `FILESTASH_PATH` to `STATEDIR`, seeds the default
-configuration idempotently, and explicitly carries ffmpeg/poppler helpers.
+No Cix item or runtime probe is claimed. The `pkgsStatic` investigation must be rerun from a DNS-healthy builder.
 </code></pre>
       </details>
       <section class="file">
