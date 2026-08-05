@@ -19,6 +19,10 @@
 - Full workspace/tour drift retry is **not a green receipt** in this shared user-manager session. A concurrent track’s tour renderer first raced its transient units. After it stopped and user `cix-*` units were reset, `devenv shell -- cargo test --workspace -- --test-threads=1` still failed its unrelated tour lifecycle receipt when `systemctl --user stop` found the liveness-restarted transient `cix-run-web-*` already unloaded; the explicit `tour_matches_committed_document` retry reproduced the same `Unit ... not loaded` failure. No unrelated tour/runtime code was changed. Generator output itself exited 0 and left no tour diff. Final cleanup: `systemctl --user reset-failed 'cix-*'` and `systemctl --user stop cix-run.slice`.
 - Final state: all requested implementation, case probes, cold evidence, browser regeneration, and focused VM selection are complete; the only unresolved receipt is the pre-existing/shared-manager tour lifecycle flake above. Next: independent serial rerun in an uncontended user manager before merge.
 
+## 2026-08-05 — envgrammar integration start
+
+- `origin/main` advanced to `f67d2ea` with merged track/envgrammar. Per orchestrator instruction, merge it into `track/cip102`: CIP-102's EXPECT removals and teaching remain authoritative; main's `ENV NAME=value` grammar and generated-artifact canon remain authoritative. Regenerate, rather than hand-merge, the corpus browser and any affected generated output, then reset stale user `cix-*` units and rerun the complete agent tier serially with synchronous receipts.
+
 2026-07-30 — migrate round N=1, target whoami
 verdict: docker build=pass; docker run=pass; docker check=pass; cix build=pass; cix run=pass; cix check=pass.
 prompt-gaps verbatim:
