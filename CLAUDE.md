@@ -1,5 +1,11 @@
 @AGENTS.md
 
+Working with Mathijs (moved from local memory 2026-08-05):
+- Roles: Claude carries overview + execution, Mathijs gives short taste calls — record them immediately (CIP/D-number or LOG), don't re-ask. Design questions go to him as prose in chat or a committed CIP draft with the full GitHub URL — never interactive option-pickers.
+- Standing grants: composix main may be pushed without asking (gitsitter usually auto-pushes anyway — verify with `git ls-remote`, don't retry pushes). Gaps in specs/plans are filled autonomously; genuinely new product decisions stay joint. Process/gate/test-infra is Claude's domain to optimize (speed × correctness).
+- Complexity discipline: measure before restructuring, decompose along strata, thin hotspots proactively; alpha means speculative compat gets deleted, not maintained.
+- Beast node is NOT user-managed: system-level fixes go via the node admin, never hand-applied.
+
 Orchestrator notes (Claude only):
 - Session start ritual: read `.dev/LOG.md` top entry, then `docs/design.md` "Building now" — that's sufficient context; explore deeper only on demand.
 - Mathijs decision queue lives in the LOG's "Open with Mathijs" line — surface it at session start, don't re-derive it.
