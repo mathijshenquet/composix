@@ -1066,7 +1066,36 @@ fn generate_tour() {
 
 #[test]
 fn generated_tour_is_deterministic() {
-    assert_eq!(render_tour(), render_tour());
+    let first = render_tour();
+    let second = render_tour();
+    if first == second {
+        return;
+    }
+    // CI strips giant assert_eq payloads; print a bounded per-file diff so
+    // the failing environment names its own leak.
+    let mut report = String::new();
+    for (a, b) in first.iter().zip(second.iter()) {
+        if a == b {
+            continue;
+        }
+        report.push_str(&format!("== {} differs between renders ==\n", a.name));
+        let (left, right): (Vec<_>, Vec<_>) =
+            (a.content.lines().collect(), b.content.lines().collect());
+        let mut shown = 0;
+        for i in 0..left.len().max(right.len()) {
+            let l = left.get(i).copied().unwrap_or("<absent>");
+            let r = right.get(i).copied().unwrap_or("<absent>");
+            if l != r {
+                report.push_str(&format!("line {}:\n  render1: {l}\n  render2: {r}\n", i + 1));
+                shown += 1;
+                if shown >= 40 {
+                    report.push_str("… (diff capped at 40 lines)\n");
+                    break;
+                }
+            }
+        }
+    }
+    panic!("tour render is nondeterministic on this host:\n{report}");
 }
 
 #[test]
