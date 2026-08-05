@@ -56,6 +56,13 @@
   wrote both nested paths, and the purge listed both mirrored backings. Next:
   commit the fix and repeat the complete agent gate tier.
 
+- 2026-08-05 UTC — After regenerating the one affected tour page, the fresh
+  explicit final workspace receipt in `.dev/scratch/cip98-workspace-final2.exit`
+  is `0` for `cargo test --workspace --quiet -- --test-threads=1`. The focused
+  `scenario-dirs2` receipt remains `0`; fmt, examples fmt, warning-denied
+  clippy, and tour regeneration are also 0. CIP-98 is green again on the
+  corrected head.
+
 - 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
   current project context. The collision is the cix-run mount/role overlap
   validator plus property emission order. Conventional implementation choice:

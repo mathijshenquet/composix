@@ -353,12 +353,12 @@ compose tour-stack: 2 services, 1 edges, valid
 {
   "paths": {
     "consumer": {
-      "narHash": "sha256-4KwXV2iESbDwOjZszjHyu7PbiizSmJ8yhGHHyUZkKa0=",
+      "narHash": "sha256-862PjMxpNQ19bZ54G3RG/xN5ZHq9VQPlppueTZfYQRs=",
       "ref": "consumer:v1",
       "storePath": "/nix/store/…-cix-item-consumer"
     },
     "producer": {
-      "narHash": "sha256-VUSxLEAH0D6UHxlP1hMpMEalDuWKVh+Ayns67NA64ns=",
+      "narHash": "sha256-ddK4ccgi8m8Jt7Zr+ZlV5Py3o127VcEixCgNTs4NUUA=",
       "ref": "producer:current",
       "storePath": "/nix/store/…-cix-item-producer-v1"
     }
