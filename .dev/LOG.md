@@ -1,5 +1,41 @@
 # composix work log
 
+## 2026-08-05 (dispositions record; fleet sweep; CIP-100..102 adopted; build-args v2)
+
+- **`cips/dispositions.md` minted** (Mathijs's ask): permanent record of
+  blessed ledger-disposition batches; the 2026-08-04 batch recovered
+  from git history at full per-item context (it had been compressed to
+  a summary paragraph). open-questions trimmed to inbox+pointers;
+  cips/README documents the mechanism. docker.md application track
+  still queued.
+- **Fleet swept**: 15 stale herdr workspaces closed (12 regen-* panes +
+  cip94/regen2/buildfixes); all merged-track worktrees removed after
+  blob-level verification that no staged content was unique (three
+  "unique" blobs were byte-identical to main or older LOG states);
+  orphan track-fhspaths (hollow checkout) and ~/regen-stage (2 GB
+  staging; NOTES archived to ~/.cache/composix-regen-stage-notes-
+  20260805.tar.gz) deleted; the six old .worktrees/* checkouts removed
+  on Mathijs's "sweep gewoon". Disk: root 91%, /tmp inodes 83% — GC
+  before the next VM-heavy gate.
+- **CIP-100 env-equals, CIP-101 tmp-relocate, CIP-102 volatile-fetch
+  adopted** (Mathijs). CIP-102's decision records the corpus survey
+  answering his question: remaining EXPECT consumers are stable
+  release artifacts; exceptions are exactly the sweep list (traefik,
+  phpmyadmin) + echo-server's script FETCH to audit.
+- **build-args v2 drafted** (the requested design round): full
+  prior-art survey; v1's lock-pinned ARG rejected for state skew;
+  recommendation is closed-matrix ARG (file declares the finite value
+  set, CLI only selects, lock covers every cell and stays a pure
+  function of the file) with typed generation as the open-ended escape
+  (never string templating). Awaiting Mathijs's read.
+- **Open for agents next**: implementation tracks for CIP-96..99 and
+  now CIP-100..102 (env grammar sweep can absorb CIP-96+100 in one
+  track; CIP-102 corpus sweep; CIP-101 small); docker.md disposition
+  application track; wave-3 regen (directus, filestash); k8s wave 1;
+  docker CANDIDATES expansion; CIP-93 stratification follow-up; tour
+  ch4 inspect-remote weave-in. **Open with Mathijs**: build-args v2
+  read; tour detail feedback.
+
 ## 2026-08-04 night (train closed: hand-holding tour, defect rounds, k8s axis, progressive selector, all-pretty JSON)
 
 - **Coda (late night): CI-green after a seven-layer hardening tail.**
