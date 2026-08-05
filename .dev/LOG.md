@@ -1,5 +1,37 @@
 # composix work log
 
+## 2026-08-05 night (close: corpus 28; CIP-103 complete through memo; CIP-109 live; push incident resolved)
+
+- **Landed since the late entry**: cip103-memo (MemoEngine owner, 888
+  lines; build_chain 4369 -> 2059 live over the day), cip109-probeurl
+  (URL probe grammar + corpus sweep + store-backed probe helpers —
+  the ProtectHome class fixed), lockagg (CIP-99 criteria fix; homer
+  legitimately non-aggregable, it-tools stale for corrected build),
+  k8sprompt (migrate-k8s.md draft + k8s-wave design), expand2 (corpus
+  24 -> 28: mosquitto green, valkey warm-green/cold-honest, haproxy
+  with the fmt-key repro, httpd through the gpg dance).
+- **Push incident**: docker-it-tools.html hit 100.49MB (GitHub hard
+  limit); gitsitter sat silently in error for hours. Fixed: browser
+  caps artifact renders at 10k lines; filter-repo stripped the blob
+  from the unpushed range; old-ancestry branches transplanted via
+  cherry-pick (never merge pre-rewrite refs). gitsitter issue #25
+  filed (machine-readable check + watch); interim push-health monitor
+  armed. One value-check saved a bad merge; one unconditional cleanup
+  chained past a failed check swept two worktrees early (recovered).
+- **New drafts for Mathijs**: fmt-key-neutrality (fmt changed a chain
+  key — keying-fundamentals), pnpm-wall (five exhibits), k8s-wave,
+  plus the standing epoch trio (nodes-and-edges, phase-blocks,
+  build-args). Day total: 24 merges/landings, corpus 21 -> 28,
+  CIP-96..109 all implemented except 103's context/FETCH legs and
+  104.
+- **Open for agents**: cip103 context/sandbox + FETCH-state legs,
+  cip104 crate-strata (after legs), it-tools corrected re-lock +
+  runtime proof, ntfy/filebrowser artifact prestaging, k8s wave 1
+  (behind k8s-wave adoption), valkey cold libbacktrace class,
+  CIP-107 pin-leg. **Open with Mathijs**: epoch trio + fmt-key +
+  pnpm-wall + k8s-wave adoption calls; ribbon borderline trio; tour
+  read.
+
 ## 2026-08-05 late (expansion landed: corpus 24)
 
 - expand1 merged behind a value-checked full gate: homer (honest
