@@ -1,4 +1,4 @@
-# nodes-and-edges — argv-first steps, explicit dataflow, the shell behind a fence
+# nodes-and-edges — argv-first steps, explicit dataflow, the shell in a heredoc
 
 Status: **draft** (2026-08-05; the bundled language round from Mathijs's
 shell/ENV design sessions. Supersedes draft/shell-directive.md.)
@@ -49,12 +49,13 @@ directive, one invisible interpreter.
 
 ## 3. Recommendation
 
-The fence is the design: outside it everything is cix (argv, declared
-edges, interpolation); inside it everything is the named interpreter.
+The boundary is the design: outside a heredoc everything is cix
+(argv, declared edges, interpolation); inside it everything is the
+named interpreter.
 
 1. **`RUN <argv>` / `FETCH <argv> …` are argv-first**: direct exec, no
    shell, no expansion. `$X` in argv-mode is a parse-time teaching
-   error: "declare `LET X` and write `${X}`, or use a fence".
+   error: "declare `LET X` and write `${X}`, or use a heredoc".
    **One command per node is the canon**: Docker's `&&`-chain exists
    to minimize layers — a cost cix does not have. Chains fuse nodes,
    losing memo granularity (editing step b re-runs step a), and are
@@ -62,17 +63,36 @@ edges, interpolation); inside it everything is the named interpreter.
    checks every node's exit). Migration decomposes chains into
    successive RUNs; the FETCH normalization tails
    (`&& chmod 644 && touch -d @0`) are a missing feature, not a
-   fence case — see the NORMALIZE open question.
-2. **The fence is the rare form, not the workhorse**:
-   `RUN bash $ <text>` desugars to argv `[interp, "-c", text]`
-   (`-c` is POSIX-standard for shells; the `$` reads as a prompt and
-   documents the interpreter on the line). Legitimate uses shrink to
-   pipes, redirects, and genuinely shell-shaped one-liners; anything
-   longer belongs in a heredoc. The interpreter must resolve into the
-   IMPORTed/locked closure.
-3. **`RUN <interp> <<EOF … EOF`** — heredoc form: body written to a
-   file, interpreter invoked with the filename (the shebang-grade
-   kernel contract; works for any interpreter, no `-c` assumption).
+   heredoc case — see the NORMALIZE open question.
+2. **Heredoc is THE structural form** (Mathijs, 2026-08-05: complex
+   RUNs go through heredoc, full stop — no one-liner shell fence).
+   `RUN <interp> <<EOF … EOF`: the body is written to a file and the
+   interpreter invoked with the filename — the shebang-grade kernel
+   contract. Consequences: no `-c` reliance anywhere (works for any
+   interpreter, node included); no fence-marker syntax exists or
+   needs bikeshedding; no interpreter allowlist — any executable from
+   the IMPORTed/locked closure that accepts a filename qualifies
+   (bash/fish/nushell/pwsh are the documented examples). A one-line
+   pipe costs three lines — deliberate friction that pushes toward
+   decomposition, consistent with the chain ban.
+3. **Node attachments are adjacency-bound clauses** — one grammatical
+   shape for everything that hangs off a node: `WITH` (environment,
+   below), and `EXPECT` migrates to the same position for heredoc
+   FETCHes, so the phpmyadmin-class GPG pipeline has a home. Binding
+   is by ADJACENCY, not indentation (Mathijs, 2026-08-05): a clause
+   line must immediately follow its step line or another clause of
+   the same step — elsewhere it is a parse error. Indentation stays
+   what it already is in this language: cosmetic, canonicalized by
+   `cix fmt` (+2 under the node), enforced through the fmt/drift
+   gate — no significant-whitespace regime enters the parser, no
+   clash with the ITEM/SERVICE/BUILDER phase convention. For heredoc
+   nodes, clauses follow the terminator (`EOF` then the WITH/EXPECT
+   lines). Braces were considered and dropped (first `{}` block in a
+   keyword-driven grammar, buys nothing over adjacency+fmt); Docker's
+   `######` phase fences may be blessed as an fmt-preserved comment
+   convention, never as syntax. Simple node = one line; complex node
+   = line + clauses + optional heredoc body — the systemd/GHA block
+   shape, graduated instead of mandatory.
 4. **Binders: LET in, ENV out** (Mathijs, 2026-08-05: explicit
    per-node binding is "obviously correct"):
    - `LET NAME = value` — a text edge: file-local, interpolates as
@@ -98,12 +118,11 @@ edges, interpolation); inside it everything is the named interpreter.
      mounts would dissolve the npm_config_cache/GOMODCACHE knob class
      entirely). Env edges are per-node declared text, so keying is
      per-node by construction — no shared env state exists. Inside a
-     fence/heredoc, `export` and `VAR=x cmd` remain available as
+     heredoc, `export` and `VAR=x cmd` remain available as
      node-INTERNAL state (the interpreter's interior, not an edge).
      Service-side `ENV` (the runtime contract, CIP-96/100) is
      untouched: the service is the node and declares its environment.
-5. **What the fence does and does not promise**: inside `bash $` or a
-   heredoc, the environment is visible and expandable — that leak is
+5. **What the heredoc does and does not promise**: inside a heredoc, the environment is visible and expandable — that leak is
    real, unavoidable (tools must read their knobs), and scoped: it
    exists only where the author explicitly named an interpreter. The
    converse is enforced: LETs never enter the environment, so the two
@@ -154,19 +173,20 @@ making the edge traced) — generators, never runtime. No language slot
 is reserved; frontends emit Cixfiles.
 
 Migration: mechanical corpus/examples/tour sweep — each RUN/FETCH
-either argv-izes or gains its `bash $`/heredoc fence; the ~20
+either argv-izes (chains decomposed per the canon) or becomes a
+heredoc; the ~20
 variable-ENVs become LETs (their sha-values largely dissolve into
-lock pins); migrate.md teaches the fence rule in one sentence.
+lock pins); migrate.md teaches the boundary rule in one sentence.
 
 ## 4. Open questions
 
-- **Marker token**: `$` (prompt mnemonic) or an alternative; parse it
-  as a standalone token between interpreter and text.
-- **Heredoc interpreter**: mandatory (`RUN bash <<EOF`) or is a bare
-  `RUN <<EOF` allowed with an implied… no — proposal says mandatory;
-  confirm.
+- **Heredoc interpreter**: mandatory (`RUN bash <<EOF`) — a bare
+  `RUN <<EOF` has no interpreter to name; confirm.
+- **EXPECT-as-clause migration**: do inline `FETCH … EXPECT` suffixes
+  stay valid alongside the clause position, or does the sweep move
+  all of them?
 - **FETCH normalization tails**: the `&& chmod 644 && touch -d @0`
-  idiom keeps forcing fences around single-command FETCHes — promote
+  idiom keeps forcing heredocs around single-command FETCHes — promote
   to FETCH options (`FETCH … NORMALIZE`) now or later?
 - **LET list values** (later): fish-style list expansion into argv
   elements is the growth path that ENV structurally can never follow
