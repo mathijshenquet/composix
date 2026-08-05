@@ -16,7 +16,7 @@ Orchestrator notes (Claude only):
 Heartbeat & fleet discipline (Mathijs, 2026-08-04):
 - While waiting on anything (gates, agents, CI), always have a ~10-minute background timer armed so a wake-up is guaranteed; never idle longer than that. The timer is the FALLBACK — the primary wake signal is the per-worker watcher (see Worker C2 below). Re-arm it ON EVERY WAKE regardless of wake source; the failure mode is watchers feeling sufficient until one dies silently (lapsed 2026-08-05 evening, caught by Mathijs).
 - On every heartbeat actively ask: (1) can more run in parallel right now — idle agent capacity, an unblocked queue item, a spec writable ahead of need? (2) can the PM role be pursued more actively — reviews, ledger/LOG upkeep, next-track prep, decisions surfaced to Mathijs? Both within delegated autonomy: process moves freely, new product decisions stay joint.
-- Answer (1) by WALKING THE QUEUE: name each waiting item's actual gate condition and test it against the repo/fleet state at that moment — never against the remembered phase plan. Launch everything whose condition holds, within the 4-slot cap. (2026-08-05 lesson: a satisfied launch-gate sat unused for two beats because "the wave comes after the pipeline" had been cached as a phase.)
+- Answer (1) by WALKING THE QUEUE: name each waiting item's actual gate condition and test it against the repo/fleet state at that moment — never against the remembered phase plan. Launch everything whose condition holds, within the 16-slot cap. (2026-08-05 lesson: a satisfied launch-gate sat unused for two beats because "the wave comes after the pipeline" had been cached as a phase.)
 - CI watches are background confirmation, never blocking; merges gate on the orchestrator's independent full gate.
 - Full gates run strictly serial; df-guard (`df -h /` AND `df -i /tmp`) before every full gate and before any worker fan-out — VM closures eat disk linearly, node trees eat tmpfs inodes.
 - Codex worker launches: the first prompt after `agent start` is often swallowed — always verify with a follow-up ping expecting an `agent_working` refusal, and re-send once if missing.
@@ -58,7 +58,7 @@ announced in chat as it starts (Mathijs watches via /rc).
 1. **Open ends first**: any accepted CIP or other recorded open end that is
    not implemented, in-flight, or explicitly slotted with a reason →
    implement or schedule it. Blockers are surfaced, never silently queued.
-   Agent slots stay filled within machine capacity (max 4 concurrent).
+   Agent slots stay filled within machine capacity (max 16 concurrent; Mathijs 2026-08-05 — the binding constraints are the shared axes at gate time and genuinely independent work items, not the slot count).
 2. **Dry → prospect once**: when no open ends remain, do ONE codebase/design
    sweep for possible unblockers — cleanup and quality inventories count —
    and land the findings as `cips/draft/` entries for adoption, each linked
