@@ -1,4 +1,5 @@
 //! Shared support for integration tests and generated documentation.
+//! Intentional module-map omission: single-module support crate (shared integration-test helpers).
 
 use std::fs;
 use std::io::Write;
