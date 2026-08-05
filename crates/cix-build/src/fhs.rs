@@ -61,14 +61,12 @@ struct Segment {
 }
 
 pub(crate) struct LoaderSurface {
-    directory: tempfile::TempDir,
+    directory: crate::ScratchDir,
 }
 
 impl LoaderSurface {
     pub(crate) fn new(imports: &[String]) -> Result<Self> {
-        let directory = tempfile::Builder::new()
-            .prefix("cix-import-loaders-")
-            .tempdir()
+        let directory = crate::ScratchDir::new("cix-import-loaders-")
             .context("creating IMPORT loader surface")?;
         for alias in loader_aliases() {
             let Some(provider) = imports

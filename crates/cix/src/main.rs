@@ -103,6 +103,7 @@ enum CredentialsCommand {
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    cix_build::sweep_stale_scratch()?;
     let state_directory = cli.state_directory;
     match cli.command {
         Command::Inspect(options) => inspect(&state_directory, options),
