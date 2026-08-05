@@ -1,6 +1,6 @@
-# Runtime thinning — preserve a real run conductor
+# CIP-105: runtime thinning — preserve a real run conductor
 
-Status: **draft, CIP-light** (2026-08-05).
+Status: **accepted** (CIP-light) (2026-08-05).
 
 ## Problem
 
@@ -30,3 +30,15 @@ lifecycle, and CLI output remain identical; no source file needs an exception.
 
 **M.** The obsolete path/test move is S; the three pure module moves and API
 shaping are M.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, delegated structural review) as
+written, one sharpening: the `ps` deletion must carry PROOF of no
+supported caller (grep receipt + compile of all dependents), not the
+draft's "confirm". Byte-identical acceptance stands. The superseded-ps
+deletion satisfies CIP-107 item 1's overlapping bullet; CIP-107's
+track skips it when already landed.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-105.

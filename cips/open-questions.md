@@ -20,7 +20,11 @@ questions live in `cips/draft/` — this file only points at them.
   [compose-syntax](deferred/compose-syntax.md) — parked by decision.
 
 Adopted 2026-08-05: CIP-100 env-equals, CIP-101 tmp-relocate, CIP-102
-volatile-fetch. Implementation tracks queued.
+volatile-fetch (implemented same day); CIP-103..108 (the structural
+audit batch: build-chain seams, crate strata, runtime thinning, doc
+harness, alpha prune, guardrails — adopted under Mathijs's delegated
+review, KPIs complexity/seams/SLOC). Implementation queue: 105+103-leg1
+first, then 108+107, 106, 103 M/L legs, 104 last.
 
 ## Era-parked (deliberate deferrals — context, then silence)
 

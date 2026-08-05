@@ -1,6 +1,6 @@
-# Structural guardrails — maps and shared-state receipts that stay current
+# CIP-108: structural guardrails — maps and shared-state receipts that stay current
 
-Status: **draft, CIP-light** (2026-08-05).
+Status: **accepted** (CIP-light) (2026-08-05).
 
 ## Problem
 
@@ -30,3 +30,16 @@ two compose-test `RefCell`s).
 
 **S.** Documentation and shell-check work plus one site audit; no runtime
 behavior change.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, delegated structural review) as
+written: exhaustive root maps with a cheap declaration-vs-map check;
+source-size reporting splits live/inline-test/total while retaining
+the total ceiling; the shared-state inventory joins the audit and the
+five sites missing rationale comments gain them in the implementing
+track. Review still judges rationale content — that part is not
+lintable and stays human.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-108.

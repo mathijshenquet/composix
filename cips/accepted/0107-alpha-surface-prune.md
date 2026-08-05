@@ -1,6 +1,6 @@
-# Alpha surface prune — retire only evidence-free compatibility
+# CIP-107: alpha surface prune — retire only evidence-free compatibility
 
-Status: **draft, CIP-light** (2026-08-05; follow-up to CIP-89's compatibility
+Status: **accepted** (CIP-light) (2026-08-05; follow-up to CIP-89's compatibility
 audit).
 
 ## Problem
@@ -31,3 +31,17 @@ those readers still have in-repo evidence.
 
 **S/M.** Zero-exhibit deletion is S. LINK and lock regeneration make the full
 track M and require focused corpus/example receipts.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, delegated structural review). The
+open choice is resolved: formatter-only legacy syntax (leading
+`FETCH EXPECT`) is DROPPED — alpha is reject-and-teach and the CIP-102
+mismatch diagnostic is the teaching surface. LINK removal executes the
+documented deprecation (docs/cixfile.md: "during the corpus transition
+only"); the seven active users migrate mechanically in-track with
+receipts. Whole-tree-pin exhibits regenerate BEFORE FetchPin support
+deletion, exactly per the draft — no deletion on assertion.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-107.

@@ -1,6 +1,6 @@
-# Crate strata — make D67/D73 executable in the dependency graph
+# CIP-104: crate strata — make D67/D73 executable in the dependency graph
 
-Status: **draft, CIP-light** (2026-08-05).
+Status: **accepted** (CIP-light) (2026-08-05).
 
 ## Problem
 
@@ -37,3 +37,16 @@ without compose; generated manifests and CLI behavior remain byte-identical.
 **L.** This changes crate/API ownership and Cargo manifests, though most source
 moves are mechanical. Stage it after local build/run thinning, with contract
 fixtures as the compatibility receipt.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, delegated structural review). This
+executes D67/D73 — no new strata are invented; the neutral manifest
+home is stratum 1a as D67 already names it. Verified: codegen.rs is
+1,515 lines inside cix-build; cix-cixfile depends on cix-compose in
+Cargo.toml (the cycle claim holds). Staged after CIP-105 and CIP-103's
+workspace/memo legs, per the draft's own ordering. Acceptance as
+written: acyclic graph, byte-identical manifests and CLI behavior.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-104.

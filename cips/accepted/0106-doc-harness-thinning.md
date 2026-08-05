@@ -1,6 +1,6 @@
-# Doc harness thinning — executable docs as maintained tooling
+# CIP-106: doc harness thinning — executable docs as maintained tooling
 
-Status: **draft, CIP-light** (2026-08-05).
+Status: **accepted** (CIP-light) (2026-08-05).
 
 ## Problem
 
@@ -32,3 +32,14 @@ changes ownership and failure atomicity, not the literate-doc design.
 
 **M.** Mostly test/tool moves, but the tour's host-resource lifecycle requires
 careful serial receipts and byte-for-byte generated output checks.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, delegated structural review) as
+written. Also serves the standing dev-speed priority: normal tests
+currently render the tour four times under a global mutex; one render
+plus an explicit determinism test is the accepted shape. Generated
+pages and executable receipts stay the contract.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-106.

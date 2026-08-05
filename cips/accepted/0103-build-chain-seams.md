@@ -1,6 +1,6 @@
-# Build-chain seams — complete CIP-89 without a shared-context split
+# CIP-103: build-chain seams — complete CIP-89 without a shared-context split
 
-Status: **draft, CIP-light** (2026-08-05; implementation amendment to
+Status: **accepted** (CIP-light) (2026-08-05; implementation amendment to
 CIP-89).
 
 ## Problem
@@ -37,3 +37,22 @@ while the crate is quiet, preserving CIP-89's existing conditions.
 **L.** Residue/tests are S; workspace, context/sandbox, and FETCH state are M
 each; memo/replay is L because its acceptance condition is a genuinely narrow
 owned interface rather than fewer lines.
+
+## Decision
+
+Adopted 2026-08-05 (orchestrator, under Mathijs's delegated structural
+review; KPIs: complexity down, seams clean, SLOC under control). Claims
+verified against the code (comment block = lines 162–411; the four
+proposed owners exist as contiguous function clusters). Two amendments:
+
+1. **Residual-conductor target**: after all legs, `build_chain`'s live
+   (pre-test) count is ≤1,500 lines INCLUDING a decomposed
+   `execute_builder` (~600 lines today) emitting typed step results —
+   measured in the closing receipt, not asserted.
+2. **Scheduling**: leg 1 (residue deletion + test moves, S) runs
+   immediately as its own track; each M/L leg is a dedicated track
+   slotted between feature waves. Byte-identical lock/output receipts
+   per leg, per CIP-89's standing conditions.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-103 with the two amendments.
