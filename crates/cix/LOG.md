@@ -806,3 +806,18 @@
   worktree's full matrix exited 1; both were explicitly discarded, then
   repeated exclusively. Next: commit the amendment/measurements, run both
   selectors on this track's own diff, then execute the complete agent gate.
+
+- 2026-08-05T13:01:55Z — Final track receipts are synchronous and green. On
+  the committed track diff against `9b377e2`, leg 1 selected 14/14 and exited
+  0 in 656.030s; leg 2 classified every changed path, selected 14/14 because
+  its contract manifest is cross-cutting, and an independent `--rebuild`
+  exited 0 in 617.644s. Both stayed exclusive with at most two guests. The
+  complete agent gate then captured these per-command exits: `cargo fmt
+  --all --check` 0; `cargo run -p cix -- fmt --check examples` 0;
+  `cargo clippy --workspace --all-targets -- -D warnings` 0; serial `cargo
+  test --workspace` 0; explicit tour generation 0; post-generation tour tests
+  0; `git diff --exit-code -- docs/tour` 0; and `git diff --check` 0. The gate's
+  aggregate `.gate-exit` was 0. No tour drift remained. Implementation and
+  measured CIP amendment are committed as `25cd6f3` and `eee46f0`; next:
+  commit this receipt-only log entry and leave the branch clean for independent
+  orchestrator verification.
