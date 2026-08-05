@@ -33,3 +33,15 @@ Assembler evidence after `bash corpus/migrate/docker/fetch.sh adminer` (exit 0):
   with the same dissolved item. No EXPECT or lock pin was updated.
 
 Docker mode was not rerun.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+After `bash corpus/migrate/fetch.sh adminer` exited 0, `target/debug/cix build
+--update-lock adminer-release corpus/migrate/docker/adminer#adminer` and
+`CIX=/home/mathijs/worktrees/composix/track-cip102/target/debug/cix
+./corpus/migrate/docker/adminer/check.sh cix` each exited 0 synchronously. Both source
+FETCH update probes read identical outputs twice, and both vendor SHA-256 checks remain
+in the FETCH commands; their whole-tree `EXPECT`s were removed in favor of TOFU consumed
+pins. `target/debug/cix build --cold corpus/migrate/docker/adminer#adminer` exited 1 at
+the independent `designs` read-set divergence (warm directory, cold absent), without a
+network fetch.

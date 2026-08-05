@@ -35,3 +35,14 @@ The locked-universe audit used nixpkgs revision
 `643809054d65fdd466a63e3155b8c498cb483c04`; its top-level and `phpPackages`
 case-insensitive phpMyAdmin match lists were both empty. Docker mode was not
 rerun, and the staged EXPECT was not changed.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+After `bash corpus/migrate/fetch.sh phpmyadmin` exited 0, `target/debug/cix build
+--update-lock package3 corpus/migrate/docker/phpmyadmin#phpmyadmin` and
+`CIX=/home/mathijs/worktrees/composix/track-cip102/target/debug/cix ./check.sh cix`
+from the case directory each exited 0 synchronously. The two FETCH update-probe reads
+were identical; the mirror pipeline now uses a TOFU consumed pin while its published
+SHA-256 and detached GPG signature remain verified. `target/debug/cix build --cold
+corpus/migrate/docker/phpmyadmin#phpmyadmin` exited 1 at the independent read-set
+divergence `output` (warm directory, cold absent); it did not refetch.

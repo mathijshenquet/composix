@@ -56,17 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / adminer</nav>
   <h1>docker / adminer</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; source FETCH is cold-unstable, optional ENV needs a sentinel, and stop-signal semantics differ · <strong>Evidence:</strong> runtime probe (worker warm) + independent cold defect · closed-root (package contract)</p>
-  <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins; the worker&#39;s warm login probe passes and the dissolved twin is cold-stable, while an independent source refetch exposes the unchanged EXPECT mismatch · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; the remaining cold replay read-set divergence is at designs, optional ENV needs a sentinel, and stop-signal semantics differ · <strong>Evidence:</strong> runtime probe + cold read-set defect · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins; the refreshed faithful login probe passes after its verified source FETCHes move to TOFU pins · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> CIP-102 volatile-fetch sweep · 2026-08-05 · <strong>Status:</strong> current</p>
     <p>This regeneration resolves the earlier version/checksum binder, PHP tuning, webroot layout, dynamic design/plugin assembly, PHP extension import, artifact import, and missing-twin findings.</p>
     <ul>
       <li><code>ADMINER_DESIGN</code> and <code>ADMINER_PLUGINS</code> use the private <code>__cix_unset__</code> sentinel because Cix cannot declare an optional runtime <code>ENV</code> with no default. → language (optional ENV declaration)</li>
       <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix has no service stop-signal directive, so systemd&#39;s normal termination semantics remain authoritative. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
-      <li>The worker&#39;s warm build passed, but the independent fresh fetch is EXPECT-hostile: its published file checksum passes while Cix reports declared <code>sha256-bJPK…</code> versus fetched <code>sha256-XJVI…</code>, leaving no snapshot for cold replay; keep the pin unchanged and normalize the fetch in the volatile-fetch fix round. → case (cold stability)</li>
+      <li>Both source FETCH work trees use TOFU consumed pins rather than <code>EXPECT</code>; their published SHA-256 checks remain mandatory. The 2026-08-05 update probes each read identical outputs twice and the supplied login probe passed, but cold replay still exposes the independent <code>designs</code> warm/cold read-set divergence. → language (cold divergence audit)</li>
     </ul>
   </aside>
   <details class="context">
@@ -177,8 +177,8 @@ The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd
   <span class="tok-directive">ENV</span> ADMINER_VERSION = 5.5.0
   <span class="tok-directive">ENV</span> ADMINER_DOWNLOAD_SHA256 = d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
   <span class="tok-directive">ENV</span> ADMINER_SRC_DOWNLOAD_SHA256 = df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
-  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php &amp;&amp; echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; | sha256sum -c - EXPECT sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=
-  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz &amp;&amp; echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; | sha256sum -c - EXPECT sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=
+  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php &amp;&amp; echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; | sha256sum -c -
+  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz &amp;&amp; echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; | sha256sum -c -
   <span class="tok-directive">RUN</span> tar xzf source.tar.gz --strip-components=1 &quot;adminer-$ADMINER_VERSION/designs/&quot; &quot;adminer-$ADMINER_VERSION/plugins/&quot; &amp;&amp; rm source.tar.gz
 
 <span class="tok-directive">SERVICE</span> adminer
@@ -261,13 +261,39 @@ SERVICE adminer
   },
   &quot;fetches&quot;: {
     &quot;builder:adminer-release:3-47dd9437bad7&quot;: {
-      &quot;narHash&quot;: &quot;sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=&quot;
+      &quot;snapshotNarHash&quot;: &quot;sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=&quot;,
+      &quot;paths&quot;: {
+        &quot;adminer.php&quot;: &quot;sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=&quot;,
+        &quot;designs&quot;: &quot;sha256-hUO8MmzgJP6aLBSldhnFr+4QkH4HLjmp3rSq0klocNA=&quot;,
+        &quot;plugins&quot;: &quot;sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=&quot;
+      }
     },
     &quot;builder:adminer-release:4-ae5318daa82c&quot;: {
-      &quot;narHash&quot;: &quot;sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=&quot;
+      &quot;snapshotNarHash&quot;: &quot;sha256-aVXXxW1UsCuvdhamF7Y0KH9SvFeuWhtxidO1b0l6Edo=&quot;,
+      &quot;paths&quot;: {
+        &quot;adminer.php&quot;: &quot;sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=&quot;,
+        &quot;designs&quot;: &quot;sha256-hUO8MmzgJP6aLBSldhnFr+4QkH4HLjmp3rSq0klocNA=&quot;,
+        &quot;plugins&quot;: &quot;sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=&quot;
+      }
     }
   },
   &quot;memo&quot;: {
+    &quot;460050e890763c6f5ff2b0b16dcb23e9550fe3e1d37f84916ce105c3007830e8&quot;: {
+      &quot;paths&quot;: {
+        &quot;adminer.php&quot;: {
+          &quot;narHash&quot;: &quot;sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/4mswbjgarb5g1kgab75lbnd9f01h38ly-cix-build-consumed&quot;
+        },
+        &quot;designs&quot;: {
+          &quot;narHash&quot;: &quot;sha256-hUO8MmzgJP6aLBSldhnFr+4QkH4HLjmp3rSq0klocNA=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/zbpixx6m5kn0jhzdgpr3r3lrrsbw362b-cix-build-consumed&quot;
+        },
+        &quot;plugins&quot;: {
+          &quot;narHash&quot;: &quot;sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/6ls4x4qxkawfcfq9gsh09iz0dq5yf72q-cix-build-consumed&quot;
+        }
+      }
+    },
     &quot;70b87ad5333ade735cd1b615ee15d782ce93fa5a85c08082b54021d4ef62f3d9&quot;: {
       &quot;paths&quot;: {
         &quot;adminer.php&quot;: {
@@ -303,7 +329,7 @@ SERVICE adminer
   },
   &quot;stepMemo&quot;: {
     &quot;builder:adminer-release:3&quot;: {
-      &quot;key&quot;: &quot;81f931f321ac17f2d60f38eaf5a92a62a13412ed5d030b86f9f373dea36f0fd6&quot;,
+      &quot;key&quot;: &quot;8e8eb37387287fa47c3043bb69e82d111dd14ac8b1791be4454c449bae8a4fa3&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -328,7 +354,7 @@ SERVICE adminer
       }
     },
     &quot;builder:adminer-release:4&quot;: {
-      &quot;key&quot;: &quot;572c8627848f38d50d020b753678aadf07baab35d145419db3f9f0dacfb48169&quot;,
+      &quot;key&quot;: &quot;a7aeb2775f6590bb76d28e859e83df0303c576d6a8c4aea252de96c1dfc35d99&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -353,7 +379,7 @@ SERVICE adminer
       }
     },
     &quot;builder:adminer-release:5&quot;: {
-      &quot;key&quot;: &quot;9a25dee4ce44d49df9db8a3ceb393b8f0f8ab661b06cc6fb75a50418e622701b&quot;,
+      &quot;key&quot;: &quot;7506c5a318336fcc39924c9c5e21392acdc194d2b422f1b405e9d1ab919b40ab&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -451,7 +477,13 @@ SERVICE adminer
         }
       },
       &quot;changes&quot;: {
+        &quot;designs&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/adminer-dark&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/adminer-dark/README.md&quot;: {
@@ -460,10 +492,16 @@ SERVICE adminer
         &quot;designs/adminer-dark/adminer-dark.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/brade&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/brade/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/brade/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/bueltge&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/bueltge/README.md&quot;: {
@@ -472,10 +510,16 @@ SERVICE adminer
         &quot;designs/bueltge/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/dracula&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/dracula/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/dracula/adminer-dark.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/esterka&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/esterka/README.md&quot;: {
@@ -484,10 +528,16 @@ SERVICE adminer
         &quot;designs/esterka/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/flat&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/flat/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/flat/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/galkaev&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/galkaev/README.md&quot;: {
@@ -496,10 +546,16 @@ SERVICE adminer
         &quot;designs/galkaev/adminer-dark.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/haeckel&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/haeckel/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/haeckel/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/hever&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/hever/README.md&quot;: {
@@ -508,10 +564,16 @@ SERVICE adminer
         &quot;designs/hever/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/konya&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/konya/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/konya/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/lavender-light&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/lavender-light/README.md&quot;: {
@@ -520,10 +582,16 @@ SERVICE adminer
         &quot;designs/lavender-light/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/lucas-sandery&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/lucas-sandery/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/lucas-sandery/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/mancave&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/mancave/README.md&quot;: {
@@ -532,10 +600,16 @@ SERVICE adminer
         &quot;designs/mancave/adminer-dark.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/mvt&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/mvt/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/mvt/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/nette&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/nette/README.md&quot;: {
@@ -544,10 +618,16 @@ SERVICE adminer
         &quot;designs/nette/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/ng9&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/ng9/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/ng9/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/nicu&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/nicu/README.md&quot;: {
@@ -556,10 +636,16 @@ SERVICE adminer
         &quot;designs/nicu/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/pappu687&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/pappu687/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/pappu687/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/paranoiq&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/paranoiq/README.md&quot;: {
@@ -568,10 +654,16 @@ SERVICE adminer
         &quot;designs/paranoiq/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/pepa-linha&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/pepa-linha/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/pepa-linha/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/pokorny&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/pokorny/README.md&quot;: {
@@ -580,16 +672,28 @@ SERVICE adminer
         &quot;designs/pokorny/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/price&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/price/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/price/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/rmsoft&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/rmsoft/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/rmsoft/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/rmsoft_blue&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;designs/rmsoft_blue-dark&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/rmsoft_blue-dark/README.md&quot;: {
@@ -604,10 +708,16 @@ SERVICE adminer
         &quot;designs/rmsoft_blue/adminer.css&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
+        &quot;designs/win98&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
         &quot;designs/win98/README.md&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;designs/win98/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;plugins&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;plugins/README.md&quot;: {
@@ -632,6 +742,9 @@ SERVICE adminer
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;plugins/designs.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;plugins/drivers&quot;: {
           &quot;kind&quot;: &quot;present&quot;
         },
         &quot;plugins/drivers/README.md&quot;: {
@@ -807,10 +920,13 @@ SERVICE adminer
       }
     }
   },
+  &quot;builderDevEnvs&quot;: {
+    &quot;adminer-release&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;
+  },
   &quot;outputs&quot;: {
     &quot;adminer&quot;: {
-      &quot;sourceHash&quot;: &quot;ed03069bb78dd4b00d2f146e28b2b5c90a937ff24a516890b7db6a78a4d4126a&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/bw93qxr1pl5dr9byk7ila1r7nz8xsi0q-cix-item-adminer&quot;
+      &quot;sourceHash&quot;: &quot;0bf86768c8bcd1fc022c4538ee78320bbe8603a7ea9add33b1a1bcd0fca734fa&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/bb34sm0n0kq9razwy254zk18dmiiswrj-cix-item-adminer&quot;
     }
   }
 }
@@ -925,6 +1041,18 @@ Assembler evidence after `bash corpus/migrate/docker/fetch.sh adminer` (exit 0):
   with the same dissolved item. No EXPECT or lock pin was updated.
 
 Docker mode was not rerun.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+After `bash corpus/migrate/fetch.sh adminer` exited 0, `target/debug/cix build
+--update-lock adminer-release corpus/migrate/docker/adminer#adminer` and
+`CIX=/home/mathijs/worktrees/composix/track-cip102/target/debug/cix
+./corpus/migrate/docker/adminer/check.sh cix` each exited 0 synchronously. Both source
+FETCH update probes read identical outputs twice, and both vendor SHA-256 checks remain
+in the FETCH commands; their whole-tree `EXPECT`s were removed in favor of TOFU consumed
+pins. `target/debug/cix build --cold corpus/migrate/docker/adminer#adminer` exited 1 at
+the independent `designs` read-set divergence (warm directory, cold absent), without a
+network fetch.
 </code></pre>
       </details>
     </section>

@@ -33,3 +33,15 @@ versus fetched `sha256-NV8V74j/GO7g6Zvh7zLa6g85KCtl3kiSlDJxLlH93Qw=`.
 `target/debug/cix build --cold corpus/migrate/docker/echo-server` also exited 1 because
 the failed fresh fetch left no replay snapshot. No EXPECT or lock pin was
 updated. Docker mode was not rerun.
+
+## 2026-08-05 CIP-102 volatile-fetch sweep
+
+After `bash corpus/migrate/fetch.sh echo-server` exited 0, the unchanged upstream
+dependency fetch reproduced the prior EXPECT mismatch (`sha256-MFqh…` declared versus
+`sha256-NV8V…` fetched). The script-driven FETCH therefore now uses a TOFU consumed pin.
+`target/debug/cix build --update-lock dependencies-direct
+corpus/migrate/docker/echo-server#echo-server`, `CIX=/home/mathijs/worktrees/composix/
+track-cip102/target/debug/cix ./corpus/migrate/docker/echo-server/check.sh cix`, and
+`target/debug/cix build --cold corpus/migrate/docker/echo-server#echo-server` each
+exited 0 synchronously. The update probe reads were identical, the HTTP probe passed,
+and cold replay produced `/nix/store/w1qc2yv30wsh8w1hy2q9k172l09sqdsx-cix-item-echo-server`.
