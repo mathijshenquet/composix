@@ -1,5 +1,46 @@
 # cix-run work log
 
+## track/cip109-probeurl
+
+- 2026-08-05 UTC — Started CIP-109 after reading the accepted decision and
+  track spec. The parser currently stores legacy authority/path fragments, the
+  runtime probe adapter receives those fragments, and its fallback helper is
+  `current_exe`, which can be workspace-local and therefore hidden by
+  `ProtectHome`. Next: make canonical URL targets resolve at Cixfile compile
+  time (including one-PORT path sugar and teaching errors), change the runtime
+  helper to the installed/store path, sweep source exhibits, regenerate docs,
+  and capture the complete declared tier synchronously.
+
+- 2026-08-05 UTC — Implemented URL-shaped HTTP/TCP targets, standard HTTP
+  default-port handling, single-PORT path sugar, and diagnostics for legacy,
+  missing, and ambiguous forms. The manifest and probe adapter now carry URLs.
+  The Nix cix wrapper exports its installed helper path; Wallos and Mailpit
+  build that helper explicitly when their checks otherwise use target/debug,
+  then assert the emitted unit uses it rather than a workspace path. Focused
+  cix-cixfile parser/formatter and cix-run library/projection tests exited 0
+  synchronously. Next: regenerate tour/browser, then run the prescribed tier
+  and selected VM checks with captured statuses.
+
+- 2026-08-05 UTC — The captured affected-VM selector receipt was 1 twice.
+  Retained logs isolated the deterministic failure to closedroot-audit's
+  hand-written Mastodon manifests, which still used removed `:port` target
+  fragments. Converted all five scenario targets to absolute HTTP/TCP URLs.
+  A later selector reached health and exposed its pre-existing journal flush
+  race; the consumer had logged its marker while a one-shot journal query
+  missed it. Changed that assertion to wait, and the focused health VM check
+  then recorded 0. Next: repeat the selector with a numeric receipt.
+
+- 2026-08-05 UTC — Final value-checked receipts: formatter, example formatter,
+  warning-denied workspace clippy, serial workspace tests, tour generation and
+  drift, corpus-browser generation and drift, focused health VM, isolated
+  closedroot-audit VM, and the serial 14-scenario progressive selector all
+  recorded 0. Earlier parallel selector receipts recorded 1: first legacy
+  closedroot targets, then the journal visibility race, then an inter-VM
+  PostgreSQL port collision. Those are retained in ignored scratch alongside
+  the successful focused and serial receipts. Structural audit reviewed every
+  shared/interior-mutable declaration; the sole new `TOUR_RUNTIME_HELPER`
+  static has its required local rationale. No commit was made.
+
 ## track/cip98
 
 - 2026-08-05 UTC — Focused `cargo test -p cix-run`, Wallos Cixfile format
