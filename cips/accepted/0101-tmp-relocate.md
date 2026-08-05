@@ -1,6 +1,6 @@
-# tmp-relocate — probe/audit scratch: prior work + design round (CIP-light, v2)
+# CIP-101: tmp-relocate — probe/audit scratch: cleanup-first, /var/tmp for big trees (CIP-light)
 
-Status: **draft, CIP-light, v2** (2026-08-04; v2 is the design round
+Status: **accepted** (2026-08-05; CIP-light. v2 was the design round
 Mathijs asked for: what does prior work do, what does systemd say, and
 cleanup-first).
 
@@ -30,3 +30,14 @@ always, and put big trees on disk-backed storage.
    (belt-and-braces under the tmpfiles aging).
 
 **Effort.** Small.
+
+## Decision
+
+Adopted as proposed in v2 (Mathijs, 2026-08-05: "prima"): cleanup on
+every exit path is the primary fix, big-tree scratch moves to
+disk-backed storage per the systemd guidance (implementation picks
+`/var/tmp/cix-…` or `$XDG_CACHE_HOME/cix/tmp`), startup orphan sweep
+as backstop.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-101.

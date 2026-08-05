@@ -10,21 +10,17 @@ questions live in `cips/draft/` — this file only points at them.
 
 ## Open drafts in the inbox (each self-contained)
 
-- [env-equals](draft/env-equals.md) — switch ENV to the `NAME=value`
-  grammar; prior work (bash/dotenv/docker/systemd/make) is unanimous,
-  our spaced form is the outlier.
-- [build-args](draft/build-args.md) — lock-pinned ARG: CLI overrides
-  are recorded in the lock, so file+lock stays the whole truth while
-  Cixfiles become parameterizable.
-- [volatile-fetch v3](draft/volatile-fetch.md) — EXPECT is for stable
-  artifacts only; volatile fetches use TOFU consumed pins + upstream
-  checksums in RUN; diagnostic teaches this on mismatch.
-- [tmp-relocate v2](draft/tmp-relocate.md) — the requested design
-  round: cleanup-on-every-exit is the primary fix (nix-style), big
-  trees go to /var/tmp per systemd's file-hierarchy guidance.
+- [build-args v2](draft/build-args.md) — the requested design round:
+  full prior-art survey (Docker/Helm/Kustomize/flakes/cargo/Terraform/
+  Bazel) and three routes; recommends closed-matrix ARG (file declares
+  the finite value set, CLI only selects, lock covers every cell — no
+  state skew) with a typed generation idiom for the open-ended case.
 - [fhs-interpreter → deferred/fixup-elf](deferred/fixup-elf.md),
   [fetch-checksum-crosscheck](deferred/fetch-checksum-crosscheck.md),
   [compose-syntax](deferred/compose-syntax.md) — parked by decision.
+
+Adopted 2026-08-05: CIP-100 env-equals, CIP-101 tmp-relocate, CIP-102
+volatile-fetch. Implementation tracks queued.
 
 ## Era-parked (deliberate deferrals — context, then silence)
 

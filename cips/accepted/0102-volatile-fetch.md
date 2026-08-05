@@ -1,6 +1,6 @@
-# volatile-fetch — EXPECT is for stable artifacts; teach and diagnose, do not re-engineer (v3)
+# CIP-102: volatile-fetch — EXPECT is for stable artifacts; teach and diagnose, do not re-engineer
 
-Status: **draft v3** (2026-08-04; v3 after Mathijs's sharper question:
+Status: **accepted** (2026-08-05. v3 after Mathijs's sharper question:
 "waarom zou je überhaupt expliciete EXPECT schrijven als het ding dat
 je fetched niet stable is?" — exactly; v2's consumed-set EXPECT is
 withdrawn as complexity papering over a usage error).
@@ -41,3 +41,17 @@ side-bytes never enter the pin.
 
 **Effort.** Small: one diagnostic line, one teaching paragraph, a
 mechanical corpus sweep.
+
+## Decision
+
+Adopted as proposed in v3 (Mathijs, 2026-08-05: "prima"), with his
+confirmation question answered by a corpus survey: the remaining
+EXPECT consumers are indeed stable artifacts — caddy (pinned-commit
+raw files + release tarball), adminer, memcached, nats, redis (release
+assets). The exceptions are exactly the sweep list from §3 (traefik
+release-JSON, phpmyadmin mirror pipeline), plus echo-server's
+script-driven FETCH to audit during the sweep (it was a cold read-set
+divergence case). "EXPECT only for stable" matches actual usage.
+
+Changelog:
+- 2026-08-05 — adopted as CIP-102.
