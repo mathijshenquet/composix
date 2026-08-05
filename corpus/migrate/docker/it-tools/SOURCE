@@ -1,0 +1,5 @@
+Repository: https://github.com/CorentinTh/it-tools.git
+Resolved revision: d505845f918e946ec300af7b36efc107e2f66e9e
+Context path: .
+Dockerfile: Dockerfile
+Natural probe: HTTP GET /

@@ -1,0 +1,19 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.nodejs} ${pkgs.pnpm} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.cacert} ${pkgs.glibc}
+  ENV NPM_CONFIG_LOGLEVEL=warn
+  ENV CI=true
+  COPY context/package.json .
+  COPY context/pnpm-lock.yaml .
+  FETCH pnpm fetch --frozen-lockfile
+  COPY context/ .
+  RUN pnpm install --offline --frozen-lockfile && pnpm build
+
+SERVICE web
+  IMPORT ${pkgs.nginx}
+  COPY ${build}/dist /usr/share/nginx/html
+  COPY context/nginx.conf /etc/nginx/conf.d/default.conf
+  START nginx -g 'daemon off;'
+  PORT http = 80
+  RUNDIR /run/nginx

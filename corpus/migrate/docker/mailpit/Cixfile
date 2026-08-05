@@ -1,0 +1,29 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER compile
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.nodejs} ${pkgs.cacert}
+  COPY ${src}/context/ .
+  ENV VERSION=dev
+  ENV CGO_ENABLED=0
+  ENV GOMODCACHE=$PWD/.cache/go-mod
+  ENV GOCACHE=$PWD/.cache/go-build
+  ENV NPM_CONFIG_CACHE=$PWD/.cache/npm
+  ENV MINIFY=true
+  RUN rm -rf node_modules
+  FETCH npm ci
+  FETCH go mod download
+  RUN node esbuild.config.mjs
+  RUN go build -ldflags "-s -w -X github.com/axllent/mailpit/config.Version=$VERSION" -o mailpit
+  RUN rm -rf node_modules
+
+SERVICE mailpit
+  IMPORT ${pkgs.tzdata}
+  COPY ${compile}/mailpit /bin/mailpit
+  START mailpit
+  PORT smtp = 1025
+  PORT pop3 = 1110
+  PORT http = 8025
+  CLAIM egress
+  READINESS http :8025/readyz IN 10s
+  LIVENESS http :8025/livez EVERY 15s
