@@ -6,9 +6,35 @@ pub(crate) fn page_start(title: &str) -> String {
     )
 }
 
+// Rendered-page clarity guard: giant generated artifacts (node-tree
+// locks) made docker-it-tools.html 100.49 MB, past GitHub's 100 MB
+// push limit and past any human use. Render the head and say so.
+const ARTIFACT_RENDER_LINE_CAP: usize = 10_000;
+
 pub(crate) fn render_artifact(artifact: &Artifact) -> String {
     let language = language_for(&artifact.name);
-    let content = highlight(&artifact.content, language);
+    let total_lines = artifact.content.lines().count();
+    let capped;
+    let body = if total_lines > ARTIFACT_RENDER_LINE_CAP {
+        capped = artifact
+            .content
+            .lines()
+            .take(ARTIFACT_RENDER_LINE_CAP)
+            .collect::<Vec<_>>()
+            .join("\n");
+        &capped
+    } else {
+        &artifact.content
+    };
+    let mut content = highlight(body, language);
+    if total_lines > ARTIFACT_RENDER_LINE_CAP {
+        write!(
+            content,
+            "\n… truncated for rendering: {} of {} lines shown; the full file lives in the repository.",
+            ARTIFACT_RENDER_LINE_CAP, total_lines
+        )
+        .expect("appending truncation note");
+    }
     if artifact.collapsed {
         format!(
             "      <details class=\"file\">\n        <summary>{}</summary>\n        <pre><code>{}</code></pre>\n      </details>\n",
