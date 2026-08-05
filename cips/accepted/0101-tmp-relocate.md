@@ -45,3 +45,6 @@ Changelog:
   systemd large-temporary-data guidance without making build scratch compete
   with durable cache entries; an explicit `TMPDIR` still wins for callers and
   tests.
+- 2026-08-05 — amendment: startup sweep now removes owned `cix-*` scratch
+  trees older than six hours. One day retained 82 interrupted multi-GB trees
+  and filled `/var/tmp`; normal cleanup-on-exit remains the primary path.

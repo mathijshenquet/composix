@@ -17,6 +17,11 @@ const PREFIXES: &[&str] = &[
     "cix-read-trace-",
     "cix-step-delta-",
 ];
+const STALE_SWEEP_AGE: Duration = Duration::from_secs(6 * 60 * 60);
+
+fn is_stale(age: Duration) -> bool {
+    age >= STALE_SWEEP_AGE
+}
 
 // This process-wide flag is set once per CLI build invocation and read by
 // scratch owners as they are created; an atomic avoids shared mutable state in
@@ -165,7 +170,7 @@ pub fn sweep_stale() -> Result<()> {
             continue;
         }
         let age = now.duration_since(metadata.modified()?).unwrap_or_default();
-        if age < Duration::from_secs(24 * 60 * 60) {
+        if !is_stale(age) {
             continue;
         }
         let path = entry.path();
@@ -173,4 +178,15 @@ pub fn sweep_stale() -> Result<()> {
             .with_context(|| format!("sweeping stale scratch directory {}", path.display()))?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sweep_window_is_six_hours() {
+        assert!(!is_stale(Duration::from_secs(6 * 60 * 60 - 1)));
+        assert!(is_stale(Duration::from_secs(6 * 60 * 60)));
+    }
 }
