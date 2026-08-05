@@ -16,6 +16,7 @@
 //! - `scratch`: owns temporary build-state lifecycle.
 //! - `seccomp`: owns build network policy.
 //! - `trace`: captures build read sets.
+//! - `workspace`: owns persisted and disposable builder filesystem state.
 //!
 //! New build feature strata belong in their own module.
 
@@ -48,6 +49,7 @@ mod model;
 mod scratch;
 mod seccomp;
 mod trace;
+mod workspace;
 
 pub use build_chain::{execute, ExecutedStep};
 pub use codegen::{

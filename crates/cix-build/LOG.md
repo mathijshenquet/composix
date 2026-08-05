@@ -1,5 +1,27 @@
 # cix-build work log
 
+- 2026-08-05T16:10:00Z — Merging `origin/main` after CIP-93b and CIP-99.
+  Semantic resolution retains CIP-99's complete traced-subtree aggregation at
+  both top-level FETCH and builder recording sites, while the Workspace owner
+  remains responsible for memo validation, snapshot/replay, and every
+  `StepChange::Subtree` materialization path. Next: compile and run focused
+  lock/workspace tests before the complete agent tier and a new base/current
+  byte-identity corpus receipt.
+
+- 2026-08-05T16:35:00Z — Merge resolution and post-merge agent tier are
+  green. The isolated `origin/main`/merged-head Wallos receipt value-checked
+  equal JSON output (`wallos` =
+  `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos`) and equal
+  resulting `Cixfile.lock` SHA-256
+  `a0815887a1c5bc2367e294c54416e276e32370d801cf01797e2b2277faf5df9c`.
+  Synchronous exit-0 tier receipts: Rust fmt, examples fmt, warning-denied
+  all-target clippy, workspace tests, corpus and tour regeneration with zero
+  drift, and bounded contract-keyed progressive VM selection. The selector
+  compared the merge to the Workspace parent and correctly found no VM product
+  contract change, so it selected 0 scenarios and exited 0. The source-size
+  and shared-state audits also passed. The isolated 487 MiB receipt directory
+  was removed after value capture. Full flake remains the orchestrator gate.
+
 - 2026-08-05T15:57:00Z — After semantic merge of `origin/main` at
   `54c03a5`, the CIP-93b contract-keyed gate selected the complete 14-scenario
   matrix for the accumulated merge diff. Its retained synchronous log at
