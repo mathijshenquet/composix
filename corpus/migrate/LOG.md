@@ -1,4 +1,24 @@
 
+## 2026-08-05 — track/cip102 start
+
+- Read the track specification, accepted CIP-102, migration and corpus maintenance guidance, and the current case ledgers. Scope is intentionally narrow: add the EXPECT mismatch teaching diagnostic, correct the FETCH teaching, and remove only the four audited volatile EXPECT declarations while preserving their RUN-level/upstream checksum verification.
+- Initial inventory confirms `corpus/migrate/LOG.md` is tracked project journal material (not an ignored scratch log). Traefik has two release-API-derived EXPECTs; phpMyAdmin has its mirror/GPG pipeline EXPECT; Adminer retains two stable-asset EXPECTs but its source archive one has a recorded mismatch; Echo Server's script-driven npm dependency FETCH needs a fresh audit before deciding whether its EXPECT is volatile.
+- Next: inspect lock/pin and fetch semantics, make the teaching and case changes, then synchronously rerun every touched `check.sh` and update evidence/grades/browser.
+
+## 2026-08-05 — CIP-102 implementation and corpus receipts
+
+- Added the mismatch diagnostic and one-paragraph migration teaching: unchanged-upstream divergence means a volatile fetched tree; remove `EXPECT`, run `cix build --update-lock <fetch-or-builder>` for TOFU consumed pins, or use a stable asset URL. The teaching preserves `sha256sum -c`/vendor verification as the author-trust mechanism.
+- Removed volatile whole-tree EXPECTs from Traefik (both release API/asset steps), phpMyAdmin (mirror/GPG pipeline), Adminer (both source work trees; each vendor SHA-256 still passed), and Echo Server (script-driven npm dependencies). Fresh Echo evidence reproduced its former unchanged mismatch before removal. Each update probe read its changed FETCH twice with identical output and wrote the new consumed pins.
+- Synchronous `check.sh cix` receipts: Traefik, phpMyAdmin, Adminer, and Echo Server each exited 0. Cold replays: Traefik and Echo Server exited 0 with pinned snapshots; phpMyAdmin exited 1 at pre-existing `output` warm-directory/cold-absent read-set divergence; Adminer exited 1 at pre-existing `designs` warm-directory/cold-absent divergence. Neither cold failure refetched.
+- Regraded all four affected `docs/corpus.md` rows and updated each GAPS/receipt honestly. Next: regenerate the corpus browser, inspect the generated diff, then run the specified track gates and commit granularly.
+
+## 2026-08-05 — CIP-102 commits and gate receipts
+
+- Committed the teaching/diagnostic as `28b3b91` (`Teach volatile FETCH EXPECT recovery`) and the corpus/lock/browser refresh as `5462c62` (`Refresh volatile FETCH corpus pins`). The browser regeneration command `devenv shell -- cargo test --test corpus -- --ignored generate_corpus_browser` exited 0 synchronously; committed browser drift/determinism also passed inside the workspace suite.
+- Synchronous successful standard checks: `devenv shell -- cargo fmt --all --check`; `devenv shell -- target/debug/cix fmt --check examples`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test --test tour -- --ignored generate_tour`; `devenv shell -- nix run .#progressive-vm-check` (selection correctly reported every scenario unchanged, so no VM ran). Disk guards immediately before the VM: `/` 305 GiB free; `/tmp` 491585 inodes free.
+- Full workspace/tour drift retry is **not a green receipt** in this shared user-manager session. A concurrent track’s tour renderer first raced its transient units. After it stopped and user `cix-*` units were reset, `devenv shell -- cargo test --workspace -- --test-threads=1` still failed its unrelated tour lifecycle receipt when `systemctl --user stop` found the liveness-restarted transient `cix-run-web-*` already unloaded; the explicit `tour_matches_committed_document` retry reproduced the same `Unit ... not loaded` failure. No unrelated tour/runtime code was changed. Generator output itself exited 0 and left no tour diff. Final cleanup: `systemctl --user reset-failed 'cix-*'` and `systemctl --user stop cix-run.slice`.
+- Final state: all requested implementation, case probes, cold evidence, browser regeneration, and focused VM selection are complete; the only unresolved receipt is the pre-existing/shared-manager tour lifecycle flake above. Next: independent serial rerun in an uncontended user manager before merge.
+
 2026-07-30 — migrate round N=1, target whoami
 verdict: docker build=pass; docker run=pass; docker check=pass; cix build=pass; cix run=pass; cix check=pass.
 prompt-gaps verbatim:
