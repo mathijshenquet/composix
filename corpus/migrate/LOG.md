@@ -14,6 +14,10 @@
 
 - Caddy clean recheck and direct runtime probe passed; its old 769-byte asset anomaly is environment-tainted. Filestash no longer fails DNS but exceeded the case's 20-minute bound while sealing a 2.7 GiB/~69k-file module FETCH, so it is honestly a lock-scale wall. Browser regeneration, Rust fmt, example formatting, and diff-check passed. Full workspace/clippy/tour/VM gates remain for the orchestrator tier; this track changed only corpus/docs and has no focused VM scenario addition.
 
+## 2026-08-05 — regen4 staging-friction harvest
+
+- Adminer staging reported that a generated `output/` directory could not be declared non-input for cold replay. The current cold receipt passed, so this is retained as a disproved staging observation rather than promoted to a false language draft. nginx staging's runtime-state lesson is adopted in `docs/migrate.md`: pid files and Unix sockets belong below declared `RUNDIR`, never `/tmp`. Wallos staging's health-probe grammar stumble is additional evidence in `cips/draft/probe-url.md`; its `ProtectHome` post-probe `203/EXEC` remains a case evidence wall.
+
 ## 2026-08-05 — track/cip102 start
 
 - Read the track specification, accepted CIP-102, migration and corpus maintenance guidance, and the current case ledgers. Scope is intentionally narrow: add the EXPECT mismatch teaching diagnostic, correct the FETCH teaching, and remove only the four audited volatile EXPECT declarations while preserving their RUN-level/upstream checksum verification.
