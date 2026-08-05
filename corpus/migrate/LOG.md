@@ -1,4 +1,26 @@
 
+## 2026-08-05 — track/expand2 commit closure
+
+- Committed the independently checked corpus cases as `1f954d4b` (Valkey), `2aa6a0c5` (HAProxy), `6fa71dd1` (Apache HTTPD), and `406c2fea` (Mosquitto), then registered the 24→28 ledger, generated browser, and closed-root roster as `81e6bfba`.
+- HAProxy remains deliberately unformatted: the synchronous `cix fmt --check corpus/migrate/docker/haproxy` receipt exits 1 because formatting changes the locked FETCH key. The exact failed reproduction is retained in its `receipt.md`; see `cips/draft/fmt-key-neutrality.md`. No formatter workaround was forced.
+
+## 2026-08-05 — track/expand2 gate receipts
+
+- Browser regeneration and the normal corpus parser/drift/determinism suite exited 0. Rust fmt, example Cix formatting, warning-denied workspace clippy, complete workspace tests, tour regeneration, and zero tour drift all exited 0. `git diff --check` is clean.
+- The focused VM selector initially rejected the unclassified 24→28 corpus roster. Added the four cases to the explicit `downgradedCorpus` set (each has a per-case receipt but no closed-root fixture) and documented the decision in `nix/LOG.md`. The rerun selected only `scenario-closedroot-audit` and synchronously exited 0 after 313.114 seconds.
+- Final Cix format audit: Valkey, httpd, and Mosquitto format checks exit 0. HAProxy's format check intentionally exits 1; its whitespace-only key mutation is the exact CIP-light reproduction, so formatting it would invalidate the evidenced locked snapshot. This is a known and explicitly scoped language gap, not an unrecorded gate failure.
+
+## 2026-08-05 — track/expand2 independent case receipts
+
+- Restored all four pinned contexts from actual repository URLs/revisions (the staged prose SOURCE records were normalized into fetch.sh's machine-readable Repository/Resolved revision/Context path form). Fresh `target/debug/cix` built successfully.
+- Synchronous, value-checked case results: HAProxy 3.2.22 version probe, httpd `It works!` HTTP probe, Mosquitto `cix-ok` MQTT roundtrip, and Valkey `PONG` all exited 0. Faithful HAProxy and Mosquitto cold replay exit 0; Valkey cold exits 1 at `libbacktrace/.libs/stVX6SFe` (`Some(Absent)` vs `None`); httpd cold exits 1 at generated `sedAsylf1` (`Some(Absent)` vs `None`). Every dissolved twin built warm/cold exit 0.
+- Exact formatted-copy HAProxy repro captured: unformatted build exit 0; formatter exit 0; formatted `--cold` exit 1 because whitespace changed the FETCH identity and selected no cached snapshot. Added the CIP-light draft, per-case GAPS/receipts, LOGDIR migration teaching, 24→28 ledger rows, and consumed the four candidate rows. Next: regenerate browser, structural/check-format audit, then complete agent tier and focused VM selector.
+
+## 2026-08-05 — track/expand2 assembly start
+
+- Read the track specification, current corpus contract, D59/CIP-87 context, and all four staged bundles under `/home/mathijs/regen-stage/new-{valkey,haproxy,httpd,mosquitto}`. Their worker builds/probes are hypotheses only. Scope is four new Docker corpus cases (24→28), pinned context reconstruction, independent value-checked receipts, a formatter-keying CIP-light draft, the sandbox/read-set findings, candidate consumption, ledger rows, and browser regeneration.
+- `corpus/migrate/LOG.md` is tracked journal material, so this entry is append-only project history rather than a scratch log. First next step: materialize case skeletons from staged source files and restore each pinned source context with `fetch.sh`; run a disk/inode guard before any source builds.
+
 ## 2026-08-05 — track/expand1 commit assembly
 
 - Committed the tested CIP-101 sweep amendment as `d3e61a9`, the pnpm evidence drafts as `d6fe936`, and the three pinned source/lock/Cixfile assemblies as `f9dae78`. The next and final commit records the independent case receipts, living-corpus/browser inventory, and closed-root classification; it deliberately includes this journal entry.
