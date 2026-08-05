@@ -60,6 +60,11 @@ Produce in THIS directory:
 - Any aux files the Cixfile needs (checked-in scripts/configs).
 - `NOTES.md` — your honest gap list: every upstream ENV/config/behavior
   you translated, dissolved (with the reason), or could not carry.
+  Include a FRICTION section: everything that was not immediately
+  intuitive — grammar you guessed wrong, error messages that pointed
+  you the wrong way, forms you reached for that did not exist. Honest
+  friction reports drive language fixes; they are welcome, not
+  penalized.
 
 Verify: `./bin/cix build .` must exit 0 (use `--file Cixfile.dissolved`
 for the twin). Iterate until green or until you hit a wall you can
