@@ -1,5 +1,22 @@
 # composix work log
 
+## 2026-08-05 late (expansion landed: corpus 24)
+
+- expand1 merged behind a value-checked full gate: homer (honest
+  pnpm-registry wall), it-tools (builds; runtime honestly unproved
+  past the 600s bound), mailpit (full value-checked success after the
+  environmental ENOSPC was cleared). pnpm-wall draft minted (five
+  exhibits). CIP-101 amendment landed (sweep hours+size-aware after
+  82 interrupted-build trees filled root to 100%). Staging swept,
+  NOTES archived.
+- NEW FOLLOW-UP: it-tools' lock is 1.54M lines, homer's 146k — the
+  CIP-99 aggregation did not bite on these (likely: aggregation needs
+  complete traced subtrees; these builds walled/partial). Either an
+  aggregation-criteria gap or a re-lock need — investigate before
+  expansion wave 2.
+- Day total: 18 merges. Queue unchanged otherwise; see the evening
+  entry.
+
 ## 2026-08-05 evening (pipeline complete: 17 merges; language epoch designed; expansion wave launched)
 
 - **Since the midday entry, merged behind value-checked full gates**:
