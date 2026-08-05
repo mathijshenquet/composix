@@ -428,13 +428,21 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
 
-## Building now (updated 2026-08-02)
+## Building now (updated 2026-08-05)
 
-The adopted implementation board is built and CI-confirmed, including D70 overlay package
-universes, recursive compose trees, pods/netns, health, secrets, directory materializations,
-observability, and closed-root phase 1.
-The honest frontier is the phase-2 closed-root flip, D26/D27 named networks and `talks-to`, the
-publish era, and the reconciler.
+The adopted board is built through CIP-109: the corpus stands at 28 receipted cases on the
+CIP-91/92 canon with the ribbon vocabulary live; the structural round landed (build_chain
+4,369 -> 2,059 live with Workspace/Memo owners, runtime.rs 290 with target/app/manager strata,
+doc harness split, guardrails enforced in the gate); dev-speed shipped (contract-keyed VM
+selection — build-subsystem diffs 0/14 scenarios, lock subtree aggregation, scratch lifecycle
+with liveness-guarded sweeping); probes are URL-shaped; STOPSIGNAL/stopTimeout exist; the k8s
+axis has a drafted teaching contract and wave design.
+The honest frontier is the LANGUAGE EPOCH awaiting adoption (nodes-and-edges: argv-first
+steps + LET/WITH edges + heredoc-only shell; phase-blocks; build-args) with
+fmt-key-neutrality as its prerequisite, the pnpm ecosystem-fetch wall (five exhibits),
+CIP-103's context/sandbox + FETCH-state legs and CIP-104 crate strata, k8s wave 1 behind its
+adoption call — and unchanged behind those: the phase-2 closed-root flip, D26/D27 named
+networks and `talks-to`, the publish era, and the reconciler.
 
 - ✅ D29 — **spec v3**: (a) `listeners` field per the dstyle proposal — an activated-listener
   contract *distinct from* `ports` (fd-inherit means NO IP-socket grant; `FileDescriptorName=`

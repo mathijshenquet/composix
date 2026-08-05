@@ -10,21 +10,32 @@ questions live in `cips/draft/` — this file only points at them.
 
 ## Open drafts in the inbox (each self-contained)
 
-- [build-args v2](draft/build-args.md) — the requested design round:
-  full prior-art survey (Docker/Helm/Kustomize/flakes/cargo/Terraform/
-  Bazel) and three routes; recommends closed-matrix ARG (file declares
-  the finite value set, CLI only selects, lock covers every cell — no
-  state skew) with a typed generation idiom for the open-ended case.
+- [nodes-and-edges](draft/nodes-and-edges.md) — the language epoch:
+  argv-first steps (one command per node), heredoc-only shell,
+  LET/ARG + per-node WITH edges (builder-ENV banned, leaf-ENV stays),
+  adjacency clauses; session-shells rejected with argument.
+- [phase-blocks](draft/phase-blocks.md) — explicit `{ }` for
+  BUILDER/ITEM/SERVICE/APP (Caddyfile/HCL lineage); key call is epoch
+  coupling with nodes-and-edges.
+- [build-args](draft/build-args.md) — closed-matrix ARG with partial
+  per-cell lock; open: args×tagging, enumeration syntax.
+- [fmt-key-neutrality](draft/fmt-key-neutrality.md) — `cix fmt`
+  changed a builder chain key (haproxy repro preserved unformatted);
+  keying-fundamentals fix, prerequisite to any epoch sweep.
+- [pnpm-wall](draft/pnpm-wall.md) — the npm/pnpm ecosystem-fetch wall,
+  five exhibits (homer, dozzle, verdaccio-cold, directus, filestash).
+- [k8s-wave](draft/k8s-wave.md) — wave-1 case selection for the
+  drafted docs/migrate-k8s.md teaching contract.
 - [fhs-interpreter → deferred/fixup-elf](deferred/fixup-elf.md),
   [fetch-checksum-crosscheck](deferred/fetch-checksum-crosscheck.md),
   [compose-syntax](deferred/compose-syntax.md) — parked by decision.
 
-Adopted 2026-08-05: CIP-100 env-equals, CIP-101 tmp-relocate, CIP-102
-volatile-fetch (implemented same day); CIP-103..108 (the structural
-audit batch: build-chain seams, crate strata, runtime thinning, doc
-harness, alpha prune, guardrails — adopted under Mathijs's delegated
-review, KPIs complexity/seams/SLOC). Implementation queue: 105+103-leg1
-first, then 108+107, 106, 103 M/L legs, 104 last.
+Adopted 2026-08-05 and ALL IMPLEMENTED same day: CIP-100..102 (env
+grammar, tmp-relocate incl. liveness-guarded sweeping, volatile-fetch)
+and the audit batch CIP-103..108 (103 complete through the Workspace
+and MemoEngine legs; context/FETCH legs and 104 queued) plus CIP-109
+probe-url. Ribbon borderline trio (NATS/renovate/whoami ✅) awaits
+Mathijs's confirm-or-flip.
 
 ## Era-parked (deliberate deferrals — context, then silence)
 
