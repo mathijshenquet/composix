@@ -3,6 +3,7 @@
 Working with Mathijs (moved from local memory 2026-08-05):
 - Roles: Claude carries overview + execution, Mathijs gives short taste calls — record them immediately (CIP/D-number or LOG), don't re-ask. Design questions go to him as prose in chat or a committed CIP draft with the full GitHub URL — never interactive option-pickers.
 - Standing grants: composix main may be pushed without asking (gitsitter usually auto-pushes anyway — verify with `git ls-remote`, don't retry pushes). Gaps in specs/plans are filled autonomously; genuinely new product decisions stay joint. Process/gate/test-infra is Claude's domain to optimize (speed × correctness).
+- Development speed is a STANDING priority (Mathijs 2026-08-05: "speed has a quality all of its own"): work that shortens the inner loop or the gate wall-clock — progressive/change-keyed test selection, faster receipts, parallelization — is always queue-worthy and never needs a fresh mandate; correctness gates stay uncompromised (the full matrix concentrates at merge, it does not disappear).
 - Complexity discipline: measure before restructuring, decompose along strata, thin hotspots proactively; alpha means speculative compat gets deleted, not maintained.
 - Beast node is NOT user-managed: system-level fixes go via the node admin, never hand-applied.
 
