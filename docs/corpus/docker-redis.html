@@ -283,9 +283,9 @@ Build context: repository archive in context/; sibling docker-entrypoint.sh is i
 
 <span class="tok-directive">BUILDER</span> redis-build
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.binutils}</span> <span class="tok-interpolation">${pkgs.gzip}</span> <span class="tok-interpolation">${pkgs.openssl}</span> <span class="tok-interpolation">${pkgs.openssl.dev}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.which}</span>
-  <span class="tok-directive">ENV</span> REDIS_VERSION = 7.4.8
-  <span class="tok-directive">ENV</span> REDIS_DOWNLOAD_URL = http://download.redis.io/releases/redis-7.4.8.tar.gz
-  <span class="tok-directive">ENV</span> REDIS_DOWNLOAD_SHA = f6773cb7d63be236c59c2917a82f1f08e47b77d89b2f0c9f53becb22b8ea4172
+  <span class="tok-directive">ENV</span> REDIS_VERSION=7.4.8
+  <span class="tok-directive">ENV</span> REDIS_DOWNLOAD_URL=http://download.redis.io/releases/redis-7.4.8.tar.gz
+  <span class="tok-directive">ENV</span> REDIS_DOWNLOAD_SHA=f6773cb7d63be236c59c2917a82f1f08e47b77d89b2f0c9f53becb22b8ea4172
   <span class="tok-directive">FETCH</span> curl --fail --location &quot;$REDIS_DOWNLOAD_URL&quot; --output redis.tar.gz EXPECT sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=
   <span class="tok-directive">RUN</span> &lt;&lt;BUILD
 <span class="tok-heredoc">echo &quot;$REDIS_DOWNLOAD_SHA *redis.tar.gz&quot; | sha256sum -c -</span>

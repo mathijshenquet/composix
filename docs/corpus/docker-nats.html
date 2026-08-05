@@ -140,9 +140,9 @@ Fetched: 2026-07-30
 
 <span class="tok-directive">BUILDER</span> runtime
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
-  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
-  <span class="tok-directive">ENV</span> NATS_ARCH = amd64
-  <span class="tok-directive">ENV</span> NATS_SHA256 = 84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa
+  <span class="tok-directive">ENV</span> NATS_SERVER=2.12.14
+  <span class="tok-directive">ENV</span> NATS_ARCH=amd64
+  <span class="tok-directive">ENV</span> NATS_SHA256=84e7251f6a745e5950b9adf2159638a29fbfdcec040c13674b2362a3446b4eaa
   <span class="tok-directive">FETCH</span> curl --fail --location https://github.com/nats-io/nats-server/releases/download/v$NATS_SERVER/nats-server-v$NATS_SERVER-linux-$NATS_ARCH.tar.gz --output nats-server.tar.gz &amp;&amp; chmod 644 nats-server.tar.gz &amp;&amp; touch -d @0 nats-server.tar.gz EXPECT sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=
   <span class="tok-directive">RUN</span> &lt;&lt;BUILD
 <span class="tok-heredoc">echo &quot;$NATS_SHA256 *nats-server.tar.gz&quot; | sha256sum -c -</span>
@@ -154,7 +154,7 @@ Fetched: 2026-07-30
 
 <span class="tok-directive">SERVICE</span> nats
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
-  <span class="tok-directive">ENV</span> NATS_SERVER = 2.12.14
+  <span class="tok-directive">ENV</span> NATS_SERVER=2.12.14
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${runtime}</span>/output/bin/nats-server /bin/nats-server
   <span class="tok-directive">START</span> nats-server --http_port 8222
   <span class="tok-directive">PORT</span> client = 4222

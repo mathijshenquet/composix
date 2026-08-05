@@ -3,9 +3,9 @@ FROM . AS src
 
 BUILDER builder
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.nodejs_24} ${pkgs.corepack} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert}
-  ENV NODE_ENV = development
-  ENV VERDACCIO_BUILD_REGISTRY = https://registry.npmjs.org
-  ENV OUTPUT = $PWD/output
+  ENV NODE_ENV=development
+  ENV VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
+  ENV OUTPUT=$PWD/output
   COPY ${src}/context/ .
   FETCH corepack install
   RUN pnpm config set registry "$VERDACCIO_BUILD_REGISTRY"
@@ -18,13 +18,13 @@ SERVICE verdaccio
   COPY ${builder}/output/verdaccio-deploy /opt/verdaccio
   COPY context/packages/config/src/conf/docker.yaml /verdaccio/conf/config.yaml
   COPY start-verdaccio /bin/start-verdaccio
-  ENV VERDACCIO_APPDIR = /opt/verdaccio
-  ENV VERDACCIO_USER_NAME = verdaccio
-  ENV VERDACCIO_USER_UID = 10001
-  ENV VERDACCIO_PORT = 4873
-  ENV VERDACCIO_PROTOCOL = http
-  ENV VERDACCIO_ADDRESS = [::]
-  ENV HOME = /opt/verdaccio
+  ENV VERDACCIO_APPDIR=/opt/verdaccio
+  ENV VERDACCIO_USER_NAME=verdaccio
+  ENV VERDACCIO_USER_UID=10001
+  ENV VERDACCIO_PORT=4873
+  ENV VERDACCIO_PROTOCOL=http
+  ENV VERDACCIO_ADDRESS=[::]
+  ENV HOME=/opt/verdaccio
   START sh /bin/start-verdaccio
   PORT http = 4873
   STATEDIR /verdaccio/storage

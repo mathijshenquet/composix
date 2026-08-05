@@ -295,8 +295,8 @@ Build context: repository archive in context/. The Dockerfile&#39;s required pre
 <span class="tok-directive">BUILDER</span> build
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.go}</span> <span class="tok-interpolation">${pkgs.git}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
   <span class="tok-directive">COPY</span> context/ .
-  <span class="tok-directive">ENV</span> GOPATH = /work/.gopath
-  <span class="tok-directive">ENV</span> GOMODCACHE = /work/.gopath/pkg/mod
+  <span class="tok-directive">ENV</span> GOPATH=/work/.gopath
+  <span class="tok-directive">ENV</span> GOMODCACHE=/work/.gopath/pkg/mod
   <span class="tok-directive">FETCH</span> bash -c &#39;go telemetry off &amp;&amp; go mod download&#39;
   <span class="tok-directive">RUN</span> &lt;&lt;BUILD
 <span class="tok-heredoc">CGO_ENABLED=0 go build -o watchtower -ldflags &quot;-X github.com/containrrr/watchtower/internal/meta.Version=ca0e86e824ec05389ab972ea97d04d4bf0476e90&quot;</span>

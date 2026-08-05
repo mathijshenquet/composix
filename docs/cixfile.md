@@ -315,11 +315,16 @@ COPY ${compile}/target/release/app /bin/app
 START app
 ```
 
-Builder `ENV NAME = value` is plain text, applies only to later builder steps, and is part of
-the chain key as declared. It is exported through each step shell, so `ENV CACHE = $PWD/.cache`
+Builder `ENV NAME=value` is plain text, applies only to later builder steps, and is part of
+the chain key as declared. It is exported through each step shell, so `ENV CACHE=$PWD/.cache`
 expands `$PWD` in that step's `/work` directory. `START` and `START_PRE` accept single- and
 double-quoted argv words; for example, `START nginx -g 'daemon off;'` passes `daemon off;` as one
 argument. Unterminated quotes are line-numbered errors.
+
+Runtime `ENV NAME=value` supplies a default, `ENV NAME required` requires an operator value, and
+bare `ENV NAME` declares an optional value that remains unset unless supplied. Quotes keep spaces
+inside a value (`ENV GREETING="hello world"`). There are no spaces around `=`; `ENV NAME = value`
+is a parse error. A required declaration cannot also carry a default.
 
 `IMPORT` takes whole package references, is repeatable in every block kind, and unions each
 package's `bin`, `etc`, and `share` trees read-only at `/bin`, `/etc`, and `/share`. Earlier
@@ -572,7 +577,7 @@ and GC-root mechanism; an untagged item becomes collectable again after its run 
 
 Artifact destinations name their native runtime paths and are stored item-relatively. Every
 SERVICE and APP gets `PATH=bin` unless it explicitly declares
-`ENV PATH = …`, which replaces that default entirely. A one-word `START app` or `START_PRE app`
+`ENV PATH=…`, which replaces that default entirely. A one-word `START app` or `START_PRE app`
 therefore resolves at build time to that item's `bin/app`. Use `IMPORT` for package-provided
 runtime tools and bare argv words; `COPY` can assemble an app-specific executable at `/bin/app`.
 `START /bin/app` and package binaries as direct store references remain legal, but are not the

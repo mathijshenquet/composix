@@ -2,10 +2,10 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER frontend
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gnused} ${pkgs.nodejs} ${pkgs.cacert}
-  ENV CI = true
-  ENV CLOUD_URL = https://cloud.dozzle.dev
-  ENV COREPACK_HOME = $PWD/.corepack
-  ENV PNPM_HOME = $PWD/.pnpm-home
+  ENV CI=true
+  ENV CLOUD_URL=https://cloud.dozzle.dev
+  ENV COREPACK_HOME=$PWD/.corepack
+  ENV PNPM_HOME=$PWD/.pnpm-home
   COPY context/pnpm-lock.yaml pnpm-lock.yaml
   COPY context/pnpm-workspace.yaml pnpm-workspace.yaml
   COPY context/package.json package.json
@@ -35,12 +35,12 @@ BUILD
 
 BUILDER backend
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.cacert}
-  ENV CGO_ENABLED = 0
-  ENV TAG = dev
+  ENV CGO_ENABLED=0
+  ENV TAG=dev
   COPY context/go.mod go.mod
   COPY context/go.sum go.sum
-  ENV GOPATH = $PWD/.go
-  ENV GOCACHE = $PWD/.cache/go-build
+  ENV GOPATH=$PWD/.go
+  ENV GOCACHE=$PWD/.cache/go-build
   FETCH go mod download
   COPY context/internal internal
   COPY context/proto proto

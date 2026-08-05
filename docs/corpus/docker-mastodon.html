@@ -261,8 +261,8 @@ SERVICE postgres
   COPY ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
   START_PRE bash /opt/postgres/setup.sh
   START bash /opt/postgres/start.sh postgres
-  ENV LANG = C
-  ENV LC_ALL = C
+  ENV LANG=C
+  ENV LC_ALL=C
   SECRET db-password
   PORT postgres = 35432
   STATEDIR /var/lib/postgresql
@@ -279,8 +279,8 @@ SERVICE redis
   IMPORT ${pkgs.redis}
   COPY ${src}/redis.conf /etc/redis/redis.conf
   START redis-server /etc/redis/redis.conf
-  ENV LANG = C
-  ENV LC_ALL = C
+  ENV LANG=C
+  ENV LC_ALL=C
   PORT redis = 36379
   RUNDIR /run/redis
   READINESS tcp :36379 IN 20s

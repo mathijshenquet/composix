@@ -1,5 +1,32 @@
 # Cixfile track work log
 
+- 2026-08-05T06:15:00Z — Implemented CIP-100 and CIP-96. Parser accepts
+  `ENV NAME=value` (including quoted values), `ENV NAME required`, and bare
+  optional `ENV NAME`; spaced assignments teach `ENV NAME=value`, and a
+  required default is rejected. Adminer now uses bare optional declarations,
+  removes the sentinel-stripping entrypoint code, and its CIP-96 gap is stale.
+  Rewrote runnable corpus/examples/test fixtures, current docs, the generated
+  tour, and corpus browser. Synchronous focused receipts passed: parser (33),
+  cix-run config (6), ignored tour regeneration, and ignored corpus-browser
+  regeneration. The prescribed fmt/examples-fmt/warning-denied-clippy command
+  passed. The full workspace run failed only in the environment-sensitive tour
+  runtime receipt: stale `cix-run-*` units in the user manager caused the first
+  `cix inspect --runtime` assertion to fail and poisoned the renderer lock;
+  the parser, corpus, and non-tour suites preceding it passed. The progressive
+  VM selector is running its automatically selected 13-scenario set; do not
+  claim an exit receipt until its foreground process exits. Next: collect that
+  receipt, then commit the scoped track and leave the branch clean.
+
+- 2026-08-05T05:53:18Z — Started `track/envgrammar`. Read the current
+  project journal, design registry, AGENTS.md, CIP-96, CIP-100, this journal,
+  and the assigned spec. Implementing the one alpha grammar transition:
+  `ENV NAME=value`, required-without-default, and bare optional ENV. The
+  runner already represents an optional declaration as `default: None` and
+  omits it unless an override supplies it, so no manifest-format change is
+  needed. Quoted assignment values use the parser's existing shell-style
+  quote-aware argument convention. Next: migrate fixtures/corpus/docs, remove
+  Adminer's sentinel, then take focused synchronous receipts.
+
 - 2026-08-04T12:58:00Z — The `track/tourfix` full workspace gate exposed a
   deterministic stale assertion introduced when CIP-94 added the byte-bound
   `evalPlan.cixfileHash`: the formatter regression still required the complete

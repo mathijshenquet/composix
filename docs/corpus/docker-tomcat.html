@@ -216,12 +216,12 @@ Build context: repository archive in context/; this Dockerfile has no local COPY
 <span class="tok-directive">SERVICE</span> tomcat
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> <span class="tok-interpolation">${pkgs.jdk21}</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.tomcat10}</span> /share/tomcat
-  <span class="tok-directive">ENV</span> CATALINA_HOME = /share/tomcat
-  <span class="tok-directive">ENV</span> TOMCAT_NATIVE_LIBDIR = /share/tomcat/native-jni-lib
-  <span class="tok-directive">ENV</span> LD_LIBRARY_PATH = /share/tomcat/native-jni-lib
-  <span class="tok-directive">ENV</span> TOMCAT_MAJOR = 10
-  <span class="tok-directive">ENV</span> TOMCAT_VERSION = 10.1.57
-  <span class="tok-directive">ENV</span> TOMCAT_SHA512 = 2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
+  <span class="tok-directive">ENV</span> CATALINA_HOME=/share/tomcat
+  <span class="tok-directive">ENV</span> TOMCAT_NATIVE_LIBDIR=/share/tomcat/native-jni-lib
+  <span class="tok-directive">ENV</span> LD_LIBRARY_PATH=/share/tomcat/native-jni-lib
+  <span class="tok-directive">ENV</span> TOMCAT_MAJOR=10
+  <span class="tok-directive">ENV</span> TOMCAT_VERSION=10.1.57
+  <span class="tok-directive">ENV</span> TOMCAT_SHA512=2fa1866ec647d4222b07ea937a4cc266adee219a1a8870107e72fc2349248dd1e32b157fa18108451f4c6e3b162f0fdfbdd11dd7855d4e49a2f0f609004a77f3
   <span class="tok-directive">START</span> catalina.sh run
   <span class="tok-directive">PORT</span> http = 8080
   <span class="tok-directive">PORT</span> shutdown = 8005
@@ -236,7 +236,7 @@ Build context: repository archive in context/; this Dockerfile has no local COPY
 SERVICE tomcat
   IMPORT ${pkgs.tomcat10} ${pkgs.jdk21} ${pkgs.coreutils}
   COPY ${pkgs.tomcat10} /share/tomcat
-  ENV CATALINA_HOME = /share/tomcat
+  ENV CATALINA_HOME=/share/tomcat
   START catalina.sh run
   PORT http = 8080
   PORT shutdown = 8005

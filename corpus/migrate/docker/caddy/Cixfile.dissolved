@@ -14,9 +14,9 @@ SERVICE caddy
 HOSTS
   COPY ${upstream}/Caddyfile.normalized /etc/caddy/Caddyfile
   COPY ${upstream}/index.html /usr/share/caddy/index.html
-  ENV CADDY_VERSION = v2.11.4
-  ENV XDG_CONFIG_HOME = /data
-  ENV XDG_DATA_HOME = /data
+  ENV CADDY_VERSION=v2.11.4
+  ENV XDG_CONFIG_HOME=/data
+  ENV XDG_DATA_HOME=/data
   START caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
   PORT http = 8080
   PORT https = 443

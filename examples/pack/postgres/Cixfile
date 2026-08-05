@@ -2,7 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable OVERLAY ./postgres.nix AS pkgs
 FROM . AS src
 
 SERVICE postgres
-  ENV PATH = ${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
+  ENV PATH=${pkgs.postgresql}/bin:${pkgs.coreutils}/bin
   COPY ${src}/runtime-env.sh /opt/postgres/runtime-env.sh
   COPY ${src}/setup /opt/postgres/setup
   COPY ${src}/start /opt/postgres/start
@@ -10,7 +10,7 @@ SERVICE postgres
   LINK ${pkgs.nss_wrapper}/lib/libnss_wrapper.so /opt/postgres/libnss_wrapper.so
   START_PRE ${pkgs.bash}/bin/sh /opt/postgres/setup
   START ${pkgs.bash}/bin/sh /opt/postgres/start $PORT
-  ENV PORT = 5432
+  ENV PORT=5432
   PORT postgres = $PORT
   STATEDIR /var/lib/postgresql
   RUNDIR /run/postgresql
