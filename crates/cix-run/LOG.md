@@ -30,6 +30,16 @@
   after its destructive stale-page cleanup; retry only after the manager
   settles, and do not claim a tour receipt until it exits synchronously 0.
 
+- 2026-08-05 UTC — Retried after resetting only test-created `cix-run-*`
+  user-manager failures: tour regeneration then exited 0 and rewrote the tour,
+  and the focused VM, fmt, examples fmt, clippy, targeted parser/unit/compose
+  tests, corpus regeneration, and corpus drift test all have synchronous 0
+  receipts. The ordinary parallel `cargo test --workspace` still has the
+  pre-existing user-manager race in `crates/cix/tests/tour.rs` (a transient
+  user unit vanishes between run and inspect, then poisons its render mutex);
+  it is unrelated to this track and remains an honest non-green receipt.
+  Committed the cohesive implementation and ledger update as `7f92f95`.
+
 - 2026-08-05 UTC — Started the blessed STOPSIGNAL/stop-timeout disposition
   track after reading its spec, `cips/dispositions.md`, the Docker ledger, and
   the current project/run logs. The implementation seam is Cixfile → manifest
