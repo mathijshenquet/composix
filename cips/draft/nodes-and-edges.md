@@ -44,6 +44,10 @@ directive, one invisible interpreter.
   zsh needed tied vars). fish separates scope from export as an
   orthogonal flag and has native list variables that expand to argv
   elements without quoting hell.
+- **Expansion staging**: Homer, it-tools, and Mailpit each first failed because
+  `RUN`/`FETCH` needed an explicit imported Bash even when the visible command
+  was a package manager. This is the third corpus datapoint for making the
+  interpreter edge explicit rather than inherited from an image.
 - **Session-shells** (state carried between steps): analyzed and
   rejected below.
 
