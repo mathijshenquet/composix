@@ -31,7 +31,7 @@ FROM . AS src
 SERVICE my-nginx
 COPY ${src}/index.html /srv/www/index.html
 COPY ${src}/nginx.conf /etc/nginx/nginx.conf
-LINK ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
+COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
 START ${pkgs.nginx}/bin/nginx -c /etc/nginx/nginx.conf -e stderr
 PORT http = 8080
 CACHEDIR /var/cache/nginx

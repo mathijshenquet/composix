@@ -7,7 +7,7 @@ use crate::{
 
 /// Formats a Cixfile after first accepting it with the real semantic parser.
 pub fn format(input: &str) -> Result<String, ParseError> {
-    let input = canonicalize_legacy_fetch_expect(&input.replace("\r\n", "\n"));
+    let input = input.replace("\r\n", "\n");
     let parsed = parse(&input)?;
     let mut scanner = Scanner::new(&input);
     let entries = scanner.scan();
@@ -17,36 +17,6 @@ pub fn format(input: &str) -> Result<String, ParseError> {
         &parse(&formatted).expect("formatter must preserve parsing")
     ));
     Ok(formatted)
-}
-
-fn canonicalize_legacy_fetch_expect(input: &str) -> String {
-    input
-        .lines()
-        .map(|line| {
-            let trimmed = line.trim_start();
-            let indent = &line[..line.len() - trimmed.len()];
-            let Some(arguments) = trimmed.strip_prefix("FETCH ") else {
-                return line.to_owned();
-            };
-            let fields = arguments.split_whitespace().collect::<Vec<_>>();
-            let (binder, hash_index) = match fields.as_slice() {
-                ["EXPECT", hash, ..] if hash.starts_with("sha256-") => (None, 1),
-                [binder, "EXPECT", hash, ..] if hash.starts_with("sha256-") => (Some(*binder), 2),
-                _ => return line.to_owned(),
-            };
-            let hash = fields[hash_index];
-            let command = fields[hash_index + 1..].join(" ");
-            if command.is_empty() {
-                return line.to_owned();
-            }
-            let binder = binder
-                .map(|binder| format!("{binder} "))
-                .unwrap_or_default();
-            format!("{indent}FETCH {binder}{command} EXPECT {hash}")
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-        + if input.ends_with('\n') { "\n" } else { "" }
 }
 
 /// Compares the parsed language while deliberately excluding diagnostic provenance.

@@ -2076,9 +2076,7 @@ fn memo_has_paths(
     let Some(entry) = entry else {
         return Ok(false);
     };
-    if entry.legacy_store_path.is_some()
-        || needed.keys().any(|path| !entry.paths.contains_key(path))
-    {
+    if needed.keys().any(|path| !entry.paths.contains_key(path)) {
         return Ok(false);
     }
     for path in needed.keys() {
@@ -2124,7 +2122,7 @@ fn compare_cold_paths(
     cold: &BTreeMap<String, ConsumedPath>,
     needed: &BTreeMap<String, NeededPath>,
 ) -> Result<()> {
-    let Some(warm) = warm.filter(|entry| entry.legacy_store_path.is_none()) else {
+    let Some(warm) = warm else {
         return Ok(());
     };
     for (path, cold_path) in cold {
@@ -2153,12 +2151,7 @@ fn compare_cold_paths(
 }
 
 fn memo_entry(paths: BTreeMap<String, ConsumedPath>) -> MemoEntry {
-    MemoEntry {
-        paths,
-        legacy_output_nar_hash: None,
-        legacy_store_path: None,
-        legacy_wall_ms: None,
-    }
+    MemoEntry { paths }
 }
 
 fn materialize_view(paths: &BTreeMap<String, ConsumedPath>) -> Result<String> {
@@ -2235,11 +2228,6 @@ fn restore_snapshot(snapshot: &Path, destination: &Path) -> Result<()> {
 }
 
 fn replay_fetch_snapshot(directory: &Path, name: &str, pin: &FetchPin) -> Result<String> {
-    if let Some(snapshot) = pin.store_path.as_deref() {
-        if ensure_store_path(snapshot)? {
-            return Ok(snapshot.to_owned());
-        }
-    }
     let receipt = fetch_snapshot_receipt(directory, name, pin)?;
     let snapshot = fs::read_to_string(&receipt)
         .ok()
@@ -3259,7 +3247,6 @@ fn refresh_fetch_pin(
             .cloned()
             .context("declared EXPECT pin was not installed")?;
         pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
-        pin.store_path = None;
         if !volatile.is_empty() {
             pin.volatile = volatile;
         }
@@ -3290,7 +3277,6 @@ fn refresh_fetch_pin(
     pin.nar_hash.clear();
     pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
     pin.paths = actual_paths;
-    pin.store_path = None;
     if force {
         pin.volatile = volatile;
     }

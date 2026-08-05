@@ -3,11 +3,24 @@
 //!
 //! ## Module map
 //!
-//! `runtime` validates run options and conducts service selection. `target`
-//! resolves paths, refs, and Nix installables; `app` runs finite or scheduled
-//! apps; `manager` owns persistent units, listeners, GC roots, and journal
-//! control. `unit` conducts ordered systemd property assembly; `devices`,
-//! `directories`, `health`, and `closed_root` each own one feature projection.
+//! - `app`: runs finite and scheduled apps.
+//! - `capabilities`: owns capability policy and host verification.
+//! - `cli`: owns run command-line parsing and dispatch.
+//! - `closed_root`: owns sealed-root unit projection.
+//! - `config`: owns run configuration shapes and validation.
+//! - `debug`: owns debug command projection.
+//! - `degradation`: owns explicit user-manager degradation reporting.
+//! - `devices`: owns device access projection.
+//! - `directories`: owns declared-directory projection.
+//! - `exec`: owns commands executed in a running service.
+//! - `health`: owns health-check projection.
+//! - `manager`: owns persistent units, listeners, GC roots, and journal control.
+//! - `probe`: owns readiness and liveness probe execution.
+//! - `runtime`: validates run options and conducts service selection.
+//! - `shell`: owns interactive shell command projection.
+//! - `spec`: owns manifest parsing and validation.
+//! - `target`: resolves paths, refs, and Nix installables.
+//! - `unit`: conducts ordered systemd property assembly.
 
 mod app;
 pub mod capabilities;

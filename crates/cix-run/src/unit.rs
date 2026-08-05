@@ -741,7 +741,7 @@ fn validate_closed_root_executable(output: &Path, executable: &str) -> Result<()
         && !output.join("bin/env").is_file()
     {
         bail!(
-            "closed-root executable {executable} needs /usr/bin/env; LINK ${{pkgs.coreutils}}/bin/env /bin/env or provide another declared env implementation"
+            "closed-root executable {executable} needs /usr/bin/env; COPY ${{pkgs.coreutils}}/bin/env /bin/env or provide another declared env implementation"
         );
     }
     Ok(())

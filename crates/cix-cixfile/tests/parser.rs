@@ -21,7 +21,7 @@ COPY ${build}/built /bin/web
 FILE /etc/app.conf <<E
 source=${src}
 E
-	LINK ${pkgs.bash}/bin/bash /bin/sh
+	COPY ${pkgs.bash}/bin/bash /bin/sh
 	ENV PATH=bin
 START web
 START_PRE /bin/web
@@ -488,9 +488,9 @@ START /bin/true \
     }
 
     #[test]
-    fn cachedir_and_deprecated_link_alias_parse() {
+    fn cachedir_parses_and_link_teaches_its_removal() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nSTART /bin/hello\nCACHEDIR /var/cache/app\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nCOPY ${pkgs.hello}/bin/hello /bin/hello\nSTART /bin/hello\nCACHEDIR /var/cache/app\n",
         )
         .unwrap();
         assert!(parsed.artifacts["app"]
@@ -515,13 +515,12 @@ START /bin/true \
             "CACHE was removed; delete this line because builder workspaces persist automatically; see docs/cixfile.md#builders"
         );
 
-        let link = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK bin/hello ${pkgs.hello}/bin/hello\nSTART /bin/hello\n",
-        )
-        .unwrap_err();
+        let link = parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nLINK ${pkgs.hello}/bin/hello /bin/hello\nSTART /bin/hello\n").unwrap_err();
         assert_eq!(link.line, 3);
-        assert!(link.message.contains("arguments are target then link path"));
-        assert!(link.message.contains("LINK <target> <absolute-linkpath>"));
+        assert!(link.message.contains("LINK was removed"));
+        assert!(link
+            .message
+            .contains("COPY <source> <absolute-destination>"));
     }
 
     #[test]
@@ -752,7 +751,7 @@ START /bin/true \
     #[test]
     fn item_is_pure_assembly_and_runtime_directives_name_the_d68_seam() {
         let parsed = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\nCOPY payload /payload\nFILE /share/message <<EOF\nhello\nEOF\nLINK ${pkgs.hello}/bin/hello /bin/hello\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nITEM data\nCOPY payload /payload\nFILE /share/message <<EOF\nhello\nEOF\nCOPY ${pkgs.hello}/bin/hello /bin/hello\n",
         )
         .unwrap();
         assert_eq!(parsed.artifacts["data"].kind, ArtifactKind::Item);
@@ -833,7 +832,7 @@ START /bin/true \
 
         for directive in [
             "FILE etc/app.conf <<EOF\nvalue\nEOF",
-            "LINK /nix/store/target bin/tool",
+            "COPY /nix/store/target bin/tool",
             "START bin/tool",
             "START_PRE bin/tool\nSTART /bin/true",
         ] {

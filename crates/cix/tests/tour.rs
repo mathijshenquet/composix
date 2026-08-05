@@ -39,6 +39,8 @@ const PROJ1_FILES: &[&str] = &[
     "rust/worker/Cargo.toml",
     "rust/worker/src/main.rs",
 ];
+// Every renderer gets a distinct ephemeral port because parallel test processes
+// can otherwise bind the same listener while producing independent documents.
 static NEXT_TOUR_PORT: AtomicU16 = AtomicU16::new(10_000);
 // The proj1 chapter runs its documented fixed-port service in the shared user manager and host
 // network namespace. Rendering concurrently would make one chapter observe another's listener.

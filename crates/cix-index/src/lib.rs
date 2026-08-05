@@ -3,9 +3,14 @@
 //!
 //! ## Module map
 //!
-//! `refs` owns the current table/pointer state, while `tags`, `roots`, `pull`,
-//! and `serve` own their respective index operations. New index feature strata
-//! belong in their own module.
+//! - `cli`: owns index command-line parsing and dispatch.
+//! - `pull`: owns remote index retrieval and local adoption.
+//! - `refs`: owns current table and pointer state.
+//! - `roots`: owns local GC-root management.
+//! - `serve`: owns index HTTP and binary-cache serving.
+//! - `tags`: owns local tagging operations.
+//!
+//! New index feature strata belong in their own module.
 
 pub mod cli;
 mod pull;

@@ -1,2 +1,2 @@
-line 4: LINK arguments are target then link path; write LINK <target> <absolute-linkpath>; see docs/cixfile.md#link
+line 4: LINK was removed; use COPY <source> <absolute-destination>; see docs/cixfile.md#link
   | "LINK /bin/hello ${pkgs.hello}/bin/hello"

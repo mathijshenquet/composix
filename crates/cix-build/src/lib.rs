@@ -6,13 +6,18 @@
 //!
 //! ## Module map
 //!
-//! `build_chain` conducts step ordering and sandbox execution; `codegen` emits
-//! Nix and manifest expressions; `eval_plan` records pure Cixfile evaluation;
-//! `fetch` owns credential consent; `fhs` owns FHS-loader diagnosis; `lock`
-//! owns persisted pins and memo records; `model` defines the shared language
-//! model; `scratch` owns temporary build state; `seccomp` owns network policy;
-//! and `trace` captures read sets. New build feature strata belong in their own
-//! module.
+//! - `build_chain`: conducts ordered build-step execution and sandbox use.
+//! - `codegen`: emits Nix and manifest expressions.
+//! - `eval_plan`: records pure Cixfile evaluation.
+//! - `fetch`: owns credential consent and fetch inputs.
+//! - `fhs`: diagnoses FHS-loader compatibility.
+//! - `lock`: owns persisted pins and memo records.
+//! - `model`: defines the shared Cixfile language model.
+//! - `scratch`: owns temporary build-state lifecycle.
+//! - `seccomp`: owns build network policy.
+//! - `trace`: captures build read sets.
+//!
+//! New build feature strata belong in their own module.
 
 /// Whether `CIX timing …` instrumentation lines are emitted on stderr.
 /// Opt-in via the CIX_TIMING env var so the measurement harness gets its

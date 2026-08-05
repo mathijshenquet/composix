@@ -1,6 +1,6 @@
 # shell-directive — the RUN/FETCH interpreter as a declared dependency (CIP-light)
 
-Status: **draft, CIP-light** (2026-08-05; from Mathijs: "waarom zo hard
+Status: **superseded** by draft/nodes-and-edges.md (2026-08-05: the SHELL-directive shape imports Docker's mutable-state wart; the argv-first round replaced it with per-line fences) (2026-08-05; from Mathijs: "waarom zo hard
 coupelen aan bash? misschien wil ik mijn Cixfiles in fish of zsh").
 
 **Problem.** RUN/FETCH execute through bash today, but the coupling is

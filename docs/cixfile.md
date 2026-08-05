@@ -137,7 +137,7 @@ START sh /bin/start
 `SCRIPT` was removed; the parser reports the `COPY` plus explicit-shell migration instead of
 accepting an alias.
 
-<a id="link"></a>`LINK <source> <destination>` is a deprecated alias for the equivalent `COPY`, during the corpus transition only.
+<a id="link"></a>`LINK` was removed. Use `COPY <source> <destination>`; the parser rejects the old directive and points here.
 
 <a id="syntax"></a>
 
@@ -393,7 +393,7 @@ new consumed path forces the builder to run so it can be recorded. `cix build --
 every consumed path with the warm result; a
 mismatch names the exact COPY and Cixfile line. It replays already pinned FETCH deltas and never
 contacts the network: cold proves builder reproducibility, while trust in fetched bytes is the
-FETCH pin. `--no-cache` remains a deprecated alias for `--cold`.
+FETCH pin.
 
 There are two intentionally different fetch forms:
 

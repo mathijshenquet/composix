@@ -26,6 +26,8 @@ static KEEP_SCRATCH: AtomicBool = AtomicBool::new(false);
 // so SIGINT/SIGTERM can clean every active tree before restoring the default
 // signal action; this narrow registry is the required shared ownership.
 static LIVE: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+// Signal handlers are process-global, so this Once prevents duplicate handler
+// threads when more than one build setup path requests scratch cleanup.
 static SIGNAL_CLEANUP: Once = Once::new();
 
 pub fn configure(keep_scratch: bool) {
