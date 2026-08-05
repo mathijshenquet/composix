@@ -16,11 +16,15 @@
 
 ## 2026-08-05 — regen4 staging-friction harvest
 
-- Adminer staging reported that a generated `output/` directory could not be declared non-input for cold replay. The current cold receipt passed, so this is retained as a disproved staging observation rather than promoted to a false language draft. nginx staging's runtime-state lesson is adopted in `docs/migrate.md`: pid files and Unix sockets belong below declared `RUNDIR`, never `/tmp`. Wallos staging's health-probe grammar stumble is additional evidence in `cips/draft/probe-url.md`; its `ProtectHome` post-probe `203/EXEC` remains a case evidence wall.
+- Adminer staging reported that a generated `output/` directory could not be declared non-input for cold replay. The current cold receipt passed, so this is retained as a disproved staging observation rather than promoted to a false language draft. nginx staging's runtime-state lesson is adopted in `docs/migrate.md`: pid files and Unix sockets belong below declared `RUNDIR`, never `/tmp`. Wallos staging's health-probe grammar stumble is additional evidence in accepted CIP-109; its `ProtectHome` post-probe `203/EXEC` remains a case evidence wall.
 
 ## 2026-08-05 — regen4 origin/main integration
 
 - Merged `origin/main` at `bbdc2ce`, including CIP-93 leg 2's contract-keyed progressive VM selector. The merge was clean: its selector/process files do not overlap this track's corpus, receipt, or migration-teaching changes. Next: rerun the complete agent tier with captured exit statuses; a corpus/docs-only diff is expected to select no VM scenarios under the new contract map.
+
+## 2026-08-05 — regen4 CIP-99 integration
+
+- Merged `origin/main` at `2d89569` (CIP-99 lock aggregation) cleanly. Regenerated the corpus browser rather than hand-merging its pages (exit 0); it had no further output drift. Updated the journal's moved probe URL reference to accepted CIP-109. Captured exit-0 receipts: fmt, examples formatting, warning-denied clippy, full workspace tests, tour regeneration, and zero tour drift. The contract-keyed selector inspected the CIP-99 build tracing surfaces but selected 0/14 VM contracts, then exited 0; this is the expected cheap path for this diff.
 
 ## 2026-08-05 — regen4 post-merge receipts
 
