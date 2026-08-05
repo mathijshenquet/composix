@@ -396,3 +396,51 @@
   `docs/corpus/` pages changed only because the required ledger ribbons did.
   The full flake matrix remains reserved for the orchestrator's independent
   pre-merge gate. Ready for final documentation commit and handoff.
+
+## 2026-08-05 — track/cip103-leg1
+
+- Started CIP-103 leg 1 at `8a081e6`. Scope is strictly deletion of the
+  commented FETCH extraction residue, deletion of the audit-proved unreachable
+  `codegen.rs` test module, and a byte-identical move of build-chain tests to a
+  sibling test file. The crate-root module map will become exhaustive. The
+  worktree started clean; no behavior, corpus, lock, or fixture edits are in
+  scope. Next: apply the mechanical move, inspect its diff, then run the agent
+  tier with synchronous captured exits.
+
+- Applied the pure move/deletion. `build_chain.rs` is now 3,348 lines (the
+  254-line FETCH residue and 772-line inline test module are gone); its 768
+  test-body lines now live in `build_chain_tests.rs` through a child test
+  module, preserving private access and every test assertion. `codegen.rs`
+  lost the audit's 148-line `#[cfg(all(test, any()))]` module. The module map
+  now names all ten direct production modules. Synchronous focused receipt:
+  `devenv shell -- cargo test -p cix-build` exited 0 (38 unit tests, including
+  all moved `build_chain::tests`). Next: format, inspect the move proof, make
+  granular commits, then run the complete agent tier.
+
+- The source change is committed in two compile-valid, narrow commits:
+  `d6023f0 build: remove obsolete fetch and codegen test residue` (251-line
+  FETCH copy plus 149-line disabled codegen tests) and `fc462f1 test(build):
+  move build chain tests beside conductor` (test-file move plus exhaustive
+  module map). `cargo fmt --all` made only layout changes in the moved file;
+  the whitespace-normalized old inline test body and new file compare equal.
+  Next: wait for any shared-manager work, then run the synchronous full agent
+  gate and focused progressive VM selection from this committed source.
+
+- Gate coordination: `systemctl --user list-jobs` found another suite's active
+  `cix-private-devices-probe-2341500-1785922635090529821.service` start job.
+  Per the shared-manager rule, waiting before starting this track's tour/VM
+  gate; no manager work has been launched by this track yet.
+
+- Gate receipts on committed `fc462f1`: after the foreign manager job cleared,
+  one foreground capture-as-epilogue run wrote `.gate-exit` = `0` after
+  `cargo fmt --all --check`, `cargo run -- fmt --check examples`, warning-denied
+  workspace clippy, `cargo test --workspace`, tour regeneration, a clean
+  `git diff --exit-code -- docs/tour`, and the full tour drift test. The
+  progressive selector compared `fc462f1` to `d6023f0`, declared all fourteen
+  scenario derivations changed, and selected every scenario (no hand-picking).
+  Its first foreground stream lost its terminal status after completing; the
+  exact selector was rerun with an epilogue capture at
+  `/tmp/composix-cip103-leg1-vm-exit`, which contains numeric exit `0`.
+  No corpus, lock, fixture, or generated-document change remains. Final state:
+  source is committed; this required uncommitted LOG entry is the only
+  worktree change; do not merge.
