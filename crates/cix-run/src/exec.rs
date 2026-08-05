@@ -8,7 +8,7 @@ use std::process::{self, Command};
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
-use crate::runtime::current_uid;
+use crate::manager::current_uid;
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
 
 pub struct ExecOptions {
