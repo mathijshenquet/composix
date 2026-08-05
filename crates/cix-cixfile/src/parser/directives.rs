@@ -1113,6 +1113,37 @@ impl Parser<'_> {
         Ok(())
     }
 
+    pub(super) fn stop_signal(
+        &mut self,
+        line: usize,
+        source: &str,
+        arguments: &str,
+    ) -> Result<(), ParseError> {
+        self.require_artifact_kind(
+            "STOPSIGNAL",
+            line,
+            source,
+            &[ArtifactKind::Service, ArtifactKind::App],
+        )?;
+        let signal = exact_fields(arguments, 1, line, source, "STOPSIGNAL <signal>")?[0];
+        if !known_signal(signal) {
+            return Err(ParseError::new(
+                line,
+                source,
+                format!("STOPSIGNAL requires a known signal name, got {signal:?}"),
+            ));
+        }
+        let service = self.current_service_mut("STOPSIGNAL", line, source)?;
+        if service.stop_signal.replace(signal.to_owned()).is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "STOPSIGNAL is already declared for this artifact",
+            ));
+        }
+        Ok(())
+    }
+
     fn validate_device_path(path: &str, line: usize, source: &str) -> Result<(), ParseError> {
         let path = std::path::Path::new(path);
         if !path.is_absolute()
@@ -1287,6 +1318,7 @@ impl Parser<'_> {
             "LISTENER",
             "READINESS",
             "LIVENESS",
+            "STOPSIGNAL",
             "STATEDIR",
             "CACHEDIR",
             "LOGDIR",
@@ -1402,4 +1434,41 @@ impl Parser<'_> {
             .insert(name.to_owned(), DeclaredName { kind, line });
         Ok(())
     }
+}
+
+fn known_signal(signal: &str) -> bool {
+    matches!(
+        signal,
+        "SIGHUP"
+            | "SIGINT"
+            | "SIGQUIT"
+            | "SIGILL"
+            | "SIGTRAP"
+            | "SIGABRT"
+            | "SIGBUS"
+            | "SIGFPE"
+            | "SIGKILL"
+            | "SIGUSR1"
+            | "SIGSEGV"
+            | "SIGUSR2"
+            | "SIGPIPE"
+            | "SIGALRM"
+            | "SIGTERM"
+            | "SIGSTKFLT"
+            | "SIGCHLD"
+            | "SIGCONT"
+            | "SIGSTOP"
+            | "SIGTSTP"
+            | "SIGTTIN"
+            | "SIGTTOU"
+            | "SIGURG"
+            | "SIGXCPU"
+            | "SIGXFSZ"
+            | "SIGVTALRM"
+            | "SIGPROF"
+            | "SIGWINCH"
+            | "SIGIO"
+            | "SIGPWR"
+            | "SIGSYS"
+    )
 }

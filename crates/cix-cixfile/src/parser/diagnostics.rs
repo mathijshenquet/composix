@@ -29,6 +29,7 @@ pub(super) const LIVE_DIRECTIVES: &[&str] = &[
     "RUNDIR",
     "CLAIM",
     "SHM",
+    "STOPSIGNAL",
 ];
 
 struct Migration {
