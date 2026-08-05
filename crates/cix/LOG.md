@@ -821,3 +821,17 @@
   measured CIP amendment are committed as `25cd6f3` and `eee46f0`; next:
   commit this receipt-only log entry and leave the branch clean for independent
   orchestrator verification.
+
+- 2026-08-05T13:10:50Z — Merged current `origin/main` (`d0b1f84`, CIP-107
+  prune plus CIP-108 guardrails) as `6987dd8` without textual conflicts, then
+  checked the overlap semantically. The new crate-root module maps remain
+  covered by the contract classifier's crate-source rules; parser/directive
+  changes are the build surface, while the module-map roots are intentionally
+  cross-cutting. `scripts/check-source-size.sh` exited 0, including exhaustive
+  module-map validation. The new shared-state audit found 14 sites; every site
+  has the required local rationale. Merged-tree dry receipts against
+  `origin/main`: old selector 14/14, exit 0, 23.797s selection; new selector
+  14/14, exit 0, 11.915s selection, with every changed path classified and the
+  contract manifest correctly forcing all scenarios. Next: independently
+  execute both matrices with bounded parallelism, then repeat the complete
+  agent tier on the merged tree.
