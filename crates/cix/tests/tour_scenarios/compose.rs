@@ -38,15 +38,20 @@ pub(crate) fn chapter_compose() -> String {
         .find(|line| line.starts_with("cix-run-") && line.ends_with(".service"))
         .expect("cix run printed a listener unit")
         .to_owned();
+    let listener_socket = listener_unit
+        .strip_suffix(".service")
+        .expect("listener unit has a service suffix")
+        .to_owned()
+        + "-http.socket";
     wait_for_http(&listen, "LISTEN_FDS=1; no socket() authority");
     let response = doc.sh(&format!("curl -fsS http://{listen}"), true);
     assert_eq!(response.trim(), "LISTEN_FDS=1; no socket() authority");
     doc.sh_with_env(
-        "systemctl --user stop \"$unit\"",
+        "socket=${unit%.service}-http.socket; systemctl --user stop \"$socket\"; systemctl --user stop \"$unit\"",
         &[("unit", &listener_unit)],
         true,
     );
-    wait_for_user_units_gone([listener_unit.as_str()])
+    wait_for_user_units_gone([listener_unit.as_str(), listener_socket.as_str()])
         .expect("listener receipt unloads after stop");
     stop_empty_cix_run_slice("the compose listener receipt");
 
