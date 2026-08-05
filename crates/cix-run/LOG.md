@@ -33,6 +33,16 @@
   commit the lock/browser update, then rerun workspace and tour gates with
   captured numeric statuses.
 
+- 2026-08-05 UTC — Final gate receipts use the approved explicit exit-status
+  capture in ignored `.dev/scratch/`: `cargo test -p cix --test tour --
+  --ignored generate_tour` recorded `0`; `cargo test -p cix --test tour`
+  recorded `0`; and `cargo test --workspace --quiet -- --test-threads=1`
+  recorded `0`. The serial setting is the established protection for this
+  host's user-manager test race. Alongside the prior synchronous 0 receipts
+  (fmt, examples fmt, warning-denied clippy, corpus generation/drift,
+  cix-run suite, progressive VM selector, Wallos fetch and build), the CIP-98
+  agent tier is genuinely green.
+
 - 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
   current project context. The collision is the cix-run mount/role overlap
   validator plus property emission order. Conventional implementation choice:
