@@ -1,0 +1,5 @@
+Repository: https://github.com/docker-library/httpd.git
+Resolved revision: 9b63b37c9be3b42d16b924ebb40af3cc40793119
+Context path: 2.4/alpine
+Dockerfile: Dockerfile
+Natural probe: GET / "It works!"

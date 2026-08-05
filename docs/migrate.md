@@ -325,7 +325,7 @@ never in `/tmp`. A role path makes the ownership and lifecycle explicit: for
 example, nginx should use `RUNDIR /run/nginx` with `pid /run/nginx/nginx.pid;`,
 and a PHP-FPM socket should live below its declared runtime role.
 
-Prefer stdout/stderr over a log directory when the application supports it. `APP` permits
+Prefer stdout/stderr over a log directory when the application supports it. Do not preserve Docker's `/proc/self/fd/*` or `/dev/stdout` log symlinks blindly: those fd paths can be unavailable in the service sandbox. When an application must write log files, declare its real log path with `LOGDIR` and configure the process to write there. `APP` permits
 only `STATEDIR` and `CACHEDIR`; it has no ports, listeners, setup hook, or log/config/run role
 directories. Use undecorated `DIR /media:ro` only for pre-existing operator-supplied
 content. Compose maps it through explicit `host:`/`shared:`/`as:` materialization:

@@ -1,0 +1,5 @@
+Repository: https://github.com/valkey-io/valkey-container.git
+Resolved revision: b2ecf7da2cf3c7ed28869e9af0709876f0991497
+Context path: 8.1/alpine
+Dockerfile: Dockerfile
+Natural probe: valkey-cli PING

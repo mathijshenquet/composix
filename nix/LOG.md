@@ -1,5 +1,12 @@
 # VM dogfood log
 
+- 2026-08-05: `track/expand2` adds the four new Docker corpus cases HAProxy,
+  httpd, Mosquitto, and Valkey to `downgradedCorpus`. Each has an independent
+  per-case source-build receipt, but none claims or supplies a CIP-84
+  closed-root contract/fixture; the exhaustive roster must classify that fact
+  rather than treating a new directory as implicitly green. The focused
+  selector initially caught the 24-vs-28 mismatch before this explicit update.
+
 - 2026-08-04T00:00:00Z: Phase 2 implementation and selection receipts:
   `47ca63c` adds `nix run .#progressive-vm-check`, which compares current and
   base scenario `drvPath`s using Nix evaluation, prints every selected/skipped
