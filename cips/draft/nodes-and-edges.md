@@ -86,6 +86,24 @@ edges, interpolation); inside it everything is the named interpreter.
    per-line explicitness beats block or file state, per the
    systemd/GHA lesson and Docker's SHELL wart.
 
+**Edge granularity — why LET keys precisely and ENV honestly-coarsely**
+(Mathijs's follow-up: "moet je env vars dan niet ook traceren?"). File
+edges are precise because reads are syscalls strace can see. Env reads
+are structurally unobservable: the block is handed wholesale at
+`execve`, `getenv` is a memory access, and the tools ENV exists for
+read wholesale anyway (npm prefix-scans all of environ) — their honest
+read-set IS the whole environment. Today every builder ENV is a
+chain-prefix step, so any change invalidates all subsequent steps.
+The triad fixes granularity exactly where it can be fixed: the
+frequently-changing population (versions/hashes) becomes LETs, whose
+edges appear per-use in resolved step text and therefore key
+precisely; the residual ENV population is rarely-changing and
+wholesale-read, where prefix-coarse keying states the truth rather
+than approximating it (the CIP-102 pattern: precision where
+observable, declared coarseness where not). A later refinement exists
+if dogfood demands it — per-step declared env subsets, keying each
+step on only the ENVs it receives — recorded as direction, not built.
+
 **Considered and rejected — runtime session-shells** (a Cixfile "in"
 nushell/fish/pwsh with carried variable state): state blobs are opaque
 to tracing, so memos degrade to whole-blob keying (Docker-layer
