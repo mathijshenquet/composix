@@ -48,3 +48,7 @@ Changelog:
 - 2026-08-05 — amendment: startup sweep now removes owned `cix-*` scratch
   trees older than six hours. One day retained 82 interrupted multi-GB trees
   and filled `/var/tmp`; normal cleanup-on-exit remains the primary path.
+- 2026-08-05 — amendment: every live scratch tree has an on-disk owner-lock
+  sidecar outside its build input tree.
+  Startup sweeping skips a lock held by another cix process regardless of age,
+  while still promptly removing old unlocked trees.
