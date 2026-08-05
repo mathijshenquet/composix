@@ -23,6 +23,13 @@
 
 - `origin/main` advanced to `f67d2ea` with merged track/envgrammar. Per orchestrator instruction, merge it into `track/cip102`: CIP-102's EXPECT removals and teaching remain authoritative; main's `ENV NAME=value` grammar and generated-artifact canon remain authoritative. Regenerate, rather than hand-merge, the corpus browser and any affected generated output, then reset stale user `cix-*` units and rerun the complete agent tier serially with synchronous receipts.
 
+## 2026-08-05 — envgrammar integration complete, green
+
+- Merged `origin/main` as `f722fee` after semantic resolution. Main's `ENV NAME=value` canon and optional-ENV removal win in every touched Cixfile/GAPS row; CIP-102's removed volatile whole-tree EXPECTs, TOFU consumed pins, vendor checksum/GPG verification, diagnostic, and migration teaching remain intact. Rebuilt the conflicted corpus browser with `devenv shell -- cargo test --test corpus -- --ignored generate_corpus_browser` (exit 0), rather than hand-merging generated pages.
+- Before the serial gate, ran `systemctl --user reset-failed 'cix-*'` and `systemctl --user stop cix-run.slice`; both exited 0. Disk guard: `/` 304 GiB free and `/tmp` 491195 inodes free.
+- Complete synchronous exit-0 agent-tier receipts: `devenv shell -- cargo fmt --all --check`; `devenv shell -- target/debug/cix fmt --check examples`; `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell -- cargo test --workspace`; `devenv shell -- cargo test --test tour -- --ignored generate_tour`; `devenv shell -- cargo test -p cix --test tour tour_matches_committed_document -- --exact`; `devenv shell -- cargo test -p cix --test tour generated_tour_is_deterministic -- --exact`; and `devenv shell -- cargo test -p cix --test corpus` (browser drift and determinism included).
+- `devenv shell -- nix run .#progressive-vm-check` also exited 0 synchronously. Because the merged ENV grammar changes derivations, it selected and completed all 13 scenarios: closedroot-audit, devices, dirs2, gc-survival, health, health-systemd257, lifecycle, netns, observability, secrets, side-by-side, tree, and update-repin. Final `git diff --check` passed and stale user `cix-*` units were reset/stopped again.
+
 2026-07-30 — migrate round N=1, target whoami
 verdict: docker build=pass; docker run=pass; docker check=pass; cix build=pass; cix run=pass; cix check=pass.
 prompt-gaps verbatim:
