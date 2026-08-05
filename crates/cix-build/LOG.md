@@ -1,5 +1,30 @@
 # cix-build work log
 
+- 2026-08-05T14:20:00Z — Final agent-tier receipts: fmt, example fmt,
+  warning-denied clippy, corpus-browser generation, and corpus drift all exit
+  0. The serialized workspace receipt exits 101 only in the pre-existing
+  user-manager tour race: the foreign test’s 60-second decoy ends before its
+  cleanup after rendering, then poisons the renderer lock. The isolated tour
+  generator exits 0 and leaves no `docs/tour` drift; a fresh independent
+  renderer run reproduces the host-only `second web run printed its unit`
+  assertion. The bounded automatic VM selector (`--max-jobs 2 --cores 2`)
+  exits 1 in the unrelated health scenario: under concurrent VM load its
+  watchdog kills the service before the journal assertion, followed by the
+  runner’s `Invalid BuildResult status` error. Do not call this track green
+  until the orchestrator has a clean serialized VM/tour environment.
+
+- 2026-08-05T14:00:00Z — Implemented CIP-99 lock-scale. `ReadDependency`
+  now has a recursive `subtree` digest selected only for a bottom-up complete
+  stable tree (listed directories plus content observations of every child);
+  validation re-walks the same tree and any narrower/volatile observation
+  stays per-path. Complete output trees use one replay-root change record;
+  wholly removed trees use one absent root. Focused trace tests pass. Clean
+  HEAD controls and this branch produced the same current output store paths
+  for parse-server, echo-server, and phpMyAdmin. Regenerated lock counts:
+  parse-server 197,888 -> 54,915; echo-server 19,622 -> 19,620 (partial
+  reads deliberately cannot collapse); phpMyAdmin 15,539 -> 461. Next: full
+  agent tier and focused VM receipt.
+
 - 2026-08-05T00:35:00Z — Committed CIP-108 (`Add CIP-108 structural
   guardrails`) after the staged whitespace review. The branch is ready for
   independent orchestrator review and its full flake gate; do not merge from

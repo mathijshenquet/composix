@@ -1,5 +1,36 @@
 # Cixfile track work log
 
+- 2026-08-05T14:20:00Z — Gate status: synchronous fmt, example-format,
+  warning-denied clippy, corpus-browser generation, and corpus drift receipts
+  are exit 0. Full workspace exits 101 on the known user-manager tour race;
+  generator itself succeeds and leaves no tour diff, while a fresh drift
+  renderer repeats `second web run printed its unit`. Bounded progressive VM
+  (`--max-jobs 2 --cores 2`) exits 1 in an unrelated health watchdog/journal
+  assertion under VM contention, followed by `Invalid BuildResult status`.
+  The track is implementation-complete but not gate-green; leave the exact
+  receipts for an uncontended orchestrator rerun.
+
+- 2026-08-05T14:00:00Z — CIP-99 implementation and corpus exhibit pass is
+  complete. The chosen lock convention is a recursive `subtree` read digest
+  (sorted child name/kind/hash) and a single replay-root output change; only
+  literally complete stable trees qualify. Clean-HEAD controls prove current
+  output store paths unchanged: parse-server
+  `i6ra3ln7il45xj0nqrilbl5rx5pkqnp1`, echo-server
+  `hvr3vmwaba7ci38gc0f3009p13iq9vm1`, phpMyAdmin
+  `zwl9b7v9slrqyli8z26nj2lln2r5f7ls`. Regenerated locks: 197,888 -> 54,915;
+  19,622 -> 19,620 (partial read stays exact); and 15,539 -> 461 lines.
+  Next: full synchronous agent tier, drift checks, and bounded focused VM.
+
+- 2026-08-05T13:05:00Z — Started `track/cip99-lockscale`. Read the assigned
+  specification, adopted CIP-99, project session/design context, and this
+  crate journal; direnv confirms devenv is active. The implemented decision is
+  bottom-up, semantically lossless aggregation of only fully observed stable
+  subtrees in each step’s read/change records; a partial read and volatile
+  facts remain individually represented. Next: trace the memo validation and
+  replay invariants, add representation and regression coverage, regenerate
+  the affected corpus locks with byte-identical output receipts, then take the
+  full synchronous agent gate tier and focused VM receipt.
+
 - 2026-08-05T12:35:00Z — Completed CIP-107’s independent prune and the full
   agent-side gate. Captured exit-0 receipts: `cargo fmt --all --check`, `cix
   fmt --check examples`, warning-denied workspace clippy, full `cargo test

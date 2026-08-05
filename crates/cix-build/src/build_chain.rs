@@ -430,7 +430,9 @@ fn execute_top_fetch(
         trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
     retain_nonvolatile_reads(&mut reads, &step_volatile);
     trace::record_workspace_fingerprints(work.path(), &mut reads, &observations.writes)?;
+    trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
     changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+    trace::aggregate_full_change_subtrees(trace_before.path(), work.path(), &mut changes)?;
     let output_hashes = memo_output_hashes(work.path(), &changes)?;
     let step_output = (!changes.is_empty())
         .then(|| add_step_output_snapshot(work.path(), &changes, &step_volatile))
@@ -929,7 +931,9 @@ fn execute_builder(
                 }
                 retain_nonvolatile_reads(&mut reads, &step_volatile);
                 trace::record_workspace_fingerprints(&workdir, &mut reads, &observations.writes)?;
+                trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
                 changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+                trace::aggregate_full_change_subtrees(trace_before.path(), &workdir, &mut changes)?;
                 if !is_fetch {
                     invalidate_fetch_output_fingerprints(
                         &mut output_fingerprints_by_memo,
@@ -1608,7 +1612,7 @@ fn memo_write_set_matches_workspace(
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => return Err(error.into()),
             },
-            StepChange::Present | StepChange::Directory { .. } => {
+            StepChange::Present | StepChange::Subtree { .. } | StepChange::Directory { .. } => {
                 if !memo_output_matches_workspace(memo, workspace, path, output_fingerprints)? {
                     return Ok(false);
                 }
@@ -1838,7 +1842,7 @@ fn apply_step_memo(
     let mut present = memo
         .changes
         .iter()
-        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .filter(|(_, change)| matches!(change, StepChange::Present | StepChange::Subtree { .. }))
         .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
     present.sort_by_key(|path| path.matches('/').count());
@@ -1864,8 +1868,9 @@ fn apply_step_memo(
         apply_started.elapsed().as_millis()
     );
     for (relative, change) in &memo.changes {
-        let StepChange::Directory { mode } = change else {
-            continue;
+        let mode = match change {
+            StepChange::Directory { mode } | StepChange::Subtree { mode } => mode,
+            _ => continue,
         };
         let path = if relative == "." {
             workspace.to_owned()
@@ -1885,7 +1890,7 @@ fn add_step_output_snapshot(
     let delta = ScratchDir::new("cix-step-delta-").context("creating step output delta")?;
     let mut present = changes
         .iter()
-        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .filter(|(_, change)| matches!(change, StepChange::Present | StepChange::Subtree { .. }))
         .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
     present.sort_by_key(|path| path.matches('/').count());
@@ -1929,11 +1934,11 @@ fn retain_replay_roots(
     for (root, previous_change) in &previous.changes {
         let path = workspace.join(root);
         match (previous_change, fs::symlink_metadata(&path)) {
-            (StepChange::Present, Ok(_)) => {
+            (change @ (StepChange::Present | StepChange::Subtree { .. }), Ok(_)) => {
                 changes.retain(|candidate, _| !same_or_descendant(candidate, root));
-                changes.insert(root.clone(), StepChange::Present);
+                changes.insert(root.clone(), change.clone());
             }
-            (StepChange::Present | StepChange::Absent, Err(error))
+            (StepChange::Present | StepChange::Subtree { .. } | StepChange::Absent, Err(error))
                 if error.kind() == io::ErrorKind::NotFound =>
             {
                 changes.insert(root.clone(), StepChange::Absent);

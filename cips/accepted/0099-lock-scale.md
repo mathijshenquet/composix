@@ -62,3 +62,12 @@ Adopted 2026-08-04. The four turns, honestly:
 
 Effect target: parse-server 400k -> hundreds of lines; per-dependency
 FETCH pins and their diffability untouched.
+
+## Changelog
+
+- 2026-08-05 — Implemented: stable fully observed read trees serialize as one
+  recursive `subtree` digest, while complete output trees serialize as one
+  replay root. The digest is over sorted `(name, kind, hash)` children;
+  partial and volatile observations remain per-path. Clean-HEAD controls
+  retained identical output store paths while parse-server and phpMyAdmin
+  locks shrank substantially; echo-server’s partial tree stayed precise.
