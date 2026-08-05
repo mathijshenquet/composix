@@ -1,58 +1,43 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
 
-BUILDER frontend
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gnused} ${pkgs.nodejs} ${pkgs.cacert}
+BUILDER web
+  IMPORT ${pkgs.bash} ${pkgs.nodejs_24} ${pkgs.pnpm}
+  COPY ${src}/context/pnpm-lock.yaml .
+  COPY ${src}/context/pnpm-workspace.yaml .
+  FETCH pnpm fetch --ignore-scripts
+  COPY ${src}/context/package.json .
+  RUN pnpm install --offline --ignore-scripts
+  COPY ${src}/context/vite.config.ts .
+  COPY ${src}/context/tsconfig.json .
+  COPY ${src}/context/.prettierrc.cjs .
+  COPY ${src}/context/.npmrc .
+  COPY ${src}/context/assets assets
+  COPY ${src}/context/locales locales
+  COPY ${src}/context/public public
   ENV CI=true
-  ENV CLOUD_URL=https://cloud.dozzle.dev
-  ENV COREPACK_HOME=$PWD/.corepack
-  ENV PNPM_HOME=$PWD/.pnpm-home
-  COPY context/pnpm-lock.yaml pnpm-lock.yaml
-  COPY context/pnpm-workspace.yaml pnpm-workspace.yaml
-  COPY context/package.json package.json
-  FETCH corepack pnpm fetch --ignore-scripts --store-dir $PWD/.pnpm-store && test -r package.json
-  COPY context/vite.config.ts vite.config.ts
-  COPY context/tsconfig.json tsconfig.json
-  COPY context/.prettierrc.cjs .prettierrc.cjs
-  COPY context/.npmrc .npmrc
-  COPY context/assets assets
-  COPY context/locales locales
-  COPY context/public public
-  RUN <<BUILD
-frontend_root=$PWD
-frontend_tmp=/tmp/dozzle-frontend
-rm -rf "$frontend_tmp"
-mkdir -p "$frontend_tmp"
-cp package.json pnpm-lock.yaml pnpm-workspace.yaml vite.config.ts tsconfig.json .prettierrc.cjs .npmrc "$frontend_tmp"/
-cp -r assets locales public "$frontend_tmp"/
-cd "$frontend_tmp"
-node "$frontend_root/.corepack/v1/pnpm/11.17.0/bin/pnpm.cjs" install --offline --frozen-lockfile --ignore-scripts --store-dir "$frontend_root/.pnpm-store" --node-linker=hoisted
-node node_modules/vite/bin/vite.js build
-rm -rf "$frontend_root/dist"
-cp -r dist "$frontend_root/dist"
-find "$frontend_root/dist" -exec touch -d @0 {} +
-rm -rf "$frontend_tmp"
-BUILD
+  ENV CLOUD_URL=
+  RUN pnpm build
 
-BUILDER backend
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.go} ${pkgs.cacert}
-  ENV CGO_ENABLED=0
-  ENV TAG=dev
-  COPY context/go.mod go.mod
-  COPY context/go.sum go.sum
-  ENV GOPATH=$PWD/.go
-  ENV GOCACHE=$PWD/.cache/go-build
+BUILDER go-build
+  IMPORT ${pkgs.bash} ${pkgs.go_1_26} ${pkgs.openssl} ${pkgs.cacert}
+  COPY ${src}/context/go.mod .
+  COPY ${src}/context/go.sum .
   FETCH go mod download
-  COPY context/internal internal
-  COPY context/proto proto
-  COPY context/types types
-  COPY context/main.go main.go
-  COPY context/protos protos
-  COPY ${frontend}/dist dist
-  RUN mkdir -p bin && go build -ldflags "-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=$TAG" -o bin/dozzle
+  COPY ${src}/context/internal internal
+  COPY ${src}/context/proto proto
+  COPY ${src}/context/types types
+  COPY ${src}/context/main.go .
+  COPY ${src}/context/protos protos
+  COPY ${web}/dist dist
+  RUN openssl genpkey -algorithm Ed25519 -out shared_key.pem
+  RUN openssl req -new -key shared_key.pem -out shared_request.csr -subj "/C=US/ST=California/L=San Francisco/O=Dozzle"
+  RUN openssl x509 -req -in shared_request.csr -signkey shared_key.pem -out shared_cert.pem -days 1825 && rm shared_request.csr
+  RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w -X github.com/amir20/dozzle/internal/support/cli.Version=dev" -o dozzle
 
 SERVICE dozzle
-  IMPORT ${backend} ${pkgs.cacert}
-  START dozzle
+  COPY ${go-build}/dozzle /dozzle
+  START /dozzle
   PORT http = 8080
   STATEDIR /data
-  CLAIM egress
+  DIR /var/run/docker.sock:ro
