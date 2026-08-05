@@ -1,0 +1,52 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.cmake} ${pkgs.cjson} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.gnugrep} ${pkgs.gnused} ${pkgs.gnumake} ${pkgs.gnupg} ${pkgs.gnutar} ${pkgs.gcc} ${pkgs.gzip} ${pkgs.linuxHeaders} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.pkg-config} ${pkgs.util-linux}
+  ENV VERSION=2.0.22
+  ENV DOWNLOAD_SHA256=2f752589ef7db40260b633fbdb536e9a04b446a315138d64a7ff3c14e2de6b68
+  ENV GPG_KEYS=A0D6EEA1DCAE49A635A3B2F0779B22DFB3E717B7
+  FETCH curl --fail --location https://mosquitto.org/files/source/mosquitto-$VERSION.tar.gz --output mosq.tar.gz && echo "$DOWNLOAD_SHA256  mosq.tar.gz" | sha256sum -c - EXPECT sha256-8LobuvzinnPOoFGcKeeR3amC4nfSa5ijN1g2ilcP5lg=
+  FETCH curl --fail --location https://mosquitto.org/files/source/mosquitto-$VERSION.tar.gz.asc --output mosq.tar.gz.asc EXPECT sha256-5WzB/nFTRjxAHJGomdnPeKAKXk83xMXtTB92T4Tb4+s=
+  FETCH curl --fail --location "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$GPG_KEYS&options=mr" --output mosquitto-key.asc EXPECT sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=
+  RUN <<BUILD
+set -e
+rm -f mosquitto-keyring.gpg
+gpg --batch --yes --dearmor --output mosquitto-keyring.gpg mosquitto-key.asc
+gpgv --keyring "$PWD/mosquitto-keyring.gpg" mosq.tar.gz.asc mosq.tar.gz
+mkdir -p mosq output
+tar --no-same-owner --strip-components=1 -xf mosq.tar.gz -C mosq
+make -C mosq -j "$(nproc)" CFLAGS="-Wall -O2 $(pkg-config --cflags openssl libcjson)" LDFLAGS="$(pkg-config --libs openssl libcjson)" WITH_ADNS=no WITH_DOCS=no WITH_SHARED_LIBRARIES=yes WITH_SRV=no WITH_STRIP=yes WITH_WEBSOCKETS=no prefix=/usr binary
+mkdir -p output/usr/bin output/usr/sbin output/usr/lib output/usr/share/licenses/mosquitto output/mosquitto/config
+install -m755 mosq/client/mosquitto_pub output/usr/bin/mosquitto_pub
+install -m755 mosq/client/mosquitto_rr output/usr/bin/mosquitto_rr
+install -m755 mosq/client/mosquitto_sub output/usr/bin/mosquitto_sub
+install -m644 mosq/lib/libmosquitto.so.1 output/usr/lib/libmosquitto.so.1
+install -m755 mosq/src/mosquitto output/usr/sbin/mosquitto
+install -m755 mosq/apps/mosquitto_ctrl/mosquitto_ctrl output/usr/bin/mosquitto_ctrl
+install -m755 mosq/apps/mosquitto_passwd/mosquitto_passwd output/usr/bin/mosquitto_passwd
+install -m755 mosq/plugins/dynamic-security/mosquitto_dynamic_security.so output/usr/lib/mosquitto_dynamic_security.so
+install -m644 mosq/mosquitto.conf output/mosquitto/config/mosquitto.conf
+install -m644 mosq/epl-v20 output/usr/share/licenses/mosquitto/epl-v20
+install -m644 mosq/edl-v10 output/usr/share/licenses/mosquitto/edl-v10
+BUILD
+
+SERVICE broker
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  ENV LD_LIBRARY_PATH=/usr/lib:/lib
+  COPY ${build}/output/usr/bin/mosquitto_pub /usr/bin/mosquitto_pub
+  COPY ${build}/output/usr/bin/mosquitto_rr /usr/bin/mosquitto_rr
+  COPY ${build}/output/usr/bin/mosquitto_sub /usr/bin/mosquitto_sub
+  COPY ${build}/output/usr/bin/mosquitto_ctrl /usr/bin/mosquitto_ctrl
+  COPY ${build}/output/usr/bin/mosquitto_passwd /usr/bin/mosquitto_passwd
+  COPY ${build}/output/usr/sbin/mosquitto /bin/mosquitto
+  COPY ${build}/output/usr/lib/libmosquitto.so.1 /usr/lib/libmosquitto.so.1
+  COPY ${build}/output/usr/lib/libmosquitto.so.1 /lib/libmosquitto.so.1
+  COPY ${build}/output/usr/lib/mosquitto_dynamic_security.so /usr/lib/mosquitto_dynamic_security.so
+  COPY ${build}/output/mosquitto/config/mosquitto.conf /mosquitto/config/mosquitto.conf
+  COPY ${src}/context/mosquitto-no-auth.conf /mosquitto-no-auth.conf
+  START mosquitto -c /mosquitto-no-auth.conf
+  PORT mqtt = 1883
+  STATEDIR /mosquitto/data
+  LOGDIR /mosquitto/log
+  CONFIGDIR /mosquitto/config

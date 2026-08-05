@@ -1,0 +1,5 @@
+Repository: https://github.com/eclipse-mosquitto/mosquitto.git
+Resolved revision: 5cd2546511596a269dbf53f85858c623b09ebdd6
+Context path: docker/2.0-openssl
+Dockerfile: Dockerfile
+Natural probe: MQTT pub/sub roundtrip
