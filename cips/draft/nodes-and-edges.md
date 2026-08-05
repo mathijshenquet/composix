@@ -75,13 +75,24 @@ named interpreter.
    (bash/fish/nushell/pwsh are the documented examples). A one-line
    pipe costs three lines — deliberate friction that pushes toward
    decomposition, consistent with the chain ban.
-3. **Node attachments are indented clauses** — one grammatical shape
-   for everything that hangs off a node: `WITH` (environment, below),
-   and `EXPECT` migrates to the same position for heredoc FETCHes
-   (`FETCH bash <<EOF … EOF` + indented `EXPECT sha256-…`), so the
-   phpmyadmin-class GPG pipeline has a home. Simple node = one line;
-   complex node = line + clauses + optional heredoc body — the
-   systemd/GHA block shape, graduated instead of mandatory.
+3. **Node attachments are adjacency-bound clauses** — one grammatical
+   shape for everything that hangs off a node: `WITH` (environment,
+   below), and `EXPECT` migrates to the same position for heredoc
+   FETCHes, so the phpmyadmin-class GPG pipeline has a home. Binding
+   is by ADJACENCY, not indentation (Mathijs, 2026-08-05): a clause
+   line must immediately follow its step line or another clause of
+   the same step — elsewhere it is a parse error. Indentation stays
+   what it already is in this language: cosmetic, canonicalized by
+   `cix fmt` (+2 under the node), enforced through the fmt/drift
+   gate — no significant-whitespace regime enters the parser, no
+   clash with the ITEM/SERVICE/BUILDER phase convention. For heredoc
+   nodes, clauses follow the terminator (`EOF` then the WITH/EXPECT
+   lines). Braces were considered and dropped (first `{}` block in a
+   keyword-driven grammar, buys nothing over adjacency+fmt); Docker's
+   `######` phase fences may be blessed as an fmt-preserved comment
+   convention, never as syntax. Simple node = one line; complex node
+   = line + clauses + optional heredoc body — the systemd/GHA block
+   shape, graduated instead of mandatory.
 4. **Binders: LET in, ENV out** (Mathijs, 2026-08-05: explicit
    per-node binding is "obviously correct"):
    - `LET NAME = value` — a text edge: file-local, interpolates as
