@@ -618,6 +618,16 @@ fn apply_host_capabilities(
         }
     }
 
+    for (name, value) in properties.clone() {
+        if let Some(reason) = capabilities.unsupported_directive_reason(&name) {
+            properties.retain(|(candidate, _)| candidate != &name);
+            degradations.push(UnitDegradation {
+                property: format!("{name}={value}"),
+                reason: reason.into(),
+            });
+        }
+    }
+
     degradations
 }
 
@@ -1382,6 +1392,32 @@ mod tests {
                 reason: "synthetic user-manager realization failure".into(),
             }]
         );
+    }
+
+    #[test]
+    fn verify_rejection_drops_only_its_directive() {
+        let (spec, config) = fixture();
+        let mut capabilities = HostCapabilities::all_supported();
+        capabilities
+            .unsupported_directives
+            .insert("PrivatePIDs".into(), "synthetic verify rejection".into());
+        let compiled = compile_unit_for_host(
+            Path::new("/nix/store/00000000000000000000000000000000-web"),
+            "web",
+            service(&spec),
+            &config,
+            UnitMode::UserFull,
+            &UnitCompileOptions::cix_run("web"),
+            &capabilities,
+        )
+        .unwrap();
+
+        assert!(!compiled.text.contains("PrivatePIDs="));
+        assert!(compiled.text.contains("ProtectSystem=strict"));
+        assert!(compiled.text.contains("ProtectHome=yes"));
+        assert!(compiled.text.contains("PrivateTmp=yes"));
+        assert_eq!(compiled.degradations.len(), 1);
+        assert_eq!(compiled.degradations[0].property, "PrivatePIDs=yes");
     }
 
     #[test]

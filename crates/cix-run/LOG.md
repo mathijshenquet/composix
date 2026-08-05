@@ -1,5 +1,49 @@
 # cix-run work log
 
+## track/cip97
+
+- 2026-08-05 UTC — Started CIP-97 after reading the accepted decision, track
+  spec, design D13/D36, and the existing runner capability/fallback seams.
+  The implementation will use one `systemd-analyze --user verify` batch over
+  generated directives, cache by manager identity/version for the process,
+  and retain runtime diagnostic fallback as the belt-and-braces path. The
+  conventional open implementation choice is a process-local cache: manager
+  identity and version cannot change during one cix invocation, while a
+  persistent cache would require invalidation and ownership policy not decided
+  by the CIP. Next: replace set-wide user fallback with directive-specific
+  probing and add a VM scenario assertion.
+
+- 2026-08-05 UTC — Implemented the user-manager batched verifier: it writes a
+  `.service` probe and runs `systemd-analyze --user verify`, recognizes the
+  diagnostic forms used by old and new systemd, caches rejected directives by
+  uid+manager version for this process, and rebuilds the unit omitting exactly
+  those properties. The old runtime diagnostic path now also retries an exact
+  Unknown-assignment omission before the D13 whole-floor fallback. Unit tests
+  prove a PrivatePIDs rejection preserves ProtectSystem, ProtectHome, and
+  PrivateTmp; the real user-manager integration test passed. Synchronous
+  receipts so far: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo test -p cix-run --lib`; `devenv shell -- cargo test -p cix-run --test
+  user_run`; and `devenv shell -- cargo clippy -p cix-run --all-targets -- -D
+  warnings` (all exit 0). Next: add the required VM scenario contract and run
+  the complete track gate tier.
+
+- 2026-08-05 UTC — Additional synchronous receipts: serial full workspace
+  tests (`devenv shell -- cargo test --workspace --quiet -- --test-threads=1`),
+  canonical examples formatting (`devenv shell -- cargo run -- fmt --check
+  examples`), and warning-denied workspace/all-target clippy all exited 0.
+  A concurrent `track/cip98` tour regeneration deleted this worktree's tracked
+  tour pages; after that foreign process exited, restored exactly `docs/tour/`
+  from this branch's HEAD. No tour or VM receipt is claimed from that raced
+  invocation. Next: commit the implementation; the remaining prescribed
+  tour/VM receipts must be serialized by the orchestrator.
+
+- 2026-08-05 UTC — Focused VM gate receipt captured by the sanctioned
+  `.gate-exit` pattern: `devenv shell -- nix run .#progressive-vm-check`
+  recorded the exact numeric status `0` in `.gate-exit`. The selector ran for
+  this head against `c0c95218b2214ad4cc385a4f767788992c632a58` and selected
+  all 14 changed scenarios. Removed the ignored receipt file only after
+  reading its `0`; the branch is ready for handoff.
+
 ## track/stopdispo
 
 - 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the

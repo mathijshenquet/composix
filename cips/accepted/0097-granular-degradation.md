@@ -51,3 +51,10 @@ per manager (rejected set cached by manager identity+version), unit
 generation omits exactly the unsupported directives with loud logs,
 runtime Unknown-assignment parsing as belt-and-braces, D13's degraded
 set as the unchanged floor.
+
+## Changelog
+
+- 2026-08-05: implementation uses a process-local cache keyed by user-manager
+  identity and version. A persistent cache would require an invalidation and
+  ownership policy that this CIP does not define; a manager cannot change
+  during one cix invocation.

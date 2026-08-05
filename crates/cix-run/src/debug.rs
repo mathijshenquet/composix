@@ -73,8 +73,17 @@ pub fn debug(options: DebugOptions) -> Result<()> {
     } else {
         UnitMode::System
     };
-    let capabilities = if options.user && !target.service.has_device_claim() {
-        HostCapabilities::probe_user()?
+    let baseline = debug_definition(
+        &target.output,
+        &target.name,
+        &target.service,
+        &config,
+        mode,
+        argv.clone(),
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = if options.user {
+        HostCapabilities::probe_user_directives(&baseline.properties)?
     } else {
         HostCapabilities::all_supported()
     };

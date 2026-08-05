@@ -630,7 +630,16 @@ fn start_service_with_options(
         };
     }
 
-    let capabilities = user_capabilities(service)?;
+    let baseline = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        UnitMode::UserFull,
+        &unit_options,
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = user_capabilities(service, &baseline.properties)?;
     let definition = build_unit_with_options(
         output,
         service_name,
@@ -675,12 +684,26 @@ fn start_service_with_options(
                     Err(error) => {
                         let error = with_unit_diagnostics(error, &capability_name, true);
                         let _ = stop_service(&capability_name, true);
-                        return namespace_fallback(output, service_name, service, config, error);
+                        return namespace_fallback(
+                            output,
+                            service_name,
+                            service,
+                            config,
+                            &without_capabilities,
+                            error,
+                        );
                     }
                 }
             }
 
-            namespace_fallback(output, service_name, service, config, full_error)
+            namespace_fallback(
+                output,
+                service_name,
+                service,
+                config,
+                &definition,
+                full_error,
+            )
         }
     }
 }
@@ -690,8 +713,26 @@ fn namespace_fallback(
     service_name: &str,
     service: &Service,
     config: &ResolvedConfig,
+    definition: &UnitDefinition,
     error: anyhow::Error,
 ) -> Result<StartedUnit> {
+    let rejected = unknown_assignment_names(&format!("{error:#}"));
+    if !rejected.is_empty() {
+        let fallback_name = format!("cix-run-{service_name}-{}.service", nonce());
+        for property in &rejected {
+            eprintln!(
+                "warning: dropped {property} after user-manager runtime rejection; systemd-analyze verify did not report it"
+            );
+        }
+        let names = rejected.iter().map(String::as_str).collect::<Vec<_>>();
+        let fallback = without_properties(definition, &names);
+        start_with_listeners(&fallback_name, true, output, config, &fallback)?;
+        return Ok(StartedUnit {
+            name: fallback_name,
+            user: true,
+            degraded: true,
+        });
+    }
     if !namespace_failure(&error) {
         return Err(error);
     }
@@ -713,6 +754,21 @@ fn namespace_fallback(
         user: true,
         degraded: true,
     })
+}
+
+fn unknown_assignment_names(diagnostics: &str) -> Vec<String> {
+    diagnostics
+        .lines()
+        .filter_map(|line| {
+            line.split_once("Unknown assignment: ")
+                .and_then(|(_, assignment)| assignment.split_once('=').map(|(name, _)| name))
+                .or_else(|| {
+                    line.split_once("Unknown key name '")
+                        .and_then(|(_, rest)| rest.split_once('\'').map(|(name, _)| name))
+                })
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 fn private_pids_fallback(
@@ -766,17 +822,26 @@ fn build_runtime_unit(
     closed_root: bool,
     unit_name: &str,
 ) -> Result<UnitDefinition> {
-    let capabilities = if mode == UnitMode::UserFull {
-        user_capabilities(service)?
-    } else {
-        HostCapabilities::all_supported()
-    };
     let mut options = UnitCompileOptions::cix_run(service_name);
     if closed_root {
         let root = options_for_unit(unit_name, mode != UnitMode::System)?;
         prepare(&root)?;
         options.closed_root = Some(root);
     }
+    let baseline = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &options,
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = if mode == UnitMode::UserFull {
+        user_capabilities(service, &baseline.properties)?
+    } else {
+        HostCapabilities::all_supported()
+    };
     build_unit_with_options(
         output,
         service_name,
@@ -788,12 +853,11 @@ fn build_runtime_unit(
     )
 }
 
-fn user_capabilities(service: &Service) -> Result<HostCapabilities> {
-    if service.has_device_claim() {
-        Ok(HostCapabilities::all_supported())
-    } else {
-        HostCapabilities::probe_user()
-    }
+fn user_capabilities(
+    _service: &Service,
+    properties: &[(String, String)],
+) -> Result<HostCapabilities> {
+    HostCapabilities::probe_user_directives(properties)
 }
 
 pub(crate) fn warn_degradations(degradations: &[UnitDegradation]) {
@@ -1926,6 +1990,14 @@ mod tests {
         ));
         assert!(should_stream_systemd_diagnostic(b"Failed to start unit\n"));
         assert!(should_stream_systemd_diagnostic(b"Unknown assignment: \n"));
+    }
+
+    #[test]
+    fn runtime_unknown_assignment_parser_is_directive_specific() {
+        assert_eq!(
+            unknown_assignment_names("Unknown assignment: PrivatePIDs=yes\n"),
+            vec!["PrivatePIDs"]
+        );
     }
 
     #[test]
