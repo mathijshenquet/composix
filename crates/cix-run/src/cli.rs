@@ -136,12 +136,7 @@ impl Command {
                 user,
                 command,
             }),
-            Self::Ps { json } => {
-                if json {
-                    anyhow::bail!("cix ps --json is handled by the top-level cix command")
-                }
-                crate::runtime::ps()
-            }
+            Self::Ps { .. } => anyhow::bail!("cix ps is handled by the top-level cix command"),
             Self::ClosedRootNss {
                 identity,
                 directory,

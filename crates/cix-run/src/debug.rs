@@ -4,12 +4,13 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
-use crate::runtime::{
-    capability_failure, current_uid, namespace_failure, nonce, resolve_service,
-    run_transient_foreground, warn_degradations, with_unit_diagnostics, without_properties,
-    without_user_capability_controls, ForegroundResult,
+use crate::manager::{
+    capability_failure, current_uid, namespace_failure, nonce, run_transient_foreground,
+    warn_degradations, with_unit_diagnostics, without_properties, without_user_capability_controls,
+    ForegroundResult,
 };
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
+use crate::target::{resolve_service, ResolvedService};
 use crate::unit::{build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode};
 
 pub struct DebugOptions {
@@ -143,7 +144,7 @@ pub fn debug(options: DebugOptions) -> Result<()> {
 }
 
 fn run_degraded(
-    target: &crate::runtime::ResolvedService,
+    target: &ResolvedService,
     config: &ResolvedConfig,
     argv: Vec<String>,
     interactive: bool,
