@@ -2,14 +2,19 @@
 //!
 //! ## Module map
 //!
-//! `model` owns strict persisted compose and lock shapes; `resolve` walks the
-//! tree and resolves item references; `directories` owns declared-directory
-//! materialization and its unit projection; `network` owns pod/publication
-//! types, validation, leases, and socket/namespace projections; `generation`
-//! conducts their deterministic unit ordering. `runtime` owns host lifecycle;
-//! `cli`, `observability`, and `ps` own their command projections. Health is
-//! intentionally compiled by `cix-run`, where the manifest-owned health types
-//! live. New compose feature strata belong in their own module.
+//! - `cli`: owns compose command-line parsing and dispatch.
+//! - `directories`: owns declared-directory materialization and unit projection.
+//! - `generation`: conducts deterministic unit ordering and rendering.
+//! - `model`: owns strict persisted compose and lock shapes.
+//! - `network`: owns pod/publication types, validation, leases, and projections.
+//! - `observability`: owns logs and stats command projections.
+//! - `ps`: owns compose process-status projections.
+//! - `resolve`: walks compose trees and resolves item references.
+//! - `runtime`: owns host lifecycle operations.
+//! - `tests`: owns crate-root unit coverage.
+//!
+//! Health is intentionally compiled by `cix-run`, where the manifest-owned
+//! health types live. New compose feature strata belong in their own module.
 
 pub mod cli;
 mod directories;

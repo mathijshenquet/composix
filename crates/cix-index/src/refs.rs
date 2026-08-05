@@ -561,6 +561,8 @@ mod tests {
             .publish("x", "old", metadata("x", "old", output("many-old")))
             .unwrap();
         let reader_store = store.clone();
+        // The reader thread observes publication atomicity, so this flag must
+        // be shared with the writer that ends the test.
         let done = Arc::new(AtomicBool::new(false));
         let reader_done = done.clone();
         let reader = thread::spawn(move || {

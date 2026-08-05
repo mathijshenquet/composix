@@ -1,5 +1,44 @@
 # cix-build work log
 
+- 2026-08-05T00:35:00Z — Committed CIP-108 (`Add CIP-108 structural
+  guardrails`) after the staged whitespace review. The branch is ready for
+  independent orchestrator review and its full flake gate; do not merge from
+  this track.
+
+- 2026-08-05T00:30:00Z — Full CIP-108 agent tier completed with synchronous
+  numeric exit-0 receipts: `devenv shell -- cargo fmt --all --check`, `devenv
+  shell -- cargo run -- fmt --check examples`, `devenv shell -- cargo clippy
+  --workspace --all-targets -- -D warnings`, `devenv shell -- cargo test
+  --workspace`, `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour`, and `git diff --exit-code -- docs/tour`. The bounded VM
+  receipt is `devenv shell -- nix run --max-jobs 2 --cores 2
+  .#progressive-vm-check` exit 0; it selected all 14 current scenario
+  derivations because the flake source-size check changed. The initial VM
+  attempt passed the bounds to the app and exited 2 before running scenarios;
+  the corrected command above is the only VM receipt. `git diff --check` is
+  clean. Next: stage the scoped changes, verify the staged diff, and commit;
+  full `nix flake check -L` remains the orchestrator gate.
+
+- 2026-08-05T00:10:00Z — Implemented CIP-108 against the current module
+  layout: standardized exhaustive maps for build, Cixfile, compose, index,
+  and run; documented intentional root-map omissions for the two single-module
+  roots; and made the source-size check compare declarations to map entries.
+  It now reports live/inline-test/total LOC, retains the 2,000 total ceiling,
+  and emits extraction diagnostics at 500 inline-test LOC. Added the required
+  shared-state inventory command to `AGENTS.md` and rationale comments at the
+  five audited sites. Direct `bash scripts/check-source-size.sh` completed
+  synchronously with exit 0; its live tree reports only the retained
+  `build_chain.rs` grandfather exception and extraction diagnostics for
+  compose generation/resolve tests. Next: format, review, then run the
+  prescribed gates with captured exit-status receipts.
+
+- 2026-08-05T00:00:00Z — Started `track/cip108-guardrails` (CIP-108).
+  Read the accepted decision, the P2 audit evidence, and the current crate
+  roots rather than the audit snapshot. The assigned journal is tracked by
+  established project convention. Next: make root maps mechanically
+  checkable, split source-size reporting into live/test/total, record the
+  shared-state audit command, and add the five missing site rationales.
+
 - 2026-08-05T02:10:00Z — Merged `origin/main` stop-disposition merge
   (`e5c75d0`) as `689ae38`; it was conflict-free, and review confirmed its
   STOPSIGNAL/KillSignal and compose `stopTimeout` strata do not overlap the

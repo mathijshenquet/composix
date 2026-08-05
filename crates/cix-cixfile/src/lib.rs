@@ -1,4 +1,15 @@
 //! Cixfile parsing, code generation, lock management, and build CLI.
+//!
+//! ## Module map
+//!
+//! - `build`: owns build orchestration and its typed options.
+//! - `cli`: owns Cixfile command-line parsing and dispatch.
+//! - `fmt`: owns Cixfile formatting.
+//! - `parser`: owns the grammar facade and its parser-internal strata.
+//! - `watch`: owns rebuild/watch orchestration.
+//!
+//! Parser submodules are intentionally mapped by `parser`, their direct owner;
+//! this crate-root map covers every direct module.
 
 mod build;
 pub mod cli;

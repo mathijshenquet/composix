@@ -764,6 +764,8 @@ mod tests {
             }"#,
             "{}",
         );
+        // The injected resolver is Fn rather than FnMut, so this local call
+        // log uses interior mutability without widening the production API.
         let calls = RefCell::new(Vec::new());
         let resolver = |reference: &str| {
             calls.borrow_mut().push(reference.to_owned());
@@ -1177,6 +1179,8 @@ mod tests {
                 ),
             ]),
         };
+        // The injected resolver is Fn rather than FnMut, so this local call
+        // log uses interior mutability without widening the production API.
         let calls = RefCell::new(Vec::new());
         let resolver = |reference: &str| {
             calls.borrow_mut().push(reference.to_owned());
