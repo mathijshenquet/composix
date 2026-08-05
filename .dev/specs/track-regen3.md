@@ -29,15 +29,45 @@ Header: `Generated: migrate.md@<staging commit> · gpt-5.6-luna ·
   item builds, probe it and grade the remaining offline-deploy
   boundary honestly (its row is ⏳ pending exactly this). If a new
   wall appears, exact error + gap bullet, no forcing.
-- **watchtower** — remains ❌ refused (Docker control plane); this
-  regen only removes the stale duplicate-COPY workaround from the
-  build side. Fidelity cell keeps the refusal loud.
+- **verdaccio** (added, Mathijs 2026-08-05) — retry now that
+  buildfixes traced ENOTDIR-as-absent-read (directus's blocker; same
+  error class). Cold regen; if `Not a directory` persists, the
+  diagnosis now names the missing path — record it exactly, that
+  precision is the deliverable even on failure.
+- **filestash** (added; NOT cold — investigation) — the static
+  C-library wall meets the `pkgsStatic` universe: it is reachable as
+  ordinary attribute paths (`${pkgs.pkgsStatic.<lib>}`), so iterate
+  the missing-lib loop: build → cgo link error names `-l<name>` →
+  match `pkgs.pkgsStatic.<name>` → rebuild. Record each iteration in
+  the LOG (this measures whether the loop converges — feed for a
+  future lint/tooling idea). Honest wall if the set stays incoherent.
+- **dozzle + watchtower** (decision, Mathijs 2026-08-05: "schrijf ze,
+  testen hoeft niet; de socket is interessant als demo") — rewrite
+  both as **docker-socket-bridge** conversions: the Cixfile declares
+  the host's `/var/run/docker.sock` via the documented static-identity
+  `host:` materialization and the app runs against a real dockerd
+  where one exists. UNTESTED by design: the gate VM has no dockerd, so
+  the receipt records evidence class "desk (socket bridge, unprobed —
+  no dockerd in the gate)" and check.sh probes only what needs no
+  daemon. Keep the thesis note in each GAPS: journald/`cix logs` and
+  nix pins/`cix` updates are the native composix answers; the bridge
+  demonstrates coexistence, it does not test migration. Watchtower's
+  stale duplicate-COPY workaround disappears in the rewrite. If the
+  socket `host:` materialization itself hits a language wall, that
+  finding is a gap bullet `→ language`, not something to force.
 
 ## Ledger + close
 
-Re-grade the four docs/corpus.md rows and any affected docs/docker.md
-rows in the same track; GAPS `Status: current` (or honest stale-with-
-reason); rerun `check.sh` receipts synchronously per case; regenerate
-the corpus browser. Track gates per AGENTS.md (fmt / examples fmt /
+Re-grade the affected docs/corpus.md rows using the NEW ribbon
+vocabulary (landed on main before this track launches): green = works,
+remaining deviations deliberate/refused/otherwise-arranged; 🔶 = open
+gaps, always qualified — 🔶🔄 next regen improves it, 🔶⌛ fix adopted
+but unimplemented. Update affected docs/docker.md rows in the same
+track; GAPS `Status: current` (or honest stale-with-reason); rerun
+`check.sh` receipts synchronously per case (dozzle/watchtower: the
+declared daemonless subset only); regenerate the corpus browser.
+After this wave lands, the corpus EXPANSION wave from
+docker/CANDIDATES.md is next in the queue (Mathijs wants this
+visibly happening) — do not start it in this track. Track gates per AGENTS.md (fmt / examples fmt /
 clippy / workspace tests / tour drift / progressive-vm-check for what
 the diff selects). Leave the branch clean; do not merge to main.
