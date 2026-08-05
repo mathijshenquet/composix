@@ -97,3 +97,48 @@ een fundamentele gap blijkt." Amendments at adoption:
   matrix one flag away. Recorded follow-up: stratify scenario inputs so
   a code change stops invalidating all 13 closures (the cix package is
   in every one); the shim itself still waits per §3.5.
+- 2026-08-05 (leg 2 amendment proposal): key the progressive tier by
+  **declared scenario contract surfaces**, not the linked binary's store
+  identity. `nix/scenario-contracts.json` is an ordered total
+  classification of product inputs; each scenario declares the surfaces it
+  proves. A changed scenario file keys itself, the shared scenario harness,
+  package metadata, and other cross-cutting inputs key all scenarios, and an
+  unclassified or newly added product path conservatively keys all scenarios.
+  Explicitly non-product paths and product surfaces with no VM contract (for
+  example the Cixfile build compiler, which is proved in the Cargo/tour tiers)
+  select none and say so. The selector validates the scenario inventory and
+  classification of every tracked Rust/scenario input on every run, prints
+  each changed path plus every selected and skipped scenario with reasons,
+  and retains `--full`. `--selector old` preserves leg 1 for comparison;
+  `--target` and `--rebuild` make historical measurements reproducible.
+
+  This is deliberately not presented as a static semantic dependency proof.
+  The conservative fallback structurally excludes silent skips for unknown
+  files, but a reviewer can still misclassify a known file or omit a real
+  scenario-to-surface dependency. That bounded human risk is why contract-map
+  edits key all scenarios and why the complete derivation matrix remains the
+  orchestrator/CI release gate. Dynamic read-sets were rejected because a VM
+  observes runtime filesystem/process reads, not which Rust semantics the
+  linked binary exercised. Crate/module derivation splitting was rejected for
+  this leg because every scenario still consumes the same final `cix` binary;
+  splitting its build graph does not split that runtime identity. Explicit
+  contracts are the only candidate that expresses what each scenario proves
+  while keeping those limits loud.
+
+  Historical-diff measurement on the same host (14-scenario inventory):
+
+  | Diff | Old selector | Old wall | Contract selector | Contract wall |
+  | --- | ---: | ---: | ---: | ---: |
+  | docs-only `99b45fb..e436bef` | 0/14 | 24.402s | 0/14 | 13.608s |
+  | build-subsystem `aa40ffd..d6023f0` | 14/14 | 634.809s | 0/14 | 11.388s |
+  | cross-cutting runtime `aa40ffd..a87caa4` | 14/14 | 631.354s | 14/14 | 622.024s |
+
+  The VM timings are synchronous forced rebuilds after pre-warming the
+  historical closures, with at most two guests and no competing matrix on the
+  host. The docs-only and zero-selection contract timings are selector-only
+  runs. The substantive saving is the intended one: a Cixfile build-compiler
+  subsystem change drops from all 14 VMs and 634.809s to no VMs and 11.388s
+  (98.2% wall-clock reduction), while a cross-cutting runtime change retains
+  all 14. An initial rebuild before the historical outputs existed and one run
+  overlapped by another worktree's full matrix were both non-zero and excluded,
+  rather than being interpreted as measurements.

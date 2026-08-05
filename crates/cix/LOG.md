@@ -770,3 +770,39 @@
   examples formatting, warning-denied Clippy, serial full workspace tests,
   tour determinism/drift, and explicit regeneration (1 passed in 15.62s) all
   passed synchronously. No ENOSPC occurred.
+
+- 2026-08-05T11:07:45Z — Started CIP-93 leg 2 from clean `9b377e2` after
+  reading the accepted CIP, leg-1 selector, scenario inventory/shared harness,
+  flake wiring, and current Rust crate/module seams. Chose ordered, explicit
+  scenario contract surfaces: every changed product path maps to a surface,
+  is deliberately outside the VM tier, or conservatively selects all; an
+  unclassified/new product path also selects all. Scenario and shared-harness
+  edits remain direct keys. This bounds the human risk of a wrong contract
+  declaration while preventing silent gaps from new files; the orchestrator's
+  full matrix remains the backstop. Crate splitting cannot refine the current
+  key because every scenario consumes the same linked binary, and dynamic
+  runtime read-sets cannot observe which Rust semantics were exercised. Next:
+  implement the contract manifest/classifier behind the existing entry point,
+  validate exhaustive source classification, and measure historical diffs.
+
+- 2026-08-05T12:33:00Z — Implemented the leg-2 selector as
+  `nix/scenario-contracts.json` plus its validating classifier, behind the
+  existing progressive VM entry point. Commit `25cd6f3` preserves leg 1 as
+  `--selector old`, adds historical `--target` and forced `--rebuild` modes,
+  and keeps `--full`. Synchronous classifier assertions, Nix parsing/formatting,
+  and `nix build --no-link .#packages.x86_64-linux.progressive-vm-check` all
+  exited 0. Historical dry selection receipts were: docs-only
+  `99b45fb..e436bef`, old/new 0/14 (24.402s/13.608s); build subsystem
+  `aa40ffd..d6023f0`, old 14/14 versus new 0/14 (26.811s/14.546s selection);
+  cross-cutting runtime `aa40ffd..a87caa4`, old/new 14/14
+  (29.222s/13.575s selection).
+
+- 2026-08-05T12:34:00Z — Completed synchronous historical build measurements.
+  After pre-warming the historical outputs, exclusive forced runs with exactly
+  two VM guests exited 0: build-subsystem old 14/14 in 634.809s, with its
+  new-selector zero-VM run exiting 0 in 11.388s; cross-cutting old 14/14 in
+  631.354s and new 14/14 in 622.024s. A first `--rebuild` attempted before its
+  outputs existed exited 1, and a cross-cutting attempt overlapped by another
+  worktree's full matrix exited 1; both were explicitly discarded, then
+  repeated exclusively. Next: commit the amendment/measurements, run both
+  selectors on this track's own diff, then execute the complete agent gate.
