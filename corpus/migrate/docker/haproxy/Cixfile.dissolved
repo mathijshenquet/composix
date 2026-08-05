@@ -1,0 +1,7 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE haproxy
+IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.haproxy} ${pkgs.socat}
+COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+START bash /usr/local/bin/docker-entrypoint.sh haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+STOPSIGNAL SIGUSR1

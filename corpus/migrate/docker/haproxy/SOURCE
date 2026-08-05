@@ -1,0 +1,5 @@
+Repository: https://github.com/docker-library/haproxy.git
+Resolved revision: 9dfb33f798390d8d9b64041834acd72f1591de48
+Context path: 3.2/alpine
+Dockerfile: Dockerfile
+Natural probe: haproxy -v

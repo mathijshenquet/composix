@@ -1,0 +1,35 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER build
+IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.diffutils} ${pkgs.gcc} ${pkgs.gnugrep} ${pkgs.gnumake} ${pkgs.gnutar} ${pkgs.gzip} ${pkgs.libxcrypt} ${pkgs.linuxHeaders} ${pkgs.lua5_4} ${pkgs.openssl} ${pkgs.openssl.dev} ${pkgs.openssl.out} ${pkgs.pcre2} ${pkgs.pcre2.dev} ${pkgs.pkg-config} ${pkgs.readline} ${pkgs.readline.dev}
+ENV HAPROXY_VERSION=3.2.22
+ENV HAPROXY_URL=https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz
+ENV HAPROXY_SHA256=afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da
+FETCH curl --fail --location "$HAPROXY_URL" --output haproxy.tar.gz EXPECT sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=
+RUN <<BUILD
+echo "$HAPROXY_SHA256 *haproxy.tar.gz" | sha256sum -c
+rm -rf src
+mkdir -p src
+tar -xzf haproxy.tar.gz -C src --strip-components=1
+rm haproxy.tar.gz
+make -C src -j "$(nproc)" all CFLAGS="-I${pkgs.libxcrypt}/include" LDFLAGS="-L${pkgs.libxcrypt}/lib -L${pkgs.lua5_4}/lib -L${pkgs.openssl.out}/lib -L${pkgs.pcre2}/lib -L${pkgs.readline}/lib" TARGET=linux-musl USE_GETADDRINFO=1 USE_LUA=1 LUA_LIB_NAME=lua LUA_INC=${pkgs.lua5_4}/include LUA_LIB=${pkgs.lua5_4}/lib USE_OPENSSL=1 SSL_INC=${pkgs.openssl.dev}/include SSL_LIB=${pkgs.openssl.out}/lib USE_PCRE2=1 PCRE2_INC=${pkgs.pcre2.dev}/include USE_PCRE2_JIT=1 USE_PROMEX=1 USE_PTHREAD_EMULATION=1 USE_QUIC=1
+make -C src -j "$(nproc)" install-bin CFLAGS="-I${pkgs.libxcrypt}/include" LDFLAGS="-L${pkgs.libxcrypt}/lib -L${pkgs.lua5_4}/lib -L${pkgs.openssl.out}/lib -L${pkgs.pcre2}/lib -L${pkgs.readline}/lib" TARGET=linux-musl USE_GETADDRINFO=1 USE_LUA=1 LUA_LIB_NAME=lua LUA_INC=${pkgs.lua5_4}/include LUA_LIB=${pkgs.lua5_4}/lib USE_OPENSSL=1 SSL_INC=${pkgs.openssl.dev}/include SSL_LIB=${pkgs.openssl.out}/lib USE_PCRE2=1 PCRE2_INC=${pkgs.pcre2.dev}/include USE_PCRE2_JIT=1 USE_PROMEX=1 USE_PTHREAD_EMULATION=1 USE_QUIC=1
+cp /usr/local/sbin/haproxy haproxy-output
+chmod +x haproxy-output
+BUILD
+RUN <<ASSEMBLE
+rm -f errors.tar.gz
+tar -czf errors.tar.gz -C src/examples errorfiles
+rm -rf src
+./haproxy-output -v
+ASSEMBLE
+
+SERVICE haproxy
+IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.gnutar} ${pkgs.gzip} ${pkgs.socat}
+COPY ${build}/haproxy-output /bin/haproxy
+COPY ${build}/errors.tar.gz /share/haproxy-errors.tar.gz
+COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+STATEDIR /usr/local/etc/haproxy
+START_PRE tar -xzf /share/haproxy-errors.tar.gz -C /usr/local/etc/haproxy --transform=s,^errorfiles,errors,
+START bash /usr/local/bin/docker-entrypoint.sh haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+STOPSIGNAL SIGUSR1
