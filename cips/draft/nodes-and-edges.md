@@ -54,28 +54,54 @@ edges, interpolation); inside it everything is the named interpreter.
 
 1. **`RUN <argv>` / `FETCH <argv> …` are argv-first**: direct exec, no
    shell, no expansion. `$X` in argv-mode is a parse-time teaching
-   error: "declare `LET X` and write `${X}`, or wrap the line in
-   `bash $ …`".
-2. **`RUN bash $ <text>`** — the explicit-shell fence: desugars to
-   argv `[interp, "-c", text]`. `-c` is POSIX-safe for any shell; the
-   `$` reads as a prompt and documents the interpreter on the line.
-   The interpreter must resolve into the IMPORTed/locked closure.
+   error: "declare `LET X` and write `${X}`, or use a fence".
+   **One command per node is the canon**: Docker's `&&`-chain exists
+   to minimize layers — a cost cix does not have. Chains fuse nodes,
+   losing memo granularity (editing step b re-runs step a), and are
+   poor-man's fail-fast that separate nodes provide natively (cix
+   checks every node's exit). Migration decomposes chains into
+   successive RUNs; the FETCH normalization tails
+   (`&& chmod 644 && touch -d @0`) are a missing feature, not a
+   fence case — see the NORMALIZE open question.
+2. **The fence is the rare form, not the workhorse**:
+   `RUN bash $ <text>` desugars to argv `[interp, "-c", text]`
+   (`-c` is POSIX-standard for shells; the `$` reads as a prompt and
+   documents the interpreter on the line). Legitimate uses shrink to
+   pipes, redirects, and genuinely shell-shaped one-liners; anything
+   longer belongs in a heredoc. The interpreter must resolve into the
+   IMPORTed/locked closure.
 3. **`RUN <interp> <<EOF … EOF`** — heredoc form: body written to a
    file, interpreter invoked with the filename (the shebang-grade
    kernel contract; works for any interpreter, no `-c` assumption).
-4. **Binder triad** (one namespace, three declaration kinds):
+4. **Binders: LET in, ENV out** (Mathijs, 2026-08-05: explicit
+   per-node binding is "obviously correct"):
    - `LET NAME = value` — a text edge: file-local, interpolates as
      bare `${NAME}` in argv/directive/FILE positions (D32's bare-name
      objection targeted *ambient* bindings; a declaration three lines
      up is not ambient). **Never exported** to the environment.
    - `ARG` — a LET whose value is selected from a declared closed
      matrix (per draft/build-args.md); same interpolation.
-   - `ENV NAME=value` — an environment edge: string into the process
-     env, keyed as a step. Rarely referenced in text (the corpus's
-     12-knob population); inside a fence it is `$NAME`, because the
-     fence is honestly the interpreter's world.
-   - Bridging is explicit dataflow: `ENV NAME=${VERSION}` — the zsh
-     tied-var, spelled as a visible line.
+   - **Builder-scope `ENV` is banned.** Environment is bound per
+     node, as indented `WITH` clauses attached to the step (the
+     GHA-`env:`/systemd-`Environment=`/nix-attr shape, in Cixfile's
+     existing indentation idiom):
+
+         RUN pnpm install --frozen-lockfile
+           WITH COREPACK_ENABLE_PROJECT_SPEC=0
+           WITH NODE_OPTIONS=--max-old-space-size=8192
+
+     `WITH NAME=value` binds a string into that node's environment;
+     bare `WITH NAME` pulls the value from the LET of that name (the
+     explicit LET→env bridge, one token per consuming node). The
+     assignment/bare shapes mean environment; future node attachments
+     spell their kind (`WITH CACHE …` — recorded direction: cache
+     mounts would dissolve the npm_config_cache/GOMODCACHE knob class
+     entirely). Env edges are per-node declared text, so keying is
+     per-node by construction — no shared env state exists. Inside a
+     fence/heredoc, `export` and `VAR=x cmd` remain available as
+     node-INTERNAL state (the interpreter's interior, not an edge).
+     Service-side `ENV` (the runtime contract, CIP-96/100) is
+     untouched: the service is the node and declares its environment.
 5. **What the fence does and does not promise**: inside `bash $` or a
    heredoc, the environment is visible and expandable — that leak is
    real, unavoidable (tools must read their knobs), and scoped: it
@@ -85,6 +111,14 @@ edges, interpolation); inside it everything is the named interpreter.
 6. **No SHELL directive** (supersedes draft/shell-directive.md):
    per-line explicitness beats block or file state, per the
    systemd/GHA lesson and Docker's SHELL wart.
+
+**Edge granularity** — with the ENV ban this section simplifies: there
+is no shared environment state left to key coarsely. LET edges appear
+per-use in resolved text; WITH edges are per-node declared text; both
+key precisely by construction. The unobservability analysis below is
+retained as the reason a *broadcast* ENV could never have been traced
+into precision — the ban removes the problem rather than approximating
+it.
 
 **Edge granularity — why LET keys precisely and ENV honestly-coarsely**
 (Mathijs's follow-up: "moet je env vars dan niet ook traceren?"). File
