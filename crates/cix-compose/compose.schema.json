@@ -65,6 +65,7 @@
         "persistent": {"type": "boolean"},
         "jitter": {"type": "string", "minLength": 1},
         "shm": {"type": "string", "minLength": 1},
+        "stopTimeout": {"type": "string", "minLength": 1},
         "egress": {"type": "boolean"}
       }
     },

@@ -50,6 +50,8 @@ pub struct Service {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub claims: Vec<Claim>,
     pub shm: Option<String>,
+    #[serde(rename = "stopSignal")]
+    pub stop_signal: Option<String>,
     pub jit: Option<bool>,
     #[serde(default)]
     pub egress: bool,

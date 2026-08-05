@@ -557,6 +557,9 @@ fn render_units(
         if let Some(shm) = &declaration.shm {
             compiled_service.shm = Some(shm.clone());
         }
+        if let Some(stop_timeout) = &declaration.stop_timeout {
+            extra_properties.push(("TimeoutStopSec".into(), stop_timeout.clone()));
+        }
         if let Some(identity) = &declaration.identity {
             extra_properties.extend([
                 ("DynamicUser".into(), "no".into()),
@@ -986,6 +989,7 @@ mod tests {
             persistent: None,
             jitter: None,
             shm: None,
+            stop_timeout: None,
             egress: None,
         };
         let worker_declaration = ComposeService {
@@ -999,6 +1003,7 @@ mod tests {
             persistent: None,
             jitter: None,
             shm: None,
+            stop_timeout: None,
             egress: None,
         };
         let edges = BTreeMap::from([(
@@ -1308,6 +1313,27 @@ mod tests {
             "{unit}"
         );
         assert_eq!(manifest.services["web"].shm.as_deref(), Some("96M"));
+    }
+
+    #[test]
+    fn compose_stop_timeout_projects_to_the_unit() {
+        let (directory, mut checked, compose_path) = fixture();
+        checked
+            .services
+            .get_mut("web")
+            .unwrap()
+            .declaration
+            .stop_timeout = Some("45s".into());
+        let generation = directory.path().join("generation");
+        render_generation(
+            &checked,
+            &compose_path,
+            &generation,
+            &HostCapabilities::all_supported(),
+        )
+        .unwrap();
+        let unit = fs::read_to_string(generation.join("units/cix-stack-web.service")).unwrap();
+        assert!(unit.contains("TimeoutStopSec=45s"), "{unit}");
     }
 
     #[test]

@@ -56,17 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / nginx</nav>
   <h1>docker / nginx</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — the Alpine hook, Docker log symlinks, fixed uid, stop signal, and parts of the entrypoint contract differ · <strong>Evidence:</strong> build (runtime failure) · closed-root (synthetic contract)</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Declared losses — the Alpine hook, Docker log symlinks, fixed uid, and parts of the entrypoint contract differ; the case is stale for its now-representable stop signal · <strong>Evidence:</strong> build (runtime failure) · closed-root (synthetic contract)</p>
   <p class="status"><strong>Receipt status:</strong> Both twins build, but the faithful runtime exits on missing /var/log/nginx files; a synthetic nginx response remains sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nginx/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nginx/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with STOPSIGNAL</p>
     <ul>
       <li>The faithful twin preserves the upstream entrypoint scripts, but its Alpine-specific IPv6 hook cannot validate <code>apk manifest nginx</code> against the nixpkgs package and therefore does not perform that Docker mutation. → case</li>
       <li>Docker&#39;s stdout/stderr log symlinks are not reproduced, and the faithful runtime probe is red because the packaged configuration opens <code>/var/log/nginx/error.log</code> and <code>access.log</code> while the service declares no <code>LOGDIR</code>. systemd captures process output, but that does not satisfy those file paths. → case</li>
       <li>Docker&#39;s fixed nginx uid/gid 101 is replaced by Cix/systemd&#39;s managed service identity. → language (fixed service identity)</li>
-      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix has no stop-signal declaration, so systemd&#39;s stop behavior applies. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix now has the directive, so regenerate this case with that declaration. → stale (<a href="../../../../cips/dispositions.md#batch-2026-08-04-blessed-by-mathijs-dockermd-application-queued">STOPSIGNAL disposition</a>)</li>
       <li>The copied worker-autotune hook&#39;s Docker cgroup paths and operator-supplied envsubst/stream templates are not covered by the HTTP probe. → evidence</li>
     </ul>
   </aside>

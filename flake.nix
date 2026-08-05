@@ -126,6 +126,7 @@
         scenario-observability = import ./nix/scenarios/observability.nix { inherit pkgs cix; };
         scenario-devices = import ./nix/scenarios/devices.nix { inherit pkgs cix; };
         scenario-health = import ./nix/scenarios/health.nix { inherit pkgs cix; };
+        scenario-stopdispo = import ./nix/scenarios/stopdispo.nix { inherit pkgs cix; };
         scenario-health-systemd257 = import ./nix/scenarios/health.nix {
           inherit pkgs cix;
           systemdPackage = systemd257;

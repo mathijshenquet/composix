@@ -61,8 +61,8 @@ Blocks then declare work and outputs:
 | block | allowed directives | result |
 | --- | --- | --- |
 | `BUILDER <name>` | `IMPORT`, `COPY`, `FETCH`, `RUN`, `ENV` | a persistent workspace whose consumed outputs are recorded individually |
-| `SERVICE <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS` | a long-running service artifact |
-| `APP <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS` | a run-to-completion app artifact |
+| `SERVICE <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `START_PRE`, `ENV`, `SECRET`, `PORT`, `LISTENER`, `STATEDIR`, `CACHEDIR`, `LOGDIR`, `CONFIGDIR`, `RUNDIR`, `DIR`, `CLAIM`, `READINESS`, `LIVENESS`, `STOPSIGNAL` | a long-running service artifact |
+| `APP <name>` | `IMPORT`, `COPY`, `FILE`, `START`, `ENV`, `SECRET`, `CLAIM`, `STATEDIR`, `CACHEDIR`, `READINESS`, `LIVENESS`, `STOPSIGNAL` | a run-to-completion app artifact |
 | `ITEM <name>` | `IMPORT`, `COPY`, `FILE` | a pure store tree, with no manifest |
 
 Names share one namespace and references point backward. A builder cannot copy from itself,
@@ -487,6 +487,10 @@ leaves activation to fail when the hardware is still absent. Device claims never
 `cix compose diff` reports an effective SHM change. `grants:` is reserved for the future explicit
 compose-side loosening field; it is deliberately not accepted yet, so compose cannot silently
 widen device access.
+
+`STOPSIGNAL <signal>` selects the process signal systemd sends while stopping the item, using a
+known signal name such as `SIGQUIT`; it compiles directly to `KillSignal=`. The compose-side
+`stopTimeout: "30s"` sets `TimeoutStopSec=` for that member.
 
 <a id="closed-root"></a>
 

@@ -812,6 +812,9 @@ fn nix_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<String>
     if let Some(shm) = &service.shm {
         write!(output, " shm = {};", nix_string(shm))?;
     }
+    if let Some(stop_signal) = &service.stop_signal {
+        write!(output, " stopSignal = {};", nix_string(stop_signal))?;
+    }
     output.push_str(" }");
     Ok(output)
 }
@@ -1233,6 +1236,9 @@ fn literal_service(artifact: &Artifact, mounts: &BTreeSet<String>) -> Result<Val
     }
     if let Some(shm) = &service.shm {
         value.insert("shm".into(), Value::String(shm.clone()));
+    }
+    if let Some(stop_signal) = &service.stop_signal {
+        value.insert("stopSignal".into(), Value::String(stop_signal.clone()));
     }
     Ok(Value::Object(value))
 }
