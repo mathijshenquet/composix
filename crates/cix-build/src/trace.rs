@@ -375,6 +375,7 @@ fn reuse_dependency(known: &ReadDependency, observation: &Observation) -> Option
         {
             Some(ReadDependency::DirectoryExists)
         }
+        ReadDependency::Subtree { .. } if observation.listed => Some(known.clone()),
         ReadDependency::Absent => Some(ReadDependency::Absent),
         _ => None,
     }
@@ -397,6 +398,9 @@ pub(crate) fn current_dependencies_with_metrics(
         .iter()
         .map(|(relative, recorded)| {
             let path = relative_path(workspace, relative);
+            if matches!(recorded, ReadDependency::Subtree { .. }) {
+                return Ok((relative.clone(), subtree_dependency(&path)?));
+            }
             let listed = matches!(recorded, ReadDependency::Directory { .. });
             let content = matches!(recorded, ReadDependency::File { .. });
             if content {
@@ -451,6 +455,85 @@ pub(crate) fn record_workspace_fingerprints(
             &fs::symlink_metadata(&path)
                 .with_context(|| format!("reading workspace fingerprint {}", path.display()))?,
         ));
+    }
+    Ok(())
+}
+
+/// Replace a fully observed stable directory tree with one recursive digest.
+/// A missing directory listing or a content-less child observation makes the
+/// candidate ineligible, so a narrower later read remains per-path.
+pub(crate) fn aggregate_full_read_subtrees(
+    snapshot: &Path,
+    dependencies: &mut BTreeMap<String, ReadDependency>,
+) -> Result<()> {
+    let mut candidates = dependencies
+        .iter()
+        .filter_map(|(path, dependency)| {
+            matches!(dependency, ReadDependency::Directory { .. }).then_some(path.clone())
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by_key(|path| path.matches('/').count());
+
+    let mut selected = Vec::<String>::new();
+    for path in candidates {
+        if selected.iter().any(|root| same_or_descendant(&path, root)) {
+            continue;
+        }
+        let Some(hash) = recorded_subtree_hash(snapshot, &path, dependencies)? else {
+            continue;
+        };
+        selected.push(path.clone());
+        dependencies.retain(|candidate, _| !same_or_descendant(candidate, &path));
+        dependencies.insert(path, ReadDependency::Subtree { hash });
+    }
+    Ok(())
+}
+
+/// Replace a complete output tree with one replay root. A deleted tree needs
+/// no digest: one absent root has exactly the same replay meaning.
+pub(crate) fn aggregate_full_change_subtrees(
+    before: &Path,
+    after: &Path,
+    changes: &mut BTreeMap<String, StepChange>,
+) -> Result<()> {
+    let mut candidates = changes.keys().cloned().collect::<Vec<_>>();
+    candidates.sort_by_key(|path| path.matches('/').count());
+
+    let mut selected = Vec::<String>::new();
+    for path in candidates {
+        if selected.iter().any(|root| same_or_descendant(&path, root)) {
+            continue;
+        }
+        let before_path = relative_path(before, &path);
+        let after_path = relative_path(after, &path);
+        let after_metadata = metadata_if_present(&after_path)?;
+        if let Some(metadata) = after_metadata {
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                continue;
+            }
+            if !complete_present_tree(&after_path, &path, changes)? {
+                continue;
+            }
+            selected.push(path.clone());
+            changes.retain(|candidate, _| !same_or_descendant(candidate, &path));
+            changes.insert(
+                path,
+                StepChange::Subtree {
+                    mode: metadata.permissions().mode(),
+                },
+            );
+        } else {
+            let before_metadata = metadata_if_present(&before_path)?;
+            if !before_metadata
+                .is_some_and(|metadata| metadata.is_dir() && !metadata.file_type().is_symlink())
+                || !complete_absent_tree(&before_path, &path, changes)?
+            {
+                continue;
+            }
+            selected.push(path.clone());
+            changes.retain(|candidate, _| !same_or_descendant(candidate, &path));
+            changes.insert(path, StepChange::Absent);
+        }
     }
     Ok(())
 }
@@ -511,6 +594,204 @@ fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency
     } else {
         Ok(ReadDependency::FileExists)
     }
+}
+
+fn subtree_dependency(path: &Path) -> Result<ReadDependency> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if path_is_missing(&error) => return Ok(ReadDependency::Absent),
+        Err(error) => {
+            return Err(error)
+                .with_context(|| format!("reading recorded subtree {}", path.display()))
+        }
+    };
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        return Ok(ReadDependency::Subtree {
+            hash: filesystem_subtree_hash(path)?,
+        });
+    }
+    dependency(path, false, true)
+}
+
+fn recorded_subtree_hash(
+    snapshot: &Path,
+    relative: &str,
+    dependencies: &BTreeMap<String, ReadDependency>,
+) -> Result<Option<String>> {
+    let path = relative_path(snapshot, relative);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if path_is_missing(&error) => return Ok(None),
+        Err(error) => {
+            return Err(error).with_context(|| format!("reading subtree {}", path.display()))
+        }
+    };
+    if !metadata.is_dir()
+        || metadata.file_type().is_symlink()
+        || !matches!(
+            dependencies.get(relative),
+            Some(ReadDependency::Directory { .. })
+        )
+    {
+        return Ok(None);
+    }
+    recorded_directory_digest(&path, relative, dependencies)
+}
+
+fn recorded_directory_digest(
+    directory: &Path,
+    relative: &str,
+    dependencies: &BTreeMap<String, ReadDependency>,
+) -> Result<Option<String>> {
+    let mut entries = fs::read_dir(directory)
+        .with_context(|| format!("opening observed subtree {}", directory.display()))?
+        .collect::<io::Result<Vec<_>>>()?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut digest = Sha256::new();
+    for entry in entries {
+        let name = entry.file_name();
+        let child_relative = child_relative(relative, &name);
+        let child_path = entry.path();
+        let child_metadata = entry.file_type()?;
+        let (kind, hash) = if child_metadata.is_dir() {
+            if !matches!(
+                dependencies.get(&child_relative),
+                Some(ReadDependency::Directory { .. })
+            ) {
+                return Ok(None);
+            }
+            let Some(hash) = recorded_directory_digest(&child_path, &child_relative, dependencies)?
+            else {
+                return Ok(None);
+            };
+            (b"directory".as_slice(), hash)
+        } else if child_metadata.is_file() || child_metadata.is_symlink() {
+            let Some(ReadDependency::File { hash, .. }) = dependencies.get(&child_relative) else {
+                return Ok(None);
+            };
+            (
+                if child_metadata.is_symlink() {
+                    b"symlink".as_slice()
+                } else {
+                    b"file".as_slice()
+                },
+                hash.clone(),
+            )
+        } else {
+            return Ok(None);
+        };
+        digest.update(name.as_encoded_bytes());
+        digest.update([0]);
+        digest.update(kind);
+        digest.update([0]);
+        digest.update(hash.as_bytes());
+        digest.update([0]);
+    }
+    Ok(Some(hex(digest.finalize())))
+}
+
+fn filesystem_subtree_hash(directory: &Path) -> Result<String> {
+    let mut entries = fs::read_dir(directory)
+        .with_context(|| format!("opening recorded subtree {}", directory.display()))?
+        .collect::<io::Result<Vec<_>>>()?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut digest = Sha256::new();
+    for entry in entries {
+        let name = entry.file_name();
+        let path = entry.path();
+        let metadata = entry.file_type()?;
+        let (kind, hash) = if metadata.is_dir() {
+            (b"directory".as_slice(), filesystem_subtree_hash(&path)?)
+        } else if metadata.is_file() || metadata.is_symlink() {
+            (
+                if metadata.is_symlink() {
+                    b"symlink".as_slice()
+                } else {
+                    b"file".as_slice()
+                },
+                read_hash(&path, &fs::symlink_metadata(&path)?)?,
+            )
+        } else {
+            anyhow::bail!(
+                "unsupported special file in recorded subtree {}",
+                path.display()
+            );
+        };
+        digest.update(name.as_encoded_bytes());
+        digest.update([0]);
+        digest.update(kind);
+        digest.update([0]);
+        digest.update(hash.as_bytes());
+        digest.update([0]);
+    }
+    Ok(hex(digest.finalize()))
+}
+
+fn complete_present_tree(
+    directory: &Path,
+    relative: &str,
+    changes: &BTreeMap<String, StepChange>,
+) -> Result<bool> {
+    if !changes
+        .get(relative)
+        .is_some_and(|change| !matches!(change, StepChange::Absent))
+    {
+        return Ok(false);
+    }
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let child_relative = child_relative(relative, &entry.file_name());
+        let metadata = entry.file_type()?;
+        if metadata.is_dir() && !metadata.is_symlink() {
+            if !complete_present_tree(&entry.path(), &child_relative, changes)? {
+                return Ok(false);
+            }
+        } else if !changes
+            .get(&child_relative)
+            .is_some_and(|change| !matches!(change, StepChange::Absent))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn complete_absent_tree(
+    directory: &Path,
+    relative: &str,
+    changes: &BTreeMap<String, StepChange>,
+) -> Result<bool> {
+    if !matches!(changes.get(relative), Some(StepChange::Absent)) {
+        return Ok(false);
+    }
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let child_relative = child_relative(relative, &entry.file_name());
+        if entry.file_type()?.is_dir() && !entry.file_type()?.is_symlink() {
+            if !complete_absent_tree(&entry.path(), &child_relative, changes)? {
+                return Ok(false);
+            }
+        } else if !matches!(changes.get(&child_relative), Some(StepChange::Absent)) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn child_relative(parent: &str, name: &std::ffi::OsStr) -> String {
+    let name = name.to_string_lossy();
+    if parent == "." {
+        name.into_owned()
+    } else {
+        format!("{parent}/{name}")
+    }
+}
+
+fn same_or_descendant(candidate: &str, root: &str) -> bool {
+    candidate == root
+        || candidate
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
 fn path_is_missing(error: &io::Error) -> bool {
@@ -1021,6 +1302,110 @@ mod tests {
                 ("kept/changed".into(), StepChange::Present),
                 ("removed".into(), StepChange::Absent),
             ])
+        );
+    }
+
+    #[test]
+    fn aggregates_only_complete_stable_read_subtrees() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("vendor/nested")).unwrap();
+        fs::write(root.path().join("vendor/first"), "one").unwrap();
+        fs::write(root.path().join("vendor/nested/second"), "two").unwrap();
+        let complete = Capture {
+            observations: BTreeMap::from([
+                (
+                    "vendor".into(),
+                    Observation {
+                        listed: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "vendor/first".into(),
+                    Observation {
+                        content: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "vendor/nested".into(),
+                    Observation {
+                        listed: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "vendor/nested/second".into(),
+                    Observation {
+                        content: true,
+                        ..Observation::default()
+                    },
+                ),
+            ]),
+            writes: BTreeSet::new(),
+        };
+        let mut dependencies = read_dependencies(root.path(), &complete).unwrap();
+        aggregate_full_read_subtrees(root.path(), &mut dependencies).unwrap();
+        assert!(matches!(
+            dependencies.get("vendor"),
+            Some(ReadDependency::Subtree { .. })
+        ));
+        assert_eq!(
+            current_dependencies(root.path(), &dependencies).unwrap(),
+            dependencies
+        );
+
+        fs::write(root.path().join("vendor/nested/second"), "drifted").unwrap();
+        assert_ne!(
+            current_dependencies(root.path(), &dependencies).unwrap(),
+            dependencies
+        );
+
+        let mut partial = read_dependencies(root.path(), &complete).unwrap();
+        partial.remove("vendor/nested/second");
+        aggregate_full_read_subtrees(root.path(), &mut partial).unwrap();
+        assert!(!matches!(
+            partial.get("vendor"),
+            Some(ReadDependency::Subtree { .. })
+        ));
+    }
+
+    #[test]
+    fn aggregates_complete_output_tree_and_full_removal() {
+        let before = tempfile::tempdir().unwrap();
+        let after = tempfile::tempdir().unwrap();
+        fs::create_dir_all(after.path().join("vendor/nested")).unwrap();
+        fs::write(after.path().join("vendor/first"), "one").unwrap();
+        fs::write(after.path().join("vendor/nested/second"), "two").unwrap();
+        let mut changes = BTreeMap::from([
+            ("vendor".into(), StepChange::Present),
+            ("vendor/first".into(), StepChange::Present),
+            ("vendor/nested".into(), StepChange::Present),
+            ("vendor/nested/second".into(), StepChange::Present),
+        ]);
+        aggregate_full_change_subtrees(before.path(), after.path(), &mut changes).unwrap();
+        assert!(matches!(
+            changes.get("vendor"),
+            Some(StepChange::Subtree { .. })
+        ));
+        assert_eq!(changes.len(), 1);
+
+        let removed_before = tempfile::tempdir().unwrap();
+        let removed_after = tempfile::tempdir().unwrap();
+        fs::create_dir_all(removed_before.path().join("vendor/nested")).unwrap();
+        fs::write(removed_before.path().join("vendor/first"), "one").unwrap();
+        fs::write(removed_before.path().join("vendor/nested/second"), "two").unwrap();
+        let mut removals = BTreeMap::from([
+            ("vendor".into(), StepChange::Absent),
+            ("vendor/first".into(), StepChange::Absent),
+            ("vendor/nested".into(), StepChange::Absent),
+            ("vendor/nested/second".into(), StepChange::Absent),
+        ]);
+        aggregate_full_change_subtrees(removed_before.path(), removed_after.path(), &mut removals)
+            .unwrap();
+        assert_eq!(
+            removals,
+            BTreeMap::from([("vendor".into(), StepChange::Absent)])
         );
     }
 }

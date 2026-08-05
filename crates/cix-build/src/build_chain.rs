@@ -414,7 +414,9 @@ fn execute_top_fetch(
         trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
     retain_nonvolatile_reads(&mut reads, &step_volatile);
     trace::record_workspace_fingerprints(work.path(), &mut reads, &observations.writes)?;
+    trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
     changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+    trace::aggregate_full_change_subtrees(trace_before.path(), work.path(), &mut changes)?;
     let output_hashes = workspace::memo_output_hashes(work.path(), &changes)?;
     let step_output = (!changes.is_empty())
         .then(|| workspace::add_step_output_snapshot(work.path(), &changes, &step_volatile))
@@ -898,7 +900,9 @@ fn execute_builder(
                 }
                 retain_nonvolatile_reads(&mut reads, &step_volatile);
                 trace::record_workspace_fingerprints(workdir, &mut reads, &observations.writes)?;
+                trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
                 changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
+                trace::aggregate_full_change_subtrees(trace_before.path(), workdir, &mut changes)?;
                 if !is_fetch {
                     invalidate_fetch_output_fingerprints(
                         &mut output_fingerprints_by_memo,
@@ -1540,11 +1544,11 @@ fn retain_replay_roots(
     for (root, previous_change) in &previous.changes {
         let path = workspace.join(root);
         match (previous_change, fs::symlink_metadata(&path)) {
-            (StepChange::Present, Ok(_)) => {
+            (change @ (StepChange::Present | StepChange::Subtree { .. }), Ok(_)) => {
                 changes.retain(|candidate, _| !same_or_descendant(candidate, root));
-                changes.insert(root.clone(), StepChange::Present);
+                changes.insert(root.clone(), change.clone());
             }
-            (StepChange::Present | StepChange::Absent, Err(error))
+            (StepChange::Present | StepChange::Subtree { .. } | StepChange::Absent, Err(error))
                 if error.kind() == io::ErrorKind::NotFound =>
             {
                 changes.insert(root.clone(), StepChange::Absent);

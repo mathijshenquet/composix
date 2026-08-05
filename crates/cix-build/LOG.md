@@ -1,49 +1,83 @@
 # cix-build work log
 
-- 2026-08-05T12:00:00Z — Started CIP-103 leg 2 (Workspace owner). Read the
-  accepted CIP and P0 audit cluster. Extracted `workspace.rs`: an owned
-  persistent/cold `Workspace` now retains its scratch lifetime and owns
-  persisted state, staging, tree reconciliation, memo snapshots/fingerprints,
-  and store materialization. The build conductor calls its interface; FETCH
-  pin/cache policy remains in `build_chain` for the later FETCH-state leg.
-  Initial synchronous `devenv shell -- cargo check -p cix-build` passed after
-  formatting; next is a representative byte-identical lock/output receipt,
-  focused tests, then the prescribed complete agent tier.
+- 2026-08-05T16:10:00Z — Merging `origin/main` after CIP-93b and CIP-99.
+  Semantic resolution retains CIP-99's complete traced-subtree aggregation at
+  both top-level FETCH and builder recording sites, while the Workspace owner
+  remains responsible for memo validation, snapshot/replay, and every
+  `StepChange::Subtree` materialization path. Next: compile and run focused
+  lock/workspace tests before the complete agent tier and a new base/current
+  byte-identity corpus receipt.
 
-- 2026-08-05T12:20:00Z — Byte-identical representative corpus receipt passed
-  synchronously. Built the base commit (`bbdc2ce`) and this branch separately,
-  against the same isolated fetched Wallos case and separate workspace roots:
-  both emitted `{"wallos":"/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos"}`
-  and both resulting `Cixfile.lock` files hashed
+- 2026-08-05T16:35:00Z — Merge resolution and post-merge agent tier are
+  green. The isolated `origin/main`/merged-head Wallos receipt value-checked
+  equal JSON output (`wallos` =
+  `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos`) and equal
+  resulting `Cixfile.lock` SHA-256
   `a0815887a1c5bc2367e294c54416e276e32370d801cf01797e2b2277faf5df9c`.
-  The comparison script value-checked both equalities before its zero exit.
+  Synchronous exit-0 tier receipts: Rust fmt, examples fmt, warning-denied
+  all-target clippy, workspace tests, corpus and tour regeneration with zero
+  drift, and bounded contract-keyed progressive VM selection. The selector
+  compared the merge to the Workspace parent and correctly found no VM product
+  contract change, so it selected 0 scenarios and exited 0. The source-size
+  and shared-state audits also passed. The isolated 487 MiB receipt directory
+  was removed after value capture. Full flake remains the orchestrator gate.
 
-- 2026-08-05T12:35:00Z — Repeated the base/current Wallos comparison after
-  the final exact timing/error-context preservation pass; it produced the same
-  value-checked item and `Cixfile.lock` hash again. Focused synchronous
-  `devenv shell -- cargo test -p cix-cixfile --test proj1` passed (2/2).
-  The required shared-state structural audit reports no new shared state;
-  `bash scripts/check-source-size.sh` reports the new `workspace.rs` owner at
-  928 LOC and the reduced conductor at 2,496 LOC.
+- 2026-08-05T15:57:00Z — After semantic merge of `origin/main` at
+  `54c03a5`, the CIP-93b contract-keyed gate selected the complete 14-scenario
+  matrix for the accumulated merge diff. Its retained synchronous log at
+  `/tmp/cip99-progressive-post-cip93b.log` ends `VM selection: build exit 0;
+  total wall-clock 699.699s.` Health also completed within that run. The
+  quiet-window receipt set is now clean: workspace exit 0; health SOLO exit
+  0; post-merge progressive VM exit 0.
 
-- 2026-08-05T13:15:00Z — Final implementation receipt remains value-checked:
-  base and extracted Workspace builds of the isolated Wallos corpus case both
-  returned `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos` and
-  `Cixfile.lock` SHA-256
-  `a0815887a1c5bc2367e294c54416e276e32370d801cf01797e2b2277faf5df9c`.
-  Full agent tier synchronous exit-0 receipts: Rust fmt check, examples fmt
-  check, warning-denied workspace/all-target clippy, full workspace tests,
-  tour regeneration plus zero tour diff, and bounded (`--max-jobs 2 --cores
-  2`) contract-keyed progressive VM check. The selector selected all 14
-  scenarios because `cix-build/src/lib.rs` is a cross-cutting module-map input.
-  `git diff --check` remains for the final review; full flake matrix is the
-  orchestrator's independent pre-merge gate.
+- 2026-08-05T15:05:00Z — Quiet-window health discrimination is green: the
+  actual check attr `devenv shell -- nix --max-jobs 1 --cores 1 build -L
+  .#checks.x86_64-linux.scenario-health`, retained at
+  `/tmp/cip99-health-solo.log`, synchronously exited 0. (A prior `.#scenario-health`
+  package-attr probe exited 1 without running a VM and is not a scenario
+  receipt.) The earlier progressive health exit 1 versus this solo exit 0
+  attributes that failure to VM contention; per the stated conditional, no
+  `origin/main` scratch control is required. Merge CIP-93b and rerun the
+  contract-keyed progressive selector before closing.
 
-- 2026-08-05T13:25:00Z — Committed the completed Workspace-owner leg
-  (`Extract build workspace owner`) after a staged whitespace review. The
-  worktree was clean immediately after the commit. Do not merge from this
-  track; the orchestrator still owns the independent full flake matrix and
-  merge decision.
+- 2026-08-05T14:40:00Z — Quiet-window part 1 receipt is green: `devenv shell
+  -- cargo test --workspace -- --test-threads=1`, retained at
+  `/tmp/cip99-workspace-quiet.log`, synchronously exited 0. This clears the
+  former tour/user-manager failure; continue to hold all VM discrimination
+  until the orchestrator declares the VM axis quiet.
+
+- 2026-08-05T14:30:00Z — Orchestrator has not accepted the two non-green
+  receipts as environmental. Stand by while CIP-106 and CIP-93b occupy the
+  tour/VM capacity. On an explicit quiet-window ping: (1) rerun the complete
+  serialized workspace suite with synchronous retained-log capture; (2) rerun
+  the failing health-watchdog VM scenario SOLO with retained-log capture. If
+  health still fails alone, run the identical scenario from a scratch checkout
+  at `origin/main`, as CIP-105 did, before making any environmental claim.
+
+- 2026-08-05T14:20:00Z — Final agent-tier receipts: fmt, example fmt,
+  warning-denied clippy, corpus-browser generation, and corpus drift all exit
+  0. The serialized workspace receipt exits 101 only in the pre-existing
+  user-manager tour race: the foreign test’s 60-second decoy ends before its
+  cleanup after rendering, then poisons the renderer lock. The isolated tour
+  generator exits 0 and leaves no `docs/tour` drift; a fresh independent
+  renderer run reproduces the host-only `second web run printed its unit`
+  assertion. The bounded automatic VM selector (`--max-jobs 2 --cores 2`)
+  exits 1 in the unrelated health scenario: under concurrent VM load its
+  watchdog kills the service before the journal assertion, followed by the
+  runner’s `Invalid BuildResult status` error. Do not call this track green
+  until the orchestrator has a clean serialized VM/tour environment.
+
+- 2026-08-05T14:00:00Z — Implemented CIP-99 lock-scale. `ReadDependency`
+  now has a recursive `subtree` digest selected only for a bottom-up complete
+  stable tree (listed directories plus content observations of every child);
+  validation re-walks the same tree and any narrower/volatile observation
+  stays per-path. Complete output trees use one replay-root change record;
+  wholly removed trees use one absent root. Focused trace tests pass. Clean
+  HEAD controls and this branch produced the same current output store paths
+  for parse-server, echo-server, and phpMyAdmin. Regenerated lock counts:
+  parse-server 197,888 -> 54,915; echo-server 19,622 -> 19,620 (partial
+  reads deliberately cannot collapse); phpMyAdmin 15,539 -> 461. Next: full
+  agent tier and focused VM receipt.
 
 - 2026-08-05T00:35:00Z — Committed CIP-108 (`Add CIP-108 structural
   guardrails`) after the staged whitespace review. The branch is ready for

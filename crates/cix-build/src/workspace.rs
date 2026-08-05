@@ -303,7 +303,7 @@ fn memo_write_set_matches_workspace(
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                 Err(error) => return Err(error.into()),
             },
-            StepChange::Present | StepChange::Directory { .. } => {
+            StepChange::Present | StepChange::Subtree { .. } | StepChange::Directory { .. } => {
                 if !memo_output_matches_workspace(memo, workspace, path, output_fingerprints)? {
                     return Ok(false);
                 }
@@ -493,7 +493,7 @@ fn apply_step_memo(
     let mut present = memo
         .changes
         .iter()
-        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .filter(|(_, change)| matches!(change, StepChange::Present | StepChange::Subtree { .. }))
         .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
     present.sort_by_key(|path| path.matches('/').count());
@@ -519,8 +519,9 @@ fn apply_step_memo(
         apply_started.elapsed().as_millis()
     );
     for (relative, change) in &memo.changes {
-        let StepChange::Directory { mode } = change else {
-            continue;
+        let mode = match change {
+            StepChange::Directory { mode } | StepChange::Subtree { mode } => mode,
+            _ => continue,
         };
         let path = if relative == "." {
             workspace.to_owned()
@@ -540,7 +541,7 @@ pub(crate) fn add_step_output_snapshot(
     let delta = ScratchDir::new("cix-step-delta-").context("creating step output delta")?;
     let mut present = changes
         .iter()
-        .filter(|(_, change)| matches!(change, StepChange::Present))
+        .filter(|(_, change)| matches!(change, StepChange::Present | StepChange::Subtree { .. }))
         .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
     present.sort_by_key(|path| path.matches('/').count());

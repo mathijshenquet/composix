@@ -93,8 +93,12 @@ named interpreter.
    convention, never as syntax. Simple node = one line; complex node
    = line + clauses + optional heredoc body — the systemd/GHA block
    shape, graduated instead of mandatory.
-4. **Binders: LET in, ENV out** (Mathijs, 2026-08-05: explicit
-   per-node binding is "obviously correct"):
+4. **Binders: LET in, builder-ENV out** (Mathijs, 2026-08-05:
+   explicit per-node binding is "obviously correct" — and the ban is
+   scoped: ENV remains the LEAF-phase (SERVICE/APP) runtime-contract
+   directive with its CIP-96/100 vocabulary — `ENV PORT=8080`,
+   `ENV API_TOKEN required`, bare `ENV NAME` optional. What dies is
+   ENV as builder-scope broadcast state):
    - `LET NAME = value` — a text edge: file-local, interpolates as
      bare `${NAME}` in argv/directive/FILE positions (D32's bare-name
      objection targeted *ambient* bindings; a declaration three lines
@@ -120,8 +124,9 @@ named interpreter.
      per-node by construction — no shared env state exists. Inside a
      heredoc, `export` and `VAR=x cmd` remain available as
      node-INTERNAL state (the interpreter's interior, not an edge).
-     Service-side `ENV` (the runtime contract, CIP-96/100) is
-     untouched: the service is the node and declares its environment.
+     Leaf-phase `ENV` (SERVICE/APP — the runtime contract,
+     CIP-96/100 forms) is untouched: the service is the node and
+     declares its environment there.
 5. **What the heredoc does and does not promise**: inside a heredoc, the environment is visible and expandable — that leak is
    real, unavoidable (tools must read their knobs), and scoped: it
    exists only where the author explicitly named an interpreter. The
