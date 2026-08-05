@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "global": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "crates/*/Cargo.toml",
+    "crates/cix/src/**",
+    "crates/cix-common/src/**",
+    "crates/cix-build/src/lib.rs",
+    "crates/cix-build/src/scratch.rs",
+    "crates/cix-index/src/cli.rs",
+    "crates/cix-index/src/lib.rs",
+    "flake.nix",
+    "nix/scenario-contracts.json",
+    "nix/scenarios/lib.nix"
+  ],
+  "nonProduct": [
+    ".dev/**",
+    ".github/**",
+    ".envrc",
+    "AGENTS.md",
+    "LICENSE",
+    "README.md",
+    "cips/**",
+    "corpus/**",
+    "crates/**/LOG.md",
+    "crates/**/tests/**",
+    "crates/cix-build/src/build_chain_tests.rs",
+    "crates/cix-run/src/unit/tests.rs",
+    "devenv.lock",
+    "devenv.nix",
+    "devenv.yaml",
+    "docs/**",
+    "examples/**",
+    "nix/LOG.md",
+    "nix/README.md",
+    "nix/progressive-vm-check.nix",
+    "nix/scenario-contracts.py",
+    "rustfmt.toml",
+    "scripts/**"
+  ],
+  "rules": [
+    {
+      "surface": "index-remote",
+      "paths": [
+        "crates/cix-index/src/pull.rs",
+        "crates/cix-index/src/serve.rs"
+      ]
+    },
+    {
+      "surface": "index-local",
+      "paths": [
+        "crates/cix-index/src/**"
+      ]
+    },
+    {
+      "surface": "build",
+      "paths": [
+        "crates/cix-build/src/**",
+        "crates/cix-cixfile/src/**"
+      ]
+    },
+    {
+      "surface": "runtime-devices",
+      "paths": [
+        "crates/cix-run/src/devices.rs"
+      ]
+    },
+    {
+      "surface": "runtime-health",
+      "paths": [
+        "crates/cix-run/src/health.rs",
+        "crates/cix-run/src/probe.rs"
+      ]
+    },
+    {
+      "surface": "runtime-closed-root",
+      "paths": [
+        "crates/cix-run/src/closed_root.rs"
+      ]
+    },
+    {
+      "surface": "runtime-directories",
+      "paths": [
+        "crates/cix-run/src/directories.rs"
+      ]
+    },
+    {
+      "surface": "runtime-debug",
+      "paths": [
+        "crates/cix-run/src/debug.rs",
+        "crates/cix-run/src/shell.rs"
+      ]
+    },
+    {
+      "surface": "runtime-core",
+      "paths": [
+        "crates/cix-run/src/**"
+      ]
+    },
+    {
+      "surface": "compose-network",
+      "paths": [
+        "crates/cix-compose/src/network.rs"
+      ]
+    },
+    {
+      "surface": "compose-directories",
+      "paths": [
+        "crates/cix-compose/src/directories.rs"
+      ]
+    },
+    {
+      "surface": "compose-observability",
+      "paths": [
+        "crates/cix-compose/src/observability.rs",
+        "crates/cix-compose/src/ps.rs"
+      ]
+    },
+    {
+      "surface": "compose-core",
+      "paths": [
+        "crates/cix-compose/src/**",
+        "crates/cix-compose/compose.schema.json"
+      ]
+    }
+  ],
+  "scenarios": {
+    "scenario-closedroot-audit": [
+      "compose-core",
+      "compose-directories",
+      "compose-network",
+      "compose-observability",
+      "index-local",
+      "runtime-closed-root",
+      "runtime-core",
+      "runtime-devices",
+      "runtime-directories",
+      "runtime-health"
+    ],
+    "scenario-devices": [
+      "index-local",
+      "runtime-core",
+      "runtime-devices"
+    ],
+    "scenario-dirs2": [
+      "compose-core",
+      "compose-directories",
+      "index-local",
+      "runtime-closed-root",
+      "runtime-core",
+      "runtime-directories"
+    ],
+    "scenario-gc-survival": [
+      "compose-core",
+      "index-local",
+      "runtime-core",
+      "runtime-directories"
+    ],
+    "scenario-health": [
+      "compose-core",
+      "index-local",
+      "runtime-core",
+      "runtime-health"
+    ],
+    "scenario-health-systemd257": [
+      "compose-core",
+      "index-local",
+      "runtime-core",
+      "runtime-health"
+    ],
+    "scenario-lifecycle": [
+      "compose-core",
+      "compose-directories",
+      "compose-network",
+      "index-local",
+      "runtime-core",
+      "runtime-directories"
+    ],
+    "scenario-netns": [
+      "compose-core",
+      "compose-network",
+      "index-local",
+      "runtime-closed-root",
+      "runtime-core"
+    ],
+    "scenario-observability": [
+      "compose-core",
+      "compose-observability",
+      "index-local",
+      "runtime-core"
+    ],
+    "scenario-secrets": [
+      "compose-core",
+      "index-local",
+      "runtime-core"
+    ],
+    "scenario-side-by-side": [
+      "compose-core",
+      "compose-network",
+      "index-local",
+      "runtime-core",
+      "runtime-directories"
+    ],
+    "scenario-stopdispo": [
+      "compose-core",
+      "index-local",
+      "runtime-core"
+    ],
+    "scenario-tree": [
+      "compose-core",
+      "compose-directories",
+      "index-local",
+      "runtime-core",
+      "runtime-directories"
+    ],
+    "scenario-update-repin": [
+      "compose-core",
+      "index-local",
+      "runtime-core",
+      "runtime-directories"
+    ]
+  }
+}
