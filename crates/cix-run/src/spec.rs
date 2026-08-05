@@ -374,10 +374,7 @@ impl Service {
                 );
             }
         }
-        validate_mounts(
-            self.mounts.as_deref().unwrap_or_default(),
-            &seen.into_iter().collect::<Vec<_>>(),
-        )?;
+        validate_mounts(self.mounts.as_deref().unwrap_or_default())?;
         self.validate_capabilities()?;
         self.validate_kind(kind)?;
         Ok(())
@@ -627,7 +624,7 @@ impl Serialize for Spec {
     }
 }
 
-fn validate_mounts(mounts: &[PathBuf], role_paths: &[&Path]) -> Result<()> {
+fn validate_mounts(mounts: &[PathBuf]) -> Result<()> {
     for (index, mount) in mounts.iter().enumerate() {
         validate_mount_path(mount)?;
         for other in &mounts[..index] {
@@ -636,15 +633,6 @@ fn validate_mounts(mounts: &[PathBuf], role_paths: &[&Path]) -> Result<()> {
                     "mount paths {} and {} overlap; mounts must not be nested",
                     other.display(),
                     mount.display()
-                );
-            }
-        }
-        for role_path in role_paths {
-            if mount.starts_with(role_path) || role_path.starts_with(mount) {
-                bail!(
-                    "mount path {} overlaps declared role directory {}",
-                    mount.display(),
-                    role_path.display()
                 );
             }
         }
@@ -980,5 +968,22 @@ mod tests {
         ] {
             assert!(Spec::from_slice(json.as_bytes()).is_err(), "{json}");
         }
+    }
+
+    #[test]
+    fn role_directories_may_be_nested_under_artifact_mounts() {
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["bin/app"],
+                "mounts": ["/var/www"],
+                "dirs": {
+                    "state": ["/var/www/db", "/var/www/images/uploads/logos"]
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = spec.select_service(None).unwrap().1;
+        assert_eq!(service.dirs.state.len(), 2);
     }
 }

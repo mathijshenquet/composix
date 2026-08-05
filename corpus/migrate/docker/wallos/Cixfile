@@ -6,20 +6,18 @@ BUILDER app
   COPY startup.cix.sh startup.sh
   RUN <<ASSEMBLE
 rm -f nginx.conf nginx.default.conf
-rm -rf db images/uploads/logos
-ln -s /data/db db
-ln -s /data/logos images/uploads/logos
+mkdir -p db images/uploads/logos
 ASSEMBLE
 
 SERVICE wallos
   IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.nginx} ${pkgs.php83}
-  COPY ${app}/ /app
+  COPY ${app}/ /var/www
   COPY nginx.cix.conf /etc/nginx/nginx.conf
   COPY ${pkgs.nginx}/conf/mime.types /etc/nginx/mime.types
   COPY php-fpm.cix.conf /etc/wallos/php-fpm.conf
-  START bash /app/startup.sh
+  START bash /var/www/startup.sh
   PORT http = 80
   PORT probe = 18092
   CLAIM egress
-  STATEDIR /data/db
-  STATEDIR /data/logos
+  STATEDIR /var/www/db
+  STATEDIR /var/www/images/uploads/logos

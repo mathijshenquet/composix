@@ -1,5 +1,37 @@
 # cix-run work log
 
+## track/cip98
+
+- 2026-08-05 UTC — Focused `cargo test -p cix-run`, Wallos Cixfile format
+  validation, corpus-browser regeneration, and the progressive VM selector
+  (including `scenario-dirs2`) exited 0 synchronously. Wallos' full build is
+  blocked before evaluation because this checkout has no fetched `context/`
+  source. A first full workspace run found a pre-existing-looking
+  `fetch_probe_cleanup` scratch race; its isolated retry exited 0. Do not
+  count the workspace or tour gates yet: an interrupted tour regeneration
+  removed generated pages, so regenerate it foreground and then rerun the
+  full workspace suite foreground before claiming green.
+
+- 2026-08-05 UTC — Re-ran the short agent checks foreground with observed
+  exit 0: `cargo test -p cix-run`; `cargo fmt --all --check`; `cargo run --
+  fmt --check examples`; warning-denied workspace/all-target clippy; and
+  corpus-browser regeneration. The progressive VM selector also exited 0 and
+  selected `scenario-dirs2`. The generator's Wallos build still cannot start
+  without its intentionally absent fetched context. The long full-workspace
+  and tour gates remain unreceipted: this environment kills each foreground
+  command at 30 seconds, and the tour renderer needs longer. Its generated
+  pages were restored after each forced interruption. Do not call this track
+  green until those two commands complete with observed exit 0.
+
+- 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
+  current project context. The collision is the cix-run mount/role overlap
+  validator plus property emission order. Conventional implementation choice:
+  preserve the existing no-nested-artifact-projection rule, lift only its
+  role-directory overlap check, and emit artifact read-only binds before role
+  read-write binds. Wallos is restored to `/var/www` with `db` and logos as
+  nested state roles; `scenario-dirs2` gains the runtime regression. Next:
+  format, run focused Rust/Nix checks, then the prescribed synchronous gates.
+
 ## track/stopdispo
 
 - 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the

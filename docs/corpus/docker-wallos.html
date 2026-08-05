@@ -56,14 +56,13 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / wallos</nav>
   <h1>docker / wallos</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶⌛ Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added; the forced /app relocation reverts once CIP-98 (artifact-root collision, adopted) is implemented · <strong>Evidence:</strong> runtime probe + cold build</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added; CIP-98 restores upstream&#39;s /var/www with nested state roles, pending regeneration · <strong>Evidence:</strong> runtime probe + cold build</p>
   <p class="status"><strong>Receipt status:</strong> The complete app/state assembly builds cold and the independent /health.php probe returns OK · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CIP-98</p>
     <ul>
-      <li>The application webroot is <code>/app</code> rather than upstream <code>/var/www</code> because the latter collides with Cix&#39;s artifact mount and cannot contain the declared state descendants. → language (artifact-root/role-path collision)</li>
       <li>The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case</li>
       <li>Upstream&#39;s <code>dcron</code> service and <code>/etc/cron.d/cronjobs</code> schedule are not activated, so only the startup maintenance jobs run. → case</li>
       <li>Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case</li>
@@ -672,23 +671,21 @@ Retrieved: 2026-07-31
   <span class="tok-directive">COPY</span> startup.cix.sh startup.sh
   <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
 <span class="tok-heredoc">rm -f nginx.conf nginx.default.conf</span>
-<span class="tok-heredoc">rm -rf db images/uploads/logos</span>
-<span class="tok-heredoc">ln -s /data/db db</span>
-<span class="tok-heredoc">ln -s /data/logos images/uploads/logos</span>
+<span class="tok-heredoc">mkdir -p db images/uploads/logos</span>
 <span class="tok-directive">ASSEMBLE</span>
 
 <span class="tok-directive">SERVICE</span> wallos
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.nginx}</span> <span class="tok-interpolation">${pkgs.php83}</span>
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /app
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /var/www
   <span class="tok-directive">COPY</span> nginx.cix.conf /etc/nginx/nginx.conf
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.nginx}</span>/conf/mime.types /etc/nginx/mime.types
   <span class="tok-directive">COPY</span> php-fpm.cix.conf /etc/wallos/php-fpm.conf
-  <span class="tok-directive">START</span> bash /app/startup.sh
+  <span class="tok-directive">START</span> bash /var/www/startup.sh
   <span class="tok-directive">PORT</span> http = 80
   <span class="tok-directive">PORT</span> probe = 18092
   <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">STATEDIR</span> /data/db
-  <span class="tok-directive">STATEDIR</span> /data/logos
+  <span class="tok-directive">STATEDIR</span> /var/www/db
+  <span class="tok-directive">STATEDIR</span> /var/www/images/uploads/logos
 </code></pre>
       </section>
       <details class="file">
@@ -936,12 +933,12 @@ http {
         server_name localhost;
 
         location / {
-            root /app;
+            root /var/www;
             index index.php;
         }
 
         location ~ \.php$ {
-            root /app;
+            root /var/www;
             fastcgi_pass unix:/dev/shm/wallos-cix/php-fpm.sock;
             fastcgi_index index.php;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -1110,9 +1107,9 @@ wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
         <pre><code>#!/usr/bin/env bash
 set -euo pipefail
 
-cd /app
+cd /var/www
 runtime_dir=/dev/shm/wallos-cix-$$
-mkdir -p /data/db /data/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
+mkdir -p /var/www/db /var/www/images/uploads/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
 
 fpm_conf=&quot;$runtime_dir/php-fpm.conf&quot;
 nginx_conf=&quot;$runtime_dir/nginx.conf&quot;
@@ -1144,12 +1141,12 @@ nginx -c &quot;$nginx_conf&quot; -e stderr -g &#39;daemon off;&#39; &amp;
 NGINX_PID=$!
 
 sleep 1
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/createdatabase.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/db/migrate.php
-mkdir -p /data/logos/avatars
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updatenextpayment.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updateexchange.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/checkforupdates.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/createdatabase.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/db/migrate.php
+mkdir -p /var/www/images/uploads/logos/avatars
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updatenextpayment.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updateexchange.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/checkforupdates.php
 
 wait
 </code></pre>

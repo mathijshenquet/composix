@@ -255,6 +255,10 @@ pub(crate) fn build_unit_with_options(
         .join(" ");
     properties.push(("LogExtraFields".into(), log_fields));
 
+    if mode == UnitMode::System || options.closed_root.is_some() {
+        add_mounts(&mut properties, output, service)?;
+    }
+
     crate::directories::add_properties(
         &mut properties,
         &format!("{}-{service_name}", options.naming.directory_prefix),
@@ -262,10 +266,6 @@ pub(crate) fn build_unit_with_options(
         mode != UnitMode::System,
         mode != UnitMode::UserDegraded,
     );
-
-    if mode == UnitMode::System || options.closed_root.is_some() {
-        add_mounts(&mut properties, output, service)?;
-    }
 
     if mode == UnitMode::System {
         properties.push(("DynamicUser".into(), "yes".into()));
@@ -1498,6 +1498,44 @@ mod tests {
             .properties
             .iter()
             .any(|(name, _)| name == "PrivatePIDs"));
+    }
+
+    #[test]
+    fn artifact_projection_precedes_nested_role_mounts() {
+        let output = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(output.path().join("var/www/images/uploads/logos")).unwrap();
+        let spec = Spec::from_slice(
+            br#"{
+                "cixManifest": 0,
+                "start": ["/nix/store/00000000000000000000000000000000-worker/bin/worker"],
+                "mounts": ["/var/www"],
+                "dirs": {
+                    "state": ["/var/www/db", "/var/www/images/uploads/logos"]
+                }
+            }"#,
+        )
+        .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let definition =
+            build_unit(output.path(), "worker", service, &config, UnitMode::System).unwrap();
+
+        let projection = definition
+            .properties
+            .iter()
+            .position(|(name, value)| {
+                name == "BindReadOnlyPaths"
+                    && value == &format!("{}/var/www:/var/www", output.path().display())
+            })
+            .unwrap();
+        let state = definition
+            .properties
+            .iter()
+            .position(|(name, value)| {
+                name == "BindPaths" && value == "/var/lib/cix-run-worker/var/www/db:/var/www/db"
+            })
+            .unwrap();
+        assert!(projection < state, "{:#?}", definition.properties);
     }
 
     #[test]
