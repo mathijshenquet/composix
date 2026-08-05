@@ -1,5 +1,77 @@
 # cix-run work log
 
+## track/cip98
+
+- 2026-08-05 UTC — Focused `cargo test -p cix-run`, Wallos Cixfile format
+  validation, corpus-browser regeneration, and the progressive VM selector
+  (including `scenario-dirs2`) exited 0 synchronously. Wallos' full build is
+  blocked before evaluation because this checkout has no fetched `context/`
+  source. A first full workspace run found a pre-existing-looking
+  `fetch_probe_cleanup` scratch race; its isolated retry exited 0. Do not
+  count the workspace or tour gates yet: an interrupted tour regeneration
+  removed generated pages, so regenerate it foreground and then rerun the
+  full workspace suite foreground before claiming green.
+
+- 2026-08-05 UTC — Re-ran the short agent checks foreground with observed
+  exit 0: `cargo test -p cix-run`; `cargo fmt --all --check`; `cargo run --
+  fmt --check examples`; warning-denied workspace/all-target clippy; and
+  corpus-browser regeneration. The progressive VM selector also exited 0 and
+  selected `scenario-dirs2`. The generator's Wallos build still cannot start
+  without its intentionally absent fetched context. The long full-workspace
+  and tour gates remain unreceipted: this environment kills each foreground
+  command at 30 seconds, and the tour renderer needs longer. Its generated
+  pages were restored after each forced interruption. Do not call this track
+  green until those two commands complete with observed exit 0.
+
+- 2026-08-05 UTC — Fetched Wallos with `bash corpus/migrate/fetch.sh wallos`
+  (exit 0) and built `corpus/migrate/docker/wallos#wallos` (exit 0;
+  `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos`). Per the
+  approved explicit-status pattern, the first background full-workspace gate
+  recorded `101` in `.dev/scratch/cip98-workspace.exit`; its only failure was
+  the expected corpus-browser drift caused by now-present Wallos context.
+  Regenerated the browser and its normal corpus drift test exited 0. Next:
+  commit the lock/browser update, then rerun workspace and tour gates with
+  captured numeric statuses.
+
+- 2026-08-05 UTC — Final gate receipts use the approved explicit exit-status
+  capture in ignored `.dev/scratch/`: `cargo test -p cix --test tour --
+  --ignored generate_tour` recorded `0`; `cargo test -p cix --test tour`
+  recorded `0`; and `cargo test --workspace --quiet -- --test-threads=1`
+  recorded `0`. The serial setting is the established protection for this
+  host's user-manager test race. Alongside the prior synchronous 0 receipts
+  (fmt, examples fmt, warning-denied clippy, corpus generation/drift,
+  cix-run suite, progressive VM selector, Wallos fetch and build), the CIP-98
+  agent tier is genuinely green.
+
+- 2026-08-05 UTC — Independent full gate correctly rejected the prior green
+  claim: the exact focused reproduction `nix build
+  .#checks.x86_64-linux.scenario-dirs2 --no-link -L` recorded `1` in
+  `.dev/scratch/cip98-dirs2-repro.exit`. systemd could not create
+  `/var/www/db` through the read-only artifact bind. Fixed Cixfile codegen to
+  create every declared writable role path in the artifact at build time, and
+  made the raw VM item model the same generated artifact shape. The first
+  retry reached the fixed namespace but exposed a missing coreutils reference
+  in the new fixture; corrected it. The final exact same focused command
+  recorded `0` in `.dev/scratch/cip98-dirs2-fixed2.exit`: the service started,
+  wrote both nested paths, and the purge listed both mirrored backings. Next:
+  commit the fix and repeat the complete agent gate tier.
+
+- 2026-08-05 UTC — After regenerating the one affected tour page, the fresh
+  explicit final workspace receipt in `.dev/scratch/cip98-workspace-final2.exit`
+  is `0` for `cargo test --workspace --quiet -- --test-threads=1`. The focused
+  `scenario-dirs2` receipt remains `0`; fmt, examples fmt, warning-denied
+  clippy, and tour regeneration are also 0. CIP-98 is green again on the
+  corrected head.
+
+- 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
+  current project context. The collision is the cix-run mount/role overlap
+  validator plus property emission order. Conventional implementation choice:
+  preserve the existing no-nested-artifact-projection rule, lift only its
+  role-directory overlap check, and emit artifact read-only binds before role
+  read-write binds. Wallos is restored to `/var/www` with `db` and logos as
+  nested state roles; `scenario-dirs2` gains the runtime regression. Next:
+  format, run focused Rust/Nix checks, then the prescribed synchronous gates.
+
 ## track/stopdispo
 
 - 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the
