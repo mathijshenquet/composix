@@ -4,10 +4,10 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
+use crate::degradation::{warn_degradations, without_properties, without_user_capability_controls};
 use crate::runtime::{
     capability_failure, current_uid, namespace_failure, nonce, resolve_service,
-    run_transient_foreground, warn_degradations, with_unit_diagnostics, without_properties,
-    without_user_capability_controls, ForegroundResult,
+    run_transient_foreground, with_unit_diagnostics, ForegroundResult,
 };
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
 use crate::unit::{build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode};

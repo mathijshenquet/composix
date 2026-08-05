@@ -44,6 +44,33 @@
   all 14 changed scenarios. Removed the ignored receipt file only after
   reading its `0`; the branch is ready for handoff.
 
+- 2026-08-05 UTC — Independent source-size gate found `runtime.rs` at 2041
+  LOC (limit 2000). Moved the granular-degradation mechanics into the new
+  `degradation` stratum and registered it in the crate module map; runtime is
+  now 1969 LOC. Synchronous focused receipts: fmt check, cix-run library
+  tests, and warning-denied cix-run all-target clippy exited 0. Next: repeat
+  the complete agent tier, including serialized tour and captured focused VM.
+
+- 2026-08-05 UTC — Full-tier workspace-test receipt is blocked by concurrent
+  devenv lock validation (regen3 and cip98 shells). Two captured launches did
+  not survive long enough to write `.gate-exit`; the exact final line in
+  `/tmp/cip97-workspace-gate.log` was `• Validating lock`, and no lingering
+  devenv/Cargo/gate-shell process remained to terminate. Do not claim a
+  workspace, tour, or focused-VM receipt until an uncontended captured launch
+  records a numeric exit status.
+
+- 2026-08-05 UTC — Complete post-split agent tier is green with synchronous
+  terminal receipts: `cargo fmt --all --check`; `cargo run -- fmt --check
+  examples`; `cargo clippy --workspace --all-targets -- -D warnings`; serial
+  `cargo test --workspace --quiet -- --test-threads=1` (exit 0); explicit tour
+  regeneration and tour drift (`cargo test -p cix --test tour -- --ignored
+  generate_tour`, then `cargo test -p cix --test tour`, both exit 0); and
+  `devenv shell -- nix run .#progressive-vm-check` (exit 0). The VM selector
+  chose all 14 derivation-changed scenarios. An earlier selector exit 1 was a
+  `scenario-health` activation failure during three-way VM contention; the
+  exclusive rerun passed all selected scenarios. `runtime.rs` remains 1969
+  LOC, below the 2000 source-size limit.
+
 ## track/stopdispo
 
 - 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the
