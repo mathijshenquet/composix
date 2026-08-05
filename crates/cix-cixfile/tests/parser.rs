@@ -78,6 +78,23 @@ STATEDIR /var/lib/migrate
     }
 
     #[test]
+    fn stopsignal_compiles_to_the_manifest_and_rejects_unknown_names() {
+        let parsed = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSTART /bin/true\nSTOPSIGNAL SIGQUIT\n",
+        )
+        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&parsed).unwrap()).unwrap();
+        assert_eq!(manifest["stopSignal"], "SIGQUIT");
+
+        let error = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSTART /bin/true\nSTOPSIGNAL QUIT\n",
+        )
+        .unwrap_err();
+        assert!(error.message.contains("known signal name"), "{error}");
+    }
+
+    #[test]
     fn docker_udp_port_spelling_suggests_the_systemd_form() {
         let error = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nPORT http3 = 443/udp\nSTART /bin/true\n",

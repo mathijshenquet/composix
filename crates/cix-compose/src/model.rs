@@ -142,6 +142,8 @@ pub struct ComposeService {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shm: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub egress: Option<bool>,
 }
 
@@ -296,6 +298,7 @@ fn insert_child(
                 persistent: None,
                 jitter: None,
                 shm: None,
+                stop_timeout: None,
                 egress: None,
             }),
         );
@@ -454,6 +457,10 @@ fn validate_service(parent: &str, name: &str, service: &ComposeService) -> Resul
     }
     if let Some(shm) = &service.shm {
         cix_run::spec::validate_systemd_size(shm).with_context(|| format!("{service_path}.shm"))?;
+    }
+    if let Some(stop_timeout) = &service.stop_timeout {
+        cix_run::spec::parse_duration(stop_timeout)
+            .with_context(|| format!("{service_path}.stopTimeout"))?;
     }
     if service.identity.as_deref().is_some_and(str::is_empty) {
         bail!("{service_path}.identity: identity must not be empty");

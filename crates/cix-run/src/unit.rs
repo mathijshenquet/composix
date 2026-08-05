@@ -241,6 +241,10 @@ pub(crate) fn build_unit_with_options(
     }
     let mut properties = Vec::new();
     properties.push(("Type".into(), "exec".into()));
+    if let Some(stop_signal) = &service.stop_signal {
+        validate_stop_signal(stop_signal)?;
+        properties.push(("KillSignal".into(), stop_signal.clone()));
+    }
     properties.push(("Slice".into(), options.naming.slice.clone()));
     let log_fields = options
         .log_fields
@@ -385,6 +389,47 @@ pub(crate) fn build_unit_with_options(
         argv,
         degradations,
     })
+}
+
+fn validate_stop_signal(signal: &str) -> Result<()> {
+    if matches!(
+        signal,
+        "SIGHUP"
+            | "SIGINT"
+            | "SIGQUIT"
+            | "SIGILL"
+            | "SIGTRAP"
+            | "SIGABRT"
+            | "SIGBUS"
+            | "SIGFPE"
+            | "SIGKILL"
+            | "SIGUSR1"
+            | "SIGSEGV"
+            | "SIGUSR2"
+            | "SIGPIPE"
+            | "SIGALRM"
+            | "SIGTERM"
+            | "SIGSTKFLT"
+            | "SIGCHLD"
+            | "SIGCONT"
+            | "SIGSTOP"
+            | "SIGTSTP"
+            | "SIGTTIN"
+            | "SIGTTOU"
+            | "SIGURG"
+            | "SIGXCPU"
+            | "SIGXFSZ"
+            | "SIGVTALRM"
+            | "SIGPROF"
+            | "SIGWINCH"
+            | "SIGIO"
+            | "SIGPWR"
+            | "SIGSYS"
+    ) {
+        Ok(())
+    } else {
+        bail!("stopSignal requires a known signal name, got {signal:?}")
+    }
 }
 
 fn add_closed_root(
@@ -1079,6 +1124,24 @@ mod tests {
             );
             assert!(!unit.text.contains("DB_PASSWORD="), "{}", unit.text);
         }
+    }
+
+    #[test]
+    fn stop_signal_projects_to_kill_signal() {
+        let spec =
+            Spec::from_slice(br#"{"cixManifest":0,"start":["bin/app"],"stopSignal":"SIGQUIT"}"#)
+                .unwrap();
+        let service = service(&spec);
+        let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+        let unit = generate_unit(
+            Path::new("/nix/store/00000000000000000000000000000000-app"),
+            "app",
+            service,
+            &config,
+            UnitMode::System,
+        )
+        .unwrap();
+        assert!(unit.contains("KillSignal=SIGQUIT"), "{unit}");
     }
 
     #[test]

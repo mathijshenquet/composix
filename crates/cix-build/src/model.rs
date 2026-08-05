@@ -260,6 +260,7 @@ pub struct Service {
     pub dirs: Dirs,
     pub claims: BTreeSet<Claim>,
     pub shm: Option<String>,
+    pub stop_signal: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -308,6 +309,7 @@ impl Service {
             dirs: Dirs::default(),
             claims: BTreeSet::new(),
             shm: None,
+            stop_signal: None,
         }
     }
 }

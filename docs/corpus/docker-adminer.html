@@ -56,16 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / adminer</nav>
   <h1>docker / adminer</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; source FETCH is cold-unstable, optional ENV needs a sentinel, and stop-signal semantics differ · <strong>Evidence:</strong> runtime probe (worker warm) + independent cold defect · closed-root (package contract)</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; source FETCH is cold-unstable, optional ENV needs a sentinel, and the case is stale for its now-representable stop signal · <strong>Evidence:</strong> runtime probe (worker warm) + independent cold defect · closed-root (package contract)</p>
   <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins; the worker&#39;s warm login probe passes and the dissolved twin is cold-stable, while an independent source refetch exposes the unchanged EXPECT mismatch · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with STOPSIGNAL</p>
     <p>This regeneration resolves the earlier version/checksum binder, PHP tuning, webroot layout, dynamic design/plugin assembly, PHP extension import, artifact import, and missing-twin findings.</p>
     <ul>
       <li><code>ADMINER_DESIGN</code> and <code>ADMINER_PLUGINS</code> use the private <code>__cix_unset__</code> sentinel because Cix cannot declare an optional runtime <code>ENV</code> with no default. → language (optional ENV declaration)</li>
-      <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix has no service stop-signal directive, so systemd&#39;s normal termination semantics remain authoritative. → language (<a href="../../../../cips/open-questions.md#proposed-one-line-dispositions-awaiting-mathijs-batch-blessable">recorded stop-signal gap</a>)</li>
+      <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix now has the directive, so regenerate this case with that declaration. → stale (<a href="../../../../cips/dispositions.md#batch-2026-08-04-blessed-by-mathijs-dockermd-application-queued">STOPSIGNAL disposition</a>)</li>
       <li>The worker&#39;s warm build passed, but the independent fresh fetch is EXPECT-hostile: its published file checksum passes while Cix reports declared <code>sha256-bJPK…</code> versus fetched <code>sha256-XJVI…</code>, leaving no snapshot for cold replay; keep the pin unchanged and normalize the fetch in the volatile-fetch fix round. → case (cold stability)</li>
     </ul>
   </aside>

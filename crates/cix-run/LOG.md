@@ -1,5 +1,44 @@
 # cix-run work log
 
+## track/stopdispo
+
+- 2026-08-05 UTC — Implemented `STOPSIGNAL <signal>` for SERVICE/APP
+  Cixfiles, validated against Linux signal names, serialized as manifest
+  `stopSignal`, and projected by cix-run to `KillSignal=`. Compose gains the
+  deliberately conventional camel-case `stopTimeout: "<duration>"` member
+  field, validated with the existing systemd-duration grammar and projected to
+  `TimeoutStopSec=`. Added parser/unit/generation coverage and a dedicated
+  `scenario-stopdispo` VM assertion for both rendered properties. Applied the
+  entire blessed disposition batch to `docs/docker.md`; Adminer and nginx
+  GAPS are `Status: stale — regenerate with STOPSIGNAL`, and their corpus rows
+  say so. Synchronous receipts: targeted cixfile/run/compose tests passed;
+  the aggregate three-crate test suite passed apart from one transient proj1
+  timing failure, then the exact standalone `cargo test -p cix-cixfile --test
+  proj1` passed. Next: run the new focused VM and the full prescribed gates.
+
+- 2026-08-05 UTC — The synchronous focused VM receipt `devenv shell -- nix
+  run .#progressive-vm-check` exited 0 after selecting all derivation-changed
+  scenarios, including `scenario-stopdispo`; it exercised the generated
+  `KillSignal=SIGQUIT` and `TimeoutStopSec=3s`. `cargo fmt --all --check`,
+  `devenv shell -- cargo run -- fmt --check examples`, and warning-denied
+  workspace/all-target clippy all exited 0. The initial full workspace run
+  correctly found corpus-browser drift from the required corpus-row changes;
+  `devenv shell -- cargo test --test corpus -- --ignored
+  generate_corpus_browser` exited 0 and updated only its generated pages.
+  Tour regeneration is presently failing in unrelated user-manager lifecycle
+  races (`NAMESPACE` permission failure / already-unloaded transient unit),
+  after its destructive stale-page cleanup; retry only after the manager
+  settles, and do not claim a tour receipt until it exits synchronously 0.
+
+- 2026-08-05 UTC — Started the blessed STOPSIGNAL/stop-timeout disposition
+  track after reading its spec, `cips/dispositions.md`, the Docker ledger, and
+  the current project/run logs. The implementation seam is Cixfile → manifest
+  → cix-run unit compiler, with compose service declarations overriding the
+  generated service before compilation. Next: add validated Cixfile signal
+  grammar, compose timeout projection, unit/VM tests, then apply every
+  disposition verdict to `docs/docker.md` and run the prescribed synchronous
+  gates.
+
 ## track/netnsrace
 
 - 2026-08-04 07:34 UTC — Final current-tree agent tier is green after

@@ -235,6 +235,7 @@ fn same_service(left: &Service, right: &Service) -> bool {
         && left.dirs == right.dirs
         && left.claims == right.claims
         && left.shm == right.shm
+        && left.stop_signal == right.stop_signal
 }
 
 fn same_template(left: &Template, right: &Template) -> bool {

@@ -190,6 +190,7 @@ impl Parser<'_> {
                 "READINESS" => self.health_probe(line_number, source, arguments, true)?,
                 "LIVENESS" => self.health_probe(line_number, source, arguments, false)?,
                 "SHM" => self.shm(line_number, source, arguments)?,
+                "STOPSIGNAL" => self.stop_signal(line_number, source, arguments)?,
                 "STATEDIR" | "CACHEDIR" | "LOGDIR" | "CONFIGDIR" | "RUNDIR" | "DIR" => {
                     self.directory(directive, line_number, source, arguments)?
                 }
