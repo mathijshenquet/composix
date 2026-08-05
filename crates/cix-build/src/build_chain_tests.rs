@@ -3,9 +3,15 @@ use crate::fetch::{
     concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
     CredentialToken,
 };
-use crate::workspace::{
-    memo_output_hashes, revert_step_writes, stage_input, validate_step_memo, workspace_identity,
+use crate::memo::{
+    test_compare_cold_paths as compare_cold_paths, test_copy_key_arguments as copy_key_arguments,
+    test_memo_entry as memo_entry, test_retain_fetch_output_roots as retain_fetch_output_roots,
+    test_step_key as step_key, test_step_memo_key as step_memo_key,
+    test_top_fetch_chain_key as top_fetch_chain_key, test_validate_step_memo as validate_step_memo,
+    test_verify_cold_read_set as verify_cold_read_set, StepKeyRequest,
 };
+use crate::workspace::{memo_output_hashes, revert_step_writes, stage_input, workspace_identity};
+use crate::{ConsumedPath, Copy, StepChange};
 
 fn closure(paths: &[&str]) -> BTreeSet<String> {
     paths.iter().map(|path| (*path).to_owned()).collect()

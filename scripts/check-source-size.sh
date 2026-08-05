@@ -108,7 +108,7 @@ while IFS= read -r source; do
   fi
   case "$source" in
     crates/cix-build/src/build_chain.rs)
-      printf '%s\n' "GRANDFATHERED $source: live=$live LOC inline-test=$inline_tests LOC total=$total LOC; Workspace ownership is extracted, while memo/context/sandbox/FETCH-state legs remain; see cix-build/src/lib.rs module map."
+      printf '%s\n' "GRANDFATHERED $source: live=$live LOC inline-test=$inline_tests LOC total=$total LOC; Workspace and MemoEngine ownership are extracted, while context/sandbox/FETCH-state legs remain; see cix-build/src/lib.rs module map."
       ;;
     *)
       if [ "$live" -gt "$limit" ]; then

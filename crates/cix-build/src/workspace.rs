@@ -144,6 +144,52 @@ impl Workspace {
     pub(crate) fn revert_memo(&self, memo: &StepMemo) -> Result<()> {
         revert_step_writes(memo, self.path())
     }
+
+    pub(crate) fn memo_replayable(&self, memo: &StepMemo) -> Result<bool> {
+        if memo.changes.is_empty() {
+            return Ok(true);
+        }
+        let Some(snapshot) = memo.output_snapshot.as_deref() else {
+            return Ok(false);
+        };
+        ensure_store_path(snapshot)
+    }
+
+    pub(crate) fn memo_self_state_matches(
+        &self,
+        memo: &StepMemo,
+        current: &BTreeMap<String, crate::ReadDependency>,
+        output_fingerprints: Option<&BTreeMap<String, String>>,
+    ) -> Result<bool> {
+        Ok(
+            memo_write_set_matches_workspace(memo, self.path(), output_fingerprints)?
+                && memo_self_reads_match(memo, self.path(), current, output_fingerprints)?,
+        )
+    }
+
+    pub(crate) fn output_hashes(
+        &self,
+        changes: &BTreeMap<String, StepChange>,
+    ) -> Result<BTreeMap<String, OutputHash>> {
+        memo_output_hashes(self.path(), changes)
+    }
+
+    pub(crate) fn output_fingerprints(
+        &self,
+        changes: &BTreeMap<String, StepChange>,
+    ) -> Result<BTreeMap<String, String>> {
+        memo_output_fingerprints(self.path(), changes)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn borrowed_for_test(path: &Path) -> Self {
+        Self {
+            work: path.to_owned(),
+            staged: path.join(".cix-test-staged"),
+            state: None,
+            _temporary: None,
+        }
+    }
 }
 
 pub(crate) fn ensure_store_path(path: &str) -> Result<bool> {
@@ -208,51 +254,6 @@ pub(crate) fn memo_has_paths(
         }
     }
     Ok(true)
-}
-
-pub(crate) fn validate_step_memo(
-    memo: &StepMemo,
-    workspace: &Path,
-    allow_fetch_self_reads: bool,
-    output_fingerprints: Option<&BTreeMap<String, String>>,
-) -> Result<(bool, BTreeMap<String, crate::ReadDependency>)> {
-    let validation_started = Instant::now();
-    let replayable = if !memo.changes.is_empty() {
-        let Some(snapshot) = memo.output_snapshot.as_deref() else {
-            return Ok((
-                false,
-                crate::trace::current_dependencies(workspace, &memo.reads)?,
-            ));
-        };
-        ensure_store_path(snapshot)?
-    } else {
-        true
-    };
-    let (current, metrics) =
-        crate::trace::current_dependencies_with_metrics(workspace, &memo.reads)?;
-    crate::cix_timing!(
-        "CIX timing memo-validation rehashed_files={} rehashed_bytes={}",
-        metrics.rehashed_files,
-        metrics.rehashed_bytes
-    );
-    let self_matches = if current == memo.reads || !allow_fetch_self_reads || !replayable {
-        false
-    } else {
-        let self_validation_started = Instant::now();
-        let matches = memo_write_set_matches_workspace(memo, workspace, output_fingerprints)?
-            && memo_self_reads_match(memo, workspace, &current, output_fingerprints)?;
-        crate::cix_timing!(
-            "CIX timing memo-self-validation wall_ms={}",
-            self_validation_started.elapsed().as_millis()
-        );
-        matches
-    };
-    let matches = current == memo.reads || self_matches;
-    crate::cix_timing!(
-        "CIX timing memo-validation total_wall_ms={}",
-        validation_started.elapsed().as_millis()
-    );
-    Ok((replayable && matches, current))
 }
 
 pub(crate) fn memo_output_hashes(

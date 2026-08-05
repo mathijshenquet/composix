@@ -18,12 +18,18 @@ use crate::codegen::{
 use crate::fetch::{CredentialMount, HostCredentials};
 use crate::fhs;
 use crate::lock::builder_fetch_id;
+use crate::memo::{
+    Attribution, BuilderKeyRequest, ChainKeysVerdict, ColdOutputRequest, ColdReadComparisonRequest,
+    ColdReadRequest, ExecutedStep, MemoEngine, NeededPath, OutputMemoRequest, OutputMemoVerdict,
+    ReductionRequest, StepMemoKeyRequest, StepReuseRequest, StepReuseVerdict, TopFetchKeyRequest,
+    TopReductionRequest,
+};
 use crate::seccomp;
 use crate::trace;
 use crate::workspace::{self, Workspace};
 use crate::{
-    BuildStep, Builder, Cixfile, ConsumedPath, Copy, DevEnvironment, Fetch, FetchPin, LockFile,
-    MemoEntry, ScratchDir, StepChange, StepMemo, Template, TemplatePart, VolatilePath,
+    BuildStep, Builder, Cixfile, DevEnvironment, Fetch, FetchPin, LockFile, ScratchDir, StepMemo,
+    Template, TemplatePart, VolatilePath,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -36,74 +42,6 @@ struct BuildContext {
     environment: BTreeMap<String, String>,
     #[serde(rename = "universeIdentities")]
     universe_identities: BTreeMap<String, String>,
-}
-
-#[derive(Serialize)]
-struct StepKeyRequest<'a> {
-    kind: &'a str,
-    arguments: &'a str,
-    offered_closure: &'a BTreeSet<String>,
-    ordered_imports: &'a [String],
-    predecessor: &'a str,
-    declared_sources: &'a [String],
-    environment: &'a BTreeMap<String, String>,
-    fetch_pin: Option<String>,
-    universe_identities: &'a [String],
-}
-
-#[derive(Serialize)]
-struct StepMemoKeyRequest<'a> {
-    builder: &'a str,
-    index: usize,
-    kind: &'a str,
-    directive: &'a str,
-    arguments: &'a str,
-    offered_closure: &'a BTreeSet<String>,
-    ordered_imports: &'a [String],
-    environment: &'a BTreeMap<String, String>,
-    universe_identities: &'a [String],
-}
-
-#[derive(Serialize)]
-struct CopyKey<'a> {
-    src: Vec<TemplateKeyPart<'a>>,
-    dst: &'a str,
-}
-
-#[derive(Serialize)]
-enum TemplateKeyPart<'a> {
-    Literal(&'a str),
-    Package {
-        namespace: &'a str,
-        attrpath: &'a str,
-    },
-    Binder(&'a str),
-}
-
-// Bump whenever the fixed bubblewrap filesystem skeleton changes: memoized
-// commands must not be reused across a different execution environment.
-const SANDBOX_SKELETON: &str = fhs::SKELETON_FINGERPRINT;
-// Bump this when codegen-relevant Cixfile semantics change without a package
-// version bump.  It keeps memo keys isolated across concurrently-built checkouts.
-const CODEGEN_FINGERPRINT: &str = crate::BUILDER_FINGERPRINT;
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ExecutedStep {
-    pub name: String,
-    pub kind: String,
-    pub executed: bool,
-}
-
-#[derive(Clone, Debug, Default)]
-struct NeededPath {
-    attributions: Vec<Attribution>,
-}
-
-#[derive(Clone, Debug)]
-struct Attribution {
-    binder: String,
-    path: String,
-    line: usize,
 }
 
 struct FetchProbe {
@@ -252,7 +190,7 @@ fn execute_top_fetch(
         .values()
         .cloned()
         .collect::<Vec<_>>();
-    let trace_key = step_memo_key(StepMemoKeyRequest {
+    let trace_key = MemoEngine::trace_key(StepMemoKeyRequest {
         builder: name,
         index: 0,
         kind: "FETCH",
@@ -270,17 +208,17 @@ fn execute_top_fetch(
     let existing_pin = lock.fetches.get(name).map(FetchPin::key);
     let existing_key = existing_pin
         .map(|pin| {
-            top_fetch_chain_key(
+            MemoEngine::top_fetch_key(TopFetchKeyRequest {
                 command,
-                &offered_closure,
-                &environment,
-                &pin,
-                &context
+                offered_closure: &offered_closure,
+                environment: &environment,
+                pin: &pin,
+                universe_identities: &context
                     .universe_identities
                     .values()
                     .cloned()
                     .collect::<Vec<_>>(),
-            )
+            })
         })
         .transpose()?;
     if cold && !force {
@@ -291,7 +229,12 @@ fn execute_top_fetch(
         {
             let empty = ScratchDir::new("cix-build-cold-")
                 .context("creating cold top-level FETCH audit root")?;
-            verify_cold_read_set(memo, empty.path(), fetch.line, &fetch.source)?;
+            MemoEngine::audit_cold(ColdReadRequest {
+                memo,
+                workspace: empty.path(),
+                line: fetch.line,
+                source: &fetch.source,
+            })?;
         }
         let pin = lock.fetches.get(name).with_context(|| {
             format!("FETCH {name} has no pin to replay; --cold never refetches")
@@ -299,18 +242,19 @@ fn execute_top_fetch(
         let snapshot = replay_fetch_snapshot(directory, name, pin)?;
         verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
         let paths = workspace::store_consumed_paths(Path::new(&snapshot), needed.keys().cloned())?;
-        let key = top_fetch_chain_key(
+        let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
             command,
-            &offered_closure,
-            &environment,
-            &pin.key(),
-            &context
+            offered_closure: &offered_closure,
+            environment: &environment,
+            pin: &pin.key(),
+            universe_identities: &context
                 .universe_identities
                 .values()
                 .cloned()
                 .collect::<Vec<_>>(),
-        )?;
-        lock.memo.insert(key.clone(), memo_entry(paths.clone()));
+        })?;
+        lock.memo
+            .insert(key.clone(), MemoEngine::entry(paths.clone()));
         let view = workspace::materialize_view(&paths)?;
         eprintln!(
             "FETCH {name} replayed pinned snapshot {} -> {view}",
@@ -320,8 +264,10 @@ fn execute_top_fetch(
     }
     if !force {
         if let Some(key) = &existing_key {
-            if workspace::memo_has_paths(lock.memo.get(key), needed.keys().cloned())? {
-                let entry = &lock.memo[key];
+            if let OutputMemoVerdict::Hit { view } = MemoEngine::output(OutputMemoRequest {
+                entry: lock.memo.get(key),
+                needed: needed.keys().cloned().collect(),
+            })? {
                 verify_fetch_hash(fetch.expected.as_deref(), lock.fetches.get(name), None)
                     .with_context(|| {
                         format!(
@@ -329,7 +275,6 @@ fn execute_top_fetch(
                             fetch.line, fetch.source
                         )
                     })?;
-                let view = workspace::materialize_view(&entry.paths)?;
                 eprintln!("FETCH {name} memo hit {} -> {view}", short_key(key));
                 return Ok((view, false));
             }
@@ -409,15 +354,18 @@ fn execute_top_fetch(
         lock.fetches.insert(name.to_owned(), FetchPin::automatic());
     }
     let snapshot = workspace::add_store_object(work.path(), "cix-fetch-snapshot")?;
-    let mut reads = trace::read_dependencies(trace_before.path(), &observations)?;
-    let mut changes =
+    let reads = trace::read_dependencies(trace_before.path(), &observations)?;
+    let changes =
         trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
-    retain_nonvolatile_reads(&mut reads, &step_volatile);
-    trace::record_workspace_fingerprints(work.path(), &mut reads, &observations.writes)?;
-    trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
-    changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
-    trace::aggregate_full_change_subtrees(trace_before.path(), work.path(), &mut changes)?;
-    let output_hashes = workspace::memo_output_hashes(work.path(), &changes)?;
+    let reduced = MemoEngine::reduce_top(TopReductionRequest {
+        before: trace_before.path(),
+        workspace: work.path(),
+        reads,
+        changes,
+        writes: &observations.writes,
+        volatile: &step_volatile,
+    })?;
+    let changes = reduced.changes;
     let step_output = (!changes.is_empty())
         .then(|| workspace::add_step_output_snapshot(work.path(), &changes, &step_volatile))
         .transpose()?;
@@ -425,10 +373,10 @@ fn execute_top_fetch(
         trace_owner,
         StepMemo {
             key: trace_key,
-            reads,
+            reads: reduced.reads,
             output_snapshot: step_output,
             changes,
-            output_hashes,
+            output_hashes: reduced.output_hashes,
         },
     );
     trace_before.close()?;
@@ -447,19 +395,20 @@ fn execute_top_fetch(
     cache_fetch_snapshot(directory, name, &refreshed, &snapshot)?;
     lock.fetches.insert(name.to_owned(), refreshed);
     let pin = lock.fetches[name].key();
-    let key = top_fetch_chain_key(
+    let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
         command,
-        &offered_closure,
-        &environment,
-        &pin,
-        &context
+        offered_closure: &offered_closure,
+        environment: &environment,
+        pin: &pin,
+        universe_identities: &context
             .universe_identities
             .values()
             .cloned()
             .collect::<Vec<_>>(),
-    )?;
+    })?;
     let paths = workspace::store_consumed_paths(work.path(), needed.keys().cloned())?;
-    lock.memo.insert(key.clone(), memo_entry(paths.clone()));
+    lock.memo
+        .insert(key.clone(), MemoEngine::entry(paths.clone()));
     let view = workspace::materialize_view(&paths)?;
     eprintln!(
         "FETCH {name} memo miss {} ({} ms) -> {}",
@@ -554,14 +503,20 @@ fn execute_builder(
     let mut export_prelude = BTreeMap::new();
     install_declared_expectations(builder_name, builder, &context.commands, lock)?;
     let chain_key_started = Instant::now();
-    let existing_keys = builder_chain_keys(
+    let existing_keys = match MemoEngine::builder_keys(BuilderKeyRequest {
         builder_name,
         builder,
-        &context,
-        &offered_closure,
-        &environment,
+        commands: &context.commands,
+        copies: &context.copies,
+        ordered_imports: &context.imports,
+        universe_identities: &universe_identities,
+        offered_closure: &offered_closure,
+        environment: &environment,
         lock,
-    )?;
+    })? {
+        ChainKeysVerdict::Complete(keys) => Some(keys),
+        ChainKeysVerdict::UnpinnedFetch => None,
+    };
     crate::cix_timing!(
         "CIX timing chain-keys phase=initial wall_ms={}",
         chain_key_started.elapsed().as_millis()
@@ -578,13 +533,18 @@ fn execute_builder(
     });
     if !cold && !update_fetch_pins {
         if let Some(key) = &existing_key {
-            if workspace::memo_has_paths(lock.memo.get(key), needed.keys().cloned())? {
-                let view = workspace::materialize_view(&lock.memo[key].paths)?;
+            if let OutputMemoVerdict::Hit { view } = MemoEngine::output(OutputMemoRequest {
+                entry: lock.memo.get(key),
+                needed: needed.keys().cloned().collect(),
+            })? {
                 eprintln!(
                     "BUILDER {builder_name} memo hit {} -> {view}",
                     short_key(key)
                 );
-                return Ok((view, builder_step_results(builder_name, builder, false)));
+                return Ok((
+                    view,
+                    MemoEngine::builder_results(builder_name, builder, false),
+                ));
             }
         }
     }
@@ -600,25 +560,8 @@ fn execute_builder(
             workspace.path().display()
         );
     }
-    let prior_state = workspace.load_state();
-    let prior_keys = prior_state.step_keys;
-    let mut materialized_memos = prior_state.materialized_memos;
-    let mut output_fingerprints_by_memo = prior_state.memo_output_fingerprints;
-    let first_changed = existing_keys.as_ref().map_or(0, |keys| {
-        keys.iter()
-            .zip(&prior_keys)
-            .take_while(|(current, prior)| current == prior)
-            .count()
-    });
-    let warm_rerun_from = existing_keys
-        .as_ref()
-        .filter(|keys| keys.as_slice() != prior_keys.as_slice())
-        .map_or(0, |_| first_changed);
-    let rerun_from = if cold || update_fetch_pins {
-        0
-    } else {
-        warm_rerun_from
-    };
+    let mut memo_engine = MemoEngine::new(&workspace);
+    let rerun_from = memo_engine.rerun_from(existing_keys.as_deref(), cold, update_fetch_pins);
     let workdir = workspace.path();
 
     let mut command_index = 0;
@@ -643,7 +586,7 @@ fn execute_builder(
                     "BUILDER {builder_name} step {} ENV {name} declared (line {line}: {source})",
                     index + 1
                 );
-                step_results.push(executed_step(builder_name, index, "ENV", true));
+                step_results.push(MemoEngine::step_result(builder_name, index, "ENV", true));
             }
             BuildStep::Copy(copy) => {
                 let resolved_source = &context.copies[copy_index];
@@ -665,7 +608,7 @@ fn execute_builder(
                     resolved_source,
                     copy.dst
                 );
-                step_results.push(executed_step(builder_name, index, "COPY", true));
+                step_results.push(MemoEngine::step_result(builder_name, index, "COPY", true));
             }
             BuildStep::Fetch { line, source, .. } | BuildStep::Run { line, source, .. } => {
                 let command = &context.commands[command_index];
@@ -680,12 +623,12 @@ fn execute_builder(
                     } else {
                         "RUN"
                     };
-                    step_results.push(executed_step(builder_name, index, kind, false));
+                    step_results.push(MemoEngine::step_result(builder_name, index, kind, false));
                     continue;
                 }
                 let is_fetch = matches!(step, BuildStep::Fetch { .. });
                 let kind = if is_fetch { "FETCH" } else { "RUN" };
-                let memo_key = step_memo_key(StepMemoKeyRequest {
+                let memo_key = MemoEngine::trace_key(StepMemoKeyRequest {
                     builder: builder_name,
                     index,
                     kind,
@@ -706,7 +649,7 @@ fn execute_builder(
                 if let Some(id) = &fetch_id {
                     if cold {
                         if let Some(memo) = &recorded_memo {
-                            verify_cold_read_set(memo, workdir, *line, source)?;
+                            memo_engine.audit_cold_reads(memo, *line, source)?;
                         }
                         let pin = lock.fetches.get(id).with_context(|| {
                             format!(
@@ -714,7 +657,7 @@ fn execute_builder(
                             )
                         })?;
                         if let Some(memo) = &recorded_memo {
-                            workspace.apply_memo(memo, None)?;
+                            memo_engine.replay_cold(memo)?;
                         } else {
                             let snapshot = replay_fetch_snapshot(directory, id, pin)?;
                             workspace.restore_snapshot(Path::new(&snapshot))?;
@@ -723,49 +666,39 @@ fn execute_builder(
                             "BUILDER {builder_name} step {} FETCH replayed pinned snapshot",
                             index + 1
                         );
-                        step_results.push(executed_step(builder_name, index, kind, false));
+                        step_results.push(MemoEngine::step_result(
+                            builder_name,
+                            index,
+                            kind,
+                            false,
+                        ));
                         continue;
                     }
                 }
-                let mut known_reads = None;
-                if !cold && !update_fetch_pins {
-                    if let Some(memo) = recorded_memo.clone() {
-                        let fingerprints = is_fetch
-                            .then(|| output_fingerprints_by_memo.get(&memo_owner))
-                            .flatten()
-                            .filter(|_| materialized_memos.get(&memo_owner) == Some(&memo_key));
-                        let (matches, current) =
-                            workspace::validate_step_memo(&memo, workdir, is_fetch, fingerprints)?;
-                        known_reads = Some(current);
-                        if !newly_consumed_paths && matches {
-                            if is_fetch {
-                                // A FETCH hit is constructive: its full recorded write set is
-                                // re-applied even when this workspace previously held it. That
-                                // keeps the self-read rule below tied to one complete output.
-                                workspace.apply_memo(&memo, fingerprints)?;
-                                materialized_memos.insert(memo_owner.clone(), memo_key.clone());
-                                output_fingerprints_by_memo.insert(
-                                    memo_owner.clone(),
-                                    workspace::memo_output_fingerprints(workdir, &memo.changes)?,
-                                );
-                            } else if materialized_memos.get(&memo_owner) == Some(&memo_key) {
-                                crate::cix_timing!(
-                                    "CIX timing memo-apply skipped=workspace-already-materialized"
-                                );
-                            } else {
-                                workspace.apply_memo(&memo, None)?;
-                                materialized_memos.insert(memo_owner.clone(), memo_key.clone());
-                            }
-                            eprintln!(
-                                "BUILDER {builder_name} step {} {kind} memo hit {}",
-                                index + 1,
-                                short_key(&memo_key)
-                            );
-                            step_results.push(executed_step(builder_name, index, kind, false));
-                            continue;
-                        }
+                let known_reads = match memo_engine.try_reuse(StepReuseRequest {
+                    owner: &memo_owner,
+                    key: &memo_key,
+                    memo: recorded_memo.as_ref(),
+                    is_fetch,
+                    validate: !cold && !update_fetch_pins,
+                    allow_reuse: !newly_consumed_paths,
+                })? {
+                    StepReuseVerdict::Reused => {
+                        eprintln!(
+                            "BUILDER {builder_name} step {} {kind} memo hit {}",
+                            index + 1,
+                            short_key(&memo_key)
+                        );
+                        step_results.push(MemoEngine::step_result(
+                            builder_name,
+                            index,
+                            kind,
+                            false,
+                        ));
+                        continue;
                     }
-                }
+                    StepReuseVerdict::Execute { known_reads } => known_reads,
+                };
                 if is_fetch && !cold {
                     if let Some(memo) = &superseded_memo {
                         crate::cix_timing!(
@@ -773,7 +706,7 @@ fn execute_builder(
                             memo_owner,
                             short_key(&memo.key)
                         );
-                        workspace.revert_memo(memo)?;
+                        memo_engine.revert(memo)?;
                     }
                 }
                 let snapshot_started = Instant::now();
@@ -811,7 +744,7 @@ fn execute_builder(
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
                 let read_set_started = Instant::now();
                 let empty_reads = BTreeMap::new();
-                let (mut reads, recording_metrics) = trace::read_dependencies_with_known(
+                let (reads, recording_metrics) = trace::read_dependencies_with_known(
                     trace_before.path(),
                     &observations,
                     known_reads.as_ref().unwrap_or(&empty_reads),
@@ -886,42 +819,36 @@ fn execute_builder(
                     );
                 }
                 let changes_started = Instant::now();
-                let mut changes =
+                let changes =
                     trace::filesystem_changes(trace_before.path(), workdir, &observations.writes)?;
                 crate::cix_timing!(
                     "CIX timing workspace-delta wall_ms={}",
                     changes_started.elapsed().as_millis()
                 );
-                if let Some(previous) = &recorded_memo {
-                    retain_replay_roots(previous, workdir, &mut changes)?;
-                }
-                if is_fetch {
-                    retain_fetch_output_roots(trace_before.path(), workdir, &mut changes)?;
-                }
-                retain_nonvolatile_reads(&mut reads, &step_volatile);
-                trace::record_workspace_fingerprints(workdir, &mut reads, &observations.writes)?;
-                trace::aggregate_full_read_subtrees(trace_before.path(), &mut reads)?;
-                changes.retain(|path, _| !path_overlaps_any(path, &step_volatile));
-                trace::aggregate_full_change_subtrees(trace_before.path(), workdir, &mut changes)?;
+                let reduced = memo_engine.reduce(ReductionRequest {
+                    previous: recorded_memo.as_ref(),
+                    before: trace_before.path(),
+                    is_fetch,
+                    reads,
+                    changes,
+                    writes: &observations.writes,
+                    volatile: &step_volatile,
+                })?;
+                let reads = reduced.reads;
+                let changes = reduced.changes;
                 if !is_fetch {
-                    invalidate_fetch_output_fingerprints(
-                        &mut output_fingerprints_by_memo,
-                        &materialized_memos,
-                        lock,
-                        &changes,
-                    );
+                    memo_engine.invalidate_fetch_outputs(lock, &changes);
                 }
-                let output_hashes = is_fetch
-                    .then(|| workspace::memo_output_hashes(workdir, &changes))
-                    .transpose()?
-                    .unwrap_or_default();
-                let output_fingerprints = is_fetch
-                    .then(|| workspace::memo_output_fingerprints(workdir, &changes))
-                    .transpose()?
-                    .unwrap_or_default();
+                let output_hashes = reduced.output_hashes;
+                let output_fingerprints = reduced.output_fingerprints;
                 if cold {
                     if let Some(recorded) = &recorded_memo {
-                        compare_cold_read_sets(recorded, &reads, *line, source)?;
+                        MemoEngine::compare_cold_reads(ColdReadComparisonRequest {
+                            memo: recorded,
+                            cold: &reads,
+                            line: *line,
+                            source,
+                        })?;
                     }
                     trace_before.close()?;
                 } else {
@@ -969,10 +896,11 @@ fn execute_builder(
                     });
                     let output_snapshot = output_snapshot?;
                     closed?;
-                    materialized_memos.insert(memo_owner.clone(), memo_key.clone());
-                    if is_fetch {
-                        output_fingerprints_by_memo.insert(memo_owner.clone(), output_fingerprints);
-                    }
+                    memo_engine.record_materialized(
+                        memo_owner.clone(),
+                        memo_key.clone(),
+                        is_fetch.then_some(output_fingerprints),
+                    );
                     lock.step_memo.insert(
                         memo_owner,
                         StepMemo {
@@ -989,7 +917,7 @@ fn execute_builder(
                     index + 1,
                     wall_ms
                 );
-                step_results.push(executed_step(builder_name, index, kind, true));
+                step_results.push(MemoEngine::step_result(builder_name, index, kind, true));
             }
         }
     }
@@ -1013,15 +941,22 @@ fn execute_builder(
         }
     }
     let chain_key_started = Instant::now();
-    let step_keys = builder_chain_keys(
+    let step_keys = match MemoEngine::builder_keys(BuilderKeyRequest {
         builder_name,
         builder,
-        &context,
-        &offered_closure,
-        &environment,
+        commands: &context.commands,
+        copies: &context.copies,
+        ordered_imports: &context.imports,
+        universe_identities: &universe_identities,
+        offered_closure: &offered_closure,
+        environment: &environment,
         lock,
-    )?
-    .context("builder chain still has an unpinned FETCH after execution")?;
+    })? {
+        ChainKeysVerdict::Complete(keys) => keys,
+        ChainKeysVerdict::UnpinnedFetch => {
+            bail!("builder chain still has an unpinned FETCH after execution")
+        }
+    };
     crate::cix_timing!(
         "CIX timing chain-keys phase=final wall_ms={}",
         chain_key_started.elapsed().as_millis()
@@ -1032,21 +967,16 @@ fn execute_builder(
         .unwrap_or_else(|| hex_hash(format!("BUILDER\0{builder_name}").as_bytes()));
     let paths = workspace.store_consumed_paths(needed.keys().cloned())?;
     if cold {
-        compare_cold_paths(lock.memo.get(&key), &paths, &needed)?;
-    }
-    lock.memo.insert(key.clone(), memo_entry(paths.clone()));
-    if !cold {
-        refresh_fetch_output_fingerprints(
-            &mut output_fingerprints_by_memo,
-            &materialized_memos,
-            lock,
-            workdir,
-        )?;
-        workspace.save_state(&workspace::State {
-            step_keys: step_keys.clone(),
-            materialized_memos,
-            memo_output_fingerprints: output_fingerprints_by_memo,
+        MemoEngine::compare_cold_outputs(ColdOutputRequest {
+            warm: lock.memo.get(&key),
+            cold: &paths,
+            needed: &needed,
         })?;
+    }
+    lock.memo
+        .insert(key.clone(), MemoEngine::entry(paths.clone()));
+    if !cold {
+        memo_engine.finish(step_keys.clone(), lock)?;
     }
     let view = workspace::materialize_view(&paths)?;
     eprintln!(
@@ -1054,42 +984,6 @@ fn execute_builder(
         short_key(&key)
     );
     Ok((view, step_results))
-}
-
-fn invalidate_fetch_output_fingerprints(
-    fingerprints: &mut BTreeMap<String, BTreeMap<String, String>>,
-    materialized: &BTreeMap<String, String>,
-    lock: &LockFile,
-    changes: &BTreeMap<String, StepChange>,
-) {
-    fingerprints.retain(|owner, _| {
-        let Some(memo) = lock.step_memo.get(owner) else {
-            return false;
-        };
-        materialized.get(owner) == Some(&memo.key)
-            && !memo.changes.keys().any(|output| {
-                changes.keys().any(|changed| {
-                    same_or_descendant(output, changed) || same_or_descendant(changed, output)
-                })
-            })
-    });
-}
-
-fn refresh_fetch_output_fingerprints(
-    fingerprints: &mut BTreeMap<String, BTreeMap<String, String>>,
-    materialized: &BTreeMap<String, String>,
-    lock: &LockFile,
-    workspace: &Path,
-) -> Result<()> {
-    for (owner, output_fingerprints) in fingerprints {
-        let Some(memo) = lock.step_memo.get(owner) else {
-            continue;
-        };
-        if materialized.get(owner) == Some(&memo.key) {
-            *output_fingerprints = workspace::memo_output_fingerprints(workspace, &memo.changes)?;
-        }
-    }
-    Ok(())
 }
 
 fn build_environment(mut environment: BTreeMap<String, String>) -> BTreeMap<String, String> {
@@ -1384,341 +1278,6 @@ fn install_declared_expectations(
         }
     }
     Ok(())
-}
-
-fn builder_chain_keys(
-    builder_name: &str,
-    builder: &Builder,
-    context: &BuildContext,
-    offered_closure: &BTreeSet<String>,
-    environment: &BTreeMap<String, String>,
-    lock: &LockFile,
-) -> Result<Option<Vec<String>>> {
-    let mut environment = environment.clone();
-    let mut predecessor = hex_hash(format!("BUILDER\0{builder_name}").as_bytes());
-    let mut keys = Vec::with_capacity(builder.steps.len());
-    let mut command_index = 0;
-    let mut copy_index = 0;
-    let universe_identities = context
-        .universe_identities
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
-    for (index, step) in builder.steps.iter().enumerate() {
-        let (kind, arguments, sources, fetch_pin) = match step {
-            BuildStep::Env { name, value, .. } => {
-                let value = value
-                    .literal_value()
-                    .context("builder ENV metadata was not resolved")?;
-                environment.insert(name.clone(), value.clone());
-                ("ENV", format!("{name}={value}"), Vec::new(), None)
-            }
-            BuildStep::Copy(copy) => {
-                let source = &context.copies[copy_index];
-                copy_index += 1;
-                (
-                    "COPY",
-                    copy_key_arguments(copy)?,
-                    vec![workspace::nar_hash(Path::new(source))
-                        .with_context(|| format!("hashing declared COPY source {source}"))?],
-                    None,
-                )
-            }
-            BuildStep::Fetch { .. } => {
-                let command = &context.commands[command_index];
-                command_index += 1;
-                let id = builder_fetch_id(builder_name, index, command);
-                let Some(pin) = lock.fetches.get(&id) else {
-                    return Ok(None);
-                };
-                ("FETCH", command.clone(), Vec::new(), Some(pin.key()))
-            }
-            BuildStep::Run { .. } => {
-                let command = &context.commands[command_index];
-                command_index += 1;
-                ("RUN", command.clone(), Vec::new(), None)
-            }
-        };
-        predecessor = step_key(StepKeyRequest {
-            kind,
-            arguments: &arguments,
-            offered_closure,
-            ordered_imports: &context.imports,
-            predecessor: &predecessor,
-            declared_sources: &sources,
-            environment: &environment,
-            fetch_pin,
-            universe_identities: &universe_identities,
-        })?;
-        keys.push(predecessor.clone());
-    }
-    Ok(Some(keys))
-}
-
-fn copy_key_arguments(copy: &Copy) -> Result<String> {
-    let src = copy
-        .src
-        .parts
-        .iter()
-        .map(|part| match part {
-            TemplatePart::Literal(value) => TemplateKeyPart::Literal(value),
-            TemplatePart::Package {
-                namespace,
-                attrpath,
-                ..
-            } => TemplateKeyPart::Package {
-                namespace,
-                attrpath,
-            },
-            TemplatePart::Binder { name, .. } => TemplateKeyPart::Binder(name),
-            TemplatePart::InputMetadata {
-                namespace,
-                attribute,
-                ..
-            } => {
-                unreachable!("unresolved FROM metadata {namespace}.{attribute}")
-            }
-        })
-        .collect();
-    Ok(serde_json::to_string(&CopyKey {
-        src,
-        dst: &copy.dst,
-    })?)
-}
-
-fn top_fetch_chain_key(
-    command: &str,
-    offered_closure: &BTreeSet<String>,
-    environment: &BTreeMap<String, String>,
-    pin: &str,
-    universe_identities: &[String],
-) -> Result<String> {
-    step_key(StepKeyRequest {
-        kind: "FETCH",
-        arguments: command,
-        offered_closure,
-        ordered_imports: &[],
-        predecessor: &hex_hash(b"TOP-LEVEL-FETCH"),
-        declared_sources: &[],
-        environment,
-        fetch_pin: Some(pin.to_owned()),
-        universe_identities,
-    })
-}
-
-fn step_key(request: StepKeyRequest<'_>) -> Result<String> {
-    Ok(hex_hash(&serde_json::to_vec(&(
-        CODEGEN_FINGERPRINT,
-        SANDBOX_SKELETON,
-        request,
-    ))?))
-}
-
-fn step_memo_key(request: StepMemoKeyRequest<'_>) -> Result<String> {
-    Ok(hex_hash(&serde_json::to_vec(&(
-        CODEGEN_FINGERPRINT,
-        SANDBOX_SKELETON,
-        request,
-    ))?))
-}
-
-fn retain_nonvolatile_reads(
-    reads: &mut BTreeMap<String, crate::ReadDependency>,
-    volatile: &BTreeSet<String>,
-) {
-    reads.retain(|path, _| {
-        !volatile.iter().any(|volatile_path| {
-            volatile_path == path
-                || volatile_path
-                    .strip_prefix(path)
-                    .is_some_and(|suffix| suffix.starts_with('/'))
-        })
-    });
-}
-
-fn retain_replay_roots(
-    previous: &StepMemo,
-    workspace: &Path,
-    changes: &mut BTreeMap<String, StepChange>,
-) -> Result<()> {
-    for (root, previous_change) in &previous.changes {
-        let path = workspace.join(root);
-        match (previous_change, fs::symlink_metadata(&path)) {
-            (change @ (StepChange::Present | StepChange::Subtree { .. }), Ok(_)) => {
-                changes.retain(|candidate, _| !same_or_descendant(candidate, root));
-                changes.insert(root.clone(), change.clone());
-            }
-            (StepChange::Present | StepChange::Subtree { .. } | StepChange::Absent, Err(error))
-                if error.kind() == io::ErrorKind::NotFound =>
-            {
-                changes.insert(root.clone(), StepChange::Absent);
-            }
-            (StepChange::Directory { mode }, Ok(metadata)) if metadata.is_dir() => {
-                changes.insert(root.clone(), StepChange::Directory { mode: *mode });
-            }
-            (_, Ok(_)) => {}
-            (_, Err(error)) => return Err(error.into()),
-        }
-    }
-    Ok(())
-}
-
-/// A FETCH that creates a new top-level tree owns that complete tree, not just
-/// the individual syscalls the tracer happened to observe beneath it. Keeping
-/// that root makes constructive replay—and therefore self-observation—cover
-/// every output file.
-fn retain_fetch_output_roots(
-    before: &Path,
-    workspace: &Path,
-    changes: &mut BTreeMap<String, StepChange>,
-) -> Result<()> {
-    let mut roots = BTreeMap::<String, usize>::new();
-    for path in changes.keys() {
-        if let Some(root) = path.split('/').next() {
-            *roots.entry(root.to_owned()).or_default() += 1;
-        }
-    }
-    for (root, changed_descendants) in roots {
-        if changed_descendants < 2 {
-            continue;
-        }
-        let before_root = before.join(&root);
-        let workspace_root = workspace.join(&root);
-        let absent_before = match fs::symlink_metadata(&before_root) {
-            Ok(_) => false,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => true,
-            Err(error) => return Err(error.into()),
-        };
-        let present_after = match fs::symlink_metadata(&workspace_root) {
-            Ok(_) => true,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-            Err(error) => return Err(error.into()),
-        };
-        if !absent_before || !present_after {
-            continue;
-        }
-        changes.retain(|path, _| !same_or_descendant(path, &root));
-        changes.insert(root, StepChange::Present);
-    }
-    Ok(())
-}
-
-fn same_or_descendant(candidate: &str, root: &str) -> bool {
-    candidate == root
-        || candidate
-            .strip_prefix(root)
-            .is_some_and(|suffix| suffix.starts_with('/'))
-}
-
-fn path_overlaps_any(path: &str, paths: &BTreeSet<String>) -> bool {
-    paths.iter().any(|other| {
-        path == other
-            || path
-                .strip_prefix(other)
-                .is_some_and(|suffix| suffix.starts_with('/'))
-            || other
-                .strip_prefix(path)
-                .is_some_and(|suffix| suffix.starts_with('/'))
-    })
-}
-
-fn verify_cold_read_set(
-    memo: &StepMemo,
-    workspace: &Path,
-    line: usize,
-    source: &str,
-) -> Result<()> {
-    let current = trace::current_dependencies(workspace, &memo.reads)?;
-    compare_cold_read_sets(memo, &current, line, source)
-}
-
-fn compare_cold_read_sets(
-    memo: &StepMemo,
-    cold: &BTreeMap<String, crate::ReadDependency>,
-    line: usize,
-    source: &str,
-) -> Result<()> {
-    if memo.reads == *cold {
-        return Ok(());
-    }
-    let path = memo
-        .reads
-        .keys()
-        .chain(cold.keys())
-        .find(|path| memo.reads.get(*path) != cold.get(*path))
-        .map(String::as_str)
-        .unwrap_or("<unknown>");
-    bail!(
-        "line {line}: recorded read set differs between warm and cold at {path:?} (warm {:?}, cold {:?})\n  | {source:?}",
-        memo.reads.get(path),
-        cold.get(path)
-    )
-}
-
-fn executed_step(builder: &str, index: usize, kind: &str, executed: bool) -> ExecutedStep {
-    ExecutedStep {
-        name: format!("{builder}:{}", index + 1),
-        kind: kind.into(),
-        executed,
-    }
-}
-
-fn builder_step_results(
-    builder_name: &str,
-    builder: &Builder,
-    executed: bool,
-) -> Vec<ExecutedStep> {
-    builder
-        .steps
-        .iter()
-        .enumerate()
-        .map(|(index, step)| {
-            let kind = match step {
-                BuildStep::Env { .. } => "ENV",
-                BuildStep::Copy(_) => "COPY",
-                BuildStep::Fetch { .. } => "FETCH",
-                BuildStep::Run { .. } => "RUN",
-            };
-            executed_step(builder_name, index, kind, executed)
-        })
-        .collect()
-}
-
-fn compare_cold_paths(
-    warm: Option<&MemoEntry>,
-    cold: &BTreeMap<String, ConsumedPath>,
-    needed: &BTreeMap<String, NeededPath>,
-) -> Result<()> {
-    let Some(warm) = warm else {
-        return Ok(());
-    };
-    for (path, cold_path) in cold {
-        let differs = warm
-            .paths
-            .get(path)
-            .is_none_or(|warm_path| warm_path.nar_hash != cold_path.nar_hash);
-        if !differs {
-            continue;
-        }
-        if let Some(attribution) = needed[path].attributions.first() {
-            let suffix = if attribution.path == "." {
-                String::new()
-            } else {
-                format!("/{}", attribution.path)
-            };
-            bail!(
-                "COPY ${{{}}}{suffix} (line {}) differs between warm and cold",
-                attribution.binder,
-                attribution.line
-            );
-        }
-        bail!("consumed path {path:?} differs between warm and cold");
-    }
-    Ok(())
-}
-
-fn memo_entry(paths: BTreeMap<String, ConsumedPath>) -> MemoEntry {
-    MemoEntry { paths }
 }
 
 fn replay_fetch_snapshot(directory: &Path, name: &str, pin: &FetchPin) -> Result<String> {

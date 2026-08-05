@@ -12,6 +12,7 @@
 //! - `fetch`: owns credential consent and fetch inputs.
 //! - `fhs`: diagnoses FHS-loader compatibility.
 //! - `lock`: owns persisted pins and memo records.
+//! - `memo`: owns build-step keys, validation, reduction, and constructive replay.
 //! - `model`: defines the shared Cixfile language model.
 //! - `scratch`: owns temporary build-state lifecycle.
 //! - `seccomp`: owns build network policy.
@@ -45,13 +46,14 @@ mod eval_plan;
 mod fetch;
 mod fhs;
 mod lock;
+mod memo;
 mod model;
 mod scratch;
 mod seccomp;
 mod trace;
 mod workspace;
 
-pub use build_chain::{execute, ExecutedStep};
+pub use build_chain::execute;
 pub use codegen::{
     generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
     generate_fetch_context_nix, generate_fetch_offer_nix, generate_nix,
@@ -64,6 +66,7 @@ pub use lock::{
     ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry, OutputHash,
     OutputReceipt, ReadDependency, StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
 };
+pub use memo::ExecutedStep;
 pub use scratch::{
     configure as configure_scratch, install_signal_cleanup, sweep_stale as sweep_stale_scratch,
     ScratchDir,

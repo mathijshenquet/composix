@@ -1,5 +1,53 @@
 # cix-build work log
 
+- 2026-08-05T18:35:00Z — Started `track/cip103-memo`, CIP-103 leg 3. The
+  branch is clean at `7adb1e8`, direnv/devenv is active, and the accepted
+  decision makes the owned interface the acceptance condition: `build_chain`
+  must send typed requests to a `MemoEngine` and receive typed verdicts, while
+  the engine may reach persisted state only through `Workspace`. Next: map the
+  memo/replay cluster and its conductor dependencies, establish a representative
+  before receipt, then extract without widening the seam.
+
+- 2026-08-05T18:45:00Z — Established the representative pre-change receipt
+  with freshly staged Wallos source context. A synchronous warm build exited 0
+  and produced `/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos`;
+  its generated lock SHA-256 is
+  `7aab30d66afd0df16c16b87c4109324b697c01609b2f1948b006ecd4dd3a186d`.
+  The generated lock and stdout are retained under
+  `/var/tmp/cip103-memo-receipts/` for a value comparison after extraction.
+  Next: define the typed memo requests/verdicts and move policy behind them.
+
+- 2026-08-05T19:20:00Z — Extracted `memo.rs`. `MemoEngine` now owns key
+  construction, output lookup, persisted memo state, validation policy,
+  read/write reduction, cold comparison, and constructive replay. The conductor
+  translates its `BuildContext` into purpose-specific requests and receives
+  explicit chain/output/reuse verdicts; it no longer carries Workspace memo
+  state or reaches its validation/replay primitives directly. Focused crate
+  tests pass (41/41), the source-size/module-map guard exits 0, and the
+  structural shared-state audit adds no sites. Representative after receipt:
+  Wallos exited 0 with the same output path and byte-identical generated lock
+  (`cmp` 0 for each; lock SHA-256 remains
+  `7aab30d66afd0df16c16b87c4109324b697c01609b2f1948b006ecd4dd3a186d`).
+  The generated corpus lock was restored to tracked HEAD after comparison.
+  Next: review the interface/diff, then run the complete agent tier including
+  the contract-keyed progressive selector.
+
+- 2026-08-05T19:30:00Z — Warning-denied all-target workspace clippy exits 0
+  on the finished interface. The VM axis is presently occupied by
+  `track/cip109-probeurl`'s bounded 14-scenario progressive run (two active
+  QEMU guests), so this track will run non-VM gates now and wait before its
+  own selector rather than contend for TCG capacity.
+
+- 2026-08-05T19:45:00Z — Non-VM agent tier is green with synchronous exit-0
+  receipts: fmt, examples fmt, warning-denied clippy, full workspace tests,
+  corpus regeneration plus zero drift, tour regeneration plus zero drift and
+  its exact committed-document test, source-size/module-map guard, and diff
+  check. The first progressive-selector attempt is explicitly NOT a receipt:
+  CIP-109 restarted its two-slot matrix after this track's clean preflight, so
+  this track interrupted only its own source build at 38.161s (exit 1) before
+  any guest to preserve the shared bound. Waiting for CIP-109 to release the
+  axis, then rerun from scratch.
+
 - 2026-08-05T16:10:00Z — Merging `origin/main` after CIP-93b and CIP-99.
   Semantic resolution retains CIP-99's complete traced-subtree aggregation at
   both top-level FETCH and builder recording sites, while the Workspace owner
