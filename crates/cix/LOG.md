@@ -852,3 +852,20 @@
   0; committed tour drift 0; diff check 0; aggregate `.gate-exit` 0. No tour
   drift or other worktree change remained. Next: commit this receipt entry and
   leave the merged track clean for independent verification.
+
+- 2026-08-05T15:20:49Z — Completed the orchestrator-trimmed final gate after
+  merging `origin/main` at `780be01` (CIP-106) as `8151b85`. The append-only
+  log conflict retained both histories. Selector validation first identified
+  the new `crates/cix-test-support/src/lib.rs` as unclassified; adding
+  `crates/cix-test-support/src/**` and `CLAUDE.md` to the non-product contract
+  made the final dry run fully classified, selecting 14/14 in 12.074s with a
+  captured exit 0. Standard-tier captured exits were: source-size/module-map
+  guardrail 0; workspace fmt 0; examples fmt 0; warning-denied workspace/all-
+  target Clippy 0; serial full workspace tests 0; explicit tour generation 0.
+  A redundant parallel explicit tour invocation exited 101 when its two tests
+  raced over `.workspaces`; the required serial correction exited 0, followed
+  by tour drift 0 and diff check 0. The single permitted normal progressive
+  run then selected 14/14, stayed at no more than two QEMU guests with no
+  foreign Nix build parent, and synchronously exited 0 in 666.376s. No forced
+  rebuild was rerun after the scope trim. Next: commit this receipt entry and
+  leave the branch clean for orchestrator verification.
