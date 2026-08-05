@@ -56,15 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / it-tools</nav>
   <h1>docker / it-tools</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The earlier DynamicUser nginx log failure is fixed in source, but corrected runtime evidence is still absent behind volatile lock scale · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The earlier DynamicUser nginx log failure is fixed in source. CIP-99 now prunes a fully observed workspace root, but the later volatile pnpm trace remains partial and must stay exact; corrected runtime evidence is still absent · <strong>Evidence:</strong> build receipt</p>
   <p class="status"><strong>Receipt status:</strong> One static nginx source build completed; the corrected replay exceeds the 600-second pnpm-store bound before an item · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/it-tools/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/it-tools/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> stale — regenerate with CIP-99 workspace-root aggregation</p>
     <ul>
       <li>A direct source build completed once, producing a static nginx item, but the original <code>LOGDIR /var/log/nginx</code> declaration left nginx unable to open its DynamicUser-owned logs. The declaration was removed. → case</li>
       <li>The corrected rebuild&#39;s pnpm FETCH emits a huge volatile store/index set and exceeded the independently applied 600-second bound without a final item; its timeout wrapper did not reap the child, so a manual signal ended the supervisor. Runtime after that correction is unproved. → language (lock-scale)</li>
+      <li>The staged lock retains descendants below a fully observed FETCH workspace root because the original CIP-99 aggregation helper did not treat <code>.</code> as a root. That criterion is fixed, but this lock may be regenerated only after a completed corrected build; the later pnpm trace is partial/volatile and must remain per-path. → language (lock-scale)</li>
       <li>Docker&#39;s Alpine images and fixed user dissolve into nixpkgs nginx and the managed service identity. → case</li>
     </ul>
   </aside>

@@ -1,5 +1,48 @@
 # Cixfile track work log
 
+- 2026-08-05T20:05:00Z — Final agent tier is green with synchronous values:
+  fmt, examples fmt, warning-denied all-target clippy, and serialized full
+  workspace tests all exited 0; ignored tour regeneration plus deterministic
+  and committed-tour drift checks exited 0; corpus regeneration and committed
+  drift checks exited 0. The df guard before the VM tier found 176G free/21%
+  inodes; the bounded automatic selector exited 0 with zero selected VM
+  contracts (only build trace implementation and documentation changed).
+  Structural-audit grep reports no new shared/interior-mutable declarations in
+  this diff. Verdict: it-tools is stale pending a complete corrected build;
+  Homer is legitimately non-aggregable and its non-identical experimental
+  re-lock was restored. Next: final diff review and a semantic commit only;
+  do not merge.
+
+- 2026-08-05T20:10:00Z — Committed the scoped fix
+  (`cix-build: aggregate complete workspace roots`). No remote track ref was
+  present at the immediate post-commit `git ls-remote` check; do not merge.
+
+- 2026-08-05T19:35:00Z — Homer’s restored-source re-lock completed and
+  printed `/nix/store/nf7vn83k2g51pap5hmqwi1352rgmkm4k-cix-item-homer`, but
+  it is not a safe regeneration receipt: its `nix path-info` narHash
+  (`sha256-uXmp…`) differs from the prior complete receipt’s
+  `s9qy…` item (`sha256-eU02…`), and the lock changed (146,297 -> 145,679
+  after two overlapping reruns had settled). The large `.cache/data` read set is
+  directory-exists-only, so it is legitimately ineligible under CIP-99;
+  leave this volatility exposed and restore the task-created lock mutation.
+
+- 2026-08-05T19:15:00Z — Implemented the minimal CIP-99 criteria correction:
+  a selected `.` root now covers its stable descendants, while `Absent`,
+  `*Exists`, and other non-content observations stay explicit. Added root read
+  and output-tree regressions; `devenv shell -- cargo test -p cix-build
+  trace::tests::aggregates -- --nocapture` synchronously passed 4/4 and
+  `git diff --check` passed. The first Homer re-lock stopped before execution
+  because its cleaned pinned source store path was missing; restore only via
+  the corpus fetch helper and retry.
+
+- 2026-08-05T19:00:00Z — Started `track/lockagg`. Read the assigned spec,
+  project/session journals, D/CIP-99, current aggregation implementation, and
+  both expansion locks. `direnv status` confirms the devenv is active; the
+  pre-build df guard reports 181G free and 21% inode use. Initial counts are
+  it-tools 1,544,041 lines and homer 146,297 lines. Next: quantify each memo
+  record's aggregate eligibility and trace its lock provenance; only then
+  choose a re-lock or a minimal correctness-preserving criteria change.
+
 - 2026-08-05T15:57:00Z — Merged `origin/main` semantically at `54c03a5` and
   reran the new CIP-93b contract-keyed progressive gate. The accumulated merge
   diff conservatively selected all 14 scenarios; its retained receipt

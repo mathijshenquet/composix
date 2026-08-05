@@ -71,3 +71,7 @@ FETCH pins and their diffability untouched.
   partial and volatile observations remain per-path. Clean-HEAD controls
   retained identical output store paths while parse-server and phpMyAdmin
   locks shrank substantially; echo-server’s partial tree stayed precise.
+- 2026-08-05 — Corrected the workspace-root aggregation boundary: `.` now
+  covers its recorded descendants, while negative observations remain explicit
+  so creating a previously absent path still invalidates the memo. This fixes
+  a lossless-compression criteria gap exposed by the it-tools lock.

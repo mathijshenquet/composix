@@ -483,7 +483,13 @@ pub(crate) fn aggregate_full_read_subtrees(
             continue;
         };
         selected.push(path.clone());
-        dependencies.retain(|candidate, _| !same_or_descendant(candidate, &path));
+        dependencies.retain(|candidate, dependency| {
+            !same_or_descendant(candidate, &path)
+                || !matches!(
+                    dependency,
+                    ReadDependency::Directory { .. } | ReadDependency::File { .. }
+                )
+        });
         dependencies.insert(path, ReadDependency::Subtree { hash });
     }
     Ok(())
@@ -788,7 +794,8 @@ fn child_relative(parent: &str, name: &std::ffi::OsStr) -> String {
 }
 
 fn same_or_descendant(candidate: &str, root: &str) -> bool {
-    candidate == root
+    root == "."
+        || candidate == root
         || candidate
             .strip_prefix(root)
             .is_some_and(|suffix| suffix.starts_with('/'))
@@ -1371,6 +1378,51 @@ mod tests {
     }
 
     #[test]
+    fn aggregates_a_complete_workspace_root_but_keeps_absent_reads() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("vendor")).unwrap();
+        fs::write(root.path().join("vendor/first"), "one").unwrap();
+        let capture = Capture {
+            observations: BTreeMap::from([
+                (
+                    ".".into(),
+                    Observation {
+                        listed: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "vendor".into(),
+                    Observation {
+                        listed: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "vendor/first".into(),
+                    Observation {
+                        content: true,
+                        ..Observation::default()
+                    },
+                ),
+                ("created-later".into(), Observation::default()),
+            ]),
+            writes: BTreeSet::new(),
+        };
+        let mut dependencies = read_dependencies(root.path(), &capture).unwrap();
+        aggregate_full_read_subtrees(root.path(), &mut dependencies).unwrap();
+        assert!(matches!(
+            dependencies.get("."),
+            Some(ReadDependency::Subtree { .. })
+        ));
+        assert_eq!(
+            dependencies.get("created-later"),
+            Some(&ReadDependency::Absent)
+        );
+        assert_eq!(dependencies.len(), 2);
+    }
+
+    #[test]
     fn aggregates_complete_output_tree_and_full_removal() {
         let before = tempfile::tempdir().unwrap();
         let after = tempfile::tempdir().unwrap();
@@ -1406,6 +1458,25 @@ mod tests {
         assert_eq!(
             removals,
             BTreeMap::from([("vendor".into(), StepChange::Absent)])
+        );
+    }
+
+    #[test]
+    fn aggregates_a_complete_workspace_output_tree() {
+        let before = tempfile::tempdir().unwrap();
+        let after = tempfile::tempdir().unwrap();
+        fs::create_dir(after.path().join("vendor")).unwrap();
+        fs::write(after.path().join("vendor/first"), "one").unwrap();
+        let root_mode = fs::metadata(after.path()).unwrap().permissions().mode();
+        let mut changes = BTreeMap::from([
+            (".".into(), StepChange::Directory { mode: 0o755 }),
+            ("vendor".into(), StepChange::Present),
+            ("vendor/first".into(), StepChange::Present),
+        ]);
+        aggregate_full_change_subtrees(before.path(), after.path(), &mut changes).unwrap();
+        assert_eq!(
+            changes,
+            BTreeMap::from([(".".into(), StepChange::Subtree { mode: root_mode })])
         );
     }
 }
