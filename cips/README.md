@@ -23,6 +23,11 @@ for new decisions.
   feature-level refusals also land in the docs/docker.md ledger), and
   deliberately-parked items to `cips/deferred/` (Mathijs wants them
   later, not now).
+- **Ledger dispositions** — verdicts on docs/docker.md rows that need
+  a decision but not a CIP (refusals, deferrals, different-mechanism
+  re-marks) are batch-proposed in `open-questions.md`, blessed by
+  Mathijs, and recorded permanently in `cips/dispositions.md`; ledger
+  re-marking follows as a mechanical track.
 - **Retro-adoption & consolidation** (alpha rule, Mathijs 2026-08-02):
   pre-CIP design papers may be renumbered into the CIP sequence, and
   clusters of design.md D-numbers may be cleaned up and consolidated
