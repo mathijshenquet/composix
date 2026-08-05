@@ -21,6 +21,12 @@ Heartbeat & fleet discipline (Mathijs, 2026-08-04):
 - Full gates run strictly serial; df-guard (`df -h /` AND `df -i /tmp`) before every full gate and before any worker fan-out — VM closures eat disk linearly, node trees eat tmpfs inodes.
 - Codex worker launches: the first prompt after `agent start` is often swallowed — always verify with a follow-up ping expecting an `agent_working` refusal, and re-send once if missing.
 
+Worker naming (Mathijs 2026-08-05): CIP-implementation agents/tracks are
+named `cipNN-{slug}` (e.g. `cip97-degradation`, `cip98-artifact-root`),
+never bare `cipNN` — the label is what Mathijs sees in his UI and it
+must say what is happening. Same spirit for other tracks: label = the
+thing being done, not a number.
+
 Worker C2 (herdr) — the complete launch recipe (moved from memory 2026-08-05; herdr panes replaced raw `codex exec` on 2026-08-02 after a lost completion signal idled a slot ~4h):
 1. `herdr worktree create --cwd /home/mathijs/composix --branch track/<name> --label <name> --no-focus` — worktree + workspace + pane in one; note the pane_id. (Cold staging workers: `herdr workspace create --cwd <staging-dir>` instead.)
 2. `herdr agent start <name> --kind codex --pane <pane> -- -m gpt-5.6-<model>` — "not an available shell" just means direnv is still initializing; retry with short sleeps.
