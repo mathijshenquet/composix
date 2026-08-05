@@ -1,5 +1,22 @@
 # cix-build work log
 
+- 2026-08-05T02:10:00Z — Merged `origin/main` stop-disposition merge
+  (`e5c75d0`) as `689ae38`; it was conflict-free, and review confirmed its
+  STOPSIGNAL/KillSignal and compose `stopTimeout` strata do not overlap the
+  CIP-101 scratch owners. Regenerated the tour with the now-exclusive user
+  manager: `devenv shell -- cargo test -p cix --test tour -- --ignored
+  generate_tour` exited 0, then `git diff --exit-code -- docs/tour` exited 0.
+  The earlier observed transient user-manager namespace retries were
+  successful D13 fallbacks (journal evidence showed the final retry start);
+  this regeneration completed without a repeat assertion failure. Complete
+  post-merge synchronous exit-0 receipts: `devenv shell -- cargo fmt --all
+  --check`; `devenv shell -- cargo run -- fmt --check examples`; `devenv shell
+  -- cargo clippy --workspace --all-targets -- -D warnings`; `devenv shell --
+  cargo test --workspace`; and `devenv shell -- nix run
+  .#progressive-vm-check` (all 14 current derivations selected, including the
+  new `scenario-stopdispo`). The full flake matrix remains the orchestrator's
+  independent pre-merge gate by project policy.
+
 - 2026-08-05T01:15:00Z — Required track tier results: synchronous exit-0
   receipts for `devenv shell -- cargo fmt --all --check`, `devenv shell --
   cargo clippy --workspace --all-targets -- -D warnings`, `devenv shell --
