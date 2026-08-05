@@ -6,6 +6,6 @@ name=migrate-r4-caddy
 unit=
 cleanup() { [ -z "$unit" ] || sudo systemctl stop "$unit" || true; docker rm -f "$name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-if [ "$mode" = docker ]; then docker build --quiet -t "$name" -f Dockerfile .; docker run -d --rm --name "$name" -p 8080:80 "$name" >/dev/null; else item=$($CIX build .#caddy); printf 'cix item %s\n' "$item"; unit=$(sudo "$CIX" run --detach "$item" | tail -n1); fi
-for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:8080/ >/dev/null && exit 0; sleep 1; done
+if [ "$mode" = docker ]; then docker build --quiet -t "$name" -f Dockerfile .; docker run -d --rm --name "$name" -p 8080:80 "$name" >/dev/null; url=http://127.0.0.1:8080/; else item=$($CIX build .#caddy); printf 'cix item %s\n' "$item"; unit=$(sudo "$CIX" run --detach "$item" | tail -n1); url=http://127.0.0.1:80/; fi
+for _ in {1..20}; do curl --max-time 2 --fail --silent "$url" >/dev/null && exit 0; sleep 1; done
 exit 1

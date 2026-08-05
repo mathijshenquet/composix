@@ -1,30 +1,37 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
-BUILDER adminer-release
+BUILDER release
   IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.gzip}
   ENV ADMINER_VERSION=5.5.0
   ENV ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
   ENV ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
-  FETCH curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c -
-  FETCH curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c -
-  RUN tar xzf source.tar.gz --strip-components=1 "adminer-$ADMINER_VERSION/designs/" "adminer-$ADMINER_VERSION/plugins/" && rm source.tar.gz
+  FETCH bash -c 'curl -fsSL "https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php" -o adminer.php && echo "$ADMINER_DOWNLOAD_SHA256  adminer.php" | sha256sum -c -'
+  FETCH bash -c 'curl -fsSL "https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz" -o source.tar.gz && echo "$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz" | sha256sum -c -'
+  RUN <<BUILD
+set -e
+rm -rf output
+mkdir -p output
+tar xzf source.tar.gz --strip-components=1 -C output "adminer-$ADMINER_VERSION/designs/" "adminer-$ADMINER_VERSION/plugins/"
+cp adminer.php output/adminer.php
+BUILD
 
 SERVICE adminer
-  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php84} ${pkgs.php84Extensions.mysqli} ${pkgs.php84Extensions.pdo_pgsql} ${pkgs.php84Extensions.pdo_sqlite} ${pkgs.php84Extensions.pdo_odbc} ${pkgs.php84Extensions.pdo_dblib}
-  COPY ${src}/context/entrypoint.sh /usr/local/bin/entrypoint.sh
-  COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
-  COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
-  COPY ${src}/context/index.php /opt/adminer-seed/index.php
-  COPY ${src}/context/plugin-loader.php /opt/adminer-seed/plugin-loader.php
-  COPY ${adminer-release}/adminer.php /opt/adminer-seed/adminer.php
-  COPY ${adminer-release}/designs /opt/adminer-seed/designs
-  COPY ${adminer-release}/plugins /opt/adminer-seed/plugins
-  START sh /usr/local/bin/cix-entrypoint.sh
-  ENV ADMINER_DEFAULT_SERVER=db
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php84}
+  COPY ${release}/output /usr/share/adminer
+  COPY context/index.php /usr/share/adminer/index.php
+  COPY context/plugin-loader.php /usr/share/adminer/plugin-loader.php
+  COPY context/entrypoint.sh /usr/local/bin/entrypoint.sh
+  COPY adminer-init-state.sh /usr/local/bin/init-state.sh
+  COPY adminer.php.ini /etc/adminer/php.ini
+  START_PRE bash /usr/local/bin/init-state.sh
+  START bash /usr/local/bin/entrypoint.sh php -c /etc/adminer/php.ini -S [::]:8080 -t /var/www/html
+  ENV ADMINER_VERSION=5.5.0
+  ENV ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+  ENV ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
   ENV ADMINER_DESIGN
   ENV ADMINER_PLUGINS
+  ENV ADMINER_DEFAULT_SERVER
   PORT http = 8080
-  CLAIM egress
-  START_PRE sh /usr/local/bin/prepare-webroot.sh
   STATEDIR /var/www/html
+  CLAIM egress
+  STOPSIGNAL SIGINT

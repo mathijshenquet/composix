@@ -1,5 +1,5 @@
-Generated: migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05
+Generated: migrate.md@f474d3f · gpt-5.6-luna, independently rechecked · 2026-08-05
 Status: current
 
-- The Docker-faithful release and the nixpkgs twin declare all four sockets, including `udp:443`; Alpine layers, fixed identity, and mode-setting dissolve into Nix and systemd. → case
-- The 2026-08-05 independent sandbox FETCH returned the same 769-byte body for two different raw GitHub assets and therefore tripped their stable EXPECT pins; ordinary host curl retrieved the expected distinct assets. Reproduce from a clean builder before changing any pin. → evidence
+- The clean recheck fetched distinct pinned raw assets, built the faithful item, and served the Caddy welcome page on port 80. The earlier same-769-byte raw-asset receipt was environment-tainted, not case truth. → evidence
+- The Docker-faithful release and nixpkgs twin declare all four sockets, including `udp:443`; Alpine layers, fixed identity, and mode-setting dissolve into Nix and systemd. → case

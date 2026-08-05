@@ -1,4 +1,19 @@
 
+## 2026-08-05 — track/regen4 assembly start
+
+- Read the regen4 and regen3 specifications, corpus maintenance rules, staged NOTES, current case ledgers, and the prior caddy/filestash receipts. The three requested cold-stage outputs are present under `/home/mathijs/regen-stage/docker-{adminer,nginx,wallos}`; their worker claims are not yet accepted. The staged Adminer and nginx files predate the now-landed `STOPSIGNAL` surface, so assembly must add their Docker-requested signals and re-verify with the current binary. Wallos supplies the CIP-98 `/var/www/html` nested-role translation, but its worker runtime receipt is explicitly invalid in this worktree until independently rerun.
+- Next: reconstruct the ignored source contexts from the recorded revisions, apply the staged artifacts plus the required current-language corrections, then capture synchronous build/probe/cold receipts before regrading ledgers and regenerating the browser.
+
+## 2026-08-05 — track/regen4 independent artifact verification
+
+- Reconstructed Adminer, nginx, Wallos, and Filestash contexts with `corpus/migrate/fetch.sh` at their recorded revisions, built the current `cix`, and applied the staged translations. Adminer and nginx now explicitly carry their Dockerfile `STOPSIGNAL` values. The nginx config puts its pid at `/run/nginx/nginx.pid` under `RUNDIR`; `docs/migrate.md` now teaches the same runtime-state rule. Wallos is the staged `/var/www/html` CIP-98 nested-role form, not an invented `/app` layout.
+- Value-checked receipts so far: Adminer faithful check.sh, faithful cold replay, and dissolved cold replay all exit 0; nginx faithful check.sh, faithful cold replay, and dissolved cold replay all exit 0; Wallos warm/cold builds exit 0 but check.sh exits 1 because the generated unit cannot execute the workspace-local cix binary inside `ProtectHome` (`203/EXEC`). Contrary to its worker note, Adminer's current cold replay passes, so no unverified generated-directory language wall is being promoted. Caddy's clean-worktree build now reaches assembly and produces an item, proving the earlier same-769-byte FETCH wall was environmental; its check.sh still exits 1 and needs an independently visible runtime diagnostic. Filestash clean re-verification reached its networked FETCH after the recorded source context was restored; it is still running as this entry is written.
+- Next: finish Filestash and Caddy value checks, replace GAPS/receipts and ribbon rows with the observed outcomes, regenerate browser, then run the complete tier and focused VM selection.
+
+## 2026-08-05 — track/regen4 assembled
+
+- Caddy clean recheck and direct runtime probe passed; its old 769-byte asset anomaly is environment-tainted. Filestash no longer fails DNS but exceeded the case's 20-minute bound while sealing a 2.7 GiB/~69k-file module FETCH, so it is honestly a lock-scale wall. Browser regeneration, Rust fmt, example formatting, and diff-check passed. Full workspace/clippy/tour/VM gates remain for the orchestrator tier; this track changed only corpus/docs and has no focused VM scenario addition.
+
 ## 2026-08-05 — track/cip102 start
 
 - Read the track specification, accepted CIP-102, migration and corpus maintenance guidance, and the current case ledgers. Scope is intentionally narrow: add the EXPECT mismatch teaching diagnostic, correct the FETCH teaching, and remove only the four audited volatile EXPECT declarations while preserving their RUN-level/upstream checksum verification.

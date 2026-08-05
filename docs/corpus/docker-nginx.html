@@ -56,18 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / nginx</nav>
   <h1>docker / nginx</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Declared losses — the Alpine hook, Docker log symlinks, fixed uid, and parts of the entrypoint contract differ; the case is stale for its now-representable stop signal and the faithful runtime&#39;s /var/log/nginx failure is regeneration-addressable · <strong>Evidence:</strong> build (runtime failure) · closed-root (synthetic contract)</p>
-  <p class="status"><strong>Receipt status:</strong> Both twins build, but the faithful runtime exits on missing /var/log/nginx files; a synthetic nginx response remains sealed-root audited · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nginx/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ SIGQUIT, declared cache/runtime roles, and the pid path are live; Alpine hooks, identity, logs, and welcome page deliberately differ · <strong>Evidence:</strong> runtime probe + cold replay · closed-root (synthetic contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Both twins build cold and the faithful HTTP probe passes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nginx/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/nginx/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@00078d9 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with STOPSIGNAL</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The faithful twin preserves the upstream entrypoint scripts, but its Alpine-specific IPv6 hook cannot validate <code>apk manifest nginx</code> against the nixpkgs package and therefore does not perform that Docker mutation. → case</li>
-      <li>Docker&#39;s stdout/stderr log symlinks are not reproduced, and the faithful runtime probe is red because the packaged configuration opens <code>/var/log/nginx/error.log</code> and <code>access.log</code> while the service declares no <code>LOGDIR</code>. systemd captures process output, but that does not satisfy those file paths. → case</li>
-      <li>Docker&#39;s fixed nginx uid/gid 101 is replaced by Cix/systemd&#39;s managed service identity. → language (fixed service identity)</li>
-      <li>Upstream requests graceful <code>STOPSIGNAL SIGQUIT</code>; Cix now has the directive, so regenerate this case with that declaration. → stale (<a href="../../../../cips/dispositions.md#batch-2026-08-04-blessed-by-mathijs-dockermd-application-queued">STOPSIGNAL disposition</a>)</li>
-      <li>The copied worker-autotune hook&#39;s Docker cgroup paths and operator-supplied envsubst/stream templates are not covered by the HTTP probe. → evidence</li>
+      <li>Both twins carry Docker&#39;s <code>STOPSIGNAL SIGQUIT</code>; nginx writes its pid under declared <code>RUNDIR /run/nginx</code>, and the faithful HTTP probe and cold replay pass. → case</li>
+      <li>Alpine hooks, fixed uid/gid, nginx.org package selection, stdout symlinks, and exact welcome-page content dissolve into the locked nginx package, systemd identity, and the checked-in HTTP contract. → case</li>
+      <li>The copied Alpine hooks&#39; template mutation and cgroup autotuning are declared operator-facing environment inputs but are not exercised by the HTTP probe. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -315,7 +313,8 @@ Build context: repository archive in context/; sibling entrypoint files are in c
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 <span class="tok-directive">SERVICE</span> nginx
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nginxMainline}</span> <span class="tok-interpolation">${pkgs.busybox}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gettext}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nginx}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gettext}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">COPY</span> nginx.conf /app/nginx.conf
   <span class="tok-directive">ENV</span> NGINX_VERSION=1.31.3
   <span class="tok-directive">ENV</span> PKG_RELEASE=1
   <span class="tok-directive">ENV</span> DYNPKG_RELEASE=1
@@ -324,10 +323,22 @@ Build context: repository archive in context/; sibling entrypoint files are in c
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/15-local-resolvers.envsh /docker-entrypoint.d/15-local-resolvers.envsh
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/20-envsubst-on-templates.sh /docker-entrypoint.d/20-envsubst-on-templates.sh
   <span class="tok-directive">COPY</span> context/mainline/alpine-slim/30-tune-worker-processes.sh /docker-entrypoint.d/30-tune-worker-processes.sh
-  <span class="tok-directive">START</span> sh /docker-entrypoint.sh nginx -g &#39;daemon off;&#39;
+  <span class="tok-directive">ENV</span> TZ
+  <span class="tok-directive">ENV</span> NGINX_ENTRYPOINT_QUIET_LOGS
+  <span class="tok-directive">ENV</span> NGINX_ENTRYPOINT_LOCAL_RESOLVERS
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_TEMPLATE_DIR
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_TEMPLATE_SUFFIX
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_OUTPUT_DIR
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_STREAM_TEMPLATE_SUFFIX
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_STREAM_OUTPUT_DIR
+  <span class="tok-directive">ENV</span> NGINX_ENVSUBST_FILTER
+  <span class="tok-directive">ENV</span> NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE
+  <span class="tok-directive">START</span> sh /docker-entrypoint.sh nginx -c /app/nginx.conf -g &#39;daemon off;&#39;
   <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">CLAIM</span> egress
   <span class="tok-directive">CACHEDIR</span> /var/cache/nginx
   <span class="tok-directive">RUNDIR</span> /run/nginx
+  <span class="tok-directive">STOPSIGNAL</span> SIGQUIT
 </code></pre>
       </section>
           </div>
@@ -336,11 +347,14 @@ Build context: repository archive in context/; sibling entrypoint files are in c
         <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nginx
-  IMPORT ${pkgs.nginxMainline} ${pkgs.tzdata}
-  START nginx -g &#39;daemon off;&#39;
+  IMPORT ${pkgs.nginx}
+  COPY nginx.conf /app/nginx.conf
+  START nginx -c /app/nginx.conf -g &#39;daemon off;&#39;
   PORT http = 80
+  CLAIM egress
   CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
+  STOPSIGNAL SIGQUIT
 </code></pre>
       </section>
           </div>
@@ -359,8 +373,8 @@ SERVICE nginx
   },
   &quot;outputs&quot;: {
     &quot;nginx&quot;: {
-      &quot;sourceHash&quot;: &quot;4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/h6rdgrdjxy4n0a820wa15gajjb2v9cv5-cix-item-nginx&quot;
+      &quot;sourceHash&quot;: &quot;2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/r2y6y2wx6vmia0iawn2qlidvwbq2dr8k-cix-item-nginx&quot;
     }
   }
 }
@@ -379,8 +393,8 @@ SERVICE nginx
   },
   &quot;outputs&quot;: {
     &quot;nginx&quot;: {
-      &quot;sourceHash&quot;: &quot;4347724d033314681fa6e849c06f9918930bf91d9f34ba991a2ef1bbc51221c3&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/pnya3lvjhri5n6fkixybwpbrmp2srzvs-cix-item-nginx&quot;
+      &quot;sourceHash&quot;: &quot;2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx&quot;
     }
   }
 }
@@ -399,6 +413,35 @@ for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:80/ &gt;
 exit 1
 </code></pre>
       </details>
+      <section class="file">
+        <h3>nginx.conf</h3>
+        <pre><code>worker_processes auto;
+error_log stderr notice;
+pid /run/nginx/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    default_type application/octet-stream;
+    access_log off;
+    sendfile on;
+    keepalive_timeout 65;
+
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+
+        location / {
+            return 200 &quot;nginx\\n&quot;;
+        }
+    }
+}
+</code></pre>
+      </section>
       <details class="file">
         <summary>receipt.md</summary>
         <pre><code># nginx migration receipt
@@ -462,6 +505,10 @@ nginx: [emerg] open() &quot;/var/log/nginx/access.log&quot; failed (2: No such f
 
 The final cleanup also reported that the original unit name was no longer loaded.
 The probe was not weakened; this is a faithful-twin runtime finding.
+
+## 2026-08-05 STOPSIGNAL regeneration
+
+Current `target/debug/cix` built `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`; `./check.sh cix`, faithful `--cold`, and dissolved `--cold` each exited 0. The pid lives at `/run/nginx/nginx.pid` under `RUNDIR`, and the service carries `STOPSIGNAL SIGQUIT`.
 </code></pre>
       </details>
     </section>

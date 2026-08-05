@@ -1,8 +1,6 @@
-Generated: migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04
-Status: stale — regenerate with CIP-98
+Generated: migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05
+Status: current
 
-- The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case
-- Upstream's `dcron` service and `/etc/cron.d/cronjobs` schedule are not activated, so only the startup maintenance jobs run. → case
-- Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case
-- Docker's `/health.php` check is exercised only by `check.sh`; the service does not declare the equivalent native HTTP `READINESS`. → case
-- Port 18092 and its second nginx listener exist only because the supplied Cix probe hard-codes that host port without a runtime port override; port 80 remains the faithful listener. → evidence
+- The app remains at upstream `/var/www/html`; nested durable database/upload roles, cache, runtime socket directory, and native HTTP readiness/liveness are declared. Warm and cold builds pass. → case
+- Cron's privileged Alpine process and exact multi-process Docker topology remain outside this one-service translation; scheduled work belongs in separately declared APP/timer artifacts. → case
+- The independently rerun runtime check cannot complete because its generated unit tries to execute the workspace-local cix binary from inside `ProtectHome` and receives `203/EXEC`; no HTTP success is claimed from that run. → evidence

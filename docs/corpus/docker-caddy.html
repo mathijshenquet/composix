@@ -56,15 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / caddy</nav>
   <h1>docker / caddy</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The four-socket translation remains declared, but fresh build evidence awaits a clean builder that can distinguish the pinned GitHub assets · <strong>Evidence:</strong> receipt · closed-root (package contract)</p>
-  <p class="status"><strong>Receipt status:</strong> Prior runtime/cold receipts pass; the assembly rerun&#39;s sandbox FETCH returned one 769-byte body for distinct raw assets and stopped before assembly · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/caddy/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ The four-socket translation remains declared; the former 769-byte asset receipt was environment-tainted · <strong>Evidence:</strong> receipt · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Fresh faithful build and HTTP probe pass; distinct pinned raw assets fetched normally · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/caddy/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/caddy/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna, independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The Docker-faithful release and the nixpkgs twin declare all four sockets, including <code>udp:443</code>; Alpine layers, fixed identity, and mode-setting dissolve into Nix and systemd. → case</li>
-      <li>The 2026-08-05 independent sandbox FETCH returned the same 769-byte body for two different raw GitHub assets and therefore tripped their stable EXPECT pins; ordinary host curl retrieved the expected distinct assets. Reproduce from a clean builder before changing any pin. → evidence</li>
+      <li>The clean recheck fetched distinct pinned raw assets, built the faithful item, and served the Caddy welcome page on port 80. The earlier same-769-byte raw-asset receipt was environment-tainted, not case truth. → evidence</li>
+      <li>The Docker-faithful release and nixpkgs twin declare all four sockets, including <code>udp:443</code>; Alpine layers, fixed identity, and mode-setting dissolve into Nix and systemd. → case</li>
     </ul>
   </aside>
   <p class="context"><strong>Upstream build context:</strong> context not fetched.</p>
@@ -372,7 +372,7 @@ SERVICE caddy
   },
   &quot;stepMemo&quot;: {
     &quot;builder:upstream:2&quot;: {
-      &quot;key&quot;: &quot;a256c0893114543fc77e7717625166f8908cf531fa8066a1c9afbb312ea844f4&quot;,
+      &quot;key&quot;: &quot;a56c136cc390dd5055d66555b037c6085809d653bb4fc2c238ae379c40812afd&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
@@ -457,8 +457,8 @@ SERVICE caddy
           &quot;hash&quot;: &quot;a47217cd879b147a8d071d60f02dc71a85e8cb3d17a6cde638fe8624270b3507&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 20115167,
-            &quot;mtimeNs&quot;: 695118206,
+            &quot;inode&quot;: 23362941,
+            &quot;mtimeNs&quot;: 367374557,
             &quot;size&quot;: 769,
             &quot;len&quot;: 769,
             &quot;mode&quot;: 33188
@@ -469,8 +469,8 @@ SERVICE caddy
           &quot;hash&quot;: &quot;6ccd170bbb8c67d5cb5ae7e70079266c2b0f78adf27a4d113bc0338aa64e7b25&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 20115169,
-            &quot;mtimeNs&quot;: 715359269,
+            &quot;inode&quot;: 23367863,
+            &quot;mtimeNs&quot;: 319710123,
             &quot;size&quot;: 17238873,
             &quot;len&quot;: 17238873,
             &quot;mode&quot;: 33188
@@ -481,17 +481,35 @@ SERVICE caddy
           &quot;hash&quot;: &quot;bbd32c75043ee0ba71065681563bf23e59e0bdc6e43ccfa3e9e706c437e899a7&quot;,
           &quot;fingerprint&quot;: {
             &quot;dev&quot;: 2307,
-            &quot;inode&quot;: 20115168,
-            &quot;mtimeNs&quot;: 695583713,
+            &quot;inode&quot;: 23362942,
+            &quot;mtimeNs&quot;: 253243946,
             &quot;size&quot;: 18753,
             &quot;len&quot;: 18753,
             &quot;mode&quot;: 33188
           }
         },
-        &quot;output&quot;: {
+        &quot;output/bin&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;output/data/data&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;output/etc/caddy&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;output/etc/etc&quot;: {
           &quot;kind&quot;: &quot;absent&quot;
         },
         &quot;output/output&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;output/usr/share/caddy&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;output/usr/share/share&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;output/usr/usr&quot;: {
           &quot;kind&quot;: &quot;absent&quot;
         }
       },
@@ -745,8 +763,8 @@ SERVICE caddy
   },
   &quot;outputs&quot;: {
     &quot;caddy&quot;: {
-      &quot;sourceHash&quot;: &quot;8fc6c75a50de45c1c2883fae10d541b7a5b872fbdd535aa6207052ce1077875d&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/d7cc7052ivjyp1jyh9j7yq539ixpf2df-cix-item-caddy&quot;
+      &quot;sourceHash&quot;: &quot;9f654378d0a80015b8c9ae9df166633f08c1e105d1934e456f50d849c36e13f9&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/9cxyg2hx2c44gp5xw2pqwqs8d9f0xi18-cix-item-caddy&quot;
     }
   }
 }
@@ -762,8 +780,8 @@ name=migrate-r4-caddy
 unit=
 cleanup() { [ -z &quot;$unit&quot; ] || sudo systemctl stop &quot;$unit&quot; || true; docker rm -f &quot;$name&quot; &gt;/dev/null 2&gt;&amp;1 || true; }
 trap cleanup EXIT
-if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile .; docker run -d --rm --name &quot;$name&quot; -p 8080:80 &quot;$name&quot; &gt;/dev/null; else item=$($CIX build .#caddy); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); fi
-for _ in {1..20}; do curl --max-time 2 --fail --silent http://127.0.0.1:8080/ &gt;/dev/null &amp;&amp; exit 0; sleep 1; done
+if [ &quot;$mode&quot; = docker ]; then docker build --quiet -t &quot;$name&quot; -f Dockerfile .; docker run -d --rm --name &quot;$name&quot; -p 8080:80 &quot;$name&quot; &gt;/dev/null; url=http://127.0.0.1:8080/; else item=$($CIX build .#caddy); printf &#39;cix item %s\n&#39; &quot;$item&quot;; unit=$(sudo &quot;$CIX&quot; run --detach &quot;$item&quot; | tail -n1); url=http://127.0.0.1:80/; fi
+for _ in {1..20}; do curl --max-time 2 --fail --silent &quot;$url&quot; &gt;/dev/null &amp;&amp; exit 0; sleep 1; done
 exit 1
 </code></pre>
       </details>
@@ -782,6 +800,10 @@ The Cixfiles declare `80/tcp`, `443/tcp`, `443/udp`, and `2019/tcp`.
 ## 2026-08-05 assembly rerun
 
 `./check.sh cix` exited non-zero before assembly: Cix&#39;s sandbox FETCH returned the same 769-byte body (`sha256-XnQDFzyLvpWytEFT1E48D4X0IY4QxmuuGtje8R+jyvE=`) for distinct raw GitHub asset URLs, so the first stable EXPECT pin rejected it. Direct host curl returned the distinct raw Caddyfile/index assets. No pin was changed.
+
+## 2026-08-05 clean-worktree recheck
+
+`./check.sh cix` exited 0 after its Cix-mode probe was corrected to declared port 80. The faithful item `/nix/store/9cxyg2hx2c44gp5xw2pqwqs8d9f0xi18-cix-item-caddy` served the Caddy welcome page in an independent run. The prior 769-byte same-body receipt was environment-tainted.
 </code></pre>
       </details>
     </section>

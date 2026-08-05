@@ -1,8 +1,11 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 SERVICE nginx
-  IMPORT ${pkgs.nginxMainline} ${pkgs.tzdata}
-  START nginx -g 'daemon off;'
+  IMPORT ${pkgs.nginx}
+  COPY nginx.conf /app/nginx.conf
+  START nginx -c /app/nginx.conf -g 'daemon off;'
   PORT http = 80
+  CLAIM egress
   CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
+  STOPSIGNAL SIGQUIT

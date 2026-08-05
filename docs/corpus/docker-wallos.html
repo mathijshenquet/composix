@@ -56,18 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / wallos</nav>
   <h1>docker / wallos</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added; CIP-98 restores upstream&#39;s /var/www with nested state roles, pending regeneration · <strong>Evidence:</strong> runtime probe + cold build</p>
-  <p class="status"><strong>Receipt status:</strong> The complete app/state assembly builds cold and the independent /health.php probe returns OK · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime probe is blocked by the workspace-local cix post-probe under ProtectHome; cron and Docker process topology remain deliberate losses · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Upstream /var/www/html assembly with nested roles builds warm and cold · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CIP-98</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case</li>
-      <li>Upstream&#39;s <code>dcron</code> service and <code>/etc/cron.d/cronjobs</code> schedule are not activated, so only the startup maintenance jobs run. → case</li>
-      <li>Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case</li>
-      <li>Docker&#39;s <code>/health.php</code> check is exercised only by <code>check.sh</code>; the service does not declare the equivalent native HTTP <code>READINESS</code>. → case</li>
-      <li>Port 18092 and its second nginx listener exist only because the supplied Cix probe hard-codes that host port without a runtime port override; port 80 remains the faithful listener. → evidence</li>
+      <li>The app remains at upstream <code>/var/www/html</code>; nested durable database/upload roles, cache, runtime socket directory, and native HTTP readiness/liveness are declared. Warm and cold builds pass. → case</li>
+      <li>Cron&#39;s privileged Alpine process and exact multi-process Docker topology remain outside this one-service translation; scheduled work belongs in separately declared APP/timer artifacts. → case</li>
+      <li>The independently rerun runtime check cannot complete because its generated unit tries to execute the workspace-local cix binary from inside <code>ProtectHome</code> and receives <code>203/EXEC</code>; no HTTP success is claimed from that run. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -664,28 +662,55 @@ Retrieved: 2026-07-31
       <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> app
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
-  <span class="tok-directive">COPY</span> context/ .
-  <span class="tok-directive">COPY</span> startup.cix.sh startup.sh
-  <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
-<span class="tok-heredoc">rm -f nginx.conf nginx.default.conf</span>
-<span class="tok-heredoc">mkdir -p db images/uploads/logos</span>
-<span class="tok-directive">ASSEMBLE</span>
+<span class="tok-directive">BUILDER</span> webroot
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">RUN</span> rm -rf .github screenshots .dockerignore .gitignore .tmp/.gitignore *.md nginx.conf nginx.default.conf
 
 <span class="tok-directive">SERVICE</span> wallos
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.nginx}</span> <span class="tok-interpolation">${pkgs.php83}</span>
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /var/www
-  <span class="tok-directive">COPY</span> nginx.cix.conf /etc/nginx/nginx.conf
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.php}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${webroot}</span>/ /var/www/html
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/nginx-cix.conf /etc/wallos-nginx.conf
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.nginx}</span>/conf/mime.types /etc/nginx/mime.types
-  <span class="tok-directive">COPY</span> php-fpm.cix.conf /etc/wallos/php-fpm.conf
-  <span class="tok-directive">START</span> bash /var/www/startup.sh
-  <span class="tok-directive">PORT</span> http = 80
-  <span class="tok-directive">PORT</span> probe = 18092
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/fastcgi.params /etc/nginx/fastcgi_params
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/php-fpm.conf /etc/wallos-php-fpm.conf
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/wallos-start.sh /bin/wallos-start.sh
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nginx}</span>
+  <span class="tok-directive">START</span> bash /bin/wallos-start.sh
+  <span class="tok-directive">ENV</span> TZ
+  <span class="tok-directive">ENV</span> DEMO_MODE
+  <span class="tok-directive">ENV</span> SSRF_ALLOWLIST
+  <span class="tok-directive">ENV</span> http_proxy
+  <span class="tok-directive">ENV</span> https_proxy
+  <span class="tok-directive">ENV</span> all_proxy
+  <span class="tok-directive">ENV</span> OIDC_ENABLED
+  <span class="tok-directive">ENV</span> OIDC_AUTO_CREATE_USER
+  <span class="tok-directive">ENV</span> OIDC_DISABLE_PASSWORD_LOGIN
+  <span class="tok-directive">ENV</span> OIDC_REQUIRE_EMAIL_VERIFIED
+  <span class="tok-directive">ENV</span> OIDC_ISSUER
+  <span class="tok-directive">ENV</span> OIDC_PROVIDER_NAME
+  <span class="tok-directive">ENV</span> OIDC_CLIENT_ID
+  <span class="tok-directive">ENV</span> OIDC_AUTH_URL
+  <span class="tok-directive">ENV</span> OIDC_TOKEN_URL
+  <span class="tok-directive">ENV</span> OIDC_USERINFO_URL
+  <span class="tok-directive">ENV</span> OIDC_REDIRECT_URL
+  <span class="tok-directive">ENV</span> OIDC_LOGOUT_URL
+  <span class="tok-directive">ENV</span> OIDC_USER_IDENTIFIER
+  <span class="tok-directive">ENV</span> OIDC_SCOPES
+  <span class="tok-directive">ENV</span> OIDC_CLIENT_SECRET_FILE
+  <span class="tok-directive">PORT</span> http = 18092
+  <span class="tok-directive">READINESS</span> http 127.0.0.1:18092/health.php IN 20s
+  <span class="tok-directive">LIVENESS</span> http 127.0.0.1:18092/health.php EVERY 2m
+  <span class="tok-directive">STATEDIR</span> /var/www/html/db
+  <span class="tok-directive">STATEDIR</span> /var/www/html/images/uploads
+  <span class="tok-directive">CACHEDIR</span> /var/www/html/.tmp
+  <span class="tok-directive">RUNDIR</span> /var/run
   <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">STATEDIR</span> /var/www/db
-  <span class="tok-directive">STATEDIR</span> /var/www/images/uploads/logos
 </code></pre>
       </section>
       <details class="file">
@@ -780,6 +805,14 @@ Retrieved: 2026-07-31
         }
       }
     },
+    &quot;c7e33ce8d52de821b30507ea0d6f6b66976448e7170936896ecf962fb5da032e&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-7aKhKyPCtBEO4bzUGk+d2BdkU1zmSLKf1BYbI0tgW+w=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/61k2jrd45lan20wkrai2iqx47f1bdf9z-cix-build-consumed&quot;
+        }
+      }
+    },
     &quot;f060dcd9a9d77c915954c2025932fee577e417e67ff9afe3af522c93acf0eca4&quot;: {
       &quot;paths&quot;: {
         &quot;.&quot;: {
@@ -837,6 +870,116 @@ Retrieved: 2026-07-31
           &quot;kind&quot;: &quot;absent&quot;
         }
       }
+    },
+    &quot;builder:webroot:1&quot;: {
+      &quot;key&quot;: &quot;6f9799c644f2d0e54b9ff220d3eb2b8adf93a2a54eeb82b4ebd478db5f65e16e&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;c92450f40f440146e00431ebe1e38c61ee2380f7e6061fe9af34af07dda450c9&quot;
+        },
+        &quot;.github&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;af8b3c4a7cea8f3ec25024bddb605dfaa3b99d1359217d7b5ac84d135321abf3&quot;
+        },
+        &quot;.github/workflows&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;fb29401b111078fc36b5ff62282a904ae6866f58bc241c09c442914d16030714&quot;
+        },
+        &quot;screenshots&quot;: {
+          &quot;kind&quot;: &quot;directory&quot;,
+          &quot;hash&quot;: &quot;de98053a98e6b6c2233de0b2ea11530f206f932f91d7d89bb0499b4e69197659&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;.dockerignore&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.github&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.github/FUNDING.yml&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.github/workflows&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.github/workflows/build-release.yaml&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.gitignore&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.tmp/.gitignore&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;CHANGELOG.md&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;CONTRIBUTING.md&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;LICENSE.md&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;README.md&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;SECURITY.md&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;nginx.default.conf&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/capture_screenshots.py&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-calendar.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-dashboard-dark.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-dashboard-light.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-dashboard-mobile-dark.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-dashboard-mobile-light.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-form.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-stats.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-dark.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-light.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-mobile-dark.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-mobile-light.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-mobile-sheet.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;screenshots/wallos-subscriptions-popup.png&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      }
     }
   },
   &quot;devEnvs&quot;: {
@@ -847,12 +990,13 @@ Retrieved: 2026-07-31
     }
   },
   &quot;builderDevEnvs&quot;: {
-    &quot;app&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099&quot;
+    &quot;app&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099&quot;,
+    &quot;webroot&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099&quot;
   },
   &quot;outputs&quot;: {
     &quot;wallos&quot;: {
-      &quot;sourceHash&quot;: &quot;88dd339f83bd59e6c365c9ecf52c3c9b94a5f8bedaa66a8bbc476f10056836b8&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos&quot;
+      &quot;sourceHash&quot;: &quot;e3338cccd126d4f0d89190e2beabaeb39d75613ce7227e6b3554a2f9879dd2bd&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos&quot;
     }
   }
 }
@@ -909,10 +1053,33 @@ esac
 </code></pre>
       </details>
       <section class="file">
-        <h3>nginx.cix.conf</h3>
+        <h3>fastcgi.params</h3>
+        <pre><code>fastcgi_param QUERY_STRING $query_string;
+fastcgi_param REQUEST_METHOD $request_method;
+fastcgi_param CONTENT_TYPE $content_type;
+fastcgi_param CONTENT_LENGTH $content_length;
+fastcgi_param SCRIPT_NAME $fastcgi_script_name;
+fastcgi_param REQUEST_URI $request_uri;
+fastcgi_param DOCUMENT_URI $document_uri;
+fastcgi_param DOCUMENT_ROOT $document_root;
+fastcgi_param SERVER_PROTOCOL $server_protocol;
+fastcgi_param REQUEST_SCHEME $scheme;
+fastcgi_param GATEWAY_INTERFACE CGI/1.1;
+fastcgi_param SERVER_SOFTWARE nginx/$nginx_version;
+fastcgi_param REMOTE_ADDR $remote_addr;
+fastcgi_param REMOTE_PORT $remote_port;
+fastcgi_param SERVER_ADDR $server_addr;
+fastcgi_param SERVER_PORT $server_port;
+fastcgi_param SERVER_NAME $server_name;
+fastcgi_param REDIRECT_STATUS 200;
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>nginx-cix.conf</h3>
         <pre><code>worker_processes 1;
-error_log /dev/null crit;
-pid /dev/shm/wallos-cix/nginx.pid;
+
+error_log /tmp/nginx-error.log warn;
+pid /var/run/nginx.pid;
 
 events {
     worker_connections 1024;
@@ -921,47 +1088,30 @@ events {
 http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
-    access_log off;
-    client_body_temp_path /dev/shm/wallos-cix/nginx-client;
-    proxy_temp_path /dev/shm/wallos-cix/nginx-proxy;
-    fastcgi_temp_path /dev/shm/wallos-cix/fastcgi-temp;
-    uwsgi_temp_path /dev/shm/wallos-cix/uwsgi-temp;
-    scgi_temp_path /dev/shm/wallos-cix/scgi-temp;
+
+    log_format main &#39;$remote_addr - $remote_user [$time_local] &quot;$request&quot; &#39;
+                    &#39;$status $body_bytes_sent &quot;$http_referer&quot; &#39;
+                    &#39;&quot;$http_user_agent&quot; &quot;$http_x_forwarded_for&quot;&#39;;
+
+    access_log /tmp/nginx-access.log main;
+    sendfile on;
+    keepalive_timeout 65;
 
     server {
-        listen [::]:80 ipv6only=off;
-        listen [::]:18092 ipv6only=off;
+        listen 0.0.0.0:18092;
         server_name localhost;
 
         location / {
-            root /var/www;
+            root /var/www/html;
             index index.php;
         }
 
         location ~ \.php$ {
-            root /var/www;
-            fastcgi_pass unix:/dev/shm/wallos-cix/php-fpm.sock;
+            root /var/www/html;
+            fastcgi_pass unix:/var/run/php-fpm.sock;
             fastcgi_index index.php;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            fastcgi_param QUERY_STRING $query_string;
-            fastcgi_param REQUEST_METHOD $request_method;
-            fastcgi_param CONTENT_TYPE $content_type;
-            fastcgi_param CONTENT_LENGTH $content_length;
-            fastcgi_param SCRIPT_NAME $fastcgi_script_name;
-            fastcgi_param REQUEST_URI $request_uri;
-            fastcgi_param DOCUMENT_URI $document_uri;
-            fastcgi_param DOCUMENT_ROOT $document_root;
-            fastcgi_param SERVER_PROTOCOL $server_protocol;
-            fastcgi_param REQUEST_SCHEME $scheme;
-            fastcgi_param HTTPS $https if_not_empty;
-            fastcgi_param GATEWAY_INTERFACE CGI/1.1;
-            fastcgi_param SERVER_SOFTWARE nginx/$nginx_version;
-            fastcgi_param REMOTE_ADDR $remote_addr;
-            fastcgi_param REMOTE_PORT $remote_port;
-            fastcgi_param SERVER_ADDR $server_addr;
-            fastcgi_param SERVER_PORT $server_port;
-            fastcgi_param SERVER_NAME $server_name;
-            fastcgi_param REDIRECT_STATUS 200;
+            include /etc/nginx/fastcgi_params;
         }
 
         location ~ \.db$ {
@@ -988,28 +1138,20 @@ http {
 </code></pre>
       </section>
       <section class="file">
-        <h3>php-fpm.cix.conf</h3>
+        <h3>php-fpm.conf</h3>
         <pre><code>[global]
 daemonize = no
-error_log = /dev/null
+error_log = /tmp/php-fpm-error.log
 
 [www]
-listen = /dev/shm/wallos-cix/php-fpm.sock
+listen = /var/run/php-fpm.sock
 pm = dynamic
 pm.max_children = 15
 pm.start_servers = 2
 pm.min_spare_servers = 1
 pm.max_spare_servers = 3
 pm.max_requests = 500
-catch_workers_output = yes
-php_admin_value[session.save_path] = /dev/shm/wallos-cix/sessions
-</code></pre>
-      </section>
-      <section class="file">
-        <h3>php.nix</h3>
-        <pre><code>final: prev: {
-  php = prev.php83.withExtensions ({ enabled, all }: enabled ++ (<span class="tok-directive">with</span> all; [ calendar gd intl pdo_sqlite zip ]));
-}
+clear_env = no
 </code></pre>
       </section>
       <details class="file">
@@ -1068,86 +1210,41 @@ After `bash corpus/migrate/docker/fetch.sh wallos` exited 0, the assembler obser
   item after executing the assembly RUN from a cold workspace.
 
 Docker mode was not rerun.
+
+## 2026-08-05 CIP-98 regeneration
+
+Current warm and cold builds each exited 0, producing `/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos`. `./check.sh cix` exited 1 because its unit post-probe tried to execute the workspace-local cix binary inside `ProtectHome` and received `203/EXEC`; no HTTP success is claimed.
 </code></pre>
       </details>
       <section class="file">
-        <h3>setup.sh</h3>
-        <pre><code>set -eu
-mkdir -p /var/lib/wallos/db /var/lib/wallos/logos
-cd /var/www/html
-php endpoints/cronjobs/createdatabase.php
-php endpoints/db/migrate.php
-php endpoints/cronjobs/updatenextpayment.php
-php endpoints/cronjobs/updateexchange.php
-php endpoints/cronjobs/checkforupdates.php
-</code></pre>
-      </section>
-      <section class="file">
-        <h3>start.sh</h3>
-        <pre><code>set -eu
-php_pid=
-cron_pid=
-nginx_pid=
-cleanup() {
-  test -z &quot;$nginx_pid&quot; || kill -QUIT &quot;$nginx_pid&quot; 2&gt;/dev/null || true
-  test -z &quot;$php_pid&quot; || kill -QUIT &quot;$php_pid&quot; 2&gt;/dev/null || true
-  test -z &quot;$cron_pid&quot; || kill -TERM &quot;$cron_pid&quot; 2&gt;/dev/null || true
-}
-trap cleanup EXIT INT TERM QUIT
-php-fpm -y /etc/php-fpm.conf -F &amp;
-php_pid=$!
-supercronic /var/www/html/cronjobs &amp;
-cron_pid=$!
-nginx -c /etc/nginx.conf -e stderr &amp;
-nginx_pid=$!
-wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
-</code></pre>
-      </section>
-      <section class="file">
-        <h3>startup.cix.sh</h3>
+        <h3>wallos-start.sh</h3>
         <pre><code>#!/usr/bin/env bash
+
 set -euo pipefail
 
-cd /var/www
-runtime_dir=/dev/shm/wallos-cix-$$
-mkdir -p /var/www/db /var/www/images/uploads/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
+mkdir -p /var/www/html/images/uploads/logos/avatars /var/run
 
-fpm_conf=&quot;$runtime_dir/php-fpm.conf&quot;
-nginx_conf=&quot;$runtime_dir/nginx.conf&quot;
-while IFS= read -r line; do
-  line=${line//\/dev\/shm\/wallos-cix/$runtime_dir}
-  printf &#39;%s\n&#39; &quot;$line&quot; &gt;&gt; &quot;$fpm_conf&quot;
-done &lt; /etc/wallos/php-fpm.conf
-while IFS= read -r line; do
-  line=${line//\/dev\/shm\/wallos-cix/$runtime_dir}
-  printf &#39;%s\n&#39; &quot;$line&quot; &gt;&gt; &quot;$nginx_conf&quot;
-done &lt; /etc/nginx/nginx.conf
-export TMPDIR=&quot;$runtime_dir&quot;
+php-fpm -F -y /etc/wallos-php-fpm.conf &amp;
+php_fpm_pid=$!
 
-shutdown_in_progress=0
-PHP_FPM_PID=
-NGINX_PID=
+nginx -c /etc/wallos-nginx.conf -g &#39;daemon off;&#39; &amp;
+nginx_pid=$!
 
-shutdown_once() {
-  shutdown_in_progress=1
-  nginx -c &quot;$nginx_conf&quot; -s quit || true
-  [ -n &quot;${PHP_FPM_PID}&quot; ] &amp;&amp; kill -QUIT &quot;${PHP_FPM_PID}&quot; 2&gt;/dev/null || true
+shutdown() {
+    kill -TERM &quot;$nginx_pid&quot; &quot;$php_fpm_pid&quot; 2&gt;/dev/null || true
 }
 
-trap shutdown_once SIGTERM SIGINT SIGQUIT
-
-php-fpm -F -y &quot;$fpm_conf&quot; &amp;
-PHP_FPM_PID=$!
-nginx -c &quot;$nginx_conf&quot; -e stderr -g &#39;daemon off;&#39; &amp;
-NGINX_PID=$!
+trap shutdown SIGTERM SIGINT SIGQUIT
 
 sleep 1
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/createdatabase.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/db/migrate.php
-mkdir -p /var/www/images/uploads/logos/avatars
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updatenextpayment.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updateexchange.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/checkforupdates.php
+php /var/www/html/endpoints/cronjobs/createdatabase.php
+php /var/www/html/endpoints/db/migrate.php
+chmod -R 755 /var/www/html/db/
+mkdir -p /var/www/html/images/uploads/logos/avatars
+chmod -R 755 /var/www/html/images/uploads/logos
+php /var/www/html/endpoints/cronjobs/updatenextpayment.php
+php /var/www/html/endpoints/cronjobs/updateexchange.php
+php /var/www/html/endpoints/cronjobs/checkforupdates.php
 
 wait
 </code></pre>

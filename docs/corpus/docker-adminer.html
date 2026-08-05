@@ -56,16 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / adminer</nav>
   <h1>docker / adminer</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Full application layout, PHP tuning/extensions, and design/plugin mutation contract regained; the remaining cold replay read-set divergence is at designs, and the case is stale for its now-representable stop signal · <strong>Evidence:</strong> runtime probe + cold read-set defect · closed-root (package contract)</p>
-  <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins; the refreshed faithful login probe passes after its verified source FETCHes move to TOFU pins · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ Source checksums, PHP tuning, dynamic design/plugin state, and SIGINT stopping are live; fixed identity and Alpine extension composition deliberately dissolve · <strong>Evidence:</strong> runtime probe + cold replay · closed-root (package contract)</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 5.5.0 and dissolved twins build cold; the refreshed faithful login probe passes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/adminer/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> CIP-102 volatile-fetch sweep + CIP-96 ENV grammar + STOPSIGNAL · 2026-08-05 · <strong>Status:</strong> stale — regenerate with STOPSIGNAL</p>
-    <p>This regeneration resolves the earlier version/checksum binder, PHP tuning, webroot layout, dynamic design/plugin assembly, PHP extension import, artifact import, and missing-twin findings.</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>Docker requests <code>STOPSIGNAL SIGINT</code>; Cix now has the directive, so regenerate this case with that declaration. → stale (<a href="../../../../cips/dispositions.md#batch-2026-08-04-blessed-by-mathijs-dockermd-application-queued">STOPSIGNAL disposition</a>)</li>
-      <li>Both source FETCH work trees use TOFU consumed pins rather than <code>EXPECT</code>; their published SHA-256 checks remain mandatory. The 2026-08-05 update probes each read identical outputs twice and the supplied login probe passed, but cold replay still exposes the independent <code>designs</code> warm/cold read-set divergence. → language (cold divergence audit)</li>
+      <li>The faithful service carries Docker&#39;s <code>STOPSIGNAL SIGINT</code>, source checksums, PHP tuning, dynamic design/plugin state, and the supplied login probe. Both current faithful and dissolved cold replays passed; the staged generated-output read-set claim did not reproduce and is not promoted as a language finding. → evidence</li>
+      <li>The Docker image&#39;s fixed identity and Alpine-built PHP extension composition dissolve into Cix/systemd and locked nixpkgs. → case</li>
     </ul>
   </aside>
   <details class="context">
@@ -169,59 +168,66 @@ The Dockerfile pins Adminer 5.5.0 and SHA-256 d7494bb10abc7c5c7709fd134ab1bd6ebd
           <div class="variant-panel faithful">      <section class="file">
         <h3>Cixfile</h3>
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
-<span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> adminer-release
+<span class="tok-directive">BUILDER</span> release
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
   <span class="tok-directive">ENV</span> ADMINER_VERSION=5.5.0
   <span class="tok-directive">ENV</span> ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
   <span class="tok-directive">ENV</span> ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
-  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php -o adminer.php &amp;&amp; echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; | sha256sum -c -
-  <span class="tok-directive">FETCH</span> curl -fsSL https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz -o source.tar.gz &amp;&amp; echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; | sha256sum -c -
-  <span class="tok-directive">RUN</span> tar xzf source.tar.gz --strip-components=1 &quot;adminer-$ADMINER_VERSION/designs/&quot; &quot;adminer-$ADMINER_VERSION/plugins/&quot; &amp;&amp; rm source.tar.gz
+  <span class="tok-directive">FETCH</span> bash -c &#39;curl -fsSL &quot;https://github.com/vrana/adminer/releases/download/v$ADMINER_VERSION/adminer-$ADMINER_VERSION.php&quot; -o adminer.php &amp;&amp; echo &quot;$ADMINER_DOWNLOAD_SHA256  adminer.php&quot; | sha256sum -c -&#39;
+  <span class="tok-directive">FETCH</span> bash -c &#39;curl -fsSL &quot;https://github.com/vrana/adminer/archive/v$ADMINER_VERSION.tar.gz&quot; -o source.tar.gz &amp;&amp; echo &quot;$ADMINER_SRC_DOWNLOAD_SHA256  source.tar.gz&quot; | sha256sum -c -&#39;
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">set -e</span>
+<span class="tok-heredoc">rm -rf output</span>
+<span class="tok-heredoc">mkdir -p output</span>
+<span class="tok-heredoc">tar xzf source.tar.gz --strip-components=1 -C output &quot;adminer-$ADMINER_VERSION/designs/&quot; &quot;adminer-$ADMINER_VERSION/plugins/&quot;</span>
+<span class="tok-heredoc">cp adminer.php output/adminer.php</span>
+<span class="tok-directive">BUILD</span>
 
 <span class="tok-directive">SERVICE</span> adminer
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.php84}</span> <span class="tok-interpolation">${pkgs.php84Extensions.mysqli}</span> <span class="tok-interpolation">${pkgs.php84Extensions.pdo_pgsql}</span> <span class="tok-interpolation">${pkgs.php84Extensions.pdo_sqlite}</span> <span class="tok-interpolation">${pkgs.php84Extensions.pdo_odbc}</span> <span class="tok-interpolation">${pkgs.php84Extensions.pdo_dblib}</span>
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/entrypoint.sh /usr/local/bin/entrypoint.sh
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/index.php /opt/adminer-seed/index.php
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/plugin-loader.php /opt/adminer-seed/plugin-loader.php
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer-release}</span>/adminer.php /opt/adminer-seed/adminer.php
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer-release}</span>/designs /opt/adminer-seed/designs
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${adminer-release}</span>/plugins /opt/adminer-seed/plugins
-  <span class="tok-directive">START</span> sh /usr/local/bin/cix-entrypoint.sh
-  <span class="tok-directive">ENV</span> ADMINER_DEFAULT_SERVER=db
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.php84}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${release}</span>/output /usr/share/adminer
+  <span class="tok-directive">COPY</span> context/index.php /usr/share/adminer/index.php
+  <span class="tok-directive">COPY</span> context/plugin-loader.php /usr/share/adminer/plugin-loader.php
+  <span class="tok-directive">COPY</span> context/entrypoint.sh /usr/local/bin/entrypoint.sh
+  <span class="tok-directive">COPY</span> adminer-init-state.sh /usr/local/bin/init-state.sh
+  <span class="tok-directive">COPY</span> adminer.php.ini /etc/adminer/php.ini
+  <span class="tok-directive">START_PRE</span> bash /usr/local/bin/init-state.sh
+  <span class="tok-directive">START</span> bash /usr/local/bin/entrypoint.sh php -c /etc/adminer/php.ini -S [::]:8080 -t /var/www/html
+  <span class="tok-directive">ENV</span> ADMINER_VERSION=5.5.0
+  <span class="tok-directive">ENV</span> ADMINER_DOWNLOAD_SHA256=d7494bb10abc7c5c7709fd134ab1bd6ebd3b37aabef6d11c42985209864e4dc9
+  <span class="tok-directive">ENV</span> ADMINER_SRC_DOWNLOAD_SHA256=df469c31699848c7523f67204530bd7e3126c4f5048107f526232ccc5d0fe1f7
   <span class="tok-directive">ENV</span> ADMINER_DESIGN
   <span class="tok-directive">ENV</span> ADMINER_PLUGINS
+  <span class="tok-directive">ENV</span> ADMINER_DEFAULT_SERVER
   <span class="tok-directive">PORT</span> http = 8080
-  <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">START_PRE</span> sh /usr/local/bin/prepare-webroot.sh
   <span class="tok-directive">STATEDIR</span> /var/www/html
+  <span class="tok-directive">CLAIM</span> egress
+  <span class="tok-directive">STOPSIGNAL</span> SIGINT
 </code></pre>
       </section>
           </div>
           <div class="variant-panel dissolved">      <section class="file">
         <h3>Cixfile.dissolved</h3>
         <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
-FROM . AS src
 
 SERVICE adminer
   IMPORT ${pkgs.adminer} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.php84}
-  COPY ${pkgs.adminer} /opt/adminer-seed
-  COPY ${src}/context/index.php /opt/adminer-seed/index.php
-  COPY ${src}/context/plugin-loader.php /opt/adminer-seed/plugin-loader.php
-  COPY ${src}/context/entrypoint.sh /usr/local/bin/entrypoint.sh
-  COPY ${src}/cix-entrypoint.sh /usr/local/bin/cix-entrypoint.sh
-  COPY ${src}/prepare-webroot.sh /usr/local/bin/prepare-webroot.sh
-  START sh /usr/local/bin/cix-entrypoint.sh
-  ENV ADMINER_DEFAULT_SERVER=db
+  COPY ${pkgs.adminer} /usr/share/adminer
+  COPY context/index.php /usr/share/adminer/index.php
+  COPY context/plugin-loader.php /usr/share/adminer/plugin-loader.php
+  COPY context/entrypoint.sh /usr/local/bin/entrypoint.sh
+  COPY adminer-init-state.sh /usr/local/bin/init-state.sh
+  COPY adminer.php.ini /etc/adminer/php.ini
+  START_PRE bash /usr/local/bin/init-state.sh
+  START bash /usr/local/bin/entrypoint.sh php -c /etc/adminer/php.ini -S [::]:8080 -t /var/www/html
   ENV ADMINER_DESIGN
   ENV ADMINER_PLUGINS
+  ENV ADMINER_DEFAULT_SERVER
   PORT http = 8080
-  CLAIM egress
-  START_PRE sh /usr/local/bin/prepare-webroot.sh
   STATEDIR /var/www/html
+  CLAIM egress
+  STOPSIGNAL SIGINT
 </code></pre>
       </section>
           </div>
@@ -240,8 +246,8 @@ SERVICE adminer
   },
   &quot;outputs&quot;: {
     &quot;adminer&quot;: {
-      &quot;sourceHash&quot;: &quot;098eeb464a37842e0649f798d7588423e089595e22ae8eaef76384a775561837&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/ayxlixrcrbl2w61s54whwa2d8r4bhm3q-cix-item-adminer&quot;
+      &quot;sourceHash&quot;: &quot;bb35bcc64e64286ea6814b10f3fc4e577b9b065ce2aea3d0b4741f0471169d10&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/4jv9kwqbadgwpqrvmkk5rfmiyyg6lv7z-cix-item-adminer&quot;
     }
   }
 }
@@ -273,6 +279,18 @@ SERVICE adminer
         &quot;adminer.php&quot;: &quot;sha256-XtzOOwW0fDA0zWc9NNKSvPQULMFzZGUwME5MGvQFtSo=&quot;,
         &quot;designs&quot;: &quot;sha256-hUO8MmzgJP6aLBSldhnFr+4QkH4HLjmp3rSq0klocNA=&quot;,
         &quot;plugins&quot;: &quot;sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=&quot;
+      }
+    },
+    &quot;builder:release:3-1392e80818ee&quot;: {
+      &quot;snapshotNarHash&quot;: &quot;sha256-XJVIfFbNTbUDfZOfIT045BHY1SSbRlfcdqM4d742DfQ=&quot;,
+      &quot;paths&quot;: {
+        &quot;output&quot;: &quot;sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=&quot;
+      }
+    },
+    &quot;builder:release:4-982c31cc5beb&quot;: {
+      &quot;snapshotNarHash&quot;: &quot;sha256-8nps6EKeGZi276DQrqfVwfeC322N+V68vZlfwbXUxf8=&quot;,
+      &quot;paths&quot;: {
+        &quot;output&quot;: &quot;sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=&quot;
       }
     }
   },
@@ -306,6 +324,14 @@ SERVICE adminer
         &quot;plugins&quot;: {
           &quot;narHash&quot;: &quot;sha256-hSaZYlzQe+Hgp2V6OLg82fjpd+EqqStqp6mxjgYs7s4=&quot;,
           &quot;storePath&quot;: &quot;/nix/store/6ls4x4qxkawfcfq9gsh09iz0dq5yf72q-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;87491bfbbec5dc6afda047ea385578aea4bc66fdc0676b84ef622a01a3ab51fc&quot;: {
+      &quot;paths&quot;: {
+        &quot;output&quot;: {
+          &quot;narHash&quot;: &quot;sha256-bJPKViwRiTQlcxrQKFRp9YcNjlBIfkx5BcjTR2T8Ing=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/9i0qdj3m4yq1z43dx4vdrvf698qn017d-cix-build-consumed&quot;
         }
       }
     },
@@ -909,6 +935,525 @@ SERVICE adminer
           &quot;kind&quot;: &quot;absent&quot;
         }
       }
+    },
+    &quot;builder:release:3&quot;: {
+      &quot;key&quot;: &quot;ed22d769655b07b59c0c8ae118ad9a86ea0c2b199b375e1b98da0ed7d8bf97d6&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/r8q1110snn34zjl3w6za1444m5czh5s5-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;adminer.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;adminer.php&quot;: {
+          &quot;content&quot;: &quot;dbba8af239d754f14106a8f25cc5825fb1fb8022941e6c95d65ce1006b187635&quot;
+        }
+      }
+    },
+    &quot;builder:release:4&quot;: {
+      &quot;key&quot;: &quot;51480c50ad646e4fdd7f26d120e2cb7249c27570cf1e1b47f93b5dc3b42ff805&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/24cwsblrb949wmb8588jcr78k10disc2-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;source.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;source.tar.gz&quot;: {
+          &quot;content&quot;: &quot;346e45a9f1a60fb82b4f54aed6fdd83af46f8ce23fa680bd4b75479d6f604659&quot;
+        }
+      }
+    },
+    &quot;builder:release:5&quot;: {
+      &quot;key&quot;: &quot;b17f2d4fc493cefe96f36551ec63e859d93eab39925da54deb80aa9e762bef24&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;adminer.php&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;1834715b7ff0a0538cb72b84728b01e66042725c42a07ddad7c35f53e7267259&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 23392302,
+            &quot;mtimeNs&quot;: 109360353,
+            &quot;size&quot;: 515911,
+            &quot;len&quot;: 515911,
+            &quot;mode&quot;: 33188
+          }
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;source.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;666b75dca9b12b032389ad74a3e581be3f4c3005aa9f71d17d1555cbbf570ad7&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 2307,
+            &quot;inode&quot;: 23392303,
+            &quot;mtimeNs&quot;: 833367831,
+            &quot;size&quot;: 674926,
+            &quot;len&quot;: 674926,
+            &quot;mode&quot;: 33188
+          }
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output/adminer.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/adminer-dark&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/adminer-dark/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/adminer-dark/adminer-dark.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/brade&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/brade/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/brade/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/bueltge&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/bueltge/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/bueltge/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/dracula&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/dracula/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/dracula/adminer-dark.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/esterka&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/esterka/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/esterka/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/flat&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/flat/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/flat/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/galkaev&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/galkaev/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/galkaev/adminer-dark.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/haeckel&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/haeckel/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/haeckel/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/hever&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/hever/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/hever/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/konya&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/konya/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/konya/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lavender-light&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lavender-light/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lavender-light/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lucas-sandery&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lucas-sandery/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/lucas-sandery/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mancave&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mancave/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mancave/adminer-dark.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mvt&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mvt/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/mvt/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nette&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nette/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nette/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/ng9&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/ng9/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/ng9/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nicu&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nicu/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/nicu/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pappu687&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pappu687/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pappu687/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/paranoiq&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/paranoiq/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/paranoiq/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pepa-linha&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pepa-linha/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pepa-linha/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pokorny&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pokorny/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/pokorny/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/price&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/price/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/price/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue-dark&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue-dark/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue-dark/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/rmsoft_blue/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/win98&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/win98/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/designs/win98/adminer.css&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/adminer.js.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/backward-keys.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/before-unload.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/config.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dark-switcher.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/database-hide.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/designs.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/README.md&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/clickhouse.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/elastic.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/firebird.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/igdb.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/imap.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/mongo.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/redis.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/drivers/simpledb.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-alter.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-bz2.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-date.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-json.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-php.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-xml.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/dump-zip.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/edit-calendar.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/edit-foreign.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/edit-textarea.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/editor-setup.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/editor-views.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/email-table.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/enum-option.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/file-upload.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/foreign-system.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/frames.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/highlight-codemirror.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/highlight-monaco.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/highlight-prism.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/json-column.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-ip.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-otp.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-password-less.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-reverse-proxy.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-servers.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-ssl.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/login-table.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/master-slave.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/menu-links.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/pretty-json-column.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/row-numbers.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/select-email.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/slugify.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/sql-gemini.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/sql-log.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/table-indexes-structure.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/table-structure.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/tables-filter.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/timeout.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/tinymce.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/translation.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/version-github.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output/plugins/version-noverify.php&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      }
     }
   },
   &quot;devEnvs&quot;: {
@@ -920,17 +1465,44 @@ SERVICE adminer
     }
   },
   &quot;builderDevEnvs&quot;: {
-    &quot;adminer-release&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;
+    &quot;adminer-release&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;,
+    &quot;release&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;
   },
   &quot;outputs&quot;: {
     &quot;adminer&quot;: {
-      &quot;sourceHash&quot;: &quot;0bf86768c8bcd1fc022c4538ee78320bbe8603a7ea9add33b1a1bcd0fca734fa&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/bb34sm0n0kq9razwy254zk18dmiiswrj-cix-item-adminer&quot;
+      &quot;sourceHash&quot;: &quot;efda07a935df92ef886084c17948c3a750744376a41512ca84db6dfac157e99f&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/nqlf99y0hqqsis7msmjfg9sdgbpbsdr2-cix-item-adminer&quot;
     }
   }
 }
 </code></pre>
       </details>
+      <section class="file">
+        <h3>adminer-init-state.sh</h3>
+        <pre><code>#!/bin/sh
+set -eu
+
+mkdir -p /var/www/html
+for source in /usr/share/adminer/* /usr/share/adminer/.[!.]* /usr/share/adminer/..?*; do
+	[ -e &quot;$source&quot; ] || [ -L &quot;$source&quot; ] || continue
+	target=&quot;/var/www/html/${source##*/}&quot;
+	if [ ! -e &quot;$target&quot; ]; then
+		[ -L &quot;$target&quot; ] &amp;&amp; rm &quot;$target&quot;
+		cp -aL &quot;$source&quot; &quot;$target&quot;
+	fi
+done
+mkdir -p /var/www/html/plugins-enabled
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>adminer.php.ini</h3>
+        <pre><code>upload_max_filesize = 128M
+post_max_size = 128M
+memory_limit = 1G
+max_execution_time = 600
+max_input_vars = 5000
+</code></pre>
+      </section>
       <details class="file">
         <summary>check.sh</summary>
         <pre><code>#!/usr/bin/env bash
@@ -983,24 +1555,6 @@ case $mode in
 esac
 </code></pre>
       </details>
-      <section class="file">
-        <h3>cix-entrypoint.sh</h3>
-        <pre><code>#!/bin/sh
-set -e
-
-cd /var/www/html
-exec /usr/local/bin/entrypoint.sh php -d upload_max_filesize=128M -d post_max_size=128M -d memory_limit=1G -d max_execution_time=600 -d max_input_vars=5000 -S &#39;[::]:8080&#39; -t /var/www/html
-</code></pre>
-      </section>
-      <section class="file">
-        <h3>prepare-webroot.sh</h3>
-        <pre><code>#!/bin/sh
-set -e
-
-mkdir -p /var/www/html
-cp -Rn /opt/adminer-seed/. /var/www/html/
-</code></pre>
-      </section>
       <details class="file">
         <summary>receipt.md</summary>
         <pre><code># adminer migration receipt
@@ -1050,6 +1604,10 @@ in the FETCH commands; their whole-tree `EXPECT`s were removed in favor of TOFU 
 pins. `target/debug/cix build --cold corpus/migrate/docker/adminer#adminer` exited 1 at
 the independent `designs` read-set divergence (warm directory, cold absent), without a
 network fetch.
+
+## 2026-08-05 STOPSIGNAL regeneration
+
+Current `target/debug/cix` captured the faithful build, `./check.sh cix`, faithful `--cold`, and dissolved `--cold` with exit status 0. The faithful item was `/nix/store/nqlf99y0hqqsis7msmjfg9sdgbpbsdr2-cix-item-adminer`; the login probe printed `PASS cix`. Both FETCH snapshots replayed cold, so the staged generated-output wall did not reproduce.
 </code></pre>
       </details>
     </section>

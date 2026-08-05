@@ -9,8 +9,8 @@
   },
   "outputs": {
     "adminer": {
-      "sourceHash": "098eeb464a37842e0649f798d7588423e089595e22ae8eaef76384a775561837",
-      "storePath": "/nix/store/ayxlixrcrbl2w61s54whwa2d8r4bhm3q-cix-item-adminer"
+      "sourceHash": "bb35bcc64e64286ea6814b10f3fc4e577b9b065ce2aea3d0b4741f0471169d10",
+      "storePath": "/nix/store/4jv9kwqbadgwpqrvmkk5rfmiyyg6lv7z-cix-item-adminer"
     }
   }
 }

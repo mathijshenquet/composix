@@ -1,9 +1,5 @@
-Generated: CIP-102 volatile-fetch sweep + CIP-96 ENV grammar + STOPSIGNAL · 2026-08-05
-Status: stale — regenerate with STOPSIGNAL
+Generated: migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05
+Status: current
 
-This regeneration resolves the earlier version/checksum binder, PHP tuning,
-webroot layout, dynamic design/plugin assembly, PHP extension import, artifact
-import, and missing-twin findings.
-
-- Docker requests `STOPSIGNAL SIGINT`; Cix now has the directive, so regenerate this case with that declaration. → stale ([STOPSIGNAL disposition](../../../../cips/dispositions.md#batch-2026-08-04-blessed-by-mathijs-dockermd-application-queued))
-- Both source FETCH work trees use TOFU consumed pins rather than `EXPECT`; their published SHA-256 checks remain mandatory. The 2026-08-05 update probes each read identical outputs twice and the supplied login probe passed, but cold replay still exposes the independent `designs` warm/cold read-set divergence. → language (cold divergence audit)
+- The faithful service carries Docker's `STOPSIGNAL SIGINT`, source checksums, PHP tuning, dynamic design/plugin state, and the supplied login probe. Both current faithful and dissolved cold replays passed; the staged generated-output read-set claim did not reproduce and is not promoted as a language finding. → evidence
+- The Docker image's fixed identity and Alpine-built PHP extension composition dissolve into Cix/systemd and locked nixpkgs. → case

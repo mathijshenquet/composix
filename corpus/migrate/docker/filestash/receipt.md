@@ -9,3 +9,7 @@ Get "https://sum.golang.org/lookup/cloud.google.com/go/accesscontextmanager@v1.9
 ```
 
 No Cix item or runtime probe is claimed. The `pkgsStatic` investigation must be rerun from a DNS-healthy builder.
+
+## 2026-08-05 clean-worktree recheck
+
+After `corpus/migrate/fetch.sh filestash`, DNS and network fetches progressed. The first FETCH then exceeded the 20-minute case bound while snapshotting a 2.7 GiB, roughly 69k-file Go module cache; it was terminated before compilation. This replaces the DNS wall with a bounded fetch-snapshot scale wall; no item or runtime probe is claimed.

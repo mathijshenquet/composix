@@ -88,6 +88,14 @@
         }
       }
     },
+    "c7e33ce8d52de821b30507ea0d6f6b66976448e7170936896ecf962fb5da032e": {
+      "paths": {
+        ".": {
+          "narHash": "sha256-7aKhKyPCtBEO4bzUGk+d2BdkU1zmSLKf1BYbI0tgW+w=",
+          "storePath": "/nix/store/61k2jrd45lan20wkrai2iqx47f1bdf9z-cix-build-consumed"
+        }
+      }
+    },
     "f060dcd9a9d77c915954c2025932fee577e417e67ff9afe3af522c93acf0eca4": {
       "paths": {
         ".": {
@@ -145,6 +153,116 @@
           "kind": "absent"
         }
       }
+    },
+    "builder:webroot:1": {
+      "key": "6f9799c644f2d0e54b9ff220d3eb2b8adf93a2a54eeb82b4ebd478db5f65e16e",
+      "reads": {
+        ".": {
+          "kind": "directory",
+          "hash": "c92450f40f440146e00431ebe1e38c61ee2380f7e6061fe9af34af07dda450c9"
+        },
+        ".github": {
+          "kind": "directory",
+          "hash": "af8b3c4a7cea8f3ec25024bddb605dfaa3b99d1359217d7b5ac84d135321abf3"
+        },
+        ".github/workflows": {
+          "kind": "directory",
+          "hash": "fb29401b111078fc36b5ff62282a904ae6866f58bc241c09c442914d16030714"
+        },
+        "screenshots": {
+          "kind": "directory",
+          "hash": "de98053a98e6b6c2233de0b2ea11530f206f932f91d7d89bb0499b4e69197659"
+        }
+      },
+      "changes": {
+        ".dockerignore": {
+          "kind": "absent"
+        },
+        ".github": {
+          "kind": "absent"
+        },
+        ".github/FUNDING.yml": {
+          "kind": "absent"
+        },
+        ".github/workflows": {
+          "kind": "absent"
+        },
+        ".github/workflows/build-release.yaml": {
+          "kind": "absent"
+        },
+        ".gitignore": {
+          "kind": "absent"
+        },
+        ".tmp/.gitignore": {
+          "kind": "absent"
+        },
+        "CHANGELOG.md": {
+          "kind": "absent"
+        },
+        "CONTRIBUTING.md": {
+          "kind": "absent"
+        },
+        "LICENSE.md": {
+          "kind": "absent"
+        },
+        "README.md": {
+          "kind": "absent"
+        },
+        "SECURITY.md": {
+          "kind": "absent"
+        },
+        "nginx.conf": {
+          "kind": "absent"
+        },
+        "nginx.default.conf": {
+          "kind": "absent"
+        },
+        "screenshots": {
+          "kind": "absent"
+        },
+        "screenshots/capture_screenshots.py": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-calendar.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-dashboard-dark.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-dashboard-light.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-dashboard-mobile-dark.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-dashboard-mobile-light.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-form.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-stats.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-dark.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-light.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-mobile-dark.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-mobile-light.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-mobile-sheet.png": {
+          "kind": "absent"
+        },
+        "screenshots/wallos-subscriptions-popup.png": {
+          "kind": "absent"
+        }
+      }
     }
   },
   "devEnvs": {
@@ -155,12 +273,13 @@
     }
   },
   "builderDevEnvs": {
-    "app": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099"
+    "app": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099",
+    "webroot": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099"
   },
   "outputs": {
     "wallos": {
-      "sourceHash": "88dd339f83bd59e6c365c9ecf52c3c9b94a5f8bedaa66a8bbc476f10056836b8",
-      "storePath": "/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos"
+      "sourceHash": "e3338cccd126d4f0d89190e2beabaeb39d75613ce7227e6b3554a2f9879dd2bd",
+      "storePath": "/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos"
     }
   }
 }

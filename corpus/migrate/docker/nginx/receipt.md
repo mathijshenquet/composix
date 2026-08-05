@@ -59,3 +59,7 @@ nginx: [emerg] open() "/var/log/nginx/access.log" failed (2: No such file or dir
 
 The final cleanup also reported that the original unit name was no longer loaded.
 The probe was not weakened; this is a faithful-twin runtime finding.
+
+## 2026-08-05 STOPSIGNAL regeneration
+
+Current `target/debug/cix` built `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`; `./check.sh cix`, faithful `--cold`, and dissolved `--cold` each exited 0. The pid lives at `/run/nginx/nginx.pid` under `RUNDIR`, and the service carries `STOPSIGNAL SIGQUIT`.

@@ -41,7 +41,7 @@
   },
   "stepMemo": {
     "builder:upstream:2": {
-      "key": "a256c0893114543fc77e7717625166f8908cf531fa8066a1c9afbb312ea844f4",
+      "key": "a56c136cc390dd5055d66555b037c6085809d653bb4fc2c238ae379c40812afd",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -126,8 +126,8 @@
           "hash": "a47217cd879b147a8d071d60f02dc71a85e8cb3d17a6cde638fe8624270b3507",
           "fingerprint": {
             "dev": 2307,
-            "inode": 20115167,
-            "mtimeNs": 695118206,
+            "inode": 23362941,
+            "mtimeNs": 367374557,
             "size": 769,
             "len": 769,
             "mode": 33188
@@ -138,8 +138,8 @@
           "hash": "6ccd170bbb8c67d5cb5ae7e70079266c2b0f78adf27a4d113bc0338aa64e7b25",
           "fingerprint": {
             "dev": 2307,
-            "inode": 20115169,
-            "mtimeNs": 715359269,
+            "inode": 23367863,
+            "mtimeNs": 319710123,
             "size": 17238873,
             "len": 17238873,
             "mode": 33188
@@ -150,17 +150,35 @@
           "hash": "bbd32c75043ee0ba71065681563bf23e59e0bdc6e43ccfa3e9e706c437e899a7",
           "fingerprint": {
             "dev": 2307,
-            "inode": 20115168,
-            "mtimeNs": 695583713,
+            "inode": 23362942,
+            "mtimeNs": 253243946,
             "size": 18753,
             "len": 18753,
             "mode": 33188
           }
         },
-        "output": {
+        "output/bin": {
+          "kind": "directory-exists"
+        },
+        "output/data/data": {
+          "kind": "absent"
+        },
+        "output/etc/caddy": {
+          "kind": "directory-exists"
+        },
+        "output/etc/etc": {
           "kind": "absent"
         },
         "output/output": {
+          "kind": "absent"
+        },
+        "output/usr/share/caddy": {
+          "kind": "directory-exists"
+        },
+        "output/usr/share/share": {
+          "kind": "absent"
+        },
+        "output/usr/usr": {
           "kind": "absent"
         }
       },
@@ -414,8 +432,8 @@
   },
   "outputs": {
     "caddy": {
-      "sourceHash": "8fc6c75a50de45c1c2883fae10d541b7a5b872fbdd535aa6207052ce1077875d",
-      "storePath": "/nix/store/d7cc7052ivjyp1jyh9j7yq539ixpf2df-cix-item-caddy"
+      "sourceHash": "9f654378d0a80015b8c9ae9df166633f08c1e105d1934e456f50d849c36e13f9",
+      "storePath": "/nix/store/9cxyg2hx2c44gp5xw2pqwqs8d9f0xi18-cix-item-caddy"
     }
   }
 }
