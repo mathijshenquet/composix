@@ -72,7 +72,7 @@ touched; the CIP-84 closed-root VM audits the green set exhaustively. Cases
 that dissolve entirely into nixpkgs additionally carry a Dockerfile-faithful
 twin so the page can show both translations side by side.
 
-## The living migration corpus (24)
+## The living migration corpus (28)
 
 These are the checked-in conversions under `corpus/migrate/docker/`, not a second
 historical grade set. Fidelity grades the translation; Evidence grades only the
@@ -114,6 +114,10 @@ live inside the cell prose of the case that records them.
 | 22 | Homer | Locked pnpm/Vite source build and HTTP app-mount probe pass | ✅ The staged registry symptom was a missing CA/traced-store prerequisite; Alpine identity/layout and runtime-port interpolation deliberately dissolve | M | [runtime probe](../corpus/migrate/docker/homer/receipt.md) |
 | 23 | it-tools | One static nginx source build completed; the corrected replay exceeds the 600-second pnpm-store bound before an item | 🔶 The earlier DynamicUser nginx log failure is fixed in source. CIP-99 now prunes a fully observed workspace root, but the later volatile pnpm trace remains partial and must stay exact; corrected runtime evidence is still absent | M | [build receipt](../corpus/migrate/docker/it-tools/receipt.md) |
 | 24 | Mailpit | Clean source build and degraded user-manager `/livez` probe pass | 🔶 Supported system-manager native readiness is blocked by workspace-local probe execution under `ProtectHome` | M | [build and runtime receipt](../corpus/migrate/docker/mailpit/receipt.md) |
+| 25 | Valkey | Faithful 8.1.9 build and `PING` pass; the dissolved twin builds cold | 🔶 Faithful cold replay diverges at a libbacktrace temporary read; DynamicUser replaces Docker ownership, with a declared `/data` state role | M | [build/runtime and cold-read-set receipt](../corpus/migrate/docker/valkey/receipt.md) |
+| 26 | HAProxy | Faithful 3.2.22 source build, version probe, and cold replay pass; dissolved twin builds cold | 🔶 No supplied config, listener, or health contract exists to start; formatter whitespace currently changes the locked FETCH identity | M | [build/version and formatter receipt](../corpus/migrate/docker/haproxy/receipt.md) |
+| 27 | Apache HTTPD | Faithful 2.4.68 build and `It works!` HTTP probe pass; dissolved twin builds cold | 🔶 File logging through `LOGDIR` replaces sandbox-inaccessible fd symlinks; faithful cold replay exposes a generated-sed-path read-set divergence | M | [build/runtime and cold-read-set receipt](../corpus/migrate/docker/httpd/receipt.md) |
+| 28 | Mosquitto | Faithful 2.0.22 MQTT pub/sub roundtrip and cold replay pass; dissolved twin builds cold | 🔶 TCP behavior is live; WebSockets are omitted because the source build cannot see the required headers, and this host degrades `PrivatePIDs` | M | [build/runtime and cold receipt](../corpus/migrate/docker/mosquitto/receipt.md) |
 
 ### CIP-84 closed-root audit
 

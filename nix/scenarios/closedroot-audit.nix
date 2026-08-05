@@ -478,7 +478,7 @@ let
 
   auditedPacks = [ "caddy" "devices" "listenfds" "nginx" "node-app" "postgres" "redis" ];
   auditedCorpus = [ "docker/adminer" "docker/caddy" "docker/mastodon" "docker/memcached" "docker/nats" "docker/nginx" "docker/phpmyadmin" "docker/redis" "docker/renovate" "docker/tomcat" "docker/traefik" ];
-  downgradedCorpus = [ "docker/directus" "docker/dozzle" "docker/echo-server" "docker/excalidraw" "docker/filestash" "docker/homer" "docker/it-tools" "docker/mailpit" "docker/parse-server" "docker/verdaccio" "docker/wallos" "docker/watchtower" "docker/whoami" ];
+  downgradedCorpus = [ "docker/directus" "docker/dozzle" "docker/echo-server" "docker/excalidraw" "docker/filestash" "docker/haproxy" "docker/homer" "docker/httpd" "docker/it-tools" "docker/mailpit" "docker/mosquitto" "docker/parse-server" "docker/valkey" "docker/verdaccio" "docker/wallos" "docker/watchtower" "docker/whoami" ];
   packNames = builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../examples/pack));
   corpusAxes = builtins.attrNames (pkgs.lib.filterAttrs (_: type: type == "directory") (builtins.readDir ../../corpus/migrate));
   corpusNames = builtins.concatMap (axis:
