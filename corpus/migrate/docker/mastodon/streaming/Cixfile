@@ -11,4 +11,4 @@ SERVICE streaming
   PORT streaming = 34000
   CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
-  READINESS http :34000/api/v1/streaming/health IN 30s
+  READINESS http://127.0.0.1:34000/api/v1/streaming/health IN 30s

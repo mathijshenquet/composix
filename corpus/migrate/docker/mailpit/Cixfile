@@ -25,5 +25,5 @@ SERVICE mailpit
   PORT pop3 = 1110
   PORT http = 8025
   CLAIM egress
-  READINESS http :8025/readyz IN 10s
-  LIVENESS http :8025/livez EVERY 15s
+  READINESS http://127.0.0.1:8025/readyz IN 10s
+  LIVENESS http://127.0.0.1:8025/livez EVERY 15s

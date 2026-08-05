@@ -85,8 +85,8 @@ START runtime-server
 PORT http = 8420
 STATEDIR /var/lib/runtime-guide
 SECRET db-password AS DB_PASSWORD_FILE
-READINESS http :8420/healthz IN 10s
-LIVENESS http :8420/livez EVERY 2s
+READINESS http://127.0.0.1:8420/healthz IN 10s
+LIVENESS http://127.0.0.1:8420/livez EVERY 2s
 
 APP cleanup
 IMPORT ${pkgs.coreutils}
@@ -118,7 +118,7 @@ START runtime-observer
     doc.para("You will run an HTTP service twice, observe readiness, preserve state across the restart, inspect its systemd unit, validate the real credential-supply document, and schedule a finite command. The rootless receipts exercise process, port, health, managed state, timer, and observability behavior; production-only secret delivery and sealed filesystem isolation are labelled where they require the root system manager.");
 
     doc.para("## The item owns needs; the operator owns values");
-    doc.para("The web item declares the process needs: a direct TCP port, application-native persistent state, one credential filename, and HTTP health checks. `READINESS http :8420/healthz IN 10s` means the native cix probe tries localhost every 250 milliseconds, accepts an HTTP status from 200 through 399, and makes startup fail if none succeeds within ten seconds. `LIVENESS http :8420/livez EVERY 2s` probes every two seconds; three missed intervals trigger systemd's bounded `Restart=on-failure` policy. No curl or shell is added to the runtime item for those probes.");
+    doc.para("The web item declares the process needs: a direct TCP port, application-native persistent state, one credential filename, and HTTP health checks. `READINESS http://127.0.0.1:8420/healthz IN 10s` means the native cix probe tries localhost every 250 milliseconds, accepts an HTTP status from 200 through 399, and makes startup fail if none succeeds within ten seconds. `LIVENESS http://127.0.0.1:8420/livez EVERY 2s` probes every two seconds; three missed intervals trigger systemd's bounded `Restart=on-failure` policy. No curl or shell is added to the runtime item for those probes.");
     doc.para("The checked-in server uses `$STATE_DIRECTORY` at the native path when the manager can project it and the documented user backing below `~/.local/state/cix-run-web` otherwise. It does not treat `CIX_APP` as an application API: that variable exists only on the degraded user path to identify the physical store item, and is absent in the production system unit. The finite cleanup APP is eligible for scheduling; the minimal observer stays alive for scoped accounting receipts.");
     let source = ["Cixfile", "server.py", "observer.sh"]
         .map(|path| doc.show_file(path))
@@ -127,8 +127,8 @@ START runtime-observer
     assert!(source.contains("COPY server.py /bin/runtime-server"));
     assert!(source.contains("START runtime-server"));
     assert!(source.contains("SECRET db-password AS DB_PASSWORD_FILE"));
-    assert!(source.contains("READINESS http :8420/healthz IN 10s"));
-    assert!(source.contains("LIVENESS http :8420/livez EVERY 2s"));
+    assert!(source.contains("READINESS http://127.0.0.1:8420/healthz IN 10s"));
+    assert!(source.contains("LIVENESS http://127.0.0.1:8420/livez EVERY 2s"));
     assert!(source.contains("APP cleanup"));
     assert!(source.contains("SERVICE observer"));
     assert!(source.contains("START runtime-observer"));

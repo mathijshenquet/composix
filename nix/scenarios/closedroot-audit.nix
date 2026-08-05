@@ -279,7 +279,7 @@ let
     };
     readiness = {
       type = "tcp";
-      target = ":35432";
+      target = "tcp://127.0.0.1:35432";
       timeout = "30s";
     };
   } {
@@ -303,7 +303,7 @@ let
     dirs.run = [ "/run/redis" ];
     readiness = {
       type = "tcp";
-      target = ":36379";
+      target = "tcp://127.0.0.1:36379";
       timeout = "20s";
     };
   } {
@@ -328,7 +328,7 @@ let
     dirs.state = [ "/mastodon/public/system" ];
     readiness = {
       type = "http";
-      target = ":33000/health";
+      target = "http://127.0.0.1:33000/health";
       timeout = "30s";
     };
     liveness = {
@@ -358,7 +358,7 @@ let
     dirs.state = [ "/mastodon/public/system" ];
     readiness = {
       type = "tcp";
-      target = ":33001";
+      target = "tcp://127.0.0.1:33001";
       timeout = "30s";
     };
     liveness = {
@@ -401,7 +401,7 @@ let
     };
     readiness = {
       type = "http";
-      target = ":34000/api/v1/streaming/health";
+      target = "http://127.0.0.1:34000/api/v1/streaming/health";
       timeout = "30s";
     };
   } {

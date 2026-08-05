@@ -409,8 +409,8 @@ Natural probe: HTTP GET /
   <span class="tok-directive">PORT</span> http = $PORT
   <span class="tok-directive">CONFIGDIR</span> /www/assets
   <span class="tok-directive">START</span> bash /entrypoint.sh
-  <span class="tok-directive">READINESS</span> http 127.0.0.1:8080/ IN 10s
-  <span class="tok-directive">LIVENESS</span> http 127.0.0.1:8080/ EVERY 30s
+  <span class="tok-directive">READINESS</span> http://127.0.0.1:8080/ IN 10s
+  <span class="tok-directive">LIVENESS</span> http://127.0.0.1:8080/ EVERY 30s
 </code></pre>
       </section>
       <details class="file">

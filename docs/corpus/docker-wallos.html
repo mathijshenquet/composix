@@ -704,8 +704,8 @@ Retrieved: 2026-07-31
   <span class="tok-directive">ENV</span> OIDC_SCOPES
   <span class="tok-directive">ENV</span> OIDC_CLIENT_SECRET_FILE
   <span class="tok-directive">PORT</span> http = 18092
-  <span class="tok-directive">READINESS</span> http 127.0.0.1:18092/health.php IN 20s
-  <span class="tok-directive">LIVENESS</span> http 127.0.0.1:18092/health.php EVERY 2m
+  <span class="tok-directive">READINESS</span> http://127.0.0.1:18092/health.php IN 20s
+  <span class="tok-directive">LIVENESS</span> http://127.0.0.1:18092/health.php EVERY 2m
   <span class="tok-directive">STATEDIR</span> /var/www/html/db
   <span class="tok-directive">STATEDIR</span> /var/www/html/images/uploads
   <span class="tok-directive">CACHEDIR</span> /var/www/html/.tmp
@@ -1010,6 +1010,8 @@ set -euo pipefail
 mode=${1:?usage: ./check.sh docker|cix}
 root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
 cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+repo=$(cd -- &quot;$root/../../../..&quot; &amp;&amp; pwd)
+runtime_helper=$(nix build --no-link --print-out-paths &quot;$repo#cix&quot;)/bin/cix
 name=migrate-r5-wallos
 container=
 unit=
@@ -1043,8 +1045,11 @@ case $mode in
   cix)
     item=$(timeout 1200 &quot;$cix&quot; build &quot;$root#wallos&quot;)
     printf &#39;cix item %s\n&#39; &quot;$item&quot;
-    unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot; | tail -n1)
+    unit=$(timeout 30 sudo -n env CIX_RUNTIME_HELPER=&quot;$runtime_helper&quot; &quot;$cix&quot; run --detach &quot;$item&quot; | tail -n1)
     printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+    unit_text=$(sudo -n systemctl cat &quot;$unit&quot;)
+    [[ $unit_text == *&quot;\&quot;$runtime_helper\&quot; \&quot;probe\&quot;&quot;* ]]
+    [[ $unit_text != *target/debug/cix* ]]
     probe
     printf &#39;PASS cix\n&#39;
     ;;

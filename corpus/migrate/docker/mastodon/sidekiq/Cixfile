@@ -8,6 +8,6 @@ SERVICE sidekiq
   SECRET db-password
   PORT control = 33001
   STATEDIR /mastodon/public/system
-  READINESS tcp :33001 IN 30s
+  READINESS tcp://127.0.0.1:33001 IN 30s
   LIVENESS notify EVERY 2s
   CLAIM egress

@@ -41,8 +41,8 @@ SERVICE wallos
   ENV OIDC_SCOPES
   ENV OIDC_CLIENT_SECRET_FILE
   PORT http = 18092
-  READINESS http 127.0.0.1:18092/health.php IN 20s
-  LIVENESS http 127.0.0.1:18092/health.php EVERY 2m
+  READINESS http://127.0.0.1:18092/health.php IN 20s
+  LIVENESS http://127.0.0.1:18092/health.php EVERY 2m
   STATEDIR /var/www/html/db
   STATEDIR /var/www/html/images/uploads
   CACHEDIR /var/www/html/.tmp

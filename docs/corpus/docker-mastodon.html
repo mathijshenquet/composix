@@ -267,7 +267,7 @@ SERVICE postgres
   PORT postgres = 35432
   STATEDIR /var/lib/postgresql
   RUNDIR /run/postgresql
-  READINESS tcp :35432 IN 30s
+  READINESS tcp://127.0.0.1:35432 IN 30s
 </code></pre>
       </section>
       <section class="file">
@@ -283,7 +283,7 @@ SERVICE redis
   ENV LC_ALL=C
   PORT redis = 36379
   RUNDIR /run/redis
-  READINESS tcp :36379 IN 20s
+  READINESS tcp://127.0.0.1:36379 IN 20s
 </code></pre>
       </section>
       <section class="file">
@@ -298,7 +298,7 @@ SERVICE sidekiq
   SECRET db-password
   PORT control = 33001
   STATEDIR /mastodon/public/system
-  READINESS tcp :33001 IN 30s
+  READINESS tcp://127.0.0.1:33001 IN 30s
   LIVENESS notify EVERY 2s
   CLAIM egress
 </code></pre>
@@ -318,7 +318,7 @@ SERVICE streaming
   PORT streaming = 34000
   CACHEDIR /var/cache/nginx
   RUNDIR /run/nginx
-  READINESS http :34000/api/v1/streaming/health IN 30s
+  READINESS http://127.0.0.1:34000/api/v1/streaming/health IN 30s
 </code></pre>
       </section>
       <section class="file">
@@ -333,7 +333,7 @@ SERVICE web
   SECRET db-password
   PORT http = 33000
   STATEDIR /mastodon/public/system
-  READINESS http :33000/health IN 30s
+  READINESS http://127.0.0.1:33000/health IN 30s
   LIVENESS notify EVERY 2s
   CLAIM egress
 </code></pre>

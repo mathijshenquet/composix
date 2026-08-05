@@ -544,18 +544,24 @@ user manager or kernel cannot realize mount namespaces.
 valid in `SERVICE` and `APP` blocks and accept only `http`, `tcp`, or `notify` probes:
 
 ```dockerfile
-READINESS http :8080/healthz IN 90s
-READINESS tcp db.internal:5432 IN 60s
+READINESS http://127.0.0.1:8080/healthz IN 90s
+READINESS tcp://db.internal:5432 IN 60s
 READINESS notify IN 90s
 
-LIVENESS http :8080/livez EVERY 10s
-LIVENESS tcp db.internal:5432 EVERY 10s
+LIVENESS http://127.0.0.1:8080/livez EVERY 10s
+LIVENESS tcp://db.internal:5432 EVERY 10s
 LIVENESS notify EVERY 10s
 ```
 
-An HTTP target is `host:port/path` (the leading `:port/path` shorthand probes localhost); TCP is
-`host:port` with no path. Durations are positive integers followed by `ms`, `s`, `m`/`min`, `h`,
-or `d`. `notify` has no target: the process sends native systemd readiness/watchdog messages.
+HTTP and TCP targets are absolute URLs: the scheme is the probe kind. HTTP uses standard URL port
+defaults, so `http://127.0.0.1/healthz` probes port 80 and may include a query; TCP requires an
+explicit port and no path.
+When the service declares exactly one `PORT`, a path-only target such as
+`READINESS /healthz IN 90s` resolves to that port's
+`http://127.0.0.1:<port>/healthz` URL. With zero or multiple ports, cix lists the explicit URLs to
+choose from. The old `http <host:port/path>` and `tcp <host:port>` spellings are rejected with a
+URL rewrite. Durations are positive integers followed by `ms`, `s`, `m`/`min`, `h`, or `d`.
+`notify` has no target: the process sends native systemd readiness/watchdog messages.
 
 For adapter probes, cix emits its own native HTTP/TCP prober—no `curl` or shell enters the item
 closure. Readiness blocks the systemd start job until the first success and `IN` is its
@@ -565,7 +571,7 @@ it emits a bounded `Restart=on-failure` policy. Structural compose edges wait fo
 start job and therefore its readiness. A separate `condition: service_healthy` graph is rejected.
 
 The generated manifest fields are typed objects such as
-`"readiness":{"type":"http","target":":8080/healthz","timeout":"90s"}` and
+`"readiness":{"type":"http","target":"http://127.0.0.1:8080/healthz","timeout":"90s"}` and
 `"liveness":{"type":"notify","interval":"10s"}`. The former v0
 `health {exec, interval}` manifest field is refused with a migration message; there is no `exec`
 probe in this schema.

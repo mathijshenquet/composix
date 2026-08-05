@@ -8,6 +8,6 @@ SERVICE web
   SECRET db-password
   PORT http = 33000
   STATEDIR /mastodon/public/system
-  READINESS http :33000/health IN 30s
+  READINESS http://127.0.0.1:33000/health IN 30s
   LIVENESS notify EVERY 2s
   CLAIM egress

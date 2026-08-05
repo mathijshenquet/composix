@@ -14,4 +14,4 @@ SERVICE excalidraw
   START nginx -g 'daemon off;' -c /etc/nginx/nginx.conf -e stderr
   PORT http = 80
   RUNDIR /run/nginx
-  READINESS http :80/ IN 30s
+  READINESS http://127.0.0.1:80/ IN 30s

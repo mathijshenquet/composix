@@ -9,4 +9,4 @@ SERVICE redis
   ENV LC_ALL=C
   PORT redis = 36379
   RUNDIR /run/redis
-  READINESS tcp :36379 IN 20s
+  READINESS tcp://127.0.0.1:36379 IN 20s

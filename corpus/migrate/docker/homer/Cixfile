@@ -29,5 +29,5 @@ SERVICE homer
   PORT http = $PORT
   CONFIGDIR /www/assets
   START bash /entrypoint.sh
-  READINESS http 127.0.0.1:8080/ IN 10s
-  LIVENESS http 127.0.0.1:8080/ EVERY 30s
+  READINESS http://127.0.0.1:8080/ IN 10s
+  LIVENESS http://127.0.0.1:8080/ EVERY 30s

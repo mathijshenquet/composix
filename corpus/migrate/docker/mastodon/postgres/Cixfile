@@ -15,4 +15,4 @@ SERVICE postgres
   PORT postgres = 35432
   STATEDIR /var/lib/postgresql
   RUNDIR /run/postgresql
-  READINESS tcp :35432 IN 30s
+  READINESS tcp://127.0.0.1:35432 IN 30s

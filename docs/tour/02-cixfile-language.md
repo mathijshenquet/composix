@@ -169,7 +169,7 @@ $ jq '{env, ports, listeners, dirs, claims}' "$item/cix-manifest.json"
 
 `SECRET db-password AS DB_PASSWORD_FILE` declares a credential need without a value. Compose supplies `"secrets": {"db-password": {"file": "/etc/cix/db-password"}}`; systemd mounts the root-owned source at `$CREDENTIALS_DIRECTORY/db-password` and sets `DB_PASSWORD_FILE` to that path. `DIR /media:ro` instead declares pre-existing operator data: cix neither creates nor deletes it, and the operator maps it with a `host:`, `shared:`, or role alias materialization.
 
-Health declarations have one complete shape: `READINESS http :8080/healthz IN 30s` waits up to 30 seconds for the first successful HTTP response before startup succeeds, while `LIVENESS tcp 127.0.0.1:8080 EVERY 10s` probes repeatedly and gives systemd a three-interval watchdog window before restart. `notify` replaces the protocol and target when the program speaks systemd notify itself. `SHM 64M` creates a private `/dev/shm` tmpfs with that size limit.
+Health declarations use URL targets: `READINESS http://127.0.0.1:8080/healthz IN 30s` waits up to 30 seconds for the first successful HTTP response before startup succeeds, while `LIVENESS tcp://127.0.0.1:8080 EVERY 10s` probes repeatedly and gives systemd a three-interval watchdog window before restart. With exactly one declared PORT, `/healthz` is sugar for its localhost HTTP URL. `notify` stays bare when the program speaks systemd notify itself. `SHM 64M` creates a private `/dev/shm` tmpfs with that size limit.
 
 ## Directive reference
 
