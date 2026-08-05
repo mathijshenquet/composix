@@ -204,6 +204,7 @@ dependencies = [
  "similar",
  "tempfile",
  "thiserror",
+ "url",
 ]
 
 [[package]]
@@ -263,6 +264,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "url",
 ]
 
 [[package]]

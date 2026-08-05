@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path};
 
 use crate::*;
+use url::Url;
 
 use super::diagnostics;
 use super::machine::{DeclaredName, ParseError, ServiceMetadata};
@@ -934,61 +935,104 @@ pub(super) fn validate_probe_duration(
     Ok(())
 }
 
-pub(super) fn validate_http_probe_target(
-    target: &str,
-    line: usize,
-    source: &str,
-) -> Result<(), ParseError> {
-    let Some((authority, _)) = target.split_once('/') else {
-        return Err(ParseError::new(
+pub(super) fn probe_url(target: &str, line: usize, source: &str) -> Result<Probe, ParseError> {
+    let url = Url::parse(target).map_err(|_| {
+        ParseError::new(
             line,
             source,
-            "http probe target must include an absolute path, for example :8080/healthz",
-        ));
-    };
-    validate_probe_authority(authority, line, source)
-}
-
-pub(super) fn validate_tcp_probe_target(
-    target: &str,
-    line: usize,
-    source: &str,
-) -> Result<(), ParseError> {
-    if target.contains('/') {
-        return Err(ParseError::new(
-            line,
-            source,
-            "tcp probe target must be host:port without a path, for example :5432",
-        ));
-    }
-    validate_probe_authority(target, line, source)
-}
-
-fn validate_probe_authority(authority: &str, line: usize, source: &str) -> Result<(), ParseError> {
-    let port = if let Some(port) = authority.strip_prefix(':') {
-        Some(port)
-    } else if authority.starts_with('[') {
-        authority
-            .split_once("]:")
-            .filter(|(host, _)| host.len() > 1)
-            .map(|(_, port)| port)
-    } else {
-        authority
-            .rsplit_once(':')
-            .filter(|(host, _)| !host.is_empty())
-            .map(|(_, port)| port)
-    };
-    if authority.contains(['\0', '\n', '\r', ' ', '/'])
-        || !port.is_some_and(|port| {
-            port.parse::<u16>()
-                .is_ok_and(|port| (1..=u16::MAX).contains(&port))
-        })
+            "probe target must be an absolute http:// or tcp:// URL, for example http://127.0.0.1/healthz",
+        )
+    })?;
+    if url.host().is_none()
+        || url.port() == Some(0)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
     {
         return Err(ParseError::new(
             line,
             source,
-            format!("probe target {authority:?} must be host:port"),
+            "probe URL must name only a host, optional port, path, and HTTP query",
         ));
     }
-    Ok(())
+    match url.scheme() {
+        "http" => Ok(Probe::Http(target.to_owned())),
+        "tcp" if url.port().is_some() && url.path().is_empty() && url.query().is_none() => {
+            Ok(Probe::Tcp(target.to_owned()))
+        }
+        "tcp" => Err(ParseError::new(
+            line,
+            source,
+            "tcp probe URLs require an explicit port and no path, for example tcp://127.0.0.1:5432",
+        )),
+        _ => Err(ParseError::new(
+            line,
+            source,
+            "probe URL scheme must be http or tcp; for notify use the bare `notify` keyword",
+        )),
+    }
+}
+
+pub(super) fn path_probe(
+    service: &Service,
+    path: &str,
+    directive: &str,
+    line: usize,
+    source: &str,
+) -> Result<Probe, ParseError> {
+    let ports = service
+        .ports
+        .iter()
+        .map(|(name, port)| {
+            let value = match &port.source {
+                PortSource::Value(value) => value.to_string(),
+                PortSource::Env(variable) => service
+                    .env
+                    .get(variable)
+                    .and_then(|env| env.default.as_ref())
+                    .and_then(Template::literal_value)
+                    .unwrap_or_else(|| format!("${variable}")),
+            };
+            format!("{name}: http://127.0.0.1:{value}{path}")
+        })
+        .collect::<Vec<_>>();
+    let Some((_, port)) = service.ports.first_key_value() else {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!(
+                "{directive} path-only target {path:?} needs exactly one PORT; declare one or write `{directive} http://127.0.0.1:8080{path}`"
+            ),
+        ));
+    };
+    if service.ports.len() != 1 {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!(
+                "{directive} path-only target {path:?} is ambiguous across declared PORTs; write one of: {}",
+                ports.join(", ")
+            ),
+        ));
+    }
+    let value = match &port.source {
+        PortSource::Value(value) => *value,
+        PortSource::Env(variable) => service
+            .env
+            .get(variable)
+            .and_then(|env| env.default.as_ref())
+            .and_then(Template::literal_value)
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|value| *value != 0)
+            .ok_or_else(|| {
+                ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "{directive} path-only target {path:?} cannot resolve PORT ${variable}; write an explicit URL such as `{directive} http://127.0.0.1:<port>{path}`"
+                    ),
+                )
+            })?,
+    };
+    Ok(Probe::Http(format!("http://127.0.0.1:{value}{path}")))
 }

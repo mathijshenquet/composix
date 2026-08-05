@@ -1,4 +1,4 @@
 Type=exec
-ExecStartPost="/nix/store/11111111111111111111111111111111-cix/bin/cix" "probe" "await" "tcp" ":5432"
+ExecStartPost="/nix/store/11111111111111111111111111111111-cix/bin/cix" "probe" "await" "tcp" "tcp://127.0.0.1:5432"
 TimeoutStartSec=90s
 TimeoutStopSec=90s

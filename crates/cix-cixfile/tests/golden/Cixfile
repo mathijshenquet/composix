@@ -7,8 +7,8 @@ ENV PORT=9000
 ENV TOKEN secret
 PORT http = $PORT
 PORT http3 = udp:8443
-READINESS http :9000/healthz IN 90s
-LIVENESS tcp :9000 EVERY 10s
+READINESS http://127.0.0.1:9000/healthz IN 90s
+LIVENESS tcp://127.0.0.1:9000 EVERY 10s
 STATEDIR /var/lib/app
 CACHEDIR /var/cache/app
 LOGDIR /var/log/app

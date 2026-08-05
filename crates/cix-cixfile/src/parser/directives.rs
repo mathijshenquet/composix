@@ -894,20 +894,29 @@ impl Parser<'_> {
         let fields = arguments.split_whitespace().collect::<Vec<_>>();
         let (probe, marker, duration) = match fields.as_slice() {
             ["notify", marker, duration] => (Probe::Notify, *marker, *duration),
-            ["http", target, marker, duration] => {
-                validate_http_probe_target(target, line, source)?;
-                (Probe::Http((*target).to_owned()), *marker, *duration)
+            [target, marker, duration] if target.starts_with('/') => {
+                let name = self.current_artifact_name(directive, line, source)?;
+                let service = &self.artifacts[name].service;
+                (path_probe(service, target, directive, line, source)?, *marker, *duration)
             }
-            ["tcp", target, marker, duration] => {
-                validate_tcp_probe_target(target, line, source)?;
-                (Probe::Tcp((*target).to_owned()), *marker, *duration)
+            [target, marker, duration] => {
+                (probe_url(target, line, source)?, *marker, *duration)
+            }
+            [kind @ ("http" | "tcp"), target, _, _] => {
+                return Err(ParseError::new(
+                    line,
+                    source,
+                    format!(
+                        "{directive} no longer uses `{kind} <target>`; write `{directive} {kind}://{target} {parameter} <duration>`"
+                    ),
+                ));
             }
             _ => {
                 return Err(ParseError::new(
                     line,
                     source,
                     format!(
-                        "{directive} requires `http <host:port/path> {parameter} <duration>`, `tcp <host:port> {parameter} <duration>`, or `notify {parameter} <duration>`"
+                        "{directive} requires `<http://host/path|tcp://host:port|/path|notify> {parameter} <duration>`"
                     ),
                 ))
             }

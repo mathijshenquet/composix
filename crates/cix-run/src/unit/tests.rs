@@ -236,8 +236,8 @@ fn health_property_snapshots_cover_every_probe_consumer_and_mode() {
         for probe_type in ["notify", "http", "tcp"] {
             for mode in [UnitMode::System, UnitMode::UserFull] {
                 let target = match probe_type {
-                    "http" => r#", "target": ":8080/healthz""#,
-                    "tcp" => r#", "target": ":5432""#,
+                    "http" => r#", "target": "http://127.0.0.1:8080/healthz""#,
+                    "tcp" => r#", "target": "tcp://127.0.0.1:5432""#,
                     "notify" => "",
                     _ => unreachable!(),
                 };

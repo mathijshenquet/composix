@@ -628,14 +628,14 @@ START /bin/true \
     fn readiness_and_liveness_parse_all_probe_forms_and_emit_typed_fields() {
         for (readiness, liveness, readiness_type, liveness_type) in [
             (
-                "READINESS http :8080/healthz IN 90s",
-                "LIVENESS tcp :8080 EVERY 10s",
+                "READINESS http://127.0.0.1/healthz IN 90s",
+                "LIVENESS tcp://127.0.0.1:8080 EVERY 10s",
                 "http",
                 "tcp",
             ),
             (
-                "READINESS tcp :5432 IN 60s",
-                "LIVENESS http :5432/livez EVERY 5s",
+                "READINESS tcp://db.internal:5432 IN 60s",
+                "LIVENESS http://127.0.0.1:5432/livez EVERY 5s",
                 "tcp",
                 "http",
             ),
@@ -659,6 +659,28 @@ START /bin/true \
             assert_eq!(manifest["liveness"]["type"], liveness_type);
         }
 
+        let path_only = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nPORT http = 8080\nSTART /bin/true\nREADINESS /healthz IN 90s\n",
+        )
+        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&path_only).unwrap()).unwrap();
+        assert_eq!(
+            manifest["readiness"]["target"],
+            "http://127.0.0.1:8080/healthz"
+        );
+
+        let query = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nREADINESS http://127.0.0.1/healthz?full=1 IN 90s\n",
+        )
+        .unwrap();
+        let manifest: serde_json::Value =
+            serde_json::from_str(&generate_spec_json(&query).unwrap()).unwrap();
+        assert_eq!(
+            manifest["readiness"]["target"],
+            "http://127.0.0.1/healthz?full=1"
+        );
+
         let app = parse(
             "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP migrate\nSTART /bin/true\nREADINESS notify IN 30s\nLIVENESS notify EVERY 2s\n",
         )
@@ -670,12 +692,11 @@ START /bin/true \
     fn health_directives_reject_exec_malformed_targets_wrong_markers_and_duplicates() {
         for directive in [
             "READINESS exec bin/check IN 10s",
-            "READINESS http :8080 IN 10s",
-            "READINESS tcp :5432/health IN 10s",
+            "READINESS tcp://127.0.0.1:5432/health IN 10s",
             "READINESS notify EVERY 10s",
             "LIVENESS notify IN 10s",
             "LIVENESS notify EVERY 0s",
-            "LIVENESS grpc :5000 EVERY 10s",
+            "LIVENESS grpc://127.0.0.1:5000 EVERY 10s",
         ] {
             let error = parse(&format!(
                 "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n{directive}\n"
@@ -683,8 +704,29 @@ START /bin/true \
             .unwrap_err();
             assert_eq!(error.line, 4, "{directive}: {error}");
         }
+        let legacy = parse(
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nREADINESS http 127.0.0.1:8080/healthz IN 10s\n",
+        )
+        .unwrap_err();
+        assert!(
+            legacy.message.contains("http://127.0.0.1:8080/healthz"),
+            "{legacy}"
+        );
+        for (ports, expected) in [
+            ("", "exactly one PORT"),
+            (
+                "PORT http = 8080\nPORT admin = 9090\n",
+                "http://127.0.0.1:8080/healthz",
+            ),
+        ] {
+            let error = parse(&format!(
+                "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\n{ports}START /bin/true\nREADINESS /healthz IN 10s\n"
+            ))
+            .unwrap_err();
+            assert!(error.message.contains(expected), "{error}");
+        }
         let duplicate = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nREADINESS notify IN 10s\nREADINESS tcp :5432 IN 10s\n",
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\nREADINESS notify IN 10s\nREADINESS tcp://127.0.0.1:5432 IN 10s\n",
         )
         .unwrap_err();
         assert!(

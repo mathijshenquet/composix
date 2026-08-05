@@ -4,6 +4,7 @@
 //! conductor retains the surrounding property order.
 
 use anyhow::{bail, Context, Result};
+use std::path::{Path, PathBuf};
 
 use crate::spec::{format_duration, parse_duration, Probe, ProbeType, Service};
 use crate::unit::{exec_command, UnitCompileOptions};
@@ -74,11 +75,8 @@ fn probe_command(
         .probe_binary
         .clone()
         .map(Ok)
-        .unwrap_or_else(std::env::current_exe)
-        .context("resolving the cix binary for a native health probe")?;
-    if !binary.is_absolute() {
-        bail!("cix probe binary {} is not absolute", binary.display());
-    }
+        .unwrap_or_else(runtime_probe_binary)?;
+    validate_runtime_helper(&binary)?;
     let probe_type = match probe.probe_type {
         ProbeType::Http => "http",
         ProbeType::Tcp => "tcp",
@@ -96,4 +94,52 @@ fn probe_command(
         command.extend(["--every".into(), interval.into()]);
     }
     Ok(exec_command(&command))
+}
+
+fn runtime_probe_binary() -> Result<PathBuf> {
+    if let Some(binary) = std::env::var_os("CIX_RUNTIME_HELPER") {
+        return Ok(PathBuf::from(binary));
+    }
+    let binary = std::env::current_exe().context("resolving the cix runtime helper")?;
+    if binary.starts_with("/nix/store") || !binary.starts_with(home_directory()) {
+        return Ok(binary);
+    }
+    bail!(
+        "native probes need an installed runtime helper outside the workspace; run the packaged cix or set CIX_RUNTIME_HELPER to its absolute store path (current executable is {})",
+        binary.display()
+    )
+}
+
+fn validate_runtime_helper(binary: &Path) -> Result<()> {
+    if !binary.is_absolute() {
+        bail!("cix probe binary {} is not absolute", binary.display());
+    }
+    if binary.starts_with(home_directory()) {
+        bail!(
+            "cix probe helper {} is workspace-local or home-local and unavailable under ProtectHome; use an installed store path",
+            binary.display()
+        );
+    }
+    Ok(())
+}
+
+fn home_directory() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/home"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_probe_helpers_are_refused_before_unit_generation() {
+        let workspace_binary = home_directory().join("project/target/debug/cix");
+        let error = validate_runtime_helper(&workspace_binary)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("ProtectHome"), "{error}");
+        validate_runtime_helper(Path::new("/nix/store/example-cix/bin/cix")).unwrap();
+    }
 }

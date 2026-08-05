@@ -37,6 +37,7 @@ thiserror = "2"
 base64 = "0.22"
 tiny_http = "0.12"
 ureq = { version = "2", features = ["json"] }
+url = "2"
 libc = "0.2"
 ignore = "0.4"
 similar = "2"

@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 #[derive(Debug, Clone)]
 pub struct Spec {
@@ -508,44 +509,27 @@ pub fn format_duration(value: std::time::Duration) -> String {
 }
 
 fn validate_http_target(target: &str) -> Result<()> {
-    let (authority, _) = target
-        .split_once('/')
-        .with_context(|| "http target must include an absolute path, for example :8080/healthz")?;
-    validate_authority(authority)?;
-    if target.contains(['\0', '\n', '\r', ' ']) {
-        bail!("http target must not contain whitespace, NUL, or newlines");
-    }
-    Ok(())
+    validate_probe_url(target, "http").map(|_| ())
 }
 
 fn validate_tcp_target(target: &str) -> Result<()> {
-    if target.contains('/') {
-        bail!("tcp target must be host:port without a path, for example :5432");
+    let url = validate_probe_url(target, "tcp")?;
+    if url.port().is_none() || !url.path().is_empty() || url.query().is_some() {
+        bail!("tcp target must be tcp://host:port without a path")
     }
-    validate_authority(target)
+    Ok(())
 }
 
-fn validate_authority(authority: &str) -> Result<()> {
-    if authority.contains(['\0', '\n', '\r', ' ', '/']) {
-        bail!("probe target {authority:?} must be host:port");
+fn validate_probe_url(target: &str, scheme: &str) -> Result<Url> {
+    let url = Url::parse(target)
+        .with_context(|| format!("{scheme} target must be an absolute {scheme}:// URL"))?;
+    if url.scheme() != scheme || url.host().is_none() || url.port() == Some(0) {
+        bail!("{scheme} target must be an absolute {scheme}:// URL")
     }
-    let port = if let Some(port) = authority.strip_prefix(':') {
-        port
-    } else if authority.starts_with('[') {
-        authority
-            .split_once("]:")
-            .filter(|(host, _)| host.len() > 1)
-            .map(|(_, port)| port)
-            .with_context(|| format!("probe target {authority:?} must be [ipv6]:port"))?
-    } else {
-        authority
-            .rsplit_once(':')
-            .filter(|(host, _)| !host.is_empty())
-            .map(|(_, port)| port)
-            .with_context(|| format!("probe target {authority:?} must be host:port"))?
-    };
-    parse_port(port).with_context(|| format!("probe target {authority:?} has an invalid port"))?;
-    Ok(())
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        bail!("{scheme} target must name only a host, optional port, path, and HTTP query")
+    }
+    Ok(url)
 }
 
 fn validate_device_path(path: &Path) -> Result<()> {
@@ -862,8 +846,8 @@ mod tests {
             br#"{
                 "cixManifest": 0,
                 "start": ["bin/app"],
-                "readiness": {"type": "http", "target": ":8080/healthz", "timeout": "90s"},
-                "liveness": {"type": "tcp", "target": ":8080", "interval": "10s"}
+                "readiness": {"type": "http", "target": "http://127.0.0.1:8080/healthz", "timeout": "90s"},
+                "liveness": {"type": "tcp", "target": "tcp://127.0.0.1:8080", "interval": "10s"}
             }"#,
         )
         .unwrap();
@@ -890,11 +874,11 @@ mod tests {
     #[test]
     fn health_schema_validates_probe_targets_and_durations() {
         for json in [
-            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"notify","target":":8080","timeout":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"notify","target":"tcp://127.0.0.1:8080","timeout":"10s"}}"#,
             r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"http","timeout":"10s"}}"#,
-            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"http","target":":8080","timeout":"10s"}}"#,
-            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":":8080/path","interval":"10s"}}"#,
-            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":":0","interval":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"readiness":{"type":"http","target":"tcp://127.0.0.1:8080","timeout":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":"tcp://127.0.0.1:8080/path","interval":"10s"}}"#,
+            r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"tcp","target":"tcp://127.0.0.1:0","interval":"10s"}}"#,
             r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"notify","interval":"0s"}}"#,
             r#"{"cixManifest":0,"start":["bin/app"],"liveness":{"type":"exec","interval":"10s"}}"#,
         ] {

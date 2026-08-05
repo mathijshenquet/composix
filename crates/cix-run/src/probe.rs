@@ -7,6 +7,7 @@ use std::{env, process, thread};
 
 use anyhow::{bail, Context, Result};
 use clap::{Subcommand, ValueEnum};
+use url::Url;
 
 use crate::spec::parse_duration;
 
@@ -115,24 +116,28 @@ fn probe_once(probe_type: ProbeType, target: &str) -> Result<()> {
 }
 
 fn probe_tcp(target: &str) -> Result<()> {
-    let authority = normalize_authority(target)?;
-    connect(&authority).map(|_| ())
+    let url = probe_url(target, "tcp")?;
+    if url.port().is_none() || !url.path().is_empty() || url.query().is_some() {
+        bail!("TCP probe target must be tcp://host:port without a path")
+    }
+    connect(&socket_address(&url)?).map(|_| ())
 }
 
 fn probe_http(target: &str) -> Result<()> {
-    let (authority, path) = target
-        .split_once('/')
-        .with_context(|| format!("HTTP probe target {target:?} has no request path"))?;
-    let address = normalize_authority(authority)?;
+    let url = probe_url(target, "http")?;
+    let address = socket_address(&url)?;
     let mut stream = connect(&address)?;
     stream.set_read_timeout(Some(ATTEMPT_TIMEOUT))?;
     stream.set_write_timeout(Some(ATTEMPT_TIMEOUT))?;
-    let host = authority
-        .strip_prefix(':')
-        .map_or(authority, |_| "localhost");
+    let host = url.host_str().expect("validated probe URL host");
+    let request_target = match url.query() {
+        Some(query) => format!("{}?{query}", url.path()),
+        None => url.path().to_owned(),
+    };
     write!(
         stream,
-        "GET /{path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+        "GET {} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n",
+        request_target
     )?;
     let mut status_line = String::new();
     BufReader::new(stream)
@@ -153,20 +158,29 @@ fn probe_http(target: &str) -> Result<()> {
     Ok(())
 }
 
-fn normalize_authority(target: &str) -> Result<String> {
-    if target.contains(['\0', '\n', '\r', ' ', '/']) {
-        bail!("probe target {target:?} must be host:port");
+fn probe_url(target: &str, scheme: &str) -> Result<Url> {
+    let url = Url::parse(target)
+        .with_context(|| format!("{scheme} probe target must be an absolute {scheme}:// URL"))?;
+    if url.scheme() != scheme || url.host().is_none() {
+        bail!("{scheme} probe target must be an absolute {scheme}:// URL")
     }
-    if let Some(port) = target.strip_prefix(':') {
-        if port.is_empty() {
-            bail!("probe target has no port");
-        }
-        return Ok(format!("127.0.0.1:{port}"));
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        bail!("{scheme} probe target must name only a host, optional port, path, and HTTP query")
     }
-    if !target.contains(':') {
-        bail!("probe target {target:?} must be host:port");
-    }
-    Ok(target.to_owned())
+    Ok(url)
+}
+
+fn socket_address(url: &Url) -> Result<String> {
+    let host = url.host_str().context("probe URL has no host")?;
+    let host = if host.contains(':') {
+        format!("[{host}]")
+    } else {
+        host.to_owned()
+    };
+    let port = url
+        .port_or_known_default()
+        .context("probe URL has no port and no standard default")?;
+    Ok(format!("{host}:{port}"))
 }
 
 fn connect(target: &str) -> Result<TcpStream> {
@@ -249,7 +263,7 @@ mod tests {
     #[test]
     fn tcp_probe_reports_open_and_closed_ports() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let target = listener.local_addr().unwrap().to_string();
+        let target = format!("tcp://{}", listener.local_addr().unwrap());
         probe_once(ProbeType::Tcp, &target).unwrap();
         drop(listener);
         assert!(probe_once(ProbeType::Tcp, &target).is_err());
@@ -279,7 +293,11 @@ mod tests {
                 .unwrap();
             });
             assert_eq!(
-                probe_once(ProbeType::Http, &format!(":{}/healthz", address.port())).is_ok(),
+                probe_once(
+                    ProbeType::Http,
+                    &format!("http://127.0.0.1:{}/healthz", address.port())
+                )
+                .is_ok(),
                 succeeds
             );
             server.join().unwrap();
@@ -290,7 +308,7 @@ mod tests {
     fn await_mode_retries_until_the_probe_succeeds() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
-        let target = address.to_string();
+        let target = format!("tcp://{address}");
         drop(listener);
         let (sender, receiver) = mpsc::channel();
         let waiter =
