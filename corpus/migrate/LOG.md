@@ -1,4 +1,31 @@
 
+## 2026-08-05 — track/expand1 commit assembly
+
+- Committed the tested CIP-101 sweep amendment as `d3e61a9`, the pnpm evidence drafts as `d6fe936`, and the three pinned source/lock/Cixfile assemblies as `f9dae78`. The next and final commit records the independent case receipts, living-corpus/browser inventory, and closed-root classification; it deliberately includes this journal entry.
+
+## 2026-08-05 — track/expand1 closure
+
+- Post-receipt browser regeneration and its normal parser/drift/determinism suite both exited 0. `git diff --exit-code -- docs/tour` and `git diff --check` exited 0. Final disk guard: 177 GiB free on `/` (also `/var/tmp`). Resetting failed user `cix-*` units and stopping `cix-run.slice` exited 0.
+- `git fetch origin main` found no commits in `HEAD..origin/main`, so no semantic main merge is needed. The branch is deliberately left uncommitted and unmerged for orchestration.
+
+## 2026-08-05 — track/expand1 final receipts
+
+- Value-checked case outcomes: Homer locked build and supported system-manager HTTP check exited 0; Mailpit clean build and degraded user-manager `/livez` check exited 0 (the supported system manager remains blocked by the known workspace-local probe executor under `ProtectHome`); it-tools' pre-correction offline Vue/Vite item built, while its corrected pnpm rebuild was still alive beyond the 600-second bound, its wrapper failed to reap the child, and a manual interrupt ended the supervisor with status 130. No corrected it-tools runtime success is claimed.
+- Captured synchronous exit-0 receipts: focused scratch boundary test; Cix formatting for all three cases; browser regeneration; Rust formatting; example formatting; warning-denied workspace clippy; full workspace tests; tour regeneration with no `docs/tour` drift; normal corpus tests; and `nix run .#progressive-vm-check`. The selector treated the scratch policy change as cross-cutting and completed all 14 scenarios in 725.551 seconds.
+- Re-ran browser generation after making the it-tools timeout wording precise; final pending local checks are generated-browser drift, diff check, disk guard, and status only. No commit or merge is performed on this track.
+
+## 2026-08-05 — track/expand1 independent receipts
+
+- Restored each ignored context from its pinned SOURCE with `fetch.sh`. Disk guard before the large builds: 201 GiB free, 47.9M inodes free. Homer now has a value-checked locked pnpm/Vite build and system-manager HTTP check; the staged CA/registry symptom was a missing prerequisite, not an ecosystem wall. Its service tree is assembled once to preserve Docker's default-assets contract without overlapping Cix copies.
+- it-tools produced one source-built nginx item, exposing a real DynamicUser log-path mistake; after removing the false `LOGDIR`, its corrected pnpm-store rebuild exceeded the independently applied 600-second bound before an item. No corrected runtime pass is claimed. Mailpit's clean source build and degraded user-manager `/livez` check pass; the supported system run remains blocked by the known workspace-local probe executor under `ProtectHome`.
+- Added current GAPS/receipts, source pins/locks, the 21→24 living-corpus rows, candidate consumption, pnpm-wall draft, and the third explicit-Bash staging datapoint. CIP-101's startup sweep is now six hours, with a focused boundary test. Next: regenerate the browser, perform format/parser/structural audits, then run the complete declared agent tier and focused VM selector synchronously.
+
+## 2026-08-05 — track/expand1 assembly start
+
+- Read the assigned expansion spec, the corpus maintenance contract, the live ledger, staged worker outputs, accepted CIP-101, and the active nodes-and-edges draft. The requested three staging bundles exist; their success claims are hypotheses until this worktree re-verifies them. Disk guard before large work: `/` has 217 GiB free (74% used), with 49.7M free inodes.
+- Added the three new corpus skeletons without importing staged contexts; `fetch.sh` will reconstruct their ignored contexts from the recorded pinned SOURCE revisions. Homer is expected to remain an honest pnpm registry wall, it-tools needs an independent bounded check, and mailpit must be retried after its staging ENOSPC.
+- Implemented the minimal CIP-101 amendment: the owned startup scratch sweep now uses a six-hour age instead of one day. Next: fetch inputs, establish exact build/check outcomes, then author GAPS/receipts, the ecosystem draft, rows, browser, and full gate receipts.
+
 ## 2026-08-05 — track/regen4 assembly start
 
 - Read the regen4 and regen3 specifications, corpus maintenance rules, staged NOTES, current case ledgers, and the prior caddy/filestash receipts. The three requested cold-stage outputs are present under `/home/mathijs/regen-stage/docker-{adminer,nginx,wallos}`; their worker claims are not yet accepted. The staged Adminer and nginx files predate the now-landed `STOPSIGNAL` surface, so assembly must add their Docker-requested signals and re-verify with the current binary. Wallos supplies the CIP-98 `/var/www/html` nested-role translation, but its worker runtime receipt is explicitly invalid in this worktree until independently rerun.
