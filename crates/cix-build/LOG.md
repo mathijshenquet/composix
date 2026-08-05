@@ -48,6 +48,40 @@
   any guest to preserve the shared bound. Waiting for CIP-109 to release the
   axis, then rerun from scratch.
 
+- 2026-08-05T18:59:00Z — Timestamp correction: the preceding entries stamped
+  `19:*` were written one hour ahead of the UTC host clock; their file order is
+  the intended chronology. Merged current `origin/main` (`b57ee13`) after the
+  verified extraction checkpoint. The only conflicts were rewritten-history
+  expansion corpus files; each resolved to the current upstream side, retaining
+  the 10k-line browser cap and CIP-99 criterion ledger. The lock-aggregation
+  code itself merged without conflict in `trace.rs`; the MemoEngine continues
+  to call that owner for full-subtree reduction. Next: rerun focused identity
+  and the full agent tier on merge commit `1bde604`.
+
+- 2026-08-05T19:03:00Z — Post-merge non-VM tier is green: fmt, examples fmt,
+  warning-denied clippy, workspace tests, corpus regeneration/drift, tour
+  regeneration/drift plus exact document test, source-size/module-map guard,
+  and diff check all synchronously exited 0. Wallos still produces
+  `/nix/store/26wbmzxzyks6q0h41sl0zxs3gf4dgj6j-cix-item-wallos`; its ordinary
+  warm-hit build only refreshed the tracked output source hash, which was
+  restored (the controlled before/after generated-lock receipt remains the
+  byte-identity evidence). CIP-109 is using both guest slots for a final retry;
+  continue waiting on its concrete selector PID.
+
+- 2026-08-05T19:32:00Z — Merged the subsequent current `origin/main`
+  (`ab49af8`), which added only the expand2 track specification and did not
+  touch the extraction. A second selector start raced CIP-109's transition
+  from its focused retry to a serial matrix; this track immediately interrupted
+  only its own build at exit 130, before any guest started. That attempt is not
+  a receipt. After CIP-109 released the axis, the supported explicit-base run
+  `nix run --max-jobs 2 --cores 2 .#progressive-vm-check -- --base origin/main`
+  compared the complete `6d27875+worktree` extraction to `ab49af8`, selected
+  all 14 scenarios because `cix-build/src/lib.rs` is cross-cutting, and
+  synchronously exited 0 after the bounded matrix in 723.462s. Exact selector
+  output is retained at
+  `/var/tmp/cip103-memo-receipts/final-progressive-vm.log`. The complete agent
+  tier is green; full flake check remains the orchestrator's independent gate.
+
 - 2026-08-05T16:10:00Z — Merging `origin/main` after CIP-93b and CIP-99.
   Semantic resolution retains CIP-99's complete traced-subtree aggregation at
   both top-level FETCH and builder recording sites, while the Workspace owner
