@@ -1,5 +1,37 @@
 # cix-build work log
 
+- 2026-08-05T15:57:00Z — After semantic merge of `origin/main` at
+  `54c03a5`, the CIP-93b contract-keyed gate selected the complete 14-scenario
+  matrix for the accumulated merge diff. Its retained synchronous log at
+  `/tmp/cip99-progressive-post-cip93b.log` ends `VM selection: build exit 0;
+  total wall-clock 699.699s.` Health also completed within that run. The
+  quiet-window receipt set is now clean: workspace exit 0; health SOLO exit
+  0; post-merge progressive VM exit 0.
+
+- 2026-08-05T15:05:00Z — Quiet-window health discrimination is green: the
+  actual check attr `devenv shell -- nix --max-jobs 1 --cores 1 build -L
+  .#checks.x86_64-linux.scenario-health`, retained at
+  `/tmp/cip99-health-solo.log`, synchronously exited 0. (A prior `.#scenario-health`
+  package-attr probe exited 1 without running a VM and is not a scenario
+  receipt.) The earlier progressive health exit 1 versus this solo exit 0
+  attributes that failure to VM contention; per the stated conditional, no
+  `origin/main` scratch control is required. Merge CIP-93b and rerun the
+  contract-keyed progressive selector before closing.
+
+- 2026-08-05T14:40:00Z — Quiet-window part 1 receipt is green: `devenv shell
+  -- cargo test --workspace -- --test-threads=1`, retained at
+  `/tmp/cip99-workspace-quiet.log`, synchronously exited 0. This clears the
+  former tour/user-manager failure; continue to hold all VM discrimination
+  until the orchestrator declares the VM axis quiet.
+
+- 2026-08-05T14:30:00Z — Orchestrator has not accepted the two non-green
+  receipts as environmental. Stand by while CIP-106 and CIP-93b occupy the
+  tour/VM capacity. On an explicit quiet-window ping: (1) rerun the complete
+  serialized workspace suite with synchronous retained-log capture; (2) rerun
+  the failing health-watchdog VM scenario SOLO with retained-log capture. If
+  health still fails alone, run the identical scenario from a scratch checkout
+  at `origin/main`, as CIP-105 did, before making any environmental claim.
+
 - 2026-08-05T14:20:00Z — Final agent-tier receipts: fmt, example fmt,
   warning-denied clippy, corpus-browser generation, and corpus drift all exit
   0. The serialized workspace receipt exits 101 only in the pre-existing

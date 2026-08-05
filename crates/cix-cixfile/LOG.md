@@ -1,5 +1,34 @@
 # Cixfile track work log
 
+- 2026-08-05T15:57:00Z — Merged `origin/main` semantically at `54c03a5` and
+  reran the new CIP-93b contract-keyed progressive gate. The accumulated merge
+  diff conservatively selected all 14 scenarios; its retained receipt
+  `/tmp/cip99-progressive-post-cip93b.log` ends `VM selection: build exit 0;
+  total wall-clock 699.699s.` Together with workspace exit 0 and health SOLO
+  exit 0, the quiet-window receipts are clean and ready to commit.
+
+- 2026-08-05T15:05:00Z — Health-watchdog discrimination is green. The solo
+  retained check receipt (`devenv shell -- nix --max-jobs 1 --cores 1 build
+  -L .#checks.x86_64-linux.scenario-health`) exits 0 at
+  `/tmp/cip99-health-solo.log`; the earlier `.#scenario-health` package-attr
+  probe exited 1 without executing a VM and does not count. Against the
+  previous progressive health exit 1, the solo success discriminates VM
+  contention; the requested conditional `origin/main` scratch control is not
+  applicable. Next merge CIP-93b and rerun its contract-keyed selector.
+
+- 2026-08-05T14:40:00Z — Quiet-window part 1 complete: the retained full
+  serialized workspace suite (`devenv shell -- cargo test --workspace --
+  --test-threads=1`) synchronously exited 0. The user-manager/tour receipt is
+  now green; wait for the VM-axis quiet-window ping before health
+  discrimination.
+
+- 2026-08-05T14:30:00Z — Do not classify the tour/VM failures as
+  environmental yet. CIP-106 and CIP-93b currently own tour/VM capacity; wait
+  for the orchestrator’s quiet-window ping. Then take retained synchronous
+  receipts for the complete serialized workspace suite and the health-watchdog
+  VM scenario SOLO. A solo health failure requires the same-scenario
+  `origin/main` scratch-checkout control before any environmental conclusion.
+
 - 2026-08-05T14:20:00Z — Gate status: synchronous fmt, example-format,
   warning-denied clippy, corpus-browser generation, and corpus drift receipts
   are exit 0. Full workspace exits 101 on the known user-manager tour race;
