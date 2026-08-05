@@ -4,10 +4,10 @@ use std::process::{self, ExitStatus};
 use anyhow::{bail, Result};
 
 use crate::config::ResolvedConfig;
+use crate::degradation::{warn_degradations, without_properties, without_user_capability_controls};
 use crate::manager::{
     build_runtime_unit, capability_failure, namespace_failure, nonce, run_transient_app,
-    start_scheduled_app, warn_degradations, with_unit_diagnostics, without_properties,
-    without_user_capability_controls,
+    start_scheduled_app, with_unit_diagnostics,
 };
 use crate::runtime::RunOptions;
 use crate::target::ResolvedService;

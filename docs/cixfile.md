@@ -452,7 +452,8 @@ a datagram-activation case establishes its required behavior.
 <a id="role-dirs"></a>
 
 Role dirs are claims cix fulfills itself. `STATEDIR`, `CACHEDIR`, `LOGDIR`, and `RUNDIR` each
-accept any clean absolute path the application uses, including paths such as `LOGDIR /app/logs`.
+accept any clean absolute path the application uses, including paths such as `LOGDIR /app/logs`
+or `STATEDIR /var/www/db` beneath an artifact projection.
 They are private to the service. cix mirrors the full in-namespace path beneath its unit-scoped
 systemd backing root, binds that backing path into the service, and sets the corresponding
 `$STATE_DIRECTORY`, `$CACHE_DIRECTORY`, `$LOGS_DIRECTORY`, or `$RUNTIME_DIRECTORY` value to the

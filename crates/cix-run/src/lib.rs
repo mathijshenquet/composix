@@ -15,6 +15,7 @@ pub mod cli;
 pub mod closed_root;
 pub mod config;
 pub mod debug;
+mod degradation;
 mod devices;
 mod directories;
 pub mod exec;

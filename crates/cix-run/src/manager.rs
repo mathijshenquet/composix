@@ -12,11 +12,14 @@ use anyhow::{bail, Context, Result};
 use crate::capabilities::HostCapabilities;
 use crate::closed_root::{options_for_unit, prepare};
 use crate::config::ResolvedConfig;
+use crate::degradation::{
+    unknown_assignment_names, warn_degradations, without_properties,
+    without_user_capability_controls,
+};
 use crate::runtime::RunOptions;
 use crate::spec::Service;
 use crate::unit::{
-    build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitDegradation,
-    UnitMode,
+    build_unit, build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode,
 };
 
 const SIGINT: i32 = 2;
@@ -182,7 +185,16 @@ fn start_service_with_options(
         };
     }
 
-    let capabilities = user_capabilities(service)?;
+    let baseline = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        UnitMode::UserFull,
+        &unit_options,
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = user_capabilities(service, &baseline.properties)?;
     let definition = build_unit_with_options(
         output,
         service_name,
@@ -227,12 +239,26 @@ fn start_service_with_options(
                     Err(error) => {
                         let error = with_unit_diagnostics(error, &capability_name, true);
                         let _ = stop_service(&capability_name, true);
-                        return namespace_fallback(output, service_name, service, config, error);
+                        return namespace_fallback(
+                            output,
+                            service_name,
+                            service,
+                            config,
+                            &without_capabilities,
+                            error,
+                        );
                     }
                 }
             }
 
-            namespace_fallback(output, service_name, service, config, full_error)
+            namespace_fallback(
+                output,
+                service_name,
+                service,
+                config,
+                &definition,
+                full_error,
+            )
         }
     }
 }
@@ -242,8 +268,26 @@ fn namespace_fallback(
     service_name: &str,
     service: &Service,
     config: &ResolvedConfig,
+    definition: &UnitDefinition,
     error: anyhow::Error,
 ) -> Result<StartedUnit> {
+    let rejected = unknown_assignment_names(&format!("{error:#}"));
+    if !rejected.is_empty() {
+        let fallback_name = format!("cix-run-{service_name}-{}.service", nonce());
+        for property in &rejected {
+            eprintln!(
+                "warning: dropped {property} after user-manager runtime rejection; systemd-analyze verify did not report it"
+            );
+        }
+        let names = rejected.iter().map(String::as_str).collect::<Vec<_>>();
+        let fallback = without_properties(definition, &names);
+        start_with_listeners(&fallback_name, true, output, config, &fallback)?;
+        return Ok(StartedUnit {
+            name: fallback_name,
+            user: true,
+            degraded: true,
+        });
+    }
     if !namespace_failure(&error) {
         return Err(error);
     }
@@ -291,24 +335,6 @@ fn private_pids_fallback(
     })
 }
 
-pub(crate) fn without_properties(definition: &UnitDefinition, names: &[&str]) -> UnitDefinition {
-    let mut definition = definition.clone();
-    definition
-        .properties
-        .retain(|(name, _)| !names.contains(&name.as_str()));
-    definition.text = definition
-        .text
-        .lines()
-        .filter(|line| {
-            line.split_once('=')
-                .is_none_or(|(name, _)| !names.contains(&name))
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-    definition.text.push('\n');
-    definition
-}
-
 pub(crate) fn build_runtime_unit(
     output: &Path,
     service_name: &str,
@@ -318,17 +344,26 @@ pub(crate) fn build_runtime_unit(
     closed_root: bool,
     unit_name: &str,
 ) -> Result<UnitDefinition> {
-    let capabilities = if mode == UnitMode::UserFull {
-        user_capabilities(service)?
-    } else {
-        HostCapabilities::all_supported()
-    };
     let mut options = UnitCompileOptions::cix_run(service_name);
     if closed_root {
         let root = options_for_unit(unit_name, mode != UnitMode::System)?;
         prepare(&root)?;
         options.closed_root = Some(root);
     }
+    let baseline = build_unit_with_options(
+        output,
+        service_name,
+        service,
+        config,
+        mode,
+        &options,
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = if mode == UnitMode::UserFull {
+        user_capabilities(service, &baseline.properties)?
+    } else {
+        HostCapabilities::all_supported()
+    };
     build_unit_with_options(
         output,
         service_name,
@@ -340,46 +375,11 @@ pub(crate) fn build_runtime_unit(
     )
 }
 
-fn user_capabilities(service: &Service) -> Result<HostCapabilities> {
-    if service.has_device_claim() {
-        Ok(HostCapabilities::all_supported())
-    } else {
-        HostCapabilities::probe_user()
-    }
-}
-
-pub(crate) fn warn_degradations(degradations: &[UnitDegradation]) {
-    for degradation in degradations {
-        match degradation.property.as_str() {
-            "PrivatePIDs=yes" => eprintln!(
-                "warning: dropped {}: {}; this service shares the host PID namespace (D36 degraded fallback)",
-                degradation.property, degradation.reason
-            ),
-            "PrivateDevices=yes" => {
-                eprintln!(
-                    "warning: user manager rejected PrivateDevices isolation ({})",
-                    degradation.reason
-                );
-                eprintln!(
-                    "warning: retrying without PrivateDevices; this --user service can access the host device namespace (D13 degraded fallback)"
-                );
-            }
-            property => eprintln!("warning: dropped {property}: {}", degradation.reason),
-        }
-    }
-}
-
-pub(crate) fn without_user_capability_controls(definition: &UnitDefinition) -> UnitDefinition {
-    without_properties(
-        definition,
-        &[
-            "AmbientCapabilities",
-            "CapabilityBoundingSet",
-            "ProtectKernelModules",
-            "ProtectKernelLogs",
-            "PrivateDevices",
-        ],
-    )
+fn user_capabilities(
+    _service: &Service,
+    properties: &[(String, String)],
+) -> Result<HostCapabilities> {
+    HostCapabilities::probe_user_directives(properties)
 }
 
 pub fn stop_service(name: &str, user: bool) -> Result<()> {

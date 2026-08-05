@@ -1,11 +1,19 @@
+use std::collections::BTreeMap;
 use std::env;
+use std::io::Write;
 use std::process::Command;
+use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 
 pub const PRIVATE_PIDS_PROBE_OVERRIDE: &str = "CIX_PRIVATE_PIDS_PROBE";
 pub const PRIVATE_DEVICES_PROBE_OVERRIDE: &str = "CIX_PRIVATE_DEVICES_PROBE";
+
+// This process-local cache avoids repeat manager probes; the key includes the
+// manager identity and version, so no capability result crosses managers.
+static USER_VERIFY_CACHE: OnceLock<Mutex<BTreeMap<String, BTreeMap<String, String>>>> =
+    OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Capability {
@@ -26,6 +34,7 @@ impl Capability {
 pub struct HostCapabilities {
     pub private_pids_with_persistent_directories: Capability,
     pub user_private_devices: Capability,
+    pub unsupported_directives: BTreeMap<String, String>,
     pub systemd_version: u32,
 }
 
@@ -34,6 +43,7 @@ impl HostCapabilities {
         Self {
             private_pids_with_persistent_directories: Capability::Supported,
             user_private_devices: Capability::Supported,
+            unsupported_directives: BTreeMap::new(),
             systemd_version: 257,
         }
     }
@@ -44,6 +54,7 @@ impl HostCapabilities {
                 reason: reason.into(),
             },
             user_private_devices: Capability::Supported,
+            unsupported_directives: BTreeMap::new(),
             systemd_version: 257,
         }
     }
@@ -54,6 +65,7 @@ impl HostCapabilities {
             user_private_devices: Capability::Unsupported {
                 reason: reason.into(),
             },
+            unsupported_directives: BTreeMap::new(),
             systemd_version: 257,
         }
     }
@@ -109,6 +121,33 @@ impl HostCapabilities {
         }
 
         realize_user_private_devices_probe()
+    }
+
+    pub fn probe_user_directives(properties: &[(String, String)]) -> Result<Self> {
+        let mut capabilities = with_systemd_version(Self::probe_user()?)?;
+        let key = format!(
+            "uid:{}:systemd:{}",
+            unsafe { libc::geteuid() },
+            capabilities.systemd_version
+        );
+        let cache = USER_VERIFY_CACHE.get_or_init(|| Mutex::new(BTreeMap::new()));
+        let mut cache = cache
+            .lock()
+            .expect("user verify cache mutex is not poisoned");
+        let rejected = match cache.get(&key) {
+            Some(rejected) => rejected.clone(),
+            None => {
+                let rejected = verify_directives(properties)?;
+                cache.insert(key, rejected.clone());
+                rejected
+            }
+        };
+        capabilities.unsupported_directives.extend(rejected);
+        Ok(capabilities)
+    }
+
+    pub fn unsupported_directive_reason(&self, name: &str) -> Option<&str> {
+        self.unsupported_directives.get(name).map(String::as_str)
     }
 }
 
@@ -289,6 +328,114 @@ fn realize_user_private_devices_probe() -> Result<HostCapabilities> {
     )
 }
 
+fn verify_directives(properties: &[(String, String)]) -> Result<BTreeMap<String, String>> {
+    let mut unit = tempfile::Builder::new()
+        .suffix(".service")
+        .tempfile()
+        .context("creating systemd-analyze verify capability probe unit")?;
+    writeln!(unit, "[Service]")?;
+    let offered = properties
+        .iter()
+        .cloned()
+        .chain(
+            ALL_USER_DIRECTIVES
+                .iter()
+                .map(|name| ((*name).into(), "yes".into())),
+        )
+        .collect::<BTreeMap<_, _>>();
+    for (name, value) in offered {
+        writeln!(unit, "{name}={value}")?;
+    }
+    unit.flush()?;
+    let output = Command::new("systemd-analyze")
+        .args(["--user", "verify"])
+        .arg(unit.path())
+        .output()
+        .context("running systemd-analyze --user verify for capability probe")?;
+    let diagnostics = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rejected = rejected_directives(&diagnostics);
+    if output.status.success() || !rejected.is_empty() {
+        return Ok(rejected);
+    }
+    bail!(
+        "systemd-analyze --user verify failed while probing generated directives: {}",
+        diagnostics.trim()
+    )
+}
+
+const ALL_USER_DIRECTIVES: &[&str] = &[
+    "AmbientCapabilities",
+    "BindPaths",
+    "BindReadOnlyPaths",
+    "CacheDirectory",
+    "CacheDirectoryMode",
+    "CapabilityBoundingSet",
+    "ConfigurationDirectory",
+    "ConfigurationDirectoryMode",
+    "DeviceAllow",
+    "DevicePolicy",
+    "Environment",
+    "ExecStart",
+    "ExecStartPre",
+    "KillSignal",
+    "LockPersonality",
+    "LogsDirectory",
+    "LogsDirectoryMode",
+    "MemoryDenyWriteExecute",
+    "NoNewPrivileges",
+    "PrivateDevices",
+    "PrivateNetwork",
+    "PrivatePIDs",
+    "PrivateTmp",
+    "PrivateUsers",
+    "ProtectControlGroups",
+    "ProtectHome",
+    "ProtectKernelLogs",
+    "ProtectKernelModules",
+    "ProtectKernelTunables",
+    "ProtectSystem",
+    "RestrictAddressFamilies",
+    "RestrictSUIDSGID",
+    "RuntimeDirectory",
+    "RuntimeDirectoryMode",
+    "Slice",
+    "SocketBindAllow",
+    "SocketBindDeny",
+    "Sockets",
+    "StateDirectory",
+    "StateDirectoryMode",
+    "SystemCallFilter",
+    "TemporaryFileSystem",
+    "Type",
+];
+
+fn rejected_directives(diagnostics: &str) -> BTreeMap<String, String> {
+    diagnostics
+        .lines()
+        .filter_map(|line| {
+            let name = line
+                .split_once("Unknown assignment: ")
+                .and_then(|(_, assignment)| assignment.split_once('=').map(|(name, _)| name))
+                .or_else(|| {
+                    line.split_once("Unknown lvalue '")
+                        .and_then(|(_, rest)| rest.split_once('\'').map(|(name, _)| name))
+                })
+                .or_else(|| {
+                    line.split_once("Unknown key name '")
+                        .and_then(|(_, rest)| rest.split_once('\'').map(|(name, _)| name))
+                })?;
+            Some((
+                name.to_owned(),
+                format!("user manager rejected {name}= (systemd-analyze --user verify: {line})"),
+            ))
+        })
+        .collect()
+}
+
 fn probe_shell(probe: &str) -> Result<&'static str> {
     ["/bin/sh", "/run/current-system/sw/bin/sh"]
         .into_iter()
@@ -342,5 +489,15 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("must be auto, supported, or unsupported"));
+    }
+
+    #[test]
+    fn extracts_each_rejected_directive_from_verify_output() {
+        let rejected = rejected_directives(
+            "Unknown assignment: PrivatePIDs=yes\n/tmp/probe:4: Unknown key name 'ProtectHome' in section 'Service'\n",
+        );
+        assert_eq!(rejected.len(), 2);
+        assert!(rejected.contains_key("PrivatePIDs"));
+        assert!(rejected.contains_key("ProtectHome"));
     }
 }

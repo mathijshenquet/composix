@@ -29,3 +29,10 @@ acceptance test (its GAPS bullet flips on landing).
 Adopted 2026-08-04 at v2: role dirs anywhere including beneath
 artifact-projected paths; RO projection mounts before nested RW role
 mounts; validator lifted; wallos /var/www is the acceptance test.
+
+## Changelog
+
+- 2026-08-05 — The unit compiler emits artifact `BindReadOnlyPaths=` before
+  nested role `BindPaths=`. This preserves the decision's mount ordering with
+  the conventional systemd property order; the mount validator continues to
+  reject nested artifact projections but no longer rejects role descendants.

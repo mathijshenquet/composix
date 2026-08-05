@@ -1,5 +1,147 @@
 # cix-run work log
 
+## track/cip98
+
+- 2026-08-05 UTC — Focused `cargo test -p cix-run`, Wallos Cixfile format
+  validation, corpus-browser regeneration, and the progressive VM selector
+  (including `scenario-dirs2`) exited 0 synchronously. Wallos' full build is
+  blocked before evaluation because this checkout has no fetched `context/`
+  source. A first full workspace run found a pre-existing-looking
+  `fetch_probe_cleanup` scratch race; its isolated retry exited 0. Do not
+  count the workspace or tour gates yet: an interrupted tour regeneration
+  removed generated pages, so regenerate it foreground and then rerun the
+  full workspace suite foreground before claiming green.
+
+- 2026-08-05 UTC — Re-ran the short agent checks foreground with observed
+  exit 0: `cargo test -p cix-run`; `cargo fmt --all --check`; `cargo run --
+  fmt --check examples`; warning-denied workspace/all-target clippy; and
+  corpus-browser regeneration. The progressive VM selector also exited 0 and
+  selected `scenario-dirs2`. The generator's Wallos build still cannot start
+  without its intentionally absent fetched context. The long full-workspace
+  and tour gates remain unreceipted: this environment kills each foreground
+  command at 30 seconds, and the tour renderer needs longer. Its generated
+  pages were restored after each forced interruption. Do not call this track
+  green until those two commands complete with observed exit 0.
+
+- 2026-08-05 UTC — Fetched Wallos with `bash corpus/migrate/fetch.sh wallos`
+  (exit 0) and built `corpus/migrate/docker/wallos#wallos` (exit 0;
+  `/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos`). Per the
+  approved explicit-status pattern, the first background full-workspace gate
+  recorded `101` in `.dev/scratch/cip98-workspace.exit`; its only failure was
+  the expected corpus-browser drift caused by now-present Wallos context.
+  Regenerated the browser and its normal corpus drift test exited 0. Next:
+  commit the lock/browser update, then rerun workspace and tour gates with
+  captured numeric statuses.
+
+- 2026-08-05 UTC — Final gate receipts use the approved explicit exit-status
+  capture in ignored `.dev/scratch/`: `cargo test -p cix --test tour --
+  --ignored generate_tour` recorded `0`; `cargo test -p cix --test tour`
+  recorded `0`; and `cargo test --workspace --quiet -- --test-threads=1`
+  recorded `0`. The serial setting is the established protection for this
+  host's user-manager test race. Alongside the prior synchronous 0 receipts
+  (fmt, examples fmt, warning-denied clippy, corpus generation/drift,
+  cix-run suite, progressive VM selector, Wallos fetch and build), the CIP-98
+  agent tier is genuinely green.
+
+- 2026-08-05 UTC — Independent full gate correctly rejected the prior green
+  claim: the exact focused reproduction `nix build
+  .#checks.x86_64-linux.scenario-dirs2 --no-link -L` recorded `1` in
+  `.dev/scratch/cip98-dirs2-repro.exit`. systemd could not create
+  `/var/www/db` through the read-only artifact bind. Fixed Cixfile codegen to
+  create every declared writable role path in the artifact at build time, and
+  made the raw VM item model the same generated artifact shape. The first
+  retry reached the fixed namespace but exposed a missing coreutils reference
+  in the new fixture; corrected it. The final exact same focused command
+  recorded `0` in `.dev/scratch/cip98-dirs2-fixed2.exit`: the service started,
+  wrote both nested paths, and the purge listed both mirrored backings. Next:
+  commit the fix and repeat the complete agent gate tier.
+
+- 2026-08-05 UTC — After regenerating the one affected tour page, the fresh
+  explicit final workspace receipt in `.dev/scratch/cip98-workspace-final2.exit`
+  is `0` for `cargo test --workspace --quiet -- --test-threads=1`. The focused
+  `scenario-dirs2` receipt remains `0`; fmt, examples fmt, warning-denied
+  clippy, and tour regeneration are also 0. CIP-98 is green again on the
+  corrected head.
+
+- 2026-08-05 UTC — Started CIP-98 after reading its adopted decision and the
+  current project context. The collision is the cix-run mount/role overlap
+  validator plus property emission order. Conventional implementation choice:
+  preserve the existing no-nested-artifact-projection rule, lift only its
+  role-directory overlap check, and emit artifact read-only binds before role
+  read-write binds. Wallos is restored to `/var/www` with `db` and logos as
+  nested state roles; `scenario-dirs2` gains the runtime regression. Next:
+  format, run focused Rust/Nix checks, then the prescribed synchronous gates.
+## track/cip97
+
+- 2026-08-05 UTC — Started CIP-97 after reading the accepted decision, track
+  spec, design D13/D36, and the existing runner capability/fallback seams.
+  The implementation will use one `systemd-analyze --user verify` batch over
+  generated directives, cache by manager identity/version for the process,
+  and retain runtime diagnostic fallback as the belt-and-braces path. The
+  conventional open implementation choice is a process-local cache: manager
+  identity and version cannot change during one cix invocation, while a
+  persistent cache would require invalidation and ownership policy not decided
+  by the CIP. Next: replace set-wide user fallback with directive-specific
+  probing and add a VM scenario assertion.
+
+- 2026-08-05 UTC — Implemented the user-manager batched verifier: it writes a
+  `.service` probe and runs `systemd-analyze --user verify`, recognizes the
+  diagnostic forms used by old and new systemd, caches rejected directives by
+  uid+manager version for this process, and rebuilds the unit omitting exactly
+  those properties. The old runtime diagnostic path now also retries an exact
+  Unknown-assignment omission before the D13 whole-floor fallback. Unit tests
+  prove a PrivatePIDs rejection preserves ProtectSystem, ProtectHome, and
+  PrivateTmp; the real user-manager integration test passed. Synchronous
+  receipts so far: `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  cargo test -p cix-run --lib`; `devenv shell -- cargo test -p cix-run --test
+  user_run`; and `devenv shell -- cargo clippy -p cix-run --all-targets -- -D
+  warnings` (all exit 0). Next: add the required VM scenario contract and run
+  the complete track gate tier.
+
+- 2026-08-05 UTC — Additional synchronous receipts: serial full workspace
+  tests (`devenv shell -- cargo test --workspace --quiet -- --test-threads=1`),
+  canonical examples formatting (`devenv shell -- cargo run -- fmt --check
+  examples`), and warning-denied workspace/all-target clippy all exited 0.
+  A concurrent `track/cip98` tour regeneration deleted this worktree's tracked
+  tour pages; after that foreign process exited, restored exactly `docs/tour/`
+  from this branch's HEAD. No tour or VM receipt is claimed from that raced
+  invocation. Next: commit the implementation; the remaining prescribed
+  tour/VM receipts must be serialized by the orchestrator.
+
+- 2026-08-05 UTC — Focused VM gate receipt captured by the sanctioned
+  `.gate-exit` pattern: `devenv shell -- nix run .#progressive-vm-check`
+  recorded the exact numeric status `0` in `.gate-exit`. The selector ran for
+  this head against `c0c95218b2214ad4cc385a4f767788992c632a58` and selected
+  all 14 changed scenarios. Removed the ignored receipt file only after
+  reading its `0`; the branch is ready for handoff.
+
+- 2026-08-05 UTC — Independent source-size gate found `runtime.rs` at 2041
+  LOC (limit 2000). Moved the granular-degradation mechanics into the new
+  `degradation` stratum and registered it in the crate module map; runtime is
+  now 1969 LOC. Synchronous focused receipts: fmt check, cix-run library
+  tests, and warning-denied cix-run all-target clippy exited 0. Next: repeat
+  the complete agent tier, including serialized tour and captured focused VM.
+
+- 2026-08-05 UTC — Full-tier workspace-test receipt is blocked by concurrent
+  devenv lock validation (regen3 and cip98 shells). Two captured launches did
+  not survive long enough to write `.gate-exit`; the exact final line in
+  `/tmp/cip97-workspace-gate.log` was `• Validating lock`, and no lingering
+  devenv/Cargo/gate-shell process remained to terminate. Do not claim a
+  workspace, tour, or focused-VM receipt until an uncontended captured launch
+  records a numeric exit status.
+
+- 2026-08-05 UTC — Complete post-split agent tier is green with synchronous
+  terminal receipts: `cargo fmt --all --check`; `cargo run -- fmt --check
+  examples`; `cargo clippy --workspace --all-targets -- -D warnings`; serial
+  `cargo test --workspace --quiet -- --test-threads=1` (exit 0); explicit tour
+  regeneration and tour drift (`cargo test -p cix --test tour -- --ignored
+  generate_tour`, then `cargo test -p cix --test tour`, both exit 0); and
+  `devenv shell -- nix run .#progressive-vm-check` (exit 0). The VM selector
+  chose all 14 derivation-changed scenarios. An earlier selector exit 1 was a
+  `scenario-health` activation failure during three-way VM contention; the
+  exclusive rerun passed all selected scenarios. `runtime.rs` remains 1969
+  LOC, below the 2000 source-size limit.
+
 ## track/stopdispo
 
 - 2026-08-05 UTC — Post-merge gate found that `ComposeService` lacked the

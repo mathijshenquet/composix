@@ -56,14 +56,13 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / wallos</nav>
   <h1>docker / wallos</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶⌛ Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added; the forced /app relocation reverts once CIP-98 (artifact-root collision, adopted) is implemented · <strong>Evidence:</strong> runtime probe + cold build</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 Main web/state/update behavior is live; cron is omitted, nginx/PHP-FPM remain in-unit, readiness is undeclared, and a probe-only listener is added; CIP-98 restores upstream&#39;s /var/www with nested state roles, pending regeneration · <strong>Evidence:</strong> runtime probe + cold build</p>
   <p class="status"><strong>Receipt status:</strong> The complete app/state assembly builds cold and the independent /health.php probe returns OK · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/wallos/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@e1978b6 · gpt-5.6-luna · 2026-08-04 · <strong>Status:</strong> stale — regenerate with CIP-98</p>
     <ul>
-      <li>The application webroot is <code>/app</code> rather than upstream <code>/var/www</code> because the latter collides with Cix&#39;s artifact mount and cannot contain the declared state descendants. → language (artifact-root/role-path collision)</li>
       <li>The wrapper still starts and supervises PHP-FPM and nginx inside one service; splitting those processes into compose members remains unattempted. → case</li>
       <li>Upstream&#39;s <code>dcron</code> service and <code>/etc/cron.d/cronjobs</code> schedule are not activated, so only the startup maintenance jobs run. → case</li>
       <li>Nginx/PHP-FPM file logs dissolve into journald, and the absent cron process means its file logs are absent too. → case</li>
@@ -672,23 +671,21 @@ Retrieved: 2026-07-31
   <span class="tok-directive">COPY</span> startup.cix.sh startup.sh
   <span class="tok-directive">RUN</span> &lt;&lt;ASSEMBLE
 <span class="tok-heredoc">rm -f nginx.conf nginx.default.conf</span>
-<span class="tok-heredoc">rm -rf db images/uploads/logos</span>
-<span class="tok-heredoc">ln -s /data/db db</span>
-<span class="tok-heredoc">ln -s /data/logos images/uploads/logos</span>
+<span class="tok-heredoc">mkdir -p db images/uploads/logos</span>
 <span class="tok-directive">ASSEMBLE</span>
 
 <span class="tok-directive">SERVICE</span> wallos
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.nginx}</span> <span class="tok-interpolation">${pkgs.php83}</span>
-  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /app
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${app}</span>/ /var/www
   <span class="tok-directive">COPY</span> nginx.cix.conf /etc/nginx/nginx.conf
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${pkgs.nginx}</span>/conf/mime.types /etc/nginx/mime.types
   <span class="tok-directive">COPY</span> php-fpm.cix.conf /etc/wallos/php-fpm.conf
-  <span class="tok-directive">START</span> bash /app/startup.sh
+  <span class="tok-directive">START</span> bash /var/www/startup.sh
   <span class="tok-directive">PORT</span> http = 80
   <span class="tok-directive">PORT</span> probe = 18092
   <span class="tok-directive">CLAIM</span> egress
-  <span class="tok-directive">STATEDIR</span> /data/db
-  <span class="tok-directive">STATEDIR</span> /data/logos
+  <span class="tok-directive">STATEDIR</span> /var/www/db
+  <span class="tok-directive">STATEDIR</span> /var/www/images/uploads/logos
 </code></pre>
       </section>
       <details class="file">
@@ -759,6 +756,14 @@ Retrieved: 2026-07-31
         }
       }
     },
+    &quot;a19499e6c190b3bc41f2d3738c1253d6096c5162e49fac78645b4f978a9a7384&quot;: {
+      &quot;paths&quot;: {
+        &quot;.&quot;: {
+          &quot;narHash&quot;: &quot;sha256-IY6RnvI/to+lZDRzmagKlcdfcTNH9G6c8001C7opJA0=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/n2f7dkbiqwp0m0sacd4jvzfbn5iygp92-cix-build-consumed&quot;
+        }
+      }
+    },
     &quot;a53909c3039c75faad407dad2096d591f4789b35a511f5776dff94f1142791bb&quot;: {
       &quot;paths&quot;: {
         &quot;.&quot;: {
@@ -815,26 +820,16 @@ Retrieved: 2026-07-31
       }
     },
     &quot;builder:app:2&quot;: {
-      &quot;key&quot;: &quot;b6a3a409dbfa9e10ae3ea70183c5cae6fab0975817b4364f5fc679b3fbbc7225&quot;,
+      &quot;key&quot;: &quot;764b555c7b7eed4634be0d82c3c7d6c07310b8c890914587c1ada99198405e57&quot;,
       &quot;reads&quot;: {
         &quot;.&quot;: {
           &quot;kind&quot;: &quot;directory-exists&quot;
         },
         &quot;db&quot;: {
-          &quot;kind&quot;: &quot;directory&quot;,
-          &quot;hash&quot;: &quot;fc2142cb27851ff638ea715cac7a2bc6bf06deb45794e7043481ab7a29aaff02&quot;
-        },
-        &quot;images/uploads/logos&quot;: {
-          &quot;kind&quot;: &quot;absent&quot;
+          &quot;kind&quot;: &quot;directory-exists&quot;
         }
       },
       &quot;changes&quot;: {
-        &quot;db&quot;: {
-          &quot;kind&quot;: &quot;present&quot;
-        },
-        &quot;db/wallos.empty.db&quot;: {
-          &quot;kind&quot;: &quot;absent&quot;
-        },
         &quot;nginx.conf&quot;: {
           &quot;kind&quot;: &quot;absent&quot;
         },
@@ -851,10 +846,13 @@ Retrieved: 2026-07-31
       }
     }
   },
+  &quot;builderDevEnvs&quot;: {
+    &quot;app&quot;: &quot;0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099&quot;
+  },
   &quot;outputs&quot;: {
     &quot;wallos&quot;: {
-      &quot;sourceHash&quot;: &quot;9ad7c1fa0d0589aab8ce080095d0ccdd0d14d28c878953ea897332dfe5ea0337&quot;,
-      &quot;storePath&quot;: &quot;/nix/store/c23fh8898v075npv1f3paxpw596s13fa-cix-item-wallos&quot;
+      &quot;sourceHash&quot;: &quot;88dd339f83bd59e6c365c9ecf52c3c9b94a5f8bedaa66a8bbc476f10056836b8&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/4ia5g2fz571l8hfzzgl2v2p3i2q1pjwj-cix-item-wallos&quot;
     }
   }
 }
@@ -936,12 +934,12 @@ http {
         server_name localhost;
 
         location / {
-            root /app;
+            root /var/www;
             index index.php;
         }
 
         location ~ \.php$ {
-            root /app;
+            root /var/www;
             fastcgi_pass unix:/dev/shm/wallos-cix/php-fpm.sock;
             fastcgi_index index.php;
             fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
@@ -1110,9 +1108,9 @@ wait -n &quot;$php_pid&quot; &quot;$cron_pid&quot; &quot;$nginx_pid&quot;
         <pre><code>#!/usr/bin/env bash
 set -euo pipefail
 
-cd /app
+cd /var/www
 runtime_dir=/dev/shm/wallos-cix-$$
-mkdir -p /data/db /data/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
+mkdir -p /var/www/db /var/www/images/uploads/logos/avatars &quot;$runtime_dir/nginx-client&quot; &quot;$runtime_dir/sessions&quot; &quot;$runtime_dir/nginx-proxy&quot; &quot;$runtime_dir/fastcgi-temp&quot; &quot;$runtime_dir/uwsgi-temp&quot; &quot;$runtime_dir/scgi-temp&quot;
 
 fpm_conf=&quot;$runtime_dir/php-fpm.conf&quot;
 nginx_conf=&quot;$runtime_dir/nginx.conf&quot;
@@ -1144,12 +1142,12 @@ nginx -c &quot;$nginx_conf&quot; -e stderr -g &#39;daemon off;&#39; &amp;
 NGINX_PID=$!
 
 sleep 1
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/createdatabase.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/db/migrate.php
-mkdir -p /data/logos/avatars
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updatenextpayment.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/updateexchange.php
-php -d &quot;session.save_path=$runtime_dir/sessions&quot; /app/endpoints/cronjobs/checkforupdates.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/createdatabase.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/db/migrate.php
+mkdir -p /var/www/images/uploads/logos/avatars
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updatenextpayment.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/updateexchange.php
+php -d &quot;session.save_path=$runtime_dir/sessions&quot; /var/www/endpoints/cronjobs/checkforupdates.php
 
 wait
 </code></pre>

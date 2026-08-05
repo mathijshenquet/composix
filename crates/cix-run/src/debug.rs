@@ -4,10 +4,10 @@ use anyhow::{anyhow, bail, Result};
 
 use crate::capabilities::HostCapabilities;
 use crate::config::ResolvedConfig;
+use crate::degradation::{warn_degradations, without_properties, without_user_capability_controls};
 use crate::manager::{
     capability_failure, current_uid, namespace_failure, nonce, run_transient_foreground,
-    warn_degradations, with_unit_diagnostics, without_properties, without_user_capability_controls,
-    ForegroundResult,
+    with_unit_diagnostics, ForegroundResult,
 };
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
 use crate::target::{resolve_service, ResolvedService};
@@ -74,8 +74,17 @@ pub fn debug(options: DebugOptions) -> Result<()> {
     } else {
         UnitMode::System
     };
-    let capabilities = if options.user && !target.service.has_device_claim() {
-        HostCapabilities::probe_user()?
+    let baseline = debug_definition(
+        &target.output,
+        &target.name,
+        &target.service,
+        &config,
+        mode,
+        argv.clone(),
+        &HostCapabilities::all_supported(),
+    )?;
+    let capabilities = if options.user {
+        HostCapabilities::probe_user_directives(&baseline.properties)?
     } else {
         HostCapabilities::all_supported()
     };

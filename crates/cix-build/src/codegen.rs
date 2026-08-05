@@ -1052,6 +1052,21 @@ fn artifact_directories(artifact: &Artifact) -> BTreeSet<String> {
                 .map(|parent| parent.to_string_lossy().into_owned())
         })
         .collect::<BTreeSet<_>>();
+    if artifact.kind.is_runnable() {
+        directories.extend(
+            artifact
+                .service
+                .dirs
+                .state
+                .iter()
+                .chain(&artifact.service.dirs.cache)
+                .chain(&artifact.service.dirs.logs)
+                .chain(&artifact.service.dirs.config)
+                .chain(&artifact.service.dirs.run)
+                .filter_map(|path| path.strip_prefix('/'))
+                .map(str::to_owned),
+        );
+    }
     if !artifact.imports.is_empty() {
         directories.extend(["bin".to_owned(), "etc".to_owned(), "share".to_owned()]);
     }
@@ -1363,153 +1378,4 @@ fn shell_double_quoted(value: &str) -> String {
         .replace('"', "\\\"")
         .replace('$', "\\$")
         .replace('`', "\\`")
-}
-
-#[cfg(all(test, any()))]
-mod tests {
-    use super::*;
-    use cix_cixfile::parse;
-
-    fn fixture_lock() -> LockFile {
-        LockFile {
-            inputs: BTreeMap::from([(
-                "pkgs".into(),
-                InputLock {
-                    url: "github:NixOS/nixpkgs/nixos-unstable".into(),
-                    rev: "0123456789abcdef".into(),
-                    nar_hash: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".into(),
-                    rev_count: None,
-                    last_modified: None,
-                },
-            )]),
-            artifacts: BTreeMap::new(),
-            fetches: BTreeMap::new(),
-            memo: BTreeMap::new(),
-            step_memo: BTreeMap::new(),
-            dev_envs: BTreeMap::new(),
-            builder_dev_envs: BTreeMap::new(),
-            eval_plan: None,
-            outputs: BTreeMap::new(),
-        }
-    }
-
-    #[test]
-    fn golden_cixfile_generates_expected_spec() {
-        let cixfile = parse(include_str!("../../cix-cixfile/tests/golden/Cixfile")).unwrap();
-        let actual = generate_spec_json(&cixfile).unwrap();
-        assert_eq!(
-            actual,
-            include_str!("../../cix-cixfile/tests/golden/cix-manifest.json")
-        );
-    }
-
-    #[test]
-    fn emits_kind_and_unified_copy_sources() {
-        let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\nAPP job\nCOPY ${src}/payload /bin/payload\nSTART /bin/true\n",
-        )
-        .unwrap();
-        let nix =
-            generate_nix(&cixfile, directory.path(), &fixture_lock(), "x86_64-linux").unwrap();
-        assert!(nix.contains("kind = \"app\";"), "{nix}");
-        assert!(
-            nix.contains("copy0 = \"${binders.\"src\"}/payload\";"),
-            "{nix}"
-        );
-    }
-
-    #[test]
-    fn service_manifest_omits_kind_and_app_emits_it() {
-        let service = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nSTART /bin/true\n",
-        )
-        .unwrap();
-        let spec = generate_spec_json(&service).unwrap();
-        assert!(!spec.contains("\"kind\""), "{spec}");
-        assert!(
-            spec.contains("\"PATH\": {\n      \"default\": \"bin\""),
-            "{spec}"
-        );
-
-        let app =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nAPP job\nSTART /bin/true\n")
-                .unwrap();
-        let manifest = generate_spec_json(&app).unwrap();
-        assert!(manifest.contains("\"kind\": \"app\""), "{manifest}");
-        assert!(manifest.contains("\"start\""), "{manifest}");
-        assert!(
-            manifest.contains("\"PATH\": {\n      \"default\": \"bin\""),
-            "{manifest}"
-        );
-
-        let explicit =
-            parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE web\nENV PATH=/tools/bin\nSTART /bin/true\n")
-                .unwrap();
-        let explicit_spec = generate_spec_json(&explicit).unwrap();
-        assert!(
-            explicit_spec.contains("\"default\": \"/tools/bin\""),
-            "{explicit_spec}"
-        );
-        assert!(!explicit_spec.contains("bin:/tools/bin"), "{explicit_spec}");
-    }
-
-    #[test]
-    fn absolute_artifact_destinations_keep_the_pre_d66_manifest_shape() {
-        let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE fixture\nCOPY payload /share/payload\nFILE /etc/fixture.conf <<EOF\nvalue\nEOF\nLINK /nix/store/tool /bin/tool\nSTART /bin/tool\n",
-        )
-        .unwrap();
-        assert_eq!(cixfile.artifacts["fixture"].copies[0].dst, "share/payload");
-        assert!(matches!(
-            &cixfile.artifacts["fixture"].assembly[..],
-            [Assembly::File { dst: file, .. }, Assembly::Link { dst: link, .. }]
-                if file == "etc/fixture.conf" && link == "bin/tool"
-        ));
-        let manifest = generate_spec_json(&cixfile).unwrap();
-        let before_d66 = r#"{
-  "cixManifest": 0,
-  "env": {
-    "PATH": {
-      "default": "bin"
-    }
-  },
-  "start": [
-    "/bin/tool"
-  ],
-  "mounts": [
-    "/bin/tool",
-    "/etc/fixture.conf",
-    "/share/payload"
-  ]
-}
-"#;
-        assert_eq!(manifest, before_d66);
-    }
-
-    #[test]
-    fn remote_source_from_is_pinned_and_exposed_as_a_tree() {
-        let directory = tempfile::tempdir().unwrap();
-        let cixfile = parse(
-            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM github:owner/repository/deadbeef AS src\nSERVICE data\nCOPY ${src}/payload /payload\nSTART /bin/true\n",
-        )
-        .unwrap();
-        let mut lock = fixture_lock();
-        lock.inputs.insert(
-            "src".into(),
-            InputLock {
-                url: "github:owner/repository/deadbeef".into(),
-                rev: "deadbeef".into(),
-                nar_hash: "sha256-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=".into(),
-                rev_count: None,
-                last_modified: None,
-            },
-        );
-        let nix = generate_nix(&cixfile, directory.path(), &lock, "x86_64-linux").unwrap();
-        assert!(nix.contains("\"src\" = input1Source;"), "{nix}");
-        assert!(
-            nix.contains("copy0 = \"${binders.\"src\"}/payload\";"),
-            "{nix}"
-        );
-    }
 }

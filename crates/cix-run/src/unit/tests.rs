@@ -1,3 +1,4 @@
+
 use crate::spec::{Service, Spec};
 
 use super::*;
@@ -471,6 +472,32 @@ fn unsupported_user_host_drops_private_devices_once() {
 }
 
 #[test]
+fn verify_rejection_drops_only_its_directive() {
+    let (spec, config) = fixture();
+    let mut capabilities = HostCapabilities::all_supported();
+    capabilities
+        .unsupported_directives
+        .insert("PrivatePIDs".into(), "synthetic verify rejection".into());
+    let compiled = compile_unit_for_host(
+        Path::new("/nix/store/00000000000000000000000000000000-web"),
+        "web",
+        service(&spec),
+        &config,
+        UnitMode::UserFull,
+        &UnitCompileOptions::cix_run("web"),
+        &capabilities,
+    )
+    .unwrap();
+
+    assert!(!compiled.text.contains("PrivatePIDs="));
+    assert!(compiled.text.contains("ProtectSystem=strict"));
+    assert!(compiled.text.contains("ProtectHome=yes"));
+    assert!(compiled.text.contains("PrivateTmp=yes"));
+    assert_eq!(compiled.degradations.len(), 1);
+    assert_eq!(compiled.degradations[0].property, "PrivatePIDs=yes");
+}
+
+#[test]
 fn runtime_directories_do_not_trigger_persistent_directory_fallback() {
     let spec = Spec::from_slice(
         br#"{"cixManifest":0,"start":["bin/worker"],"dirs":{"run":["/run/worker"]}}"#,
@@ -584,6 +611,44 @@ fn system_units_project_existing_mounts_without_cix_app() {
         .properties
         .iter()
         .any(|(name, _)| name == "PrivatePIDs"));
+}
+
+#[test]
+fn artifact_projection_precedes_nested_role_mounts() {
+    let output = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(output.path().join("var/www/images/uploads/logos")).unwrap();
+    let spec = Spec::from_slice(
+        br#"{
+                "cixManifest": 0,
+                "start": ["/nix/store/00000000000000000000000000000000-worker/bin/worker"],
+                "mounts": ["/var/www"],
+                "dirs": {
+                    "state": ["/var/www/db", "/var/www/images/uploads/logos"]
+                }
+            }"#,
+    )
+    .unwrap();
+    let service = service(&spec);
+    let config = ResolvedConfig::resolve(service, &[], &[]).unwrap();
+    let definition =
+        build_unit(output.path(), "worker", service, &config, UnitMode::System).unwrap();
+
+    let projection = definition
+        .properties
+        .iter()
+        .position(|(name, value)| {
+            name == "BindReadOnlyPaths"
+                && value == &format!("{}/var/www:/var/www", output.path().display())
+        })
+        .unwrap();
+    let state = definition
+        .properties
+        .iter()
+        .position(|(name, value)| {
+            name == "BindPaths" && value == "/var/lib/cix-run-worker/var/www/db:/var/www/db"
+        })
+        .unwrap();
+    assert!(projection < state, "{:#?}", definition.properties);
 }
 
 #[test]

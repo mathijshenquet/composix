@@ -255,6 +255,10 @@ pub(crate) fn build_unit_with_options(
         .join(" ");
     properties.push(("LogExtraFields".into(), log_fields));
 
+    if mode == UnitMode::System || options.closed_root.is_some() {
+        add_mounts(&mut properties, output, service)?;
+    }
+
     crate::directories::add_properties(
         &mut properties,
         &format!("{}-{service_name}", options.naming.directory_prefix),
@@ -262,10 +266,6 @@ pub(crate) fn build_unit_with_options(
         mode != UnitMode::System,
         mode != UnitMode::UserDegraded,
     );
-
-    if mode == UnitMode::System || options.closed_root.is_some() {
-        add_mounts(&mut properties, output, service)?;
-    }
 
     if mode == UnitMode::System {
         properties.push(("DynamicUser".into(), "yes".into()));
@@ -618,6 +618,16 @@ fn apply_host_capabilities(
         }
     }
 
+    for (name, value) in properties.clone() {
+        if let Some(reason) = capabilities.unsupported_directive_reason(&name) {
+            properties.retain(|(candidate, _)| candidate != &name);
+            degradations.push(UnitDegradation {
+                property: format!("{name}={value}"),
+                reason: reason.into(),
+            });
+        }
+    }
+
     degradations
 }
 
@@ -911,7 +921,6 @@ fn unit_value(value: &str) -> String {
     value.replace('%', "%%")
 }
 
-#[cfg(test)]
 #[cfg(test)]
 #[path = "unit/tests.rs"]
 mod tests;
