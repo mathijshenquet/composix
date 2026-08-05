@@ -1,2 +1,2 @@
 line 4: package attribute path ".hello" is malformed; use ${pkgs.<dot-separated-attrpath>}
-  | "LINK ${pkgs..hello}/bin/hello /bin/hello"
+  | "COPY ${pkgs..hello}/bin/hello /bin/hello"

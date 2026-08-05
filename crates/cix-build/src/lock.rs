@@ -103,10 +103,6 @@ pub struct FetchPin {
     /// Automatic pins cover only paths that later consumers can observe.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub paths: BTreeMap<String, String>,
-    /// Legacy replay path. New locks keep replay snapshots in the local cache,
-    /// keyed by the stable pin, so volatile workspace bytes cannot churn locks.
-    #[serde(rename = "storePath", default, skip_serializing)]
-    pub store_path: Option<String>,
     /// Facts from an explicit --update-lock double-fetch probe; never a filter.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub volatile: BTreeMap<String, VolatilePath>,
@@ -127,7 +123,6 @@ impl FetchPin {
             nar_hash,
             snapshot_nar_hash: String::new(),
             paths: BTreeMap::new(),
-            store_path: None,
             volatile: BTreeMap::new(),
         }
     }
@@ -137,7 +132,6 @@ impl FetchPin {
             nar_hash: String::new(),
             snapshot_nar_hash: String::new(),
             paths: BTreeMap::new(),
-            store_path: None,
             volatile: BTreeMap::new(),
         }
     }
@@ -165,16 +159,6 @@ impl FetchPin {
 pub struct MemoEntry {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub paths: BTreeMap<String, ConsumedPath>,
-    #[serde(
-        rename = "outputNarHash",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub legacy_output_nar_hash: Option<String>,
-    #[serde(rename = "storePath", default, skip_serializing_if = "Option::is_none")]
-    pub legacy_store_path: Option<String>,
-    #[serde(rename = "wallMs", default, skip_serializing_if = "Option::is_none")]
-    pub legacy_wall_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -772,13 +756,6 @@ impl LockFile {
                     );
                 }
             }
-            if let Some(path) = &pin.store_path {
-                if !path.starts_with("/nix/store/") {
-                    bail!(
-                        "lock FETCH pin {name:?}.storePath must be a Nix store path, got {path:?}"
-                    );
-                }
-            }
         }
         for (builder, key) in &self.builder_dev_envs {
             if !self.dev_envs.contains_key(key) {
@@ -798,18 +775,6 @@ impl LockFile {
                         "lock memo {key:?}.paths[{path:?}].storePath must be a Nix store path, got {:?}",
                         consumed.store_path
                     );
-                }
-            }
-            if let Some(hash) = &entry.legacy_output_nar_hash {
-                if !hash.starts_with("sha256-") {
-                    bail!(
-                        "lock memo {key:?}.outputNarHash must be an SRI sha256 hash, got {hash:?}"
-                    );
-                }
-            }
-            if let Some(path) = &entry.legacy_store_path {
-                if !path.starts_with("/nix/store/") {
-                    bail!("lock memo {key:?}.storePath must be a Nix store path, got {path:?}");
                 }
             }
         }

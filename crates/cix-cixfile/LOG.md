@@ -1,5 +1,51 @@
 # Cixfile track work log
 
+- 2026-08-05T12:35:00Z — Completed CIP-107’s independent prune and the full
+  agent-side gate. Captured exit-0 receipts: `cargo fmt --all --check`, `cix
+  fmt --check examples`, warning-denied workspace clippy, full `cargo test
+  --workspace -- --test-threads=1`, ignored tour regeneration plus both tour
+  drift checks, corpus browser/drift tests, and the bounded
+  `nix --max-jobs 2 --cores 2 run .#progressive-vm-check` (all fourteen
+  selected scenarios). `git diff --check` also exited 0. The first VM command
+  placed the resource flags after `nix run` and correctly exited 2 with its
+  usage message; the corrected invocation above is the receipt. Final static
+  recount finds zero persisted legacy memo fields, zero live LINK directives,
+  and 16 automatic FetchPin pins: the final category stays by design because
+  Directus regeneration still exits 1 (volatile source plus missing offline
+  pnpm metadata), documented in its receipt/browser page.
+
+- 2026-08-05T12:28:00Z — Implemented the independent CIP-107 prune: removed
+  `MemoEntry` legacy fields/read branches and `FetchPin::store_path`, removed
+  CLI `--no-cache`, deleted the formatter’s leading-`FETCH EXPECT` rewrite,
+  migrated all five current LINK Cixfiles plus README/test fixtures to COPY,
+  and converted LINK to a rejection with its `docs/cixfile.md#link` teaching
+  diagnostic. The Directus receipt records the failed regeneration; no corpus
+  lock is changed. Synchronous focused receipts: `cargo fmt --all` exit 0;
+  `cargo check -p cix-build -p cix-cixfile -p cix-run` exit 0; diagnostics
+  test exit 0; full `cargo test -p cix-cixfile -- --test-threads=1` exit 0
+  (8 unit, 1 diagnostic, 4 formatter, 34 lock/Nix, 34 parser, and 2 proj1
+  tests). Next: complete the prescribed full agent tier and bounded focused VM.
+
+- 2026-08-05T12:12:00Z — Recounted 16 legacy whole-tree `narHash` pins across
+  ten locks and five live LINK Cixfiles (the audit’s 18/9 and 7 exhibit counts
+  are stale). Restored Directus’s ignored pinned source context, then ran the
+  targeted `cix build corpus/migrate/docker/directus --update-lock build` in a
+  foreground PTY. Its update probe found volatile
+  `node_modules/.modules.yaml` (same size, changed bytes) and the build exited
+  1 when offline `pnpm deploy` lacked cached `tsdown` metadata. Per CIP-107,
+  leave whole-tree `FetchPin.narHash` support and all such lock evidence
+  intact; continue only with independent zero-exhibit support removal.
+
+- 2026-08-05T12:00:00Z — Started `track/cip107-prune`. Read the assigned
+  specification, CIP-107, audit P1 evidence, project decision registry, and
+  this crate journal. Scope is the remaining alpha-surface prune: recount and
+  delete zero-exhibit legacy lock/cache/formatter branches; migrate live LINK
+  exhibits before rejecting LINK; regenerate every whole-tree FetchPin exhibit
+  before removing its support; retain teaching diagnostics; then complete the
+  prescribed synchronous agent gate tier and bounded focused VM receipt.
+  Development commands will run through `devenv shell` because this shell has
+  no active direnv export.
+
 - 2026-08-05T06:15:00Z — Implemented CIP-100 and CIP-96. Parser accepts
   `ENV NAME=value` (including quoted values), `ENV NAME required`, and bare
   optional `ENV NAME`; spaced assignments teach `ENV NAME=value`, and a

@@ -33,9 +33,6 @@ pub enum Command {
         /// Permit host-configured FETCH credentials without an interactive consent prompt (CI only).
         #[arg(long)]
         allow_secret: bool,
-        /// Deprecated alias for --cold.
-        #[arg(long)]
-        no_cache: bool,
         /// Emit stable machine-readable per-step execution statistics.
         #[arg(long)]
         stats: bool,
@@ -72,21 +69,17 @@ impl Command {
                 cold,
                 keep_scratch,
                 allow_secret,
-                no_cache,
                 stats,
                 workspace_directory,
             } => {
                 cix_build::configure_scratch(keep_scratch);
                 cix_build::install_signal_cleanup();
-                if no_cache {
-                    eprintln!("warning: --no-cache is deprecated; use --cold");
-                }
                 let (directory, selector) = parse_build_target(&dir)?;
                 let options = BuildOptions {
                     directory,
                     update_lock,
                     tag: None,
-                    cold: cold || no_cache,
+                    cold,
                     allow_secret,
                     workspace_directory,
                     state_directory: state_directory.to_owned(),
