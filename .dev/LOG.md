@@ -1,5 +1,49 @@
 # composix work log
 
+## 2026-08-05 evening (pipeline complete: 17 merges; language epoch designed; expansion wave launched)
+
+- **Since the midday entry, merged behind value-checked full gates**:
+  cip108-guardrails (module-map gate check — which immediately caught
+  cip106's new crate), cip107-prune (LINK removed, −106 net lines,
+  whole-tree-pin leg honestly kept), cip106-docharness (one-render
+  drift, harness split — the day's ONE ungated merge: my chain tested
+  grep-line-presence, not the captured value; fixed forward in
+  minutes, value-check canon now in CLAUDE.md), cip93b (CIP-93 leg 2:
+  contract-keyed selector, build-subsystem diffs 14 VMs/635s -> 0/11s
+  = 98.2%), cip99-lockscale (parse-server 197,888->54,915 lock lines;
+  repo −376k lines), regen4 (wave-4: adminer/nginx STOPSIGNAL-regen
+  all-0, wallos on CIP-98 /var/www, caddy+filestash walls proven
+  environment-tainted, filestash's real wall is lock-scale),
+  cip103-workspace (Workspace owner, build_chain 4369->2496 live
+  across the day). CIP-109 probe-url adopted ("ja go").
+- **Language epoch designed in-session** (chat rounds with Mathijs,
+  drafts in inbox): nodes-and-edges (graph principle — steps are
+  nodes, dataflow is cix-owned edges; argv-first, one command per
+  node, heredoc-only structural form, LET/ARG + per-node WITH with
+  LET-pull, builder-ENV banned/leaf-ENV stays, adjacency clauses,
+  session-shells rejected with the memo/verification arguments,
+  corpus-measured 20/12 ENV split as evidence), phase-blocks ({ }
+  Caddyfile/HCL lineage), build-args v3. Inbox: those three; probe-url
+  implementation queued.
+- **Expansion wave launched** (Mathijs's ask): homer, it-tools,
+  mailpit staged cold from CANDIDATES (orchestrator bootstrap: pinned
+  clones, SOURCE, per-case check.sh authoring in the TASK), lunas
+  running with the new FRICTION-journal requirement.
+- **C2 hardening (Mathijs-driven)**: delivery matrix verified by luna
+  experiment (codex TUI only: \n = soft steer at next tool-call
+  boundary, \t = queue to turn end, Esc = hard interrupt);
+  agent_working refusals must be read, never /dev/null'd; friction
+  journal in all specs/TASKs; worker labels cipNN-{slug}; memory
+  emptied into CLAUDE.md (versioned beats recall).
+- **Open for agents**: expansion assembly after the three lunas
+  (+homer/it-tools band continuation: ntfy/filebrowser need artifact
+  prestaging), CIP-109 implementation, cip103 MemoEngine/context/
+  FETCH legs, cip104 (after legs), wallos ProtectHome evidence wall,
+  directus lockfile wall, k8s wave 1 (needs k8s teaching prompt —
+  design), CIP-107 pin-leg (volatile regen). **Open with Mathijs**:
+  nodes-and-edges + phase-blocks + build-args (the epoch-coupling
+  call), ribbon borderline trio, tour read.
+
 ## 2026-08-05 later (eleven merges: CIP-96..98,100..103,105 implemented; wave-3; ribbon revamp; audit batch adopted)
 
 - **Merged, each behind my independent full flake-check (exit-0
