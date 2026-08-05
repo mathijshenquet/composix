@@ -1,3 +1,8 @@
+//! ## Module map
+//!
+//! Intentional module-map omission: this binary has only its cfg-gated `tests`
+//! module and routes commands directly to library crates.
+
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::Command as ProcessCommand;

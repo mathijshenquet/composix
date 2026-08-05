@@ -3,6 +3,11 @@
 //! Ownership: the index track owns ref parsing and the local tag store; the
 //! run track owns spec types. Genuinely shared pieces (store path handling,
 //! `nix` subprocess helpers) live here.
+//!
+//! ## Module map
+//!
+//! Intentional module-map omission: this crate has only its cfg-gated `tests`
+//! module, so its production code remains in this small root.
 
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
