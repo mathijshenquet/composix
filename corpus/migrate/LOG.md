@@ -18,6 +18,14 @@
 
 - Adminer staging reported that a generated `output/` directory could not be declared non-input for cold replay. The current cold receipt passed, so this is retained as a disproved staging observation rather than promoted to a false language draft. nginx staging's runtime-state lesson is adopted in `docs/migrate.md`: pid files and Unix sockets belong below declared `RUNDIR`, never `/tmp`. Wallos staging's health-probe grammar stumble is additional evidence in `cips/draft/probe-url.md`; its `ProtectHome` post-probe `203/EXEC` remains a case evidence wall.
 
+## 2026-08-05 — regen4 origin/main integration
+
+- Merged `origin/main` at `bbdc2ce`, including CIP-93 leg 2's contract-keyed progressive VM selector. The merge was clean: its selector/process files do not overlap this track's corpus, receipt, or migration-teaching changes. Next: rerun the complete agent tier with captured exit statuses; a corpus/docs-only diff is expected to select no VM scenarios under the new contract map.
+
+## 2026-08-05 — regen4 post-merge receipts
+
+- Captured exit-0 receipts: Rust fmt, canonical examples formatting, warning-denied workspace clippy, full workspace tests, and explicit tour regeneration with zero `docs/tour` drift. The contract-keyed progressive selector correctly saw the merged `nix/scenario-contracts.json` as cross-cutting rather than treating this as corpus-only: all 14 scenarios were selected and the selector/build exited 0 in 27.811 seconds. Final next step: commit this journal-only merge receipt and leave the branch clean.
+
 ## 2026-08-05 — track/cip102 start
 
 - Read the track specification, accepted CIP-102, migration and corpus maintenance guidance, and the current case ledgers. Scope is intentionally narrow: add the EXPECT mismatch teaching diagnostic, correct the FETCH teaching, and remove only the four audited volatile EXPECT declarations while preserving their RUN-level/upstream checksum verification.
