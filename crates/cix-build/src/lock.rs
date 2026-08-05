@@ -200,6 +200,12 @@ pub enum ReadDependency {
     Directory {
         hash: String,
     },
+    /// A complete, stable directory tree. Its digest covers sorted child
+    /// `(name, kind, hash)` records recursively, so it carries the same
+    /// invalidation boundary as the individual observations it replaces.
+    Subtree {
+        hash: String,
+    },
     DirectoryExists,
     Absent,
 }
@@ -212,6 +218,7 @@ impl PartialEq for ReadDependency {
             | (Self::DirectoryExists, Self::DirectoryExists)
             | (Self::Absent, Self::Absent) => true,
             (Self::Directory { hash: left }, Self::Directory { hash: right }) => left == right,
+            (Self::Subtree { hash: left }, Self::Subtree { hash: right }) => left == right,
             _ => false,
         }
     }
@@ -235,8 +242,15 @@ pub struct FileFingerprint {
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 pub enum StepChange {
     Present,
+    /// A complete changed output tree. The output snapshot remains its source
+    /// of truth; this marker lets replay operate on the tree as one root.
+    Subtree {
+        mode: u32,
+    },
     Absent,
-    Directory { mode: u32 },
+    Directory {
+        mode: u32,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
