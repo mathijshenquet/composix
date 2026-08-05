@@ -1,0 +1,33 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.glibc}
+  COPY context/package.json .
+  COPY context/pnpm-lock.yaml .
+  COPY context/pnpm-workspace.yaml .
+  ENV COREPACK_ENABLE_PROJECT_SPEC=0
+  ENV npm_config_manage_package_manager_versions=false
+  ENV CI=true
+  ENV XDG_DATA_HOME=$PWD/.cache/data
+  RUN node -e 'const fs = require("fs"); const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")); delete packageJson.packageManager; fs.writeFileSync("package.json", JSON.stringify(packageJson) + String.fromCharCode(10));'
+  FETCH pnpm fetch --frozen-lockfile
+  COPY context/ .
+  RUN node -e 'const fs = require("fs"); const packageJson = JSON.parse(fs.readFileSync("package.json", "utf8")); delete packageJson.packageManager; fs.writeFileSync("package.json", JSON.stringify(packageJson) + String.fromCharCode(10));'
+  RUN rm -rf node_modules && pnpm install --offline --frozen-lockfile && pnpm build
+  RUN mkdir -p www && cp -a dist/. www/ && cp -a dist/assets www/default-assets
+
+SERVICE homer
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.lighttpd} ${pkgs.tzdata}
+  COPY lighttpd.cix.conf /lighttpd.conf
+  COPY context/lighttpd-ipv6.sh /etc/lighttpd/ipv6.sh
+  COPY entrypoint.cix.sh /entrypoint.sh
+  COPY ${build}/www /www
+  ENV PORT=8080
+  ENV SUBFOLDER=/_
+  ENV INIT_ASSETS=1
+  ENV IPV6_DISABLE=0
+  PORT http = $PORT
+  CONFIGDIR /www/assets
+  START bash /entrypoint.sh
+  READINESS http 127.0.0.1:8080/ IN 10s
+  LIVENESS http 127.0.0.1:8080/ EVERY 30s

@@ -1,0 +1,11 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE mailpit
+  IMPORT ${pkgs.mailpit} ${pkgs.tzdata}
+  START mailpit
+  PORT smtp = 1025
+  PORT pop3 = 1110
+  PORT http = 8025
+  CLAIM egress
+  READINESS http :8025/readyz IN 10s
+  LIVENESS http :8025/livez EVERY 15s

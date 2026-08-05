@@ -1,0 +1,5 @@
+Repository: https://github.com/bastienwirtz/homer.git
+Resolved revision: 6972395b62463d4eec8ec5a1b12e60e8d482088a
+Context path: .
+Dockerfile: Dockerfile
+Natural probe: HTTP GET /

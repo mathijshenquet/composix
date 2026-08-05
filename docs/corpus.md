@@ -72,7 +72,7 @@ touched; the CIP-84 closed-root VM audits the green set exhaustively. Cases
 that dissolve entirely into nixpkgs additionally carry a Dockerfile-faithful
 twin so the page can show both translations side by side.
 
-## The living migration corpus (21)
+## The living migration corpus (24)
 
 These are the checked-in conversions under `corpus/migrate/docker/`, not a second
 historical grade set. Fidelity grades the translation; Evidence grades only the
@@ -111,6 +111,9 @@ live inside the cell prose of the case that records them.
 | 19 | Watchtower | Warm/cold artifact builds and manifest inspection pass | ✅ The socket bridge is intentionally desk/unprobed; the available CI binary is not asserted byte-identical to Docker's missing payload | M | [daemonless build receipt](../corpus/migrate/docker/watchtower/receipt.md) |
 | 20 | Whoami | Both Docker-shaped and dissolved twins build warm/cold and the HTTP probe passes | ✅ Runtime certificate/timezone layout and twin regained; the source build stays unproved because upstream never published its context — a permanent, declared evidence boundary (borderline call recorded 2026-08-05) | M | [runtime probe + cold twin builds](../corpus/migrate/docker/whoami/receipt.md) |
 | 21 | Mastodon | Fresh six-member in-place CIP-91/92 receipt: credentials, Unix edges, shared-rw state, health, timer, logs, and purge | 🔶 Declared losses — three application members are stubs and D26/D27 network segmentation is absent | M | [closed-root](#cip-84-closed-root-audit) · [modernized in-place receipt](../corpus/migrate/docker/mastodon/receipt.md) |
+| 22 | Homer | Locked pnpm/Vite source build and HTTP app-mount probe pass | ✅ The staged registry symptom was a missing CA/traced-store prerequisite; Alpine identity/layout and runtime-port interpolation deliberately dissolve | M | [runtime probe](../corpus/migrate/docker/homer/receipt.md) |
+| 23 | it-tools | One static nginx source build completed; the corrected replay exceeds the 600-second pnpm-store bound before an item | 🔶 The earlier DynamicUser nginx log failure is fixed in source, but corrected runtime evidence is still absent behind volatile lock scale | M | [build receipt](../corpus/migrate/docker/it-tools/receipt.md) |
+| 24 | Mailpit | Clean source build and degraded user-manager `/livez` probe pass | 🔶 Supported system-manager native readiness is blocked by workspace-local probe execution under `ProtectHome` | M | [build and runtime receipt](../corpus/migrate/docker/mailpit/receipt.md) |
 
 ### CIP-84 closed-root audit
 
@@ -125,7 +128,7 @@ to faithful version, entrypoint, or configuration parity. The check has an
 exhaustive directory roster, so a newly added pack or migration cannot silently
 escape classification.
 
-Ten migrations remain outside the green closed-root set. Directus, Filestash,
+Thirteen migrations remain outside the green closed-root set. Directus, Filestash,
 and Verdaccio still fail before producing a runnable item; Dozzle and Watchtower
 are refused Docker-control-plane workloads; Parse Server now has a fresh
 Mongo-backed runtime receipt but is not in the sealed-root roster. Echo Server,
@@ -133,7 +136,8 @@ Excalidraw, Wallos, and Whoami now have freshly fetched inputs and regenerated
 warm/cold evidence: Wallos and Whoami reproduce cleanly, Excalidraw's item is
 cold-stable but its supplied runner/port harness is red, and Echo Server's lost
 snapshot exposes an unchanged EXPECT mismatch. Those four are no longer
-historical one-off derivations, but none is **closed-root verified** until the
+historical one-off derivations, and the new Homer, it-tools, and Mailpit cases
+have per-case independent receipts; none is **closed-root verified** until the
 phase-2 roster actually exercises its named behavior.
 
 ## 1. Compose files in the wild (18)

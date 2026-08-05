@@ -1,0 +1,5 @@
+Repository: https://github.com/axllent/mailpit.git
+Resolved revision: af15ca76d599970cd39267b303019f3fef99351f
+Context path: .
+Dockerfile: Dockerfile
+Natural probe: GET /livez
