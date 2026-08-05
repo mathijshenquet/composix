@@ -212,7 +212,7 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ systemctl --user stop "$unit"
+$ socket=${unit%.service}-http.socket; systemctl --user stop "$socket"; systemctl --user stop "$unit"
 ```
 
 ## Connect two real item programs
