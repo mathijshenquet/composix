@@ -1,30 +1,13 @@
 # caddy migration receipt
 
-Cix refresh: 2026-07-31. Language generation: D56–D64 (`STATEDIR` and explicit artifact `bin/`).
+2026-08-05, generated `migrate.md@f474d3f` (gpt-5.6-luna). Docker mode was not rerun.
 
-Docker side: historical 2026-07-30 receipt, not rerun. Historical image ID: `sha256:339d03613a5f18e115c3c9b4ef12cc65c6bd80afaa720ce5b9ade79aa04cbe67`.
+- `./check.sh cix` — synchronous exit 0; `/nix/store/d7cc7052ivjyp1jyh9j7yq539ixpf2df-cix-item-caddy` served HTTP (D36 PrivatePIDs fallback was reported).
+- `target/debug/cix build --cold .#caddy` — synchronous exit 0; all three pinned FETCH snapshots replayed and the SHA-512 release check passed.
+- `target/debug/cix build --file Cixfile.dissolved .#caddy` — synchronous exit 0; `/nix/store/p5ccqzksw3qgnrhlmyw1pwrzv9qmdagr-cix-item-caddy`.
 
-## `./check.sh cix`
+The Cixfiles declare `80/tcp`, `443/tcp`, `443/udp`, and `2019/tcp`.
 
-```text
-cix item /nix/store/d8aiy4fv1wb3zm6b69h410kfp28q82pi-cix-item-caddy
-```
+## 2026-08-05 assembly rerun
 
-Exit status: 0. The HTTP probe passed after the existing D36 PrivatePIDs fallback.
-
-## 2026-08-04 regeneration (cold, gpt-5.6-luna)
-
-Docker mode was not rerun.
-
-```text
-devenv shell -- cargo build -p cix
-./target/debug/cix build corpus/migrate/docker/caddy
-./target/debug/cix build --file Cixfile.dissolved corpus/migrate/docker/caddy
-cd corpus/migrate/docker/caddy && CIX=/home/mathijs/worktrees/composix/track-regen1/target/debug/cix ./check.sh cix
-```
-
-All four commands completed synchronously with exit status 0. The faithful build
-produced `/nix/store/pnrn7yc3df094g759kabla8zyfqc757a-cix-item-caddy`; the
-dissolved build produced
-`/nix/store/1y2b1mhz2spkww9d1hdpz7q0m92va5si-cix-item-caddy`. The unchanged
-HTTP probe passed after the documented D36 PrivatePIDs fallback.
+`./check.sh cix` exited non-zero before assembly: Cix's sandbox FETCH returned the same 769-byte body (`sha256-XnQDFzyLvpWytEFT1E48D4X0IY4QxmuuGtje8R+jyvE=`) for distinct raw GitHub asset URLs, so the first stable EXPECT pin rejected it. Direct host curl returned the distinct raw Caddyfile/index assets. No pin was changed.

@@ -1,37 +1,32 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 
 BUILDER upstream
-  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnused} ${pkgs.gnutar} ${pkgs.gzip}
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.gzip}
   ENV CADDY_VERSION=v2.11.4
-  ENV CADDY_RELEASE=2.11.4
   ENV CADDY_ARCH=amd64
-  ENV CADDY_ARCHIVE=caddy_2.11.4_linux_amd64.tar.gz
-  ENV CADDY_SHA512=8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9
-  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-snk74Gj7SqdxRp57wVNRC0Yx8ABlamD+RqLdx4txxTE=
-  FETCH curl --fail --location --show-error https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-7/bTSAJ7EUYh+SL6S4JCrhDs5uJ8b7cJ0teM1I31UhU=
-  FETCH curl --fail --location --show-error https://github.com/caddyserver/caddy/releases/download/$CADDY_VERSION/$CADDY_ARCHIVE --output caddy.tar.gz EXPECT sha256-k42/SsWMoYwE8ExndcbKut17xC+airW1FsIpNE2kDGY=
+  FETCH curl --fail --location https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/config/Caddyfile --output Caddyfile EXPECT sha256-84v+HnEZ/9AwHhsD3ZeZ4DuCgyrw8/LEL6PTxGwsUrY=
+  FETCH curl --fail --location https://github.com/caddyserver/dist/raw/33ae08ff08d168572df2956ed14fbc4949880d94/welcome/index.html --output index.html EXPECT sha256-rBR2z6KgBLjXqhqVUKjUsqCnrUaqoig+OGdPJK2f/XM=
+  FETCH curl --fail --location https://github.com/caddyserver/caddy/releases/download/$CADDY_VERSION/caddy_2.11.4_linux_$CADDY_ARCH.tar.gz --output caddy.tar.gz EXPECT sha256-osNsyktm3O6Gcaihq7Ba6I+Ez4oTLEMNLea2mT3XnZo=
   RUN <<BUILD
-printf '%s  %s\n' "$CADDY_SHA512" caddy.tar.gz | sha512sum -c -
-sed -E 's/:80[0-9]*/:8080/g' Caddyfile > Caddyfile.normalized
-tar xzf caddy.tar.gz --no-same-owner -C . caddy
+echo '8220d1f013b6f27510247b2360c9e0ca9f018feebd82515f07635318b34ff9777ccc8fd0b6e6f2486ce3a33fe389fbb7db12d05baa474f4587509fb4f5ebf1c9  caddy.tar.gz' | sha512sum -c
+mkdir -p output/config/caddy output/data/caddy output/etc/caddy output/usr/share/caddy output/bin
+chmod 1777 output/config/caddy output/data/caddy
+tar xzf caddy.tar.gz --no-same-owner -C output/bin caddy
+cp Caddyfile output/etc/caddy/Caddyfile
+cp index.html output/usr/share/caddy/index.html
 BUILD
 
 SERVICE caddy
-  IMPORT ${pkgs.cacert} ${pkgs.mailcap}
-  FILE /etc/hosts <<HOSTS
-127.0.0.1 localhost
-::1 localhost
-HOSTS
-  COPY ${upstream}/Caddyfile.normalized /etc/caddy/Caddyfile
-  COPY ${upstream}/index.html /usr/share/caddy/index.html
-  COPY ${upstream}/caddy /bin/caddy
-  ENV CADDY_VERSION=v2.11.4
-  ENV XDG_CONFIG_HOME=/data
+  IMPORT ${pkgs.cacert}
+  COPY ${upstream}/output/bin/caddy /bin/caddy
+  COPY ${upstream}/output/etc/caddy/Caddyfile /etc/caddy/Caddyfile
+  COPY ${upstream}/output/usr/share/caddy/index.html /usr/share/caddy/index.html
+  ENV XDG_CONFIG_HOME=/config
   ENV XDG_DATA_HOME=/data
   START caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
-  PORT http = 8080
+  PORT http = 80
   PORT https = 443
   PORT https-udp = udp:443
   PORT admin = 2019
+  STATEDIR /config/caddy
   STATEDIR /data/caddy
-  CLAIM egress
