@@ -1,5 +1,14 @@
 # cix-build work log
 
+- 2026-08-05T20:11:54Z — Started `track/cip101-livelock` on the main-CI
+  regression in `fetch_probe_cleanup::sigterm_removes_live_build_scratch`.
+  Current `sweep_stale` decides solely from age, so the six-hour CIP-101
+  amendment can delete another process's active scratch. The scoped repair is
+  an on-disk owner lock held for each `ScratchDir`; the startup sweeper will
+  skip a lock it cannot acquire and retain the aggressive removal policy for
+  unlocked aged directories. Next: add real-CLI regression coverage for a
+  live aged build plus an unlocked aged directory, then run the cargo tier.
+
 - 2026-08-05T18:35:00Z — Started `track/cip103-memo`, CIP-103 leg 3. The
   branch is clean at `7adb1e8`, direnv/devenv is active, and the accepted
   decision makes the owned interface the acceptance condition: `build_chain`
@@ -644,3 +653,18 @@
   No corpus, lock, fixture, or generated-document change remains. Final state:
   source is committed; this required uncommitted LOG entry is the only
   worktree change; do not merge.
+
+- 2026-08-05T20:46:00Z — Completed `track/cip101-livelock`. `ScratchDir`
+  now holds an advisory `flock` in a `/var/tmp/.cix-scratch-locks/` (or
+  `$TMPDIR`) sidecar, so the startup sweep skips a live aged tree without
+  making the marker part of a FETCH/build output. It still reaps an aged,
+  unlocked tree and removes its stale sidecar. The real-CLI regression ages a
+  running build's actual scratch, invokes a concurrent cix startup sweep,
+  proves the tree survives, then SIGTERMs it and proves cleanup; the companion
+  test proves an unlocked dead tree plus sidecar is removed. CIP-101's
+  changelog records the amendment. Final synchronous, value-checked receipts:
+  focused `fetch_probe_cleanup` 3/3; warning-denied workspace clippy; full
+  workspace tests (including both tour checks); tour regeneration plus zero
+  drift; source-size and shared-state audits; and final bounded two-job
+  progressive selector, which selected all 14 scenarios and exited 0 in
+  688.590s. Captures are retained at `/var/tmp/cip101-livelock-receipts/`.
