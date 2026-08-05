@@ -16,3 +16,4 @@ libc.workspace = true
 tempfile = "3"
 
 [dev-dependencies]
+cix-test-support.workspace = true
