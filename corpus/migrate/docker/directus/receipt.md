@@ -29,3 +29,21 @@ production deploy: `@directus/tsconfig@4.0.0` is absent from the pinned package
 metadata cache. Its generated partial lock was reviewed and restored; the
 tracked `Cixfile.lock` SHA-256 remains
 `e40ee98df87de1bbf9a65b261c79f56987e0eb4b70ab1a3ece6a106906ea0d66`.
+
+## 2026-08-06 pnpm-wall coherence check
+
+The earlier upstream-incoherence diagnosis is disproved. The fetched
+`package.json` and `pnpm-lock.yaml` hashes exactly match git revision
+`b1d7a45a77661fd13928a53448c06649f36b56f5`. Under nixpkgs Node 22 and exact
+pnpm 10.27.0, `pnpm install --lockfile-only --frozen-lockfile
+--ignore-scripts` validated all 41 workspace projects and exited 0. A full
+install against an empty store explicitly reported “Lockfile is up to date”
+before exiting 1 at `ERR_PNPM_NO_OFFLINE_TARBALL`. Logs and value-checked
+statuses are under `/var/tmp/cix-pnpmwall-directus-current.6xD66E`.
+
+Nearby revision `d87981b99d2e7916905ac797fda79f33dc01190b` also passed the
+same full-checkout validation, exit 0; its receipt is
+`/var/tmp/cix-pnpmwall-directus-nearby.uONmCj`. A coherent revision therefore
+exists (including the current pin), and source incoherence does not gate the
+CIP-107 narHash regenerations. The separately observed offline-deploy metadata
+wall remains; no Directus item or runtime probe is claimed here.

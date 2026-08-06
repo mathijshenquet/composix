@@ -56,14 +56,14 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / directus</nav>
   <h1>docker / directus</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 A current package/lock mismatch blocks an item before deploy or probe · <strong>Evidence:</strong> build receipt</p>
-  <p class="status"><strong>Receipt status:</strong> The former loader and ENOTDIR walls are cleared; frozen offline install now stops on the stale root lockfile · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The coherent source still produces no item because the pinned fetch artifact cannot serve every deploy-time package · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>Receipt status:</strong> The former loader and ENOTDIR walls are cleared; exact pnpm validates the pinned lock and a nearby revision, while offline deploy lacks package metadata · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> stale — regenerate with CIP-107 FetchPin migration</p>
     <ul>
-      <li>Imported glibc and traced ENOTDIR both clear their former walls, but the pinned root <code>pnpm-lock.yaml</code> is stale for the copied <code>package.json</code>: offline frozen install refuses its 18 missing development specifiers before an item exists. → case</li>
+      <li>Imported glibc and traced ENOTDIR both clear their former walls. Independent Node 22/pnpm 10.27.0 validation now proves the pinned root lock is coherent for all 41 workspaces; an empty-store install passes frozen validation and then fails only because package content is absent. → case</li>
       <li>Fixed Docker numeric ownership and PM2 supervision dissolve into cix/systemd identity and service supervision. → case</li>
       <li>The 2026-08-06 <code>--update-lock build</code> retry completed FETCH and installation but the offline production deploy cannot resolve <code>@directus/tsconfig@4.0.0</code> because its package metadata is absent from the pinned cache; its whole-tree FETCH pin therefore cannot yet be regenerated. → case</li>
     </ul>
@@ -4774,6 +4774,24 @@ production deploy: `@directus/tsconfig@4.0.0` is absent from the pinned package
 metadata cache. Its generated partial lock was reviewed and restored; the
 tracked `Cixfile.lock` SHA-256 remains
 `e40ee98df87de1bbf9a65b261c79f56987e0eb4b70ab1a3ece6a106906ea0d66`.
+
+## 2026-08-06 pnpm-wall coherence check
+
+The earlier upstream-incoherence diagnosis is disproved. The fetched
+`package.json` and `pnpm-lock.yaml` hashes exactly match git revision
+`b1d7a45a77661fd13928a53448c06649f36b56f5`. Under nixpkgs Node 22 and exact
+pnpm 10.27.0, `pnpm install --lockfile-only --frozen-lockfile
+--ignore-scripts` validated all 41 workspace projects and exited 0. A full
+install against an empty store explicitly reported “Lockfile is up to date”
+before exiting 1 at `ERR_PNPM_NO_OFFLINE_TARBALL`. Logs and value-checked
+statuses are under `/var/tmp/cix-pnpmwall-directus-current.6xD66E`.
+
+Nearby revision `d87981b99d2e7916905ac797fda79f33dc01190b` also passed the
+same full-checkout validation, exit 0; its receipt is
+`/var/tmp/cix-pnpmwall-directus-nearby.uONmCj`. A coherent revision therefore
+exists (including the current pin), and source incoherence does not gate the
+CIP-107 narHash regenerations. The separately observed offline-deploy metadata
+wall remains; no Directus item or runtime probe is claimed here.
 </code></pre>
       </details>
     </section>
