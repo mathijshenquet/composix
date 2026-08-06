@@ -294,16 +294,21 @@ struct PathInfo {
     nar_hash: String,
 }
 
+/// Resolves one application-owned artifact reference to its immutable lock identity.
+pub trait ArtifactResolver {
+    fn resolve_artifact(&self, reference: &str) -> Result<ArtifactPin>;
+}
+
 /// Reads, migrates, or resolves lock entries for the Cixfile's explicit FROM inputs.
 /// `update` is None for reuse, Some(name) for one input, and Some("") for all inputs.
 pub fn ensure_lock(
-    store: &cix_index::Store,
+    resolver: &dyn ArtifactResolver,
     path: &Path,
     inputs: &BTreeMap<String, Input>,
     update: Option<&str>,
 ) -> Result<LockFile> {
     let lock = ensure_lock_with(path, inputs, update, resolve_input, |reference| {
-        resolve_artifact(store, reference)
+        resolver.resolve_artifact(reference)
     })?;
     for input in inputs
         .values()
@@ -462,16 +467,6 @@ fn read_lock(contents: &[u8]) -> Result<LockFile> {
     serde_json::from_slice(contents).context(
         "parsing Cixfile.lock; this alpha only accepts the current lock shape, rebuild with the current cix",
     )
-}
-
-fn resolve_artifact(store: &cix_index::Store, reference: &str) -> Result<ArtifactPin> {
-    let output = cix_index::resolve_with(store, reference).with_context(|| {
-        format!("resolving cix-item FROM ref {reference:?}; pull it or tag it first")
-    })?;
-    Ok(ArtifactPin {
-        store_path: output.store_path,
-        nar_hash: output.nar_hash,
-    })
 }
 
 fn verify_artifact_pin(reference: &str, pin: &ArtifactPin) -> Result<()> {

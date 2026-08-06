@@ -543,16 +543,16 @@ fn render_units(
         let mut compiled_service =
             private_service(&checked_service.spec, &checked_service.directories);
         if checked_service.pod.is_some() {
-            compiled_service.network = Some(cix_run::spec::Network::Host);
+            compiled_service.network = Some(cix_manifest::Network::Host);
         }
-        compiled_service.claims.retain(
-            |claim| !matches!(claim, cix_run::spec::Claim::Named(name) if name == "egress"),
-        );
+        compiled_service
+            .claims
+            .retain(|claim| !matches!(claim, cix_manifest::Claim::Named(name) if name == "egress"));
         compiled_service.egress = false;
         if checked_service.egress {
             compiled_service
                 .claims
-                .push(cix_run::spec::Claim::Named("egress".into()));
+                .push(cix_manifest::Claim::Named("egress".into()));
         }
         if let Some(shm) = &declaration.shm {
             compiled_service.shm = Some(shm.clone());

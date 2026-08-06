@@ -97,6 +97,7 @@
     {
       "surface": "runtime-core",
       "paths": [
+        "crates/cix-manifest/src/**",
         "crates/cix-run/src/**"
       ]
     },

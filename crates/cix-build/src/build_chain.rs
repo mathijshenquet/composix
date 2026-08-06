@@ -6,7 +6,8 @@ use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 
 use crate::evaluation::{
-    BuilderContextRequest, DevEnvironmentRequest, FetchContextRequest, NixEvaluation,
+    BuilderContextRequest, DevEnvironmentRequest, EvaluationCodegen, FetchContextRequest,
+    NixEvaluation,
 };
 use crate::fetch::HostCredentials;
 use crate::fetch_state::{FetchState, PinRefreshRequest};
@@ -35,6 +36,7 @@ pub fn execute(
     cold: bool,
     allow_secret: bool,
     workspace_directory: &Path,
+    codegen: &dyn EvaluationCodegen,
 ) -> Result<(BTreeMap<String, String>, Vec<ExecutedStep>)> {
     let mut credentials = HostCredentials::load(directory, allow_secret)?;
     let needed = consumed_paths(cixfile);
@@ -54,6 +56,7 @@ pub fn execute(
             update.is_some_and(|requested| requested.is_empty() || requested == name),
             cold,
             &mut credentials,
+            codegen,
         )?;
         binders.insert(name.clone(), view);
         executed_steps.push(ExecutedStep {
@@ -77,6 +80,7 @@ pub fn execute(
             cold,
             workspace_directory,
             &mut credentials,
+            codegen,
         )?;
         binders.insert(name.clone(), view);
         executed_steps.append(&mut executed);
@@ -97,6 +101,7 @@ fn execute_top_fetch(
     force: bool,
     cold: bool,
     credentials: &mut HostCredentials,
+    codegen: &dyn EvaluationCodegen,
 ) -> Result<(String, bool)> {
     FetchState::install_expected(lock, name, fetch.expected.as_deref(), |pin| {
         format!(
@@ -116,18 +121,21 @@ fn execute_top_fetch(
         system,
         snapshots: binders,
     };
-    let context = NixEvaluation::fetch_context(context_request)?;
+    let context = NixEvaluation::fetch_context(codegen, context_request)?;
     // Store paths are complete by store invariant (the ensure_store_path
     // assumption); realization is only needed when an offer is missing.
     if context.offers.iter().any(|path| !Path::new(path).exists()) {
-        NixEvaluation::realize_fetch_offers(FetchContextRequest {
-            cixfile,
-            name,
-            directory,
-            lock,
-            system,
-            snapshots: binders,
-        })?;
+        NixEvaluation::realize_fetch_offers(
+            codegen,
+            FetchContextRequest {
+                cixfile,
+                name,
+                directory,
+                lock,
+                system,
+                snapshots: binders,
+            },
+        )?;
     }
     let offered_closure = NixEvaluation::offered_closure(&context.offers)?;
     Sandbox::shell(&context.imports)?;
@@ -372,6 +380,7 @@ fn execute_builder(
     cold: bool,
     workspace_directory: &Path,
     credentials: &mut HostCredentials,
+    codegen: &dyn EvaluationCodegen,
 ) -> Result<(String, Vec<ExecutedStep>)> {
     let fetch_state = FetchState::new(directory);
     let command_count = builder
@@ -384,14 +393,17 @@ fn execute_builder(
         .iter()
         .filter(|step| matches!(step, BuildStep::Copy(_)))
         .count();
-    let context = NixEvaluation::builder_context(BuilderContextRequest {
-        cixfile,
-        name: builder_name,
-        directory,
-        lock,
-        system,
-        snapshots: binders,
-    })?;
+    let context = NixEvaluation::builder_context(
+        codegen,
+        BuilderContextRequest {
+            cixfile,
+            name: builder_name,
+            directory,
+            lock,
+            system,
+            snapshots: binders,
+        },
+    )?;
     if context.commands.len() != command_count {
         bail!(
             "internal build context mismatch: resolved {} commands for {command_count} steps",
@@ -410,14 +422,17 @@ fn execute_builder(
         // Store paths are complete by store invariant (the ensure_store_path
         // assumption); realization is only needed when an offer is missing.
         if context.offers.iter().any(|path| !Path::new(path).exists()) {
-            NixEvaluation::realize_builder_offers(BuilderContextRequest {
-                cixfile,
-                name: builder_name,
-                directory,
-                lock,
-                system,
-                snapshots: binders,
-            })?;
+            NixEvaluation::realize_builder_offers(
+                codegen,
+                BuilderContextRequest {
+                    cixfile,
+                    name: builder_name,
+                    directory,
+                    lock,
+                    system,
+                    snapshots: binders,
+                },
+            )?;
         }
         NixEvaluation::offered_closure(&context.offers)?
     };
@@ -437,16 +452,19 @@ fn execute_builder(
     } else {
         None
     };
-    let mut environment = NixEvaluation::development_environment(DevEnvironmentRequest {
-        cixfile,
-        builder_name,
-        directory,
-        lock,
-        system,
-        snapshots: binders,
-        imports: &context.imports,
-        universe_identities: &context.universe_identities,
-    })?;
+    let mut environment = NixEvaluation::development_environment(
+        codegen,
+        DevEnvironmentRequest {
+            cixfile,
+            builder_name,
+            directory,
+            lock,
+            system,
+            snapshots: binders,
+            imports: &context.imports,
+            universe_identities: &context.universe_identities,
+        },
+    )?;
     environment.extend(context.environment.clone());
     environment = build_environment(environment);
     let universe_identities = context

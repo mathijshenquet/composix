@@ -13,8 +13,12 @@ cix-index.workspace = true
 cix-run.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+ctrlc.workspace = true
+ignore.workspace = true
+notify.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+similar.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]

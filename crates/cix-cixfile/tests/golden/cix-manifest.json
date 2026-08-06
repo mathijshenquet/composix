@@ -32,8 +32,7 @@
       "default": "/tools/first:/tools/second"
     },
     "PORT": {
-      "default": "9000",
-      "required": true
+      "default": "9000"
     },
     "TOKEN": {
       "secret": true

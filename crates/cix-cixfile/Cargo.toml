@@ -6,22 +6,17 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-clap.workspace = true
 cix-common.workspace = true
 cix-build.workspace = true
-cix-index.workspace = true
-cix-compose.workspace = true
+cix-manifest.workspace = true
 libc.workspace = true
-ignore.workspace = true
-notify.workspace = true
-ctrlc.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile = "3"
 thiserror.workspace = true
-similar.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+cix-index.workspace = true
 cix-run.workspace = true

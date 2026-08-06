@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
-use cix_run::spec::Service;
+use cix_manifest::Service;
 use serde::{Deserialize, Serialize};
 
 use crate::{

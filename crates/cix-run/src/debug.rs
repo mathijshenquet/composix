@@ -10,7 +10,7 @@ use crate::manager::{
     with_unit_diagnostics, ForegroundResult,
 };
 use crate::shell::{resolve_program, resolve_shell, ShellSource};
-use crate::target::{resolve_service, ResolvedService};
+use crate::target::{resolve_service, InstallableResolver, ResolvedService};
 use crate::unit::{build_unit_with_options, UnitCompileOptions, UnitDefinition, UnitMode};
 
 pub struct DebugOptions {
@@ -18,10 +18,9 @@ pub struct DebugOptions {
     pub env: Vec<String>,
     pub user: bool,
     pub command: Vec<String>,
-    pub state_directory: std::path::PathBuf,
 }
 
-pub fn debug(options: DebugOptions) -> Result<()> {
+pub fn debug(options: DebugOptions, resolver: &dyn InstallableResolver) -> Result<()> {
     if !options.user && current_uid()? != 0 {
         bail!(
             "cix debug targets the system manager and must run as root; retry with sudo, or pass --user for explicitly degraded dev mode"
@@ -33,7 +32,7 @@ pub fn debug(options: DebugOptions) -> Result<()> {
         );
     }
 
-    let target = resolve_service(&options.state_directory, &options.installable)?;
+    let target = resolve_service(resolver, &options.installable)?;
     let mut config = ResolvedConfig::resolve_debug(&target.service, &options.env)?;
     config.env = config.item_environment(&target.output)?;
     if !target.service.listeners.is_empty() {

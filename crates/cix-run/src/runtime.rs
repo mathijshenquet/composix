@@ -7,12 +7,10 @@ use anyhow::{bail, Context, Result};
 use crate::app;
 use crate::manager;
 use crate::spec::{DataDir, ManifestKind, Service};
-use crate::target::resolve_service;
+use crate::target::{resolve_service, InstallableResolver};
 use crate::unit::{UnitCompileOptions, UnitNaming};
 
 pub use crate::manager::{start_service, stop_service, StartedUnit};
-pub use crate::target::resolve_installable;
-
 pub struct RunOptions {
     pub installable: String,
     pub env: Vec<String>,
@@ -23,11 +21,10 @@ pub struct RunOptions {
     pub schedule: Option<String>,
     pub closed_root: bool,
     pub user: bool,
-    pub state_directory: PathBuf,
 }
 
-pub fn run(options: RunOptions) -> Result<()> {
-    let mut target = resolve_service(&options.state_directory, &options.installable)?;
+pub fn run(options: RunOptions, resolver: &dyn InstallableResolver) -> Result<()> {
+    let mut target = resolve_service(resolver, &options.installable)?;
     if !options.user && manager::current_uid()? != 0 {
         bail!(
             "cix run targets the system manager and must run as root; use sudo, or pass --user for explicitly degraded dev mode"

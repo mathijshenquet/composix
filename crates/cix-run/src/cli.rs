@@ -82,7 +82,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn run(self, state_directory: &std::path::Path) -> anyhow::Result<()> {
+    pub fn run(self, resolver: &dyn crate::InstallableResolver) -> anyhow::Result<()> {
         match self {
             Self::Probe { command } => command.run(),
             Self::Run {
@@ -100,31 +100,36 @@ impl Command {
                 if compose.is_some() {
                     anyhow::bail!("cix run --compose is handled by the top-level cix command")
                 }
-                crate::runtime::run(crate::runtime::RunOptions {
-                    installable: installable.expect("clap requires installable without --compose"),
-                    env,
-                    port,
-                    dirs,
-                    identity,
-                    detach,
-                    schedule,
-                    closed_root,
-                    user,
-                    state_directory: state_directory.to_owned(),
-                })
+                crate::runtime::run(
+                    crate::runtime::RunOptions {
+                        installable: installable
+                            .expect("clap requires installable without --compose"),
+                        env,
+                        port,
+                        dirs,
+                        identity,
+                        detach,
+                        schedule,
+                        closed_root,
+                        user,
+                    },
+                    resolver,
+                )
             }
             Self::Debug {
                 installable,
                 env,
                 user,
                 command,
-            } => crate::debug::debug(crate::debug::DebugOptions {
-                installable,
-                env,
-                user,
-                command,
-                state_directory: state_directory.to_owned(),
-            }),
+            } => crate::debug::debug(
+                crate::debug::DebugOptions {
+                    installable,
+                    env,
+                    user,
+                    command,
+                },
+                resolver,
+            ),
             Self::Exec {
                 target,
                 root,

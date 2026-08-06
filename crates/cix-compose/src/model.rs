@@ -456,10 +456,10 @@ fn validate_service(parent: &str, name: &str, service: &ComposeService) -> Resul
         bail!("{service_path}: persistent and jitter require schedule");
     }
     if let Some(shm) = &service.shm {
-        cix_run::spec::validate_systemd_size(shm).with_context(|| format!("{service_path}.shm"))?;
+        cix_manifest::validate_systemd_size(shm).with_context(|| format!("{service_path}.shm"))?;
     }
     if let Some(stop_timeout) = &service.stop_timeout {
-        cix_run::spec::parse_duration(stop_timeout)
+        cix_manifest::parse_duration(stop_timeout)
             .with_context(|| format!("{service_path}.stopTimeout"))?;
     }
     if service.identity.as_deref().is_some_and(str::is_empty) {
