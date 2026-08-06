@@ -3,19 +3,28 @@
     "pkgs": {
       "url": "github:NixOS/nixpkgs/nixos-unstable",
       "rev": "624af665418d3c65d544145b4d34ad696439570e",
-      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4="
+      "narHash": "sha256-m0pDuRJG7EDo9ri+4Ksu83VsI+PlxNC9lNBfydejce4=",
+      "lastModified": 1785967620
     }
   },
   "fetches": {
-    "builder:build:1-f0857ab29d78": {
-      "snapshotNarHash": "sha256-Q2IPCQCfU/0xLnitfR+KGlDlNXOSeCjtliinDdrfYgA=",
+    "builder:build:1-15d6832189bb": {
+      "snapshotNarHash": "sha256-Vvk5Yd1noKndwrVqTMxZEuvmyXnN0vBEFs6bb4K9s98=",
       "paths": {
         "result.txt": "sha256-wRg/XjslB1J+9ArdiCDczLe/zs6PIpg222KEEp4zBvo="
       }
     }
   },
   "memo": {
-    "123afbee0d6747cc5ff44dce936e09d52e33335057616e4c25212a04b37b7e5c": {
+    "6312ba997888d8e04d5d0d9775febe5a04a411aa0f9c50209ab2dc396a144d63": {
+      "paths": {
+        "result.txt": {
+          "narHash": "sha256-wRg/XjslB1J+9ArdiCDczLe/zs6PIpg222KEEp4zBvo=",
+          "storePath": "/nix/store/nzssyns2w2b7asv79rsrp7vagwsnz57g-cix-build-consumed"
+        }
+      }
+    },
+    "f27df5690e39144fea14657890c143bf863e286c4f702dc4e8c1273e92ef4298": {
       "paths": {
         "result.txt": {
           "narHash": "sha256-wRg/XjslB1J+9ArdiCDczLe/zs6PIpg222KEEp4zBvo=",
@@ -26,7 +35,7 @@
   },
   "stepMemo": {
     "builder:build:1": {
-      "key": "d0640681096d1c37d67bfef36fa88258ba2be659810f149f507a95182e238a67",
+      "key": "27c571725fc2b4bd844e07ddb776923c4b6e186fd26e39e5e3490d6af2d658d6",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -45,7 +54,7 @@
       }
     },
     "builder:build:2": {
-      "key": "49e4ed590ed0987413706a1703b829d327609fed71a297d0b1b81d4f63726c99",
+      "key": "8137d026b2002c86c2b51bab6965509a90ecce89d96a96967c3be962b13f57f6",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -54,9 +63,9 @@
           "kind": "file",
           "hash": "1b7230e3a19f735c709b6ea5411ad561381e9403c028a8733cbb2a5dd80ddb32",
           "fingerprint": {
-            "dev": 29,
-            "inode": 723008,
-            "mtimeNs": 308681958,
+            "dev": 2307,
+            "inode": 10356981,
+            "mtimeNs": 677079598,
             "size": 23,
             "len": 23,
             "mode": 33188
@@ -66,9 +75,9 @@
           "kind": "file",
           "hash": "7c10541e6a78153a00963cf4a5f18a07d4c98def201f54338c379da7bd2de549",
           "fingerprint": {
-            "dev": 29,
-            "inode": 723007,
-            "mtimeNs": 308673001,
+            "dev": 2307,
+            "inode": 10356980,
+            "mtimeNs": 677066223,
             "size": 14,
             "len": 14,
             "mode": 33188
@@ -83,6 +92,11 @@
     }
   },
   "devEnvs": {
+    "055f493356c0a150224a9ca97694f507f3a6c140bd1c5814338d235a4993e656:f9c9a15d9fde98223134d02e075dc0ac1a3063247c3b58510c6f1cabb6522099": {
+      "environment": {
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    },
     "3883ea4312a5b18baf11e64caf7e0f609c23e25e66c7fb2760f148e3547f9473:77ca61a1cc152e3195ae8fd5fcac3ca6b6773e07e23de3dad83e56412232a59b": {
       "environment": {
         "XDG_DATA_DIRS": "/nix/store/dddwfz7nph37q3cjky9lhpy9kb90rrrx-bash-interactive-5.3p15/share:/nix/store/f13cgj4sypbjrwwpshfc2x4fd11is8dp-patchelf-0.15.2/share"
@@ -151,23 +165,33 @@
           },
           {
             "kind": "fetch",
-            "command": [
-              {
-                "kind": "literal",
-                "value": "printf 'fetched offline replay\\n' > fetched.txt"
-              }
-            ],
+            "command": {
+              "kind": "legacy",
+              "command": [
+                {
+                  "kind": "literal",
+                  "value": "printf 'fetched offline replay\\n' > fetched.txt"
+                }
+              ]
+            },
+            "environment": {},
+            "ignoredEvidence": [],
             "line": 7,
-            "snapshotNarHash": "sha256-Q2IPCQCfU/0xLnitfR+KGlDlNXOSeCjtliinDdrfYgA="
+            "snapshotNarHash": "sha256-Vvk5Yd1noKndwrVqTMxZEuvmyXnN0vBEFs6bb4K9s98="
           },
           {
             "kind": "run",
-            "command": [
-              {
-                "kind": "literal",
-                "value": "cat input.txt fetched.txt > result.txt"
-              }
-            ],
+            "command": {
+              "kind": "legacy",
+              "command": [
+                {
+                  "kind": "literal",
+                  "value": "cat input.txt fetched.txt > result.txt"
+                }
+              ]
+            },
+            "environment": {},
+            "ignoredEvidence": [],
             "line": 8
           }
         ]
@@ -200,7 +224,7 @@
   },
   "outputs": {
     "builder": {
-      "sourceHash": "3333136e954648e8ef722292036decb9a00bd2871b250348987816c1dee04ad1",
+      "sourceHash": "aa47c6583708f91569e46feed8075547605440b73685f46005ef0e8ab0094bb3",
       "storePath": "/nix/store/hm5xylp9nb9xdphlml1hs3bdxsxgslyi-cix-item-builder"
     }
   }
