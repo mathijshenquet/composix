@@ -55,11 +55,29 @@
   changed with dev/inode fingerprints. Either fs metadata leaks into
   sourceHash or check.sh does update-lock. Candidate exhibit for
   fmt-key-neutrality/keying-fundamentals; not yet investigated.
-- **Open for agents**: httpd-regen (in flight); the 13 other
-  narHash-lock regenerations (low value until pnpm-wall resolves);
-  k8s wave 1 (behind adoption). **Open with Mathijs**: unchanged —
-  epoch trio + fmt-key + pnpm-wall + k8s-wave adoptions, ribbon
-  borderline trio, tour read, naming, 0.1-scope CIP offer.
+- **httpd-regen coda (merged `9a6f9bcd`, closes the shift)**: luna
+  found the valkey fix ASYMMETRIC and completed it — three scheduling
+  classes now suppressed symmetrically over warm and cold (probes
+  before a later same-step `mkdir`; child cwd loss across split
+  `clone`/`clone resumed` records; `O_CREAT|O_TRUNC` compiler outputs
+  classified output-only). httpd warm+cold+runtime all exit 0, lock
+  124,383→38,562 (−69%), whole-corpus lock diff isolated to httpd.
+  Four full from-scratch Apache compiles because luna kept discarding
+  evidence-invalid warm/cold pairs (inherited output/, memo-hit
+  masquerading as a build) — exemplary receipts discipline. Merged
+  behind the full gate (source-size/fmt/clippy/workspace/VM all 0).
+- **New queue item from that widening**: other source-compile locks
+  (redis, mosquitto, memcached, nginx, haproxy, tomcat, valkey's
+  post-sol lock) may retain now-suppressed observation classes; their
+  NEXT cold replay would mismatch exactly like httpd's did. Sweep:
+  cold-replay verify each under the widened parser, regenerate
+  failures. Not urgent (no gate runs cold replays), but the corpus'
+  replay honesty wants it.
+- **Open for agents**: the source-compile cold-replay sweep (above);
+  the 13 other narHash-lock regenerations (low value until pnpm-wall
+  resolves); k8s wave 1 (behind adoption). **Open with Mathijs**:
+  unchanged — epoch trio + fmt-key + pnpm-wall + k8s-wave adoptions,
+  ribbon borderline trio, tour read, naming, 0.1-scope CIP offer.
 
 ## 2026-08-06 early (main-CI GREEN after the five-round tail)
 
