@@ -51,6 +51,7 @@ pub(crate) struct RecordingMetrics {
 pub(crate) fn parse(trace: &str) -> Capture {
     let mut observations = BTreeMap::new();
     let mut cwd = BTreeMap::<u32, PathBuf>::new();
+    let mut created = BTreeSet::<String>::new();
     for line in trace.lines() {
         let Some((pid, call)) = split_pid(line) else {
             continue;
@@ -63,7 +64,7 @@ pub(crate) fn parse(trace: &str) -> Capture {
         let succeeded = !call.contains(" = -1 ");
 
         if matches!(syscall, "clone" | "clone3" | "fork" | "vfork") && succeeded {
-            if let Some(child) = return_value(call).and_then(|value| value.parse::<u32>().ok()) {
+            if let Some(child) = returned_pid(call) {
                 if let Some(parent_cwd) = cwd.get(&pid).cloned() {
                     cwd.insert(child, parent_cwd);
                 }
@@ -89,13 +90,18 @@ pub(crate) fn parse(trace: &str) -> Capture {
             }
         }
 
-        let negative = call.contains(" = -1 ENOENT ");
-        let listed = matches!(syscall, "getdents" | "getdents64");
+        let mut negative = call.contains(" = -1 ENOENT ");
+        let mut listed = matches!(syscall, "getdents" | "getdents64");
         let open_path =
             matches!(syscall, "open" | "openat" | "openat2") && arguments.contains("O_PATH");
+        let exclusive_create = succeeded
+            && matches!(syscall, "open" | "openat" | "openat2")
+            && arguments.contains("O_CREAT")
+            && arguments.contains("O_EXCL");
         let open_read = matches!(syscall, "open" | "openat" | "openat2")
             && !arguments.contains("O_WRONLY")
-            && !open_path;
+            && !open_path
+            && !exclusive_create;
         let written = succeeded
             && (syscall == "creat"
                 || matches!(syscall, "open" | "openat" | "openat2")
@@ -120,8 +126,8 @@ pub(crate) fn parse(trace: &str) -> Capture {
                         | "symlink"
                         | "symlinkat"
                 ));
-        let content = open_read
-            || arguments.contains("O_APPEND")
+        let mut content = open_read
+            || arguments.contains("O_APPEND") && !exclusive_create
             || matches!(syscall, "readlink" | "readlinkat" | "execve" | "execveat");
         let should_record = negative
             || listed
@@ -163,6 +169,20 @@ pub(crate) fn parse(trace: &str) -> Capture {
         let Some(relative) = absolute.and_then(work_relative) else {
             continue;
         };
+        let self_created = created
+            .iter()
+            .any(|created| same_or_descendant(&relative, created));
+        if self_created {
+            listed = false;
+            content = false;
+            negative = false;
+            if !written {
+                continue;
+            }
+        }
+        if exclusive_create || succeeded && matches!(syscall, "mkdir" | "mkdirat") {
+            created.insert(relative.clone());
+        }
         observations
             .entry(relative)
             .and_modify(|observation: &mut Observation| {
@@ -233,7 +253,7 @@ pub(crate) fn parse_failure(trace: &str) -> FailureTrace {
         let arguments = &call[open + 1..];
         let succeeded = !call.contains(" = -1 ");
         if matches!(syscall, "clone" | "clone3" | "fork" | "vfork") && succeeded {
-            if let Some(child) = return_value(call).and_then(|value| value.parse::<u32>().ok()) {
+            if let Some(child) = returned_pid(call) {
                 if let Some(parent_cwd) = cwd.get(&pid).cloned() {
                     cwd.insert(child, parent_cwd);
                 }
@@ -888,8 +908,14 @@ fn split_pid(line: &str) -> Option<(u32, &str)> {
     Some((line[..split].parse().ok()?, line[split..].trim_start()))
 }
 
-fn return_value(call: &str) -> Option<&str> {
-    call.rsplit_once(" = ")?.1.split_whitespace().next()
+fn returned_pid(call: &str) -> Option<u32> {
+    let returned = call.rsplit_once(" = ")?.1;
+    returned
+        .split_once(" /* ")
+        .and_then(|(_, translated)| translated.split_whitespace().next())
+        .or_else(|| returned.split_whitespace().next())?
+        .parse()
+        .ok()
 }
 
 fn annotated_base(arguments: &str) -> Option<PathBuf> {
@@ -1071,6 +1097,49 @@ mod tests {
                 ),
             ])
         );
+    }
+
+    #[test]
+    fn exclusive_read_write_creation_is_only_an_output() {
+        let trace = r#"100 openat(AT_FDCWD</work>, "ephemeral", O_RDWR|O_CREAT|O_EXCL, 0600) = 3</work/ephemeral>
+100 openat(AT_FDCWD</work>, "ephemeral", O_RDONLY) = 4</work/ephemeral>
+100 openat(AT_FDCWD</work>, "existing", O_RDWR) = 5</work/existing>
+"#;
+        let capture = parse(trace);
+
+        assert_eq!(
+            capture.observations,
+            BTreeMap::from([(
+                "existing".into(),
+                Observation {
+                    content: true,
+                    written: true,
+                    ..Observation::default()
+                }
+            )])
+        );
+        assert_eq!(
+            capture.writes,
+            BTreeSet::from(["ephemeral".into(), "existing".into()])
+        );
+    }
+
+    #[test]
+    fn pid_namespace_child_creation_uses_the_host_pid_for_cwd_inheritance() {
+        let trace = r#"100 chdir("/work/project") = 0
+100 clone(child_stack=NULL, flags=SIGCHLD) = 2 /* 200 in strace's PID NS */
+200 mkdir("generated", 0700) = 0
+200 newfstatat(AT_FDCWD</work/project>, "generated/stdin", 0x1, 0) = -1 ENOENT (No such file or directory)
+200 openat(AT_FDCWD</work/project/generated>, ".", O_RDONLY|O_DIRECTORY) = 3</work/project/generated>
+200 getdents64(3</work/project/generated>, 0x1, 32768) = 0
+"#;
+        let capture = parse(trace);
+
+        assert_eq!(
+            capture.observations,
+            BTreeMap::from([("project".into(), Observation::default())])
+        );
+        assert_eq!(capture.writes, BTreeSet::from(["project/generated".into()]));
     }
 
     #[test]

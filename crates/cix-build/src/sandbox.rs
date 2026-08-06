@@ -81,7 +81,16 @@ impl Sandbox {
         let trace_path = trace_directory.path().join("syscalls");
         let mut process = Command::new("strace");
         process
-            .args(["-f", "--seccomp-bpf", "-qq", "-yy", "-s", "0", "-e"])
+            .args([
+                "-f",
+                "--seccomp-bpf",
+                "--decode-pids=pidns",
+                "-qq",
+                "-yy",
+                "-s",
+                "0",
+                "-e",
+            ])
             .arg("trace=%file,getdents,getdents64,chdir,fchdir,clone,clone3,fork,vfork")
             .arg("-o")
             .arg(&trace_path)

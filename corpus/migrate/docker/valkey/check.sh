@@ -19,7 +19,7 @@ trap cleanup EXIT INT TERM
 
 item=$($cix build .#valkey)
 unit=$(timeout 30s sudo "$cix" run --detach "$item")
-timeout 30s sudo "$cix" probe await tcp 127.0.0.1:6379
+timeout 30s sudo "$cix" probe await tcp tcp://127.0.0.1:6379
 response=$(timeout 10s sudo "$cix" exec "$unit" -- valkey-cli PING)
 if [ "$response" != PONG ]; then
   echo "unexpected valkey-cli PING response: $response" >&2
