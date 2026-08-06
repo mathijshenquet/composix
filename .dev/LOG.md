@@ -1,5 +1,34 @@
 # composix work log
 
+## 2026-08-06 day, cont. 3 (tourdet flake fixed+merged; frozenStore breakthrough; pnpm-frozenstore launched)
+
+- **CI flake on main traced and fixed same-day**: `f3115542`'s red was
+  `generated_tour_is_deterministic` — a teardown race (transient
+  `systemd-run --collect` units unload asynchronously; the explicit
+  stop then hits "not loaded"). tourdet-teardown (terra) merged
+  `5de5d832` behind my independent gate (fmt + tour tier 6/6 on merged
+  main): failed stop accepted ONLY on fresh LoadState == `not-found`,
+  all other states stay hard failures; hermetic regression test added;
+  terra corrected the spec's RemainAfterExit guess (friction recorded).
+- **frozenStore breakthrough (web research)**: pnpm 11.7.0 ships
+  `frozenStore` — first-class read-only-store installs ("Nix, bind
+  mounts, OCI layers"), index.db immutable, all store writes
+  suppressed, paired with `--offline --frozen-lockfile`. Inverts our
+  leg 2: seal the WHOLE store as fetched (TOFU instance-pin), install
+  frozen — no index normalization/regeneration by us. Draft updated
+  with receipts + version gates (pnpm ≥11.7, Node ≥22.15).
+- **Mathijs's calls recorded** (draft §4): build the problem-class
+  diagnostics that hint the solution (cacert masquerade; frozenStore
+  route); bump pnpm past 11.7 for the specific targets as an explicit
+  GAPS-recorded deviation. WITH CACHE-as-generic-escape-hatch +
+  cache-path detection assessment delivered in chat, awaiting his
+  read. TAG resolved to ONE per Cixfile (build-args draft updated).
+- **pnpm-frozenstore (sol) launched**: validation spike gates all else;
+  corpus bumps (verdaccio/directus) + dozzle re-verify; the two
+  diagnostics; confined probe-grading amendment in scope with
+  stop-and-report if not confined. Spec:
+  .dev/specs/track-pnpm-frozenstore.md.
+
 ## 2026-08-06 day, cont. 2 (coldreplay-sweep merged: zero regenerations, four upstream-drift walls, two new keying exhibits)
 
 - **Merged `f3115542`** (luna, ~20min; one LOG merge-seam resolved by
