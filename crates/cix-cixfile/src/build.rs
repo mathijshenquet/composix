@@ -615,11 +615,11 @@ fn build_fingerprint(
     let mut digest = Sha256::new();
     digest.update(cix_build::BUILDER_FINGERPRINT.as_bytes());
     digest.update(source_tree_hash(directory, file_name, canonical_cixfile)?.as_bytes());
+    // dev_envs is a derived builder cache; its semantic inputs are already keyed.
     digest.update(serde_json::to_vec(&(
         &lock.inputs,
         &lock.artifacts,
         &lock.fetches,
-        &lock.dev_envs,
     ))?);
     Ok(digest
         .finalize()
@@ -818,7 +818,7 @@ mod tests {
         tag_namespace, tag_reference, validate_namespace, validate_tag, BuildOptions,
     };
     use crate::parse;
-    use cix_build::{FetchPin, LockFile, OutputReceipt, ReadDependency, StepMemo};
+    use cix_build::{DevEnvironment, FetchPin, LockFile, OutputReceipt, ReadDependency, StepMemo};
     use std::collections::BTreeMap;
 
     fn canonical_cixfile(directory: &std::path::Path) -> Vec<u8> {
@@ -942,6 +942,16 @@ mod tests {
         let fetch_pin_changed =
             build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
         assert_ne!(executable_changed, fetch_pin_changed);
+
+        lock.dev_envs.insert(
+            "derived-cache-entry".into(),
+            DevEnvironment {
+                environment: BTreeMap::from([("PATH".into(), "/nix/store/example/bin".into())]),
+            },
+        );
+        let derived_cache_rewritten =
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
+        assert_eq!(fetch_pin_changed, derived_cache_rewritten);
     }
 
     #[test]
