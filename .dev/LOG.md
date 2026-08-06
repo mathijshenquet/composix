@@ -1,5 +1,66 @@
 # composix work log
 
+## 2026-08-06 night shift (seven merges: CIP-103 complete, CIP-104 executed, coldtrace hygiene, corpus 30)
+
+- **Merged, each behind a value-checked independent gate**:
+  - ch7gcroot (terra): drift leak #3 fixed causally — the old CI user
+    manager accepts `PrivateUsers=yes`, so the unit-context gcroot
+    `rm` hit Permission denied; beast's D13 fallback masked it. Fix:
+    `+`-prefixed ExecStopPost cleanup (runs outside PrivateUsers at
+    caller privileges). CI GREEN on main confirmed — the whole
+    tour-determinism saga (3 leaks) is closed.
+  - cip107-pinleg (terra): HONEST STOP per spec — directus cannot
+    regenerate (offline pnpm metadata cache lacks
+    `@directus/tsconfig@4.0.0`), and the structural scan found 21
+    narHash entries in 14 locks (more than the CIP's stale 18/9).
+    FetchPin deletion is now formally blocked behind the pnpm-wall.
+  - expand-ntfy-filebrowser (terra): corpus 28→30. ntfy full green
+    (health probe independently re-verified); filebrowser honest
+    LANGUAGE wall: arbitrary-path state-role realization mounts the
+    role root read-only after its managed bind → `/config/settings.json`
+    unwritable. New defect exhibit for the state-role realization.
+  - cip103-fetchstate (terra): legs 4+5 — NixEvaluation/FetchState/
+    Sandbox owners with request-result seams, build_chain 2059→1051.
+    CIP-103 COMPLETE. (Terra committed no LOG entry — spec violation,
+    gate caught nothing else.)
+  - ittools-relock (luna): runtime PROVEN (HTTP 200, independently
+    re-verified) via retained item + CIX_ITEM harness; honest NO-GREEN
+    on CIP-99 aggregation — it-tools' 1.54M-line pnpm trace is
+    incompressible (−0.52%), lock is a 90MB blob. Lock-scale wall
+    recorded → language.
+  - valkey-coldtrace (sol): the cold-replay class CRACKED —
+    instrumented cold syscalls proved `O_RDWR|O_CREAT|O_EXCL`, so
+    exclusive creates can never read incoming bytes: classification
+    hygiene, not semantics (stayed inside the decision boundary).
+    Exclusive creates leave the read set (stay writes); same-step
+    created paths suppressed via pidns decoding. Valkey warm+cold+PONG
+    green, −12k self-observations, only valkey's lock churned. httpd
+    same-class exhibit marked stale; httpd-regen (luna) launched.
+  - cip104-strata (sol): CIP-104 EXECUTED in six staged commits —
+    neutral cix-manifest stratum, codegen out of cix-build, parser
+    directive strata split, cixfile decoupled from compose, resolver
+    injection, VM-contract classification for the new crate.
+    Byte-identity receipts: 49 manifests + CLI exit vector, SHA-256
+    equal to stage 0; full tier + 14/14 VM green.
+- **Incidents (all self-caught or gate-caught)**: one invalid gate
+  capture (clippy/tests piped through `tail` — the banned pattern —
+  caught on value-check review, rerun unpiped); closedroot roster
+  drift (28 vs 31: expand cases + a stray untracked corpus
+  `docker/.claude` debris dir inflating readDir — swept, roster
+  updated with honest downgrades); codex CLI self-update loop broke
+  agent starts (pnpm `latest` tag stale; pinned 0.146.1 explicitly);
+  two corpus-browser merge conflicts resolved by regeneration.
+- **Observation for keying work**: my independent ntfy check dirtied
+  the worktree lock — same content hash + storePath, but sourceHash
+  changed with dev/inode fingerprints. Either fs metadata leaks into
+  sourceHash or check.sh does update-lock. Candidate exhibit for
+  fmt-key-neutrality/keying-fundamentals; not yet investigated.
+- **Open for agents**: httpd-regen (in flight); the 13 other
+  narHash-lock regenerations (low value until pnpm-wall resolves);
+  k8s wave 1 (behind adoption). **Open with Mathijs**: unchanged —
+  epoch trio + fmt-key + pnpm-wall + k8s-wave adoptions, ribbon
+  borderline trio, tour read, naming, 0.1-scope CIP offer.
+
 ## 2026-08-06 early (main-CI GREEN after the five-round tail)
 
 - The CI tail resolved: sweep-liveness guard (real bug, FIFO-signal
