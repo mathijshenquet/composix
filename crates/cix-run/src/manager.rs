@@ -62,7 +62,7 @@ pub(crate) fn start_scheduled_app(
             directory.display()
         )
     })?;
-    let cleanup = gc_root_cleanup_command(&root, user, false)?;
+    let cleanup = gc_root_cleanup_command(&root, false)?;
     let root_text = format!(
         "[Unit]\nDescription=cix scheduled app GC root: {app_name}\nPartOf={timer}\nBefore={timer}\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/bin/sh -c true\nExecStopPost={cleanup}\n"
     );
@@ -465,7 +465,7 @@ fn definition_with_gc_root(
         .properties
         .iter()
         .any(|(name, _)| name == "RootDirectory");
-    let cleanup = match gc_root_cleanup_command(&link, user, closed_root) {
+    let cleanup = match gc_root_cleanup_command(&link, closed_root) {
         Ok(cleanup) => cleanup,
         Err(error) if user => {
             eprintln!(
@@ -544,8 +544,12 @@ fn register_gc_root(link: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn gc_root_cleanup_command(link: &Path, user: bool, store_only: bool) -> Result<String> {
+fn gc_root_cleanup_command(link: &Path, store_only: bool) -> Result<String> {
     let rm = find_path_program("rm", store_only)?;
+    gc_root_cleanup_line(&rm, link)
+}
+
+fn gc_root_cleanup_line(rm: &Path, link: &Path) -> Result<String> {
     let rm = rm
         .to_str()
         .context("rm path is not valid UTF-8")?
@@ -554,8 +558,9 @@ fn gc_root_cleanup_command(link: &Path, user: bool, store_only: bool) -> Result<
         .to_str()
         .context("GC root path is not valid UTF-8")?
         .to_owned();
-    let prefix = if user { "" } else { "+" };
-    Ok(format!("{prefix}{rm} -f {link}"))
+    // A user manager's ExecStopPost still has the caller's UID with `+`, but
+    // runs outside PrivateUsers so it can unlink the caller-owned runtime root.
+    Ok(format!("+{rm} -f {link}"))
 }
 
 fn find_path_program(name: &str, store_only: bool) -> Result<PathBuf> {
@@ -1232,6 +1237,18 @@ mod tests {
         let rm = find_path_program_in("rm", Some(store.path()), vec![bin.clone()]).unwrap();
         assert!(rm.starts_with(store.path()), "{}", rm.display());
         assert_eq!(rm.file_name().unwrap(), "rm");
+    }
+
+    #[test]
+    fn gc_root_cleanup_escapes_private_users_without_escalating_the_user_manager() {
+        assert_eq!(
+            gc_root_cleanup_line(
+                Path::new("/usr/bin/rm"),
+                Path::new("/run/user/1001/cix/gcroots/cix-run-faithful.service.root"),
+            )
+            .unwrap(),
+            "+/usr/bin/rm -f /run/user/1001/cix/gcroots/cix-run-faithful.service.root"
+        );
     }
 
     #[test]

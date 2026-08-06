@@ -1,5 +1,32 @@
 # cix-run work log
 
+## track/ch7gcroot
+
+- 2026-08-06 UTC — Diagnosed the Chapter 7 CI-only GC-root cleanup receipt.
+  Foreground `cix run --user` registers a root under the caller-owned
+  XDG runtime directory and injects `ExecStopPost=/usr/bin/rm`; on the old
+  GitHub user manager, `PrivateUsers=yes` is accepted, so that unit-context
+  process cannot unlink the host-owned entry, while beast reaches the D13
+  fallback that drops `PrivateUsers`. The command-line caller is able to remove
+  the root after `systemd-run --wait`, so the leak is not the documented
+  chapter flow. Preserve the unit-lifetime cleanup, but prefix it with `+`:
+  systemd keeps a user manager at the invoking user's privileges while running
+  the cleanup outside `PrivateUsers`. A synchronous local `ExecStopPost=+rm`
+  probe removed a runtime-root symlink (exit 0); fmt and the focused command
+  construction test also exited 0. Next: regenerate/drift-check the tour and
+  complete the declared agent tier.
+
+- 2026-08-06 UTC — Final value-checked receipts for track/ch7gcroot: workspace
+  fmt, example formatting, warning-denied workspace/all-target Clippy, and
+  serial full workspace tests all exited 0. The explicit tour regeneration and
+  drift check exited 0; the ordinary tour test exited 0 (5 passed, 1 ignored),
+  including deterministic and committed-document render checks. The derived
+  progressive VM selector chose all 14 runtime-core scenarios for
+  `manager.rs`; its synchronous build exit was 0 in 624.335 seconds. An earlier
+  terminal bridge detached overlapping workspace/tour/VM processes; they were
+  terminated and are explicitly not receipts. The reruns above are the only
+  counted results. Next: final diff and user-unit cleanup checks; do not commit.
+
 ## track/cip109-probeurl
 
 - 2026-08-05 UTC — Started CIP-109 after reading the accepted decision and
