@@ -1487,6 +1487,8 @@
 
 - 2026-08-06T09:42:54Z — Final synchronous gate set completed without a failure: `cargo fmt --all --check`; `cargo run -p cix -- fmt --check examples`; warning-denied `cargo clippy --workspace --all-targets -- -D warnings`; and the full workspace test suite (including corpus and tour integration tests). The targeted unit regression and corpus browser regenerate+drift receipts are above. `git diff --check` passed; the mandated shared/interior-mutability audit reported only existing, justified sites outside this directory-realization change. The focused VM selection covered closedroot-audit, dirs2, gc-survival, lifecycle, side-by-side, tree, and update-repin, and the current selected derivations were value-checked by foreground `nix build` exit 0. Next: commit this reviewed scope; do not merge.
 
+- 2026-08-06T09:43:00Z — Committed the scoped repair as `8ba2f1c6` (`fix: preserve arbitrary role-directory binds`). It includes the runtime realization, focused VM regression, Filebrowser and user-fallback receipts, and regenerated corpus ledger. No merge or push was performed. Next: final clean-branch check and handoff.
+
 ### FRICTION
 
 - 2026-08-06T09:42:54Z — `nixfmt` is not supplied by the active devenv (`exec: nixfmt: not found`). The NixOS test framework's type check and test-script lint both accepted the changed scenario; the required Rust/examples format gate is green. → environment
