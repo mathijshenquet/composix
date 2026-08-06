@@ -213,16 +213,22 @@ lock pins); migrate.md teaches the boundary rule in one sentence.
   content, the executable bit, and symlink targets — mtime, ownership,
   and non-exec mode bits do not exist in it, and store import
   normalizes them away (mtime→1, perms→444/555). Our `narHash`/
-  `snapshotNarHash` pins already have this invariance, but the
-  per-path pin hash (`read_hash`, cix-build/src/trace.rs) folds the
-  FULL `st_mode` bytes in, and lock-side fingerprints carry
-  dev/inode/mtime — both strictly broader than NAR, which is exactly
-  why `&& chmod 644 && touch -d @0` tails exist in the corpus.
-  Aligning every fingerprint to NAR semantics (content + exec bit +
-  symlink target, nothing else) makes the tails vacuous; migration
-  deletes them. This is the same repair as the fmt-key-neutrality
-  draft's ntfy exhibit (sourceHash churn from dev/inode fingerprints
-  with identical content) — one keying-invariance fix serves both.
+  `snapshotNarHash` pins already have this invariance. The REAL
+  divergences, per the fmtkey-evidence characterization (2026-08-06,
+  proven with hermetic tests — this corrects an earlier note here that
+  blamed dev/inode fingerprints, which turn out to be unkeyed
+  validation hints): traced-read hashing (`trace::read_hash` and the
+  directory/subtree hashes built on it) folds FULL `st_mode` in, so a
+  `0644→0600` chmod invalidates memos despite identical NAR meaning;
+  automatic FETCH pin values (`fetch_state::file_fingerprint`) do the
+  same and DO reach output `sourceHash` via the serialized lock; and
+  the source-tree hash misses executable-bit changes (under-NAR).
+  Aligning every fingerprint to NAR semantics (type + content + exec
+  bit + symlink target, nothing else) makes the `chmod`/`touch` tails
+  vacuous; migration deletes them. The fmt-key-neutrality draft
+  carries the full site-by-site inventory table; the three original
+  green-verify exhibits remain honest symptoms whose exact causes
+  need retained pre/post evidence, per that draft's protocol.
 - **LET list values** — RESOLVED (syntax reserved, feature still out
   of v1): unify enumeration syntax with ARG so the grammar has ONE
   list form. `LET FLAGS = [a, b, c]` binds a list value expanding
