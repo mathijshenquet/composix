@@ -2,7 +2,7 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER web
-  IMPORT ${pkgs.bash} ${pkgs.nodejs_24} ${pkgs.pnpm}
+  IMPORT ${pkgs.bash} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.cacert}
   COPY ${src}/context/pnpm-lock.yaml .
   COPY ${src}/context/pnpm-workspace.yaml .
   FETCH pnpm fetch --ignore-scripts

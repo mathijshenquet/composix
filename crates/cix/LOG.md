@@ -1086,3 +1086,234 @@
   fmt, examples fmt, warning-denied clippy, full workspace tests, tour
   regeneration/drift/determinism, and progressive VM selection (0/14 selected)
   all exited 0. No merge performed.
+
+## 2026-08-06 — pnpm-wall spike
+
+- 2026-08-06T07:20:32Z — Started `track/pnpmwall-spike` from clean
+  `fefb1ddf` with the devenv active. Read the current project journal,
+  authoritative D38/D39/D47/D56–D58 build decisions, the track spec, the
+  four-chapter draft, and the dozzle/verdaccio/directus corpus contracts.
+  The pinned contexts are absent as expected; next: restore all three with
+  `bash corpus/migrate/fetch.sh <case>`, then diagnose dozzle under a bound
+  with explicit cacert, pnpm network logging, strace, and socket capture.
+
+### FRICTION
+
+- 2026-08-06T07:20:32Z — `crates/cix/LOG.md` contains histories from many
+  merged tracks and is not globally chronological, despite the repository
+  journal being newest-first. This track appends its own dated section at EOF
+  to preserve the explicit append-only contract. → process
+
+- 2026-08-06T07:22:18Z — Restored all three immutable corpus contexts with
+  synchronous `bash corpus/migrate/fetch.sh dozzle|verdaccio|directus`
+  invocations; each exited 0 and reported the SOURCE-pinned revision. Their
+  project pins are dozzle pnpm 11.17.0, verdaccio pnpm 11.1.2, and directus
+  pnpm 10.27.0. The first two are the required store-spike matrix; directus is
+  retained for the separate upstream-coherence check. Next: build the current
+  `cix` binary, then run the bounded dozzle network diagnosis.
+
+### Evidence
+
+- 2026-08-06T07:33:00Z — Dozzle hang class: **cacert masquerade**, not IPv6
+  fallback. A clean exact-pnpm-11.17.0 probe with the nixpkgs cacert bundle,
+  pnpm debug NDJSON, `NODE_DEBUG=net,tls`, `strace -ff -e trace=network`, and
+  once-per-second `ss -tnoap` capture exited 0 in 6561 ms; it verified 818
+  lock entries, every `pnpm:fetching-progress` event had `attempt: 1`, and
+  recorded 52 IPv6 plus 38 IPv4 TCP connect calls with zero TLS verification
+  errors. Exact repro: the bounded command recorded at
+  `/var/tmp/cix-pnpmwall-dozzle.WG4ReW` (status in `exit-status`; logs in
+  `pnpm.ndjson`, `pnpm.stderr`, `network.strace.*`, and `ss.log`).
+
+- 2026-08-06T07:33:00Z — The actual cix IMPORT-union A/B reproduced the old
+  symptom. Without `${pkgs.cacert}`, `timeout 180 ../../../../target/debug/cix
+  build --file Cixfile.pnpmwall-without-cacert --update-lock web ...` exited
+  124 with zero store/CAS files; retained trace
+  `/var/tmp/cix-read-trace-pSTPmk/syscalls` ended in repeated ENOENT probes for
+  OpenSSL hashed certificates. With `${pkgs.cacert}`, the same clean build
+  completed both FETCH stability probes, named only derived volatility
+  (`.cache/pnpm/lockfile-verified.jsonl`, store `index.db`, and
+  `node_modules/.modules.yaml`), executed FETCH in 23108 ms, copied only
+  `.local/share/pnpm/store/v11/files`, and exited 0 with item
+  `/nix/store/rb7n26wc79a6bqypsyjv95ag9rpkgr43-cix-item-pnpm-store`. Exact
+  green repro and foreground log:
+  `/var/tmp/cix-pnpmwall-cix-with-green.8niV1O/build.log`.
+
+### FRICTION (continued)
+
+- 2026-08-06T07:33:00Z — The first cacert-enabled diagnostic completed its
+  FETCH but the deliberately minimal artifact COPY named the historical
+  `.pnpm-store/v11/files` location; pnpm 11.17 now reported its real store as
+  `.local/share/pnpm/store/v11`. That run exited 1 rather than being promoted
+  to a green receipt; correcting the consumer path produced the exit-0 run
+  above. Store location is version/configuration data, not a stable hard-coded
+  cix convention. → language
+
+### Two-phase store spike
+
+- 2026-08-06T07:39:36Z — **Bare pnpm CAS does not work at either required
+  version.** Two clean network FETCHes per corpus pin produced byte-identical
+  `files/` trees: dozzle/pnpm 11.17.0 =
+  `sha256-4QrchaNTAHRaccr7KG/BbRXiihxDrlv6T3tl9BnoIXo=` (20,175 files),
+  verdaccio/pnpm 11.1.2 =
+  `sha256-9yhmtdGwQCapcFYJkazRhC+l1XSwkTL4eaFuMg6hU/s=` (56,280 files).
+  Exact roots are `/var/tmp/cix-pnpmwall-store-dozzle.dmg1gk` and
+  `/var/tmp/cix-pnpmwall-store-verdaccio.pFFbxD`; each `fetch` and `fetch-2`
+  ran foreground under `timeout 900`, exited 0, and the harness value-checked
+  both NAR hashes and file counts with `cmp`.
+
+- 2026-08-06T07:39:36Z — After copying only that immutable `files/` tree into
+  two independent stores, `pnpm install --offline --frozen-lockfile
+  --ignore-scripts --store-dir <bare>` did **not** reconstruct `index.db`.
+  Dozzle's two installs both exited 1 with
+  `ERR_PNPM_NO_OFFLINE_TARBALL` for the same first package
+  (`@codemirror/autocomplete@6.20.3`) while leaving the CAS hash unchanged.
+  Verdaccio's two installs also exited 1 with the same error class, but
+  concurrent lookup chose different first packages (`@changesets/changelog-
+  github@0.7.0` vs `@changesets/get-github-info@0.8.0`); the wall is stable,
+  its first diagnostic is not. Raw independent `index.db` SHA-256 values also
+  differ (dozzle `b5ef…` vs `86ec…`; verdaccio `2b16…` vs `94fc…`), and the
+  database embeds volatile `checkedAt` values in its `package_index.data`
+  blobs. Therefore neither exclusion+offline regeneration nor byte-level
+  normalization by SQLite dump is available generically.
+
+- 2026-08-06T07:39:36Z — npm 11.13.0's cacache has the analogous physical
+  split (`_cacache/content-v2` plus `_cacache/index-v5`) but a materially
+  different replay property: a package-lock's integrity maps directly to
+  content-v2. Two independent `npm ci --offline --ignore-scripts --no-audit
+  --no-fund` runs from content-v2 alone exited 0, made no AF_INET/AF_INET6
+  connect, did not regenerate index-v5, preserved content hash
+  `sha256-tVga/A8A4vn7TVttbR5tomYScTVN66BWJIEEFoZX7sM=`, and produced identical
+  node_modules hash
+  `sha256-e2p79xOvHAbRCqnCa7N9w45aFB+2ZblZIywvPG8mb0w=`. Exact foreground
+  evidence: `/var/tmp/cix-pnpmwall-npm-cacache.we9YUR/no-audit-{a,b}`.
+
+### FRICTION (continued)
+
+- 2026-08-06T07:39:36Z — The first verdaccio comparison harness used plain
+  `cmp` under a shell without `set -e`; it printed differing first-package
+  errors but continued to an exit-0 summary. That summary is explicitly
+  invalid as a receipt. The individual captured install exits and CAS hashes
+  remain observations; the differing diagnostic is recorded above, not
+  papered over as deterministic. → process
+- 2026-08-06T07:39:36Z — npm `--offline` still performs the audit request by
+  default: the first otherwise-successful bare-content run opened a registry
+  TCP connection and the harness correctly exited 96. Adding `--no-audit
+  --no-fund` yielded the two network-silent exit-0 runs above. “Offline
+  package materialization” and “all npm subfeatures networkless” are distinct
+  switches. → ecosystem
+- 2026-08-06T07:39:36Z — `nix build --print-out-paths nixpkgs#sqlite` returns
+  multiple outputs, so treating it as one executable path produced no dump;
+  those empty-file comparisons are invalid. The rerun used
+  `nixpkgs#sqlite.bin`, exited 0, and showed the logical dumps differ too. → nix
+
+### Verdaccio payoff attempt
+
+- 2026-08-06T08:04:00Z — A two-builder Verdaccio rewrite sealed only the
+  stable pnpm 11 `files/` CAS from FETCH and copied it into a fresh build
+  builder. The dependency FETCH itself is green: it exited 0, ran both cix
+  probes, and produced `/nix/store/swbd0jgxv3zr1skfjl4gl41a9kwzapq3-cix-build-view`.
+  The downstream cix build did not become a payoff: after bypassing pnpm
+  11.17's project-version switch with `--pm-on-fail=ignore`, the foreground
+  `timeout 360` run exited 124 while the offline install was still under the
+  read tracer (`/var/tmp/cix-pnpmwall-verdaccio-payoff.OGv38g/build-sixth.log`,
+  `sixth-exit-status`, and `/var/tmp/cix-read-trace-WvMuLc/syscalls`). This
+  timeout is a wall, not a green receipt. The smaller two-run replay above is
+  the value-checked semantic result: pnpm cannot resolve lockfile packages
+  from `files/` without its consumed volatile index.
+
+### FRICTION (continued)
+
+- 2026-08-06T08:04:00Z — COPY cannot target a missing deep directory in a
+  builder, and a preceding RUN that creates it does not make that directory
+  visible to the next COPY staging transaction. The diagnostic therefore
+  copied the CAS to a top-level name and moved it in a RUN. → language
+- 2026-08-06T08:04:00Z — pnpm 11.17 honors Verdaccio's `packageManager:
+  pnpm@11.1.2` before install; `COREPACK_ENABLE_PROJECT_SPEC=0` and generic
+  config spelling did not disable that new pnpm-native behavior. The precise
+  current switch is `--pm-on-fail=ignore`. → ecosystem
+- 2026-08-06T08:04:00Z — The full monorepo offline install under cix's read
+  tracer did not reach a package diagnostic within 360 seconds even though
+  the reduced replay reaches `ERR_PNPM_NO_OFFLINE_TARBALL` promptly. The
+  bounded synchronous timeout remains useful evidence, but tracing overhead
+  makes it a poor inner loop for this payoff shape. → performance
+
+### Directus coherence check
+
+- 2026-08-06T08:13:00Z — Independent validation **disproves** exhibit 4's
+  upstream-incoherence diagnosis. The fetched context's `package.json` and
+  `pnpm-lock.yaml` hashes exactly match git revision
+  `b1d7a45a77661fd13928a53448c06649f36b56f5`. Under the declared Node 22 and
+  exact pnpm 10.27.0, `pnpm install --lockfile-only --frozen-lockfile
+  --ignore-scripts` exited 0 in 230 ms for all 41 workspace projects. A full
+  install against a clean empty store explicitly reported “Lockfile is up to
+  date, resolution step is skipped,” then exited 1 at the expected
+  `ERR_PNPM_NO_OFFLINE_TARBALL`; it did not report a manifest/lock mismatch.
+  Synchronous logs and statuses are under
+  `/var/tmp/cix-pnpmwall-directus-current.6xD66E`.
+
+- 2026-08-06T08:13:00Z — A nearby independently checked coherent revision
+  also exists: `d87981b99d2e7916905ac797fda79f33dc01190b` (`fix dependencies`,
+  the pinned commit's second first-parent predecessor). A detached full
+  checkout under Node 22 and pnpm 10.27.0 passed the same frozen-lockfile
+  validation for all 41 workspaces, exit 0 in 233 ms. Exact foreground
+  receipt: `/var/tmp/cix-pnpmwall-directus-nearby.uONmCj/install.log` and
+  `exit-status`. The 14 narHash regenerations are therefore not gated by
+  upstream lock incoherence; Directus's observed current wall is instead
+  incomplete package metadata for offline deploy.
+
+### FRICTION (continued)
+
+- 2026-08-06T08:13:00Z — The first independent Directus validation used the
+  ambient Node 24 and exited 1 at pnpm's engine guard (`Expected: 22`), before
+  lock validation. It is invalid as coherence evidence. Re-running with
+  nixpkgs Node 22 produced both value-checked receipts above. → process
+
+### Reproduction and gate
+
+- 2026-08-06T08:13:00Z — Minimal exact semantic repro for either pnpm pin:
+  in a clean copy of the corpus context, run `corepack pnpm@<pin> fetch
+  --ignore-scripts --store-dir fetch-a`, copy only
+  `fetch-a/v11/files` to `bare-a/v11/files`, then run `corepack pnpm@<pin>
+  install --offline --frozen-lockfile --ignore-scripts --store-dir bare-a`.
+  Use 11.17.0 in `corpus/migrate/docker/dozzle/context` and 11.1.2 in
+  `corpus/migrate/docker/verdaccio/context`; both final commands synchronously
+  exit 1 with `ERR_PNPM_NO_OFFLINE_TARBALL`. Repeat as `fetch-b`/`bare-b` and
+  value-check CAS identity with `nix hash path fetch-{a,b}/v11/files`. The
+  captured two-run results and every per-command status are under the
+  `cix-pnpmwall-store-{dozzle,verdaccio}` roots named above.
+
+- 2026-08-06T08:13:00Z — Directus exact repro from the worktree root:
+  `cd corpus/migrate/docker/directus/context && nix shell nixpkgs#nodejs_22
+  -c bash -lc 'corepack pnpm@10.27.0 install --lockfile-only
+  --frozen-lockfile --ignore-scripts'` exits 0. Adding `--offline --store-dir
+  /path/to/empty-store` to a full install passes lock validation and exits 1
+  only at `ERR_PNPM_NO_OFFLINE_TARBALL`. The nearby-revision receipt used a
+  detached checkout of `d87981b99d2e7916905ac797fda79f33dc01190b` and the
+  same first command, which exited 0.
+
+- 2026-08-06T08:13:00Z — Final scoped gates all exited 0 synchronously:
+  `devenv shell -- cargo fmt --all --check`; `devenv shell --
+  target/debug/cix fmt --check corpus/migrate/docker/dozzle
+  corpus/migrate/docker/verdaccio corpus/migrate/docker/directus`; corpus
+  regeneration via `devenv shell -- cargo test -p cix --test corpus --
+  --ignored generate_corpus_browser`; and the normal `devenv shell -- cargo
+  test -p cix --test corpus` suite (7 passed, 1 generator ignored). Generated
+  browser changes are limited to the three touched cases, and `git diff
+  --check` exits 0. No Rust source changed, so this corpus-only spec does not
+  call for `cargo test --workspace`.
+
+### FRICTION (continued)
+
+- 2026-08-06T08:16:00Z — The first corpus regeneration preceded the manual
+  `docs/corpus.md` ribbon audit. After correcting the three stale ledger rows,
+  the drift test exited 101 and named exactly Directus, Dozzle, and Verdaccio
+  in `docs/corpus/index.html`; it is not a green receipt. Regenerating after
+  the ledger edit exited 0, and the immediately following normal suite passed
+  7/7 with the generator ignored. → process
+
+- 2026-08-06T08:18:00Z — Committed the scoped spike as `9a3f5896` (`Spike
+  pnpm cold-store wall`). The draft remains unadopted; the track makes no
+  language decision. Dozzle's trust prerequisite is fixed, bare-CAS pnpm
+  replay is rejected with two-version evidence, Verdaccio retains the precise
+  missing-index wall, and Directus's prior incoherence diagnosis is corrected.
+  No merge was performed.

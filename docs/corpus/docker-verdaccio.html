@@ -56,14 +56,14 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / verdaccio</nav>
   <h1>docker / verdaccio</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime layout is translated but unproved without an item; cold volatility is retained rather than repinned · <strong>Evidence:</strong> build receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Ordinary monorepo rebuilds produce no item; cold replay has a distinct volatile root read set · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime layout is translated but unproved; a stable/rebuildable package-to-integrity index mechanism is missing · <strong>Evidence:</strong> build receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Its pnpm CAS is deterministic, but bare-CAS offline replay fails because the consumed volatile package index is not reconstructable · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The pnpm FETCH is volatile: independent warm/cold observations differ for the builder root, so cold replay stops before an item; no hash is invented. → case</li>
+      <li>The pnpm 11.1.2 <code>files/</code> CAS is deterministic across independent FETCHes, but bare-CAS offline installs fail with <code>ERR_PNPM_NO_OFFLINE_TARBALL</code>: pnpm consumes a volatile SQLite package index and cannot regenerate it from CAS bytes. Existing FETCH/COPY/RUN cannot form an honest cold-replayable artifact; no hash is invented. → case</li>
       <li>The ordinary monorepo build produced no item in this assembly; its runtime and <code>/-/ping</code> remain unproved. Fixed UID/group and init-wrapper behavior dissolve into systemd identity/supervision. → case</li>
     </ul>
   </aside>
@@ -8234,6 +8234,28 @@ recorded read set differs between warm and cold at &quot;.&quot;
 ```
 
 The two directory hashes differed at the `FETCH pnpm install` step. This is cold volatility, not a repinning opportunity; `/-/ping` was not run.
+
+## 2026-08-06 bare-store spike and payoff attempt
+
+Two independent exact-pnpm-11.1.2 FETCHes exited 0 and produced identical
+`files/` trees: 56,280 files with NAR hash
+`sha256-9yhmtdGwQCapcFYJkazRhC+l1XSwkTL4eaFuMg6hU/s=`. Their `index.db` files
+differed and contained volatile `checkedAt` data. Copying only `files/` into
+two fresh stores and running `pnpm install --offline --frozen-lockfile
+--ignore-scripts` made both commands exit 1 with
+`ERR_PNPM_NO_OFFLINE_TARBALL`; concurrent lookup selected different first
+missing packages, so only the error class is stable. Foreground evidence is
+under `/var/tmp/cix-pnpmwall-store-verdaccio.pFFbxD`.
+
+A two-builder Cixfile payoff attempt successfully sealed the CAS-only FETCH
+view (`/nix/store/swbd0jgxv3zr1skfjl4gl41a9kwzapq3-cix-build-view`) and copied
+it into an offline builder. After explicitly bypassing pnpm 11.17&#39;s project
+version switch, the full traced monorepo install remained inside the RUN until
+the synchronous 360-second timeout (exit 124); see
+`/var/tmp/cix-pnpmwall-verdaccio-payoff.OGv38g/build-sixth.log` and
+`sixth-exit-status`. No item or runtime probe is claimed. The precise missing
+mechanism is a stable or offline-reconstructable package-to-integrity index;
+pnpm&#39;s CAS alone is insufficient.
 </code></pre>
       </details>
       <section class="file">
