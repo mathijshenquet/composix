@@ -64,6 +64,7 @@
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · gpt-5.6-luna staging, independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
       <li>Both twins carry Docker&#39;s <code>STOPSIGNAL SIGQUIT</code>; nginx writes its pid under declared <code>RUNDIR /run/nginx</code>, and the faithful HTTP probe and cold replay pass. → case</li>
+      <li>The 2026-08-06 faithful warm/cold verification returned the existing item and cold exit 0, but the verification dirtied only the lock&#39;s <code>sourceHash</code>: <code>2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0</code> → <code>31aa13b1809fbe04ae8957eac7ca84368a76f92cf35dad307e5afb73302fdf93</code>. The exact diff was restored byte-for-byte; this is a keying-neutrality exhibit, not regeneration. → language (keying-neutrality wall)</li>
       <li>Alpine hooks, fixed uid/gid, nginx.org package selection, stdout symlinks, and exact welcome-page content dissolve into the locked nginx package, systemd identity, and the checked-in HTTP contract. → case</li>
       <li>The copied Alpine hooks&#39; template mutation and cgroup autotuning are declared operator-facing environment inputs but are not exercised by the HTTP probe. → evidence</li>
     </ul>
@@ -509,6 +510,17 @@ The probe was not weakened; this is a faithful-twin runtime finding.
 ## 2026-08-05 STOPSIGNAL regeneration
 
 Current `target/debug/cix` built `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`; `./check.sh cix`, faithful `--cold`, and dissolved `--cold` each exited 0. The pid lives at `/run/nginx/nginx.pid` under `RUNDIR`, and the service carries `STOPSIGNAL SIGQUIT`.
+
+## 2026-08-06 widened-parser cold-replay verification
+
+After the pinned context was restored, the faithful warm build and
+`devenv shell -- ./target/debug/cix build --cold corpus/migrate/docker/nginx#nginx`
+each exited 0 and produced `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`.
+The cold verification dirtied only `Cixfile.lock`&#39;s `sourceHash`, changing
+`2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0` to
+`31aa13b1809fbe04ae8957eac7ca84368a76f92cf35dad307e5afb73302fdf93`; the
+exact line was restored byte-for-byte and no regeneration was performed. This
+is retained as a keying-neutrality exhibit in `GAPS.md`.
 </code></pre>
       </details>
     </section>

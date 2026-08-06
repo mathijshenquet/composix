@@ -26,3 +26,18 @@ paths from the recorded read set.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/49x5zalp4g2av97z7khzbyf7fzrmjz8j-cix-item-valkey`.
+
+## 2026-08-06 widened-parser cold-replay verification
+
+The first ordinary warm command was discarded because it returned a completed
+output memo hit with zero Nix subprocesses. From a fresh workspace,
+`devenv shell -- ./target/debug/cix build --update-lock build --workspace-directory
+/var/tmp/composix-coldreplay-valkey.MuhhvN corpus/migrate/docker/valkey#valkey`
+exited 0 after a full 251.120 s RUN; its two FETCH update probes were
+identical and the committed `Cixfile.lock` remained byte-identical. The valid
+empty-workspace replay,
+`devenv shell -- ./target/debug/cix build --cold --workspace-directory
+/var/tmp/composix-coldreplay-valkey.MuhhvN corpus/migrate/docker/valkey#valkey`,
+exited 0 after a full 235.539 s RUN and returned
+`/nix/store/fgm45ck2453mrpmhpv4hqhc64kcwa3f6-cix-item-valkey`. Valkey is
+verified under the widened parser; no regeneration was performed.

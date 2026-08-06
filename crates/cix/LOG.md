@@ -1317,3 +1317,91 @@
   replay is rejected with two-version evidence, Verdaccio retains the precise
   missing-index wall, and Directus's prior incoherence diagnosis is corrected.
   No merge was performed.
+
+## 2026-08-06 — coldreplay sweep
+
+- 2026-08-06T08:06:49Z — Started `track/coldreplay-sweep` from a clean
+  worktree. Scope is seven existing source-compile corpus cases: replay each
+  faithful lock cold under the widened self-write parser, regenerate only a
+  genuine mismatch, and prove the final whole-corpus lock diff. No Rust changes
+  are authorized by the track. Next: build the current cix, restore each
+  ignored pinned context as needed, then run the receipts synchronously.
+
+- 2026-08-06T08:08:00Z — The first exact Redis cold command exited 1 before
+  replay because this worktree's local cache lacked the locked FETCH snapshot;
+  cix explicitly reported `--cold never refetches` and made no lock change.
+  This is an invalid cold pair, not a case mismatch. The receipt's older warm
+  step must be replayed first to materialize the local snapshot; then cold is
+  rerun and value-checked.
+
+- 2026-08-06T08:12:00Z — Redis's warm prerequisite exited 1 on upstream
+  tarball EXPECT drift, with declared `sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=` and observed
+  `sha256-LijBYlrDlf7uKh6a7XacdBt0oLJbRXtp8BkqgJ126Nc=`. The failed attempt
+  also dirtied `Cixfile.lock` by inserting this exact transient block:
+  `"builderDevEnvs": { "redis-build": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:51e3e3998882359eb48d3cba5d5a0b17fb9a1a691870d224ad473f48e136f34c" },`
+  before `"outputs"`; it was removed byte-for-byte. Redis is recorded as an
+  upstream-drift wall and the sweep continues.
+
+- 2026-08-06T08:15:00Z — Mosquitto's warm prerequisite exited 1 at its GPG
+  key FETCH: declared `sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=`;
+  observed `sha256-t6R8FXIdR0EmuvPy0OTBWvZzkNnmF/y4rNCsyVUr67c=`. No lock
+  diff occurred. This is a second upstream-drift wall, recorded in the case
+  GAPS/receipt; continue to the next case.
+
+- 2026-08-06T08:18:00Z — Memcached's warm prerequisite exited 1 on source
+  tarball EXPECT drift: declared `sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=`;
+  observed `sha256-Oar8dErGyg32RgIbe4NtXHyJ0E062bX+IlMpbjUue94=`. The failed
+  attempt inserted this transient lock block, which was removed byte-for-byte:
+  `"builderDevEnvs": { "build": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:6af9386a2873340ab115d6b11102ec7b83f857f583dcf3700dd3982d268b05be" },`
+  before `"outputs"`. Memcached is recorded as an upstream-drift wall.
+
+- 2026-08-06T08:22:00Z — Nginx warm and cold faithful commands both exited 0;
+  cold returned `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`.
+  Verification dirtied only `Cixfile.lock`'s `sourceHash`, exactly
+  `2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0` →
+  `31aa13b1809fbe04ae8957eac7ca84368a76f92cf35dad307e5afb73302fdf93`.
+  The line was restored byte-for-byte and the case is retained as a
+  keying-neutrality exhibit; no regeneration was performed.
+
+- 2026-08-06T08:27:00Z — HAProxy's warm prerequisite exited 1 on its source
+  tarball EXPECT: declared `sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=`;
+  observed `sha256-Wsa8Y8YS2fvnln9n7uDSj34kg/8gNHb6aydwV4psjGI=`. No lock diff
+  occurred. HAProxy is recorded as an upstream-drift wall and the sweep
+  continues.
+
+- 2026-08-06T08:34:00Z — Tomcat warm and cold faithful commands both exited 0,
+  with cold returning `/nix/store/5bqhzp9yc7plf621fr33560zs6hdz41v-cix-item-tomcat`.
+  Verification dirtied the lock with exactly this two-line output change:
+  `sourceHash` `4e8b397afdd22a4bc32bf5e1beffd2be13842037a8bbfdbac64df7f809a1ff14`
+  → `a98267fb02f1acf91908f1e3e8f8ae081bae22b9f65e37b7f186dd97a2c5a60a` and
+  `storePath` `/nix/store/s58jpph2qgzj18xwwam5is3jkzhqa9mf-cix-item-tomcat`
+  → `/nix/store/5bqhzp9yc7plf621fr33560zs6hdz41v-cix-item-tomcat`. Both lines
+  were restored byte-for-byte; Tomcat is a keying-neutrality wall, not a
+  regeneration candidate.
+
+- 2026-08-06T09:10:00Z — Valkey's first ordinary warm command was discarded
+  as an invalid completed-output memo hit (`zero Nix subprocesses`). The clean
+  workspace `--update-lock build` exited 0 after a full 251.120 s RUN; both
+  FETCH update probes were identical and the canonical lock stayed byte-
+  identical. The valid cold replay from that pinned snapshot exited 0 after a
+  full 235.539 s RUN and returned `/nix/store/fgm45ck2453mrhpv4hqhc64kcwa3f6-cix-item-valkey`.
+  Valkey is verified under the widened parser; no regeneration was needed.
+
+- 2026-08-06T09:12:00Z — Whole-corpus SHA-256 comparison over every tracked
+  `corpus/migrate/docker/*/Cixfile*.lock` against `HEAD` synchronously exited
+  0 and reported `whole-corpus changed lock count: 0`. This proves no lock
+  changed and therefore no case was regenerated; the remaining lock-churn
+  observations were restored exactly as required.
+
+- 2026-08-06T08:23:29Z — `devenv shell -- cargo fmt --all --check` and
+  `git diff --check` exited 0. The first corpus drift check exited 101 only
+  because the seven edited receipts/GAPS panels had not yet been regenerated;
+  `devenv shell -- cargo test --test corpus -- --ignored generate_corpus_browser`
+  exited 0, and the final `devenv shell -- cargo test --test corpus` exited 0
+  with 7 passed, 0 failed, and 1 ignored (including browser determinism).
+
+- 2026-08-06T08:23:29Z — Timestamp correction: the earlier entries labeled
+  08:27:00Z, 08:34:00Z, 09:10:00Z, and 09:12:00Z were sequence labels entered
+  ahead of the observed wall clock, not detached receipts. Their command
+  outcomes and exact values are unchanged; this append-only correction gives
+  the actual synchronous gate timestamp above.

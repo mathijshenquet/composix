@@ -67,6 +67,7 @@
       <li>Docker&#39;s fixed uid/gid and <code>/var/lib/haproxy</code> workdir dissolve into DynamicUser. Error files are expanded into a declared state role at startup because this host could not use a writable <code>CONFIGDIR</code> mount. → case</li>
       <li>Formatting the locked Cixfile changes the FETCH builder identity: the formatted-copy cold build looks for snapshot <code>3378f6418827b7c769e19aefc1f52f90dce578bebce743ab98056cd4c5e2336d</code> instead of the existing pin and fails before replay. → language (fmt-key-neutrality)</li>
       <li>The dissolved twin deliberately follows nixpkgs&#39; HAProxy version and feature set rather than the faithful 3.2.22 source build. → evidence</li>
+      <li>The 2026-08-06 widened-parser sweep could not materialize the faithful FETCH snapshot: the pinned HAProxy tarball declared <code>sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=</code> but the upstream response observed <code>sha256-Wsa8Y8YS2fvnln9n7uDSj34kg/8gNHb6aydwV4psjGI=</code>. → upstream drift wall</li>
     </ul>
   </aside>
   <details class="context">
@@ -5715,6 +5716,16 @@ reproduction is promoted in `cips/draft/fmt-key-neutrality.md`.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/43s99f6rhw30h8k3kkwqvd8ikm9679qp-cix-item-haproxy`.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/haproxy#haproxy`,
+exited 1 at the source tarball EXPECT. The declared digest
+`sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=` did not match observed
+`sha256-Wsa8Y8YS2fvnln9n7uDSj34kg/8gNHb6aydwV4psjGI=`. No local snapshot was
+available for a valid cold replay, so this is recorded as an upstream-drift
+wall in `GAPS.md`; no regeneration claim is made.
 </code></pre>
       </details>
     </section>

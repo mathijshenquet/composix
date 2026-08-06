@@ -20,3 +20,13 @@ reproduction is promoted in `cips/draft/fmt-key-neutrality.md`.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/43s99f6rhw30h8k3kkwqvd8ikm9679qp-cix-item-haproxy`.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/haproxy#haproxy`,
+exited 1 at the source tarball EXPECT. The declared digest
+`sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=` did not match observed
+`sha256-Wsa8Y8YS2fvnln9n7uDSj34kg/8gNHb6aydwV4psjGI=`. No local snapshot was
+available for a valid cold replay, so this is recorded as an upstream-drift
+wall in `GAPS.md`; no regeneration claim is made.

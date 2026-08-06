@@ -67,6 +67,7 @@
       <li>Docker&#39;s fixed uid/gid, root-time recursive <code>chown</code>, command override, labels, and Alpine entrypoint dissolve into DynamicUser, declared roles, and the checked-in no-auth broker configuration. Operator-supplied configuration remains a compose/materialization concern. → case</li>
       <li>The host drops <code>PrivatePIDs</code> while realizing DynamicUser, so Cix reports degraded PID-namespace confinement for the successful MQTT probe. → evidence</li>
       <li>The dissolved twin deliberately follows nixpkgs&#39; Mosquitto version and build flags rather than the faithful 2.0.22 source build. → evidence</li>
+      <li>The 2026-08-06 widened-parser sweep could not recreate the local faithful FETCH snapshot because the pinned Ubuntu keyserver response changed: declared <code>sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=</code>, observed <code>sha256-t6R8FXIdR0EmuvPy0OTBWvZzkNnmF/y4rNCsyVUr67c=</code>. → upstream drift wall</li>
     </ul>
   </aside>
   <details class="context">
@@ -8983,6 +8984,17 @@ still passed.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/xggwfv26l7nsraymni7kqcwlgizwmrbm-cix-item-broker`.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/mosquitto#broker`,
+exited 1 while refetching the GPG key: the declared digest was
+`sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=` and the observed digest
+was `sha256-t6R8FXIdR0EmuvPy0OTBWvZzkNnmF/y4rNCsyVUr67c=`. Therefore the
+worktree had no valid local snapshot for the corresponding cold command, and
+no cold replay or lock regeneration claim is made; the drift is recorded in
+`GAPS.md`.
 </code></pre>
       </details>
     </section>

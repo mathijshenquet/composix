@@ -66,6 +66,7 @@
       <li>Docker&#39;s fixed redis uid/gid, <code>gosu</code> verification, root-time <code>chown</code>, and privilege transition dissolve into Cix/systemd&#39;s managed service identity. The faithful twin retains argument normalization and umask behavior, but its copied entrypoint&#39;s root-only branch is not exercised. → language (fixed service identity)</li>
       <li>The PING receipt proves the faithful service responds, not that its retained protected-mode patch, TLS build, jemalloc tuning, or every copied command behaves identically to the Docker image. → evidence</li>
       <li>The dissolved twin deliberately follows nixpkgs&#39; Redis version and defaults rather than the upstream 7.4.8 source build; it preserves only the state, port, startup, and probe-served behavioral contract. → evidence</li>
+      <li>The 2026-08-06 cold-replay sweep could not materialize the faithful Redis FETCH snapshot: the declared <code>REDIS_DOWNLOAD_SHA</code> for <code>http://download.redis.io/releases/redis-7.4.8.tar.gz</code> mismatched the fetched 3.37 MiB response (<code>sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=</code> declared, <code>sha256-LijBYlrDlf7uKh6a7XacdBt0oLJbRXtp8BkqgJ126Nc=</code> observed). → upstream drift wall</li>
     </ul>
   </aside>
   <details class="context">
@@ -10435,6 +10436,18 @@ revision `2ac6f46c6ba6f3ece54183a518a2bfd865390368`. The faithful build produced
 build produced `/nix/store/f8xsydbpl1bmn3vr348fqyfxcp6lzm4h-cix-item-redis`.
 The unchanged PING probe initially observed connection refusal while the service
 started, then passed within its existing bound after the documented D36 fallback.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+`devenv shell -- ./target/debug/cix build --cold corpus/migrate/docker/redis#redis`
+exited 1 before replay because this worktree had no local FETCH snapshot. The
+required warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/redis#redis`,
+also exited 1: the upstream Redis tarball&#39;s observed SHA-256 was
+`sha256-LijBYlrDlf7uKh6a7XacdBt0oLJbRXtp8BkqgJ126Nc=` rather than the declared
+`sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=`. No cold replay or
+regeneration claim is made; this is recorded as an upstream-drift wall in
+`GAPS.md`.
 </code></pre>
       </details>
       <section class="file">
