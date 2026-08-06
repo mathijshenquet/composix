@@ -105,15 +105,42 @@ Four legs, ordered by evidence-before-mechanism:
    `ERR_PNPM_NO_OFFLINE_TARBALL`; pnpm did not reconstruct `index.db`.
    Independent indexes differed and embedded volatile `checkedAt`
    fields, so generic byte pinning or SQLite-dump normalization is not
-   honest either. A viable future mechanism needs one of: an upstream
-   pnpm command that emits/rebuilds a stable package index; a declared,
-   package-manager-specific reconstitution transform whose output is
-   checked; or a lockfile translator as an explicit fallback. Existing
-   FETCH/COPY/RUN features cannot express a cold-replayable pnpm
-   artifact here. npm is different: npm 11.13.0 replayed two
-   network-silent `npm ci --offline --no-audit` installs from
-   `_cacache/content-v2` alone, because package-lock integrity locates
-   CAS content without `_cacache/index-v5`.
+   honest either. Existing FETCH/COPY/RUN features cannot express a
+   cold-replayable pnpm artifact here. npm is different: npm 11.13.0
+   replayed two network-silent `npm ci --offline --no-audit` installs
+   from `_cacache/content-v2` alone, because package-lock integrity
+   locates CAS content without `_cacache/index-v5`.
+
+   **The surgical route exists upstream (web research, 2026-08-06):
+   pnpm 11.7.0 shipped `frozenStore`** — first-class support for
+   installing against READ-ONLY stores, with "Nix, bind mounts, OCI
+   layers" as the documented use case. It opens `index.db` in SQLite
+   immutable mode (no WAL/-shm sidecars) and "suppresses every code
+   path that would write to the store"; the documented pairing is
+   `--offline --frozen-lockfile` against a fully-populated store.
+   That inverts our mechanism: do NOT strip or regenerate the index —
+   **seal the whole store as fetched (files/ + index.db), a TOFU
+   instance-pin**, and install frozen against it. The cross-fetch
+   nondeterminism of `index.db` gets reclassified: it makes two
+   fetches inequivalent as BYTES but not as STORES — replayability of
+   one pinned instance is what cix needs, and frozenStore guarantees
+   the install neither mutates nor regenerates anything (the
+   consumed-volatility loop is cut by pnpm itself, not by us). cix's
+   double-fetch probe should then require identity on `files/` and
+   record index/metadata divergence as instance-volatility, without
+   refusing the pin. Guards, all upstream-defined: pnpm ≥11.7.0 and
+   Node ≥22.15/23.11/24 required (`ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE`);
+   stores must pre-contain build outputs for script-running packages
+   (`ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` fails upfront, we fetch
+   `--ignore-scripts` anyway); incompatible with `--force`. The known
+   offline-resolution footgun (pnpm#10715: `--offline` resolves semver
+   against metadata including uncached versions) is sidestepped
+   because `--frozen-lockfile` installs headless, without range
+   resolution. Version reach: dozzle pins pnpm 11.17.0 (eligible);
+   verdaccio 11.1.2 and directus 10.27.0 predate 11.7 — whether
+   translation may upgrade the package manager past upstream's
+   `packageManager` pin (recorded as a deviation in GAPS) is a taste
+   call, not a mechanism gap.
 3. **`WITH CACHE` lands as designed in nodes-and-edges** (recorded
    direction there): declared cache paths outside read-set evidence,
    persisted across builds. This addresses the scale face (exhibit
@@ -139,6 +166,22 @@ worse than no pin).
 - **Answered:** pnpm does not rebuild its store index from bare CAS at
   either corpus pin; npm can replay from content-v2 without index-v5
   when audit/fund network features are disabled.
+- **Instance-pin semantics** (new, from the frozenStore route): does
+  cix's pin model accept a TOFU instance-pin whose double-fetch probe
+  shows index/metadata divergence — i.e. "identical `files/`, divergent
+  derived index" graded as a valid pin rather than refused volatility?
+  This is the one semantic amendment the surgical route needs from us;
+  everything else is upstream mechanism.
+- **Translation pnpm-version policy**: verdaccio (11.1.2) and directus
+  (10.27.0) pin pnpm older than 11.7's frozenStore. May a translation
+  upgrade the package manager past upstream's `packageManager` pin,
+  recorded as an explicit deviation in GAPS — or does fidelity win and
+  the wall stand for pre-11.7 pins?
+- **Spike before adoption**: one verdaccio-shaped validation of the
+  full route (seal files/+index.db as fetched → `frozen-store=true`
+  install `--offline --frozen-lockfile` from the read-only pinned
+  tree, twice, network-silent) with a pnpm ≥11.7 override, before any
+  language/semantic change lands.
 - Where does the pinned store live in the artifact model — a FETCH
   output tree like today, or does `WITH CACHE` subsume it entirely
   (cache persisted, nothing pinned)? The difference is evidence:

@@ -147,21 +147,22 @@ file to declare it in.
 
 Proposal:
 
-- **`TAG <ref>` lines in the Cixfile**, interpolating LET/ARG
-  (`TAG app:${VERSION}`, and multiple TAG lines for aliases —
-  `TAG app:latest`). Today's tag surface is CLI-only
-  (`BuildOptions.tag` → the registry's `tag_artifact`); TAG feeds
-  that same seam from source.
-- **`cix build` applies declared tags by default**; `--all-args`
-  yields tag-per-cell automatically because interpolation resolves
+- **ONE `TAG <ref>` line per Cixfile** (Mathijs, 2026-08-06: uniform —
+  the file has one identity, the tag-per-Cixfile semantics we already
+  carried). It interpolates LET/ARG: `TAG app:${VERSION}`. No alias
+  TAG lines — aliases (`app:latest`) are index-level moves via
+  `cix tag`, after the build, where retagging already lives. Today's
+  tag surface is CLI-only (`BuildOptions.tag` → the registry's
+  `tag_artifact`); TAG feeds that same seam from source.
+- **`cix build` applies the declared tag by default**; `--all-args`
+  yields tag-per-cell automatically because the one template resolves
   per cell — the CI matrix story becomes declaration, not flag
-  choreography. `--tag` stays as an explicit additional/override
-  move (the `--override-input` shape: visible, never ambient).
-- **Collision guard**: two cells of one invocation resolving to the
-  same tag is an error, not a silent last-writer-wins — an ARG-free
-  `TAG app:latest` alias is fine standalone but must be paired with
-  a per-cell tag under `--all-args` (or explicitly floated, the
-  docker `latest` convention; which default is a taste call below).
+  choreography. `--tag` stays as an explicit override move (the
+  `--override-input` shape: visible, never ambient).
+- **Collision guard**: under `--all-args`, a TAG template that does
+  not mention any ARG resolves identically for every cell — that is
+  an error (declare the interpolation or build one cell), never a
+  silent last-writer-wins.
 - **Identity is not content**: TAG lines should not participate in
   build keying/sourceHash — retagging must not rebuild. Needs an
   explicit carve-out in the fingerprint, and is consistent with the
@@ -177,11 +178,8 @@ Proposal:
   a no-default ARG (operator must pick) is wanted, mirroring
   `ENV … required` (CIP-100 family).
 - **TAG placement and namespace**: prelude (file identity) vs APP
-  block (artifact identity) — prelude proposed; and how TAG refs
-  interact with index namespaces/qualified refs.
-- **TAG × `latest`**: under `--all-args`, is an ARG-free alias tag an
-  error unless a per-cell tag exists (strict), or does it float to
-  the default cell (docker convention)?
+  block (artifact identity) — prelude proposed; and how the TAG ref
+  interacts with index namespaces/qualified refs.
 - **Twins vs args**: when both could serve, what's the guidance line?
   (Proposal: args for same-shape variants of one artifact; twins for
   genuinely different build shapes.)
