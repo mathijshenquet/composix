@@ -12,7 +12,15 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
-        let fields = exact_fields(arguments, 1, line, source, "BUILDER <name>")?;
+        let (arguments, opened) = phase_header(arguments, "BUILDER", line, source)?;
+        if self.opened_block.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "phase blocks are single-level; close the current block with } first",
+            ));
+        }
+        let fields = exact_fields(arguments, 1, line, source, "BUILDER <name> {")?;
         let name = fields[0];
         validate_name("builder", name, line, source)?;
         self.declare_name(name, "BUILDER block", line, source)?;
@@ -20,6 +28,13 @@ impl Parser<'_> {
         self.builder_order.push(name.to_owned());
         self.destinations.insert(name.to_owned(), BTreeSet::new());
         self.current = Some(CurrentBlock::Builder(name.to_owned()));
+        if opened {
+            self.opened_block = Some(super::super::machine::OpenedBlock {
+                kind: "BUILDER",
+                name: name.to_owned(),
+                line,
+            });
+        }
         Ok(())
     }
 
@@ -37,15 +52,49 @@ impl Parser<'_> {
             };
             return Err(ParseError::new(line, source, message));
         };
-        let command = if let Some(delimiter) = heredoc_delimiter(arguments, "RUN", line, source)? {
-            self.read_heredoc_body("RUN", delimiter, line, source)?
+        let command = if self.opened_block.is_none() && arguments.starts_with("<<") {
+            let delimiter =
+                heredoc_delimiter(arguments, "RUN", line, source)?.expect("legacy delimiter");
+            NodeCommand::Legacy(self.read_heredoc_body("RUN", delimiter, line, source)?)
+        } else if let Some((interpreter, delimiter)) = run_heredoc(arguments, line, source)? {
+            NodeCommand::Heredoc {
+                interpreter: self.build_template(&interpreter, line, source, false)?,
+                body: self.read_heredoc_body("RUN", &delimiter, line, source)?,
+            }
         } else {
             if arguments.is_empty() {
                 return Err(ParseError::new(line, source, "RUN requires a command"));
             }
-            self.build_template(arguments, line, source, false)?
+            if self.opened_block.is_none() && legacy_shell_form(arguments) {
+                NodeCommand::Legacy(self.build_template(arguments, line, source, false)?)
+            } else {
+                let argv = argv_fields(arguments, line, source, "RUN")?;
+                reject_shell_variable(&argv, line, source)?;
+                NodeCommand::Argv(
+                    argv.into_iter()
+                        .map(|arg| self.build_template(&arg, line, source, false))
+                        .collect::<Result<_, _>>()?,
+                )
+            }
         };
-        self.push_builder_command(&name, None, false, line, source, command);
+        let (environment, ignored_evidence, expected) = self.node_clauses(line, source)?;
+        if expected.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "EXPECT is only valid on FETCH nodes",
+            ));
+        }
+        self.push_builder_command(
+            &name,
+            None,
+            false,
+            line,
+            source,
+            command,
+            environment,
+            ignored_evidence,
+        );
         Ok(())
     }
 
@@ -70,11 +119,40 @@ impl Parser<'_> {
         } else {
             (None, arguments)
         };
-        let command = self.build_template(command, line, source, false)?;
-        self.push_builder_command(builder, expected, fetch, line, source, command);
+        let command = if let Some((interpreter, delimiter)) = run_heredoc(command, line, source)? {
+            NodeCommand::Heredoc {
+                interpreter: self.build_template(&interpreter, line, source, false)?,
+                body: self.read_heredoc_body(directive, &delimiter, line, source)?,
+            }
+        } else {
+            if self.opened_block.is_none() && legacy_shell_form(command) {
+                NodeCommand::Legacy(self.build_template(command, line, source, false)?)
+            } else {
+                let argv = argv_fields(command, line, source, directive)?;
+                reject_shell_variable(&argv, line, source)?;
+                NodeCommand::Argv(
+                    argv.into_iter()
+                        .map(|arg| self.build_template(&arg, line, source, false))
+                        .collect::<Result<_, _>>()?,
+                )
+            }
+        };
+        let (environment, ignored_evidence, clause_expected) = self.node_clauses(line, source)?;
+        let expected = clause_expected.or(expected);
+        self.push_builder_command(
+            builder,
+            expected,
+            fetch,
+            line,
+            source,
+            command,
+            environment,
+            ignored_evidence,
+        );
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::parser) fn push_builder_command(
         &mut self,
         builder: &str,
@@ -82,18 +160,24 @@ impl Parser<'_> {
         fetch: bool,
         line: usize,
         source: &str,
-        command: Template,
+        command: NodeCommand,
+        environment: std::collections::BTreeMap<String, Template>,
+        ignored_evidence: std::collections::BTreeSet<String>,
     ) {
         let step = if fetch {
             BuildStep::Fetch {
                 expected,
                 command,
+                environment,
+                ignored_evidence,
                 line,
                 source: source.to_owned(),
             }
         } else {
             BuildStep::Run {
                 command,
+                environment,
+                ignored_evidence,
                 line,
                 source: source.to_owned(),
             }
@@ -104,4 +188,8 @@ impl Parser<'_> {
             .steps
             .push(step);
     }
+}
+
+fn legacy_shell_form(arguments: &str) -> bool {
+    arguments.contains(['|', '&', ';', '>', '<', '`']) || arguments.contains('$')
 }

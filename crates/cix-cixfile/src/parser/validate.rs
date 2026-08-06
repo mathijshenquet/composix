@@ -42,6 +42,86 @@ pub(super) fn heredoc_delimiter<'a>(
     Ok(Some(delimiter))
 }
 
+pub(super) fn phase_header<'a>(
+    arguments: &'a str,
+    directive: &str,
+    line: usize,
+    source: &str,
+) -> Result<(&'a str, bool), ParseError> {
+    let arguments = arguments.trim();
+    if let Some(header) = arguments.strip_suffix('{') {
+        return Ok((header.trim_end(), true));
+    }
+    if arguments.contains('{') || arguments.contains('}') {
+        return Err(ParseError::new(
+            line,
+            source,
+            format!("{directive} phase braces must be on the header line, with }} on its own line"),
+        ));
+    }
+    Ok((arguments, false))
+}
+
+pub(super) fn run_heredoc(
+    arguments: &str,
+    line: usize,
+    source: &str,
+) -> Result<Option<(String, String)>, ParseError> {
+    let Some((interpreter, delimiter)) = arguments.split_once("<<") else {
+        return Ok(None);
+    };
+    let interpreter = interpreter.trim();
+    let delimiter = delimiter.trim();
+    if delimiter.is_empty() || delimiter.contains(char::is_whitespace) {
+        return Err(ParseError::new(
+            line,
+            source,
+            "RUN/FETCH heredoc must use an unquoted <<DELIMITER",
+        ));
+    }
+    if interpreter.is_empty() {
+        return Err(ParseError::new(
+            line,
+            source,
+            "RUN/FETCH heredocs require an interpreter; write RUN <interpreter> <<EOF",
+        ));
+    }
+    let argv = argv_fields(interpreter, line, source, "RUN/FETCH heredoc")?;
+    if argv.len() != 1 {
+        return Err(ParseError::new(
+            line,
+            source,
+            "RUN/FETCH heredocs name exactly one interpreter; it is invoked with the body filename",
+        ));
+    }
+    Ok(Some((
+        argv.into_iter().next().expect("one interpreter"),
+        delimiter.to_owned(),
+    )))
+}
+
+pub(super) fn reject_shell_variable(
+    argv: &[String],
+    line: usize,
+    source: &str,
+) -> Result<(), ParseError> {
+    if argv
+        .iter()
+        .any(|argument| contains_shell_variable(argument))
+    {
+        return Err(ParseError::new(line, source, "$X is shell interpolation, not argv syntax; declare LET X = value and write ${X}, or use a heredoc"));
+    }
+    Ok(())
+}
+
+fn contains_shell_variable(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes
+        .iter()
+        .enumerate()
+        .any(|(index, byte)| *byte == b'$' && bytes.get(index + 1) != Some(&b'{'))
+}
+
 pub(super) fn exact_fields<'a>(
     arguments: &'a str,
     count: usize,
@@ -140,6 +220,7 @@ pub(super) fn argv_fields(
     Ok(fields)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn build_template(
     input: &str,
     line: usize,
@@ -147,6 +228,8 @@ pub(super) fn build_template(
     heredoc: bool,
     inputs: &BTreeMap<String, Input>,
     names: &BTreeMap<String, DeclaredName>,
+    lets: &BTreeMap<String, Vec<String>>,
+    args: &BTreeMap<String, Arg>,
 ) -> Result<Template, ParseError> {
     let mut parts = Vec::new();
     let mut literal = String::new();
@@ -178,6 +261,19 @@ pub(super) fn build_template(
             };
             let close = index + 2 + close_offset;
             let reference = &input[index + 2..close];
+            if let Some(values) = lets.get(reference) {
+                if values.len() != 1 {
+                    return Err(ParseError::new(line, source, format!("${{{reference}}} expands to multiple argv values and must occupy a whole argv position")));
+                }
+                literal.push_str(&values[0]);
+                index = close + 1;
+                continue;
+            }
+            if let Some(argument) = args.get(reference) {
+                literal.push_str(&argument.selected);
+                index = close + 1;
+                continue;
+            }
             if let Some((namespace, attrpath)) = reference.split_once('.') {
                 if inputs.contains_key(namespace) && is_input_metadata(attrpath) {
                     if !literal.is_empty() {

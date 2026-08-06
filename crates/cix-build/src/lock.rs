@@ -6,7 +6,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, Template, TemplatePart};
+use crate::{
+    Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, NodeCommand, Template, TemplatePart,
+};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -353,7 +355,7 @@ pub fn validate_declared_expectations(cixfile: &Cixfile, lock: &LockFile) -> Res
             else {
                 continue;
             };
-            let Some(command) = command.literal_value() else {
+            let Some(command) = node_command_literal(command) else {
                 cache_safe = false;
                 continue;
             };
@@ -508,7 +510,7 @@ pub fn save_lock(path: &Path, lock: &LockFile) -> Result<()> {
 pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<()> {
     let inputs = cixfile.inputs.clone();
     for fetch in cixfile.fetches.values_mut() {
-        resolve_template_metadata(&mut fetch.command, &inputs, lock)?;
+        resolve_command_metadata(&mut fetch.command, &inputs, lock)?;
     }
     for builder in cixfile.builders.values_mut() {
         for import in &mut builder.imports {
@@ -518,7 +520,7 @@ pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<
             match step {
                 BuildStep::Copy(copy) => resolve_template_metadata(&mut copy.src, &inputs, lock)?,
                 BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                    resolve_template_metadata(command, &inputs, lock)?
+                    resolve_command_metadata(command, &inputs, lock)?
                 }
                 BuildStep::Env { value, .. } => resolve_template_metadata(value, &inputs, lock)?,
             }
@@ -552,6 +554,38 @@ pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<
         }
     }
     Ok(())
+}
+
+fn resolve_command_metadata(
+    command: &mut NodeCommand,
+    inputs: &BTreeMap<String, Input>,
+    lock: &LockFile,
+) -> Result<()> {
+    match command {
+        NodeCommand::Legacy(command) => resolve_template_metadata(command, inputs, lock)?,
+        NodeCommand::Argv(argv) => {
+            for template in argv {
+                resolve_template_metadata(template, inputs, lock)?;
+            }
+        }
+        NodeCommand::Heredoc { interpreter, body } => {
+            resolve_template_metadata(interpreter, inputs, lock)?;
+            resolve_template_metadata(body, inputs, lock)?;
+        }
+    }
+    Ok(())
+}
+
+fn node_command_literal(command: &NodeCommand) -> Option<String> {
+    match command {
+        NodeCommand::Legacy(command) => command.literal_value(),
+        NodeCommand::Argv(argv) => argv
+            .iter()
+            .map(Template::literal_value)
+            .collect::<Option<Vec<_>>>()
+            .map(|argv| argv.join("\u{1f}")),
+        NodeCommand::Heredoc { .. } => None,
+    }
 }
 
 fn resolve_template_metadata(

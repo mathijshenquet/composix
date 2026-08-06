@@ -1022,16 +1022,20 @@ fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, Needed
                     }
                 }
                 BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                    for binder in template_binders(command) {
-                        add(binder, ".", None);
+                    for template in command.templates() {
+                        for binder in template_binders(template) {
+                            add(binder, ".", None);
+                        }
                     }
                 }
             }
         }
     }
     for fetch in cixfile.fetches.values() {
-        for binder in template_binders(&fetch.command) {
-            add(binder, ".", None);
+        for template in fetch.command.templates() {
+            for binder in template_binders(template) {
+                add(binder, ".", None);
+            }
         }
     }
     needed
