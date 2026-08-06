@@ -1364,6 +1364,25 @@ mod tests {
     }
 
     #[test]
+    fn current_read_hash_characterizes_full_posix_mode_keying() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("file");
+        fs::write(&path, "same bytes").unwrap();
+
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        let ordinary = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let private = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        let executable = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+
+        // CURRENT behavior: read_hash folds all st_mode bits, while a NAR
+        // identity distinguishes only the executable bit for regular files.
+        assert_ne!(ordinary, private);
+        assert_ne!(ordinary, executable);
+    }
+
+    #[test]
     fn recorder_reuses_only_known_dependencies_with_sufficient_strength() {
         let root = tempfile::tempdir().unwrap();
         fs::write(root.path().join("content"), "same bytes").unwrap();

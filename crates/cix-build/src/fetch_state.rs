@@ -424,3 +424,28 @@ fn hex_hash(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::file_fingerprint;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn automatic_fetch_path_fingerprint_characterizes_full_posix_mode_keying() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("file");
+        fs::write(&path, "same bytes").unwrap();
+
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+        let ordinary = file_fingerprint(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let private = file_fingerprint(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        let executable = file_fingerprint(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+
+        // CURRENT behavior: automatic FETCH pins retain all st_mode bits.
+        assert_ne!(ordinary, private);
+        assert_ne!(ordinary, executable);
+    }
+}

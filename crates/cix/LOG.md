@@ -1470,3 +1470,53 @@
   refs/heads/track/tourdet-teardown` returned
   `d5ede6e613f1e2210533db262e5aeab5e0799c97`, equal to local `HEAD`, and the
   worktree is clean. No merge was performed.
+
+## 2026-08-06 — fmt-key evidence
+
+- 2026-08-06T00:00:00Z — Started `track/fmtkey-evidence` from the supplied
+  evidence-only spec. Read the draft, exhibit receipts, lock types, build
+  fingerprint construction, trace hashing, and FETCH-state pinning. The first
+  source trace establishes an important boundary to prove with tests: persisted
+  `dev`/`inode`/`mtimeNs` fields are validation hints in `stepMemo` and are not
+  serialized into `build_fingerprint`; `read_hash` and automatic FETCH path
+  pins instead fold the complete POSIX mode. Next: add hermetic CURRENT-behavior
+  characterization tests, then write the per-site NAR inventory without
+  attributing the recorded sourceHash churn to fields that do not flow there.
+
+### FRICTION
+
+- 2026-08-06T00:00:00Z — The three corpus receipts call the observations one
+  family, while the code currently has materially different paths (source-tree
+  hash, full-mode read hashes, FETCH lock pins, and non-key validation hints).
+  The evidence chapter must preserve that distinction rather than turn a
+  plausible correlation into a causal claim. → evidence
+
+- 2026-08-06T09:26:35Z — Added three hermetic **CURRENT behavior** tests and
+  the draft evidence inventory. `read_hash` and automatic FETCH path pins each
+  distinguish `0644 → 0600` despite identical bytes; the source fingerprint
+  consumes arbitrary non-lock source files and `fetches`, but not source file
+  modes or `stepMemo`. Focused synchronous receipts all exited 0:
+  `cargo fmt --all --check`; the two `cix-build` characterizations; the
+  `cix-cixfile` source/fetch/stepMemo characterization; and `git diff --check`.
+  The structural audit found no new `Arc`/`Rc`/`Mutex`/`RwLock`/`RefCell`/static
+  site in this track's changed Rust. Next: run the requested warning-denied
+  clippy and full workspace-test gates, then review/commit the evidence-only
+  diff without merging.
+
+- 2026-08-06T09:26:35Z — One preliminary focused-test command incorrectly
+  supplied two Cargo test filters and synchronously exited 1 before compiling;
+  it was discarded and rerun as two independent named-test commands, each exit
+  0 above. → process
+
+- 2026-08-06T09:26:35Z — Requested full Rust gates are synchronously green:
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`
+  finished with exit 0, and `devenv shell -- cargo test --workspace` finished
+  with exit 0 (all non-ignored workspace tests passed, including the three new
+  characterizations). There is no VM gate for this evidence-only track. Next:
+  final diff/status review, then commit the scoped branch; do not merge.
+
+- 2026-08-06T09:26:35Z — Final scoped review found exactly the evidence draft,
+  three characterization-test locations, and this append-only journal; staged
+  `git diff --check` passed. The clean evidence track is committed and remains
+  unmerged; terminal final-state verification confirms the amended commit and
+  clean worktree.
