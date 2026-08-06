@@ -122,9 +122,18 @@ named interpreter.
      bare `WITH NAME` pulls the value from the LET of that name (the
      explicit LET→env bridge, one token per consuming node). The
      assignment/bare shapes mean environment; future node attachments
-     spell their kind (`WITH CACHE …` — recorded direction: cache
-     mounts would dissolve the npm_config_cache/GOMODCACHE knob class
-     entirely). Env edges are per-node declared text, so keying is
+     spell their kind (`WITH UNSAFE IGNORE <path>` — recorded
+     direction, renamed from the earlier `WITH CACHE` sketch (Mathijs,
+     2026-08-06): D71's underlay already owns warm persistence, so the
+     clause's only real semantics is EVIDENCE EXCLUSION — the path
+     leaves the read set, the seal/pins, and all keys; `--cold` starts
+     it empty like everything else and the output seal still verifies
+     what remains claimed. The UNSAFE prefix is the Rust-`unsafe`
+     convention: an author-carried invariant cix cannot check, and a
+     diagnostic names the waived evidence at every use. CACHE as a
+     word stays reserved for D71's recorded retreat dial. The
+     npm_config_cache/GOMODCACHE knob class dissolves the same way it
+     would have under the old name). Env edges are per-node declared text, so keying is
      per-node by construction — no shared env state exists. Inside a
      heredoc, `export` and `VAR=x cmd` remain available as
      node-INTERNAL state (the interpreter's interior, not an edge).

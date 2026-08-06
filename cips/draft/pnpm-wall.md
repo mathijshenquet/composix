@@ -76,9 +76,10 @@ translators needed") hold where the translator industry is biggest.
   is not regenerated from `files/` by pnpm 11.1.2 or 11.17.0.
 - **BuildKit cache mounts** (`RUN --mount=type=cache`): Docker's
   answer — a declared, persistent, UNKEYED cache outside the layer
-  model. Maps to the recorded `WITH CACHE` direction in
-  nodes-and-edges: an edge kind that says "this path is cache —
-  exclude it from read-set evidence, persist it across builds".
+  model. In cix this splits cleanly in two: persistence is D71's
+  underlay (always-on workshop semantics), evidence exclusion is the
+  `WITH UNSAFE IGNORE` direction in nodes-and-edges (renamed from the
+  earlier `WITH CACHE` sketch).
 - **Yarn offline mirrors / npm `--prefer-offline` +
   `npm ci`**: the ecosystem's own reproducibility affordances all
   converge on "materialize the packages once, install offline from
@@ -141,13 +142,15 @@ Four legs, ordered by evidence-before-mechanism:
    translation may upgrade the package manager past upstream's
    `packageManager` pin (recorded as a deviation in GAPS) is a taste
    call, not a mechanism gap.
-3. **`WITH CACHE` lands as designed in nodes-and-edges** (recorded
-   direction there): declared cache paths outside read-set evidence,
-   persisted across builds. This addresses the scale face (exhibit
-   5): module/package caches stop being sealed at all — the seal
-   covers the project tree, not the ecosystem's cache. Also the
-   honest answer for Go's module cache (filestash) without any Go
-   special-casing.
+3. **`WITH UNSAFE IGNORE` per the amended nodes-and-edges direction**
+   (renamed from `WITH CACHE`, Mathijs 2026-08-06: D71's underlay
+   already owns warm persistence, so the clause is pure evidence
+   exclusion — path out of read set, seal, and keys; a diagnostic
+   names the waived evidence at every use). This addresses the scale
+   face (exhibit 5): module/package caches stop being sealed — the
+   seal covers the project tree, not the ecosystem's cache. Also the
+   honest hatch for Go's module cache (filestash) without Go
+   special-casing — and explicitly NOT the pnpm route (leg 2 is).
 4. **Keep frozen validation, but correct the Directus diagnosis.** A real
    manifest/lock mismatch should still be named as an upstream defect
    and must never trigger an automatic non-frozen install. Directus is
@@ -188,25 +191,26 @@ worse than no pin).
   tree, twice, network-silent) with a pnpm ≥11.7 override, before any
   language/semantic change lands. (In flight as track/pnpm-frozenstore
   together with the two decided items above.)
-- **WITH CACHE as the generic escape hatch + cache-path detection**
-  (Mathijs's question, 2026-08-06; orchestrator's assessment delivered
-  in chat): yes as escape hatch — WITH CACHE is the ecosystem-agnostic
-  degradation (no per-PM knowledge, but no cold proof either; the
-  frozenStore-class pinned-store route stays strictly stronger where
-  an ecosystem offers it). Detection: surface, never auto-classify —
-  candidate signals are (a) double-fetch probe divergence concentrated
-  under one subtree, (b) the known cache-name/env vocabulary
+- **`WITH UNSAFE IGNORE` as the generic escape hatch + path detection**
+  — SETTLED on naming and role (Mathijs + orchestrator, 2026-08-06):
+  the clause is the ecosystem-agnostic emergency hatch for
+  load-bearing volatile state with no frozenStore-analogue; pure
+  evidence exclusion, persistence stays D71-underlay's job, the
+  UNSAFE prefix is the author-carried-invariant convention, and CACHE
+  as a word stays reserved for D71's retreat dial. Detection remains
+  the open sub-question: surface, never auto-classify — candidate
+  signals are (a) double-fetch probe divergence concentrated under
+  one subtree, (b) the known cache-name/env vocabulary
   (XDG/*_CACHE/GOMODCACHE/npm_config_cache/cargo registry), (c)
   written-then-read-back subtrees outside the project tree. The
-  diagnostic proposes `WITH CACHE <path>`; the author declares it
-  (CIP-102: declared coarseness, never silent evidence exclusion).
-  Awaiting Mathijs's read on the assessment before this leg is built.
+  diagnostic proposes the clause; the author declares it (CIP-102:
+  declared coarseness, never silent evidence exclusion). Build order
+  of the detection leg is still Mathijs's call.
 - Where does the pinned store live in the artifact model — a FETCH
-  output tree like today, or does `WITH CACHE` subsume it entirely
-  (cache persisted, nothing pinned)? The difference is evidence:
-  a pinned store replays cold; a cache does not. For pnpm, `files/`
-  alone is not yet a valid pinned artifact, so `WITH CACHE` can improve
-  a warm developer loop but cannot supply the missing cold proof.
+  output tree (the frozenStore route: evidence IN, pinned, cold-
+  replayable) versus `WITH UNSAFE IGNORE` (evidence OUT, warm-only)?
+  For pnpm the answer is now the former; the hatch stays for
+  ecosystems where no pinned-store route exists.
 - Seal-time engineering for large stores (exhibit 5) remains open: the
   CAS-only measurements establish determinism for 20k–56k-file trees,
   not whether parallel hashing or CAS-portion pinning makes sealing fast
