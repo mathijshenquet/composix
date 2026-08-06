@@ -943,3 +943,10 @@
   discovery) passed 7/7 with one deliberate ignored generator. No Rust source
   changed, so the corpus-only spec does not require a workspace-wide test or
   VM matrix. Next: stage, review, commit the clean track branch; do not merge.
+
+- 2026-08-06T02:25:00Z — Committed the complete corpus track as `57b39238`
+  (`Corpus: add ntfy and filebrowser cases`). The commit contains no product
+  Rust changes and no ignored upstream contexts. Filebrowser remains
+  deliberately build-only; its exact runtime wall is retained in its receipt
+  and GAPS rather than regraded as green. Next: commit this append-only commit
+  record, verify clean branch state, and hand off without merging.
