@@ -14,7 +14,7 @@ pub(crate) fn add_properties(
     user: bool,
     bind: bool,
 ) {
-    let mut additional_mount_points = BTreeSet::new();
+    let mut additional_read_write_paths = BTreeSet::new();
     for (role, paths, directive, mode_directive, system_root, user_root) in [
         (
             "state",
@@ -83,12 +83,8 @@ pub(crate) fn add_properties(
                 ));
             }
             if bind && !user && !destination.starts_with(system_root) {
-                if let Some(top_component) = destination.components().nth(1) {
-                    additional_mount_points.insert(format!(
-                        "/{}:ro",
-                        top_component.as_os_str().to_string_lossy()
-                    ));
-                }
+                additional_read_write_paths
+                    .insert(destination.to_string_lossy().replace('%', "%%"));
             }
         }
         if bind && !user && role != "run" {
@@ -100,8 +96,8 @@ pub(crate) fn add_properties(
             properties.push(("BindPaths".into(), value));
         }
     }
-    for mount_point in additional_mount_points {
-        properties.push(("TemporaryFileSystem".into(), mount_point));
+    for path in additional_read_write_paths {
+        properties.push(("ReadWritePaths".into(), path));
     }
 }
 

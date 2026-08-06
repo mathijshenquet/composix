@@ -1011,9 +1011,11 @@ fn arbitrary_and_multiple_role_paths_are_fully_mirrored() {
         "BindPaths=/etc/cix-run-app/config/app:/config/app",
         "RuntimeDirectory=cix-run-app/tmp/app/run",
         "BindPaths=/run/cix-run-app/tmp/app/run:/tmp/app/run",
-        "TemporaryFileSystem=/app:ro",
-        "TemporaryFileSystem=/srv:ro",
-        "TemporaryFileSystem=/tmp:ro",
+        "ReadWritePaths=/app/cache",
+        "ReadWritePaths=/app/logs",
+        "ReadWritePaths=/config/app",
+        "ReadWritePaths=/srv/app/state",
+        "ReadWritePaths=/tmp/app/run",
         "Environment=\"STATE_DIRECTORY=/srv/app/state:/var/lib/app-extra\"",
         "Environment=\"CONFIGURATION_DIRECTORY=/config/app\"",
         "Environment=\"LOGS_DIRECTORY=/app/logs:/var/log/app-extra\"",
@@ -1032,6 +1034,16 @@ fn arbitrary_and_multiple_role_paths_are_fully_mirrored() {
         !actual.contains("state-0"),
         "legacy indexes leaked into:\n{actual}"
     );
+    for obsolete_overlay in [
+        "TemporaryFileSystem=/app:ro",
+        "TemporaryFileSystem=/srv:ro",
+        "TemporaryFileSystem=/tmp:ro",
+    ] {
+        assert!(
+            !actual.contains(obsolete_overlay),
+            "managed bind must not be hidden by {obsolete_overlay:?} in:\n{actual}"
+        );
+    }
 }
 
 #[test]

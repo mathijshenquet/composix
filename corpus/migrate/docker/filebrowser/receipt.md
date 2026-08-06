@@ -15,9 +15,16 @@ An empty-workspace faithful `--cold` replay exited 0 using the pinned FETCH
 snapshot and produced the same item. The dissolved twin's `--cold` build also
 exited 0.
 
-The system-manager runtime probe is deliberately **not** green. Its synchronous
-`check.sh cix` exit was value-captured as `1`: the upstream `/init.sh` could not
-create `/config/settings.json` because cix's arbitrary-path role realization
-made `/config` read-only, then native readiness exhausted its 10-second bound.
-The user-manager fallback also cannot project declared app paths and timed out.
-No `/health` runtime value is claimed.
+2026-08-06 system-manager runtime receipt. The existing pinned faithful item
+started with the repaired realization; `systemctl show` reported
+`ReadWritePaths=/config /database /srv`, their `BindPaths=` sources under
+`/var/lib/cix-run-filebrowser`, and only `TemporaryFileSystem=/var/lib:ro`.
+`curl --fail http://127.0.0.1:80/health` exited 0 and returned
+`{"status":"OK"}`. The source context in this checkout is currently incomplete,
+so a fresh corpus build stops at its missing copied `init.sh`; this does not
+affect the value-checked runtime receipt for the pinned item.
+
+`--user` remains separately degraded where a user manager rejects mount
+namespaces: cix then deliberately omits `BindPaths=`, so declared arbitrary app
+paths cannot be projected. That fallback is not the repaired system-manager
+ordering defect.
