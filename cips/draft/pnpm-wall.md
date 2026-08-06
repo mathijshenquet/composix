@@ -172,16 +172,35 @@ worse than no pin).
   derived index" graded as a valid pin rather than refused volatility?
   This is the one semantic amendment the surgical route needs from us;
   everything else is upstream mechanism.
-- **Translation pnpm-version policy**: verdaccio (11.1.2) and directus
-  (10.27.0) pin pnpm older than 11.7's frozenStore. May a translation
-  upgrade the package manager past upstream's `packageManager` pin,
-  recorded as an explicit deviation in GAPS — or does fidelity win and
-  the wall stand for pre-11.7 pins?
+- **Translation pnpm-version policy** — DECIDED (Mathijs, 2026-08-06):
+  for the specific corpus targets, bump pnpm past 11.7 and RECORD it —
+  the upgrade is an explicit, GAPS-visible deviation from upstream's
+  `packageManager` pin, justified by upstream itself (pre-11.7 pnpm
+  structurally cannot install from a read-only store).
+- **Diagnostic + hint** — DECIDED (Mathijs, 2026-08-06): build the
+  problem-class diagnostics that hint the user toward the solution —
+  TLS-trust masquerade → "import `${pkgs.cacert}`"; offline-tarball /
+  store-write walls → the frozenStore route with its version gates.
+  Doc-anchor citations per D73, never CIP numbers.
 - **Spike before adoption**: one verdaccio-shaped validation of the
   full route (seal files/+index.db as fetched → `frozen-store=true`
   install `--offline --frozen-lockfile` from the read-only pinned
   tree, twice, network-silent) with a pnpm ≥11.7 override, before any
-  language/semantic change lands.
+  language/semantic change lands. (In flight as track/pnpm-frozenstore
+  together with the two decided items above.)
+- **WITH CACHE as the generic escape hatch + cache-path detection**
+  (Mathijs's question, 2026-08-06; orchestrator's assessment delivered
+  in chat): yes as escape hatch — WITH CACHE is the ecosystem-agnostic
+  degradation (no per-PM knowledge, but no cold proof either; the
+  frozenStore-class pinned-store route stays strictly stronger where
+  an ecosystem offers it). Detection: surface, never auto-classify —
+  candidate signals are (a) double-fetch probe divergence concentrated
+  under one subtree, (b) the known cache-name/env vocabulary
+  (XDG/*_CACHE/GOMODCACHE/npm_config_cache/cargo registry), (c)
+  written-then-read-back subtrees outside the project tree. The
+  diagnostic proposes `WITH CACHE <path>`; the author declares it
+  (CIP-102: declared coarseness, never silent evidence exclusion).
+  Awaiting Mathijs's read on the assessment before this leg is built.
 - Where does the pinned store live in the artifact model — a FETCH
   output tree like today, or does `WITH CACHE` subsume it entirely
   (cache persisted, nothing pinned)? The difference is evidence:
