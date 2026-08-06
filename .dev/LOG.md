@@ -1,5 +1,26 @@
 # composix work log
 
+## 2026-08-06 early (main-CI GREEN after the five-round tail)
+
+- The CI tail resolved: sweep-liveness guard (real bug, FIFO-signal
+  fix), tourdet ch6 socket teardown (real leak #1), then the printed
+  per-file diff diagnostics named leak #2 — degradation warnings
+  quoted the EPHEMERAL PROBE UNIT PATH, and old-manager-only granular
+  warnings differed from beast-committed docs. Fixed at both layers:
+  product (analyzer message only, no temp paths) + normalizer
+  (granular 'warning: dropped' lines elided as host-specific
+  presence, with test coverage). One own-goal en route: a fmt-less
+  micro-fix round (full tier applies to micro-fixes too).
+- Method vindicated: constrained-reproduction-first (2x) and
+  make-the-failing-environment-print-its-own-diff were the moves that
+  cracked it; budget-inflation was never used.
+- Also this stretch: pnpm-wall expanded to a full four-chapter draft
+  (homer = cacert false positive; consumed-volatility core; two-phase
+  store + WITH CACHE), CIP-light retired as standing format, naming
+  round opened (psychopomp/katharsis/pyxis families; systemd/nix
+  aesthetics), 0.1-scoping direction discussed (epoch as pre-release
+  must).
+
 ## 2026-08-05 night (close: corpus 28; CIP-103 complete through memo; CIP-109 live; push incident resolved)
 
 - **Landed since the late entry**: cip103-memo (MemoEngine owner, 888
