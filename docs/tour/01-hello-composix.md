@@ -131,7 +131,7 @@ $ curl -fsS http://127.0.0.1:8420
 ```
 
 ```sh
-$ systemctl --user stop "$unit"
+$ systemctl --user stop "$unit" || test "$(systemctl --user show --property=LoadState --value "$unit")" = not-found
 ```
 
 You now have the complete first loop: checked-in files became one immutable item, its manifest became a named systemd unit, an HTTP request reached the real process, and the exact printed unit was stopped.

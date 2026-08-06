@@ -182,7 +182,7 @@ liveness watchdog restarted the service
 ```
 
 ```sh
-$ systemctl --user stop "$unit"
+$ systemctl --user stop "$unit" || test "$(systemctl --user show --property=LoadState --value "$unit")" = not-found
 ```
 
 ```sh
@@ -197,7 +197,7 @@ kept across restart
 ```
 
 ```sh
-$ systemctl --user stop "$unit"
+$ systemctl --user stop "$unit" || test "$(systemctl --user show --property=LoadState --value "$unit")" = not-found
 ```
 
 `STATEDIR /var/lib/runtime-guide` is cix-owned durable data, not part of the item or a container layer. In this user demo its backing is `~/.local/state/cix-run-web/var/lib/runtime-guide`; production uses `/var/lib/cix-run-web/var/lib/runtime-guide`. Back it up as application data. A named compose deployment retains it across `down`; `cix down runtime-guide --purge --yes` is the explicit destructive purge.

@@ -126,7 +126,11 @@ RUNDIR /run/nginx
         response.trim(),
         "<h1>hello from your first composix service</h1>"
     );
-    doc.sh_with_env("systemctl --user stop \"$unit\"", &[("unit", &unit)], true);
+    doc.sh_with_env(
+        &idempotent_user_stop_command("$unit"),
+        &[("unit", &unit)],
+        true,
+    );
     wait_for_user_units_gone([unit.as_str()]).expect("hello unit unloads after stop");
     stop_empty_cix_run_slice("the Chapter 1 lifecycle");
 

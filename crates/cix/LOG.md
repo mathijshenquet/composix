@@ -1405,3 +1405,68 @@
   ahead of the observed wall clock, not detached receipts. Their command
   outcomes and exact values are unchanged; this append-only correction gives
   the actual synchronous gate timestamp above.
+
+## 2026-08-06 — tourdet teardown
+
+- 2026-08-06T09:20:00Z — Started `track/tourdet-teardown` from `9f103413`.
+  The failure is confined to the executed tour harness. Source inspection
+  confirms run units are transient `systemd-run --collect` services
+  (`crates/cix-run/src/manager.rs`), so a completed/stopped unit is unloaded
+  asynchronously; this is not `RemainAfterExit=yes` (that setting belongs to
+  the scheduled-APP GC-root helper). Next: make only a post-stop
+  `LoadState=not-found` successful, audit each tour transient-unit stop, add a
+  hermetic regression for the classification, then run the Rust/tour gates.
+
+### FRICTION
+
+- 2026-08-06T09:20:00Z — The spec's parenthetical calls this
+  `RemainAfterExit` semantics, but the authoritative implementation uses
+  `systemd-run --collect`; retaining that distinction prevents a product
+  lifecycle change to solve a harness teardown race. → process
+
+- 2026-08-06T09:28:00Z — Implemented the harness-only classification at both
+  cleanup seams and every tour receipt that stops a transient run unit
+  (Chapter 1, Chapter 5's two web runs, and Chapter 6's listener and unary
+  producer). The generated command retries no stop: it accepts a failed stop
+  only when a fresh `systemctl --user show --property=LoadState --value` says
+  exactly `not-found`; `loaded` and all other states remain failures. The
+  scheduled timer's explicit removal is a persistent user-unit lifecycle, not
+  a `--collect` transient race, so it is unchanged. `cargo fmt --all --check`
+  and the hermetic `tour_stop_only_accepts_an_unloaded_unit_after_a_stop_failure`
+  test each synchronously exited 0. Exact repro: `devenv shell -- cargo test
+  -p cix --test tour tour_stop_only_accepts_an_unloaded_unit_after_a_stop_failure
+  -- --exact`.
+
+- 2026-08-06T09:31:00Z — The first synchronous two-render receipt,
+  `devenv shell -- cargo test -p cix --test tour generated_tour_is_deterministic
+  -- --exact`, exited 0 (1 passed, 61.04s). Explicit regeneration via
+  `devenv shell -- cargo test -p cix --test tour -- --ignored generate_tour`
+  then exited 0 (1 passed, 29.92s). Next: verify the committed-document drift,
+  run the requested workspace gates, review generated pages, and commit the
+  clean track; no product/runtime code changed.
+
+- 2026-08-06T08:53:51Z — Timestamp correction: the preceding track entries
+  labeled 09:20:00Z, 09:28:00Z, and 09:31:00Z were sequence labels entered
+  ahead of the observed clock, not detached receipts. Their value-checked
+  outcomes and exact commands are unchanged.
+
+- 2026-08-06T08:53:51Z — Final synchronous receipts all exited 0: `devenv
+  shell -- cargo fmt --all --check`; `devenv shell -- cargo run -p cix -- fmt
+  --check examples`; `devenv shell -- cargo clippy --workspace --all-targets
+  -- -D warnings`; and `devenv shell -- cargo test --workspace --
+  --test-threads=1` (including the tour suite: 6 passed, 1 explicit generator
+  ignored). Tour regeneration and committed-document drift are independently
+  checked above; `git diff --check` also exited 0. The only generated changes
+  are the expected Chapter 1/5/6 teardown commands. No focused VM scenario or
+  Docker/corpus ledger row applies to this harness-only track. Next: commit
+  the reviewed scoped diff; do not merge.
+
+- 2026-08-06T08:55:05Z — Committed the scoped track as `d5ede6e6` (`test:
+  make tour transient teardown idempotent`) and created
+  `origin/track/tourdet-teardown`. The push transferred that exact commit but
+  could not set its local upstream because the shared repository has a
+  pre-existing read-only `/home/mathijs/composix/.git/config.lock`; it is not
+  removed. The independent synchronous value check `git ls-remote origin
+  refs/heads/track/tourdet-teardown` returned
+  `d5ede6e613f1e2210533db262e5aeab5e0799c97`, equal to local `HEAD`, and the
+  worktree is clean. No merge was performed.

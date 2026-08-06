@@ -212,7 +212,7 @@ LISTEN_FDS=1; no socket() authority
 ```
 
 ```sh
-$ socket=${unit%.service}-http.socket; systemctl --user stop "$socket"; systemctl --user stop "$unit"
+$ socket=${unit%.service}-http.socket; systemctl --user stop "$socket" || test "$(systemctl --user show --property=LoadState --value "$socket")" = not-found; systemctl --user stop "$unit" || test "$(systemctl --user show --property=LoadState --value "$unit")" = not-found
 ```
 
 ## Connect two real item programs
@@ -389,7 +389,7 @@ cix-run-producer-v1-NONCE.service
 ```
 
 ```sh
-$ systemctl --user stop "$unit"
+$ systemctl --user stop "$unit" || test "$(systemctl --user show --property=LoadState --value "$unit")" = not-found
 ```
 
 Now change only the tracked producer, build a visibly named v2 item, and move the stable `producer:current` tag to it. The pinned consumer remains at the v1 lock entry. The second dry diff resolves the tracked tag and builds a candidate generation without touching the active system manager, profile, or lock.
