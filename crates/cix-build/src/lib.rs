@@ -13,6 +13,7 @@
 //! - `fetch`: owns credential consent and fetch inputs.
 //! - `fetch_state`: owns FETCH snapshots, volatility, and pin refresh.
 //! - `fhs`: diagnoses FHS-loader compatibility.
+//! - `fingerprint`: owns the NAR-invariant filesystem identity primitive.
 //! - `lock`: owns persisted pins and memo records.
 //! - `memo`: owns build-step keys, validation, reduction, and constructive replay.
 //! - `model`: defines the shared Cixfile language model.
