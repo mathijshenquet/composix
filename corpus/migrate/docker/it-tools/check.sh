@@ -14,11 +14,18 @@ case "${1:-}" in
     }
     trap cleanup EXIT
 
-    timeout 300 setsid --wait "$cix" build . >"$build_output"
-    item=$(jq -er '.web' "$build_output")
+    if test -n "${CIX_ITEM:-}"; then
+      item=$CIX_ITEM
+    else
+      timeout 300 setsid --wait "$cix" build . >"$build_output"
+      item=$(jq -er '.web' "$build_output")
+    fi
     unit=$(sudo -n "$cix" run --detach "$item")
-    curl --fail --silent --show-error --retry 10 --retry-connrefused --max-time 10 http://127.0.0.1/ >/dev/null
-    test "$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1/)" = "$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1/not-a-real-route)"
+    status=$(curl --fail --silent --show-error --retry 10 --retry-connrefused --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1/)
+    printf 'HTTP GET / -> %s\n' "$status"
+    test "$status" = 200
+    fallback_status=$(curl --silent --show-error --max-time 10 -o /dev/null -w '%{http_code}' http://127.0.0.1/not-a-real-route)
+    printf 'HTTP GET /not-a-real-route -> %s\n' "$fallback_status"
     ;;
   *)
     echo "usage: $0 cix" >&2

@@ -895,3 +895,97 @@
   foreign Nix build parent, and synchronously exited 0 in 666.376s. No forced
   rebuild was rerun after the scope trim. Next: commit this receipt entry and
   leave the branch clean for orchestrator verification.
+
+- 2026-08-06T02:00:00Z — Started track/ittools-relock from `origin/main`.
+  The case has a clean worktree, no fetched context, and a 1,544,041-line
+  pre-CIP-99 lock. Next: fetch the pinned source, build the current cix from
+  this worktree, then perform a scratch `--update-lock` build and a synchronous
+  runtime probe; preserve any genuine wall in the case receipt and GAPS ledger.
+
+- 2026-08-06T02:05:00Z — The pinned context fetch and `devenv shell -- cargo
+  build -p cix` both exited 0. The binary is now available at
+  `target/debug/cix`; no Rust source was changed. Next: remove only the case
+  lock after copying it to ignored scratch, then wait synchronously for the
+  current CIP-99 `--update-lock` build.
+
+- 2026-08-06T03:00:00Z — The scratch `--update-lock` build exited 0 and
+  produced `/nix/store/rqb8h3w47azlnf7l9y3g1h0fw13gfvw3-cix-item-web`.
+  The new lock is 528,208 lines versus 1,544,041 before (−1,015,833,
+  −65.79%); its step memo records 81,907 observed paths after CIP-99 root
+  aggregation. Extended the case probe to print and assert the HTTP status;
+  next run the synchronous check and record its actual status.
+
+- 2026-08-06T04:00:00Z — The bounded check reached the item but its first
+  runtime attempt was non-green: `./check.sh cix` was interrupted at 600s
+  with exit 130 after repeated connection refusals. A direct detached system
+  run gave a synchronous journal: nginx exited 1 because the upstream default
+  config opened absent `/var/log/nginx/{error,access}.log`. The case's former
+  `LOGDIR` workaround was already removed as DynamicUser-incompatible. Added
+  a checked-in nginx config with stderr errors and disabled access-file logging;
+  next: regenerate the lock for this final Cixfile and rerun the probe.
+
+- 2026-08-06T04:20:00Z — The first config adjustment still left nginx's
+  compiled main configuration in control: the direct journal again showed
+  `/var/log/nginx/{error,access}.log`, before the `conf.d` server file could
+  apply. Replaced the case config with a complete checked-in main config
+  (`error_log stderr`, `access_log off`, `pid /run/nginx/nginx.pid`, events,
+  and the SPA server) and pointed the Cixfile at `/etc/nginx/nginx.conf`.
+  Next: re-lock this final assembly and rerun the live proof.
+
+- 2026-08-06T04:45:00Z — The complete config was present in the item, but
+  nginx still opened its compiled `/var/log/nginx/error.log` before parsing
+  `/etc/nginx/nginx.conf`; the direct bounded probe exited 1 with the same
+  journal. Added nginx's `-e stderr` startup option so initialization never
+  requires that absent compiled log path. Next: regenerate the final lock and
+  run `check.sh` with an exact HTTP-status receipt.
+
+- 2026-08-06T05:05:00Z — The `-e stderr` probe reached nginx initialization,
+  but the next synchronous journal showed the compiled `/var/log/nginx/access.log`
+  open still occurs before config parsing. Added the managed `LOGDIR`, imported
+  bash, and added a start wrapper that creates both compiled log files as the
+  service identity before `exec nginx -e stderr`. Next: re-lock and perform the
+  final runtime proof; if the managed log role itself fails, retain that journal
+  as the honest wall.
+
+- 2026-08-06T05:25:00Z — The managed `LOGDIR` was present, but the wrapper's
+  synchronous journal showed `touch: command not found` (the service imports
+  bash, not builder-only coreutils). Replaced `touch` with shell redirection,
+  which needs no extra service dependency. Next: final lock refresh and probe.
+
+- 2026-08-06T05:45:00Z — The wrapper then reached the managed log path but
+  failed `: > /var/log/nginx/access.log` with permission denied. The captured
+  unit properties show `LOGDIR` is a non-idmapped bind after this host drops
+  `PrivatePIDs`; this is a cix-run environment wall, not a missing asset.
+  One bounded alternative is under test: model nginx's compiled log path as
+  ephemeral `RUNDIR` (access logging remains off), keeping `/run/nginx` as a
+  second runtime role. If that cannot start, preserve the wall and do not
+  claim an HTTP receipt.
+
+- 2026-08-06T06:30:00Z — `RUNDIR /var/log/nginx` is a successful runtime
+  workaround: a direct system-manager launch returned HTTP 200 on attempt 1
+  (exit 0) for `/nix/store/4zalfi4g7n2bd52niggwbhh4873iq4h6-cix-item-web`.
+  The current-cix lock remains volatile at 1,536,045 lines; the last scratch
+  attempt again showed only `.modules.yaml` before its known lock-scale path,
+  so it was interrupted at the declared bound rather than claimed as a green
+  aggregate. The old check harness then printed HTTP 200 but exited 1 because
+  its `--fail` curl treated the SPA's nonexistent-route 404 as fatal; next:
+  make that secondary status observational, rerun the harness, and finalize
+  the case ledgers with the aggregation wall retained.
+
+- 2026-08-06T07:00:00Z — The ordinary fresh-build replay was synchronously
+  bounded at 240 seconds and exited 124 before emitting an item. Extended
+  `check.sh` with an explicit `CIX_ITEM` path, then ran
+  `CIX_ITEM=/nix/store/4zalfi4g7n2bd52niggwbhh4873iq4h6-cix-item-web ./check.sh cix`;
+  it exited 0 and observed `/` HTTP 200 plus the secondary 404. The 404 is
+  observational, not a failed assertion. Updated the receipt, GAPS, and
+  corpus row to separate this verified runtime from the unresolved volatile
+  lock aggregation. Next: regenerate corpus output, run format/parser/drift
+  checks, then commit the clean track.
+
+- 2026-08-06T07:30:00Z — Corpus browser regeneration exited 0 and changed
+  only the generated it-tools page/index for the regraded row. Synchronous
+  gates also exited 0: Cixfile and workspace fmt checks, example formatting,
+  warning-denied workspace clippy, full workspace tests, normal corpus drift /
+  determinism tests, tour regeneration, tour drift, shell syntax, and
+  `git diff --check`. No VM scenario is selected for this corpus-only track;
+  the ordinary source replay remains the sole intentional exit-124 wall.
