@@ -56,11 +56,9 @@ pub(crate) fn parse(trace: &str) -> Capture {
         let Some((pid, call)) = split_pid(line) else {
             continue;
         };
-        let Some(open) = call.find('(') else {
+        let Some((syscall, arguments)) = syscall_parts(call) else {
             continue;
         };
-        let syscall = &call[..open];
-        let arguments = &call[open + 1..];
         let succeeded = !call.contains(" = -1 ");
 
         if matches!(syscall, "clone" | "clone3" | "fork" | "vfork") && succeeded {
@@ -98,10 +96,15 @@ pub(crate) fn parse(trace: &str) -> Capture {
             && matches!(syscall, "open" | "openat" | "openat2")
             && arguments.contains("O_CREAT")
             && arguments.contains("O_EXCL");
+        let truncating_create = succeeded
+            && matches!(syscall, "open" | "openat" | "openat2")
+            && arguments.contains("O_CREAT")
+            && arguments.contains("O_TRUNC");
         let open_read = matches!(syscall, "open" | "openat" | "openat2")
             && !arguments.contains("O_WRONLY")
             && !open_path
             && !exclusive_create;
+        let open_read = open_read && !truncating_create;
         let written = succeeded
             && (syscall == "creat"
                 || matches!(syscall, "open" | "openat" | "openat2")
@@ -180,7 +183,10 @@ pub(crate) fn parse(trace: &str) -> Capture {
                 continue;
             }
         }
-        if exclusive_create || succeeded && matches!(syscall, "mkdir" | "mkdirat") {
+        if exclusive_create
+            || truncating_create
+            || succeeded && matches!(syscall, "mkdir" | "mkdirat")
+        {
             created.insert(relative.clone());
         }
         observations
@@ -226,6 +232,19 @@ pub(crate) fn parse(trace: &str) -> Capture {
             }
         }
     }
+    observations.retain(|path, observation| {
+        if created
+            .iter()
+            .any(|created| same_or_descendant(path, created))
+        {
+            observation.listed = false;
+            observation.content = false;
+            observation.negative = false;
+            observation.written
+        } else {
+            true
+        }
+    });
     let writes = observations
         .iter()
         .filter(|(_, observation)| observation.written)
@@ -246,11 +265,9 @@ pub(crate) fn parse_failure(trace: &str) -> FailureTrace {
         let Some((pid, call)) = split_pid(line) else {
             continue;
         };
-        let Some(open) = call.find('(') else {
+        let Some((syscall, arguments)) = syscall_parts(call) else {
             continue;
         };
-        let syscall = &call[..open];
-        let arguments = &call[open + 1..];
         let succeeded = !call.contains(" = -1 ");
         if matches!(syscall, "clone" | "clone3" | "fork" | "vfork") && succeeded {
             if let Some(child) = returned_pid(call) {
@@ -908,6 +925,15 @@ fn split_pid(line: &str) -> Option<(u32, &str)> {
     Some((line[..split].parse().ok()?, line[split..].trim_start()))
 }
 
+fn syscall_parts(call: &str) -> Option<(&str, &str)> {
+    if let Some(open) = call.find('(') {
+        return Some((&call[..open], &call[open + 1..]));
+    }
+    let resumed = call.strip_prefix("<... ")?;
+    let (syscall, arguments) = resumed.split_once(" resumed>")?;
+    Some((syscall, arguments))
+}
+
 fn returned_pid(call: &str) -> Option<u32> {
     let returned = call.rsplit_once(" = ")?.1;
     returned
@@ -1127,7 +1153,8 @@ mod tests {
     #[test]
     fn pid_namespace_child_creation_uses_the_host_pid_for_cwd_inheritance() {
         let trace = r#"100 chdir("/work/project") = 0
-100 clone(child_stack=NULL, flags=SIGCHLD) = 2 /* 200 in strace's PID NS */
+100 clone(child_stack=NULL, flags=SIGCHLD <unfinished ...>
+100 <... clone resumed>, child_tidptr=0x1) = 2 /* 200 in strace's PID NS */
 200 mkdir("generated", 0700) = 0
 200 newfstatat(AT_FDCWD</work/project>, "generated/stdin", 0x1, 0) = -1 ENOENT (No such file or directory)
 200 openat(AT_FDCWD</work/project/generated>, ".", O_RDONLY|O_DIRECTORY) = 3</work/project/generated>
@@ -1140,6 +1167,34 @@ mod tests {
             BTreeMap::from([("project".into(), Observation::default())])
         );
         assert_eq!(capture.writes, BTreeSet::from(["project/generated".into()]));
+    }
+
+    #[test]
+    fn suppresses_probe_before_same_step_created_parent() {
+        let trace = r#"100 chdir("/work/src/modules/core") = 0
+100 newfstatat(AT_FDCWD, ".libs/mod_watchdog.o", 0x1, 0) = -1 ENOENT (No such file or directory)
+100 mkdir(".libs", 0777) = 0
+100 openat(AT_FDCWD</work/src/modules/core>, ".libs/mod_watchdog.o", O_RDWR|O_CREAT|O_TRUNC, 0666) = 3</work/src/modules/core/.libs/mod_watchdog.o>
+"#;
+        let capture = parse(trace);
+
+        assert!(!capture
+            .observations
+            .contains_key("src/modules/core/.libs/mod_watchdog.o"));
+        assert!(capture
+            .writes
+            .contains("src/modules/core/.libs/mod_watchdog.o"));
+    }
+
+    #[test]
+    fn truncating_create_is_only_an_output() {
+        let trace = r#"100 newfstatat(AT_FDCWD</work/src/support>, "htpasswd.o", 0x1, 0) = -1 ENOENT (No such file or directory)
+100 openat(AT_FDCWD</work/src/support>, "htpasswd.o", O_RDWR|O_CREAT|O_TRUNC, 0666) = 3</work/src/support/htpasswd.o>
+"#;
+        let capture = parse(trace);
+
+        assert!(!capture.observations.contains_key("src/support/htpasswd.o"));
+        assert!(capture.writes.contains("src/support/htpasswd.o"));
     }
 
     #[test]

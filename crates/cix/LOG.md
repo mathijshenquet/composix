@@ -1044,3 +1044,45 @@
   determinism tests, tour regeneration, tour drift, shell syntax, and
   `git diff --check`. No VM scenario is selected for this corpus-only track;
   the ordinary source replay remains the sole intentional exit-124 wall.
+
+## FRICTION
+
+- 2026-08-06T00:00:00Z — The generic `--update-lock build` spelling from the
+  track spec was rejected synchronously because HTTPD's lock-bearing builder is
+  named `httpd-build`; it made no build or lock change and is not a receipt.
+- 2026-08-06T00:01:00Z — The case-specific `--update-lock httpd-build` spelling
+  was also rejected before execution because HTTPD's FETCH has an author
+  `EXPECT`; no lock change occurred. The valid fresh-workspace probe is a plain
+  build against that verified snapshot, preserving the checksum assertion.
+- 2026-08-06T00:02:00Z — The first successful assembly was not a valid cold
+  pair: its warm workspace inherited `output/` from the preceding missing-
+  context attempt, so cold correctly reported warm `Directory` versus cold
+  `Absent` at `output`. Discarding that pair and rerunning with empty state and
+  workspace is required; neither success is claimed as final evidence.
+- 2026-08-06T00:03:00Z — Clearing only the isolated state/workspace still
+  produced a completed-output memo hit (zero Nix subprocesses), because the
+  case lock carries its memo metadata. That result is not a fresh-build
+  receipt; the lock memo/output metadata must be removed before the forced
+  regeneration.
+- 2026-08-06T00:04:00Z — The valid clean warm build exited 0, but its
+  synchronous cold replay exited 1 at generated
+  `src/modules/core/.libs/mod_watchdog.o` (warm `Some(Absent)`, cold `None`).
+  This is not a network or upstream wall; do not regrade HTTPD or claim the
+  cold gate until the exact syscall evidence explains the mismatch.
+- 2026-08-06T05:57:28Z — Preserved syscall evidence identified three scheduling
+  classes behind the HTTPD replay mismatches: probes before a later same-step
+  `mkdir`, child cwd loss across split `clone`/`clone resumed` records, and
+  direct `O_RDWR|O_CREAT|O_TRUNC` compiler outputs. The trace parser now
+  suppresses observations beneath every same-step created root after the full
+  trace, understands resumed syscall records, and classifies truncating creates
+  as output-only; focused regressions and the full workspace test pass.
+- 2026-08-06T05:57:28Z — Final HTTPD regeneration receipts are synchronous exit 0:
+  clean warm build, empty-workspace cold replay, and `./check.sh cix` runtime
+  probe, all producing `/nix/store/3zgq560rmcq6hs9i4p1z2hq5s8dznr23-cix-item-httpd`
+  where applicable. The lock is 38,562 lines versus 124,383 before (delta
+  `-85,821`), SHA-256
+  `67f26d3a2e165a94e5a9264e04d84c03a3ea1e7d86b065380517a8b1dbd4a1fd`, and the
+  whole-corpus lock diff names only HTTPD. Browser generation/drift/determinism,
+  fmt, examples fmt, warning-denied clippy, full workspace tests, tour
+  regeneration/drift/determinism, and progressive VM selection (0/14 selected)
+  all exited 0. No merge performed.

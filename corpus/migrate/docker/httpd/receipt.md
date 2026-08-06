@@ -16,3 +16,28 @@ does not invalidate the successful behavior probe.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/ggpg5klb6p12d0xhhk6yx9ws6klj46b0-cix-item-httpd`.
+
+## 2026-08-06 self-write-trace regeneration
+
+`./check.sh cix` exited 0, starting the faithful service and value-checking an
+HTTP response containing `It works!`.
+
+After clearing the prior memo and workspace state while retaining the pinned
+FETCH inputs, this synchronous warm command exited 0:
+
+```text
+env CIX_STATE_DIR=$PWD/.dev/scratch/httpd-regen/state CIX_BUILD_WORKSPACE_DIR=$PWD/.dev/scratch/httpd-regen/workspaces target/debug/cix build corpus/migrate/docker/httpd#httpd
+```
+
+It produced `/nix/store/3zgq560rmcq6hs9i4p1z2hq5s8dznr23-cix-item-httpd`.
+The paired synchronous cold command also exited 0 and produced the same item:
+
+```text
+env CIX_STATE_DIR=$PWD/.dev/scratch/httpd-regen/state CIX_BUILD_WORKSPACE_DIR=$PWD/.dev/scratch/httpd-regen/workspaces target/debug/cix build --cold corpus/migrate/docker/httpd#httpd
+```
+
+The lock changed from 124,383 lines to 38,562 lines (delta `-85,821`), with
+final SHA-256
+`67f26d3a2e165a94e5a9264e04d84c03a3ea1e7d86b065380517a8b1dbd4a1fd`.
+The lock's BUILD read set no longer contains the generated object paths that
+previously varied between warm and cold.
