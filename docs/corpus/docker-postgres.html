@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / postgres — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / postgres</nav>
+  <h1>docker / postgres</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 PGDG APT package/keyserver installation is a no-network wall; locked nixpkgs runtime bits preserve the state/init lifecycle, with arbitrary-path state-role friction cited · <strong>Evidence:</strong> build/runtime receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Upstream 17/trixie initdb entrypoint translation and dissolved twin build; the pg_isready runtime wall is recorded from the current host · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/postgres/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/postgres/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · track-expand-postgres-registry · 2026-08-06 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The upstream Dockerfile installs PostgreSQL from the PGDG APT repository after retrieving a signing key from a keyserver. The faithful case cannot perform that install-time transaction under the no-network RUN contract, so it uses the locked nixpkgs <code>postgresql_17</code> package while retaining the upstream initdb entrypoint and <code>/var/lib/postgresql/data</code> lifecycle. → language (D47)</li>
+      <li>The upstream <code>gosu</code> release binary is an explicit checksum-verified FETCH, but its detached-signature/keyserver verification is not reproduced; the FETCH content pin is the stable trust boundary. → evidence</li>
+      <li>Docker&#39;s Debian base, fixed uid/gid, package-managed locale, and SIGINT image stop signal dissolve into the locked runtime and systemd service lifecycle. → case</li>
+      <li>The arbitrary-path state-role realization can make the managed data bind read-only after initialization; this is the known state-role realization defect under repair on <code>track/staterole-bindfix</code>, rather than a new PostgreSQL diagnosis. → language (state-role-bindfix)</li>
+    </ul>
+  </aside>
+  <details class="context">
+    <summary>Upstream build context: 3 files, 26624 bytes</summary>
+    <ul class="file-tree">
+      <li><code>Dockerfile</code> <span>9730 bytes</span></li>
+      <li><code>docker-ensure-initdb.sh</code> <span>2317 bytes</span></li>
+      <li><code>docker-entrypoint.sh</code> <span>14577 bytes</span></li>
+    </ul>
+  </details>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code><span class="tok-comment">#</span>
+<span class="tok-comment"># NOTE: THIS DOCKERFILE IS GENERATED VIA &quot;apply-templates.sh&quot;</span>
+<span class="tok-comment">#</span>
+<span class="tok-comment"># PLEASE DO NOT EDIT IT DIRECTLY.</span>
+<span class="tok-comment">#</span>
+
+<span class="tok-directive">FROM</span> debian:trixie-slim
+
+<span class="tok-comment"># explicitly set user/group IDs</span>
+<span class="tok-directive">RUN</span> set -eux; \
+	groupadd -r postgres --gid=999; \
+<span class="tok-comment"># https://salsa.debian.org/postgresql/postgresql-common/blob/997d842ee744687d99a2b2d95c1083a2615c79e8/debian/postgresql-common.postinst#L32-35</span>
+	<span class="tok-directive">useradd</span> -r -g postgres --uid=999 --home-dir=/var/lib/postgresql --shell=/bin/bash postgres; \
+<span class="tok-comment"># also create the postgres user&#39;s home directory with appropriate permissions</span>
+<span class="tok-comment"># see https://github.com/docker-library/postgres/issues/274</span>
+	<span class="tok-directive">install</span> --verbose --directory --owner postgres --group postgres --mode 1777 /var/lib/postgresql
+
+<span class="tok-directive">RUN</span> set -ex; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
+		gnupg \
+<span class="tok-comment"># https://www.postgresql.org/docs/16/app-psql.html#APP-PSQL-META-COMMAND-PSET-PAGER</span>
+<span class="tok-comment"># https://github.com/postgres/postgres/blob/REL_16_1/src/include/fe_utils/print.h#L25</span>
+<span class="tok-comment"># (if &quot;less&quot; is available, it gets used as the default pager for psql, and it only adds ~1.5MiB to our image size)</span>
+		<span class="tok-directive">less</span> \
+	; \
+	rm -rf /var/lib/apt/lists/*
+
+<span class="tok-comment"># grab gosu for easy step-down from root</span>
+<span class="tok-comment"># https://github.com/tianon/gosu/releases</span>
+<span class="tok-directive">ENV</span> GOSU_VERSION 1.19
+<span class="tok-directive">RUN</span> set -eux; \
+	savedAptMark=<span class="tok-string">&quot;$(apt-mark showmanual)&quot;</span>; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends ca-certificates wget; \
+	rm -rf /var/lib/apt/lists/*; \
+	dpkgArch=<span class="tok-string">&quot;$(dpkg --print-architecture | awk -F- &#39;{ print $NF }&#39;)&quot;</span>; \
+	wget -O /usr/local/bin/gosu <span class="tok-string">&quot;https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch&quot;</span>; \
+	wget -O /usr/local/bin/gosu.asc <span class="tok-string">&quot;https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-$dpkgArch.asc&quot;</span>; \
+	export GNUPGHOME=<span class="tok-string">&quot;$(mktemp -d)&quot;</span>; \
+	gpg --batch --keyserver hkps://keys.openpgp.org --recv-keys B42F6819007F00F88E364FD4036A9C25BF357DD4; \
+	gpg --batch --verify /usr/local/bin/gosu.asc /usr/local/bin/gosu; \
+	gpgconf --kill all; \
+	rm -rf <span class="tok-string">&quot;$GNUPGHOME&quot;</span> /usr/local/bin/gosu.asc; \
+	apt-mark auto <span class="tok-string">&#39;.*&#39;</span> &gt; /dev/null; \
+	[ -z <span class="tok-string">&quot;$savedAptMark&quot;</span> ] || apt-mark manual $savedAptMark &gt; /dev/null; \
+	apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+	chmod +x /usr/local/bin/gosu; \
+	gosu --version; \
+	gosu nobody true
+
+<span class="tok-comment"># make the &quot;en_US.UTF-8&quot; locale so postgres will be utf-8 enabled by default</span>
+<span class="tok-directive">RUN</span> set -eux; \
+	if [ -f /etc/dpkg/dpkg.cfg.d/docker ]; then \
+<span class="tok-comment"># if this file exists, we&#39;re likely in &quot;debian:xxx-slim&quot;, and locales are thus being excluded so we need to remove that exclusion (since we need locales)</span>
+		<span class="tok-directive">grep</span> -q <span class="tok-string">&#39;/usr/share/locale&#39;</span> /etc/dpkg/dpkg.cfg.d/docker; \
+		sed -ri <span class="tok-string">&#39;/\/usr\/share\/locale/d&#39;</span> /etc/dpkg/dpkg.cfg.d/docker; \
+		! grep -q <span class="tok-string">&#39;/usr/share/locale&#39;</span> /etc/dpkg/dpkg.cfg.d/docker; \
+	fi; \
+	apt-get update; apt-get install -y --no-install-recommends locales; rm -rf /var/lib/apt/lists/*; \
+	echo <span class="tok-string">&#39;en_US.UTF-8 UTF-8&#39;</span> &gt;&gt; /etc/locale.gen; \
+	locale-gen; \
+	locale -a | grep <span class="tok-string">&#39;en_US.utf8&#39;</span>
+<span class="tok-directive">ENV</span> LANG en_US.utf8
+
+<span class="tok-directive">RUN</span> set -eux; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends \
+		libnss-wrapper \
+		xz-utils \
+		zstd \
+	; \
+	rm -rf /var/lib/apt/lists/*
+
+<span class="tok-directive">RUN</span> mkdir /docker-entrypoint-initdb.d
+
+<span class="tok-directive">RUN</span> set -ex; \
+<span class="tok-comment"># pub   4096R/ACCC4CF8 2011-10-13 [expires: 2019-07-02]</span>
+<span class="tok-comment">#       Key fingerprint = B97B 0AFC AA1A 47F0 44F2  44A0 7FCC 7D46 ACCC 4CF8</span>
+<span class="tok-comment"># uid                  PostgreSQL Debian Repository</span>
+	<span class="tok-directive">key=&#39;B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8&#39;;</span> \
+	export GNUPGHOME=<span class="tok-string">&quot;$(mktemp -d)&quot;</span>; \
+	mkdir -p /usr/local/share/keyrings/; \
+	gpg --batch --keyserver keyserver.ubuntu.com --recv-keys <span class="tok-string">&quot;$key&quot;</span>; \
+	gpg --batch --export --armor <span class="tok-string">&quot;$key&quot;</span> &gt; /usr/local/share/keyrings/postgres.gpg.asc; \
+	gpgconf --kill all; \
+	rm -rf <span class="tok-string">&quot;$GNUPGHOME&quot;</span>
+
+<span class="tok-directive">ENV</span> PG_MAJOR 17
+<span class="tok-directive">ENV</span> PATH $PATH:/usr/lib/postgresql/$PG_MAJOR/bin
+
+<span class="tok-directive">ENV</span> PG_VERSION 17.10-1.pgdg13+1
+
+<span class="tok-directive">RUN</span> set -ex; \
+	\
+<span class="tok-comment"># see note below about &quot;*.pyc&quot; files</span>
+	<span class="tok-directive">export</span> PYTHONDONTWRITEBYTECODE=1; \
+	\
+	dpkgArch=<span class="tok-string">&quot;$(dpkg --print-architecture)&quot;</span>; \
+	aptRepo=<span class="tok-string">&quot;[ signed-by=/usr/local/share/keyrings/postgres.gpg.asc ] http://apt.postgresql.org/pub/repos/apt trixie-pgdg main $PG_MAJOR&quot;</span>; \
+	case <span class="tok-string">&quot;$dpkgArch&quot;</span> in \
+		amd64 | arm64 | loong64 | ppc64el) \
+<span class="tok-comment"># arches officialy built by upstream</span>
+			<span class="tok-directive">echo</span> <span class="tok-string">&quot;deb $aptRepo&quot;</span> &gt; /etc/apt/sources.list.d/pgdg.list; \
+			apt-get update; \
+			;; \
+		*) \
+<span class="tok-comment"># we&#39;re on an architecture upstream doesn&#39;t officially build for</span>
+<span class="tok-comment"># let&#39;s build binaries from their published source packages</span>
+			<span class="tok-directive">echo</span> <span class="tok-string">&quot;deb-src $aptRepo&quot;</span> &gt; /etc/apt/sources.list.d/pgdg.list; \
+			\
+			savedAptMark=<span class="tok-string">&quot;$(apt-mark showmanual)&quot;</span>; \
+			\
+			tempDir=<span class="tok-string">&quot;$(mktemp -d)&quot;</span>; \
+			cd <span class="tok-string">&quot;$tempDir&quot;</span>; \
+			\
+<span class="tok-comment"># create a temporary local APT repo to install from (so that dependency resolution can be handled by APT, as it should be)</span>
+			<span class="tok-directive">apt-get</span> update; \
+			apt-get install -y --no-install-recommends dpkg-dev; \
+			echo <span class="tok-string">&quot;deb [ trusted=yes ] file://$tempDir ./&quot;</span> &gt; /etc/apt/sources.list.d/temp.list; \
+			_update_repo() { \
+				dpkg-scanpackages . &gt; Packages; \
+<span class="tok-comment"># work around the following APT issue by using &quot;Acquire::GzipIndexes=false&quot; (overriding &quot;/etc/apt/apt.conf.d/docker-gzip-indexes&quot;)</span>
+<span class="tok-comment">#   Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)</span>
+<span class="tok-comment">#   ...</span>
+<span class="tok-comment">#   E: Failed to fetch store:/var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages  Could not open file /var/lib/apt/lists/partial/_tmp_tmp.ODWljpQfkE_._Packages - open (13: Permission denied)</span>
+				<span class="tok-directive">apt-get</span> -o Acquire::GzipIndexes=false update; \
+			}; \
+			_update_repo; \
+			\
+<span class="tok-comment"># build .deb files from upstream&#39;s source packages (which are verified by apt-get)</span>
+			<span class="tok-directive">nproc=&quot;$(nproc)&quot;;</span> \
+			export DEB_BUILD_OPTIONS=<span class="tok-string">&quot;nocheck parallel=$nproc&quot;</span>; \
+<span class="tok-comment"># we have to build postgresql-common-dev first because postgresql-$PG_MAJOR shares &quot;debian/rules&quot; logic with it: https://salsa.debian.org/postgresql/postgresql/-/commit/f4338a0d28cf4541956bddb0f4e444ba9dba81b9</span>
+			<span class="tok-directive">apt-get</span> build-dep -y postgresql-common-dev; \
+			apt-get source --compile postgresql-common-dev; \
+			_update_repo; \
+			apt-get build-dep -y <span class="tok-string">&quot;postgresql-$PG_MAJOR=$PG_VERSION&quot;</span>; \
+			apt-get source --compile <span class="tok-string">&quot;postgresql-$PG_MAJOR=$PG_VERSION&quot;</span>; \
+			\
+<span class="tok-comment"># we don&#39;t remove APT lists here because they get re-downloaded and removed later</span>
+			<span class="tok-directive">\</span>
+<span class="tok-comment"># reset apt-mark&#39;s &quot;manual&quot; list so that &quot;purge --auto-remove&quot; will remove all build dependencies</span>
+<span class="tok-comment"># (which is done after we install the built packages so we don&#39;t have to redownload any overlapping dependencies)</span>
+			<span class="tok-directive">apt-mark</span> showmanual | xargs apt-mark auto &gt; /dev/null; \
+			apt-mark manual $savedAptMark; \
+			\
+			ls -lAFh; \
+			_update_repo; \
+			grep <span class="tok-string">&#39;^Package: &#39;</span> Packages; \
+			cd /; \
+			;; \
+	esac; \
+	\
+	apt-get install -y --no-install-recommends postgresql-common; \
+	sed -ri <span class="tok-string">&#39;s/#(create_main_cluster) .*$/\1 = false/&#39;</span> /etc/postgresql-common/createcluster.conf; \
+	apt-get install -y --no-install-recommends \
+		<span class="tok-string">&quot;postgresql-$PG_MAJOR=$PG_VERSION&quot;</span> \
+	; \
+	\
+	rm -rf /var/lib/apt/lists/*; \
+	\
+	if [ -n <span class="tok-string">&quot;$tempDir&quot;</span> ]; then \
+<span class="tok-comment"># if we have leftovers from building, let&#39;s purge them (including extra, unnecessary build deps)</span>
+		<span class="tok-directive">apt-get</span> purge -y --auto-remove; \
+		rm -rf <span class="tok-string">&quot;$tempDir&quot;</span> /etc/apt/sources.list.d/temp.list; \
+	fi; \
+	\
+<span class="tok-comment"># some of the steps above generate a lot of &quot;*.pyc&quot; files (and setting &quot;PYTHONDONTWRITEBYTECODE&quot; beforehand doesn&#39;t propagate properly for some reason), so we clean them up manually (as long as they aren&#39;t owned by a package)</span>
+	<span class="tok-directive">find</span> /usr -name <span class="tok-string">&#39;*.pyc&#39;</span> -type f -exec bash -c <span class="tok-string">&#39;for pyc; do dpkg -S &quot;$pyc&quot; &amp;&gt; /dev/null || rm -vf &quot;$pyc&quot;; done&#39;</span> -- <span class="tok-string">&#39;{}&#39;</span> +; \
+	\
+	postgres --version
+
+<span class="tok-comment"># make the sample config easier to munge (and &quot;correct by default&quot;)</span>
+<span class="tok-directive">RUN</span> set -eux; \
+	dpkg-divert --add --rename --divert <span class="tok-string">&quot;/usr/share/postgresql/postgresql.conf.sample.dpkg&quot;</span> <span class="tok-string">&quot;/usr/share/postgresql/$PG_MAJOR/postgresql.conf.sample&quot;</span>; \
+	cp -v /usr/share/postgresql/postgresql.conf.sample.dpkg /usr/share/postgresql/postgresql.conf.sample; \
+	ln -sv ../postgresql.conf.sample <span class="tok-string">&quot;/usr/share/postgresql/$PG_MAJOR/&quot;</span>; \
+	sed -ri <span class="tok-string">&quot;s!^#?(listen_addresses)\s*=\s*\S+.*!\1 = &#39;*&#39;!&quot;</span> /usr/share/postgresql/postgresql.conf.sample; \
+	grep -F <span class="tok-string">&quot;listen_addresses = &#39;*&#39;&quot;</span> /usr/share/postgresql/postgresql.conf.sample
+
+<span class="tok-directive">RUN</span> install --verbose --directory --owner postgres --group postgres --mode 3777 /var/run/postgresql
+
+<span class="tok-directive">ENV</span> PGDATA /var/lib/postgresql/data
+<span class="tok-comment"># this 1777 will be replaced by 0700 at runtime (allows semi-arbitrary &quot;--user&quot; values)</span>
+<span class="tok-directive">RUN</span> install --verbose --directory --owner postgres --group postgres --mode 1777 <span class="tok-string">&quot;$PGDATA&quot;</span>
+<span class="tok-directive">VOLUME</span> /var/lib/postgresql/data
+
+<span class="tok-directive">COPY</span> docker-entrypoint.sh docker-ensure-initdb.sh /usr/local/bin/
+<span class="tok-directive">RUN</span> ln -sT docker-ensure-initdb.sh /usr/local/bin/docker-enforce-initdb.sh
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;docker-entrypoint.sh&quot;</span>]
+
+<span class="tok-comment"># We set the default STOPSIGNAL to SIGINT, which corresponds to what PostgreSQL</span>
+<span class="tok-comment"># calls &quot;Fast Shutdown mode&quot; wherein new connections are disallowed and any</span>
+<span class="tok-comment"># in-progress transactions are aborted, allowing PostgreSQL to stop cleanly and</span>
+<span class="tok-comment"># flush tables to disk.</span>
+<span class="tok-comment">#</span>
+<span class="tok-comment"># See https://www.postgresql.org/docs/current/server-shutdown.html for more details</span>
+<span class="tok-comment"># about available PostgreSQL server shutdown signals.</span>
+<span class="tok-comment">#</span>
+<span class="tok-comment"># See also https://www.postgresql.org/docs/current/server-start.html for further</span>
+<span class="tok-comment"># justification of this as the default value, namely that the example (and</span>
+<span class="tok-comment"># shipped) systemd service files use the &quot;Fast Shutdown mode&quot; for service</span>
+<span class="tok-comment"># termination.</span>
+<span class="tok-comment">#</span>
+<span class="tok-directive">STOPSIGNAL</span> SIGINT
+<span class="tok-comment">#</span>
+<span class="tok-comment"># An additional setting that is recommended for all users regardless of this</span>
+<span class="tok-comment"># value is the runtime &quot;--stop-timeout&quot; (or your orchestrator/runtime&#39;s</span>
+<span class="tok-comment"># equivalent) for controlling how long to wait between sending the defined</span>
+<span class="tok-comment"># STOPSIGNAL and sending SIGKILL.</span>
+<span class="tok-comment">#</span>
+<span class="tok-comment"># The default in most runtimes (such as Docker) is 10 seconds, and the</span>
+<span class="tok-comment"># documentation at https://www.postgresql.org/docs/current/server-start.html notes</span>
+<span class="tok-comment"># that even 90 seconds may not be long enough in many instances.</span>
+
+<span class="tok-directive">EXPOSE</span> 5432
+<span class="tok-directive">CMD</span> [<span class="tok-string">&quot;postgres&quot;</span>]
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Repository: https://github.com/docker-library/postgres.git
+Resolved revision: 62a714f93cc32220de46fd12235c9d509e3b1ad6
+Context path: 17/trixie
+Dockerfile: Dockerfile
+Natural probe: pg_isready
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-postgres-0-faithful" name="tabs-postgres-0" type="radio" checked>
+        <label for="tabs-postgres-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-postgres-0-dissolved" name="tabs-postgres-0" type="radio">
+        <label for="tabs-postgres-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+<span class="tok-directive">BUILDER</span> vendor
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span>
+  <span class="tok-directive">ENV</span> GOSU_VERSION=1.19
+  <span class="tok-directive">ENV</span> GOSU_SHA256=52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0
+  <span class="tok-directive">FETCH</span> bash -c &#39;curl --fail --location https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64 --output gosu &amp;&amp; echo &quot;$GOSU_SHA256  gosu&quot; | sha256sum --check --status&#39;
+  <span class="tok-directive">RUN</span> rm -rf output &amp;&amp; mkdir -p output &amp;&amp; chmod 755 gosu &amp;&amp; cp gosu output/gosu
+
+<span class="tok-directive">SERVICE</span> postgres
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.findutils}</span> <span class="tok-interpolation">${pkgs.gawk}</span> <span class="tok-interpolation">${pkgs.glibc}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.nss_wrapper}</span> <span class="tok-interpolation">${pkgs.postgresql_17}</span> <span class="tok-interpolation">${pkgs.postgresql_17.lib}</span> <span class="tok-interpolation">${pkgs.xz}</span> <span class="tok-interpolation">${pkgs.zstd}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${vendor}</span>/output/gosu /usr/local/bin/gosu
+  <span class="tok-directive">COPY</span> context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  <span class="tok-directive">ENV</span> PG_MAJOR=17
+  <span class="tok-directive">ENV</span> PGDATA=/var/lib/postgresql/data
+  <span class="tok-directive">ENV</span> LANG=en_US.UTF-8
+  <span class="tok-directive">ENV</span> POSTGRES_HOST_AUTH_METHOD=trust
+  <span class="tok-directive">ENV</span> PATH=bin:/usr/local/bin
+  <span class="tok-directive">START</span> bash /usr/local/bin/docker-entrypoint.sh postgres
+  <span class="tok-directive">PORT</span> postgres = 5432
+  <span class="tok-directive">STATEDIR</span> /var/lib/postgresql/data
+  <span class="tok-directive">RUNDIR</span> /var/run/postgresql
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE postgres
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.glibc} ${pkgs.gnugrep} ${pkgs.gosu} ${pkgs.nss_wrapper} ${pkgs.postgresql_17} ${pkgs.postgresql_17.lib} ${pkgs.xz} ${pkgs.zstd}
+  COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  ENV PG_MAJOR=17
+  ENV PGDATA=/var/lib/postgresql/data
+  ENV LANG=en_US.UTF-8
+  ENV POSTGRES_HOST_AUTH_METHOD=trust
+  ENV PATH=bin:/usr/local/bin
+  START bash /usr/local/bin/docker-entrypoint.sh postgres
+  PORT postgres = 5432
+  STATEDIR /var/lib/postgresql/data
+  RUNDIR /var/run/postgresql
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;b7c2ada94fe99c15b0dbcf4d11fd7850b957a436&quot;,
+      &quot;narHash&quot;: &quot;sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=&quot;,
+      &quot;lastModified&quot;: 1785967620
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;postgres&quot;: {
+      &quot;sourceHash&quot;: &quot;c00658e515e6a5b0b98f6bbf54b3edae1c2c58d04f8d8ed93a758984c80d21f9&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/677aahki21r0yk8gx30bnqpygwma1d4d-cix-item-postgres&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;b7c2ada94fe99c15b0dbcf4d11fd7850b957a436&quot;,
+      &quot;narHash&quot;: &quot;sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=&quot;,
+      &quot;lastModified&quot;: 1785967620
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:vendor:2-5b65b745109d&quot;: {
+      &quot;snapshotNarHash&quot;: &quot;sha256-kH5UBsArY1gikrzazPXEuEqe7VbEHBF7vkB12oareJA=&quot;,
+      &quot;paths&quot;: {
+        &quot;output/gosu&quot;: &quot;sha256-VmNcv6bmk3WjyLm02hEd1EyWYbMiyecL+7htABihBWM=&quot;
+      }
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;90b007693d3901dc797b775b04bc3ff0da2ffc1f14db69e752e61020807dafe3&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/gosu&quot;: {
+          &quot;narHash&quot;: &quot;sha256-VmNcv6bmk3WjyLm02hEd1EyWYbMiyecL+7htABihBWM=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/gi4g817bnnpfz8kdmvx6n9gfg19rw6l9-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:vendor:2&quot;: {
+      &quot;key&quot;: &quot;267fd81a220d0dfeb76079dec514d9f54a9e1e61419b3521eae13ca750963d2f&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/c01bxmc8crdz98sypcl6b8x6b306ffbl-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;gosu&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;gosu&quot;: {
+          &quot;content&quot;: &quot;6cf5be14797ed6038b4d1fc2a46c209d99844c093f89193bdbeb84fba797128b&quot;
+        }
+      }
+    },
+    &quot;builder:vendor:3&quot;: {
+      &quot;key&quot;: &quot;fac36dc6e916aa2d6de7cbf74b506b1d13cd5f34cbad91d9c2ea74a838345375&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;gosu&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        },
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;subtree&quot;,
+          &quot;mode&quot;: 16877
+        }
+      }
+    }
+  },
+  &quot;devEnvs&quot;: {
+    &quot;055f493356c0a150224a9ca97694f507f3a6c140bd1c5814338d235a4993e656:0952aee3115c535aa8e1f9cb3fe387da181ad2d70c5af6a791a8c2ffe85ef50a&quot;: {
+      &quot;environment&quot;: {
+        &quot;SYSTEM_CERTIFICATE_PATH&quot;: &quot;/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt&quot;,
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+      }
+    }
+  },
+  &quot;builderDevEnvs&quot;: {
+    &quot;vendor&quot;: &quot;055f493356c0a150224a9ca97694f507f3a6c140bd1c5814338d235a4993e656:0952aee3115c535aa8e1f9cb3fe387da181ad2d70c5af6a791a8c2ffe85ef50a&quot;
+  },
+  &quot;outputs&quot;: {
+    &quot;postgres&quot;: {
+      &quot;sourceHash&quot;: &quot;c1cbe00f16665301d1e756b646e9b6fb90ca227fc68bb36cc6783504f77ced05&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/if5hb96kxfc79wccd6jsm5a6prh2l19x-cix-item-postgres&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ ${1:-} != cix ]]; then
+  echo &quot;usage: $0 cix&quot; &gt;&amp;2
+  exit 2
+fi
+
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+item=$(timeout 240 &quot;$cix&quot; build &quot;$root#postgres&quot;)
+unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+
+cleanup() {
+  sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+timeout 60 &quot;$cix&quot; probe await tcp tcp://127.0.0.1:5432
+status=$(timeout 15 sudo -n &quot;$cix&quot; exec &quot;$unit&quot; -- pg_isready -h 127.0.0.1 -p 5432)
+[[ $status == *&quot;accepting connections&quot;* ]]
+printf &#39;PASS pg_isready=%s\n&#39; &quot;$status&quot;
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># PostgreSQL migration receipt
+
+2026-08-06 synchronous receipts. `bash corpus/migrate/fetch.sh
+docker/postgres` fetched `docker-library/postgres` at
+`62a714f93cc32220de46fd12235c9d509e3b1ad6`, with the `17/trixie` context.
+
+`devenv shell -- target/debug/cix build --update-lock=vendor
+corpus/migrate/docker/postgres#postgres` exited 0 and produced
+`/nix/store/if5hb96kxfc79wccd6jsm5a6prh2l19x-cix-item-postgres`. The vendor
+FETCH downloaded gosu 1.19 and verified its upstream SHA-256 inside the
+network step. The dissolved twin build and both faithful and dissolved
+`--cold` builds exited 0.
+
+`devenv shell -- env CIX=&quot;$PWD/target/debug/cix&quot; ./check.sh cix` was run
+synchronously and did not reach `pg_isready`: the probe timed out after
+repeated connection refusals. Direct journal inspection records the exact
+startup wall: `/var/run/postgresql` cannot be chmodded under the realized
+state role, then PostgreSQL reports its compiled package `lib` directory is
+not available inside the isolated item. The known arbitrary-path state-role
+defect is cited in `GAPS.md`; this is not graded as runtime green.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/postgres</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

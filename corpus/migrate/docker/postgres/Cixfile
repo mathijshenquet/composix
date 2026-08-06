@@ -1,0 +1,22 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER vendor
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl}
+  ENV GOSU_VERSION=1.19
+  ENV GOSU_SHA256=52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0
+  FETCH bash -c 'curl --fail --location https://github.com/tianon/gosu/releases/download/$GOSU_VERSION/gosu-amd64 --output gosu && echo "$GOSU_SHA256  gosu" | sha256sum --check --status'
+  RUN rm -rf output && mkdir -p output && chmod 755 gosu && cp gosu output/gosu
+
+SERVICE postgres
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.glibc} ${pkgs.gnugrep} ${pkgs.nss_wrapper} ${pkgs.postgresql_17} ${pkgs.postgresql_17.lib} ${pkgs.xz} ${pkgs.zstd}
+  COPY ${vendor}/output/gosu /usr/local/bin/gosu
+  COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  ENV PG_MAJOR=17
+  ENV PGDATA=/var/lib/postgresql/data
+  ENV LANG=en_US.UTF-8
+  ENV POSTGRES_HOST_AUTH_METHOD=trust
+  ENV PATH=bin:/usr/local/bin
+  START bash /usr/local/bin/docker-entrypoint.sh postgres
+  PORT postgres = 5432
+  STATEDIR /var/lib/postgresql/data
+  RUNDIR /var/run/postgresql

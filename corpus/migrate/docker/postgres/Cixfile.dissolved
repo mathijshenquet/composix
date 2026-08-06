@@ -1,0 +1,14 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE postgres
+  IMPORT ${pkgs.bash} ${pkgs.coreutils} ${pkgs.findutils} ${pkgs.gawk} ${pkgs.glibc} ${pkgs.gnugrep} ${pkgs.gosu} ${pkgs.nss_wrapper} ${pkgs.postgresql_17} ${pkgs.postgresql_17.lib} ${pkgs.xz} ${pkgs.zstd}
+  COPY context/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+  ENV PG_MAJOR=17
+  ENV PGDATA=/var/lib/postgresql/data
+  ENV LANG=en_US.UTF-8
+  ENV POSTGRES_HOST_AUTH_METHOD=trust
+  ENV PATH=bin:/usr/local/bin
+  START bash /usr/local/bin/docker-entrypoint.sh postgres
+  PORT postgres = 5432
+  STATEDIR /var/lib/postgresql/data
+  RUNDIR /var/run/postgresql

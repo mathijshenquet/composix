@@ -1,0 +1,5 @@
+Repository: https://github.com/distribution/distribution.git
+Resolved revision: 9f9289e23a133b02f61d8c768016eddbdec65c61
+Context path: .
+Dockerfile: Dockerfile
+Natural probe: GET /v2/ returns 200 {}
