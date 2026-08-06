@@ -3,8 +3,8 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::BuildOptions;
 use anyhow::{bail, Context};
+use cix_cixfile::BuildOptions;
 use ignore::WalkBuilder;
 use similar::TextDiff;
 
@@ -37,7 +37,7 @@ pub enum Command {
         #[arg(long)]
         stats: bool,
         /// Directory containing persistent BUILDER workspaces.
-        #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = crate::default_workspace_directory())]
+        #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = cix_cixfile::default_workspace_directory())]
         workspace_directory: PathBuf,
     },
     /// Format Cixfiles.
@@ -84,7 +84,7 @@ impl Command {
                     workspace_directory,
                     state_directory: state_directory.to_owned(),
                 };
-                let (items, build_stats) = crate::build_family_with_stats_file(
+                let (items, build_stats) = cix_cixfile::build_family_with_stats_file(
                     &options,
                     &tag,
                     namespace.as_deref(),
@@ -121,9 +121,9 @@ impl Command {
                 Ok(())
             }
             Self::Fmt { paths, check } => format_paths(paths, check),
-            Self::Watch { path, options } => crate::watch(
+            Self::Watch { path, options } => crate::watch::watch(
                 &path,
-                crate::WatchOptions {
+                crate::watch::WatchOptions {
                     workspace_directory: options.workspace_directory,
                     debounce: std::time::Duration::from_millis(options.debounce_ms),
                     state_directory: state_directory.to_owned(),
@@ -140,7 +140,7 @@ fn render_json(value: &impl serde::Serialize) -> anyhow::Result<String> {
 #[derive(clap::Args)]
 pub struct WatchArgs {
     /// Directory containing persistent BUILDER workspaces.
-    #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = crate::default_workspace_directory())]
+    #[arg(long, env = "CIX_BUILD_WORKSPACE_DIR", default_value_os_t = cix_cixfile::default_workspace_directory())]
     workspace_directory: PathBuf,
     /// Delay in milliseconds before rebuilding a burst of changes.
     #[arg(long, env = "CIX_WATCH_DEBOUNCE_MS", default_value_t = 300)]
@@ -160,7 +160,7 @@ fn format_paths(paths: Vec<PathBuf>, check: bool) -> anyhow::Result<()> {
     if stdin {
         let mut input = String::new();
         io::stdin().read_to_string(&mut input)?;
-        let formatted = crate::fmt::format(&input)?;
+        let formatted = cix_cixfile::fmt::format(&input)?;
         if check {
             if formatted != input {
                 print_diff("-", &input, &formatted)?;
@@ -177,7 +177,7 @@ fn format_paths(paths: Vec<PathBuf>, check: bool) -> anyhow::Result<()> {
     for path in files {
         let input =
             fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
-        let formatted = crate::fmt::format(&input)?;
+        let formatted = cix_cixfile::fmt::format(&input)?;
         if formatted == input {
             continue;
         }

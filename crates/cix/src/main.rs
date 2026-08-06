@@ -1,7 +1,10 @@
 //! ## Module map
 //!
-//! Intentional module-map omission: this binary has only its cfg-gated `tests`
-//! module and routes commands directly to library crates.
+//! - `cixfile_cli`: coordinates build/fmt/watch application commands.
+//! - `watch`: coordinates rebuilds with compose activation.
+
+mod cixfile_cli;
+mod watch;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -85,7 +88,7 @@ enum Command {
         command: CredentialsCommand,
     },
     #[command(flatten)]
-    Cixfile(cix_cixfile::cli::Command),
+    Cixfile(cixfile_cli::Command),
     #[command(flatten)]
     Compose(cix_compose::cli::Command),
     #[command(flatten)]

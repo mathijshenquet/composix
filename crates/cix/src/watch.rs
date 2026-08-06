@@ -14,7 +14,7 @@ use anyhow::{bail, Context, Result};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::{Config, Event, EventKind, PollWatcher, RecommendedWatcher, RecursiveMode, Watcher};
 
-use crate::{build, BuildOptions, BuiltItem};
+use cix_cixfile::{build, BuildOptions, BuiltItem};
 
 // The handler is installed once because ctrlc owns a process-wide handler slot.
 static INTERRUPT_HANDLER: Once = Once::new();
