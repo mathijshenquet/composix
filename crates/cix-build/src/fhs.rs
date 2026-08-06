@@ -139,15 +139,7 @@ pub(crate) fn failure_hint(
             .unwrap_or(relative);
         let provider = imported_loader_provider(imports, alias);
         if provider.is_none() && failure.exec_enoent.contains(relative) {
-            let needed = if elf.needed.is_empty() {
-                String::new()
-            } else {
-                format!(" and {}", elf.needed.join(", "))
-            };
-            hints.insert(format!(
-                "hint: {name} requires the FHS loader {interpreter}{needed}; IMPORT {}",
-                alias.import_hint
-            ));
+            hints.insert(missing_loader_hint_for_elf(name, &elf, alias));
             continue;
         }
         let Some(provider) = provider else {
@@ -184,6 +176,39 @@ pub(crate) fn failure_hint(
         }
     }
     (!hints.is_empty()).then(|| hints.into_iter().collect::<Vec<_>>().join("\n"))
+}
+
+/// Diagnoses an argv target that bubblewrap could not exec even though the
+/// target exists in the workspace. That is the ELF loader's ENOENT, not a
+/// missing command.
+pub(crate) fn argv_enoent_hint(workdir: &Path, imports: &[String], target: &str) -> Option<String> {
+    let path = workdir.join(target);
+    let Ok(Some(elf)) = inspect_elf(&path) else {
+        return None;
+    };
+    let interpreter = elf.interpreter.as_deref()?;
+    let alias = loader_aliases()
+        .iter()
+        .find(|alias| alias.interpreter == interpreter)?;
+    imported_loader_provider(imports, alias).is_none().then(|| {
+        let name = Path::new(target)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(target);
+        missing_loader_hint_for_elf(name, &elf, alias)
+    })
+}
+
+fn missing_loader_hint_for_elf(name: &str, elf: &ElfInfo, alias: &LoaderAlias) -> String {
+    let needed = if elf.needed.is_empty() {
+        String::new()
+    } else {
+        format!(" and {}", elf.needed.join(", "))
+    };
+    format!(
+        "hint: {name} requires the FHS loader {}{needed}; IMPORT {}",
+        alias.interpreter, alias.import_hint
+    )
 }
 
 fn imported_loader_provider<'a>(imports: &'a [String], alias: &LoaderAlias) -> Option<&'a Path> {

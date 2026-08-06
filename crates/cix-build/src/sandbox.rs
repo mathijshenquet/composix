@@ -221,10 +221,17 @@ impl Sandbox {
             let stdout = String::from_utf8_lossy(&output.stdout);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let trace_text = fs::read_to_string(&trace_path).ok();
-            if env_is_missing {
+            let argv_enoent_target = argv_enoent_target(request.command, request.workdir, &stderr);
+            let argv_fhs_hint = argv_enoent_target
+                .and_then(|target| fhs::argv_enoent_hint(request.workdir, request.imports, target));
+            if env_is_missing && argv_enoent_target.is_none() {
                 failure.push_str(
                     "\nhint: /usr/bin/env is a fixed alias to /bin/env; IMPORT ${pkgs.coreutils} or another package that supplies env",
                 );
+            }
+            if let Some(hint) = &argv_fhs_hint {
+                failure.push('\n');
+                failure.push_str(hint);
             }
             if let Some(trace_text) = &trace_text {
                 if let Some(hint) = fhs::failure_hint(
@@ -232,8 +239,10 @@ impl Sandbox {
                     request.imports,
                     &trace::parse_failure(trace_text),
                 ) {
-                    failure.push('\n');
-                    failure.push_str(&hint);
+                    if argv_fhs_hint.as_deref() != Some(hint.as_str()) {
+                        failure.push('\n');
+                        failure.push_str(&hint);
+                    }
                 }
             }
             for hint in failure_problem_hints(
@@ -256,6 +265,24 @@ impl Sandbox {
             .with_context(|| format!("reading syscall trace {}", trace_path.display()))?;
         Ok(trace::parse(&trace_text))
     }
+}
+
+fn argv_enoent_target<'a>(
+    command: &'a ResolvedCommand,
+    workdir: &Path,
+    stderr: &str,
+) -> Option<&'a str> {
+    let ResolvedCommand::Argv { argv } = command else {
+        return None;
+    };
+    let program = argv.first()?;
+    let relative = Path::new(program);
+    if !relative.is_relative() || !workdir.join(relative).is_file() {
+        return None;
+    }
+    stderr
+        .contains(&format!("execvp {program}: No such file or directory"))
+        .then_some(program)
 }
 
 pub(crate) fn prepare_import_union(

@@ -2281,3 +2281,26 @@
   the captured workspace exit file contained `0`; Rust fmt check and
   warning-denied workspace/all-target clippy passed. Next: commit the staged
   root fix; do not merge.
+
+## 2026-08-06 — fmtkey-impl argv FHS loader diagnostic
+
+- 2026-08-06T12:31:33Z — Fast-forwarded to current merged `main` and
+  diagnosing the stage-2 argv-mode ENOENT regression in
+  `missing_fhs_loader_diagnostic_suggests_the_libc_import`. The target exists
+  in the workdir but bwrap reports raw execvp ENOENT; sandbox failure handling
+  must dispatch it through the FHS ELF interpreter analyzer rather than the
+  absent-command `/usr/bin/env` hint.
+
+- 2026-08-06T12:33:26Z — Root fix: argv-mode bwrap ENOENT now confirms an
+  existing relative workdir target and asks the FHS seam to inspect its ELF
+  interpreter directly. The previous trace analysis remains for every other
+  path; `/usr/bin/env` advice is withheld only for the confirmed existing-
+  target case, retaining it for absent commands. The verbatim lock_nix test
+  passes and now asserts that the libc-import diagnostic is present while the
+  env-alias hint is absent.
+
+- 2026-08-06T12:37:00Z — Final synchronous, value-checked receipts: the
+  verbatim `cargo test -p cix-cixfile --test lock_nix missing_fhs_loader`
+  passed; the captured workspace exit file contained `0`; Rust fmt check and
+  warning-denied workspace/all-target clippy passed. Next: commit the staged
+  fix; do not merge.

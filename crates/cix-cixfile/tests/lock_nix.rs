@@ -280,6 +280,7 @@ COPY ${src}/fhs-probe /unreachable
     assert!(error.contains("/lib64/ld-linux-x86-64.so.2"), "{error}");
     assert!(error.contains("libc.so.6"), "{error}");
     assert!(error.contains("IMPORT ${pkgs.glibc}"), "{error}");
+    assert!(!error.contains("/usr/bin/env is a fixed alias"), "{error}");
 }
 
 #[test]
