@@ -44,7 +44,28 @@ pub fn assert_generated_matches(directory: &Path, expected: &[GeneratedFile]) ->
         let actual =
             fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
         if actual != file.content {
-            bail!("{} has drifted; regenerate it", path.display());
+            // CI cannot rerun the generator interactively, so the failure must
+            // name its own diff (bounded): committed vs freshly rendered.
+            let mut report = String::new();
+            let committed: Vec<_> = actual.lines().collect();
+            let rendered: Vec<_> = file.content.lines().collect();
+            let mut shown = 0;
+            for i in 0..committed.len().max(rendered.len()) {
+                let c = committed.get(i).copied().unwrap_or("<absent>");
+                let r = rendered.get(i).copied().unwrap_or("<absent>");
+                if c != r {
+                    report.push_str(&format!(
+                        "line {}:\n  committed: {c}\n  rendered:  {r}\n",
+                        i + 1
+                    ));
+                    shown += 1;
+                    if shown >= 40 {
+                        report.push_str("… (diff capped at 40 lines)\n");
+                        break;
+                    }
+                }
+            }
+            bail!("{} has drifted; regenerate it\n{report}", path.display());
         }
     }
     Ok(())
