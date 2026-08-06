@@ -57,7 +57,11 @@ impl Parser<'_> {
             ));
         }
         let (name, values) = arguments.split_once(" from ").ok_or_else(|| {
-            ParseError::new(line, source, "ARG syntax is ARG NAME from value1 value2 …")
+            ParseError::new(
+                line,
+                source,
+                "ARG syntax is ARG NAME from value1 value2 …; Docker's ARG NAME=default becomes ARG NAME from default, a declared closed matrix; see docs/migrate.md#docker-vocabulary",
+            )
         })?;
         let name = name.trim();
         validate_namespace(name, line, source)?;
