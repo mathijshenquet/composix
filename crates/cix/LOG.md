@@ -1460,3 +1460,13 @@
   are the expected Chapter 1/5/6 teardown commands. No focused VM scenario or
   Docker/corpus ledger row applies to this harness-only track. Next: commit
   the reviewed scoped diff; do not merge.
+
+- 2026-08-06T08:55:05Z — Committed the scoped track as `d5ede6e6` (`test:
+  make tour transient teardown idempotent`) and created
+  `origin/track/tourdet-teardown`. The push transferred that exact commit but
+  could not set its local upstream because the shared repository has a
+  pre-existing read-only `/home/mathijs/composix/.git/config.lock`; it is not
+  removed. The independent synchronous value check `git ls-remote origin
+  refs/heads/track/tourdet-teardown` returned
+  `d5ede6e613f1e2210533db262e5aeab5e0799c97`, equal to local `HEAD`, and the
+  worktree is clean. No merge was performed.
