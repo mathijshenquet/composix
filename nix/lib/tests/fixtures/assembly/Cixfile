@@ -2,8 +2,8 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 ITEM assembly
-IMPORT ${pkgs.coreutils}
-COPY ${src}/payload.txt /payload.txt
-FILE /etc/identity <<EOF
+  IMPORT ${pkgs.coreutils}
+  COPY ${src}/payload.txt /payload.txt
+  FILE /etc/identity <<EOF
 assembled by both paths
 EOF

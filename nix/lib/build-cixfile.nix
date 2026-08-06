@@ -377,10 +377,13 @@ let
   # aliases named by this fingerprint are deliberately rejected below.
   supportedSkeleton = "v2:/usr/bin/env->/bin/env;x86_64:/lib64/ld-linux-x86-64.so.2->/lib/cix-loaders/ld-linux-x86-64.so.2,/lib/ld-musl-x86_64.so.1->/lib/cix-loaders/ld-musl-x86_64.so.1";
 in
-if plan.version != 1 then
-  throw "CIP-94 buildCixfile: unsupported evalPlan version ${toString plan.version}"
-else if plan.cixfileHash != builtins.hashFile "sha256" (src + "/Cixfile") then
-  throw "CIP-94 buildCixfile: Cixfile changed after Cixfile.lock; rebuild the lock with cix"
+if plan.version != 2 then
+  throw "CIP-94 buildCixfile: unsupported evalPlan version ${toString plan.version}; rebuild the lock with the current cix"
+# CIP-110 made plan.cixfileHash the canonical-AST hash, which nix cannot
+# recompute from raw bytes; cix itself refuses stale locks on every build,
+# and the byte-identity scenario asserts the real guarantee. The epoch sweep
+# should restore an independent guard by recording a raw source hash in the
+# plan alongside the canonical one.
 else if plan.skeleton != supportedSkeleton then
   throw "CIP-94 buildCixfile: builder skeleton drifted; update the Nix replay and byte-identity check together"
 else if plan.topLevelFetchCount != 0 then

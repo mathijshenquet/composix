@@ -2,10 +2,10 @@ FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
 BUILDER build
-IMPORT ${pkgs.bash} ${pkgs.coreutils}
-COPY ${src}/input.txt input.txt
-FETCH printf 'fetched offline replay\n' > fetched.txt
-RUN cat input.txt fetched.txt > result.txt
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  COPY ${src}/input.txt input.txt
+  FETCH printf 'fetched offline replay\n' > fetched.txt
+  RUN cat input.txt fetched.txt > result.txt
 
 ITEM builder
-COPY ${build}/result.txt /result.txt
+  COPY ${build}/result.txt /result.txt
