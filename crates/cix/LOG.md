@@ -1310,3 +1310,10 @@
   in `docs/corpus/index.html`; it is not a green receipt. Regenerating after
   the ledger edit exited 0, and the immediately following normal suite passed
   7/7 with the generator ignored. → process
+
+- 2026-08-06T08:18:00Z — Committed the scoped spike as `9a3f5896` (`Spike
+  pnpm cold-store wall`). The draft remains unadopted; the track makes no
+  language decision. Dozzle's trust prerequisite is fixed, bare-CAS pnpm
+  replay is rejected with two-version evidence, Verdaccio retains the precise
+  missing-index wall, and Directus's prior incoherence diagnosis is corrected.
+  No merge was performed.
