@@ -1626,3 +1626,10 @@
   The existing Docker axis was still searched completely and contained only
   Directus, Dozzle, and Verdaccio frozenStore exhibits, all updated here.
   → process
+
+- 2026-08-06T10:24:00Z — Committed the scoped implementation, corpus
+  translations/receipts, regenerated browser, draft reclassification, and
+  migration/reference teaching as `b1a19d26c25d57e1b5bae153d5f754d5f5f4da62`
+  (`build: add pnpm frozen-store route and hints`). No merge or push was
+  performed. Final handoff keeps the validation green and the Verdaccio/Dozzle
+  traced installs explicitly walled; neither is promoted to an item.
