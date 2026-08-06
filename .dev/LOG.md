@@ -1,5 +1,32 @@
 # composix work log
 
+## 2026-08-06 day, cont. 2 (coldreplay-sweep merged: zero regenerations, four upstream-drift walls, two new keying exhibits)
+
+- **Merged `f3115542`** (luna, ~20min; one LOG merge-seam resolved by
+  concatenation) behind my independent gate (fmt + diff-check + corpus
+  7/7, exit 0). The httpd self-write class does NOT recur: whole-corpus
+  changed-lock count 0, no regeneration performed anywhere.
+  - Verified cold under the widened parser: valkey (full 251s/235s
+    runs, byte-identical lock; an invalid memo-hit warm run was
+    correctly discarded first), nginx, tomcat.
+  - Honest walls (upstream EXPECT drift on tarballs/GPG keys —
+    replay-independent): redis, memcached, haproxy, mosquitto. Each
+    recorded in GAPS/receipt; transient lock dirt restored
+    byte-for-byte.
+  - **Two new keying-neutrality exhibits**: nginx (sourceHash-only
+    churn on a green verify) and tomcat (sourceHash + storePath churn,
+    cold still exit 0) — same family as the ntfy observation; the
+    fmt-key-neutrality draft now has three concrete exhibits.
+  - Exemplary receipts discipline incl. an append-only timestamp
+    correction. Zero overclaims observed (luna, tight spec — consistent
+    with the table).
+- Fleet idle again; both tracks of the day merged. **Open with
+  Mathijs** (updated): pnpm-wall leg-2 redesign direction (bare-CAS
+  dead for pnpm, alive for npm), epoch-trio adoption incl. list-syntax
+  juxtaposition question (prior-work survey delivered in chat),
+  fmt-key + k8s-wave adoptions, ribbon trio, tour read, naming,
+  0.1-scope, herdr server restart (protocol 17→19, kills panes).
+
 ## 2026-08-06 day, cont. (pnpmwall-spike merged: cacert cracked, bare-CAS disproven for pnpm, directus diagnosis overturned)
 
 - **Merged `3737f2ea`** (sol, ~1h wall-clock) behind my independent gate
