@@ -526,6 +526,11 @@ fn normalize(raw: &str, base: &Path) -> String {
         r"(?ms)^warning: (?:the )?user manager rejected .*?^warning: retrying [^\n]*\n?",
     )
     .expect("valid degraded fallback regex");
+    // CIP-97's granular degradation emits one `warning: dropped X: …` line per
+    // rejected directive; which directives an old manager rejects is
+    // host-specific (the 2026-08-05 CI tour failure), so the lines are elided.
+    let granular_degraded = Regex::new(r"(?m)^warning: dropped [^\r\n]*(?:\r?\n|$)")
+        .expect("valid granular degradation regex");
     // systemd before version 257 rejects newer unit properties while parsing them. The property
     // name is host-version-specific and is captured by cix's following fallback warning.
     let unknown_assignment = Regex::new(r"(?m)^Unknown assignment: [^\r\n]*(?:\r?\n|$)")
@@ -552,6 +557,7 @@ fn normalize(raw: &str, base: &Path) -> String {
     );
     let normalized = unknown_assignment.replace_all(&normalized, "");
     let normalized = degraded_fallback.replace_all(&normalized, "");
+    let normalized = granular_degraded.replace_all(&normalized, "");
     let normalized = stale_failed_unit.replace_all(&normalized, "");
     // Nix emits fetch/build progress on cold stores (CI runners, fresh machines); those
     // lines are environment noise, not command output.
@@ -1128,12 +1134,14 @@ fn normalize_swallows_every_host_specific_degraded_fallback_detail() {
     let capability = "warning: user manager rejected capability controls (Failed to set capabilities)\nwarning: retrying after dropping AmbientCapabilities, CapabilityBoundingSet, ProtectKernelModules, and ProtectKernelLogs";
     let private_devices = "warning: user manager rejected PrivateDevices isolation (Operation not permitted)\nwarning: retrying without PrivateDevices; this --user service can access the host device namespace (D13 degraded fallback)";
     let old_systemd = "Unknown assignment: PrivatePIDs=yes\nwarning: the user manager rejected mount-namespace sandboxing (Operation not supported)\nwarning: retrying without PrivateUsers";
+    let granular = "warning: dropped PrivatePIDs=yes: user manager rejected PrivatePIDs= (systemd-analyze --user verify: Unknown key name 'PrivatePIDs' in section 'Service', ignoring.); this service shares the host PID namespace (D36 degraded fallback)\nwarning: dropped StartLimitIntervalSec=5min: user manager rejected StartLimitIntervalSec= (systemd-analyze --user verify: Unknown key name 'StartLimitIntervalSec' in section 'Service', ignoring.)";
     // Presence of the pair is itself host-specific (permissive kernels emit nothing), so
     // normalization removes it entirely: degraded and non-degraded hosts must render alike.
     assert_eq!(normalize(namespace, base), "");
     assert_eq!(normalize(capability, base), "");
     assert_eq!(normalize(private_devices, base), "");
     assert_eq!(normalize(old_systemd, base), "");
+    assert_eq!(normalize(granular, base), "");
 }
 
 #[test]

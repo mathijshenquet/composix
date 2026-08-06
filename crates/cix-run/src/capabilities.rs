@@ -428,9 +428,14 @@ fn rejected_directives(diagnostics: &str) -> BTreeMap<String, String> {
                     line.split_once("Unknown key name '")
                         .and_then(|(_, rest)| rest.split_once('\'').map(|(name, _)| name))
                 })?;
+            // Quote only the analyzer's message: the line prefixes it with the
+            // ephemeral probe unit path (/tmp/.tmpXXXXXX.service:NN:), which is
+            // meaningless to users and made every degraded render differ (the
+            // CI tour-determinism failure of 2026-08-05).
+            let message = line.find("Unknown").map_or(line, |start| &line[start..]);
             Some((
                 name.to_owned(),
-                format!("user manager rejected {name}= (systemd-analyze --user verify: {line})"),
+                format!("user manager rejected {name}= (systemd-analyze --user verify: {message})"),
             ))
         })
         .collect()
