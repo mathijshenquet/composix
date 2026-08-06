@@ -224,6 +224,7 @@ dependencies = [
  "anyhow",
  "cix-common",
  "cix-index",
+ "cix-manifest",
  "cix-run",
  "clap",
  "hmac",
@@ -251,12 +252,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cix-manifest"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "url",
+]
+
+[[package]]
 name = "cix-run"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "cix-common",
  "cix-index",
+ "cix-manifest",
  "cix-test-support",
  "clap",
  "libc",

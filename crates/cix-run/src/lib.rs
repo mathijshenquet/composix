@@ -18,7 +18,7 @@
 //! - `probe`: owns readiness and liveness probe execution.
 //! - `runtime`: validates run options and conducts service selection.
 //! - `shell`: owns interactive shell command projection.
-//! - `spec`: owns manifest parsing and validation.
+//! - `cix-manifest` (re-exported as `spec`): owns manifest parsing and validation.
 //! - `target`: resolves paths, refs, and Nix installables.
 //! - `unit`: conducts ordered systemd property assembly.
 
@@ -37,6 +37,6 @@ mod manager;
 pub mod probe;
 pub mod runtime;
 pub mod shell;
-pub mod spec;
+pub use cix_manifest as spec;
 mod target;
 pub mod unit;

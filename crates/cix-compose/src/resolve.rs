@@ -6,10 +6,8 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use cix_index::Output;
-use cix_run::{
-    config::ResolvedConfig,
-    spec::{ManifestKind, Service},
-};
+use cix_manifest::{ManifestKind, Service};
+use cix_run::config::ResolvedConfig;
 
 use crate::{
     directories::{
@@ -188,7 +186,7 @@ struct Surface {
     service: String,
     name: String,
     kind: PublishKind,
-    protocol: Option<cix_run::spec::Protocol>,
+    protocol: Option<cix_manifest::Protocol>,
     binding: Option<SocketAddr>,
     pod: Option<String>,
 }
@@ -299,7 +297,7 @@ impl TreeBuilder<'_> {
                     declaration.port
                 )
             })?;
-            if surface.protocol == Some(cix_run::spec::Protocol::Udp) {
+            if surface.protocol == Some(cix_manifest::Protocol::Udp) {
                 bail!(
                     "publish.{} selects UDP port {:?}; compose publish currently supports TCP only",
                     join_path(walk.path, name),
@@ -320,7 +318,7 @@ impl TreeBuilder<'_> {
     ) -> Result<BTreeMap<String, Surface>> {
         let locked = self.resolve_reference(path, &declaration.item, declaration.update, "item")?;
         let store_path = PathBuf::from(&locked.store_path);
-        let spec = cix_run::spec::Spec::load(&store_path)
+        let spec = cix_manifest::Spec::load(&store_path)
             .with_context(|| format!("children.{path}.item: invalid item {}", declaration.item))?;
         validate_schedule(path, declaration, spec.kind, self.calendar_validator)?;
         let (item_service, service) = spec.select_service(None).with_context(|| {

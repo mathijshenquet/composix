@@ -1,3 +1,5 @@
+//! Neutral alpha manifest schema, validation, and canonical serialization.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
