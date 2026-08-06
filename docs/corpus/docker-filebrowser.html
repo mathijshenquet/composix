@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / filebrowser — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / filebrowser</nav>
+  <h1>docker / filebrowser</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The source init contract cannot start because arbitrary-path role realization hides the writable /config bind; /health is honestly unproved · <strong>Evidence:</strong> build receipt and runtime wall</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 2.63.23 release artifact build and dissolved twin build pass · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/filebrowser/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/filebrowser/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · track-expand-ntfy-filebrowser · 2026-08-06 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The official installer downloads <code>releases/latest</code> and therefore cannot be a reproducible build step. This case preserves its Linux amd64 artifact selection as a fixed release URL, published SHA-256, and pinned FETCH snapshot; faithful and dissolved build receipts pass while the runtime wall is recorded below. → case</li>
+      <li><code>/config/settings.json</code> is generated and then mutated by the application, so it is durable application state rather than operator-supplied configuration; <code>/config</code>, <code>/database</code>, and <code>/srv</code> are explicit private state roles. Docker&#39;s BusyBox/Alpine assembly, fixed UID/GID, <code>tini</code>, and recursive startup ownership changes dissolve into the locked nixpkgs closure and systemd process lifecycle. → case</li>
+      <li>The faithful system-manager run cannot write <code>/config/settings.json</code>: realization mounts the arbitrary app-path role root read-only after its managed bind, hiding the bind. <code>STATEDIR /config</code> is the right lifecycle for Filebrowser&#39;s self-generated settings, but it exhibits the same arbitrary-path realization defect, so the <code>/health</code> runtime contract is unproved. The user-manager fallback cannot project the declared app paths and then times out. → language</li>
+    </ul>
+  </aside>
+  <details class="context">
+    <summary>Upstream build context: 417 files, 7572380 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.claude/CLAUDE.md</code> <span>8572 bytes</span></li>
+      <li><code>.dockerignore</code> <span>81 bytes</span></li>
+      <li><code>.github/CODEOWNERS</code> <span>27 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/bug_report.yml</code> <span>1745 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/config.yml</code> <span>195 bytes</span></li>
+      <li><code>.github/PULL_REQUEST_TEMPLATE.md</code> <span>1072 bytes</span></li>
+      <li><code>.github/workflows/ci.yaml</code> <span>3431 bytes</span></li>
+      <li><code>.github/workflows/lint-pr.yaml</code> <span>1440 bytes</span></li>
+      <li><code>.gitignore</code> <span>395 bytes</span></li>
+      <li><code>.golangci.yml</code> <span>193 bytes</span></li>
+      <li><code>.goreleaser.yml</code> <span>6892 bytes</span></li>
+      <li><code>.versionrc</code> <span>483 bytes</span></li>
+      <li><code>CHANGELOG.md</code> <span>140804 bytes</span></li>
+      <li><code>CODE-OF-CONDUCT.md</code> <span>3202 bytes</span></li>
+      <li><code>CONTRIBUTING.md</code> <span>3497 bytes</span></li>
+      <li><code>Dockerfile</code> <span>1619 bytes</span></li>
+      <li><code>Dockerfile.s6</code> <span>666 bytes</span></li>
+      <li><code>LICENSE</code> <span>11356 bytes</span></li>
+      <li><code>README.md</code> <span>2047 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>1428 bytes</span></li>
+      <li><code>Taskfile.yml</code> <span>1362 bytes</span></li>
+      <li><code>auth/auth.go</code> <span>435 bytes</span></li>
+      <li><code>auth/hook.go</code> <span>8236 bytes</span></li>
+      <li><code>auth/hook_test.go</code> <span>4625 bytes</span></li>
+      <li><code>auth/json.go</code> <span>2582 bytes</span></li>
+      <li><code>auth/none.go</code> <span>637 bytes</span></li>
+      <li><code>auth/proxy.go</code> <span>1860 bytes</span></li>
+      <li><code>auth/proxy_test.go</code> <span>3898 bytes</span></li>
+      <li><code>auth/storage.go</code> <span>779 bytes</span></li>
+      <li><code>branding/banner.png</code> <span>67856 bytes</span></li>
+      <li><code>branding/banner.svg</code> <span>10259 bytes</span></li>
+      <li><code>branding/icon.png</code> <span>39962 bytes</span></li>
+      <li><code>branding/icon.svg</code> <span>1927 bytes</span></li>
+      <li><code>branding/logo.png</code> <span>27365 bytes</span></li>
+      <li><code>branding/logo.svg</code> <span>2628 bytes</span></li>
+      <li><code>cmd/cmd.go</code> <span>98 bytes</span></li>
+      <li><code>cmd/cmd_test.go</code> <span>1600 bytes</span></li>
+      <li><code>cmd/cmds.go</code> <span>418 bytes</span></li>
+      <li><code>cmd/cmds_add.go</code> <span>682 bytes</span></li>
+      <li><code>cmd/cmds_ls.go</code> <span>816 bytes</span></li>
+      <li><code>cmd/cmds_rm.go</code> <span>1411 bytes</span></li>
+      <li><code>cmd/config.go</code> <span>13039 bytes</span></li>
+      <li><code>cmd/config_cat.go</code> <span>607 bytes</span></li>
+      <li><code>cmd/config_export.go</code> <span>928 bytes</span></li>
+      <li><code>cmd/config_import.go</code> <span>2916 bytes</span></li>
+      <li><code>cmd/config_init.go</code> <span>1415 bytes</span></li>
+      <li><code>cmd/config_set.go</code> <span>1139 bytes</span></li>
+      <li><code>cmd/docs.go</code> <span>1698 bytes</span></li>
+      <li><code>cmd/hash.go</code> <span>484 bytes</span></li>
+      <li><code>cmd/root.go</code> <span>16132 bytes</span></li>
+      <li><code>cmd/rule_rm.go</code> <span>1657 bytes</span></li>
+      <li><code>cmd/rules.go</code> <span>2398 bytes</span></li>
+      <li><code>cmd/rules_add.go</code> <span>1362 bytes</span></li>
+      <li><code>cmd/rules_ls.go</code> <span>424 bytes</span></li>
+      <li><code>cmd/users.go</code> <span>4879 bytes</span></li>
+      <li><code>cmd/users_add.go</code> <span>1696 bytes</span></li>
+      <li><code>cmd/users_export.go</code> <span>603 bytes</span></li>
+      <li><code>cmd/users_find.go</code> <span>1053 bytes</span></li>
+      <li><code>cmd/users_import.go</code> <span>2692 bytes</span></li>
+      <li><code>cmd/users_rm.go</code> <span>637 bytes</span></li>
+      <li><code>cmd/users_update.go</code> <span>2558 bytes</span></li>
+      <li><code>cmd/utils.go</code> <span>6140 bytes</span></li>
+      <li><code>cmd/version.go</code> <span>371 bytes</span></li>
+      <li><code>compose.yaml</code> <span>641 bytes</span></li>
+      <li><code>diskcache/cache.go</code> <span>255 bytes</span></li>
+      <li><code>diskcache/file_cache.go</code> <span>2201 bytes</span></li>
+      <li><code>diskcache/file_cache_test.go</code> <span>1436 bytes</span></li>
+      <li><code>diskcache/noop_cache.go</code> <span>378 bytes</span></li>
+      <li><code>docker/alpine/healthcheck.sh</code> <span>328 bytes</span></li>
+      <li><code>docker/alpine/init.sh</code> <span>1398 bytes</span></li>
+      <li><code>docker/common/defaults/settings.json</code> <span>130 bytes</span></li>
+      <li><code>docker/common/healthcheck.sh</code> <span>223 bytes</span></li>
+      <li><code>docker/s6/custom-cont-init.d/20-config</code> <span>234 bytes</span></li>
+      <li><code>docker/s6/etc/services.d/filebrowser/run</code> <span>90 bytes</span></li>
+      <li><code>docs/README.md</code> <span>1591 bytes</span></li>
+      <li><code>docs/authentication.md</code> <span>6574 bytes</span></li>
+      <li><code>docs/cli/filebrowser-cmds-add.md</code> <span>484 bytes</span></li>
+      <li><code>docs/cli/filebrowser-cmds-ls.md</code> <span>518 bytes</span></li>
+      <li><code>docs/cli/filebrowser-cmds-rm.md</code> <span>820 bytes</span></li>
+      <li><code>docs/cli/filebrowser-cmds.md</code> <span>668 bytes</span></li>
+      <li><code>docs/cli/filebrowser-completion-bash.md</code> <span>1124 bytes</span></li>
+      <li><code>docs/cli/filebrowser-completion-fish.md</code> <span>896 bytes</span></li>
+      <li><code>docs/cli/filebrowser-completion-powershell.md</code> <span>853 bytes</span></li>
+      <li><code>docs/cli/filebrowser-completion-zsh.md</code> <span>1164 bytes</span></li>
+      <li><code>docs/cli/filebrowser-completion.md</code> <span>1014 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config-cat.md</code> <span>441 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config-export.md</code> <span>612 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config-import.md</code> <span>743 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config-init.md</code> <span>5205 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config-set.md</code> <span>5067 bytes</span></li>
+      <li><code>docs/cli/filebrowser-config.md</code> <span>841 bytes</span></li>
+      <li><code>docs/cli/filebrowser-hash.md</code> <span>436 bytes</span></li>
+      <li><code>docs/cli/filebrowser-rules-add.md</code> <span>685 bytes</span></li>
+      <li><code>docs/cli/filebrowser-rules-ls.md</code> <span>588 bytes</span></li>
+      <li><code>docs/cli/filebrowser-rules-rm.md</code> <span>979 bytes</span></li>
+      <li><code>docs/cli/filebrowser-rules.md</code> <span>1010 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-add.md</code> <span>1844 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-export.md</code> <span>535 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-find.md</code> <span>502 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-import.md</code> <span>746 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-ls.md</code> <span>377 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-rm.md</code> <span>453 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users-update.md</code> <span>1972 bytes</span></li>
+      <li><code>docs/cli/filebrowser-users.md</code> <span>959 bytes</span></li>
+      <li><code>docs/cli/filebrowser-version.md</code> <span>385 bytes</span></li>
+      <li><code>docs/cli/filebrowser.md</code> <span>4178 bytes</span></li>
+      <li><code>docs/command-execution.md</code> <span>2539 bytes</span></li>
+      <li><code>docs/customization.md</code> <span>2085 bytes</span></li>
+      <li><code>docs/deployment.md</code> <span>1642 bytes</span></li>
+      <li><code>docs/installation.md</code> <span>4482 bytes</span></li>
+      <li><code>docs/static/1.jpg</code> <span>66296 bytes</span></li>
+      <li><code>docs/static/2.jpg</code> <span>119309 bytes</span></li>
+      <li><code>docs/static/3.jpg</code> <span>154304 bytes</span></li>
+      <li><code>docs/static/4.jpg</code> <span>217335 bytes</span></li>
+      <li><code>docs/static/5.jpg</code> <span>133646 bytes</span></li>
+      <li><code>docs/static/6.jpg</code> <span>61661 bytes</span></li>
+      <li><code>docs/static/example.gif</code> <span>488856 bytes</span></li>
+      <li><code>docs/static/favicon.png</code> <span>13091 bytes</span></li>
+      <li><code>docs/static/logo.png</code> <span>27365 bytes</span></li>
+      <li><code>docs/troubleshooting.md</code> <span>695 bytes</span></li>
+      <li><code>errors/errors.go</code> <span>1458 bytes</span></li>
+      <li><code>files/case.go</code> <span>1139 bytes</span></li>
+      <li><code>files/case_test.go</code> <span>1060 bytes</span></li>
+      <li><code>files/file.go</code> <span>11807 bytes</span></li>
+      <li><code>files/file_test.go</code> <span>11246 bytes</span></li>
+      <li><code>files/fs_test.go</code> <span>3470 bytes</span></li>
+      <li><code>files/listing.go</code> <span>2261 bytes</span></li>
+      <li><code>files/mime.go</code> <span>24187 bytes</span></li>
+      <li><code>files/scoped.go</code> <span>7672 bytes</span></li>
+      <li><code>files/sorting.go</code> <span>125 bytes</span></li>
+      <li><code>files/utils.go</code> <span>1440 bytes</span></li>
+      <li><code>fileutils/copy.go</code> <span>718 bytes</span></li>
+      <li><code>fileutils/copy_test.go</code> <span>4284 bytes</span></li>
+      <li><code>fileutils/dir.go</code> <span>1300 bytes</span></li>
+      <li><code>fileutils/file.go</code> <span>3049 bytes</span></li>
+      <li><code>fileutils/file_test.go</code> <span>850 bytes</span></li>
+      <li><code>frontend/.prettierignore</code> <span>39 bytes</span></li>
+      <li><code>frontend/.prettierrc.json</code> <span>29 bytes</span></li>
+      <li><code>frontend/assets.go</code> <span>132 bytes</span></li>
+      <li><code>frontend/dist/.gitkeep</code> <span>0 bytes</span></li>
+      <li><code>frontend/env.d.ts</code> <span>38 bytes</span></li>
+      <li><code>frontend/eslint.config.js</code> <span>1001 bytes</span></li>
+      <li><code>frontend/index.html</code> <span>4658 bytes</span></li>
+      <li><code>frontend/package.json</code> <span>2443 bytes</span></li>
+      <li><code>frontend/pnpm-lock.yaml</code> <span>211191 bytes</span></li>
+      <li><code>frontend/postcss.config.cjs</code> <span>62 bytes</span></li>
+      <li><code>frontend/public/.gitkeep</code> <span>0 bytes</span></li>
+      <li><code>frontend/public/img/icons/android-chrome-192x192.png</code> <span>9367 bytes</span></li>
+      <li><code>frontend/public/img/icons/android-chrome-512x512.png</code> <span>23072 bytes</span></li>
+      <li><code>frontend/public/img/icons/apple-touch-icon.png</code> <span>8540 bytes</span></li>
+      <li><code>frontend/public/img/icons/favicon.ico</code> <span>15086 bytes</span></li>
+      <li><code>frontend/public/img/icons/favicon.svg</code> <span>36858 bytes</span></li>
+      <li><code>frontend/public/img/logo.svg</code> <span>2628 bytes</span></li>
+      <li><code>frontend/public/index.html</code> <span>4679 bytes</span></li>
+      <li><code>frontend/public/manifest.json</code> <span>433 bytes</span></li>
+      <li><code>frontend/src/App.vue</code> <span>1079 bytes</span></li>
+      <li><code>frontend/src/api/commands.ts</code> <span>563 bytes</span></li>
+      <li><code>frontend/src/api/files.ts</code> <span>6431 bytes</span></li>
+      <li><code>frontend/src/api/index.ts</code> <span>304 bytes</span></li>
+      <li><code>frontend/src/api/pub.ts</code> <span>1555 bytes</span></li>
+      <li><code>frontend/src/api/search.ts</code> <span>2085 bytes</span></li>
+      <li><code>frontend/src/api/settings.ts</code> <span>278 bytes</span></li>
+      <li><code>frontend/src/api/share.ts</code> <span>1016 bytes</span></li>
+      <li><code>frontend/src/api/tus.ts</code> <span>3483 bytes</span></li>
+      <li><code>frontend/src/api/users.ts</code> <span>1277 bytes</span></li>
+      <li><code>frontend/src/api/utils.ts</code> <span>2596 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-cyrillic-ext.woff2</code> <span>17176 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-cyrillic.woff2</code> <span>11676 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-greek-ext.woff2</code> <span>3384 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-greek.woff2</code> <span>9488 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-latin-ext.woff2</code> <span>15140 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-latin.woff2</code> <span>18124 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/bold-vietnamese.woff2</code> <span>7200 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-cyrillic-ext.woff2</code> <span>15292 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-cyrillic.woff2</code> <span>10060 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-greek-ext.woff2</code> <span>1412 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-greek.woff2</code> <span>7176 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-latin-ext.woff2</code> <span>11912 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-latin.woff2</code> <span>14596 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/medium-vietnamese.woff2</code> <span>4780 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-cyrillic-ext.woff2</code> <span>15832 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-cyrillic.woff2</code> <span>9996 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-greek-ext.woff2</code> <span>1432 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-greek.woff2</code> <span>7208 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-latin-ext.woff2</code> <span>12008 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-latin.woff2</code> <span>14584 bytes</span></li>
+      <li><code>frontend/src/assets/fonts/roboto/normal-vietnamese.woff2</code> <span>4896 bytes</span></li>
+      <li><code>frontend/src/components/Breadcrumbs.vue</code> <span>1685 bytes</span></li>
+      <li><code>frontend/src/components/ContextMenu.vue</code> <span>934 bytes</span></li>
+      <li><code>frontend/src/components/CustomToast.vue</code> <span>827 bytes</span></li>
+      <li><code>frontend/src/components/DropdownModal.vue</code> <span>3053 bytes</span></li>
+      <li><code>frontend/src/components/ProgressBar.vue</code> <span>5426 bytes</span></li>
+      <li><code>frontend/src/components/Search.vue</code> <span>6266 bytes</span></li>
+      <li><code>frontend/src/components/Shell.vue</code> <span>5118 bytes</span></li>
+      <li><code>frontend/src/components/Sidebar.vue</code> <span>6262 bytes</span></li>
+      <li><code>frontend/src/components/files/CsvViewer.vue</code> <span>8565 bytes</span></li>
+      <li><code>frontend/src/components/files/ExtendedImage.vue</code> <span>8395 bytes</span></li>
+      <li><code>frontend/src/components/files/ListingItem.vue</code> <span>9773 bytes</span></li>
+      <li><code>frontend/src/components/files/VideoPlayer.vue</code> <span>5130 bytes</span></li>
+      <li><code>frontend/src/components/header/Action.vue</code> <span>660 bytes</span></li>
+      <li><code>frontend/src/components/header/HeaderBar.vue</code> <span>1249 bytes</span></li>
+      <li><code>frontend/src/components/prompts/BaseModal.vue</code> <span>1160 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Copy.vue</code> <span>4494 bytes</span></li>
+      <li><code>frontend/src/components/prompts/CreateFilePath.vue</code> <span>1874 bytes</span></li>
+      <li><code>frontend/src/components/prompts/CurrentPassword.vue</code> <span>1287 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Delete.vue</code> <span>2454 bytes</span></li>
+      <li><code>frontend/src/components/prompts/DeleteUser.vue</code> <span>912 bytes</span></li>
+      <li><code>frontend/src/components/prompts/DiscardEditorChanges.vue</code> <span>1371 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Download.vue</code> <span>869 bytes</span></li>
+      <li><code>frontend/src/components/prompts/FileList.vue</code> <span>4652 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Help.vue</code> <span>1347 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Info.vue</code> <span>5142 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Move.vue</code> <span>4600 bytes</span></li>
+      <li><code>frontend/src/components/prompts/NewDir.vue</code> <span>2638 bytes</span></li>
+      <li><code>frontend/src/components/prompts/NewFile.vue</code> <span>2085 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Prompts.vue</code> <span>1870 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Rename.vue</code> <span>2816 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Replace.vue</code> <span>1387 bytes</span></li>
+      <li><code>frontend/src/components/prompts/ResolveConflict.vue</code> <span>9505 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Share.vue</code> <span>7667 bytes</span></li>
+      <li><code>frontend/src/components/prompts/ShareDelete.vue</code> <span>1109 bytes</span></li>
+      <li><code>frontend/src/components/prompts/Upload.vue</code> <span>3312 bytes</span></li>
+      <li><code>frontend/src/components/prompts/UploadFiles.vue</code> <span>5718 bytes</span></li>
+      <li><code>frontend/src/components/prompts/__tests__/copy-move-conflict.test.ts</code> <span>2988 bytes</span></li>
+      <li><code>frontend/src/components/settings/AceEditorTheme.vue</code> <span>657 bytes</span></li>
+      <li><code>frontend/src/components/settings/Commands.vue</code> <span>626 bytes</span></li>
+      <li><code>frontend/src/components/settings/Languages.vue</code> <span>1676 bytes</span></li>
+      <li><code>frontend/src/components/settings/Permissions.vue</code> <span>1830 bytes</span></li>
+      <li><code>frontend/src/components/settings/Rules.vue</code> <span>1405 bytes</span></li>
+      <li><code>frontend/src/components/settings/Themes.vue</code> <span>662 bytes</span></li>
+      <li><code>frontend/src/components/settings/UserForm.vue</code> <span>3093 bytes</span></li>
+      <li><code>frontend/src/css/__tests__/mobile.test.ts</code> <span>729 bytes</span></li>
+      <li><code>frontend/src/css/_buttons.css</code> <span>840 bytes</span></li>
+      <li><code>frontend/src/css/_inputs.css</code> <span>590 bytes</span></li>
+      <li><code>frontend/src/css/_share.css</code> <span>1324 bytes</span></li>
+      <li><code>frontend/src/css/_shell.css</code> <span>1375 bytes</span></li>
+      <li><code>frontend/src/css/_variables.css</code> <span>1633 bytes</span></li>
+      <li><code>frontend/src/css/base.css</code> <span>2853 bytes</span></li>
+      <li><code>frontend/src/css/context-menu.css</code> <span>395 bytes</span></li>
+      <li><code>frontend/src/css/dashboard.css</code> <span>7744 bytes</span></li>
+      <li><code>frontend/src/css/epubReader.css</code> <span>1558 bytes</span></li>
+      <li><code>frontend/src/css/fonts.css</code> <span>6037 bytes</span></li>
+      <li><code>frontend/src/css/header.css</code> <span>4361 bytes</span></li>
+      <li><code>frontend/src/css/listing-icons.css</code> <span>6249 bytes</span></li>
+      <li><code>frontend/src/css/listing.css</code> <span>4671 bytes</span></li>
+      <li><code>frontend/src/css/login.css</code> <span>1054 bytes</span></li>
+      <li><code>frontend/src/css/mdPreview.css</code> <span>151 bytes</span></li>
+      <li><code>frontend/src/css/mobile.css</code> <span>3527 bytes</span></li>
+      <li><code>frontend/src/css/styles.css</code> <span>7643 bytes</span></li>
+      <li><code>frontend/src/css/upload-files.css</code> <span>982 bytes</span></li>
+      <li><code>frontend/src/i18n/ar.json</code> <span>16858 bytes</span></li>
+      <li><code>frontend/src/i18n/bg.json</code> <span>19257 bytes</span></li>
+      <li><code>frontend/src/i18n/ca.json</code> <span>13992 bytes</span></li>
+      <li><code>frontend/src/i18n/cs.json</code> <span>14115 bytes</span></li>
+      <li><code>frontend/src/i18n/de.json</code> <span>15102 bytes</span></li>
+      <li><code>frontend/src/i18n/el.json</code> <span>21376 bytes</span></li>
+      <li><code>frontend/src/i18n/en.json</code> <span>13770 bytes</span></li>
+      <li><code>frontend/src/i18n/es.json</code> <span>14113 bytes</span></li>
+      <li><code>frontend/src/i18n/fa.json</code> <span>17731 bytes</span></li>
+      <li><code>frontend/src/i18n/fr.json</code> <span>16137 bytes</span></li>
+      <li><code>frontend/src/i18n/he.json</code> <span>15471 bytes</span></li>
+      <li><code>frontend/src/i18n/hr.json</code> <span>14608 bytes</span></li>
+      <li><code>frontend/src/i18n/hu.json</code> <span>14518 bytes</span></li>
+      <li><code>frontend/src/i18n/index.ts</code> <span>4948 bytes</span></li>
+      <li><code>frontend/src/i18n/is.json</code> <span>13522 bytes</span></li>
+      <li><code>frontend/src/i18n/it.json</code> <span>13813 bytes</span></li>
+      <li><code>frontend/src/i18n/ja.json</code> <span>16266 bytes</span></li>
+      <li><code>frontend/src/i18n/ko.json</code> <span>15261 bytes</span></li>
+      <li><code>frontend/src/i18n/lv.json</code> <span>14798 bytes</span></li>
+      <li><code>frontend/src/i18n/nl-be.json</code> <span>13860 bytes</span></li>
+      <li><code>frontend/src/i18n/nl.json</code> <span>15101 bytes</span></li>
+      <li><code>frontend/src/i18n/no.json</code> <span>13542 bytes</span></li>
+      <li><code>frontend/src/i18n/pl.json</code> <span>15326 bytes</span></li>
+      <li><code>frontend/src/i18n/pt-br.json</code> <span>13647 bytes</span></li>
+      <li><code>frontend/src/i18n/pt-pt.json</code> <span>15264 bytes</span></li>
+      <li><code>frontend/src/i18n/ro.json</code> <span>13630 bytes</span></li>
+      <li><code>frontend/src/i18n/ru.json</code> <span>19500 bytes</span></li>
+      <li><code>frontend/src/i18n/sk.json</code> <span>14042 bytes</span></li>
+      <li><code>frontend/src/i18n/sv-se.json</code> <span>13757 bytes</span></li>
+      <li><code>frontend/src/i18n/tr.json</code> <span>13860 bytes</span></li>
+      <li><code>frontend/src/i18n/uk.json</code> <span>18965 bytes</span></li>
+      <li><code>frontend/src/i18n/vi.json</code> <span>15521 bytes</span></li>
+      <li><code>frontend/src/i18n/zh-cn.json</code> <span>12766 bytes</span></li>
+      <li><code>frontend/src/i18n/zh-tw.json</code> <span>12604 bytes</span></li>
+      <li><code>frontend/src/index.d.ts</code> <span>24 bytes</span></li>
+      <li><code>frontend/src/main.ts</code> <span>2559 bytes</span></li>
+      <li><code>frontend/src/router/index.ts</code> <span>4878 bytes</span></li>
+      <li><code>frontend/src/stores/auth.ts</code> <span>1099 bytes</span></li>
+      <li><code>frontend/src/stores/clipboard.ts</code> <span>505 bytes</span></li>
+      <li><code>frontend/src/stores/file.ts</code> <span>1697 bytes</span></li>
+      <li><code>frontend/src/stores/index.ts</code> <span>303 bytes</span></li>
+      <li><code>frontend/src/stores/layout.ts</code> <span>2147 bytes</span></li>
+      <li><code>frontend/src/stores/router.ts</code> <span>362 bytes</span></li>
+      <li><code>frontend/src/stores/upload.ts</code> <span>5077 bytes</span></li>
+      <li><code>frontend/src/types/api.d.ts</code> <span>576 bytes</span></li>
+      <li><code>frontend/src/types/file.d.ts</code> <span>1467 bytes</span></li>
+      <li><code>frontend/src/types/global.d.ts</code> <span>271 bytes</span></li>
+      <li><code>frontend/src/types/layout.d.ts</code> <span>208 bytes</span></li>
+      <li><code>frontend/src/types/settings.d.ts</code> <span>1225 bytes</span></li>
+      <li><code>frontend/src/types/toast.d.ts</code> <span>125 bytes</span></li>
+      <li><code>frontend/src/types/upload.d.ts</code> <span>389 bytes</span></li>
+      <li><code>frontend/src/types/user.d.ts</code> <span>1227 bytes</span></li>
+      <li><code>frontend/src/types/utif.d.ts</code> <span>23 bytes</span></li>
+      <li><code>frontend/src/utils/__tests__/check-conflict.test.ts</code> <span>12234 bytes</span></li>
+      <li><code>frontend/src/utils/__tests__/upload.test.ts</code> <span>2536 bytes</span></li>
+      <li><code>frontend/src/utils/auth.ts</code> <span>3366 bytes</span></li>
+      <li><code>frontend/src/utils/buttons.ts</code> <span>1685 bytes</span></li>
+      <li><code>frontend/src/utils/clipboard.ts</code> <span>3013 bytes</span></li>
+      <li><code>frontend/src/utils/constants.ts</code> <span>1528 bytes</span></li>
+      <li><code>frontend/src/utils/cookie.ts</code> <span>179 bytes</span></li>
+      <li><code>frontend/src/utils/css.ts</code> <span>792 bytes</span></li>
+      <li><code>frontend/src/utils/encodings.ts</code> <span>4384 bytes</span></li>
+      <li><code>frontend/src/utils/index.ts</code> <span>626 bytes</span></li>
+      <li><code>frontend/src/utils/theme.ts</code> <span>1237 bytes</span></li>
+      <li><code>frontend/src/utils/upload.ts</code> <span>7893 bytes</span></li>
+      <li><code>frontend/src/utils/url.ts</code> <span>1241 bytes</span></li>
+      <li><code>frontend/src/views/Errors.vue</code> <span>1045 bytes</span></li>
+      <li><code>frontend/src/views/Files.vue</code> <span>4672 bytes</span></li>
+      <li><code>frontend/src/views/Layout.vue</code> <span>1484 bytes</span></li>
+      <li><code>frontend/src/views/Login.vue</code> <span>3527 bytes</span></li>
+      <li><code>frontend/src/views/Settings.vue</code> <span>2472 bytes</span></li>
+      <li><code>frontend/src/views/Share.vue</code> <span>15519 bytes</span></li>
+      <li><code>frontend/src/views/files/Editor.vue</code> <span>9333 bytes</span></li>
+      <li><code>frontend/src/views/files/FileListing.vue</code> <span>29850 bytes</span></li>
+      <li><code>frontend/src/views/files/Preview.vue</code> <span>14053 bytes</span></li>
+      <li><code>frontend/src/views/files/__tests__/upload-conflict-resolution.test.ts</code> <span>7120 bytes</span></li>
+      <li><code>frontend/src/views/settings/Global.vue</code> <span>12862 bytes</span></li>
+      <li><code>frontend/src/views/settings/Profile.vue</code> <span>6257 bytes</span></li>
+      <li><code>frontend/src/views/settings/Shares.vue</code> <span>4596 bytes</span></li>
+      <li><code>frontend/src/views/settings/User.vue</code> <span>5662 bytes</span></li>
+      <li><code>frontend/src/views/settings/Users.vue</code> <span>1972 bytes</span></li>
+      <li><code>frontend/test-results/.last-run.json</code> <span>46 bytes</span></li>
+      <li><code>frontend/tsconfig.app.json</code> <span>1045 bytes</span></li>
+      <li><code>frontend/tsconfig.json</code> <span>139 bytes</span></li>
+      <li><code>frontend/tsconfig.node.json</code> <span>386 bytes</span></li>
+      <li><code>frontend/vite.config.ts</code> <span>2071 bytes</span></li>
+      <li><code>go.mod</code> <span>3580 bytes</span></li>
+      <li><code>go.sum</code> <span>24918 bytes</span></li>
+      <li><code>http/auth.go</code> <span>8316 bytes</span></li>
+      <li><code>http/auth_test.go</code> <span>5314 bytes</span></li>
+      <li><code>http/commands.go</code> <span>2598 bytes</span></li>
+      <li><code>http/data.go</code> <span>3591 bytes</span></li>
+      <li><code>http/headers.go</code> <span>177 bytes</span></li>
+      <li><code>http/http.go</code> <span>4527 bytes</span></li>
+      <li><code>http/preview.go</code> <span>4134 bytes</span></li>
+      <li><code>http/preview_enum.go</code> <span>2153 bytes</span></li>
+      <li><code>http/public.go</code> <span>4712 bytes</span></li>
+      <li><code>http/public_symlink_test.go</code> <span>8567 bytes</span></li>
+      <li><code>http/public_test.go</code> <span>9529 bytes</span></li>
+      <li><code>http/raw.go</code> <span>6783 bytes</span></li>
+      <li><code>http/raw_test.go</code> <span>4525 bytes</span></li>
+      <li><code>http/resource.go</code> <span>13472 bytes</span></li>
+      <li><code>http/resource_checksum_test.go</code> <span>1949 bytes</span></li>
+      <li><code>http/resource_recursive_test.go</code> <span>2540 bytes</span></li>
+      <li><code>http/resource_test.go</code> <span>9516 bytes</span></li>
+      <li><code>http/rules_path_test.go</code> <span>5378 bytes</span></li>
+      <li><code>http/rules_recursive_test.go</code> <span>4509 bytes</span></li>
+      <li><code>http/search.go</code> <span>1642 bytes</span></li>
+      <li><code>http/settings.go</code> <span>2444 bytes</span></li>
+      <li><code>http/share.go</code> <span>6388 bytes</span></li>
+      <li><code>http/share_test.go</code> <span>5088 bytes</span></li>
+      <li><code>http/static.go</code> <span>5443 bytes</span></li>
+      <li><code>http/subtitle.go</code> <span>2340 bytes</span></li>
+      <li><code>http/subtitle_test.go</code> <span>1661 bytes</span></li>
+      <li><code>http/tus_handlers.go</code> <span>10260 bytes</span></li>
+      <li><code>http/tus_multichunk_test.go</code> <span>9187 bytes</span></li>
+      <li><code>http/tus_symlink_test.go</code> <span>3489 bytes</span></li>
+      <li><code>http/tus_upload_length_test.go</code> <span>2657 bytes</span></li>
+      <li><code>http/upload_cache_memory.go</code> <span>3235 bytes</span></li>
+      <li><code>http/upload_cache_memory_test.go</code> <span>1215 bytes</span></li>
+      <li><code>http/upload_cache_redis.go</code> <span>2276 bytes</span></li>
+      <li><code>http/users.go</code> <span>6670 bytes</span></li>
+      <li><code>http/utils.go</code> <span>4139 bytes</span></li>
+      <li><code>http/utils_test.go</code> <span>1660 bytes</span></li>
+      <li><code>img/service.go</code> <span>5221 bytes</span></li>
+      <li><code>img/service_enum.go</code> <span>5290 bytes</span></li>
+      <li><code>img/service_test.go</code> <span>10596 bytes</span></li>
+      <li><code>img/testdata/20130612_142406.jpg</code> <span>1863362 bytes</span></li>
+      <li><code>img/testdata/IMG_2578.JPG</code> <span>1233288 bytes</span></li>
+      <li><code>img/testdata/gray-sample.jpg</code> <span>31740 bytes</span></li>
+      <li><code>main.go</code> <span>149 bytes</span></li>
+      <li><code>rules/rules.go</code> <span>1694 bytes</span></li>
+      <li><code>rules/rules_test.go</code> <span>2966 bytes</span></li>
+      <li><code>runner/commands.go</code> <span>3412 bytes</span></li>
+      <li><code>runner/commands_test.go</code> <span>9121 bytes</span></li>
+      <li><code>runner/parser.go</code> <span>632 bytes</span></li>
+      <li><code>runner/runner.go</code> <span>2465 bytes</span></li>
+      <li><code>search/conditions.go</code> <span>2366 bytes</span></li>
+      <li><code>search/search.go</code> <span>1527 bytes</span></li>
+      <li><code>settings/branding.go</code> <span>393 bytes</span></li>
+      <li><code>settings/defaults.go</code> <span>1312 bytes</span></li>
+      <li><code>settings/dir.go</code> <span>2583 bytes</span></li>
+      <li><code>settings/dir_test.go</code> <span>1475 bytes</span></li>
+      <li><code>settings/settings.go</code> <span>3414 bytes</span></li>
+      <li><code>settings/storage.go</code> <span>2525 bytes</span></li>
+      <li><code>settings/tus.go</code> <span>248 bytes</span></li>
+      <li><code>share/share.go</code> <span>668 bytes</span></li>
+      <li><code>share/storage.go</code> <span>2810 bytes</span></li>
+      <li><code>storage/bolt/auth.go</code> <span>767 bytes</span></li>
+      <li><code>storage/bolt/bolt.go</code> <span>848 bytes</span></li>
+      <li><code>storage/bolt/config.go</code> <span>638 bytes</span></li>
+      <li><code>storage/bolt/share.go</code> <span>2306 bytes</span></li>
+      <li><code>storage/bolt/share_test.go</code> <span>3682 bytes</span></li>
+      <li><code>storage/bolt/users.go</code> <span>2883 bytes</span></li>
+      <li><code>storage/bolt/users_test.go</code> <span>1561 bytes</span></li>
+      <li><code>storage/bolt/utils.go</code> <span>411 bytes</span></li>
+      <li><code>storage/storage.go</code> <span>483 bytes</span></li>
+      <li><code>transifex.yml</code> <span>351 bytes</span></li>
+      <li><code>users/assets.go</code> <span>620 bytes</span></li>
+      <li><code>users/assets/common-passwords.txt</code> <span>851085 bytes</span></li>
+      <li><code>users/password.go</code> <span>1254 bytes</span></li>
+      <li><code>users/permissions.go</code> <span>338 bytes</span></li>
+      <li><code>users/storage.go</code> <span>4968 bytes</span></li>
+      <li><code>users/storage_test.go</code> <span>3262 bytes</span></li>
+      <li><code>users/users.go</code> <span>2731 bytes</span></li>
+      <li><code>users/users_test.go</code> <span>1233 bytes</span></li>
+      <li><code>version/version.go</code> <span>173 bytes</span></li>
+    </ul>
+  </details>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code><span class="tok-comment">## Multistage build: First stage fetches dependencies</span>
+<span class="tok-directive">FROM</span> alpine:3.23 AS fetcher
+
+<span class="tok-comment"># install and copy ca-certificates, mailcap, and tini-static; download JSON.sh</span>
+<span class="tok-directive">RUN</span> apk update &amp;&amp; \
+    apk --no-cache add ca-certificates mailcap tini-static &amp;&amp; \
+    wget -O /JSON.sh https://raw.githubusercontent.com/dominictarr/JSON.sh/0d5e5c77365f63809bf6e77ef44a1f34b0e05840/JSON.sh
+
+<span class="tok-comment">## Second stage: Use lightweight BusyBox image for final runtime environment</span>
+<span class="tok-directive">FROM</span> busybox:1.37.0-musl
+
+<span class="tok-comment"># Define non-root user UID and GID</span>
+<span class="tok-directive">ENV</span> UID=1000
+<span class="tok-directive">ENV</span> GID=1000
+
+<span class="tok-comment"># Create user group and user</span>
+<span class="tok-directive">RUN</span> addgroup -g $GID user &amp;&amp; \
+    adduser -D -u $UID -G user user
+
+<span class="tok-comment"># Copy binary, scripts, and configurations into image with proper ownership</span>
+<span class="tok-directive">COPY</span> --chown=user:user filebrowser /bin/filebrowser
+<span class="tok-directive">COPY</span> --chown=user:user docker/common/ /
+<span class="tok-directive">COPY</span> --chown=user:user docker/alpine/ /
+<span class="tok-directive">COPY</span> --chown=user:user --from=fetcher /sbin/tini-static /bin/tini
+<span class="tok-directive">COPY</span> --from=fetcher /JSON.sh /JSON.sh
+<span class="tok-directive">COPY</span> --from=fetcher /etc/ca-certificates.conf /etc/ca-certificates.conf
+<span class="tok-directive">COPY</span> --from=fetcher /etc/ca-certificates /etc/ca-certificates
+<span class="tok-directive">COPY</span> --from=fetcher /etc/mime.types /etc/mime.types
+<span class="tok-directive">COPY</span> --from=fetcher /etc/ssl /etc/ssl
+
+<span class="tok-comment"># Create data directories, set ownership, and ensure healthcheck script is executable</span>
+<span class="tok-directive">RUN</span> mkdir -p /config /database /srv &amp;&amp; \
+    chown -R user:user /config /database /srv \
+    &amp;&amp; chmod +x /healthcheck.sh
+
+<span class="tok-comment"># Define healthcheck script</span>
+<span class="tok-directive">HEALTHCHECK</span> --start-period=2s --interval=5s --timeout=3s CMD /healthcheck.sh
+
+<span class="tok-comment"># Set the user, volumes and exposed ports</span>
+<span class="tok-directive">USER</span> user
+
+<span class="tok-directive">VOLUME</span> /srv /config /database
+
+<span class="tok-directive">EXPOSE</span> 80
+
+<span class="tok-directive">ENTRYPOINT</span> [ <span class="tok-string">&quot;tini&quot;</span>, <span class="tok-string">&quot;--&quot;</span>, <span class="tok-string">&quot;/init.sh&quot;</span> ]
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Repository: https://github.com/filebrowser/filebrowser.git
+Resolved revision: e8a388f840173580116f2743813d03b22286e44e
+Context path: .
+Dockerfile: Dockerfile
+Release: v2.63.23
+Installer provenance: https://raw.githubusercontent.com/filebrowser/get/master/get.sh
+Release artifact: https://github.com/filebrowser/filebrowser/releases/download/v2.63.23/linux-amd64-filebrowser.tar.gz
+Release artifact SHA-256: b14db2bb8033caa3f80205eb6578b2ed0744ebd9e716b790bc4a9703ce909e88
+Natural probe: GET /health
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-filebrowser-0-faithful" name="tabs-filebrowser-0" type="radio" checked>
+        <label for="tabs-filebrowser-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-filebrowser-0-dissolved" name="tabs-filebrowser-0" type="radio">
+        <label for="tabs-filebrowser-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+<span class="tok-directive">FROM</span> . AS src
+
+<span class="tok-directive">BUILDER</span> release
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
+  <span class="tok-directive">ENV</span> FILEBROWSER_VERSION=2.63.23
+  <span class="tok-directive">ENV</span> FILEBROWSER_ARCH=amd64
+  <span class="tok-directive">ENV</span> FILEBROWSER_SHA256=b14db2bb8033caa3f80205eb6578b2ed0744ebd9e716b790bc4a9703ce909e88
+  <span class="tok-directive">FETCH</span> curl --fail --location https://github.com/filebrowser/filebrowser/releases/download/v$FILEBROWSER_VERSION/linux-$FILEBROWSER_ARCH-filebrowser.tar.gz --output filebrowser.tar.gz &amp;&amp; echo &quot;$FILEBROWSER_SHA256  filebrowser.tar.gz&quot; | sha256sum --check --status EXPECT sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM=
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">tar --no-same-owner --transform &#39;s,^filebrowser$,output/bin/filebrowser,&#39; -xf filebrowser.tar.gz filebrowser</span>
+<span class="tok-directive">BUILD</span>
+
+<span class="tok-directive">SERVICE</span> filebrowser
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${release}</span>/output/bin/filebrowser /bin/filebrowser
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/docker/alpine/init.sh /init.sh
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/docker/alpine/healthcheck.sh /healthcheck.sh
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/docker/common/defaults/settings.json /defaults/settings.json
+  <span class="tok-directive">START</span> bash /init.sh
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">STATEDIR</span> /database
+  <span class="tok-directive">STATEDIR</span> /config
+  <span class="tok-directive">STATEDIR</span> /srv
+  <span class="tok-directive">READINESS</span> http://127.0.0.1:80/health IN 10s
+  <span class="tok-directive">LIVENESS</span> http://127.0.0.1:80/health EVERY 5s
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE filebrowser
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.filebrowser}
+  COPY ${src}/context/docker/alpine/init.sh /init.sh
+  COPY ${src}/context/docker/alpine/healthcheck.sh /healthcheck.sh
+  COPY ${src}/context/docker/common/defaults/settings.json /defaults/settings.json
+  START bash /init.sh
+  PORT http = 80
+  STATEDIR /database
+  STATEDIR /config
+  STATEDIR /srv
+  READINESS http://127.0.0.1:80/health IN 10s
+  LIVENESS http://127.0.0.1:80/health EVERY 5s
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;filebrowser&quot;: {
+      &quot;sourceHash&quot;: &quot;428284687e9c0ec401cd2bbb8343b0de48b509100b2f57cccb7d0dbc9503c3d2&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/hxq52ncbblpwhhrl9sqsi3i070hs1c5p-cix-item-filebrowser&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:release:3-8bc1a68b59f9&quot;: {
+      &quot;narHash&quot;: &quot;sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM=&quot;,
+      &quot;snapshotNarHash&quot;: &quot;sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;02b406239366a1e5a52f483ca701aa89a5fc4dd0655b697927eb73084595ca75&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/filebrowser&quot;: {
+          &quot;narHash&quot;: &quot;sha256-9ldBiYd75aw1ctO5vCFgpRaa5xwsVvocMBIF3HASToo=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hvxhfdxw71l85wby548x096wadxcgicg-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;e2c995bcb1113ecce98f935dade74a3985f45840a854d35edaf8d138cd0b4038&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/filebrowser&quot;: {
+          &quot;narHash&quot;: &quot;sha256-9ldBiYd75aw1ctO5vCFgpRaa5xwsVvocMBIF3HASToo=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/hvxhfdxw71l85wby548x096wadxcgicg-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:release:3&quot;: {
+      &quot;key&quot;: &quot;e4134bd76c5d7bc3fc4f592d7f32313f25189dfb675a966d7572af881ffbf236&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/3kadw2f6g08n25a4lx55kiy4zmcy1g85-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;filebrowser.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;filebrowser.tar.gz&quot;: {
+          &quot;content&quot;: &quot;c27b31d443735a80a23acb9361f439c4066c0e876412a83e781ff980e830d5c5&quot;
+        }
+      }
+    },
+    &quot;builder:release:4&quot;: {
+      &quot;key&quot;: &quot;3cfb6523101e48c58ed1e98a8e6798eeeb8e5e365d3b691745f84c287e16224a&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;filebrowser.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;375cb2a542fef327d5bf2cc9caed895cd8f8f9cf25b986eae27391f000ff529e&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 38,
+            &quot;inode&quot;: 56648420,
+            &quot;mtimeNs&quot;: 348822190,
+            &quot;size&quot;: 15767666,
+            &quot;len&quot;: 15767666,
+            &quot;mode&quot;: 33188
+          }
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;subtree&quot;,
+          &quot;mode&quot;: 16877
+        }
+      }
+    }
+  },
+  &quot;devEnvs&quot;: {
+    &quot;3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;: {
+      &quot;environment&quot;: {
+        &quot;SYSTEM_CERTIFICATE_PATH&quot;: &quot;/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt&quot;,
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+      }
+    }
+  },
+  &quot;builderDevEnvs&quot;: {
+    &quot;release&quot;: &quot;3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;
+  },
+  &quot;outputs&quot;: {
+    &quot;filebrowser&quot;: {
+      &quot;sourceHash&quot;: &quot;4659a03dbcbb9d1bd1c03e46c9e4ef12ab600fdb22c544c5c974eb3b6e660918&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/w9z11aajzl0brzdrz5dg7lyglqxfv4y0-cix-item-filebrowser&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+case ${1:-} in
+  cix) ;;
+  *)
+    echo &quot;usage: $0 cix&quot; &gt;&amp;2
+    exit 2
+    ;;
+esac
+
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+repo=$(cd -- &quot;$root/../../../..&quot; &amp;&amp; pwd)
+runtime_helper=$(nix build --no-link --print-out-paths &quot;$repo#cix&quot;)/bin/cix
+item=$(timeout 240 &quot;$cix&quot; build &quot;$root#filebrowser&quot;)
+printf &#39;cix item %s\n&#39; &quot;$item&quot;
+unit=$(timeout 30 sudo -n env &quot;CIX_RUNTIME_HELPER=$runtime_helper&quot; &quot;$cix&quot; run --detach &quot;$item&quot;)
+[[ $unit == cix-run-filebrowser-* ]]
+printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+
+cleanup() {
+  sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+timeout 30 &quot;$cix&quot; probe await http http://127.0.0.1:80/health
+health=$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:80/health)
+[[ -n $health ]]
+printf &#39;PASS cix health=%s\n&#39; &quot;$health&quot;
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># filebrowser migration receipt
+
+2026-08-06 synchronous build receipt. `corpus/migrate/fetch.sh filebrowser`
+restored `filebrowser/filebrowser` at
+`e8a388f840173580116f2743813d03b22286e44e`, context `.`.
+
+`devenv shell -- target/debug/cix build corpus/migrate/docker/filebrowser#filebrowser`
+exited 0 and produced
+`/nix/store/w9z11aajzl0brzdrz5dg7lyglqxfv4y0-cix-item-filebrowser`. Its
+FETCH uses the fixed v2.63.23 Linux amd64 release URL; the release&#39;s published
+SHA-256 check passed before extraction. The dissolved nixpkgs twin also exited
+0, producing `/nix/store/hxq52ncbblpwhhrl9sqsi3i070hs1c5p-cix-item-filebrowser`.
+
+An empty-workspace faithful `--cold` replay exited 0 using the pinned FETCH
+snapshot and produced the same item. The dissolved twin&#39;s `--cold` build also
+exited 0.
+
+The system-manager runtime probe is deliberately **not** green. Its synchronous
+`check.sh cix` exit was value-captured as `1`: the upstream `/init.sh` could not
+create `/config/settings.json` because cix&#39;s arbitrary-path role realization
+made `/config` read-only, then native readiness exhausted its 10-second bound.
+The user-manager fallback also cannot project declared app paths and timed out.
+No `/health` runtime value is claimed.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/filebrowser</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

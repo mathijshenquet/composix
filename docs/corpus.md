@@ -72,7 +72,7 @@ touched; the CIP-84 closed-root VM audits the green set exhaustively. Cases
 that dissolve entirely into nixpkgs additionally carry a Dockerfile-faithful
 twin so the page can show both translations side by side.
 
-## The living migration corpus (28)
+## The living migration corpus (30)
 
 These are the checked-in conversions under `corpus/migrate/docker/`, not a second
 historical grade set. Fidelity grades the translation; Evidence grades only the
@@ -118,6 +118,8 @@ live inside the cell prose of the case that records them.
 | 26 | HAProxy | Faithful 3.2.22 source build, version probe, and cold replay pass; dissolved twin builds cold | 🔶 No supplied config, listener, or health contract exists to start; formatter whitespace currently changes the locked FETCH identity | M | [build/version and formatter receipt](../corpus/migrate/docker/haproxy/receipt.md) |
 | 27 | Apache HTTPD | Faithful 2.4.68 build and `It works!` HTTP probe pass; dissolved twin builds cold | 🔶 File logging through `LOGDIR` replaces sandbox-inaccessible fd symlinks; faithful cold replay exposes a generated-sed-path read-set divergence | M | [build/runtime and cold-read-set receipt](../corpus/migrate/docker/httpd/receipt.md) |
 | 28 | Mosquitto | Faithful 2.0.22 MQTT pub/sub roundtrip and cold replay pass; dissolved twin builds cold | 🔶 TCP behavior is live; WebSockets are omitted because the source build cannot see the required headers, and this host degrades `PrivatePIDs` | M | [build/runtime and cold receipt](../corpus/migrate/docker/mosquitto/receipt.md) |
+| 29 | ntfy | Faithful 2.27.0 release artifact build and `/v1/health` probe pass; dissolved twin builds | ✅ The Docker-only GoReleaser context artifact is now an explicit, checksum-verified FETCH; Alpine/image metadata and entrypoint-only invocation deliberately dissolve | S | [build and runtime receipt](../corpus/migrate/docker/ntfy/receipt.md) |
+| 30 | Filebrowser | Faithful 2.63.23 release artifact build and dissolved twin build pass | 🔶 The source init contract cannot start because arbitrary-path role realization hides the writable `/config` bind; `/health` is honestly unproved | S | [build receipt and runtime wall](../corpus/migrate/docker/filebrowser/receipt.md) |
 
 ### CIP-84 closed-root audit
 
