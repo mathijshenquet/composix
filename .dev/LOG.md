@@ -1,5 +1,40 @@
 # composix work log
 
+## 2026-08-06 day, cont. (pnpmwall-spike merged: cacert cracked, bare-CAS disproven for pnpm, directus diagnosis overturned)
+
+- **Merged `3737f2ea`** (sol, ~1h wall-clock) behind my independent gate
+  (fmt + corpus 7/7, value-checked exit 0; corpus/docs-only, no Rust).
+  Findings, all with exact /var/tmp receipts:
+  - **Dozzle hang = cacert masquerade, causally proven** (A/B: without
+    cacert exit 124 + ENOENT cert-probe tail; with cacert FETCH green in
+    23s, store item produced). Exhibit 2 closed; IPv6 exonerated.
+  - **Bare-CAS replay DISPROVEN for pnpm** at both corpus pins (11.17.0,
+    11.1.2): `files/` is byte-deterministic across independent fetches,
+    but offline install cannot regenerate `index.db` (checkedAt-volatile
+    SQLite) → `ERR_PNPM_NO_OFFLINE_TARBALL`. The draft's leg-2
+    "exclude+regenerate" mechanism is dead as specced for pnpm.
+  - **npm cacache DOES replay from content alone**: `npm ci --offline
+    --no-audit` from bare content-v2, twice, network-silent, identical
+    node_modules hash. The two-phase idea lives for npm.
+  - **Verdaccio payoff: honest wall** (CAS FETCH green; offline install
+    from bare files/ structurally cannot resolve; tracer overhead noted).
+  - **Directus exhibit-4 diagnosis OVERTURNED**: the pinned lock IS
+    coherent (41 workspaces, frozen validation exit 0 under node22 +
+    pnpm 10.27.0); the real wall is absent package content offline. The
+    14 narHash regenerations are NOT gated on upstream incoherence.
+  - Friction → language: COPY can't target missing deep dirs (RUN-created
+    dirs invisible to next COPY staging); pnpm store location is
+    version/config data; `--pm-on-fail=ignore` is the corepack-spec
+    bypass. GAPS/ledger regraded honestly (dozzle NOT flipped to green).
+- pnpm-wall draft updated with the evidence; needs a redesign round on
+  leg 2 (pnpm index is consumed volatility with no regeneration path —
+  candidate directions: pin index post-normalization? WITH CACHE only?
+  npm-style path only for npm?) — **Mathijs decision point**.
+- Fleet: coldreplay-sweep (luna) still working. Housekeeping earlier
+  this stretch: cix workspaces swept 61G→8G (6h-activity guard),
+  herdr client/server protocol mismatch pending Mathijs's restart,
+  herdr recipe deduped into global nix context.
+
 ## 2026-08-06 day (CIP review round: epoch trio resolutions; pnpmwall-spike launched)
 
 - **Mathijs review round on the epoch trio** (recorded in the drafts,
