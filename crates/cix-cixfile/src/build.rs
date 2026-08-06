@@ -593,7 +593,7 @@ mod tests {
         tag_namespace, tag_reference, validate_namespace, validate_tag, BuildOptions,
     };
     use crate::parse;
-    use cix_build::{LockFile, OutputReceipt};
+    use cix_build::{FetchPin, LockFile, OutputReceipt, ReadDependency, StepMemo};
     use std::collections::BTreeMap;
 
     #[test]
@@ -627,6 +627,85 @@ mod tests {
             before,
             build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
         );
+    }
+
+    #[test]
+    fn build_fingerprint_characterizes_fetch_pin_and_source_tree_inputs() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join("Cixfile"),
+            "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nSERVICE app\nSTART /bin/true\n",
+        )
+        .unwrap();
+        std::fs::write(directory.path().join("receipt.md"), "first receipt\n").unwrap();
+        let mut lock = LockFile {
+            inputs: BTreeMap::new(),
+            artifacts: BTreeMap::new(),
+            fetches: BTreeMap::new(),
+            memo: BTreeMap::new(),
+            step_memo: BTreeMap::new(),
+            dev_envs: BTreeMap::new(),
+            builder_dev_envs: BTreeMap::new(),
+            eval_plan: None,
+            outputs: BTreeMap::new(),
+        };
+        let initial = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+
+        std::fs::write(directory.path().join("receipt.md"), "second receipt\n").unwrap();
+        let documentation_changed = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+        assert_ne!(initial, documentation_changed);
+
+        std::fs::set_permissions(
+            directory.path().join("receipt.md"),
+            std::os::unix::fs::PermissionsExt::from_mode(0o600),
+        )
+        .unwrap();
+        assert_eq!(
+            documentation_changed,
+            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+        );
+        std::fs::set_permissions(
+            directory.path().join("receipt.md"),
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )
+        .unwrap();
+        assert_eq!(
+            documentation_changed,
+            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+        );
+
+        lock.step_memo.insert(
+            "builder:build:0".into(),
+            StepMemo {
+                key: "trace-key".into(),
+                reads: BTreeMap::from([(
+                    "input".into(),
+                    ReadDependency::File {
+                        hash: "content-key".into(),
+                        fingerprint: None,
+                    },
+                )]),
+                output_snapshot: None,
+                changes: BTreeMap::new(),
+                output_hashes: BTreeMap::new(),
+            },
+        );
+        assert_eq!(
+            documentation_changed,
+            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+        );
+
+        lock.fetches.insert(
+            "download".into(),
+            FetchPin {
+                nar_hash: String::new(),
+                snapshot_nar_hash: String::new(),
+                paths: BTreeMap::from([("archive".into(), "mode-dependent-hash".into())]),
+                volatile: BTreeMap::new(),
+            },
+        );
+        let fetch_pin_changed = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+        assert_ne!(documentation_changed, fetch_pin_changed);
     }
 
     #[test]
