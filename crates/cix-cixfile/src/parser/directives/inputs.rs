@@ -23,13 +23,6 @@ impl Parser<'_> {
         let name = name.trim();
         validate_namespace(name, line, source)?;
         let values = argv_fields(values.trim(), line, source, "LET")?;
-        if values.len() != 1 {
-            return Err(ParseError::new(
-                line,
-                source,
-                "multi-value LET is reserved; declare one value in this epoch",
-            ));
-        }
         if self.lets.insert(name.to_owned(), values).is_some()
             || self.args.contains_key(name)
             || self.names.contains_key(name)
@@ -66,10 +59,11 @@ impl Parser<'_> {
         let name = name.trim();
         validate_namespace(name, line, source)?;
         let values = argv_fields(values.trim(), line, source, "ARG")?;
-        let selected = values
+        let default = values
             .first()
             .expect("argv_fields requires one value")
             .clone();
+        let selected = self.selected_args.get(name).cloned().unwrap_or(default);
         if self
             .args
             .insert(
@@ -219,11 +213,7 @@ impl Parser<'_> {
         } else {
             let argv = argv_fields(command, line, source, "FETCH")?;
             reject_shell_variable(&argv, line, source)?;
-            NodeCommand::Argv(
-                argv.into_iter()
-                    .map(|arg| self.build_template(&arg, line, source, false))
-                    .collect::<Result<_, _>>()?,
-            )
+            NodeCommand::Argv(self.build_argv_templates(argv, line, source)?)
         };
         let (environment, ignored_evidence, clause_expected) = self.node_clauses(line, source)?;
         let expected = clause_expected.or(expected);

@@ -70,11 +70,7 @@ impl Parser<'_> {
             } else {
                 let argv = argv_fields(arguments, line, source, "RUN")?;
                 reject_shell_variable(&argv, line, source)?;
-                NodeCommand::Argv(
-                    argv.into_iter()
-                        .map(|arg| self.build_template(&arg, line, source, false))
-                        .collect::<Result<_, _>>()?,
-                )
+                NodeCommand::Argv(self.build_argv_templates(argv, line, source)?)
             }
         };
         let (environment, ignored_evidence, expected) = self.node_clauses(line, source)?;
@@ -130,11 +126,7 @@ impl Parser<'_> {
             } else {
                 let argv = argv_fields(command, line, source, directive)?;
                 reject_shell_variable(&argv, line, source)?;
-                NodeCommand::Argv(
-                    argv.into_iter()
-                        .map(|arg| self.build_template(&arg, line, source, false))
-                        .collect::<Result<_, _>>()?,
-                )
+                NodeCommand::Argv(self.build_argv_templates(argv, line, source)?)
             }
         };
         let (environment, ignored_evidence, clause_expected) = self.node_clauses(line, source)?;

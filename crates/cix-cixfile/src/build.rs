@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -45,6 +46,7 @@ pub struct BuildOptions {
 pub struct BuiltItem {
     pub name: String,
     pub store_path: String,
+    pub args: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -174,6 +176,29 @@ pub fn build_family_with_stats_file_and_registry(
     file_name: &str,
     registry: &dyn ArtifactRegistry,
 ) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    build_family_with_stats_file_and_registry_args(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        file_name,
+        &[],
+        false,
+        registry,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_family_with_stats_file_and_registry_args(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+    file_name: &str,
+    arg_values: &[String],
+    all_args: bool,
+    registry: &dyn ArtifactRegistry,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
     cix_common::reset_nix_subprocess_count();
     let directory = options
         .directory
@@ -182,162 +207,316 @@ pub fn build_family_with_stats_file_and_registry(
     let cixfile_path = named_cixfile_path(&directory, file_name)?;
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
-    let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    let declared = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    let requested_args = parse_arg_values(arg_values)?;
+    let cells = arg_cells(&declared, &requested_args, all_args)?;
+    let multiple_cells = cells.len() > 1;
+    if cells.len() > 1 && !tags.is_empty() {
+        anyhow::bail!(
+            "--all-args with -t needs an explicit per-cell tag mapping, which is not yet a CLI surface; build the cells, then tag selected outputs with `cix tag`; see docs/cixfile.md#build-args"
+        )
+    }
     let record_eval_plan = selector.is_none() && file_name == "Cixfile";
-    let mut cixfile = match selector {
-        Some(member) => cixfile.backward_slice(member).with_context(|| {
-            format!(
-                "unknown Cixfile member {member:?}; available members: {}",
-                cixfile.artifact_order.join(", ")
-            )
-        })?,
-        None => cixfile,
-    };
-    if selector.is_some() && !tags.is_empty() {
-        anyhow::bail!("a tag names the whole family; do not combine a member selector with -t")
-    }
-    if requested_namespace.is_some() && tags.is_empty() {
-        anyhow::bail!("--namespace is only meaningful with -t")
-    }
-    let namespace = tag_namespace(&cixfile, requested_namespace, tags)?;
-    if let Some(requested) = options.update_lock.as_deref() {
-        reject_expected_fetch_update(&cixfile, requested)?;
-    }
-    let requested_update = options.update_lock.as_deref();
-    let input_update = match requested_update {
-        Some("") | None => requested_update,
-        Some(name)
-            if cixfile
-                .inputs
-                .get(name)
-                .is_some_and(|input| !input.is_local()) =>
-        {
-            Some(name)
-        }
-        Some(name) if cixfile.fetches.contains_key(name) || cixfile.builders.contains_key(name) => {
-            None
-        }
-        Some(name)
-            if cixfile
-                .inputs
-                .get(name)
-                .is_some_and(|input| input.is_local()) =>
-        {
-            anyhow::bail!("FROM . AS {name} is the local build context and is not lock-pinned")
-        }
-        Some(name) => anyhow::bail!(
-            "--update-lock names no lock-bearing FROM, FETCH, or BUILDER binder {name:?}"
-        ),
-    };
-    let lock_path = directory.join(format!("{file_name}.lock"));
-    let mut lock = ensure_lock(registry, &lock_path, &cixfile.inputs, input_update)?;
-    resolve_input_metadata(&mut cixfile, &lock)?;
-    let expectations_validated = cix_build::validate_declared_expectations(&cixfile, &lock)?;
-    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
-    if !options.cold && options.update_lock.is_none() && tags.is_empty() && expectations_validated {
-        let cached = cixfile
-            .artifact_order
-            .iter()
-            .map(|name| {
-                lock.outputs
-                    .get(name)
-                    .filter(|receipt| {
-                        receipt.source_hash == source_hash
-                            && std::path::Path::new(&receipt.store_path).is_dir()
-                    })
-                    .map(|receipt| BuiltItem {
-                        name: name.clone(),
-                        store_path: receipt.store_path.clone(),
-                    })
-            })
-            .collect::<Option<Vec<_>>>();
-        if let Some(outputs) = cached {
-            for builder in &cixfile.builder_order {
-                eprintln!("BUILDER {builder} memo hit completed output (zero Nix subprocesses)");
+    let mut all_outputs = Vec::new();
+    let mut all_steps = Vec::new();
+    for selected_args in cells {
+        let cell = (|| -> Result<(Vec<BuiltItem>, BuildStats)> {
+            let cixfile = crate::parse_with_args(&source, &selected_args)
+                .with_context(|| format!("selecting ARG cell for {}", cixfile_path.display()))?;
+            let mut cixfile = match selector {
+                Some(member) => cixfile.backward_slice(member).with_context(|| {
+                    format!(
+                        "unknown Cixfile member {member:?}; available members: {}",
+                        cixfile.artifact_order.join(", ")
+                    )
+                })?,
+                None => cixfile,
+            };
+            if selector.is_some() && !tags.is_empty() {
+                anyhow::bail!(
+                    "a tag names the whole family; do not combine a member selector with -t"
+                )
             }
-            return Ok((
+            if requested_namespace.is_some() && tags.is_empty() {
+                anyhow::bail!("--namespace is only meaningful with -t")
+            }
+            let namespace = tag_namespace(&cixfile, requested_namespace, tags)?;
+            if let Some(requested) = options.update_lock.as_deref() {
+                reject_expected_fetch_update(&cixfile, requested)?;
+            }
+            let requested_update = options.update_lock.as_deref();
+            let input_update = match requested_update {
+                Some("") | None => requested_update,
+                Some(name)
+                    if cixfile
+                        .inputs
+                        .get(name)
+                        .is_some_and(|input| !input.is_local()) =>
+                {
+                    Some(name)
+                }
+                Some(name)
+                    if cixfile.fetches.contains_key(name)
+                        || cixfile.builders.contains_key(name) =>
+                {
+                    None
+                }
+                Some(name)
+                    if cixfile
+                        .inputs
+                        .get(name)
+                        .is_some_and(|input| input.is_local()) =>
+                {
+                    anyhow::bail!(
+                        "FROM . AS {name} is the local build context and is not lock-pinned"
+                    )
+                }
+                Some(name) => anyhow::bail!(
+                    "--update-lock names no lock-bearing FROM, FETCH, or BUILDER binder {name:?}"
+                ),
+            };
+            let lock_path = directory.join(format!("{file_name}.lock"));
+            let mut lock = ensure_lock(registry, &lock_path, &cixfile.inputs, input_update)?;
+            resolve_input_metadata(&mut cixfile, &lock)?;
+            let expectations_validated =
+                cix_build::validate_declared_expectations(&cixfile, &lock)?;
+            let source_hash = build_cell_fingerprint(&directory, &lock, file_name, &selected_args)?;
+            if !options.cold
+                && options.update_lock.is_none()
+                && tags.is_empty()
+                && expectations_validated
+            {
+                let cached = cixfile
+                    .artifact_order
+                    .iter()
+                    .map(|name| {
+                        lock.outputs
+                            .get(&output_receipt_key(name, &selected_args))
+                            .filter(|receipt| {
+                                receipt.source_hash == source_hash
+                                    && std::path::Path::new(&receipt.store_path).is_dir()
+                            })
+                            .map(|receipt| BuiltItem {
+                                name: name.clone(),
+                                store_path: receipt.store_path.clone(),
+                                args: selected_args.clone(),
+                            })
+                    })
+                    .collect::<Option<Vec<_>>>();
+                if let Some(outputs) = cached {
+                    for builder in &cixfile.builder_order {
+                        eprintln!(
+                            "BUILDER {builder} memo hit completed output (zero Nix subprocesses)"
+                        );
+                    }
+                    return Ok((
+                        outputs,
+                        BuildStats {
+                            steps: step_stats(&cixfile, "memo-hit"),
+                            nix_subprocesses: cix_common::nix_subprocess_count(),
+                        },
+                    ));
+                }
+            }
+            let system = cix_common::current_system()?;
+            let execution = execute(
+                &cixfile,
+                &directory,
+                &mut lock,
+                &system,
+                requested_update,
+                options.cold,
+                options.allow_secret,
+                &options.workspace_directory,
+                &crate::codegen::Codegen,
+            );
+            save_lock(&lock_path, &lock)?;
+            let (snapshots, executed_steps) = execution?;
+            if record_eval_plan {
+                match cix_build::EvalPlan::from_cixfile(
+                    &cixfile,
+                    content_hash(source.as_bytes()),
+                    &lock,
+                ) {
+                    Ok(plan) => lock.eval_plan = Some(plan),
+                    Err(error) => {
+                        lock.eval_plan = None;
+                        eprintln!("note: Cixfile.lock is not CIP-94-ready: {error:#}");
+                    }
+                }
+                save_lock(&lock_path, &lock)?;
+            }
+            let mut outputs = Vec::new();
+            for name in &cixfile.artifact_order {
+                let expression = generate_nix_with_snapshots(
+                    &cixfile, name, &directory, &lock, &system, &snapshots,
+                )?;
+                let realized = build_expression(&expression)?;
+                let store_path = add_item_to_store(&realized, name)?;
+                outputs.push(BuiltItem {
+                    name: name.clone(),
+                    store_path,
+                    args: selected_args.clone(),
+                });
+            }
+            let source_hash = build_cell_fingerprint(&directory, &lock, file_name, &selected_args)?;
+            for item in &outputs {
+                for tag in tags {
+                    let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
+                    registry
+                        .tag_artifact(&item.store_path, &reference)
+                        .with_context(|| {
+                            format!("tagging built member {:?} as {reference:?}", item.name)
+                        })?;
+                }
+            }
+            for item in &outputs {
+                lock.outputs.insert(
+                    output_receipt_key(&item.name, &selected_args),
+                    OutputReceipt {
+                        source_hash: source_hash.clone(),
+                        store_path: item.store_path.clone(),
+                        args: selected_args.clone(),
+                    },
+                );
+            }
+            save_lock(&lock_path, &lock)?;
+            Ok((
                 outputs,
                 BuildStats {
-                    steps: step_stats(&cixfile, "memo-hit"),
+                    steps: executed_steps
+                        .into_iter()
+                        .map(|step| StepStat {
+                            name: step.name,
+                            kind: step.kind,
+                            status: if step.executed {
+                                "executed"
+                            } else {
+                                "memo-hit"
+                            },
+                        })
+                        .collect(),
                     nix_subprocesses: cix_common::nix_subprocess_count(),
                 },
-            ));
-        }
+            ))
+        })()?;
+        all_outputs.extend(cell.0);
+        all_steps.extend(cell.1.steps);
     }
-    let system = cix_common::current_system()?;
-    let execution = execute(
-        &cixfile,
-        &directory,
-        &mut lock,
-        &system,
-        requested_update,
-        options.cold,
-        options.allow_secret,
-        &options.workspace_directory,
-        &crate::codegen::Codegen,
-    );
-    save_lock(&lock_path, &lock)?;
-    let (snapshots, executed_steps) = execution?;
-    if record_eval_plan {
-        match cix_build::EvalPlan::from_cixfile(&cixfile, content_hash(source.as_bytes()), &lock) {
-            Ok(plan) => lock.eval_plan = Some(plan),
-            Err(error) => {
-                lock.eval_plan = None;
-                eprintln!("note: Cixfile.lock is not CIP-94-ready: {error:#}");
-            }
+    if multiple_cells {
+        let lock_path = directory.join(format!("{file_name}.lock"));
+        let mut lock: cix_build::LockFile = serde_json::from_slice(&fs::read(&lock_path)?)
+            .with_context(|| format!("reading {}", lock_path.display()))?;
+        for item in &all_outputs {
+            let source_hash = build_cell_fingerprint(&directory, &lock, file_name, &item.args)?;
+            lock.outputs.insert(
+                output_receipt_key(&item.name, &item.args),
+                OutputReceipt {
+                    source_hash,
+                    store_path: item.store_path.clone(),
+                    args: item.args.clone(),
+                },
+            );
         }
         save_lock(&lock_path, &lock)?;
     }
-    let mut outputs = Vec::new();
-    for name in &cixfile.artifact_order {
-        let expression =
-            generate_nix_with_snapshots(&cixfile, name, &directory, &lock, &system, &snapshots)?;
-        let realized = build_expression(&expression)?;
-        let store_path = add_item_to_store(&realized, name)?;
-        outputs.push(BuiltItem {
-            name: name.clone(),
-            store_path,
-        });
-    }
-    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
-    for item in &outputs {
-        for tag in tags {
-            let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
-            registry
-                .tag_artifact(&item.store_path, &reference)
-                .with_context(|| {
-                    format!("tagging built member {:?} as {reference:?}", item.name)
-                })?;
-        }
-    }
-    for item in &outputs {
-        lock.outputs.insert(
-            item.name.clone(),
-            OutputReceipt {
-                source_hash: source_hash.clone(),
-                store_path: item.store_path.clone(),
-            },
-        );
-    }
-    save_lock(&lock_path, &lock)?;
     Ok((
-        outputs,
+        all_outputs,
         BuildStats {
-            steps: executed_steps
-                .into_iter()
-                .map(|step| StepStat {
-                    name: step.name,
-                    kind: step.kind,
-                    status: if step.executed {
-                        "executed"
-                    } else {
-                        "memo-hit"
-                    },
-                })
-                .collect(),
+            steps: all_steps,
             nix_subprocesses: cix_common::nix_subprocess_count(),
         },
     ))
+}
+
+fn parse_arg_values(values: &[String]) -> Result<BTreeMap<String, String>> {
+    let mut selected = BTreeMap::new();
+    for value in values {
+        let (name, value) = value.split_once('=').ok_or_else(|| {
+            anyhow::anyhow!(
+                "--arg expects NAME=value selecting a declared ARG cell; see docs/cixfile.md#build-args"
+            )
+        })?;
+        if name.is_empty() || value.is_empty() {
+            anyhow::bail!("--arg expects non-empty NAME=value; see docs/cixfile.md#build-args")
+        }
+        if selected.insert(name.to_owned(), value.to_owned()).is_some() {
+            anyhow::bail!(
+                "--arg {name} is repeated; select each declared ARG once; see docs/cixfile.md#build-args"
+            )
+        }
+    }
+    Ok(selected)
+}
+
+fn arg_cells(
+    cixfile: &crate::Cixfile,
+    requested: &BTreeMap<String, String>,
+    all: bool,
+) -> Result<Vec<BTreeMap<String, String>>> {
+    if all && !requested.is_empty() {
+        anyhow::bail!(
+            "--all-args builds the complete declared matrix and cannot be combined with --arg; see docs/cixfile.md#build-args"
+        )
+    }
+    for (name, value) in requested {
+        let Some(argument) = cixfile.args.get(name) else {
+            let matrix = cixfile
+                .args
+                .iter()
+                .map(|(name, argument)| format!("{name}=[{}]", argument.values.join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            anyhow::bail!(
+                "--arg {name}={value} names no declared ARG; declared matrix: {}; see docs/cixfile.md#build-args",
+                if matrix.is_empty() { "<none>" } else { &matrix }
+            )
+        };
+        if !argument.values.contains(value) {
+            anyhow::bail!(
+                "--arg {name}={value} is outside the declared matrix [{}]; see docs/cixfile.md#build-args",
+                argument.values.join(", ")
+            )
+        }
+    }
+    if !all {
+        return Ok(vec![cixfile
+            .args
+            .iter()
+            .map(|(name, argument)| {
+                (
+                    name.clone(),
+                    requested
+                        .get(name)
+                        .cloned()
+                        .unwrap_or_else(|| argument.values[0].clone()),
+                )
+            })
+            .collect()]);
+    }
+    let mut cells = vec![BTreeMap::new()];
+    for (name, argument) in &cixfile.args {
+        cells = cells
+            .into_iter()
+            .flat_map(|cell| {
+                argument.values.iter().map(move |value| {
+                    let mut selected = cell.clone();
+                    selected.insert(name.clone(), value.clone());
+                    selected
+                })
+            })
+            .collect();
+    }
+    Ok(cells)
+}
+
+fn output_receipt_key(name: &str, args: &BTreeMap<String, String>) -> String {
+    if args.is_empty() {
+        name.to_owned()
+    } else {
+        let cell = content_hash(&serde_json::to_vec(args).expect("ARG cell serialization"));
+        format!("{name}@{}", &cell[..12])
+    }
 }
 
 fn step_stats(cixfile: &crate::Cixfile, status: &'static str) -> Vec<StepStat> {
@@ -413,6 +592,19 @@ fn build_fingerprint(
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect())
+}
+
+fn build_cell_fingerprint(
+    directory: &std::path::Path,
+    lock: &cix_build::LockFile,
+    file_name: &str,
+    args: &BTreeMap<String, String>,
+) -> Result<String> {
+    let base = build_fingerprint(directory, lock, file_name)?;
+    if args.is_empty() {
+        return Ok(base);
+    }
+    Ok(content_hash(&serde_json::to_vec(&(base, args))?))
 }
 
 fn hash_source_tree(
@@ -621,6 +813,7 @@ mod tests {
             OutputReceipt {
                 source_hash: "prior-run-hash".into(),
                 store_path: "/nix/store/prior-run-output".into(),
+                args: BTreeMap::new(),
             },
         );
         assert_eq!(

@@ -32,6 +32,75 @@ fn epoch_nodes_and_phase_braces_parse_with_precise_errors() {
 }
 
 #[test]
+fn let_lists_expand_only_as_whole_argv_elements() {
+    let parsed = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nLET FLAGS = --first 'two words' --third\nBUILDER build {\nRUN printf %s ${FLAGS}\n}\nITEM result {\nCOPY ${build} /result\n}\n",
+    )
+    .unwrap();
+    let BuildStep::Run {
+        command: NodeCommand::Argv(argv),
+        ..
+    } = &parsed.builders["build"].steps[0]
+    else {
+        panic!("expected argv RUN");
+    };
+    assert_eq!(
+        argv.iter()
+            .map(Template::literal_value)
+            .collect::<Option<Vec<_>>>()
+            .unwrap(),
+        ["printf", "%s", "--first", "two words", "--third"]
+    );
+
+    let error = parse(
+        "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nLET FLAGS = one two\nBUILDER build {\nRUN printf prefix-${FLAGS}\n}\nITEM result {\nCOPY ${build} /result\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.message,
+        "${FLAGS} expands to multiple argv values and must occupy a whole argv position"
+    );
+}
+
+#[test]
+fn arg_selection_is_closed_and_resolves_before_templates() {
+    let source = "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nARG VERSION from 1.0 2.0\nBUILDER build {\nRUN printf ${VERSION}\n}\nITEM result {\nCOPY ${build} /result\n}\n";
+    let selected = parse_with_args(
+        source,
+        &std::collections::BTreeMap::from([("VERSION".into(), "2.0".into())]),
+    )
+    .unwrap();
+    assert_eq!(selected.args["VERSION"].selected, "2.0");
+    let BuildStep::Run {
+        command: NodeCommand::Argv(argv),
+        ..
+    } = &selected.builders["build"].steps[0]
+    else {
+        panic!("expected argv RUN");
+    };
+    assert_eq!(argv[1].literal_value().as_deref(), Some("2.0"));
+
+    let invalid = parse_with_args(
+        source,
+        &std::collections::BTreeMap::from([("VERSION".into(), "3.0".into())]),
+    )
+    .unwrap_err();
+    assert_eq!(
+        invalid.message,
+        "--arg VERSION=3.0 is outside the declared matrix [1.0, 2.0]; see docs/cixfile.md#build-args"
+    );
+    let unknown = parse_with_args(
+        source,
+        &std::collections::BTreeMap::from([("FLAVOR".into(), "debug".into())]),
+    )
+    .unwrap_err();
+    assert_eq!(
+        unknown.message,
+        "--arg FLAVOR=debug names no declared ARG; declared matrix: VERSION=[1.0, 2.0]; see docs/cixfile.md#build-args"
+    );
+}
+
+#[test]
 fn fetch_expect_is_trailing_and_rejects_the_removed_leading_form() {
     let parsed = parse(
         "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf top EXPECT sha256-top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH printf step EXPECT sha256-step\nSERVICE app\nSTART /bin/true\n",

@@ -14,8 +14,9 @@ use anyhow::{bail, Context, Result};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
+use crate::evaluation::ResolvedNode;
 use crate::fhs;
-use crate::lock::builder_fetch_id;
+use crate::lock::{builder_fetch_id, resolved_statement_id};
 use crate::trace;
 use crate::workspace::{self, State, Workspace};
 use crate::{
@@ -69,9 +70,10 @@ enum TemplateKeyPart<'a> {
 }
 
 pub(crate) struct BuilderKeyRequest<'a> {
+    pub(crate) cixfile: &'a crate::Cixfile,
     pub(crate) builder_name: &'a str,
     pub(crate) builder: &'a Builder,
-    pub(crate) commands: &'a [String],
+    pub(crate) nodes: &'a [ResolvedNode],
     pub(crate) copies: &'a [String],
     pub(crate) ordered_imports: &'a [String],
     pub(crate) universe_identities: &'a [String],
@@ -493,16 +495,22 @@ fn builder_chain_keys(request: BuilderKeyRequest<'_>) -> Result<ChainKeysVerdict
     let mut environment = request.environment.clone();
     let mut predecessor = hex_hash(format!("BUILDER\0{}", request.builder_name).as_bytes());
     let mut keys = Vec::with_capacity(request.builder.steps.len());
-    let mut command_index = 0;
+    let mut node_index = 0;
     let mut copy_index = 0;
     for (index, step) in request.builder.steps.iter().enumerate() {
-        let (kind, arguments, sources, fetch_pin) = match step {
+        let (kind, arguments, sources, fetch_pin, step_environment) = match step {
             BuildStep::Env { name, value, .. } => {
                 let value = value
                     .literal_value()
                     .context("builder ENV metadata was not resolved")?;
                 environment.insert(name.clone(), value.clone());
-                ("ENV", format!("{name}={value}"), Vec::new(), None)
+                (
+                    "ENV",
+                    format!("{name}={value}"),
+                    Vec::new(),
+                    None,
+                    environment.clone(),
+                )
             }
             BuildStep::Copy(copy) => {
                 let source = &request.copies[copy_index];
@@ -513,21 +521,43 @@ fn builder_chain_keys(request: BuilderKeyRequest<'_>) -> Result<ChainKeysVerdict
                     vec![workspace::nar_hash(Path::new(source))
                         .with_context(|| format!("hashing declared COPY source {source}"))?],
                     None,
+                    environment.clone(),
                 )
             }
             BuildStep::Fetch { .. } => {
-                let command = &request.commands[command_index];
-                command_index += 1;
-                let id = builder_fetch_id(request.builder_name, index, command);
+                let node = &request.nodes[node_index];
+                node_index += 1;
+                let command = node.command.canonical_text();
+                let id = resolved_statement_id(
+                    &builder_fetch_id(request.builder_name, index, &command),
+                    &command,
+                    request.cixfile,
+                );
                 let Some(pin) = request.lock.fetches.get(&id) else {
                     return Ok(ChainKeysVerdict::UnpinnedFetch);
                 };
-                ("FETCH", command.clone(), Vec::new(), Some(pin.key()))
+                let mut node_environment = environment.clone();
+                node_environment.extend(node.environment.clone());
+                (
+                    "FETCH",
+                    command,
+                    Vec::new(),
+                    Some(pin.key()),
+                    node_environment,
+                )
             }
             BuildStep::Run { .. } => {
-                let command = &request.commands[command_index];
-                command_index += 1;
-                ("RUN", command.clone(), Vec::new(), None)
+                let node = &request.nodes[node_index];
+                node_index += 1;
+                let mut node_environment = environment.clone();
+                node_environment.extend(node.environment.clone());
+                (
+                    "RUN",
+                    node.command.canonical_text(),
+                    Vec::new(),
+                    None,
+                    node_environment,
+                )
             }
         };
         predecessor = step_key(StepKeyRequest {
@@ -537,7 +567,7 @@ fn builder_chain_keys(request: BuilderKeyRequest<'_>) -> Result<ChainKeysVerdict
             ordered_imports: request.ordered_imports,
             predecessor: &predecessor,
             declared_sources: &sources,
-            environment: &environment,
+            environment: &step_environment,
             fetch_pin,
             universe_identities: request.universe_identities,
         })?;

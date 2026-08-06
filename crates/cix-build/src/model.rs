@@ -27,7 +27,13 @@ impl Cixfile {
 
         while let Some(name) = pending.pop_first() {
             let dependencies = if let Some(fetch) = self.fetches.get(&name) {
-                binder_names(fetch.command.templates())
+                binder_names(
+                    fetch
+                        .command
+                        .templates()
+                        .into_iter()
+                        .chain(fetch.environment.values()),
+                )
             } else if let Some(builder) = self.builders.get(&name) {
                 binder_names(builder_templates(builder))
             } else {
@@ -77,8 +83,18 @@ fn builder_templates(builder: &Builder) -> Vec<&Template> {
     for step in &builder.steps {
         match step {
             BuildStep::Copy(copy) => templates.push(&copy.src),
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+            BuildStep::Fetch {
+                command,
+                environment,
+                ..
+            }
+            | BuildStep::Run {
+                command,
+                environment,
+                ..
+            } => {
                 templates.extend(command.templates());
+                templates.extend(environment.values());
             }
             BuildStep::Env { .. } => {}
         }

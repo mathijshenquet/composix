@@ -30,6 +30,19 @@ fn crlf_is_normalized_but_heredoc_and_comments_are_untouched() {
 }
 
 #[test]
+fn top_fetch_interpreter_heredoc_remains_outside_following_blocks() {
+    let input = "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nARG FLAVOR from plain debug\nFETCH ingredient ${pkgs.bash}/bin/bash <<BODY\nprintf '%s' '${FLAVOR}' > flavor\nBODY\nBUILDER build {\nRUN printf ok\n}\nITEM result {\nCOPY ${build} /build\nCOPY ${ingredient} /ingredient\n}\n";
+    let formatted = fmt::format(input).unwrap();
+
+    assert_eq!(fmt::format(&formatted).unwrap(), formatted);
+    assert!(fmt::same_semantics(
+        &parse(input).unwrap(),
+        &parse(&formatted).unwrap()
+    ));
+    assert!(formatted.contains("\nprintf '%s' '${FLAVOR}' > flavor\nBODY\n"));
+}
+
+#[test]
 fn torture_sweep_is_parse_gated_idempotent_and_semantic_preserving() {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/torture");
     let mut fixtures = fs::read_dir(directory)

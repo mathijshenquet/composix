@@ -427,8 +427,7 @@ fn split_directive(line: &str) -> (&str, &str) {
 fn heredoc_delimiter<'a>(directive: &str, arguments: &'a str) -> Option<&'a str> {
     let fields = arguments.split_whitespace().collect::<Vec<_>>();
     match directive {
-        "RUN" if fields.len() == 1 => fields[0].strip_prefix("<<"),
-        "RUN" if fields.len() == 2 => fields[1].strip_prefix("<<"),
+        "RUN" | "FETCH" => fields.iter().find_map(|field| field.strip_prefix("<<")),
         "FILE" if fields.len() == 2 => fields[1].strip_prefix("<<"),
         _ => None,
     }

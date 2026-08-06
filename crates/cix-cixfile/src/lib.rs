@@ -18,8 +18,9 @@ mod parser;
 pub use build::{
     build, build_family, build_family_with_registry, build_family_with_stats,
     build_family_with_stats_and_registry, build_family_with_stats_file,
-    build_family_with_stats_file_and_registry, build_with_registry, build_with_stats,
-    build_with_stats_and_registry, ArtifactRegistry, BuildOptions, BuildStats, BuiltItem, StepStat,
+    build_family_with_stats_file_and_registry, build_family_with_stats_file_and_registry_args,
+    build_with_registry, build_with_stats, build_with_stats_and_registry, ArtifactRegistry,
+    BuildOptions, BuildStats, BuiltItem, StepStat,
 };
 pub use cix_build::revoke_fetch_consent;
 pub use cix_build::{
@@ -32,7 +33,7 @@ pub use cix_build::{
     Readiness, Secret, Service, Template, TemplatePart,
 };
 pub use codegen::{generate_nix, generate_nix_with_snapshots, generate_spec_json};
-pub use parser::{parse, ParseError};
+pub use parser::{parse, parse_with_args, ParseError};
 
 pub fn default_workspace_directory() -> std::path::PathBuf {
     std::env::var_os("XDG_CACHE_HOME")

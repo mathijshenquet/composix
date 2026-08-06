@@ -10,6 +10,7 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 
+use crate::evaluation::ResolvedCommand;
 use crate::fetch::CredentialMount;
 use crate::{fhs, seccomp, trace, ScratchDir};
 
@@ -21,7 +22,7 @@ pub(crate) enum RunNetwork {
 
 pub(crate) struct SandboxRequest<'a> {
     pub(crate) workdir: &'a Path,
-    pub(crate) command: &'a str,
+    pub(crate) command: &'a ResolvedCommand,
     pub(crate) environment: &'a BTreeMap<String, String>,
     pub(crate) export_prelude: &'a BTreeMap<String, String>,
     pub(crate) offered_closure: &'a BTreeSet<String>,
@@ -42,7 +43,7 @@ impl Sandbox {
             .context("RUN/FETCH requires bash in an IMPORTed package")
     }
 
-    pub(crate) fn run_network(shell: &str) -> Result<RunNetwork> {
+    pub(crate) fn run_network() -> Result<RunNetwork> {
         let output = Command::new("bwrap")
             .args([
                 "--die-with-parent",
@@ -57,8 +58,6 @@ impl Sandbox {
                 "/",
                 "/",
                 "--",
-                shell,
-                "-c",
                 "true",
             ])
             .output()
@@ -79,6 +78,14 @@ impl Sandbox {
         let trace_directory =
             ScratchDir::new("cix-read-trace-").context("creating read trace directory")?;
         let trace_path = trace_directory.path().join("syscalls");
+        let heredoc_path = match request.command {
+            ResolvedCommand::Heredoc { body, .. } => {
+                let path = trace_directory.path().join("heredoc");
+                fs::write(&path, body).context("writing RUN/FETCH heredoc body")?;
+                Some(path)
+            }
+            ResolvedCommand::Legacy { .. } | ResolvedCommand::Argv { .. } => None,
+        };
         let mut process = Command::new("strace");
         process
             .args([
@@ -126,9 +133,15 @@ impl Sandbox {
         for path in request.offered_closure {
             process.args(["--ro-bind", path, path]);
         }
+        if heredoc_path.is_some() || !request.credentials.is_empty() {
+            process.args(["--dir", "/run"]);
+        }
+        if let Some(path) = &heredoc_path {
+            process.arg("--ro-bind").arg(path).arg("/run/cix-heredoc");
+        }
         for credential in request.credentials {
             let destination = format!("/run/cix-credentials/{}", credential.name);
-            process.args(["--dir", "/run", "--dir", "/run/cix-credentials"]);
+            process.args(["--dir", "/run/cix-credentials"]);
             process
                 .arg("--ro-bind")
                 .arg(&credential.source)
@@ -174,15 +187,29 @@ impl Sandbox {
                 .arg("CIX_FETCH_TOKEN")
                 .arg(&credential.name);
         }
-        let exports = request
-            .export_prelude
-            .iter()
-            .map(|(name, value)| format!("export {name}={value};"))
-            .collect::<String>();
-        let shell_program = format!("umask 022; {exports}eval \"$1\"");
+        match request.command {
+            ResolvedCommand::Legacy { command } => {
+                let exports = request
+                    .export_prelude
+                    .iter()
+                    .map(|(name, value)| format!("export {name}={value};"))
+                    .collect::<String>();
+                let shell_program = format!("umask 022; {exports}eval \"$1\"");
+                process
+                    .arg("/bin/bash")
+                    .args(["-c", &shell_program, "cix-build", command]);
+            }
+            ResolvedCommand::Argv { argv } => {
+                let (program, arguments) = argv
+                    .split_first()
+                    .context("internal RUN/FETCH argv is empty")?;
+                process.arg(program).args(arguments);
+            }
+            ResolvedCommand::Heredoc { interpreter, .. } => {
+                process.arg(interpreter).arg("/run/cix-heredoc");
+            }
+        }
         let output = process
-            .arg("/bin/bash")
-            .args(["-c", &shell_program, "cix-build", request.command])
             .output()
             .context(
                 "starting traced bubblewrap sandbox; this host must permit ptrace and unprivileged user namespaces",

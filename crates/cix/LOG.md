@@ -1998,3 +1998,145 @@
   (`build: add pnpm frozen-store route and hints`). No merge or push was
   performed. Final handoff keeps the validation green and the Verdaccio/Dozzle
   traced installs explicitly walled; neither is promoted to an item.
+
+- 2026-08-06T10:48:37Z — Started `track/epoch-stage2` from clean
+  `68a7495f` with direnv active. Read the track spec, accepted CIP-111/112/113
+  decisions, CIP-114's settled detection shape, D73, the project journal, and
+  Stage 1's handoff. Scope is the semantic half only: structured node execution,
+  per-node WITH and ignored-evidence edges, closed ARG-cell selection/keying/
+  manifest recording, and focused regressions; dual acceptance remains and the
+  corpus/migration sweep stays out. `track/fmtkey-impl` is clean and committed
+  but not yet on main, so I will retain a same-shape canonical seam and merge it
+  through main only after it lands there. Next: map the model/evaluation/
+  sandbox/key seams precisely, then implement the structured command boundary.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:48:37Z — The accepted ARG document's title/status preamble
+  still says "draft v4", while its Decision section and `docs/design.md`
+  explicitly record adoption. The Decision section is authoritative, so this
+  is editorial drift rather than a semantic ambiguity. → documentation
+- 2026-08-06T10:48:37Z — The required fmt-key prerequisite exists as a clean
+  committed sibling track but has not landed on main. The stage-2 spec says to
+  integrate it through main once landed and explicitly permits a same-shape
+  stub meanwhile; no cross-track merge is being invented here. → coordination
+
+- 2026-08-06T10:51:15Z — Completed the execution/key seam map. Stage 1's AST
+  is typed, but `codegen::nix_node_command` deliberately collapses argv to a
+  space-joined string and heredocs to `<interpreter> -c <body>` before
+  `RawContext`; `SandboxRequest` then always evaluates that string with Bash.
+  The smallest semantic repair is one serializable resolved-node value across
+  codegen → evaluation → build chain → sandbox, carrying command form and
+  resolved node-local WITH environment together. Memo and FETCH identities can
+  key the structured command plus the overlaid environment without quote/
+  whitespace collisions. Legacy nodes retain their named Bash path only for
+  dual acceptance. Next: implement this boundary and direct executor tests.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:51:15Z — The existing `export_prelude` exists only to preserve
+  legacy builder-ENV shell behavior. New argv/heredoc nodes must receive their
+  environment through `execve`/bubblewrap only; carrying the prelude into their
+  command representation would silently reintroduce the shell edge. → semantics
+
+- 2026-08-06T10:57:42Z — Structured execution is live end-to-end. Nix now
+  returns typed resolved nodes instead of flattened command strings; the
+  sandbox direct-execs argv, writes heredoc bodies outside `/work` and invokes
+  the declared interpreter with `/run/cix-heredoc`, and overlays WITH only for
+  that node. Legacy nodes alone retain Bash evaluation. The structured command
+  JSON plus node-local environment feeds trace/chain/FETCH identities, and WITH
+  templates now participate in closure discovery, metadata resolution,
+  backward slicing, and consumed-binder analysis. Synchronous value-checked
+  receipts: the focused sandbox argv/heredoc contract test passed 1/1; the env
+  isolation test passed 1/1; the socket-filter legacy regression passed 1/1;
+  and the real Nix/codegen/build integration passed 1/1, proving literal
+  semicolon argv, heredoc filename, node-only env, and non-leak values in the
+  built item. Next: implement LET-list argv expansion, then UNSAFE-IGNORE.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:57:42Z — The first three focused commands used `--exact`
+  with unqualified test names and therefore selected 0 tests; those exit-0
+  values are invalid receipts. They were rerun without `--exact`, each selected
+  exactly one named test, and those 1/1 results are the receipts above. → process
+
+- 2026-08-06T11:04:10Z — Added the isolated `evidence` stratum for
+  `WITH UNSAFE IGNORE`. Paths normalize inside `/work` and cannot escape;
+  every use emits the stable docs-anchored waiver; reads, changes, replay
+  snapshots, consumed-output seals, automatic pins, and volatility records
+  omit the declared subtree. The warm underlay retains it, while filtered
+  seals make cold replay start it empty. A conservative hint surfaces only a
+  cache-shaped subtree observed as both read and written and explicitly says
+  cix will never add the clause. Synchronous receipts each selected/passed 1/1:
+  exact path/waiver/hint diagnostics; conservative candidate classification;
+  and a real trace/build test proving `cache` absent from the step read set,
+  change set, and final consumed seal while the non-ignored result remained
+  exactly `old`. LET-list whole-argv expansion also passed its focused parser
+  test 1/1. Next: closed ARG cell selection, all-cells execution, lock/output
+  isolation, and manifest recording.
+
+### FRICTION (continued)
+
+- 2026-08-06T11:04:10Z — An initial patch anchored the new integration test
+  at a `}` inside an existing raw Cixfile string, so Rust parsing failed before
+  any test ran. The test was moved after the enclosing Rust function, fmt
+  passed, and only the corrected 1/1 execution is counted. → process
+
+### FRICTION (continued)
+
+- 2026-08-06T11:16:13Z — Closed ARG selection now reparses before template
+  resolution; `--arg` validates against and teaches the declared matrix, while
+  `--all-args` executes its Cartesian product. Output receipts and resolved
+  FETCH/step identities retain cells append-only, and runnable manifests carry
+  `buildArgs`. Synchronous value-checked receipts: parser selection/error test
+  1/1; legacy empty-args receipt fingerprint test 1/1; real two-cell build test
+  1/1, checking file values `plain`/`debug`, both manifest selections, two
+  output receipts, and two distinct step-memo owners. Workspace check also
+  completed successfully. The stable D73 anchors now exist in docs/cixfile.md.
+  Next: warning-denied clippy, focused crate suites, structural audit, and
+  branch closeout.
+
+### FRICTION (continued)
+
+- 2026-08-06T11:16:13Z — CIP-113 requires `--all-args` and per-cell tags “when
+  given by the CLI” but defines no syntax mapping one repeated `-t` value to a
+  matrix cell. This track builds all untagged cells; it stops with a
+  docs-anchored diagnostic when `--all-args` and `-t` are combined instead of
+  inventing an ordering contract. Individual cells remain taggable through
+  explicit `--arg` selection. → spec ambiguity
+
+- 2026-08-06T11:16:13Z — `track/fmtkey-impl` remains unmerged from main, so
+  stage 2 uses the required clearly marked same-shape canonical JSON seam for
+  resolved commands. It must be replaced by that track's API only after it
+  lands through main; no cross-track merge was taken. → coordination
+
+- 2026-08-06T11:16:13Z — The first attempt to add the ARG integration fixture
+  repeated the earlier unsafe anchor mistake and again landed inside a raw
+  Cixfile literal; Rust parsing failed before tests. It was moved using the
+  enclosing test-function boundary, and only the subsequent passing 1/1 run is
+  a receipt. → process
+
+### FRICTION (continued)
+
+- 2026-08-06T11:21:14Z — Final bounded receipts on the finished tree are
+  synchronous and value-checked: cix-build lib 54/54; parser 37/37;
+  cix-cixfile lib 11/11; manifest 9/9; cix CLI ARG parsing 3/3; formatter 5/5;
+  the real ARG matrix integration 1/1 (both top-FETCH pins, builder step memos,
+  output receipts, file values, manifests, and immediate repeated memo hits);
+  warning-denied workspace/all-target clippy; canonical examples fmt; Rust fmt
+  check; diff check. The structural shared-ownership audit reported only the
+  pre-existing declarations, and every reported site has its required local
+  rationale. The builder fingerprint is bumped for the execution/evidence
+  semantic epoch. Per the track's recorded terminal-bridge limit, workspace
+  tests, tour regen/drift, and progressive/full VM tiers are explicitly
+  DELEGATED to the orchestrator merge gate and were not started here.
+
+### FRICTION (continued)
+
+- 2026-08-06T11:21:14Z — Extending the matrix proof to top-level FETCH exposed
+  that the formatter scanner recognized heredocs only for RUN/FILE even though
+  the semantic parser accepted FETCH interpreter heredocs. Its debug semantic
+  check failed before any build ran. The scanner now preserves RUN/FETCH
+  delimiter tokens uniformly; a focused lossless/idempotent regression passed
+  1/1, the complete formatter suite passed 5/5, and the extended real build then
+  passed 1/1 with two distinct `ingredient-*` lock pins. → implementation seam

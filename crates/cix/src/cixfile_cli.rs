@@ -27,6 +27,12 @@ pub enum Command {
         /// Re-run builders with empty persistent workspaces and verify consumed outputs.
         #[arg(long)]
         cold: bool,
+        /// Select one value from a Cixfile's declared closed ARG matrix.
+        #[arg(long = "arg", value_name = "NAME=VALUE")]
+        arg_values: Vec<String>,
+        /// Build every cell in the Cixfile's declared ARG matrix.
+        #[arg(long)]
+        all_args: bool,
         /// Keep build scratch directories and print their paths for debugging.
         #[arg(long)]
         keep_scratch: bool,
@@ -67,6 +73,8 @@ impl Command {
                 namespace,
                 update_lock,
                 cold,
+                arg_values,
+                all_args,
                 keep_scratch,
                 allow_secret,
                 stats,
@@ -84,30 +92,64 @@ impl Command {
                     workspace_directory,
                 };
                 let registry = crate::registry::IndexRegistry::open(state_directory.to_owned())?;
-                let (items, build_stats) = cix_cixfile::build_family_with_stats_file_and_registry(
-                    &options,
-                    &tag,
-                    namespace.as_deref(),
-                    selector.as_deref(),
-                    &file,
-                    &registry,
-                )?;
+                let (items, build_stats) =
+                    cix_cixfile::build_family_with_stats_file_and_registry_args(
+                        &options,
+                        &tag,
+                        namespace.as_deref(),
+                        selector.as_deref(),
+                        &file,
+                        &arg_values,
+                        all_args,
+                        &registry,
+                    )?;
                 if selector.is_some() {
-                    if stats {
+                    if items.len() == 1 && stats {
                         println!(
                             "{}",
                             render_json(
                                 &serde_json::json!({ "item": items[0].store_path, "stats": build_stats })
                             )?
                         );
-                    } else {
+                    } else if items.len() == 1 {
                         println!("{}", items[0].store_path);
+                    } else {
+                        let cells = items
+                            .into_iter()
+                            .map(|item| (arg_cell_name(&item.args), item.store_path))
+                            .collect::<BTreeMap<_, _>>();
+                        if stats {
+                            println!(
+                                "{}",
+                                render_json(
+                                    &serde_json::json!({ "items": cells, "stats": build_stats })
+                                )?
+                            );
+                        } else {
+                            println!("{}", render_json(&cells)?);
+                        }
                     }
                 } else {
-                    let members = items
-                        .into_iter()
-                        .map(|item| (item.name, item.store_path))
-                        .collect::<BTreeMap<_, _>>();
+                    let multiple_cells = items
+                        .first()
+                        .is_some_and(|first| items.iter().any(|item| item.args != first.args));
+                    let members = if multiple_cells {
+                        let mut cells = BTreeMap::<String, BTreeMap<String, String>>::new();
+                        for item in items {
+                            cells
+                                .entry(arg_cell_name(&item.args))
+                                .or_default()
+                                .insert(item.name, item.store_path);
+                        }
+                        serde_json::to_value(cells)?
+                    } else {
+                        serde_json::to_value(
+                            items
+                                .into_iter()
+                                .map(|item| (item.name, item.store_path))
+                                .collect::<BTreeMap<_, _>>(),
+                        )?
+                    };
                     if stats {
                         println!(
                             "{}",
@@ -136,6 +178,13 @@ impl Command {
 
 fn render_json(value: &impl serde::Serialize) -> anyhow::Result<String> {
     serde_json::to_string_pretty(value).context("serializing cix build JSON")
+}
+
+fn arg_cell_name(args: &BTreeMap<String, String>) -> String {
+    args.iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[derive(clap::Args)]
@@ -249,7 +298,15 @@ fn parse_build_target(input: &str) -> anyhow::Result<(PathBuf, Option<String>)> 
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{parse_build_target, render_json};
+    use clap::Parser;
+
+    use super::{parse_build_target, render_json, Command};
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(subcommand)]
+        command: Command,
+    }
 
     #[test]
     fn parses_member_selector_from_build_target() {
@@ -265,5 +322,28 @@ mod tests {
         let output = render_json(&BTreeMap::from([("api", "/nix/store/api")])).unwrap();
 
         assert_eq!(output, "{\n  \"api\": \"/nix/store/api\"\n}");
+    }
+
+    #[test]
+    fn parses_build_arg_selection_and_all_cells_flags() {
+        let selected = TestCli::try_parse_from([
+            "cix",
+            "build",
+            "--arg",
+            "FLAVOR=debug",
+            "--arg",
+            "TARGET=musl",
+        ])
+        .unwrap();
+        let Command::Build { arg_values, .. } = selected.command else {
+            panic!("expected build command");
+        };
+        assert_eq!(arg_values, ["FLAVOR=debug", "TARGET=musl"]);
+
+        let all = TestCli::try_parse_from(["cix", "build", "--all-args"]).unwrap();
+        let Command::Build { all_args, .. } = all.command else {
+            panic!("expected build command");
+        };
+        assert!(all_args);
     }
 }

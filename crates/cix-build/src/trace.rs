@@ -258,6 +258,31 @@ pub(crate) fn parse(trace: &str) -> Capture {
     }
 }
 
+pub(crate) fn unsafe_ignore_candidates(capture: &Capture) -> BTreeSet<String> {
+    capture
+        .observations
+        .iter()
+        .filter(|(_, observation)| {
+            observation.written && (observation.content || observation.listed)
+        })
+        .filter_map(|(path, _)| cache_shaped_root(path))
+        .collect()
+}
+
+fn cache_shaped_root(path: &str) -> Option<String> {
+    let components = path.split('/').collect::<Vec<_>>();
+    for (index, component) in components.iter().enumerate() {
+        let cache_name = matches!(*component, ".cache" | "cache")
+            || component.ends_with("_cache")
+            || components[..=index].ends_with(&[".cargo", "registry"])
+            || components[..=index].ends_with(&["go", "pkg", "mod"]);
+        if cache_name {
+            return Some(components[..=index].join("/"));
+        }
+    }
+    None
+}
+
 pub(crate) fn parse_failure(trace: &str) -> FailureTrace {
     let mut failure = FailureTrace::default();
     let mut cwd = BTreeMap::<u32, PathBuf>::new();
@@ -1085,6 +1110,43 @@ fn hex(bytes: impl AsRef<[u8]>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsafe_ignore_hint_requires_read_write_cache_evidence() {
+        let capture = Capture {
+            observations: BTreeMap::from([
+                (
+                    "cache/index".into(),
+                    Observation {
+                        content: true,
+                        written: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "cache/write-only".into(),
+                    Observation {
+                        written: true,
+                        ..Observation::default()
+                    },
+                ),
+                (
+                    "ordinary/input".into(),
+                    Observation {
+                        content: true,
+                        written: true,
+                        ..Observation::default()
+                    },
+                ),
+            ]),
+            writes: BTreeSet::new(),
+        };
+
+        assert_eq!(
+            unsafe_ignore_candidates(&capture),
+            ["cache".to_owned()].into()
+        );
+    }
 
     #[test]
     fn parses_workspace_reads_readdirs_and_negative_lookups() {

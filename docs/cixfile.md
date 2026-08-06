@@ -73,6 +73,21 @@ where useful, the first declaration line.
 directly in the `SERVICE`, `APP`, or `ITEM` that consumes the sources; routing local files
 through a COPY-only builder adds a name without adding a boundary.
 
+<a id="build-args"></a>
+
+### Closed build arguments
+
+`ARG NAME from value1 value2 …` declares a closed build matrix. The first value is the default;
+select another cell with `cix build --arg NAME=value`, or build the Cartesian product of all
+declared arguments with `cix build --all-args`. Each selected cell has distinct output receipts
+and resolved-statement lock identities, and runnable artifacts record the selection in the
+manifest's `buildArgs` object. An undeclared name or value is an error that prints the declared
+matrix. `--all-args` cannot be combined with `--arg`.
+
+`LET NAME = value…` is author-local substitution, not a build dimension. A scalar LET can appear
+inside a template. A multi-value LET expands to separate arguments only when `${NAME}` occupies a
+whole argv position.
+
 <a id="copy"></a>
 
 ### Unified `COPY`
@@ -154,23 +169,37 @@ Errors retain physical Cixfile line numbers. A line whose first non-whitespace c
 `#` is a comment; end-of-line comments are deliberately not special because RUN and FETCH
 arguments are shell text.
 
-RUN accepts either a one-line command or a builder-shell heredoc:
+New RUN and FETCH lines are argv-first: each whitespace-delimited value is passed directly to the
+declared program, with no implicit shell. Shell punctuation such as `;`, `>`, and `&&` is therefore
+literal argv data. Invoke a shell explicitly when shell syntax is intended. The pre-epoch
+unbraced grammar remains accepted during migration.
+
+A heredoc always declares its interpreter. Cix writes the body to a file outside `/work` and
+invokes the interpreter with that filename:
 
 ```dockerfile
-RUN <<BUILD
+RUN bash <<BUILD
 mkdir -p output
 cargo build --release --locked --offline
 cp target/release/app output/app
 BUILD
 ```
 
-The complete body is the command and therefore part of the same memo key as a one-line RUN.
-Shell comments inside the body belong to the shell. `${…}` remains build-time interpolation;
-use `$${…}` when the shell itself must receive a braced expansion.
+The interpreter and complete body are part of the node identity. Shell comments inside the body
+belong to that interpreter. `${…}` remains build-time interpolation; use `$${…}` when the shell
+itself must receive a braced expansion.
 
-Keep a one-line RUN to no more than two commands joined with `&&`. Split longer work into
-multiple RUN steps so read-set keying can cache them independently, or use a heredoc with one
-command per line when the commands must remain one step.
+Indented `WITH NAME=value` edges add an environment value to that node only. `WITH NAME` bridges
+a preceding scalar `LET NAME = value`; the value never leaks to another node.
+
+<a id="unsafe-ignore"></a>
+
+`WITH UNSAFE IGNORE path` is an explicit evidence waiver for a workdir-relative subtree. Cix
+excludes it from trace reads, changes, memo replay, volatility, pins, and final consumed-output
+seals, while leaving the warm workspace subtree available to the command. Every use prints the
+waived path. Cix may suggest a cache-shaped subtree observed as both read and written, but never
+adds or classifies an ignore automatically. Paths must remain within `/work`; ignored outputs
+cannot be consumed by a later artifact.
 
 <a id="formatting"></a>
 

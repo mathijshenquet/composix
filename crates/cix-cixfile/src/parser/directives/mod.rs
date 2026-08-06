@@ -217,6 +217,27 @@ impl Parser<'_> {
         Ok(template)
     }
 
+    pub(super) fn build_argv_templates(
+        &self,
+        argv: Vec<String>,
+        line: usize,
+        source: &str,
+    ) -> Result<Vec<Template>, ParseError> {
+        let mut templates = Vec::new();
+        for argument in argv {
+            let list = argument
+                .strip_prefix("${")
+                .and_then(|name| name.strip_suffix('}'))
+                .and_then(|name| self.lets.get(name));
+            if let Some(values) = list {
+                templates.extend(values.iter().cloned().map(Template::literal));
+            } else {
+                templates.push(self.build_template(&argument, line, source, false)?);
+            }
+        }
+        Ok(templates)
+    }
+
     #[allow(clippy::type_complexity)]
     pub(super) fn node_clauses(
         &mut self,

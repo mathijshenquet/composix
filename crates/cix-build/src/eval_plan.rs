@@ -53,12 +53,18 @@ pub enum EvalStep {
     },
     Fetch {
         command: EvalCommand,
+        environment: BTreeMap<String, EvalTemplate>,
+        #[serde(rename = "ignoredEvidence")]
+        ignored_evidence: Vec<String>,
         line: usize,
         #[serde(rename = "snapshotNarHash")]
         snapshot_nar_hash: String,
     },
     Run {
         command: EvalCommand,
+        environment: BTreeMap<String, EvalTemplate>,
+        #[serde(rename = "ignoredEvidence")]
+        ignored_evidence: Vec<String>,
         line: usize,
     },
 }
@@ -236,7 +242,13 @@ fn eval_step(builder: &str, index: usize, step: &BuildStep, lock: &LockFile) -> 
         BuildStep::Copy(copy) => EvalStep::Copy {
             copy: eval_copy(copy)?,
         },
-        BuildStep::Fetch { command, line, .. } => {
+        BuildStep::Fetch {
+            command,
+            environment,
+            ignored_evidence,
+            line,
+            ..
+        } => {
             let prefix = format!("builder:{builder}:{index}-");
             let mut matches = lock
                 .fetches
@@ -261,12 +273,28 @@ fn eval_step(builder: &str, index: usize, step: &BuildStep, lock: &LockFile) -> 
             }
             EvalStep::Fetch {
                 command: eval_command(command)?,
+                environment: environment
+                    .iter()
+                    .map(|(name, value)| Ok((name.clone(), eval_template(value)?)))
+                    .collect::<Result<_>>()?,
+                ignored_evidence: ignored_evidence.iter().cloned().collect(),
                 line: *line,
                 snapshot_nar_hash: pin.snapshot_nar_hash.clone(),
             }
         }
-        BuildStep::Run { command, line, .. } => EvalStep::Run {
+        BuildStep::Run {
+            command,
+            environment,
+            ignored_evidence,
+            line,
+            ..
+        } => EvalStep::Run {
             command: eval_command(command)?,
+            environment: environment
+                .iter()
+                .map(|(name, value)| Ok((name.clone(), eval_template(value)?)))
+                .collect::<Result<_>>()?,
+            ignored_evidence: ignored_evidence.iter().cloned().collect(),
             line: *line,
         },
     })

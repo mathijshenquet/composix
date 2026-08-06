@@ -43,6 +43,7 @@ pub(super) struct Parser<'a> {
     pub(super) inputs: BTreeMap<String, Input>,
     pub(super) lets: BTreeMap<String, Vec<String>>,
     pub(super) args: BTreeMap<String, Arg>,
+    pub(super) selected_args: BTreeMap<String, String>,
     pub(super) fetches: BTreeMap<String, Fetch>,
     pub(super) fetch_order: Vec<String>,
     pub(super) builders: BTreeMap<String, Builder>,
@@ -83,12 +84,56 @@ pub(super) struct ServiceMetadata {
 }
 
 pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
+    parse_selected(input, BTreeMap::new())
+}
+
+pub fn parse_with_args(
+    input: &str,
+    selected_args: &BTreeMap<String, String>,
+) -> Result<Cixfile, ParseError> {
+    let declared = parse(input)?;
+    for (name, value) in selected_args {
+        let Some(argument) = declared.args.get(name) else {
+            let matrix = declared
+                .args
+                .iter()
+                .map(|(name, argument)| format!("{name}=[{}]", argument.values.join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(ParseError::new(
+                1,
+                "",
+                format!(
+                    "--arg {name}={value} names no declared ARG; declared matrix: {}; see docs/cixfile.md#build-args",
+                    if matrix.is_empty() { "<none>" } else { &matrix }
+                ),
+            ));
+        };
+        if !argument.values.contains(value) {
+            return Err(ParseError::new(
+                argument.line,
+                input.lines().nth(argument.line - 1).unwrap_or_default(),
+                format!(
+                    "--arg {name}={value} is outside the declared matrix [{}]; see docs/cixfile.md#build-args",
+                    argument.values.join(", ")
+                ),
+            ));
+        }
+    }
+    parse_selected(input, selected_args.clone())
+}
+
+fn parse_selected(
+    input: &str,
+    selected_args: BTreeMap<String, String>,
+) -> Result<Cixfile, ParseError> {
     Parser {
         lines: input.lines().collect(),
         index: 0,
         inputs: BTreeMap::new(),
         lets: BTreeMap::new(),
         args: BTreeMap::new(),
+        selected_args,
         fetches: BTreeMap::new(),
         fetch_order: Vec::new(),
         builders: BTreeMap::new(),

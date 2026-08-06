@@ -69,7 +69,7 @@ pub trait EvaluationCodegen {
 #[derive(Clone, Debug)]
 pub(crate) struct FetchContext {
     pub(crate) offers: Vec<String>,
-    pub(crate) command: String,
+    pub(crate) node: ResolvedNode,
     pub(crate) imports: Vec<String>,
     pub(crate) environment: BTreeMap<String, String>,
     pub(crate) universe_identities: BTreeMap<String, String>,
@@ -78,11 +78,48 @@ pub(crate) struct FetchContext {
 #[derive(Clone, Debug)]
 pub(crate) struct BuilderContext {
     pub(crate) offers: Vec<String>,
-    pub(crate) commands: Vec<String>,
+    pub(crate) nodes: Vec<ResolvedNode>,
     pub(crate) copies: Vec<String>,
     pub(crate) imports: Vec<String>,
     pub(crate) environment: BTreeMap<String, String>,
     pub(crate) universe_identities: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub(crate) enum ResolvedCommand {
+    Legacy { command: String },
+    Argv { argv: Vec<String> },
+    Heredoc { interpreter: String, body: String },
+}
+
+impl ResolvedCommand {
+    pub(crate) fn canonical_text(&self) -> String {
+        // Same-shape stage-2 stub for the canonical-key API on track/fmtkey-impl;
+        // replace this seam through main once that track lands.
+        serde_json::to_string(self).expect("resolved command serialization cannot fail")
+    }
+
+    pub(crate) fn requires_shell(&self) -> bool {
+        matches!(self, Self::Legacy { .. })
+    }
+
+    pub(crate) fn credential_text(&self) -> String {
+        match self {
+            Self::Legacy { command } => command.clone(),
+            Self::Argv { argv } => argv.join("\n"),
+            Self::Heredoc { interpreter, body } => format!("{interpreter}\n{body}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ResolvedNode {
+    pub(crate) command: ResolvedCommand,
+    pub(crate) environment: BTreeMap<String, String>,
+    #[serde(rename = "ignoredEvidence")]
+    pub(crate) ignored_evidence: BTreeSet<String>,
 }
 
 pub(crate) struct FetchContextRequest<'a> {
@@ -130,19 +167,15 @@ impl NixEvaluation {
             request.snapshots,
         )?;
         let raw = evaluate_context(&expression)?;
-        if raw.commands.len() != 1 {
+        if raw.nodes.len() != 1 {
             bail!(
-                "internal top-level FETCH context mismatch: resolved {} commands",
-                raw.commands.len()
+                "internal top-level FETCH context mismatch: resolved {} nodes",
+                raw.nodes.len()
             );
         }
         Ok(FetchContext {
             offers: raw.offers,
-            command: raw
-                .commands
-                .into_iter()
-                .next()
-                .expect("checked command count"),
+            node: raw.nodes.into_iter().next().expect("checked node count"),
             imports: raw.imports,
             environment: raw.environment,
             universe_identities: raw.universe_identities,
@@ -167,7 +200,7 @@ impl NixEvaluation {
         cache_context(&expression, request.directory, &raw)?;
         Ok(BuilderContext {
             offers: raw.offers,
-            commands: raw.commands,
+            nodes: raw.nodes,
             copies: raw.copies,
             imports: raw.imports,
             environment: raw.environment,
@@ -310,7 +343,7 @@ impl NixEvaluation {
 struct RawContext {
     offers: Vec<String>,
     imports: Vec<String>,
-    commands: Vec<String>,
+    nodes: Vec<ResolvedNode>,
     copies: Vec<String>,
     environment: BTreeMap<String, String>,
     #[serde(rename = "universeIdentities")]

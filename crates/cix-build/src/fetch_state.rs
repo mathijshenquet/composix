@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 
+use crate::evaluation::ResolvedNode;
 use crate::memo::NeededPath;
 use crate::{workspace, Builder, FetchPin, LockFile, ScratchDir, VolatilePath};
 
@@ -87,11 +88,12 @@ impl<'directory> FetchState<'directory> {
 
     pub(crate) fn install_builder_expectations(
         lock: &mut LockFile,
+        cixfile: &crate::Cixfile,
         builder_name: &str,
         builder: &Builder,
-        commands: &[String],
+        nodes: &[ResolvedNode],
     ) -> Result<()> {
-        let mut command_index = 0;
+        let mut node_index = 0;
         for (index, step) in builder.steps.iter().enumerate() {
             match step {
                 crate::BuildStep::Env { .. } => {}
@@ -101,8 +103,12 @@ impl<'directory> FetchState<'directory> {
                     source,
                     ..
                 } => {
-                    let command = &commands[command_index];
-                    let id = crate::lock::builder_fetch_id(builder_name, index, command);
+                    let command = nodes[node_index].command.canonical_text();
+                    let id = crate::lock::resolved_statement_id(
+                        &crate::lock::builder_fetch_id(builder_name, index, &command),
+                        &command,
+                        cixfile,
+                    );
                     Self::install_expected(lock, &id, expected.as_deref(), |pin| {
                         format!(
                             "line {line}: BUILDER {builder_name} FETCH EXPECT disagrees with its recorded lock pin\n  | {source:?}\n  declared {}\n  lock records {}",
@@ -110,9 +116,9 @@ impl<'directory> FetchState<'directory> {
                             pin.nar_hash
                         )
                     })?;
-                    command_index += 1;
+                    node_index += 1;
                 }
-                crate::BuildStep::Run { .. } => command_index += 1,
+                crate::BuildStep::Run { .. } => node_index += 1,
                 crate::BuildStep::Copy(_) => {}
             }
         }
@@ -220,20 +226,16 @@ impl<'directory> FetchState<'directory> {
     pub(crate) fn consumed_path_hashes(
         workspace_path: &Path,
         needed: &BTreeMap<String, NeededPath>,
+        excluded: &BTreeSet<String>,
     ) -> Result<BTreeMap<String, String>> {
-        let mut paths = BTreeMap::new();
-        for path in needed.keys() {
-            let source = if path == "." {
-                workspace_path.to_owned()
-            } else {
-                workspace_path.join(path)
-            };
-            if !source.exists() && fs::symlink_metadata(&source).is_err() {
-                bail!("FETCH-consumed path {path:?} does not exist");
-            }
-            paths.insert(path.clone(), workspace::nar_hash(&source)?);
-        }
-        Ok(paths)
+        Ok(workspace::store_consumed_paths_excluding(
+            workspace_path,
+            needed.keys().cloned(),
+            excluded,
+        )?
+        .into_iter()
+        .map(|(path, consumed)| (path, consumed.nar_hash))
+        .collect())
     }
 
     pub(crate) fn refresh_pin(request: PinRefreshRequest<'_>) -> Result<FetchPin> {
