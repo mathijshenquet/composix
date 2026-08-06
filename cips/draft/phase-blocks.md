@@ -70,21 +70,27 @@ SERVICE web {
 - Migration: mechanical repo-wide sweep (corpus/examples/tour),
   alpha-cheap, same class as the ENV-grammar sweep.
 
-## 4. Open questions
+## 4. Open questions — resolutions (Mathijs review, 2026-08-06)
 
-- **Nesting**: compose-side subtrees and ITEM-in-context cases — do
-  any current constructs nest phases, and if so do braces nest with
-  them, or is single-level explicitly the rule?
-- **Shorthand**: Caddy allows one-line blocks; do we want
-  `SERVICE probe { EXEC true }` or is multi-line always canonical
-  (fmt could expand one-liners)?
-- **Epoch coupling**: land together with nodes-and-edges as one
-  language epoch (one corpus sweep, one migrate.md rewrite) or as a
-  separate earlier/later track? One epoch means one round of churn;
-  separate means smaller reviewable steps.
-- **Error ergonomics**: the unclosed-brace diagnostic must beat
-  today's silent phase-absorption — what does the parser say when a
-  `}` is missing at EOF?
+- **Nesting** — RESOLVED: single-level is explicitly the rule for
+  now. Braces appear at phase level only; no construct nests phases
+  in v1.
+- **Shorthand** — RESOLVED: the parser rejects nothing on whitespace
+  grounds — one-line blocks like `SERVICE probe { EXEC true }` parse
+  fine, because layout is fmt's domain, not the grammar's (the same
+  principle as inline WITH/EXPECT clauses in nodes-and-edges). `cix
+  fmt` canonicalizes to multi-line always; single-line blocks are
+  niche enough that no compact canonical form is worth carrying.
+- **Epoch coupling** — RESOLVED: land together with nodes-and-edges
+  and build-args as one language epoch — one corpus sweep, one
+  migrate.md rewrite, one round of churn.
+- **Error ergonomics** — RESOLVED (shape; details to implementation):
+  a missing `}` is a parse ERROR, never silent absorption — the
+  diagnostic names the unclosed block's opening line ("BUILDER
+  runtime opened at line 3 is never closed"). With single-level
+  blocks the repair is unambiguous (exactly one block can be open at
+  EOF), so fmt's tolerant mode may auto-insert the close as a fix —
+  the parser itself stays strict.
 
 ## Effort
 

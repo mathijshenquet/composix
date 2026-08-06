@@ -187,18 +187,46 @@ heredoc; the ~20
 variable-ENVs become LETs (their sha-values largely dissolve into
 lock pins); migrate.md teaches the boundary rule in one sentence.
 
-## 4. Open questions
+## 4. Open questions — resolutions (Mathijs review, 2026-08-06)
 
 - **Heredoc interpreter**: mandatory (`RUN bash <<EOF`) — a bare
   `RUN <<EOF` has no interpreter to name; confirm.
-- **EXPECT-as-clause migration**: do inline `FETCH … EXPECT` suffixes
-  stay valid alongside the clause position, or does the sweep move
-  all of them?
-- **FETCH normalization tails**: the `&& chmod 644 && touch -d @0`
-  idiom keeps forcing heredocs around single-command FETCHes — promote
-  to FETCH options (`FETCH … NORMALIZE`) now or later?
-- **LET list values** (later): fish-style list expansion into argv
-  elements is the growth path that ENV structurally can never follow
-  (strings-only env boundary) — out of v1, recorded as direction.
-- **Effort/staging**: parser + executor + sweep is M-L; whether the
-  LET/ARG/ENV triad lands together with argv-RUN or as two tracks.
+- **EXPECT-as-clause migration** — RESOLVED: a formatting concern, not
+  a grammar break. Clauses (WITH and EXPECT alike) may be written
+  inline on the node line; `cix fmt` canonicalizes to the indented
+  clause position (multi-line under the node). The migration sweep is
+  therefore fmt-driven — no parse-validity cliff, no flag day for
+  inline suffixes.
+- **FETCH normalization tails** — RESOLVED (direction, pending
+  Mathijs's confirm on the mechanism): no `NORMALIZE` directive.
+  Normalize always, at the fingerprint/seal layer, by adopting NAR
+  semantics. Facts grounding this: a nix NAR records only file type,
+  content, the executable bit, and symlink targets — mtime, ownership,
+  and non-exec mode bits do not exist in it, and store import
+  normalizes them away (mtime→1, perms→444/555). Our `narHash`/
+  `snapshotNarHash` pins already have this invariance, but the
+  per-path pin hash (`read_hash`, cix-build/src/trace.rs) folds the
+  FULL `st_mode` bytes in, and lock-side fingerprints carry
+  dev/inode/mtime — both strictly broader than NAR, which is exactly
+  why `&& chmod 644 && touch -d @0` tails exist in the corpus.
+  Aligning every fingerprint to NAR semantics (content + exec bit +
+  symlink target, nothing else) makes the tails vacuous; migration
+  deletes them. This is the same repair as the fmt-key-neutrality
+  draft's ntfy exhibit (sourceHash churn from dev/inode fingerprints
+  with identical content) — one keying-invariance fix serves both.
+- **LET list values** — RESOLVED (syntax reserved, feature still out
+  of v1): unify enumeration syntax with ARG so the grammar has ONE
+  list form. `LET FLAGS = [a, b, c]` binds a list value expanding
+  fish-style into argv elements (the growth path env structurally
+  cannot follow); ARG's closed matrix reuses the same literal —
+  `ARG VERSION from [1.24.2, 1.25.1]` — replacing the earlier
+  `1.24.2 | 1.25.1` alternation sketch. ARG = select ONE from a
+  declared list; LET-list = bind ALL. Prior work: fish lists expand
+  to argv elements natively; nix/nushell lists are the same shape;
+  nothing in prior work couples one-of and all-of into one construct,
+  so keeping them as two keywords over one literal is the consistent
+  cut. v1 ships ARG-with-list-matrix; LET-lists follow when dogfood
+  demands.
+- **Effort/staging** — RESOLVED: nodes-and-edges + phase-blocks +
+  build-args land together as ONE language epoch (one corpus sweep,
+  one migrate.md rewrite); the LET/ARG/ENV triad is part of it.

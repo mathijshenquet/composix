@@ -1,9 +1,11 @@
-# build-args — parameterizable Cixfiles: the design space (v3)
+# build-args — parameterizable Cixfiles: the design space (v4)
 
-Status: **draft v3** (2026-08-05; v2 was the prior-art round after v1's
-state-skew rejection; v3 folds in Mathijs's review of v2: partial
-locking yes, coupled args probably not, args×tagging is a real open
-question.)
+Status: **draft v4** (2026-08-06; v2 was the prior-art round after v1's
+state-skew rejection; v3 folded in Mathijs's review of v2: partial
+locking yes, coupled args probably not; v4 works out args×tagging as a
+declared `TAG` line after Mathijs's v3 review called the CLI-interpolation
+sketch janky. Lands together with nodes-and-edges + phase-blocks as one
+language epoch.)
 
 ## 1. The problem
 
@@ -129,30 +131,67 @@ Rare enough to leave out of v1 of the feature; if it bites, the
 answer is enumerating pairs as single values rather than a coupling
 construct across args.
 
+### Args × tagging: the declared `TAG` line (v4 pass)
+
+The v3 sketch (CLI interpolation, `--tag 'app:${VERSION}'`) kept
+tagging freehand — the Docker shape, and the janky part. The v4 cut
+inverts it: **the file declares its own identity.**
+
+Docker is the outlier here, not the norm. Everywhere else the
+artifact's name lives in source: Cargo.toml's name+version, Maven
+coordinates, package.json, nix flake output names — and Docker's own
+ecosystem reinvented it the moment builds got matrices:
+`docker buildx bake` declares `tags = ["app:${VERSION}"]` in
+source-side HCL. The freehand `-t` survives only where there is no
+file to declare it in.
+
+Proposal:
+
+- **`TAG <ref>` lines in the Cixfile**, interpolating LET/ARG
+  (`TAG app:${VERSION}`, and multiple TAG lines for aliases —
+  `TAG app:latest`). Today's tag surface is CLI-only
+  (`BuildOptions.tag` → the registry's `tag_artifact`); TAG feeds
+  that same seam from source.
+- **`cix build` applies declared tags by default**; `--all-args`
+  yields tag-per-cell automatically because interpolation resolves
+  per cell — the CI matrix story becomes declaration, not flag
+  choreography. `--tag` stays as an explicit additional/override
+  move (the `--override-input` shape: visible, never ambient).
+- **Collision guard**: two cells of one invocation resolving to the
+  same tag is an error, not a silent last-writer-wins — an ARG-free
+  `TAG app:latest` alias is fine standalone but must be paired with
+  a per-cell tag under `--all-args` (or explicitly floated, the
+  docker `latest` convention; which default is a taste call below).
+- **Identity is not content**: TAG lines should not participate in
+  build keying/sourceHash — retagging must not rebuild. Needs an
+  explicit carve-out in the fingerprint, and is consistent with the
+  manifest recording selection (the artifact knows which cell it is;
+  the tag names it outward).
+
 ## 4. Open questions
 
-- **Syntax** for the enumeration and the default: first value is the
-  default? explicit marker? is a no-default ARG (operator must pick)
-  wanted, mirroring `ENV … required` (CIP-100 family)?
-- **Args × tagging** (Mathijs, v2 review: "waarschijnlijk wil je ook
-  iets met args en tagging doen, de vraag is wat"). A matrix Cixfile
-  produces per-cell artifacts that want per-cell tags — the Docker
-  idiom is `--build-arg VERSION=… -t app:…` chosen freehand at build
-  time. Sketch: let the tag surface interpolate args
-  (`cix build --arg VERSION=1.25 --tag 'app:${VERSION}'`, or a
-  declared tag template in the file so `--all-args` yields
-  tag-per-cell automatically); the manifest already records the
-  selection, so `cix tag`/`inspect` can resolve it after the fact.
-  Which of these (CLI interpolation, declared template, both) is the
-  right amount of surface is the open call.
+- **Syntax** for the enumeration and the default: list-literal matrix
+  per the nodes-and-edges resolution (`ARG VERSION from [1.24.2,
+  1.25.1]` — one enumeration form shared with future LET-lists);
+  still open: first value as default vs explicit marker, and whether
+  a no-default ARG (operator must pick) is wanted, mirroring
+  `ENV … required` (CIP-100 family).
+- **TAG placement and namespace**: prelude (file identity) vs APP
+  block (artifact identity) — prelude proposed; and how TAG refs
+  interact with index namespaces/qualified refs.
+- **TAG × `latest`**: under `--all-args`, is an ARG-free alias tag an
+  error unless a per-cell tag exists (strict), or does it float to
+  the default cell (docker convention)?
 - **Twins vs args**: when both could serve, what's the guidance line?
   (Proposal: args for same-shape variants of one artifact; twins for
   genuinely different build shapes.)
 - **Acceptance test**: does the gitea version-stamp case translate to
   a declared version list cleanly — and does the CI-matrix story
-  (pin/build every declared cell) become a one-liner worth shipping
-  (`--all-args`)?
+  (pin/build every declared cell + declared TAG template) become the
+  one-liner it promises?
 
 Resolved in review (Mathijs, 2026-08-05): the lock is partial per
 cell with first-build-pins semantics — eager full-matrix locking is
-rejected as too heavy; coupled args stay out of v1.
+rejected as too heavy; coupled args stay out of v1. (2026-08-06):
+the epoch trio lands together; tagging goes through a declared TAG
+line — this v4 works that out for the next review round.

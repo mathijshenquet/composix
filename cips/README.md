@@ -37,16 +37,6 @@ for new decisions.
   range. First instances: CIP-85 (compose tree, D40–D46) and CIP-86
   (netns realization, D49).
 
-## CIP-light (retired as a standing format, 2026-08-05)
-
-CIP-light was minted 2026-08-04 as a one-time shorthand for the
-open-questions disposition batch of that day — small items that needed
-one screen then. It was never meant as "write shorter CIPs from now
-on" (Mathijs, 2026-08-05): the four-chapter form is the norm for all
-new drafts and gives strictly better decisions. Existing lights remain
-valid records; a light that resurfaces gets expanded to four chapters
-before its next decision round.
-
 ## Template
 
 Four chapters (per Mathijs's format), plus one on adoption:
