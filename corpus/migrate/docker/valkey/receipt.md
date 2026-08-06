@@ -1,6 +1,6 @@
 # Valkey migration receipt
 
-2026-08-05 independent re-verification. `corpus/migrate/fetch.sh valkey`
+2026-08-06 independent re-verification. `corpus/migrate/fetch.sh valkey`
 restored `valkey-io/valkey-container` at
 `b2ecf7da2cf3c7ed28869e9af0709876f0991497`, context `8.1/alpine`.
 
@@ -8,11 +8,21 @@ restored `valkey-io/valkey-container` at
 8.1.9 source build completed and the system-manager probe value was exactly
 `PONG` from `valkey-cli PING` on port 6379.
 
-`target/debug/cix build --cold corpus/migrate/docker/valkey#valkey` exited 1
-after the full compile. The value-checked diagnostic is a warm/cold read-set
-divergence at `libbacktrace/.libs/stVX6SFe`: warm recorded `Some(Absent)` and
-cold recorded `None`. This is retained as a CIP-87 language defect, not hidden
-by updating a lock.
+The pre-fix cold control synchronously exited 1 after the full compile at
+`libbacktrace/.libs/stVX6SFe`: warm recorded `Some(Absent)` and cold recorded
+`None`. Targeted syscall capture attributed the random file to a successful
+`openat(..., O_RDWR|O_CREAT|O_EXCL, 0600)`. A second random `conf*` exhibit
+showed that PID-namespace child IDs prevented inherited-cwd attribution for
+`mkdir`, after which reads below that same-step-created directory entered the
+read set.
+
+With both observation-classification defects fixed, a fresh-workspace
+`target/debug/cix build --update-lock build
+corpus/migrate/docker/valkey#valkey` synchronously exited 0, followed by
+`target/debug/cix build --cold corpus/migrate/docker/valkey#valkey` exit 0.
+Both produced `/nix/store/fgm45ck2453mrpmhpv4hqhc64kcwa3f6-cix-item-valkey`;
+the refreshed lock retains the tarball inputs and omits the generated random
+paths from the recorded read set.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/49x5zalp4g2av97z7khzbyf7fzrmjz8j-cix-item-valkey`.

@@ -56,17 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / httpd</nav>
   <h1>docker / httpd</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 File logging through LOGDIR replaces sandbox-inaccessible fd symlinks; faithful cold replay exposes a generated-sed-path read-set divergence · <strong>Evidence:</strong> build/runtime and cold-read-set receipt</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 File logging through LOGDIR replaces sandbox-inaccessible fd symlinks; the old generated-sed-path cold exhibit is stale under the self-write fix and awaits regeneration · <strong>Evidence:</strong> build/runtime and stale cold-read-set receipt</p>
   <p class="status"><strong>Receipt status:</strong> Faithful 2.4.68 build and It works! HTTP probe pass; dissolved twin builds cold · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/httpd/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/httpd/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> stale — regenerate with self-write trace hygiene</p>
     <ul>
       <li>The faithful 2.4.68 build and HTTP <code>It works!</code> probe pass. nixpkgs&#39; APR/APR-util lacks LDAP support, and the configured source build does not provide several Docker-adjacent modules (<code>deflate</code>, <code>xml2enc</code>, <code>proxy_html</code>, <code>socache_dc</code>, <code>md</code>, <code>privileges</code>, <code>systemd</code>); none is claimed by the probe. → case</li>
       <li><code>/proc/self/fd/1</code>, <code>/proc/self/fd/2</code>, <code>/dev/stdout</code>, and <code>/dev/stderr</code> are unavailable to Apache in the systemd sandbox. The service writes file logs through declared <code>LOGDIR /var/log/httpd</code> instead of Docker&#39;s fd symlinks. → prompt</li>
       <li>A stale GPG agent socket in the persistent workspace is not snapshot-safe; the FETCH clears <code>.gnupg</code>, and a pre-existing stale socket had to be moved aside before the unqualified build could run. → evidence</li>
-      <li>Faithful cold replay exits 1 after build output generation because the recorded warm read at <code>output/usr/local/apache2/conf/extra/sedAsylf1</code> is <code>Some(Absent)</code> while cold records <code>None</code>. → language (CIP-87)</li>
+      <li>The 2026-08-05 faithful cold replay exited 1 at the generated <code>output/usr/local/apache2/conf/extra/sedAsylf1</code> path. That exhibit matches the same-step-created random-path class fixed by the Valkey cold-trace track; regenerate before retaining or clearing the language finding. → language (CIP-87)</li>
       <li>The dissolved twin deliberately uses nixpkgs&#39; Apache HTTPD rather than the faithful source build. → evidence</li>
     </ul>
   </aside>
