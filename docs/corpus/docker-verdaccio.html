@@ -56,14 +56,15 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / verdaccio</nav>
   <h1>docker / verdaccio</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Runtime layout is translated but unproved; a stable/rebuildable package-to-integrity index mechanism is missing · <strong>Evidence:</strong> build receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Its pnpm CAS is deterministic, but bare-CAS offline replay fails because the consumed volatile package index is not reconstructable · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The traced Cix install exceeded its 20-minute bound, and offline production deploy separately lacks package-mirror metadata; no item/runtime is claimed · <strong>Evidence:</strong> frozen-store validation and route walls</p>
+  <p class="status"><strong>Receipt status:</strong> pnpm 11.17 replays a read-only whole store network-silently twice and produces byte-identical 31-package build output; the actual Cix route seals the same artifact class · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/verdaccio/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
-      <li>The pnpm 11.1.2 <code>files/</code> CAS is deterministic across independent FETCHes, but bare-CAS offline installs fail with <code>ERR_PNPM_NO_OFFLINE_TARBALL</code>: pnpm consumes a volatile SQLite package index and cannot regenerate it from CAS bytes. Existing FETCH/COPY/RUN cannot form an honest cold-replayable artifact; no hash is invented. → case</li>
+      <li>The translation upgrades pnpm 11.1.2 to pinned nixpkgs pnpm 11.18.0: pnpm upgraded past upstream&#39;s <code>packageManager</code> pin for frozenStore read-only-store support; pre-11.7 pnpm structurally cannot install from a pinned store. The whole fetched store (<code>files/</code> plus <code>index.db</code>) is retained; no store bytes are stripped, normalized, or regenerated. → case</li>
+      <li>The full frozenStore route reaches the build, but legacy production deploy still requires package-mirror metadata that <code>pnpm fetch</code> does not put in the sealed store (<code>ERR_PNPM_NO_OFFLINE_META</code> for <code>@verdaccio/e2e-cli@2.10.1</code>). → case</li>
       <li>The ordinary monorepo build produced no item in this assembly; its runtime and <code>/-/ping</code> remain unproved. Fixed UID/group and init-wrapper behavior dissolve into systemd identity/supervision. → case</li>
     </ul>
   </aside>
@@ -1860,14 +1861,25 @@ Build context: repository archive in context/ (Dockerfile COPY .).
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 <span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> build
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.python3}</span> <span class="tok-interpolation">${pkgs.linuxHeaders}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span>
+<span class="tok-directive">BUILDER</span> pnpm-store
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
   <span class="tok-directive">ENV</span> NODE_ENV=development
   <span class="tok-directive">ENV</span> VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
-  <span class="tok-directive">FETCH</span> rm -rf node_modules &amp;&amp; pnpm config set registry $VERDACCIO_BUILD_REGISTRY &amp;&amp; pnpm install --frozen-lockfile --ignore-scripts
+  <span class="tok-directive">FETCH</span> pnpm --pm-on-fail=ignore config set registry $VERDACCIO_BUILD_REGISTRY &amp;&amp; pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+<span class="tok-directive">BUILDER</span> build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.python3}</span> <span class="tok-interpolation">${pkgs.linuxHeaders}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span>
+  <span class="tok-directive">ENV</span> NODE_ENV=development
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/ .
+  <span class="tok-directive">RUN</span> &lt;&lt;INSTALL
+<span class="tok-heredoc">pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project</span>
+<span class="tok-heredoc">pnpm config set frozen-store true --location project</span>
+<span class="tok-heredoc">pnpm config set store-dir </span><span class="tok-interpolation">${pnpm-store}</span><span class="tok-heredoc">/pnpm-store --location project</span>
+<span class="tok-heredoc">pnpm install --offline --frozen-lockfile --frozen-store --ignore-scripts</span>
+<span class="tok-directive">INSTALL</span>
   <span class="tok-directive">RUN</span> pnpm run build
-  <span class="tok-directive">RUN</span> pnpm --filter verdaccio --prod --legacy deploy /work/deploy
+  <span class="tok-directive">RUN</span> pnpm --filter verdaccio --prod --legacy deploy --offline /work/deploy
 
 <span class="tok-directive">SERVICE</span> verdaccio
   <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span>
@@ -8256,6 +8268,35 @@ the synchronous 360-second timeout (exit 124); see
 `sixth-exit-status`. No item or runtime probe is claimed. The precise missing
 mechanism is a stable or offline-reconstructable package-to-integrity index;
 pnpm&#39;s CAS alone is insufficient.
+
+## 2026-08-06 frozenStore route
+
+A Verdaccio-shaped validation upgraded the package manager to pnpm 11.17.0
+under Node 24.16.0, fetched the complete store, and sealed all 56,280 CAS files
+plus `v11/index.db` at
+`/nix/store/4fphf7lk69cdifd47syfm7ndx8ibf9mk-fetched-store` (NAR hash
+`sha256-cKx9qd/dS59GaT6iqf8BaFhWAoXHCKwi9JV2ARgwIQo=`). Two fresh same-path
+`install --offline --frozen-lockfile --frozen-store --ignore-scripts` commands
+both exited 0. Separate strace captures contained no AF_INET/AF_INET6
+operation, the sealed store hash remained unchanged, and both ensuing builds
+produced byte-identical NAR hashes for all 31 package `build/` directories.
+Foreground evidence is `/var/tmp/cix-pnpm-frozenstore.WWK5Uz`.
+
+The raw `node_modules` trees are not byte-identical: pnpm writes a fresh
+`.modules.yaml` `prunedAt` and `.pnpm-workspace-state-v1.json`
+`lastValidatedTimestamp`. Those bytes were neither removed nor normalized;
+the application build outputs are the identity receipt. A legacy production
+deploy using the sealed store still exits 1 at `ERR_PNPM_NO_OFFLINE_META` for
+`@verdaccio/e2e-cli@2.10.1`.
+
+The translated cix route uses pinned nixpkgs pnpm 11.18.0 and the earlier
+builder&#39;s immutable whole-store path. Its double-fetch probe completed in
+66,874 ms and sealed
+`/nix/store/3cplwgxzn3pxf7m660478z2d5hh8hqxg-cix-build-consumed`, then the
+traced offline install remained active until the synchronous 1,200-second
+bound exited 124. This is a cix trace-cost wall; no item or runtime probe is
+claimed. Exact evidence is
+`/var/tmp/cix-pnpm-frozenstore-verdaccio-route.HuCHfk`.
 </code></pre>
       </details>
       <section class="file">

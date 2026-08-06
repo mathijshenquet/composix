@@ -225,6 +225,16 @@ independent ingredient; a `FETCH` inside a builder advances that builder's work 
 Split independent network operations so each has its own pin. Do not hide a clone, dependency
 download, and build in one shell command.
 
+Import `${pkgs.cacert}` for ecosystem fetches that use public TLS. Without a declared CA bundle,
+certificate failures may be retried until they masquerade as a registry hang.
+
+For pnpm, prefer its native read-only-store protocol over extracting or rewriting cache bytes.
+With pnpm 11.7 or newer and Node 22.15 or newer, FETCH the complete store (`files/` plus
+`index.db`) in one builder, then install from that immutable binder in another builder with
+`frozen-store=true`, `--offline`, and `--frozen-lockfile`. Never strip, normalize, or regenerate
+store metadata. If upstream pins an older pnpm, record the version override as a migration
+deviation; see [Read-only pnpm stores](cixfile.md#pnpm-frozen-store).
+
 When upstream publishes a checksum, use it to establish and review a stable fetched artifact,
 then declare that output's SRI hash with `EXPECT`:
 

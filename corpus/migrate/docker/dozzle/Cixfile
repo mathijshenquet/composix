@@ -1,13 +1,24 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER web
-  IMPORT ${pkgs.bash} ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.cacert}
+BUILDER pnpm-store
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.cacert}
   COPY ${src}/context/pnpm-lock.yaml .
   COPY ${src}/context/pnpm-workspace.yaml .
-  FETCH pnpm fetch --ignore-scripts
   COPY ${src}/context/package.json .
-  RUN pnpm install --offline --ignore-scripts
+  FETCH pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+BUILDER web
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.cacert}
+  COPY ${src}/context/pnpm-lock.yaml .
+  COPY ${src}/context/pnpm-workspace.yaml .
+  COPY ${src}/context/package.json .
+  RUN <<INSTALL
+pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project
+pnpm config set frozen-store true --location project
+pnpm config set store-dir ${pnpm-store}/pnpm-store --location project
+pnpm install --offline --frozen-lockfile --frozen-store --ignore-scripts
+INSTALL
   COPY ${src}/context/vite.config.ts .
   COPY ${src}/context/tsconfig.json .
   COPY ${src}/context/.prettierrc.cjs .

@@ -191,22 +191,34 @@ impl Sandbox {
         io::stderr().write_all(&output.stderr)?;
         if !output.status.success() {
             let mut failure = failure_message(output.status, request.run_network);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let trace_text = fs::read_to_string(&trace_path).ok();
             if env_is_missing {
                 failure.push_str(
                     "\nhint: /usr/bin/env is a fixed alias to /bin/env; IMPORT ${pkgs.coreutils} or another package that supplies env",
                 );
             }
-            if let Ok(trace_text) = fs::read_to_string(&trace_path) {
+            if let Some(trace_text) = &trace_text {
                 if let Some(hint) = fhs::failure_hint(
                     request.workdir,
                     request.imports,
-                    &trace::parse_failure(&trace_text),
+                    &trace::parse_failure(trace_text),
                 ) {
                     failure.push('\n');
                     failure.push_str(&hint);
                 }
             }
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            for hint in failure_problem_hints(
+                output.status.code(),
+                request.run_network.is_none(),
+                &stdout,
+                &stderr,
+                trace_text.as_deref(),
+            ) {
+                failure.push('\n');
+                failure.push_str(hint);
+            }
             if !stderr.trim().is_empty() {
                 failure.push_str("\ncommand stderr:\n");
                 failure.push_str(stderr.trim());
@@ -315,4 +327,56 @@ pub(crate) fn failure_message(
         );
     }
     message
+}
+
+pub(crate) fn failure_problem_hints(
+    exit_code: Option<i32>,
+    fetch: bool,
+    stdout: &str,
+    stderr: &str,
+    trace: Option<&str>,
+) -> Vec<&'static str> {
+    let mut hints = Vec::new();
+    if fetch
+        && exit_code == Some(124)
+        && trace.is_some_and(|trace| {
+            trace
+                .lines()
+                .rev()
+                .take(256)
+                .filter(|line| hashed_certificate_probe_miss(line))
+                .take(3)
+                .count()
+                == 3
+        })
+    {
+        hints.push(
+            "hint: TLS-trust masquerade: this FETCH timed out after repeated failed certificate probes; IMPORT ${pkgs.cacert} (or another declared CA bundle); see docs/cixfile.md#fetch-tls-trust",
+        );
+    }
+    if [stdout, stderr].iter().any(|output| {
+        output.contains("ERR_PNPM_NO_OFFLINE_TARBALL") || output.contains("ERR_PNPM_FROZEN_STORE_")
+    }) {
+        hints.push(
+            "hint: pnpm offline/store wall: seal the complete fetched store and install with frozen-store=true, --offline, and --frozen-lockfile using pnpm >=11.7 and Node >=22.15; see docs/cixfile.md#pnpm-frozen-store",
+        );
+    }
+    hints
+}
+
+fn hashed_certificate_probe_miss(line: &str) -> bool {
+    if !line.contains("ENOENT") {
+        return false;
+    }
+    let Some(after_certs) = line.split("/ssl/certs/").nth(1) else {
+        return false;
+    };
+    let name = after_certs
+        .split(['"', '/', ' ', ','])
+        .next()
+        .unwrap_or_default();
+    let Some(hash) = name.strip_suffix(".0") else {
+        return false;
+    };
+    hash.len() == 8 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
