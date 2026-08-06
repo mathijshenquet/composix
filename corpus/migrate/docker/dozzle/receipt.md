@@ -22,3 +22,22 @@ lock entries, recorded 52 IPv6 and 38 IPv4 connects, and saw every package on
 fetch attempt 1 with no TLS errors. The old symptom was a cacert masquerade,
 not IPv6 fallback. This receipt claims only the FETCH diagnosis; the full
 frontend and runtime were not rerun.
+
+## 2026-08-06 frozenStore route
+
+The translation retains upstream's already-eligible pnpm 11.17.0 contract by
+selecting pinned nixpkgs pnpm 11.18.0, fetches the complete store, and points a
+separate offline builder at that immutable instance with `frozen-store=true`.
+The actual Cix update probe completed both fetches in 15,041 ms, verified all
+818 lock entries, and reported volatility only in pnpm verification metadata,
+`.modules.yaml`, and `v11/index.db`. It sealed 20,175 CAS files plus the
+read-only index at
+`/nix/store/44apdds69qhw5gr23cby7416mm1m09xx-cix-build-consumed` (NAR hash
+`sha256-u2dxDDHhs2yvNCov2ychAQ1Vn4NlzX63ouCFjTZb4PU=`).
+
+The downstream offline frozen install then remained active under Cix's read
+tracer until the foreground command synchronously exited 124 at its
+1,200-second bound. No pnpm/store error was emitted. This is a trace-cost wall,
+not a failed store seal or a green frontend/item/runtime claim. Exact evidence
+is `/var/tmp/cix-pnpm-frozenstore-dozzle-route.MqWXUV`; no lock change is
+retained.

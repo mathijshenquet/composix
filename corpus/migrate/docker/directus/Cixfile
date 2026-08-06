@@ -1,17 +1,24 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
-  IMPORT ${pkgs.nodejs_22} ${pkgs.pnpm_10} ${pkgs.python311} ${pkgs.python311Packages.setuptools} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.pkg-config} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.gnugrep} ${pkgs.glibc} ${pkgs.cacert}
-  ENV npm_config_python=/bin/python3.11
-  ENV NODE_OPTIONS=--max-old-space-size=8192
-  ENV COREPACK_ENABLE_PROJECT_SPEC=0
+BUILDER pnpm-store
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_22} ${pkgs.bash} ${pkgs.cacert}
   COPY ${src}/context/package.json .
   COPY ${src}/context/pnpm-lock.yaml .
   COPY ${src}/context/pnpm-workspace.yaml .
-  FETCH pnpm fetch --frozen-lockfile
+  FETCH pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+BUILDER build
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_22} ${pkgs.python311} ${pkgs.python311Packages.setuptools} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.pkg-config} ${pkgs.bash} ${pkgs.coreutils} ${pkgs.gnused} ${pkgs.gnugrep} ${pkgs.glibc} ${pkgs.cacert}
+  ENV npm_config_python=/bin/python3.11
+  ENV NODE_OPTIONS=--max-old-space-size=8192
   COPY ${src}/context/. .
-  RUN pnpm install --recursive --offline --frozen-lockfile
+  RUN <<INSTALL
+pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project
+pnpm config set frozen-store true --location project
+pnpm config set store-dir ${pnpm-store}/pnpm-store --location project
+pnpm install --recursive --offline --frozen-lockfile --frozen-store --ignore-scripts
+INSTALL
   RUN npm_config_workspace_concurrency=2 pnpm run build
   RUN node -e 'const fs=require("fs"), p=JSON.parse(fs.readFileSync("package.json")); delete p.devDependencies; fs.writeFileSync("package.json", JSON.stringify(p))'
   RUN pnpm --filter directus deploy --legacy --prod --offline deploy

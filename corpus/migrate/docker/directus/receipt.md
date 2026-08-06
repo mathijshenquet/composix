@@ -47,3 +47,22 @@ same full-checkout validation, exit 0; its receipt is
 exists (including the current pin), and source incoherence does not gate the
 CIP-107 narHash regenerations. The separately observed offline-deploy metadata
 wall remains; no Directus item or runtime probe is claimed here.
+
+## 2026-08-06 frozenStore store seal
+
+The translation now deliberately upgrades upstream pnpm 10.27.0 to pinned
+nixpkgs pnpm 11.18.0, the first eligible major for pnpm's read-only-store
+route. Under Node 22.23.2, `pnpm fetch --frozen-lockfile --ignore-scripts`
+exited 0, produced 80,763 CAS files plus `v11/index.db`, and the complete
+store was sealed at
+`/nix/store/2wc8j4rhf7130m1w6vf99w6ws6m0bzj2-fetched-store`. Its pre-seal and
+sealed NAR hashes both equal
+`sha256-NpISeaQzBL0Mxkq2mFCBOSJmP/OO4C9+Z+J5QN+6EnA=`; `index.db` is
+read-only in the sealed path. Foreground evidence is
+`/var/tmp/cix-pnpm-frozenstore-directus.JAsoAo`.
+
+An earlier attempted receipt is invalid: putting Node before pnpm in a Nix
+shell let Corepack honor the project pin and run 10.27.0. The valid rerun
+selected the pinned 11.18.0 executable explicitly and value-checked both
+version lines before fetching. This receipt claims fetch plus whole-store
+seal only, as required; it does not claim a Directus item or runtime probe.

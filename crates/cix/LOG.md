@@ -1470,3 +1470,159 @@
   refs/heads/track/tourdet-teardown` returned
   `d5ede6e613f1e2210533db262e5aeab5e0799c97`, equal to local `HEAD`, and the
   worktree is clean. No merge was performed.
+
+## 2026-08-06 — pnpm frozenStore route
+
+- 2026-08-06T09:01:17Z — Started `track/pnpm-frozenstore` from a clean
+  worktree. Read the track spec and pnpm-wall charter: first prove pnpm's
+  native whole-store `frozenStore` mechanism with a Verdaccio-shaped pnpm
+  >=11.7 override, Node >=22.15, a read-only fetched store, and two independent
+  network-silent installs with identical results. That receipt gates all
+  mechanism work; an upstream-guarantee failure is a valid final wall. If it
+  passes, next are the three recorded corpus routes, conservative failure
+  hints at existing reporting seams, affected ledgers/browser, the complete
+  agent gate, and a clean commit without merge.
+
+### FRICTION
+
+- 2026-08-06T09:01:17Z — The inherited append-only cix journal ends with a
+  prior track whose timestamps were corrected after entries had been written
+  ahead of wall clock. This track obtains timestamps synchronously before
+  appending and treats only observed exit values as receipts. → process
+
+- 2026-08-06T09:18:03Z — **Validation gate passed.** Exact Verdaccio context,
+  Node 24.16.0, and the explicit corepack pnpm 11.17.0 override fetched all
+  56,280 CAS files plus `v11/index.db`. `nix-store --add` sealed that complete
+  instance at `/nix/store/4fphf7lk69cdifd47syfm7ndx8ibf9mk-fetched-store`
+  with NAR hash `sha256-cKx9qd/dS59GaT6iqf8BaFhWAoXHCKwi9JV2ARgwIQo=`.
+  Two fresh same-path `install --offline --frozen-lockfile --frozen-store
+  --ignore-scripts` commands each exited 0; separate strace captures contained
+  no AF_INET/AF_INET6 operation. Both ensuing builds exited 0 and all 31
+  package `build/` outputs had the same per-directory NAR hashes (manifest
+  SHA-256 `d84d281b562e25d8dce86cf0078cedf0ebaad5b4a038eaf83f9d60c6c15fb78b`).
+  The sealed-store NAR hash remained byte-identical after both installs and
+  builds. Foreground evidence is `/var/tmp/cix-pnpm-frozenstore.WWK5Uz`.
+
+### FRICTION (continued)
+
+- 2026-08-06T09:18:03Z — The first identity check deliberately failed: fresh
+  installs at different absolute paths embed those paths in generated command
+  shims. Repeating at the same absolute path still gave distinct whole
+  `node_modules` NARs, confined by recursive diff to pnpm's own
+  `.modules.yaml` `prunedAt` and `.pnpm-workspace-state-v1.json`
+  `lastValidatedTimestamp`; package symlink graphs matched. No byte was
+  normalized or removed. The acceptance result is the byte-identical 31-part
+  application build output, while the raw unconsumed install bookkeeping is
+  retained as a reproducibility warning for the cix route. → ecosystem
+- 2026-08-06T09:18:03Z — A first deploy probe used pnpm's ambient default
+  store because only the install command had received `--store-dir`; it is
+  invalid for the sealed-store route. After recording `store-dir` and
+  `frozen-store=true` through pnpm's project config, the deploy still exited 1
+  at `ERR_PNPM_NO_OFFLINE_META` for `@verdaccio/e2e-cli@2.10.1`. That is a
+  precise Verdaccio full-route wall to carry into the corpus leg, not a
+  validation-gate failure: both required installs and builds above are green.
+  → ecosystem
+
+- 2026-08-06T09:51:28Z — The Verdaccio translation now separates a
+  `pnpm-store` FETCH from the offline builder, orders pinned nixpkgs pnpm
+  11.18.0 ahead of Corepack, and addresses the earlier builder's immutable
+  store path with pnpm's own `frozen-store=true` configuration. Its foreground
+  cix route completed both fetch probes in 66,874 ms, observed volatility only
+  in pnpm verification metadata, `.modules.yaml`, and `v11/index.db`, and
+  sealed `/nix/store/3cplwgxzn3pxf7m660478z2d5hh8hqxg-cix-build-consumed`.
+  The downstream frozen offline install remained active under cix's read
+  tracer when the whole command synchronously exited 124 at the 1,200-second
+  bound. This is a trace-cost wall, not a failed pnpm install or a green item;
+  exact evidence is
+  `/var/tmp/cix-pnpm-frozenstore-verdaccio-route.HuCHfk`.
+
+### FRICTION (continued)
+
+- 2026-08-06T09:51:28Z — `pnpm fetch` 11.18 also materializes a virtual store
+  under `node_modules/.pnpm`; the retained cix binder is deliberately narrowed
+  to `pnpm-store/`, so this unconsumed complement does not enter the downstream
+  pin. The later install still has to materialize the graph from the immutable
+  store, and tracing that high-fanout copy dominated the bounded route. No
+  tracer bypass or hand-written store transformation is introduced. → performance
+- 2026-08-06T09:51:28Z — A focused diagnostic test command with `--exact`
+  selected zero tests because the harness name includes its module path; that
+  exit 0 is invalid as evidence. Re-running without `--exact` selected exactly
+  `build_chain::tests::failure_hints_require_exact_tls_and_pnpm_evidence` and
+  passed 1/1. → process
+
+- 2026-08-06T10:06:50Z — Directus's required fetch+seal tier is green with
+  explicit Node 22.23.2 and pinned nixpkgs pnpm 11.18.0. The foreground fetch
+  exited 0 with 80,763 CAS files plus `v11/index.db`; sealing produced
+  `/nix/store/2wc8j4rhf7130m1w6vf99w6ws6m0bzj2-fetched-store` at NAR hash
+  `sha256-NpISeaQzBL0Mxkq2mFCBOSJmP/OO4C9+Z+J5QN+6EnA=`, and a before/after
+  hash comparison proved the read-only store unchanged. Exact evidence is
+  `/var/tmp/cix-pnpm-frozenstore-directus.JAsoAo`. No offline install, deploy,
+  item, or runtime is promoted by this deliberately narrower receipt.
+- 2026-08-06T10:06:50Z — Added conservative problem-class hints at the
+  existing sandbox failure seam. Only a network-enabled FETCH exiting 124
+  with at least three exact hashed-certificate `ENOENT` probes in the final
+  256 trace lines suggests importing `cacert`; only pnpm's exact
+  `ERR_PNPM_NO_OFFLINE_TARBALL` or `ERR_PNPM_FROZEN_STORE_*` families suggest
+  the whole-store frozen route and version floors. Both hints cite stable
+  `docs/cixfile.md` anchors. The focused test selected and passed 1/1; final
+  workspace gates remain pending.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:06:50Z — The first Directus version check composed Node and
+  pnpm profiles in an order that let Node's Corepack shim select upstream pnpm
+  10.27.0. That run is invalid evidence. The accepted rerun invoked the exact
+  pinned pnpm 11.18.0 binary while retaining Node 22.23.2, and recorded both
+  version values before fetching. → process
+
+- 2026-08-06T10:16:13Z — Dozzle's actual Cix frozenStore route completed both
+  pnpm-store fetch probes in 15,041 ms, verified 818 lock entries, reported
+  volatility only in pnpm verification metadata, `.modules.yaml`, and
+  `v11/index.db`, and sealed 20,175 CAS files plus the read-only index at
+  `/nix/store/44apdds69qhw5gr23cby7416mm1m09xx-cix-build-consumed` (NAR hash
+  `sha256-u2dxDDHhs2yvNCov2ychAQ1Vn4NlzX63ouCFjTZb4PU=`). The downstream
+  frozen offline install emitted no pnpm/store error but remained active under
+  the read tracer when the foreground command synchronously exited 124 at its
+  1,200-second bound. That is a trace-cost wall; no frontend, item, runtime, or
+  lock update is claimed. Exact evidence is
+  `/var/tmp/cix-pnpm-frozenstore-dozzle-route.MqWXUV`.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:16:13Z — An intentionally early workspace-test run reached
+  `corpus_browser_matches_committed_pages` and exited 101 because the generated
+  pages had not yet been regenerated from the in-progress Directus, Dozzle,
+  and Verdaccio ledgers. It is not a gate receipt. Regenerate now that all
+  three terminal values are known, then rerun the entire workspace suite.
+  → process
+
+- 2026-08-06T10:22:29Z — Final synchronous gates exited 0: `devenv shell --
+  cargo fmt --all --check`; `devenv shell -- cargo run -p cix -- fmt --check
+  examples`; the three touched corpus Cixfiles through the same formatter;
+  `devenv shell -- cargo clippy --workspace --all-targets -- -D warnings`;
+  explicit corpus-browser regeneration (1 passed) followed by the corpus suite
+  (7 passed, generator ignored); and `devenv shell -- cargo test --workspace
+  -- --test-threads=1`, including the new exact diagnostic classifier test and
+  committed browser/tour drift checks. `git diff --check` also exited 0.
+- 2026-08-06T10:22:29Z — The required progressive VM command, `devenv shell --
+  nix run .#progressive-vm-check`, synchronously exited 0. Its selector named
+  `crates/cix-build/src/sandbox.rs` as the build surface but found no changed
+  VM product contract, explicitly skipped all 14 scenarios, and ran zero VM
+  derivations. No tour source changed, so explicit tour regeneration was not
+  applicable; the full workspace suite independently passed both deterministic
+  render and committed-document drift tests.
+- 2026-08-06T10:22:29Z — The structural audit command exited 0 and every
+  reported shared-ownership/interior-mutability site remains pre-existing with
+  a site-local rationale; this track introduced none. The corpus gap sweep
+  found only the three updated frozenStore exhibits, and `docs/docker.md`
+  contains no pnpm/frozen-store/cacert row affected by this behavior. Next:
+  review the complete diff, commit the scoped track, and prove the worktree is
+  clean; do not merge.
+
+### FRICTION (continued)
+
+- 2026-08-06T10:22:29Z — The prescribed two-axis GAPS glob names a `k8s`
+  directory that is absent in this checkout; `rg` reported that missing path.
+  The existing Docker axis was still searched completely and contained only
+  Directus, Dozzle, and Verdaccio frozenStore exhibits, all updated here.
+  → process

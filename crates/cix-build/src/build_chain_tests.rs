@@ -13,7 +13,8 @@ use crate::memo::{
     test_verify_cold_read_set as verify_cold_read_set, StepKeyRequest,
 };
 use crate::sandbox::{
-    failure_message as sandbox_failure, prepare_import_union, RunNetwork, Sandbox, SandboxRequest,
+    failure_message as sandbox_failure, failure_problem_hints, prepare_import_union, RunNetwork,
+    Sandbox, SandboxRequest,
 };
 use crate::workspace::{memo_output_hashes, revert_step_writes, stage_input, workspace_identity};
 use crate::{ConsumedPath, Copy, StepChange};
@@ -635,6 +636,57 @@ fn socket_filter_failure_adds_localhost_hint() {
 
     let preferred = sandbox_failure("exit status: 1", Some(RunNetwork::Namespace));
     assert!(!preferred.contains("localhost"), "{preferred}");
+}
+
+#[test]
+fn failure_hints_require_exact_tls_and_pnpm_evidence() {
+    let certificate_tail = r#"
+42 newfstatat(AT_FDCWD, "/nix/store/openssl/etc/ssl/certs/5ad8a5d6.0", 0x0, 0) = -1 ENOENT
+42 newfstatat(AT_FDCWD, "/nix/store/openssl/etc/ssl/certs/919ba934.0", 0x0, 0) = -1 ENOENT
+42 newfstatat(AT_FDCWD, "/nix/store/openssl/etc/ssl/certs/a3418fda.0", 0x0, 0) = -1 ENOENT
+"#;
+    assert_eq!(
+        failure_problem_hints(Some(124), true, "", "", Some(certificate_tail)),
+        ["hint: TLS-trust masquerade: this FETCH timed out after repeated failed certificate probes; IMPORT ${pkgs.cacert} (or another declared CA bundle); see docs/cixfile.md#fetch-tls-trust"]
+    );
+    assert!(failure_problem_hints(
+        Some(124),
+        true,
+        "",
+        "unrelated timeout",
+        Some("42 openat(AT_FDCWD, \"/tmp/certificate\", O_RDONLY) = -1 ENOENT")
+    )
+    .is_empty());
+    assert!(failure_problem_hints(Some(1), true, "", "", Some(certificate_tail)).is_empty());
+
+    assert_eq!(
+        failure_problem_hints(
+            Some(1),
+            false,
+            "ERR_PNPM_NO_OFFLINE_TARBALL missing package",
+            "",
+            None
+        ),
+        ["hint: pnpm offline/store wall: seal the complete fetched store and install with frozen-store=true, --offline, and --frozen-lockfile using pnpm >=11.7 and Node >=22.15; see docs/cixfile.md#pnpm-frozen-store"]
+    );
+    assert_eq!(
+        failure_problem_hints(
+            Some(1),
+            false,
+            "",
+            "ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE",
+            None
+        ),
+        ["hint: pnpm offline/store wall: seal the complete fetched store and install with frozen-store=true, --offline, and --frozen-lockfile using pnpm >=11.7 and Node >=22.15; see docs/cixfile.md#pnpm-frozen-store"]
+    );
+    assert!(failure_problem_hints(
+        Some(1),
+        false,
+        "offline build failed",
+        "readonly database",
+        None
+    )
+    .is_empty());
 }
 
 #[test]

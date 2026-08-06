@@ -344,6 +344,45 @@ The fixed skeleton includes `/usr/bin/env -> /bin/env`. This lets tool-generated
 `#!/usr/bin/env bash` (or similar) launchers work when an IMPORT supplies `env`, typically
 `${pkgs.coreutils}`; it deliberately dangles otherwise. No other `/usr` content is present.
 
+<a id="fetch-tls-trust"></a>
+
+### FETCH TLS trust
+
+Network authority does not imply ambient trust material. A public-TLS FETCH normally imports
+`${pkgs.cacert}` explicitly. Without it, clients that retry certificate failures can look like a
+network hang; a timeout accompanied by repeated failed OpenSSL hashed-certificate probes is a
+TLS-trust masquerade, not evidence that the package registry or IPv6 is broken.
+
+<a id="pnpm-frozen-store"></a>
+
+### Read-only pnpm stores
+
+pnpm 11.7 and newer can consume a complete store read-only when Node is at least 22.15. Fetch the
+whole store, including `files/` and `index.db`, in a networked builder; then point a separate
+offline builder at that immutable binder with `frozen-store=true`, `--offline`, and
+`--frozen-lockfile`. Do not extract the CAS, rewrite SQLite, or regenerate metadata:
+
+```dockerfile
+BUILDER pnpm-store
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.cacert}
+  COPY ${src}/pnpm-lock.yaml .
+  FETCH pnpm fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+BUILDER build
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash}
+  COPY ${src}/ .
+  RUN <<INSTALL
+pnpm config set frozen-store true --location project
+pnpm config set store-dir ${pnpm-store}/pnpm-store --location project
+pnpm install --offline --frozen-lockfile --frozen-store --ignore-scripts
+INSTALL
+```
+
+The store is a TOFU instance-pin: independent fetches may produce different `index.db` bytes,
+but one pinned instance must remain unchanged while every offline consumer uses it. Package
+manager versions are part of the translation contract; if an upstream `packageManager` pin is
+older than 11.7, an override must be deliberate and recorded with the migration's gaps.
+
 ### FHS loader aliases
 
 On x86-64 the builder skeleton also includes fixed GNU
