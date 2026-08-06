@@ -950,7 +950,8 @@
   deliberately build-only; its exact runtime wall is retained in its receipt
   and GAPS rather than regraded as green. Next: commit this append-only commit
   record, verify clean branch state, and hand off without merging.
-||||||| d0e74935
+## 2026-08-06 — it-tools relock (section restored 2026-08-06: sat behind a stray diff3 base marker from the pnpm-wall-spike merge resolution)
+
 - 2026-08-06T02:00:00Z — Started track/ittools-relock from `origin/main`.
   The case has a clean worktree, no fetched context, and a 1,544,041-line
   pre-CIP-99 lock. Next: fetch the pinned source, build the current cix from
@@ -1520,3 +1521,132 @@
   `git diff --check` passed. The clean evidence track is committed and remains
   unmerged; terminal final-state verification confirms the amended commit and
   clean worktree.
+
+## 2026-08-06 — narhash regens
+
+- 2026-08-06T09:23:29Z — Started `track/narhash-regens` and completed the
+  required pre-edit fetch-level inventory. `InputLock.narHash` values were
+  excluded; the table below contains every non-empty `FetchPin.narHash` in
+  `corpus/migrate/docker/*/Cixfile*.lock`. Classification is by matching the
+  lock entry to an `EXPECT` carried by the corresponding Cixfile, not by the
+  presence or absence of `snapshotNarHash`.
+
+  | lock | fetch entry | narHash | classification |
+  | --- | --- | --- | --- |
+  | `caddy/Cixfile.dissolved.lock` | `builder:assets:0-98f9d79d6553` | `sha256-84v+HnEZ/9AwHhsD3ZeZ4DuCgyrw8/LEL6PTxGwsUrY=` | EXPECT-backed |
+  | `caddy/Cixfile.dissolved.lock` | `builder:assets:1-c2fa3ad48195` | `sha256-rBR2z6KgBLjXqhqVUKjUsqCnrUaqoig+OGdPJK2f/XM=` | EXPECT-backed |
+  | `caddy/Cixfile.lock` | `builder:upstream:2-98f9d79d6553` | `sha256-84v+HnEZ/9AwHhsD3ZeZ4DuCgyrw8/LEL6PTxGwsUrY=` | EXPECT-backed |
+  | `caddy/Cixfile.lock` | `builder:upstream:3-c2fa3ad48195` | `sha256-rBR2z6KgBLjXqhqVUKjUsqCnrUaqoig+OGdPJK2f/XM=` | EXPECT-backed |
+  | `caddy/Cixfile.lock` | `builder:upstream:4-b0ddf94cba0c` | `sha256-osNsyktm3O6Gcaihq7Ba6I+Ez4oTLEMNLea2mT3XnZo=` | EXPECT-backed |
+  | `directus/Cixfile.lock` | `builder:build:3-e8a0afba7b11` | `sha256-vsqPz2Da9kHmra41ci3RU6bcF/vbwCHULrbh3sqMtKg=` | legacy-automatic (pnpm; out of scope) |
+  | `echo-server/Cixfile.lock` | `builder:dependencies-fresh:5-36c6b50956d4` | `sha256-hSJ2xuInAJfmjLEUadUei8tfyu3jtW4S+ttTRcal2qM=` | legacy-automatic |
+  | `echo-server/Cixfile.lock` | `builder:dependencies-fresh:5-8b4ab4e2175a` | `sha256-CdO/YytCv5FJPcbru38NW335RMODknzdDj5Jvn8BfRw=` | legacy-automatic |
+  | `filebrowser/Cixfile.lock` | `builder:release:3-8bc1a68b59f9` | `sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM=` | EXPECT-backed |
+  | `filestash/Cixfile.lock` | `builder:build:2-27a70b69a918` | `sha256-KSviBOEh74raIuUUupkL2T1sPpSqb9Ck1ByDOTRYVP8=` | legacy-automatic |
+  | `filestash/Cixfile.lock` | `builder:build:2-42a8263a643c` | `sha256-HYMB8Ae+Nwd6RqAYViWFX4AmGP45fSvdLNr2qEdvVuM=` | legacy-automatic |
+  | `haproxy/Cixfile.lock` | `builder:build:3-00ba784e8f7b` | `sha256-3nwJp1hqkCTmrDZFwIfxmWdkqqGLbgIVVv5tyG/bEgo=` | EXPECT-backed |
+  | `httpd/Cixfile.lock` | `builder:httpd-build:3-bc8d912fbf6f` | `sha256-scD5NGTPwH0AsHCMCv2ewVVUNyPkgnlFCee8P3ofgbU=` | EXPECT-backed |
+  | `memcached/Cixfile.lock` | `builder:build:3-1868940fa4df` | `sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=` | EXPECT-backed |
+  | `mosquitto/Cixfile.lock` | `builder:build:3-9ac5f5370493` | `sha256-8LobuvzinnPOoFGcKeeR3amC4nfSa5ijN1g2ilcP5lg=` | EXPECT-backed |
+  | `mosquitto/Cixfile.lock` | `builder:build:4-3778efd0689a` | `sha256-5WzB/nFTRjxAHJGomdnPeKAKXk83xMXtTB92T4Tb4+s=` | EXPECT-backed |
+  | `mosquitto/Cixfile.lock` | `builder:build:5-1c4685c6da96` | `sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=` | EXPECT-backed |
+  | `nats/Cixfile.lock` | `builder:final:3-11bbc8e4e546` | `sha256-0a7KA8SV3F8VxIqNAIJNipngAvAW0YUdTiLFSoc3B7w=` | legacy-automatic |
+  | `nats/Cixfile.lock` | `builder:runtime:3-11bbc8e4e546` | `sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=` | EXPECT-backed |
+  | `ntfy/Cixfile.lock` | `builder:release:3-6b7b0677f094` | `sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=` | EXPECT-backed |
+  | `redis/Cixfile.lock` | `builder:redis-build:3-161bb32cce97` | `sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=` | EXPECT-backed |
+
+  Inventory total: 21 fetch-level entries in 13 lock files; 15 are
+  EXPECT-backed and 6 are legacy-automatic. The eligible non-pnpm refresh
+  population is five entries in `echo-server`, `filestash`, and `nats`; the
+  sixth legacy entry is Directus and remains excluded with the pnpm cases.
+  No lock or receipt was changed before this entry was appended. Next:
+  execute each eligible case's documented regeneration command, preserving
+  EXPECT values at upstream-drift walls.
+
+- 2026-08-06T09:35:00Z — Echo-server refresh receipt: `bash
+  corpus/migrate/fetch.sh echo-server` exited 0, then `devenv shell --
+  ./target/debug/cix build --update-lock dependencies-direct
+  corpus/migrate/docker/echo-server#echo-server` exited 0 synchronously. The
+  FETCH double-read was identical, npm installed 435 packages, webpack built
+  the service, and the item was `/nix/store/hvr3vmwaba7ci38gc0f3009p13iq9vm1-cix-item-echo-server`.
+  The command refreshed the active `dependencies-direct` pin but retained the
+  two obsolete `dependencies-fresh` whole-tree entries; those stale lock-map
+  entries are the five-entry cleanup target identified by the inventory, not
+  new EXPECTs. `FRICTION`: my first literal transcription used the nonexistent
+  `corpus/migrate/docker/fetch.sh` path (exit 127); no corpus state changed and
+  the receipt's actual `corpus/migrate/fetch.sh` command then exited 0. Next:
+  verify the case probe/cold command and clean only the stale legacy map entries
+  after the eligible refresh attempts are complete.
+
+- 2026-08-06T09:43:00Z — Filestash refresh attempt: `bash
+  corpus/migrate/fetch.sh filestash` exited 0 and the documented build, run
+  from the repository root as `devenv shell -- ./target/debug/cix build
+  corpus/migrate/docker/filestash#filestash`, exited 1 synchronously after the
+  FETCH (16.058s) and compilation reached the RUN. The upstream build failed
+  on missing `brotli/decode.h` and `libraw/libraw.h`; no item or runtime probe
+  is claimed and `filestash/Cixfile.lock` was not changed. The two legacy
+  whole-tree entries therefore remain a wall, not a refresh. `FRICTION`: the
+  receipt shorthand `.#filestash` was first tried at repository root and
+  correctly failed before reading a Cixfile; the explicit case ref above is
+  the value-checked attempt. Next: run NATS, then the four known EXPECT-drift
+  walls, without changing any declared EXPECT.
+
+- 2026-08-06T09:36:29Z — NATS refresh exited 0 synchronously with the
+  documented `devenv shell -- ./target/debug/cix build
+  corpus/migrate/docker/nats#nats` command. It fetched and checksum-verified
+  `nats-server.tar.gz`, ran the extraction, and produced
+  `/nix/store/rzk74i60ylpqy1x2drf65mjf7q612m9n-cix-item-nats`. The active
+  `builder:runtime` pin now carries its snapshot; the stale undeclared
+  `builder:final` legacy value was removed from the same refreshed lock. No
+  EXPECT changed.
+
+- 2026-08-06T09:36:29Z — Known EXPECT-wall receipts, all synchronous and
+  value-checked, were run without accepting any new value: Redis failed at
+  `sha256-PsEL…` versus fetched `sha256-LijBY…`; memcached failed at
+  `sha256-F+YQ…` versus `sha256-Oar8…`; and HAProxy failed at
+  `sha256-3nwJ…` versus `sha256-Wsa8…`. Their four source contexts were
+  restored to the recorded revisions, and their tracked locks remain
+  byte-identical to `HEAD`. Mosquitto's ordinary warm run initially reused
+  memo hits; a temporary clean-lock replay at
+  `/var/tmp/cix-narhash-mosquitto.viPLeP` forced all three EXPECT FETCHes and
+  exited 0, including a good GPG signature, producing the existing broker item.
+  The direct `--update-lock` attempt correctly refused because `EXPECT FETCH`
+  is not updateable. The earlier same-day receipt's GPG-key drift is therefore
+  recorded as a non-reproduced wall, not silently converted into a translation
+  change; `mosquitto/Cixfile.lock` remains byte-identical to `HEAD`.
+  `FRICTION`: the forced clean-lock probe required a temporary copy with memo
+  records removed because ordinary warm replay hid the network FETCHes; that
+  temporary case is outside the worktree and was not used as corpus state.
+
+- 2026-08-06T09:36:29Z — Timestamp correction: the preceding Filestash
+  entry was labeled `09:43:00Z` ahead of the observed clock. Its synchronous
+  exit-1 result and wall classification are unchanged; this correction is the
+  durable timestamp receipt, not a detached-process claim.
+
+- 2026-08-06T09:37:58Z — Final value-checked gates: `devenv shell -- cargo
+  test --test corpus -- --ignored generate_corpus_browser` exited 0;
+  `devenv shell -- cargo test --test corpus` exited 0 (7 passed, 1 ignored,
+  including committed-browser drift and determinism); and `devenv shell --
+  cargo fmt --all --check` exited 0. `git diff --check` exited 0 and every
+  one of the 51 Docker lock files parsed as JSON. The whole-corpus SHA-256
+  audit compared each worktree lock with `git show HEAD:<path>`: exactly
+  `corpus/migrate/docker/echo-server/Cixfile.lock` and
+  `corpus/migrate/docker/nats/Cixfile.lock` changed; every other lock was
+  byte-identical to HEAD. Browser regeneration changed only the corresponding
+  `docs/corpus/docker-echo-server.html` and `docker-nats.html` pages.
+
+  Remaining legacy-automatic inventory: **3 entries in 2 locks** — one in
+  `corpus/migrate/docker/directus/Cixfile.lock` (pnpm, explicitly out of scope)
+  and two in `corpus/migrate/docker/filestash/Cixfile.lock` (the synchronous
+  missing-native-header build wall). The other 15 fetch-level hashes are
+  EXPECT-backed and retained. No EXPECT value was changed.
+
+### FRICTION
+
+- 2026-08-06T09:37:58Z — The main friction was lock metadata churn: a failed
+  or memo-hidden FETCH can rewrite inode/mtime observations even when no pin
+  is accepted. I restored all four wall-only locks to their exact HEAD bytes,
+  then retained only the two successful refresh locks. Receipt command
+  shorthands also assumed case-directory context in two places; explicit root
+  case refs were used and their exit statuses were captured synchronously.
+  The branch is ready for commit and must not be merged in this track.
