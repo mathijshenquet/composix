@@ -110,18 +110,17 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
     })
     .unwrap();
 
-    let mut formatted_lock: LockFile =
+    let formatted_lock: LockFile =
         serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
     let original_cixfile_hash = &original_lock
         .eval_plan
         .as_ref()
         .expect("original build records an eval plan")
         .cixfile_hash;
-    let formatted_eval_plan = formatted_lock
+    let formatted_cixfile_hash = &formatted_lock
         .eval_plan
-        .as_mut()
+        .as_ref()
         .expect("formatted build records an eval plan");
-    assert_ne!(formatted_eval_plan.cixfile_hash, *original_cixfile_hash);
-    formatted_eval_plan.cixfile_hash = original_cixfile_hash.clone();
+    assert_eq!(formatted_cixfile_hash.cixfile_hash, *original_cixfile_hash);
     assert_eq!(formatted_lock, original_lock);
 }

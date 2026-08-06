@@ -3,6 +3,7 @@
 //! ## Module map
 //!
 //! - `build`: owns build orchestration and its typed options.
+//! - `canonical`: owns stable semantic Cixfile key serialization.
 //! - `codegen`: projects language plans into Nix and neutral manifests.
 //! - `fmt`: owns Cixfile formatting.
 //! - `parser`: owns the grammar facade and its parser-internal strata.
@@ -11,6 +12,7 @@
 //! this crate-root map covers every direct module.
 
 mod build;
+pub mod canonical;
 mod codegen;
 pub mod fmt;
 mod parser;

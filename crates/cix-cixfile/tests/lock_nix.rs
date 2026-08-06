@@ -1434,6 +1434,57 @@ START /bin/true
 }
 
 #[test]
+fn formatting_keeps_fetch_identity_snapshot_lookup_and_item_output() {
+    let directory = tempfile::tempdir().unwrap();
+    let cixfile = "FROM\tgithub:NixOS/nixpkgs/nixos-unstable\tAS\tpkgs\nFETCH ingredient test ! -e fetch-ran; : > fetch-ran; printf payload > payload\nSERVICE\tresult\nCOPY\t${ingredient}/payload\t/payload\nSTART\t/bin/true\n";
+    fs::write(directory.path().join("Cixfile"), cixfile).unwrap();
+    fs::write(
+        directory.path().join("Cixfile.lock"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&committed_lock()).unwrap()
+        ),
+    )
+    .unwrap();
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+    };
+
+    let first = build(&options).unwrap();
+    let first_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let formatted = cix_cixfile::fmt::format(cixfile).unwrap();
+    assert_ne!(cixfile, formatted);
+    fs::write(directory.path().join("Cixfile"), formatted).unwrap();
+
+    let formatted = build(&BuildOptions {
+        cold: true,
+        ..options
+    })
+    .unwrap();
+    let formatted_lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let first_pin = first_lock.fetches.get("ingredient").unwrap();
+    let formatted_pin = formatted_lock.fetches.get("ingredient").unwrap();
+    assert_eq!(first_pin.key(), formatted_pin.key());
+    assert_eq!(first_pin.snapshot_nar_hash, formatted_pin.snapshot_nar_hash);
+    assert_eq!(
+        first_lock.outputs["result"].source_hash,
+        formatted_lock.outputs["result"].source_hash
+    );
+    assert_eq!(
+        fs::read_to_string(Path::new(&first[0].store_path).join("payload")).unwrap(),
+        fs::read_to_string(Path::new(&formatted[0].store_path).join("payload")).unwrap()
+    );
+    assert_eq!(first[0].store_path, formatted[0].store_path);
+}
+
+#[test]
 fn newly_consumed_fetch_path_extends_an_automatic_pin() {
     let directory = tempfile::tempdir().unwrap();
     let cixfile = |extra_copy: &str| {

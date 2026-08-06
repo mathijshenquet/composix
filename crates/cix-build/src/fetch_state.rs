@@ -5,15 +5,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
 
 use crate::memo::NeededPath;
-use crate::{workspace, Builder, FetchPin, LockFile, ScratchDir, VolatilePath};
+use crate::{nar_identity, workspace, Builder, FetchPin, LockFile, ScratchDir, VolatilePath};
 
 pub(crate) struct FetchState<'directory> {
     directory: &'directory Path,
@@ -393,20 +391,8 @@ fn collect_files(
     Ok(())
 }
 
-fn file_fingerprint(path: &Path, metadata: &fs::Metadata) -> Result<String> {
-    let mut hasher = Sha256::new();
-    hasher.update(metadata.permissions().mode().to_le_bytes());
-    if metadata.file_type().is_symlink() {
-        hasher.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
-    } else {
-        let mut file = fs::File::open(path)?;
-        io::copy(&mut file, &mut hasher)?;
-    }
-    Ok(hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
+fn file_fingerprint(path: &Path, _metadata: &fs::Metadata) -> Result<String> {
+    nar_identity(path)
 }
 
 fn tree_size(path: &Path) -> Result<u64> {
@@ -432,7 +418,7 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
 
     #[test]
-    fn automatic_fetch_path_fingerprint_characterizes_full_posix_mode_keying() {
+    fn automatic_fetch_path_fingerprint_is_nar_invariant() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("file");
         fs::write(&path, "same bytes").unwrap();
@@ -444,8 +430,7 @@ mod tests {
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
         let executable = file_fingerprint(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
 
-        // CURRENT behavior: automatic FETCH pins retain all st_mode bits.
-        assert_ne!(ordinary, private);
+        assert_eq!(ordinary, private);
         assert_ne!(ordinary, executable);
     }
 }

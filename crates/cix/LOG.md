@@ -1743,3 +1743,82 @@
 ### FRICTION
 
 - 2026-08-06T09:42:54Z — `nixfmt` is not supplied by the active devenv (`exec: nixfmt: not found`). The NixOS test framework's type check and test-script lint both accepted the changed scenario; the required Rust/examples format gate is green. → environment
+
+## 2026-08-06 — fmtkey-impl
+
+- 2026-08-06T00:00:00Z — Started CIP-110 implementation from
+  `.dev/specs/track-fmtkey-impl.md`. The accepted contract requires one
+  NAR-invariant filesystem identity primitive (type, content, executable bit,
+  symlink target), canonical-AST semantic key serialization with honest
+  versioning, and a lock/cold-replay/fmt equivalence fixture. Corpus locks must
+  not be regenerated in this track. Next: map every listed keying site and the
+  existing characterization tests before changing the implementation.
+
+### FRICTION
+
+- 2026-08-06T00:00:00Z — `crates/cix/LOG.md` carries append-only history from
+  prior tracks in this shared worktree lineage; this track's entries are under
+  the `fmtkey-impl` heading and will remain append-only.
+
+- 2026-08-06T00:00:00Z — The first focused library receipt compiled the new
+  code but failed one subtree-aggregation assertion: the new identity result
+  was accepted even when the existing completeness check returned `None`.
+  Restored that guard before continuing; the failed receipt is discarded and
+  will be replaced by a synchronous passing run. → implementation
+
+- 2026-08-06T00:00:00Z — A combined local verification command let a failed
+  initial `cargo fmt --check` be followed by successful tests, so it was not a
+  value-checked receipt for formatting. Rustfmt's only requested change was a
+  one-line assertion; it will be applied and each gate rerun separately. →
+  process
+
+- 2026-08-06T00:00:00Z — The first serial workspace run failed only the two
+  store-backed tour tests: Nix's Git source intentionally omitted the new,
+  untracked `fingerprint.rs`, so its isolated build could not resolve the
+  declared module. Both new source modules are now staged (not committed) for
+  the source-backed verification retry; the failed suite is not a green
+  receipt. → packaging
+
+- 2026-08-06T00:00:00Z — The formatter-equivalence fixture, corpus-browser
+  regeneration, generated-tour drift regeneration, deterministic tour (153.21
+  seconds), and the tour committed-document drift test (38.17 seconds) all
+  passed synchronously. The subsequent full serial workspace rerun reached the
+  unrelated `cix-run::unit::closed_root_snapshots_cover_claims_dirs_materializations_and_modes`
+  failure: its checked-in expected unit retains `TemporaryFileSystem=/cache:ro`
+  while the unchanged runtime generator emits `ReadWritePaths=/cache`. This
+  track does not touch `cix-run`; the stale fixture is a baseline/integration
+  wall and the suite's exit was 101, so it is not claimed green. → integration
+
+- 2026-08-06T00:00:00Z — Integrated current `origin/main` at `d55c0978`, which
+  updates the missed closed-root `/cache` fixture to `ReadWritePaths=/cache`.
+  The staged implementation was preserved through a named temporary stash and
+  reapplied without conflicts. Next: run the full serial workspace suite with
+  the requested `.gate-exit-workspace` recorded-status receipt, then commit the
+  clean track branch if it records zero.
+
+- 2026-08-06T10:35:26Z — Re-read CIP-110 before commit and corrected the
+  filesystem primitive so directory identity is type plus sorted children,
+  without directory permission bits; regular-file executable bits remain
+  semantic. Added the directory-mode regression. The requested captured
+  `devenv shell -- cargo test --workspace -- --test-threads=1` receipt wrote
+  and was value-checked as `0` after this correction. `cargo fmt --all --check`,
+  `cargo run -p cix -- fmt --check examples`, and warning-denied workspace
+  clippy each exited 0. The structural shared/interior-mutability audit found
+  only existing justified sites; this track adds none. `git diff --cached
+  --check` exited 0. Next: commit the scoped implementation; no corpus locks
+  were regenerated.
+
+### FRICTION
+
+- 2026-08-06T10:35:26Z — The declared focused VM command, `devenv shell -- nix
+  run .#progressive-vm-check`, exited 1 before any scenario ran. Current main's
+  `closedroot-audit.nix` asserts that its audited/downgraded inventory covers
+  the corpus, but main contains 32 cases and the audit lists 30. This track
+  does not touch the audit registry; the full workspace receipt is green, but
+  the VM gate cannot be claimed green. → integration
+
+- 2026-08-06T10:35:54Z — Committed the reviewed CIP-110 implementation
+  (`feat: make Cixfile keys format-neutral`). The temporary
+  `.gate-exit-workspace` receipt was value-checked then removed; no merge or
+  push was performed. Next: hand off the clean committed branch, with the
+  upstream VM inventory wall explicitly retained above.

@@ -1,12 +1,11 @@
 use std::fs;
-use std::io::Read;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::{codegen::generate_nix_with_snapshots, ensure_lock, parse};
+use crate::{canonical, codegen::generate_nix_with_snapshots, ensure_lock, parse};
 use cix_build::{
     execute, resolve_input_metadata, save_lock, ArtifactPin, ArtifactResolver, OutputReceipt,
 };
@@ -183,6 +182,8 @@ pub fn build_family_with_stats_file_and_registry(
     let source = fs::read_to_string(&cixfile_path)
         .with_context(|| format!("reading {}", cixfile_path.display()))?;
     let cixfile = parse(&source).with_context(|| format!("parsing {}", cixfile_path.display()))?;
+    let canonical_cixfile =
+        canonical::serialize(&cixfile).context("serializing canonical Cixfile")?;
     let record_eval_plan = selector.is_none() && file_name == "Cixfile";
     let mut cixfile = match selector {
         Some(member) => cixfile.backward_slice(member).with_context(|| {
@@ -233,7 +234,7 @@ pub fn build_family_with_stats_file_and_registry(
     let mut lock = ensure_lock(registry, &lock_path, &cixfile.inputs, input_update)?;
     resolve_input_metadata(&mut cixfile, &lock)?;
     let expectations_validated = cix_build::validate_declared_expectations(&cixfile, &lock)?;
-    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
+    let source_hash = build_fingerprint(&directory, &lock, file_name, &canonical_cixfile)?;
     if !options.cold && options.update_lock.is_none() && tags.is_empty() && expectations_validated {
         let cached = cixfile
             .artifact_order
@@ -279,7 +280,7 @@ pub fn build_family_with_stats_file_and_registry(
     save_lock(&lock_path, &lock)?;
     let (snapshots, executed_steps) = execution?;
     if record_eval_plan {
-        match cix_build::EvalPlan::from_cixfile(&cixfile, content_hash(source.as_bytes()), &lock) {
+        match cix_build::EvalPlan::from_cixfile(&cixfile, content_hash(&canonical_cixfile), &lock) {
             Ok(plan) => lock.eval_plan = Some(plan),
             Err(error) => {
                 lock.eval_plan = None;
@@ -299,7 +300,7 @@ pub fn build_family_with_stats_file_and_registry(
             store_path,
         });
     }
-    let source_hash = build_fingerprint(&directory, &lock, file_name)?;
+    let source_hash = build_fingerprint(&directory, &lock, file_name, &canonical_cixfile)?;
     for item in &outputs {
         for tag in tags {
             let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
@@ -380,9 +381,19 @@ fn named_cixfile_path(directory: &std::path::Path, file_name: &str) -> Result<Pa
     Ok(directory.join(file))
 }
 
-fn source_tree_hash(directory: &std::path::Path, file_name: &str) -> Result<String> {
+fn source_tree_hash(
+    directory: &std::path::Path,
+    file_name: &str,
+    canonical_cixfile: &[u8],
+) -> Result<String> {
     let mut digest = Sha256::new();
-    hash_source_tree(directory, directory, file_name, &mut digest)?;
+    hash_source_tree(
+        directory,
+        directory,
+        file_name,
+        canonical_cixfile,
+        &mut digest,
+    )?;
     let digest = digest.finalize();
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
@@ -398,10 +409,11 @@ fn build_fingerprint(
     directory: &std::path::Path,
     lock: &cix_build::LockFile,
     file_name: &str,
+    canonical_cixfile: &[u8],
 ) -> Result<String> {
     let mut digest = Sha256::new();
     digest.update(cix_build::BUILDER_FINGERPRINT.as_bytes());
-    digest.update(source_tree_hash(directory, file_name)?.as_bytes());
+    digest.update(source_tree_hash(directory, file_name, canonical_cixfile)?.as_bytes());
     digest.update(serde_json::to_vec(&(
         &lock.inputs,
         &lock.artifacts,
@@ -419,6 +431,7 @@ fn hash_source_tree(
     root: &std::path::Path,
     path: &std::path::Path,
     file_name: &str,
+    canonical_cixfile: &[u8],
     digest: &mut Sha256,
 ) -> Result<()> {
     let metadata = fs::symlink_metadata(path)?;
@@ -428,24 +441,21 @@ fn hash_source_tree(
     }
     digest.update(relative.as_os_str().as_encoded_bytes());
     if metadata.file_type().is_symlink() {
-        digest.update(b"link");
-        digest.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
+        digest.update(cix_build::nar_identity(path)?.as_bytes());
     } else if metadata.is_file() {
-        digest.update(b"file");
         if relative == std::path::Path::new(file_name) {
-            digest.update(crate::fmt::format(&fs::read_to_string(path)?)?.as_bytes());
+            digest.update(b"cixfile\0");
+            digest.update([cix_build::executable_bit(&metadata)]);
+            digest.update(canonical_cixfile);
         } else {
-            let mut file = fs::File::open(path)?;
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)?;
-            digest.update(bytes);
+            digest.update(cix_build::nar_identity(path)?.as_bytes());
         }
     } else if metadata.is_dir() {
         digest.update(b"dir");
         let mut children = fs::read_dir(path)?.collect::<std::result::Result<Vec<_>, _>>()?;
         children.sort_by_key(|entry| entry.file_name());
         for child in children {
-            hash_source_tree(root, &child.path(), file_name, digest)?;
+            hash_source_tree(root, &child.path(), file_name, canonical_cixfile, digest)?;
         }
     }
     Ok(())
@@ -596,6 +606,13 @@ mod tests {
     use cix_build::{FetchPin, LockFile, OutputReceipt, ReadDependency, StepMemo};
     use std::collections::BTreeMap;
 
+    fn canonical_cixfile(directory: &std::path::Path) -> Vec<u8> {
+        crate::canonical::serialize(
+            &parse(&std::fs::read_to_string(directory.join("Cixfile")).unwrap()).unwrap(),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn output_receipts_do_not_change_the_build_fingerprint() {
         let directory = tempfile::tempdir().unwrap();
@@ -615,7 +632,8 @@ mod tests {
             eval_plan: None,
             outputs: BTreeMap::new(),
         };
-        let before = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+        let canonical = canonical_cixfile(directory.path());
+        let before = build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
         lock.outputs.insert(
             "app".into(),
             OutputReceipt {
@@ -625,12 +643,12 @@ mod tests {
         );
         assert_eq!(
             before,
-            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap()
         );
     }
 
     #[test]
-    fn build_fingerprint_characterizes_fetch_pin_and_source_tree_inputs() {
+    fn build_fingerprint_uses_nar_invariant_source_tree_inputs() {
         let directory = tempfile::tempdir().unwrap();
         std::fs::write(
             directory.path().join("Cixfile"),
@@ -649,10 +667,12 @@ mod tests {
             eval_plan: None,
             outputs: BTreeMap::new(),
         };
-        let initial = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+        let canonical = canonical_cixfile(directory.path());
+        let initial = build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
 
         std::fs::write(directory.path().join("receipt.md"), "second receipt\n").unwrap();
-        let documentation_changed = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
+        let documentation_changed =
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
         assert_ne!(initial, documentation_changed);
 
         std::fs::set_permissions(
@@ -662,17 +682,16 @@ mod tests {
         .unwrap();
         assert_eq!(
             documentation_changed,
-            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap()
         );
         std::fs::set_permissions(
             directory.path().join("receipt.md"),
             std::os::unix::fs::PermissionsExt::from_mode(0o755),
         )
         .unwrap();
-        assert_eq!(
-            documentation_changed,
-            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
-        );
+        let executable_changed =
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
+        assert_ne!(documentation_changed, executable_changed);
 
         lock.step_memo.insert(
             "builder:build:0".into(),
@@ -691,8 +710,8 @@ mod tests {
             },
         );
         assert_eq!(
-            documentation_changed,
-            build_fingerprint(directory.path(), &lock, "Cixfile").unwrap()
+            executable_changed,
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap()
         );
 
         lock.fetches.insert(
@@ -704,8 +723,9 @@ mod tests {
                 volatile: BTreeMap::new(),
             },
         );
-        let fetch_pin_changed = build_fingerprint(directory.path(), &lock, "Cixfile").unwrap();
-        assert_ne!(documentation_changed, fetch_pin_changed);
+        let fetch_pin_changed =
+            build_fingerprint(directory.path(), &lock, "Cixfile", &canonical).unwrap();
+        assert_ne!(executable_changed, fetch_pin_changed);
     }
 
     #[test]

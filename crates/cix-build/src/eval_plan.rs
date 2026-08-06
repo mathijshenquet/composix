@@ -8,7 +8,7 @@ use crate::{
     TemplatePart,
 };
 
-pub const EVAL_PLAN_VERSION: u32 = 1;
+pub const EVAL_PLAN_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

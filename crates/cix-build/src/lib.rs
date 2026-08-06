@@ -48,6 +48,7 @@ mod evaluation;
 mod fetch;
 mod fetch_state;
 mod fhs;
+mod fingerprint;
 mod lock;
 mod memo;
 mod model;
@@ -61,6 +62,7 @@ pub use build_chain::execute;
 pub use eval_plan::{EvalPlan, EVAL_PLAN_VERSION};
 pub use evaluation::EvaluationCodegen;
 pub use fetch::revoke_fetch_consent;
+pub use fingerprint::{executable_bit, nar_identity};
 pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, validate_declared_expectations, ArtifactPin,
     ArtifactResolver, ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry,
@@ -73,7 +75,8 @@ pub use scratch::{
     ScratchDir,
 };
 
-pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");
+pub const BUILDER_FINGERPRINT: &str =
+    concat!(env!("CARGO_PKG_VERSION"), ":d87-v3-canonical-ast-nar-v1");
 pub use model::{
     Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
     Env, Fetch, Input, InputKind, Liveness, Port, PortSource, Probe, Protocol, Readiness, Secret,

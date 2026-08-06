@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use crate::{Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, Template, TemplatePart};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
+const AUTOMATIC_FETCH_KEY_VERSION: &str = "nar-v1";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -150,7 +151,7 @@ impl FetchPin {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        format!("paths:{text}")
+        format!("{AUTOMATIC_FETCH_KEY_VERSION}:paths:{text}")
     }
 }
 
@@ -795,6 +796,13 @@ impl LockFile {
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn automatic_fetch_keys_are_versioned() {
+        let mut pin = FetchPin::automatic();
+        pin.paths.insert("payload".into(), "nar-identity".into());
+        assert!(pin.key().starts_with("nar-v1:paths:"));
+    }
 
     fn inputs() -> BTreeMap<String, Input> {
         BTreeMap::from([

@@ -1,5 +1,5 @@
 Generated: migrate.md@current · independently rechecked · 2026-08-05
-Status: current
+Status: stale — regenerate with CIP-110 fmt-key-neutrality
 
 - The faithful 3.2.22 source build and `haproxy -v` probe pass, and its cold replay passes. The supplied context contains no `haproxy.cfg`, port, healthcheck, or readiness contract, so startup and stats behavior are not claimed. → evidence
 - Docker's fixed uid/gid and `/var/lib/haproxy` workdir dissolve into DynamicUser. Error files are expanded into a declared state role at startup because this host could not use a writable `CONFIGDIR` mount. → case

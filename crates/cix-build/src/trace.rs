@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 
 use crate::lock::FileFingerprint;
-use crate::{ReadDependency, StepChange};
+use crate::{nar_identity, ReadDependency, StepChange};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Observation {
@@ -630,7 +630,7 @@ fn dependency(path: &Path, listed: bool, content: bool) -> Result<ReadDependency
     }
     if content {
         Ok(ReadDependency::File {
-            hash: read_hash(path, &metadata)
+            hash: read_hash(path)
                 .with_context(|| format!("hashing traced file {}", path.display()))?,
             fingerprint: None,
         })
@@ -678,7 +678,10 @@ fn recorded_subtree_hash(
     {
         return Ok(None);
     }
-    recorded_directory_digest(&path, relative, dependencies)
+    if recorded_directory_digest(&path, relative, dependencies)?.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(nar_identity(&path)?))
 }
 
 fn recorded_directory_digest(
@@ -734,40 +737,7 @@ fn recorded_directory_digest(
 }
 
 fn filesystem_subtree_hash(directory: &Path) -> Result<String> {
-    let mut entries = fs::read_dir(directory)
-        .with_context(|| format!("opening recorded subtree {}", directory.display()))?
-        .collect::<io::Result<Vec<_>>>()?;
-    entries.sort_by_key(|entry| entry.file_name());
-    let mut digest = Sha256::new();
-    for entry in entries {
-        let name = entry.file_name();
-        let path = entry.path();
-        let metadata = entry.file_type()?;
-        let (kind, hash) = if metadata.is_dir() {
-            (b"directory".as_slice(), filesystem_subtree_hash(&path)?)
-        } else if metadata.is_file() || metadata.is_symlink() {
-            (
-                if metadata.is_symlink() {
-                    b"symlink".as_slice()
-                } else {
-                    b"file".as_slice()
-                },
-                read_hash(&path, &fs::symlink_metadata(&path)?)?,
-            )
-        } else {
-            anyhow::bail!(
-                "unsupported special file in recorded subtree {}",
-                path.display()
-            );
-        };
-        digest.update(name.as_encoded_bytes());
-        digest.update([0]);
-        digest.update(kind);
-        digest.update([0]);
-        digest.update(hash.as_bytes());
-        digest.update([0]);
-    }
-    Ok(hex(digest.finalize()))
+    nar_identity(directory)
 }
 
 fn complete_present_tree(
@@ -864,60 +834,12 @@ fn file_fingerprint(metadata: &fs::Metadata) -> FileFingerprint {
     }
 }
 
-fn read_hash(path: &Path, metadata: &fs::Metadata) -> Result<String> {
-    let mut digest = Sha256::new();
-    digest.update(metadata.mode().to_le_bytes());
-    if metadata.file_type().is_symlink() {
-        digest.update(b"symlink\0");
-        digest.update(
-            fs::read_link(path)
-                .with_context(|| format!("reading symlink {}", path.display()))?
-                .as_os_str()
-                .as_encoded_bytes(),
-        );
-        if let Ok(target) = fs::metadata(path) {
-            if target.is_file() {
-                let mut file = fs::File::open(path)
-                    .with_context(|| format!("opening traced file {}", path.display()))?;
-                io::copy(&mut file, &mut digest)
-                    .with_context(|| format!("reading traced file {}", path.display()))?;
-            }
-        }
-    } else {
-        let mut file = fs::File::open(path)
-            .with_context(|| format!("opening traced file {}", path.display()))?;
-        io::copy(&mut file, &mut digest)
-            .with_context(|| format!("reading traced file {}", path.display()))?;
-    }
-    Ok(hex(digest.finalize()))
+fn read_hash(path: &Path) -> Result<String> {
+    nar_identity(path)
 }
 
 fn directory_hash(path: &Path) -> Result<String> {
-    let mut entries = fs::read_dir(path)
-        .with_context(|| format!("opening traced directory {}", path.display()))?
-        .collect::<io::Result<Vec<_>>>()
-        .with_context(|| format!("reading traced directory {}", path.display()))?;
-    entries.sort_by_key(|entry| entry.file_name());
-    let mut digest = Sha256::new();
-    for entry in entries {
-        digest.update(entry.file_name().as_encoded_bytes());
-        digest.update([0]);
-        let entry_path = entry.path();
-        let kind = entry
-            .file_type()
-            .with_context(|| format!("reading traced entry type {}", entry_path.display()))?;
-        digest.update(if kind.is_dir() {
-            b"directory".as_slice()
-        } else if kind.is_symlink() {
-            b"symlink".as_slice()
-        } else if kind.is_file() {
-            b"file".as_slice()
-        } else {
-            b"special".as_slice()
-        });
-        digest.update([0]);
-    }
-    Ok(hex(digest.finalize()))
+    nar_identity(path)
 }
 
 fn split_pid(line: &str) -> Option<(u32, &str)> {
@@ -1364,21 +1286,19 @@ mod tests {
     }
 
     #[test]
-    fn current_read_hash_characterizes_full_posix_mode_keying() {
+    fn read_hash_is_nar_invariant_for_non_executable_mode_changes() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("file");
         fs::write(&path, "same bytes").unwrap();
 
         fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
-        let ordinary = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        let ordinary = read_hash(&path).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
-        let private = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        let private = read_hash(&path).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
-        let executable = read_hash(&path, &fs::symlink_metadata(&path).unwrap()).unwrap();
+        let executable = read_hash(&path).unwrap();
 
-        // CURRENT behavior: read_hash folds all st_mode bits, while a NAR
-        // identity distinguishes only the executable bit for regular files.
-        assert_ne!(ordinary, private);
+        assert_eq!(ordinary, private);
         assert_ne!(ordinary, executable);
     }
 

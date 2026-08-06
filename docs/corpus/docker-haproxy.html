@@ -56,12 +56,12 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / haproxy</nav>
   <h1>docker / haproxy</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 No supplied config, listener, or health contract exists to start; formatter whitespace currently changes the locked FETCH identity · <strong>Evidence:</strong> build/version and formatter receipt</p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶🔄 No supplied config, listener, or health contract exists to start; CIP-110 fixes formatter key drift and this case awaits the epoch lock regeneration · <strong>Evidence:</strong> build/version and formatter receipt</p>
   <p class="status"><strong>Receipt status:</strong> Faithful 3.2.22 source build, version probe, and cold replay pass; dissolved twin builds cold · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/haproxy/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/haproxy/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel">
+  <aside class="gap-panel stale">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> current</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · independently rechecked · 2026-08-05 · <strong>Status:</strong> stale — regenerate with CIP-110 fmt-key-neutrality</p>
     <ul>
       <li>The faithful 3.2.22 source build and <code>haproxy -v</code> probe pass, and its cold replay passes. The supplied context contains no <code>haproxy.cfg</code>, port, healthcheck, or readiness contract, so startup and stats behavior are not claimed. → evidence</li>
       <li>Docker&#39;s fixed uid/gid and <code>/var/lib/haproxy</code> workdir dissolve into DynamicUser. Error files are expanded into a declared state role at startup because this host could not use a writable <code>CONFIGDIR</code> mount. → case</li>

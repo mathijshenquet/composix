@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
+use serde::Serialize;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Cixfile {
     pub inputs: BTreeMap<String, Input>,
     pub fetches: BTreeMap<String, Fetch>,
@@ -93,16 +94,17 @@ fn binder_names<'a>(templates: impl IntoIterator<Item = &'a Template>) -> BTreeS
         .collect()
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Input {
     pub url: String,
     pub kind: InputKind,
     /// Ordered project-local overlay paths for a package universe.
     pub overlays: Vec<String>,
+    #[serde(skip)]
     pub line: usize,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum InputKind {
     PackageUniverse,
     Source,
@@ -115,18 +117,21 @@ impl Input {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Fetch {
     pub expected: Option<String>,
     pub command: Template,
+    #[serde(skip)]
     pub line: usize,
+    #[serde(skip)]
     pub source: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Builder {
     pub imports: Vec<Template>,
     pub steps: Vec<BuildStep>,
+    #[serde(skip)]
     pub line: usize,
 }
 
@@ -140,38 +145,46 @@ impl Builder {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum BuildStep {
     Env {
         name: String,
         value: Template,
+        #[serde(skip)]
         line: usize,
+        #[serde(skip)]
         source: String,
     },
     Copy(Copy),
     Fetch {
         expected: Option<String>,
         command: Template,
+        #[serde(skip)]
         line: usize,
+        #[serde(skip)]
         source: String,
     },
     Run {
         command: Template,
+        #[serde(skip)]
         line: usize,
+        #[serde(skip)]
         source: String,
     },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Copy {
     pub src: Template,
     pub dst: String,
     pub mode: CopyMode,
+    #[serde(skip)]
     pub line: usize,
+    #[serde(skip)]
     pub source: String,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum CopyMode {
     Link,
     /// Keeps a narrow builder/FETCH consumer keyed to that subpath, not its changing view root.
@@ -179,21 +192,23 @@ pub enum CopyMode {
     Materialize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum Assembly {
     File {
         dst: String,
         contents: Template,
+        #[serde(skip)]
         line: usize,
     },
     Link {
         dst: String,
         target: Template,
+        #[serde(skip)]
         line: usize,
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum ArtifactKind {
     Service,
     App,
@@ -222,13 +237,14 @@ impl ArtifactKind {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Artifact {
     pub kind: ArtifactKind,
     pub imports: Vec<Template>,
     pub copies: Vec<Copy>,
     pub assembly: Vec<Assembly>,
     pub service: Service,
+    #[serde(skip)]
     pub line: usize,
 }
 
@@ -245,11 +261,13 @@ impl Artifact {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Service {
     pub start: Vec<Template>,
+    #[serde(skip)]
     pub start_line: usize,
     pub start_pre: Option<Vec<Template>>,
+    #[serde(skip)]
     pub start_pre_line: Option<usize>,
     pub env: BTreeMap<String, Env>,
     pub ports: BTreeMap<String, Port>,
@@ -263,30 +281,30 @@ pub struct Service {
     pub stop_signal: Option<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Secret {
     pub as_env: Option<String>,
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum Claim {
     Named(String),
     Device(String),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Readiness {
     pub probe: Probe,
     pub timeout: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Liveness {
     pub probe: Probe,
     pub interval: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum Probe {
     Http(String),
     Tcp(String),
@@ -314,32 +332,32 @@ impl Service {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Env {
     pub default: Option<Template>,
     pub required: bool,
     pub secret: bool,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Port {
     pub source: PortSource,
     pub protocol: Protocol,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum PortSource {
     Env(String),
     Value(u16),
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub enum Protocol {
     Tcp,
     Udp,
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 pub struct Dirs {
     pub state: BTreeSet<String>,
     pub cache: BTreeSet<String>,
@@ -349,7 +367,7 @@ pub struct Dirs {
     pub data: BTreeMap<String, bool>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Template {
     pub parts: Vec<TemplatePart>,
 }
@@ -425,21 +443,24 @@ impl Template {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub enum TemplatePart {
     Literal(String),
     Package {
         namespace: String,
         attrpath: String,
+        #[serde(skip)]
         line: usize,
     },
     Binder {
         name: String,
+        #[serde(skip)]
         line: usize,
     },
     InputMetadata {
         namespace: String,
         attribute: String,
+        #[serde(skip)]
         line: usize,
     },
 }
