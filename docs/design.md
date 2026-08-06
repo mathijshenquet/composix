@@ -428,21 +428,26 @@ pinned in `Cixfile.lock` (rev + narHash; created on first build, `--update-lock`
   hand-writing composites at scale. Symmetry worth naming: Cixfile : item :: your-generator :
   composite — human languages at the edges, JSON contracts throughout.
 
-## Building now (updated 2026-08-05)
+## Building now (updated 2026-08-06)
 
-The adopted board is built through CIP-109: the corpus stands at 28 receipted cases on the
-CIP-91/92 canon with the ribbon vocabulary live; the structural round landed (build_chain
-4,369 -> 2,059 live with Workspace/Memo owners, runtime.rs 290 with target/app/manager strata,
-doc harness split, guardrails enforced in the gate); dev-speed shipped (contract-keyed VM
-selection — build-subsystem diffs 0/14 scenarios, lock subtree aggregation, scratch lifecycle
-with liveness-guarded sweeping); probes are URL-shaped; STOPSIGNAL/stopTimeout exist; the k8s
-axis has a drafted teaching contract and wave design.
-The honest frontier is the LANGUAGE EPOCH awaiting adoption (nodes-and-edges: argv-first
-steps + LET/WITH edges + heredoc-only shell; phase-blocks; build-args) with
-fmt-key-neutrality as its prerequisite, the pnpm ecosystem-fetch wall (five exhibits),
-CIP-103's context/sandbox + FETCH-state legs and CIP-104 crate strata, k8s wave 1 behind its
-adoption call — and unchanged behind those: the phase-2 closed-root flip, D26/D27 named
-networks and `talks-to`, the publish era, and the reconciler.
+The adopted board runs through CIP-113. **The LANGUAGE EPOCH is ADOPTED** (CIP-110
+fmt-key-neutrality as prerequisite; CIP-111 nodes-and-edges with juxtaposition
+lists and mandatory heredoc interpreters; CIP-112 phase-blocks; CIP-113
+closed-matrix ARG with first-value defaults — TAG deferred to
+cips/deferred/build-args-tag.md). Implementation is staged: fmtkey-impl
+(canonical-AST keying + NAR-invariant fingerprints) and epoch-groundwork
+(parser/fmt/executor behind tests) run as tracks; the SINGLE epoch corpus sweep +
+migrate.md rewrite land last, absorbing all lock churn at once. The pnpm wall
+cracked via upstream's frozenStore (pnpm ≥11.7 read-only stores; TOFU
+instance-pin; validation + target bumps + problem-class diagnostics in flight);
+`WITH UNSAFE IGNORE` replaces the old WITH CACHE sketch (D71's underlay owns
+persistence; the clause is pure declared evidence-exclusion). CIP-103/104
+complete; trace self-write hygiene closed; tour determinism closed (incl. the
+teardown race); corpus at 30→32 in flight; CIP-107's legacy-narHash inventory is
+down to 3 (2 filestash-walled, 1 pnpm-gated). Awaiting Mathijs: 0.1 scope +
+naming-table drafts (docs redo personally by Mathijs is a recorded 0.1 item),
+k8s wave 1, ribbon trio — and unchanged behind those: the phase-2 closed-root
+flip, D26/D27 named networks and `talks-to`, the publish era, and the reconciler.
 
 - ✅ D29 — **spec v3**: (a) `listeners` field per the dstyle proposal — an activated-listener
   contract *distinct from* `ports` (fd-inherit means NO IP-socket grant; `FileDescriptorName=`
