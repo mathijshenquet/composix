@@ -1,5 +1,29 @@
 # composix work log
 
+## 2026-08-06 day (CIP review round: epoch trio resolutions; pnpmwall-spike launched)
+
+- **Mathijs review round on the epoch trio** (recorded in the drafts,
+  commit `fefb1ddf`): nodes-and-edges — inline WITH/EXPECT valid, fmt
+  canonicalizes to clause position; FETCH normalization tails dissolve
+  into NAR-invariant fingerprinting (no NORMALIZE directive; per-path
+  `read_hash` currently folds full st_mode in — same repair family as
+  fmt-key-neutrality's ntfy exhibit); LET-list syntax reserved as the
+  shared enumeration literal with ARG (`ARG X from [a, b]`). phase-blocks
+  — single-level only, parser never whitespace-rejects (fmt owns layout),
+  missing-brace is a named parse error. **The trio lands as ONE epoch.**
+  build-args got a v4 pass: args×tagging worked out as a declared `TAG`
+  line (buildx-bake precedent) — awaiting Mathijs's next read.
+- CIP-light section removed from cips/README.md (Mathijs: unneeded churn).
+- **pnpmwall-spike (sol) launched** — pnpm wall is HIGH PRIO (Mathijs):
+  dozzle hang diagnosis (cacert/IPv6), two-phase CAS-store spike, verdaccio
+  payoff attempt, directus recheck. Spec: .dev/specs/track-pnpmwall-spike.md.
+- Housekeeping: Claude-Session commit trailer disabled via
+  `attribution.sessionUrl: false` in ~/.claude/settings.json (active next
+  session; the earlier `commit`/`pr` empty-strings never covered it).
+- **Open with Mathijs**: epoch-trio ADOPTION (drafts now carry his
+  resolutions + the TAG v4 pass to re-read), fmt-key + pnpm-wall + k8s-wave
+  adoptions, ribbon borderline trio, tour read, naming, 0.1-scope CIP offer.
+
 ## 2026-08-06 night shift (seven merges: CIP-103 complete, CIP-104 executed, coldtrace hygiene, corpus 30)
 
 - **Merged, each behind a value-checked independent gate**:
