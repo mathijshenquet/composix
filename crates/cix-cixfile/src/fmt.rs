@@ -1,14 +1,25 @@
 //! Lossless, line-oriented Cixfile formatting.
 
 use crate::{
-    parse, Artifact, Assembly, BuildStep, Builder, Cixfile, Copy, Fetch, Input, ParseError,
-    Service, Template, TemplatePart,
+    parse, Artifact, Assembly, BuildStep, Builder, Cixfile, Copy, Fetch, Input, NodeCommand,
+    ParseError, Service, Template, TemplatePart,
 };
 
 /// Formats a Cixfile after first accepting it with the real semantic parser.
 pub fn format(input: &str) -> Result<String, ParseError> {
-    let input = input.replace("\r\n", "\n");
-    let parsed = parse(&input)?;
+    let mut input = input.replace("\r\n", "\n");
+    let parsed = match parse(&input) {
+        Ok(parsed) => parsed,
+        Err(error) if error.message.contains("is never closed") => {
+            input.push_str(if input.ends_with('\n') {
+                "}\n"
+            } else {
+                "\n}\n"
+            });
+            parse(&input)?
+        }
+        Err(error) => return Err(error),
+    };
     let mut scanner = Scanner::new(&input);
     let entries = scanner.scan();
     let formatted = render(entries);
@@ -59,7 +70,7 @@ fn same_input(left: &Input, right: &Input) -> bool {
 }
 
 fn same_fetch(left: &Fetch, right: &Fetch) -> bool {
-    left.expected == right.expected && same_template(&left.command, &right.command)
+    left.expected == right.expected && same_node_command(&left.command, &right.command)
 }
 
 fn same_builder(left: &Builder, right: &Builder) -> bool {
@@ -99,7 +110,10 @@ fn same_builder(left: &Builder, right: &Builder) -> bool {
                         command: right_command,
                         ..
                     },
-                ) => left_expected == right_expected && same_template(left_command, right_command),
+                ) => {
+                    left_expected == right_expected
+                        && same_node_command(left_command, right_command)
+                }
                 (
                     BuildStep::Run {
                         command: left_command,
@@ -109,9 +123,36 @@ fn same_builder(left: &Builder, right: &Builder) -> bool {
                         command: right_command,
                         ..
                     },
-                ) => same_template(left_command, right_command),
+                ) => same_node_command(left_command, right_command),
                 _ => false,
             })
+}
+
+fn same_node_command(left: &NodeCommand, right: &NodeCommand) -> bool {
+    match (left, right) {
+        (NodeCommand::Legacy(left), NodeCommand::Legacy(right)) => same_template(left, right),
+        (NodeCommand::Argv(left), NodeCommand::Argv(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| same_template(left, right))
+        }
+        (
+            NodeCommand::Heredoc {
+                interpreter: left_interpreter,
+                body: left_body,
+            },
+            NodeCommand::Heredoc {
+                interpreter: right_interpreter,
+                body: right_body,
+            },
+        ) => {
+            same_template(left_interpreter, right_interpreter)
+                && same_template(left_body, right_body)
+        }
+        _ => false,
+    }
 }
 
 fn same_artifact(left: &Artifact, right: &Artifact) -> bool {
@@ -261,6 +302,7 @@ enum Kind {
     Body,
     HeredocBody,
     HeredocTerminator,
+    Closing,
 }
 
 struct Entry {
@@ -300,6 +342,14 @@ impl<'a> Scanner<'a> {
                     kind: Kind::Comment,
                     text: line.to_owned(),
                 });
+                continue;
+            }
+            if line.trim() == "}" {
+                entries.push(Entry {
+                    kind: Kind::Closing,
+                    text: "}".into(),
+                });
+                in_block = false;
                 continue;
             }
 
@@ -377,7 +427,7 @@ fn split_directive(line: &str) -> (&str, &str) {
 fn heredoc_delimiter<'a>(directive: &str, arguments: &'a str) -> Option<&'a str> {
     let fields = arguments.split_whitespace().collect::<Vec<_>>();
     match directive {
-        "RUN" if fields.len() == 1 => fields[0].strip_prefix("<<"),
+        "RUN" | "FETCH" => fields.iter().find_map(|field| field.strip_prefix("<<")),
         "FILE" if fields.len() == 2 => fields[1].strip_prefix("<<"),
         _ => None,
     }
@@ -386,7 +436,7 @@ fn heredoc_delimiter<'a>(directive: &str, arguments: &'a str) -> Option<&'a str>
 
 fn format_directive_line(source: &str, directive: &str, kind: Kind, continuation: bool) -> String {
     let indent = match kind {
-        Kind::Prelude | Kind::BlockHeader => 0,
+        Kind::Prelude | Kind::BlockHeader | Kind::Closing => 0,
         Kind::Body => 2,
         _ => 0,
     } + usize::from(continuation) * 4;

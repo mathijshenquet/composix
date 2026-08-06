@@ -41,14 +41,14 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --update-lock resolved fetc
 {
   "fetched-result": "/nix/store/…-cix-item-fetched-result"
 }
-FETCH expected memo miss 28484e83aefb -> /nix/store/…-cix-build-view
+FETCH expected memo miss e2b545e3a122 -> /nix/store/…-cix-build-view
 FETCH resolved update probe: two outputs were identical
-FETCH resolved memo miss 63abebefbcfb -> /nix/store/…-cix-build-view
+FETCH resolved memo miss 7ce61433cab1 -> /nix/store/…-cix-build-view
 BUILDER assemble workspace <persistent>
 BUILDER assemble step 1 COPY /nix/store/…-cix-build-view/expected -> expected
 BUILDER assemble step 2 COPY /nix/store/…-cix-build-view/resolved -> resolved
 BUILDER assemble step 3 RUN executed
-BUILDER assemble memo miss b19c0ed26a5d -> /nix/store/…-cix-build-view
+BUILDER assemble memo miss ac1ed9394645 -> /nix/store/…-cix-build-view
 ```
 
 #### `result`
@@ -129,12 +129,12 @@ $ CIX_BUILD_WORKSPACE_DIR=$PWD/.workspaces cix build --cold fetch-demo
 {
   "fetched-result": "/nix/store/…-cix-item-fetched-result"
 }
-FETCH expected replayed pinned snapshot 28484e83aefb -> /nix/store/…-cix-build-view
-FETCH resolved replayed pinned snapshot 63abebefbcfb -> /nix/store/…-cix-build-view
+FETCH expected replayed pinned snapshot e2b545e3a122 -> /nix/store/…-cix-build-view
+FETCH resolved replayed pinned snapshot 7ce61433cab1 -> /nix/store/…-cix-build-view
 BUILDER assemble step 1 COPY /nix/store/…-cix-build-view/expected -> expected
 BUILDER assemble step 2 COPY /nix/store/…-cix-build-view/resolved -> resolved
 BUILDER assemble step 3 RUN executed
-BUILDER assemble memo miss b19c0ed26a5d -> /nix/store/…-cix-build-view
+BUILDER assemble memo miss ac1ed9394645 -> /nix/store/…-cix-build-view
 ```
 
 ## The FHS diagnostic, then the one-line fix
@@ -196,7 +196,7 @@ BUILDER native-build workspace <persistent>
 BUILDER native-build step 1 COPY /nix/store/…-cix-build-view/fhs-probe -> .
 BUILDER native-build step 2 RUN executed
 BUILDER native-build step 3 RUN executed
-BUILDER native-build memo miss 4d843d6a0e96 -> /nix/store/…-cix-build-view
+BUILDER native-build memo miss 2032e6e33537 -> /nix/store/…-cix-build-view
 ```
 
 #### `result`
@@ -324,7 +324,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: cold
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 1f8ac6bcc920 -> /nix/store/…-cix-build-view
+BUILDER build memo miss 1e5f8ba6c966 -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -351,7 +351,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 7cdaa7d7f96e -> /nix/store/…-cix-build-view
+BUILDER build memo miss 58ada276a4ae -> /nix/store/…-cix-build-view
 ```
 
 ```sh
@@ -366,7 +366,7 @@ BUILDER build workspace <persistent>
 BUILDER build step 1 COPY /nix/store/…-cix-source/rust/ -> .
 workspace-state: warm
 BUILDER build step 2 RUN executed
-BUILDER build memo miss 7cdaa7d7f96e -> /nix/store/…-cix-build-view
+BUILDER build memo miss 58ada276a4ae -> /nix/store/…-cix-build-view
 ```
 
 ```sh

@@ -56,15 +56,16 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / dozzle</nav>
   <h1>docker / dozzle</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Socket bridge is intentionally desk/unprobed without gate dockerd; the full frontend/item/runtime remain unverified · <strong>Evidence:</strong> daemonless receipt</p>
-  <p class="status"><strong>Receipt status:</strong> Daemonless socket-bridge declaration formats/parses; importing cacert makes the formerly hung frontend FETCH complete both stability probes · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The traced offline install exceeded its 20-minute bound; frontend/item/runtime remain unproved, and the socket bridge stays intentionally desk-only · <strong>Evidence:</strong> daemonless and frozen-store wall</p>
+  <p class="status"><strong>Receipt status:</strong> Daemonless socket-bridge declaration formats/parses; pnpm 11.18 fetches and seals the complete 20,175-file CAS plus index.db · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/dozzle/SOURCE">Pinned upstream source notes</a></p>
   <aside class="gap-panel">
     <h2>Migration gaps</h2>
     <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
       <li>The docker-socket bridge declares <code>/var/run/docker.sock:ro</code>; activation requires <code>--dir /var/run/docker.sock=host:/var/run/docker.sock --identity &lt;stable-identity&gt;</code>. It is desk evidence only: no gate dockerd exists. Journald/<code>cix logs</code> and Nix pins/<code>cix</code> updates are the native answers; this bridge demonstrates coexistence, not migration. → evidence</li>
-      <li>The former pnpm hang was missing TLS trust: without <code>cacert</code> the clean FETCH timed out after 180 seconds with no CAS files; with <code>${pkgs.cacert}</code> the actual cix FETCH completed both stability probes and exited 0. The full frontend, item, and runtime remain unverified. → case</li>
+      <li>The former pnpm hang was missing TLS trust: without <code>cacert</code> the clean FETCH timed out after 180 seconds with no CAS files; with <code>${pkgs.cacert}</code> the actual Cix FETCH completes both stability probes. → case</li>
+      <li>The frozenStore recheck uses pinned nixpkgs pnpm 11.18.0 (upstream pins the already-eligible 11.17.0) and seals the complete 20,175-file CAS plus <code>index.db</code>; no store bytes are stripped, normalized, or regenerated. The downstream offline frozen install stayed active under the read tracer until the 1,200-second bound, so no frontend, item, or runtime is claimed and no lock update is retained. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -682,13 +683,24 @@ Build context: repository archive in context/ (Dockerfile copies source trees an
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 <span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> web
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+<span class="tok-directive">BUILDER</span> pnpm-store
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-lock.yaml .
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-workspace.yaml .
-  <span class="tok-directive">FETCH</span> pnpm fetch --ignore-scripts
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/package.json .
-  <span class="tok-directive">RUN</span> pnpm install --offline --ignore-scripts
+  <span class="tok-directive">FETCH</span> pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+<span class="tok-directive">BUILDER</span> web
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_24}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-lock.yaml .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-workspace.yaml .
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/package.json .
+  <span class="tok-directive">RUN</span> &lt;&lt;INSTALL
+<span class="tok-heredoc">pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project</span>
+<span class="tok-heredoc">pnpm config set frozen-store true --location project</span>
+<span class="tok-heredoc">pnpm config set store-dir </span><span class="tok-interpolation">${pnpm-store}</span><span class="tok-heredoc">/pnpm-store --location project</span>
+<span class="tok-heredoc">pnpm install --offline --frozen-lockfile --frozen-store --ignore-scripts</span>
+<span class="tok-directive">INSTALL</span>
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/vite.config.ts .
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/tsconfig.json .
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/.prettierrc.cjs .
@@ -10767,6 +10779,25 @@ lock entries, recorded 52 IPv6 and 38 IPv4 connects, and saw every package on
 fetch attempt 1 with no TLS errors. The old symptom was a cacert masquerade,
 not IPv6 fallback. This receipt claims only the FETCH diagnosis; the full
 frontend and runtime were not rerun.
+
+## 2026-08-06 frozenStore route
+
+The translation retains upstream&#39;s already-eligible pnpm 11.17.0 contract by
+selecting pinned nixpkgs pnpm 11.18.0, fetches the complete store, and points a
+separate offline builder at that immutable instance with `frozen-store=true`.
+The actual Cix update probe completed both fetches in 15,041 ms, verified all
+818 lock entries, and reported volatility only in pnpm verification metadata,
+`.modules.yaml`, and `v11/index.db`. It sealed 20,175 CAS files plus the
+read-only index at
+`/nix/store/44apdds69qhw5gr23cby7416mm1m09xx-cix-build-consumed` (NAR hash
+`sha256-u2dxDDHhs2yvNCov2ychAQ1Vn4NlzX63ouCFjTZb4PU=`).
+
+The downstream offline frozen install then remained active under Cix&#39;s read
+tracer until the foreground command synchronously exited 124 at its
+1,200-second bound. No pnpm/store error was emitted. This is a trace-cost wall,
+not a failed store seal or a green frontend/item/runtime claim. Exact evidence
+is `/var/tmp/cix-pnpm-frozenstore-dozzle-route.MqWXUV`; no lock change is
+retained.
 </code></pre>
       </details>
     </section>

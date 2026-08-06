@@ -1,5 +1,39 @@
 # composix work log
 
+## 2026-08-06 late afternoon (pnpm wall CLOSED as CIP-114; corpus 32; epoch stage 1 merged; stage 2 to sol)
+
+- **pnpm-frozenstore (sol) merged + CIP-114 ADOPTED on its receipts**
+  (pre-authorized): the frozenStore validation PASSED (two
+  network-silent installs from one read-only sealed store,
+  byte-identical app outputs; TOFU instance-pin accepted with no
+  semantic exception needed); conservative problem-class hints live
+  (cacert trace-pattern; exact pnpm error families; doc anchors);
+  dozzle/directus whole stores sealed (20,175 / 80,763 CAS files +
+  index). Named residual: the TRACE-COST wall (traced monorepo
+  installs exceed 20min) — a performance track, not a mechanism gap;
+  candidate next dev-speed item.
+- **expand-postgres-registry (luna) merged**: corpus 30→32, honest
+  walls (pg_isready runtime; registry faithful-cold Go-cache
+  divergence — another UNSAFE-IGNORE exhibit).
+- **epoch-groundwork stage 1 (terra) merged** behind my full gate
+  (fmt + workspace + progressive VM): new grammar parses/formats
+  (braces, argv nodes, heredocs, LET/ARG juxtaposition, WITH clauses,
+  UNSAFE IGNORE), dual acceptance intact; stage-2 handoff recorded in
+  the crate LOG. Two honest terra stops en route (scope, then the
+  pane's process-reaping bridge defeating .gate-exit — that
+  environment limit is now recorded in specs; heavy tiers delegated
+  to my merge gate).
+- **Fix-forwards on main (all value-checked)**: closed-root fixture
+  missed by bindfix (TemporaryFileSystem→ReadWritePaths); Docker-ARG
+  torture diagnostic taught the CIP-113 translation + D73 anchor;
+  closedroot nix roster 30→32 (postgres/registry as downgraded).
+  Lesson re-learned: my merge gates for Rust-touching tracks now run
+  the workspace tier, not just fmt+VM.
+- **epoch-stage2 (sol) launched**: execution semantics, UNSAFE-IGNORE
+  evidence exclusion + detection surfacing, ARG CLI/lock/manifest;
+  sweep still last. fmtkey-impl (terra) rebasing+regating in flight.
+- Fleet: sol (stage2) + terra (fmtkey) active; disk 47G — watch.
+
 ## 2026-08-06 afternoon (THE EPOCH IS ADOPTED — CIP-110..113; three merges; two drafts; implementation launched)
 
 - **Adoptions formalized** (Mathijs's calls, AFK-delegated gaps filled

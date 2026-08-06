@@ -1,2 +1,2 @@
-line 3: ARG, which is Docker vocabulary; use explicit FROM/FETCH inputs or builder ENV; see docs/migrate.md#docker-vocabulary
+line 3: ARG syntax is ARG NAME from value1 value2 …; Docker's ARG NAME=default becomes ARG NAME from default, a declared closed matrix; see docs/migrate.md#docker-vocabulary
   | "ARG VERSION=1"

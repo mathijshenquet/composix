@@ -6,4 +6,4 @@ mod machine;
 mod migrations;
 mod validate;
 
-pub use machine::{parse, ParseError};
+pub use machine::{parse, parse_with_args, ParseError};

@@ -1,14 +1,25 @@
 FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
 FROM . AS src
 
-BUILDER build
-  IMPORT ${pkgs.nodejs_24} ${pkgs.pnpm} ${pkgs.bash} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.gnused}
+BUILDER pnpm-store
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.cacert}
   ENV NODE_ENV=development
   ENV VERDACCIO_BUILD_REGISTRY=https://registry.npmjs.org
   COPY ${src}/context/ .
-  FETCH rm -rf node_modules && pnpm config set registry $VERDACCIO_BUILD_REGISTRY && pnpm install --frozen-lockfile --ignore-scripts
+  FETCH pnpm --pm-on-fail=ignore config set registry $VERDACCIO_BUILD_REGISTRY && pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+BUILDER build
+  IMPORT ${pkgs.pnpm} ${pkgs.nodejs_24} ${pkgs.bash} ${pkgs.gcc} ${pkgs.gnumake} ${pkgs.python3} ${pkgs.linuxHeaders} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.gnused}
+  ENV NODE_ENV=development
+  COPY ${src}/context/ .
+  RUN <<INSTALL
+pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project
+pnpm config set frozen-store true --location project
+pnpm config set store-dir ${pnpm-store}/pnpm-store --location project
+pnpm install --offline --frozen-lockfile --frozen-store --ignore-scripts
+INSTALL
   RUN pnpm run build
-  RUN pnpm --filter verdaccio --prod --legacy deploy /work/deploy
+  RUN pnpm --filter verdaccio --prod --legacy deploy --offline /work/deploy
 
 SERVICE verdaccio
   IMPORT ${pkgs.nodejs_24}

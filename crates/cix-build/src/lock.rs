@@ -6,7 +6,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, Template, TemplatePart};
+use crate::{
+    Assembly, BuildStep, Cixfile, EvalPlan, Input, InputKind, NodeCommand, Template, TemplatePart,
+};
 
 pub const DEFAULT_NIXPKGS_URL: &str = "github:NixOS/nixpkgs/nixos-unstable";
 const AUTOMATIC_FETCH_KEY_VERSION: &str = "nar-v1";
@@ -75,6 +77,8 @@ pub struct OutputReceipt {
     pub source_hash: String,
     #[serde(rename = "storePath")]
     pub store_path: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -331,6 +335,10 @@ pub fn validate_declared_expectations(cixfile: &Cixfile, lock: &LockFile) -> Res
         let Some(expected) = fetch.expected.as_deref() else {
             continue;
         };
+        if !cixfile.args.is_empty() {
+            cache_safe = false;
+            continue;
+        }
         match lock.fetches.get(name) {
             Some(pin) if pin.nar_hash != expected => bail!(
                 "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {expected}\n  lock records {}",
@@ -354,7 +362,7 @@ pub fn validate_declared_expectations(cixfile: &Cixfile, lock: &LockFile) -> Res
             else {
                 continue;
             };
-            let Some(command) = command.literal_value() else {
+            let Some(command) = node_command_literal(command) else {
                 cache_safe = false;
                 continue;
             };
@@ -381,6 +389,26 @@ pub(crate) fn builder_fetch_id(builder: &str, index: usize, command: &str) -> St
         .map(|byte| format!("{byte:02x}"))
         .collect::<String>();
     format!("builder:{builder}:{index}-{}", &hex[..12])
+}
+
+pub(crate) fn resolved_statement_id(base: &str, command: &str, cixfile: &Cixfile) -> String {
+    if cixfile.args.is_empty() {
+        return base.to_owned();
+    }
+    let selected = cixfile
+        .args
+        .iter()
+        .map(|(name, argument)| (name, &argument.selected))
+        .collect::<BTreeMap<_, _>>();
+    let digest = Sha256::digest(
+        serde_json::to_vec(&(command, selected))
+            .expect("resolved statement identity serialization"),
+    );
+    let hex = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    format!("{base}-{}", &hex[..12])
 }
 
 fn ensure_lock_with<F, A>(
@@ -509,7 +537,10 @@ pub fn save_lock(path: &Path, lock: &LockFile) -> Result<()> {
 pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<()> {
     let inputs = cixfile.inputs.clone();
     for fetch in cixfile.fetches.values_mut() {
-        resolve_template_metadata(&mut fetch.command, &inputs, lock)?;
+        resolve_command_metadata(&mut fetch.command, &inputs, lock)?;
+        for value in fetch.environment.values_mut() {
+            resolve_template_metadata(value, &inputs, lock)?;
+        }
     }
     for builder in cixfile.builders.values_mut() {
         for import in &mut builder.imports {
@@ -518,8 +549,20 @@ pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<
         for step in &mut builder.steps {
             match step {
                 BuildStep::Copy(copy) => resolve_template_metadata(&mut copy.src, &inputs, lock)?,
-                BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                    resolve_template_metadata(command, &inputs, lock)?
+                BuildStep::Fetch {
+                    command,
+                    environment,
+                    ..
+                }
+                | BuildStep::Run {
+                    command,
+                    environment,
+                    ..
+                } => {
+                    resolve_command_metadata(command, &inputs, lock)?;
+                    for value in environment.values_mut() {
+                        resolve_template_metadata(value, &inputs, lock)?;
+                    }
                 }
                 BuildStep::Env { value, .. } => resolve_template_metadata(value, &inputs, lock)?,
             }
@@ -553,6 +596,38 @@ pub fn resolve_input_metadata(cixfile: &mut Cixfile, lock: &LockFile) -> Result<
         }
     }
     Ok(())
+}
+
+fn resolve_command_metadata(
+    command: &mut NodeCommand,
+    inputs: &BTreeMap<String, Input>,
+    lock: &LockFile,
+) -> Result<()> {
+    match command {
+        NodeCommand::Legacy(command) => resolve_template_metadata(command, inputs, lock)?,
+        NodeCommand::Argv(argv) => {
+            for template in argv {
+                resolve_template_metadata(template, inputs, lock)?;
+            }
+        }
+        NodeCommand::Heredoc { interpreter, body } => {
+            resolve_template_metadata(interpreter, inputs, lock)?;
+            resolve_template_metadata(body, inputs, lock)?;
+        }
+    }
+    Ok(())
+}
+
+fn node_command_literal(command: &NodeCommand) -> Option<String> {
+    match command {
+        NodeCommand::Legacy(command) => command.literal_value(),
+        NodeCommand::Argv(argv) => argv
+            .iter()
+            .map(Template::literal_value)
+            .collect::<Option<Vec<_>>>()
+            .map(|argv| argv.join("\u{1f}")),
+        NodeCommand::Heredoc { .. } => None,
+    }
 }
 
 fn resolve_template_metadata(

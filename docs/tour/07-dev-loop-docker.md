@@ -158,7 +158,7 @@ $ faithful_item=$(CIX_BUILD_WORKSPACE_DIR=$PWD/.twin-workspaces cix build twins 
 BUILDER faithful-build workspace <persistent>
 BUILDER faithful-build step 1 COPY /nix/store/…-cix-source/start -> .
 BUILDER faithful-build step 2 RUN executed
-BUILDER faithful-build memo miss 5f5ad0d96d28 -> /nix/store/…-cix-build-view
+BUILDER faithful-build memo miss a2831e9634b9 -> /nix/store/…-cix-build-view
 ```
 
 ```sh

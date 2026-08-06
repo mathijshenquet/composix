@@ -7,7 +7,8 @@ use anyhow::Context;
 use cix_build::ArtifactResolver;
 use cix_cixfile::generate_nix_with_snapshots;
 use cix_cixfile::{
-    build, build_family, build_family_with_stats_file, build_with_registry, generate_nix, parse,
+    build, build_family, build_family_with_stats_file,
+    build_family_with_stats_file_and_registry_args, build_with_registry, generate_nix, parse,
     ArtifactPin, ArtifactRegistry, BuildOptions, LockFile,
 };
 
@@ -849,6 +850,218 @@ START /bin/output
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
+}
+
+#[test]
+fn epoch_nodes_preserve_argv_heredoc_and_with_semantics_end_to_end() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build {
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  RUN mkdir "literal;mkdir injected"
+  RUN bash <<SCRIPT
+printf '%s' "$0" > heredoc-filename
+printf '%s' "$SCOPED" > scoped
+SCRIPT
+    WITH SCOPED=node-only
+  RUN bash <<SCRIPT
+printf '%s' "$${SCOPED-unset}" > isolated
+SCRIPT
+}
+ITEM result {
+  COPY ${build} /payload
+}
+"#,
+    )
+    .unwrap();
+    write_committed_lock(directory.path());
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+    })
+    .unwrap();
+    let payload = Path::new(&output[0].store_path).join("payload");
+
+    assert!(payload.join("literal;mkdir injected").is_dir());
+    assert!(!payload.join("injected").exists());
+    assert_eq!(
+        fs::read_to_string(payload.join("heredoc-filename")).unwrap(),
+        "/run/cix-heredoc"
+    );
+    assert_eq!(
+        fs::read_to_string(payload.join("scoped")).unwrap(),
+        "node-only"
+    );
+    assert_eq!(
+        fs::read_to_string(payload.join("isolated")).unwrap(),
+        "unset"
+    );
+}
+
+#[test]
+fn unsafe_ignore_removes_the_declared_subtree_from_trace_and_seal_evidence() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+BUILDER build {
+  IMPORT ${pkgs.bash} ${pkgs.coreutils}
+  RUN bash <<SCRIPT
+mkdir cache
+printf old > cache/value
+SCRIPT
+  RUN bash <<SCRIPT
+cat cache/value > result
+printf new > cache/value
+SCRIPT
+    WITH UNSAFE IGNORE cache
+}
+
+ITEM result {
+  COPY ${build} /payload
+}
+"#,
+    )
+    .unwrap();
+    write_committed_lock(directory.path());
+    let output = build(&BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+    })
+    .unwrap();
+    let payload = Path::new(&output[0].store_path).join("payload");
+    assert_eq!(fs::read_to_string(payload.join("result")).unwrap(), "old");
+    assert!(!payload.join("cache").exists());
+
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    let memo = &lock.step_memo["builder:build:1"];
+    assert!(memo.reads.keys().all(|path| !path.starts_with("cache")));
+    assert!(memo.changes.keys().all(|path| !path.starts_with("cache")));
+}
+
+#[test]
+fn all_arg_cells_keep_outputs_locks_and_manifests_distinct() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(
+        directory.path().join("Cixfile"),
+        r#"FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+ARG FLAVOR from plain debug
+FETCH ingredient ${pkgs.bash}/bin/bash <<FETCH_BODY
+printf '%s' '${FLAVOR}' > flavor
+FETCH_BODY
+BUILDER build {
+  IMPORT ${pkgs.bash}
+  RUN bash <<SCRIPT
+printf '%s' '${FLAVOR}' > flavor
+SCRIPT
+}
+APP result {
+  IMPORT ${pkgs.coreutils}
+  COPY ${build}/flavor /flavor
+  COPY ${ingredient}/flavor /fetched-flavor
+  START true
+}
+"#,
+    )
+    .unwrap();
+    write_committed_lock(directory.path());
+    let state = tempfile::tempdir().unwrap();
+    let registry = TestRegistry(cix_index::Store::open(state.path().to_owned()).unwrap());
+    let options = BuildOptions {
+        directory: directory.path().to_owned(),
+        update_lock: None,
+        tag: None,
+        cold: false,
+        allow_secret: false,
+        workspace_directory: test_workspace_directory(),
+    };
+    let (outputs, _) = build_family_with_stats_file_and_registry_args(
+        &options,
+        &[],
+        None,
+        None,
+        "Cixfile",
+        &[],
+        true,
+        &registry,
+    )
+    .unwrap();
+
+    assert_eq!(outputs.len(), 2);
+    let mut values = std::collections::BTreeMap::new();
+    for output in outputs {
+        let selected = output.args["FLAVOR"].clone();
+        assert_eq!(
+            fs::read_to_string(Path::new(&output.store_path).join("flavor")).unwrap(),
+            selected
+        );
+        assert_eq!(
+            fs::read_to_string(Path::new(&output.store_path).join("fetched-flavor")).unwrap(),
+            selected
+        );
+        let manifest = cix_run::spec::Spec::load(Path::new(&output.store_path)).unwrap();
+        assert_eq!(manifest.build_args, output.args);
+        values.insert(selected, output.store_path);
+    }
+    assert_eq!(
+        values.keys().cloned().collect::<Vec<_>>(),
+        ["debug", "plain"]
+    );
+    let (repeated, stats) = build_family_with_stats_file_and_registry_args(
+        &options,
+        &[],
+        None,
+        None,
+        "Cixfile",
+        &[],
+        true,
+        &registry,
+    )
+    .unwrap();
+    assert_eq!(
+        repeated
+            .into_iter()
+            .map(|item| (item.args["FLAVOR"].clone(), item.store_path))
+            .collect::<std::collections::BTreeMap<_, _>>(),
+        values
+    );
+    assert!(stats.steps.iter().all(|step| step.status == "memo-hit"));
+
+    let lock: LockFile =
+        serde_json::from_slice(&fs::read(directory.path().join("Cixfile.lock")).unwrap()).unwrap();
+    assert_eq!(lock.outputs.len(), 2);
+    assert_eq!(
+        lock.fetches
+            .keys()
+            .filter(|key| key.starts_with("ingredient-"))
+            .count(),
+        2
+    );
+    assert_eq!(
+        lock.outputs
+            .values()
+            .map(|receipt| receipt.args["FLAVOR"].as_str())
+            .collect::<std::collections::BTreeSet<_>>(),
+        std::collections::BTreeSet::from(["debug", "plain"])
+    );
+    assert_eq!(
+        lock.step_memo
+            .keys()
+            .filter(|key| key.starts_with("builder:build:0-"))
+            .count(),
+        2
+    );
 }
 
 #[test]

@@ -56,16 +56,17 @@
 <body>
   <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / directus</nav>
   <h1>docker / directus</h1>
-  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 The coherent source still produces no item because the pinned fetch artifact cannot serve every deploy-time package · <strong>Evidence:</strong> build receipt</p>
-  <p class="status"><strong>Receipt status:</strong> The former loader and ENOTDIR walls are cleared; exact pnpm validates the pinned lock and a nearby revision, while offline deploy lacks package metadata · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> 🔶 Fetch/seal is verified, but offline install, production deploy, item, and runtime remain unproved · <strong>Evidence:</strong> fetch/seal receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Exact pnpm validates the coherent source; pnpm 11.18 fetches and seals the complete 80,763-file CAS plus index.db, and the read-only store remains byte-identical · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/receipt.md">Full migration receipt</a></p>
   <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/directus/SOURCE">Pinned upstream source notes</a></p>
-  <aside class="gap-panel stale">
+  <aside class="gap-panel">
     <h2>Migration gaps</h2>
-    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> stale — regenerate with CIP-107 FetchPin migration</p>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@f474d3f · gpt-5.6-luna · 2026-08-05 · <strong>Status:</strong> current</p>
     <ul>
       <li>Imported glibc and traced ENOTDIR both clear their former walls. Independent Node 22/pnpm 10.27.0 validation now proves the pinned root lock is coherent for all 41 workspaces; an empty-store install passes frozen validation and then fails only because package content is absent. → case</li>
+      <li>The translation upgrades pnpm 10.27.0 to pinned nixpkgs pnpm 11.18.0: pnpm upgraded past upstream&#39;s <code>packageManager</code> pin for frozenStore read-only-store support; pre-11.7 pnpm structurally cannot install from a pinned store. The whole fetched store (<code>files/</code> plus <code>index.db</code>) is retained; no store bytes are stripped, normalized, or regenerated. → case</li>
       <li>Fixed Docker numeric ownership and PM2 supervision dissolve into cix/systemd identity and service supervision. → case</li>
-      <li>The 2026-08-06 <code>--update-lock build</code> retry completed FETCH and installation but the offline production deploy cannot resolve <code>@directus/tsconfig@4.0.0</code> because its package metadata is absent from the pinned cache; its whole-tree FETCH pin therefore cannot yet be regenerated. → case</li>
+      <li>The 2026-08-06 frozenStore probe fetched and sealed 80,763 CAS files plus <code>index.db</code> without transforming the store; its read-only NAR hash remained unchanged. The required fetch/seal tier is green, but no offline install, production deploy, item, or runtime is claimed from that probe. → evidence</li>
     </ul>
   </aside>
   <details class="context">
@@ -4673,17 +4674,24 @@ Retrieved: 2026-07-31
         <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
 <span class="tok-directive">FROM</span> . AS src
 
-<span class="tok-directive">BUILDER</span> build
-  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.pnpm_10}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.python311Packages.setuptools}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.glibc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
-  <span class="tok-directive">ENV</span> npm_config_python=/bin/python3.11
-  <span class="tok-directive">ENV</span> NODE_OPTIONS=--max-old-space-size=8192
-  <span class="tok-directive">ENV</span> COREPACK_ENABLE_PROJECT_SPEC=0
+<span class="tok-directive">BUILDER</span> pnpm-store
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/package.json .
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-lock.yaml .
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/pnpm-workspace.yaml .
-  <span class="tok-directive">FETCH</span> pnpm fetch --frozen-lockfile
+  <span class="tok-directive">FETCH</span> pnpm --pm-on-fail=ignore fetch --frozen-lockfile --ignore-scripts --store-dir pnpm-store
+
+<span class="tok-directive">BUILDER</span> build
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.pnpm}</span> <span class="tok-interpolation">${pkgs.nodejs_22}</span> <span class="tok-interpolation">${pkgs.python311}</span> <span class="tok-interpolation">${pkgs.python311Packages.setuptools}</span> <span class="tok-interpolation">${pkgs.gcc}</span> <span class="tok-interpolation">${pkgs.gnumake}</span> <span class="tok-interpolation">${pkgs.pkg-config}</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.gnused}</span> <span class="tok-interpolation">${pkgs.gnugrep}</span> <span class="tok-interpolation">${pkgs.glibc}</span> <span class="tok-interpolation">${pkgs.cacert}</span>
+  <span class="tok-directive">ENV</span> npm_config_python=/bin/python3.11
+  <span class="tok-directive">ENV</span> NODE_OPTIONS=--max-old-space-size=8192
   <span class="tok-directive">COPY</span> <span class="tok-interpolation">${src}</span>/context/. .
-  <span class="tok-directive">RUN</span> pnpm install --recursive --offline --frozen-lockfile
+  <span class="tok-directive">RUN</span> &lt;&lt;INSTALL
+<span class="tok-heredoc">pnpm --pm-on-fail=ignore config set pm-on-fail ignore --location project</span>
+<span class="tok-heredoc">pnpm config set frozen-store true --location project</span>
+<span class="tok-heredoc">pnpm config set store-dir </span><span class="tok-interpolation">${pnpm-store}</span><span class="tok-heredoc">/pnpm-store --location project</span>
+<span class="tok-heredoc">pnpm install --recursive --offline --frozen-lockfile --frozen-store --ignore-scripts</span>
+<span class="tok-directive">INSTALL</span>
   <span class="tok-directive">RUN</span> npm_config_workspace_concurrency=2 pnpm run build
   <span class="tok-directive">RUN</span> node -e &#39;const fs=require(&quot;fs&quot;), p=JSON.parse(fs.readFileSync(&quot;package.json&quot;)); delete p.devDependencies; fs.writeFileSync(&quot;package.json&quot;, JSON.stringify(p))&#39;
   <span class="tok-directive">RUN</span> pnpm --filter directus deploy --legacy --prod --offline deploy
@@ -4792,6 +4800,25 @@ same full-checkout validation, exit 0; its receipt is
 exists (including the current pin), and source incoherence does not gate the
 CIP-107 narHash regenerations. The separately observed offline-deploy metadata
 wall remains; no Directus item or runtime probe is claimed here.
+
+## 2026-08-06 frozenStore store seal
+
+The translation now deliberately upgrades upstream pnpm 10.27.0 to pinned
+nixpkgs pnpm 11.18.0, the first eligible major for pnpm&#39;s read-only-store
+route. Under Node 22.23.2, `pnpm fetch --frozen-lockfile --ignore-scripts`
+exited 0, produced 80,763 CAS files plus `v11/index.db`, and the complete
+store was sealed at
+`/nix/store/2wc8j4rhf7130m1w6vf99w6ws6m0bzj2-fetched-store`. Its pre-seal and
+sealed NAR hashes both equal
+`sha256-NpISeaQzBL0Mxkq2mFCBOSJmP/OO4C9+Z+J5QN+6EnA=`; `index.db` is
+read-only in the sealed path. Foreground evidence is
+`/var/tmp/cix-pnpm-frozenstore-directus.JAsoAo`.
+
+An earlier attempted receipt is invalid: putting Node before pnpm in a Nix
+shell let Corepack honor the project pin and run 10.27.0. The valid rerun
+selected the pinned 11.18.0 executable explicitly and value-checked both
+version lines before fetching. This receipt claims fetch plus whole-store
+seal only, as required; it does not claim a Directus item or runtime probe.
 </code></pre>
       </details>
     </section>

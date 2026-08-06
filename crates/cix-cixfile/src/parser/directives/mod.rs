@@ -186,7 +186,16 @@ impl Parser<'_> {
         source: &str,
         heredoc: bool,
     ) -> Result<Template, ParseError> {
-        let template = build_template(input, line, source, heredoc, &self.inputs, &self.names)?;
+        let template = build_template(
+            input,
+            line,
+            source,
+            heredoc,
+            &self.inputs,
+            &self.names,
+            &self.lets,
+            &self.args,
+        )?;
         if let Some(current) = &self.current {
             let current = match current {
                 CurrentBlock::Builder(name) | CurrentBlock::Artifact(name) => name,
@@ -206,6 +215,113 @@ impl Parser<'_> {
             }
         }
         Ok(template)
+    }
+
+    pub(super) fn build_argv_templates(
+        &self,
+        argv: Vec<String>,
+        line: usize,
+        source: &str,
+    ) -> Result<Vec<Template>, ParseError> {
+        let mut templates = Vec::new();
+        for argument in argv {
+            let list = argument
+                .strip_prefix("${")
+                .and_then(|name| name.strip_suffix('}'))
+                .and_then(|name| self.lets.get(name));
+            if let Some(values) = list {
+                templates.extend(values.iter().cloned().map(Template::literal));
+            } else {
+                templates.push(self.build_template(&argument, line, source, false)?);
+            }
+        }
+        Ok(templates)
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub(super) fn node_clauses(
+        &mut self,
+        node_line: usize,
+        node_source: &str,
+    ) -> Result<
+        (
+            std::collections::BTreeMap<String, Template>,
+            std::collections::BTreeSet<String>,
+            Option<String>,
+        ),
+        ParseError,
+    > {
+        let mut environment = std::collections::BTreeMap::new();
+        let mut ignored = std::collections::BTreeSet::new();
+        let mut expected = None;
+        while let Some(source) = self.lines.get(self.index).copied() {
+            let trimmed = source.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                break;
+            }
+            let (directive, arguments) = trimmed
+                .split_once(char::is_whitespace)
+                .map_or((trimmed, ""), |(d, a)| (d, a.trim()));
+            match directive {
+                "WITH" => {
+                    self.index += 1;
+                    if let Some(path) = arguments.strip_prefix("UNSAFE IGNORE ") {
+                        if path.is_empty() || path.contains(char::is_whitespace) {
+                            return Err(ParseError::new(
+                                self.index,
+                                source,
+                                "WITH UNSAFE IGNORE requires one path",
+                            ));
+                        }
+                        ignored.insert(path.to_owned());
+                        continue;
+                    }
+                    let (name, value) = match arguments.split_once('=') {
+                        Some((name, value)) if !name.is_empty() && !value.is_empty() => {
+                            (name, self.build_template(value, self.index, source, false)?)
+                        }
+                        None if !arguments.is_empty() => {
+                            let values = self.lets.get(arguments).ok_or_else(|| ParseError::new(self.index, source, format!("bare WITH {arguments} requires a preceding LET {arguments} = value")))?;
+                            if values.len() != 1 {
+                                return Err(ParseError::new(
+                                    self.index,
+                                    source,
+                                    format!("bare WITH {arguments} requires a scalar LET value"),
+                                ));
+                            }
+                            (arguments, Template::literal(values[0].clone()))
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                self.index,
+                                source,
+                                "WITH requires NAME=value, bare NAME, or UNSAFE IGNORE <path>",
+                            ))
+                        }
+                    };
+                    if environment.insert(name.to_owned(), value).is_some() {
+                        return Err(ParseError::new(
+                            self.index,
+                            source,
+                            format!("WITH {name} is duplicated for this node"),
+                        ));
+                    }
+                }
+                "EXPECT" => {
+                    self.index += 1;
+                    if expected.replace(arguments.to_owned()).is_some() || arguments.is_empty() {
+                        return Err(ParseError::new(
+                            self.index,
+                            source,
+                            "EXPECT requires exactly one hash and may appear once per FETCH node",
+                        ));
+                    }
+                }
+                _ => break,
+            }
+        }
+        let _ = (node_line, node_source);
+        Ok((environment, ignored, expected))
     }
 
     pub(super) fn declare_name(

@@ -9,9 +9,10 @@ use crate::evaluation::{
     BuilderContextRequest, DevEnvironmentRequest, EvaluationCodegen, FetchContextRequest,
     NixEvaluation,
 };
+use crate::evidence;
 use crate::fetch::HostCredentials;
 use crate::fetch_state::{FetchState, PinRefreshRequest};
-use crate::lock::builder_fetch_id;
+use crate::lock::{builder_fetch_id, resolved_statement_id};
 use crate::memo::{
     Attribution, BuilderKeyRequest, ChainKeysVerdict, ColdOutputRequest, ColdReadComparisonRequest,
     ColdReadRequest, ExecutedStep, MemoEngine, NeededPath, OutputMemoRequest, OutputMemoVerdict,
@@ -103,15 +104,6 @@ fn execute_top_fetch(
     credentials: &mut HostCredentials,
     codegen: &dyn EvaluationCodegen,
 ) -> Result<(String, bool)> {
-    FetchState::install_expected(lock, name, fetch.expected.as_deref(), |pin| {
-        format!(
-                "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {}\n  lock records {}",
-                fetch.line,
-                fetch.source,
-                fetch.expected.as_deref().expect("EXPECT was supplied"),
-                pin.nar_hash
-            )
-    })?;
     let fetch_state = FetchState::new(directory);
     let context_request = FetchContextRequest {
         cixfile,
@@ -138,9 +130,25 @@ fn execute_top_fetch(
         )?;
     }
     let offered_closure = NixEvaluation::offered_closure(&context.offers)?;
-    Sandbox::shell(&context.imports)?;
-    let environment = build_environment(context.environment.clone());
-    let command = &context.command;
+    if context.node.command.requires_shell() {
+        Sandbox::shell(&context.imports)?;
+    }
+    let mut environment = build_environment(context.environment.clone());
+    environment.extend(context.node.environment.clone());
+    let command = &context.node.command;
+    let command_key = command.canonical_text();
+    let fetch_id = resolved_statement_id(name, &command_key, cixfile);
+    FetchState::install_expected(lock, &fetch_id, fetch.expected.as_deref(), |pin| {
+        format!(
+            "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {}\n  lock records {}",
+            fetch.line,
+            fetch.source,
+            fetch.expected.as_deref().expect("EXPECT was supplied"),
+            pin.nar_hash
+        )
+    })?;
+    let ignored_evidence = evidence::normalize_paths(&context.node.ignored_evidence)?;
+    evidence::report_waivers("FETCH", fetch.line, &fetch.source, &ignored_evidence);
     let universe_identities = context
         .universe_identities
         .values()
@@ -151,21 +159,21 @@ fn execute_top_fetch(
         index: 0,
         kind: "FETCH",
         directive: &fetch.source,
-        arguments: command,
+        arguments: &command_key,
         offered_closure: &offered_closure,
         ordered_imports: &context.imports,
         environment: &environment,
         universe_identities: &universe_identities,
     })?;
-    let trace_owner = format!("fetch:{name}");
+    let trace_owner = format!("fetch:{fetch_id}");
     if needed.is_empty() {
         needed.insert(".".into(), NeededPath::default());
     }
-    let existing_pin = lock.fetches.get(name).map(FetchPin::key);
+    let existing_pin = lock.fetches.get(&fetch_id).map(FetchPin::key);
     let existing_key = existing_pin
         .map(|pin| {
             MemoEngine::top_fetch_key(TopFetchKeyRequest {
-                command,
+                command: &command_key,
                 offered_closure: &offered_closure,
                 environment: &environment,
                 pin: &pin,
@@ -192,14 +200,18 @@ fn execute_top_fetch(
                 source: &fetch.source,
             })?;
         }
-        let pin = lock.fetches.get(name).with_context(|| {
+        let pin = lock.fetches.get(&fetch_id).with_context(|| {
             format!("FETCH {name} has no pin to replay; --cold never refetches")
         })?;
-        let snapshot = fetch_state.replay_snapshot(name, pin)?;
+        let snapshot = fetch_state.replay_snapshot(&fetch_id, pin)?;
         FetchState::verify(fetch.expected.as_deref(), Some(pin), None)?;
-        let paths = workspace::store_consumed_paths(Path::new(&snapshot), needed.keys().cloned())?;
+        let paths = workspace::store_consumed_paths_excluding(
+            Path::new(&snapshot),
+            needed.keys().cloned(),
+            &ignored_evidence,
+        )?;
         let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
-            command,
+            command: &command_key,
             offered_closure: &offered_closure,
             environment: &environment,
             pin: &pin.key(),
@@ -224,7 +236,7 @@ fn execute_top_fetch(
                 entry: lock.memo.get(key),
                 needed: needed.keys().cloned().collect(),
             })? {
-                FetchState::verify(fetch.expected.as_deref(), lock.fetches.get(name), None)
+                FetchState::verify(fetch.expected.as_deref(), lock.fetches.get(&fetch_id), None)
                     .with_context(|| {
                         format!(
                             "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
@@ -239,7 +251,7 @@ fn execute_top_fetch(
     let work = ScratchDir::new("cix-fetch-work-").context("creating top-level FETCH workdir")?;
     let trace_before = fetch_state.snapshot(work.path())?;
     let started = Instant::now();
-    let credential = credentials.for_command(command)?;
+    let credential = credentials.for_command(&command.credential_text())?;
     let credential_mounts = credential.as_ref().into_iter().collect::<Vec<_>>();
     let observations = Sandbox::execute(SandboxRequest {
         workdir: work.path(),
@@ -257,7 +269,10 @@ fn execute_top_fetch(
             fetch.line, fetch.source
         )
     })?;
-    let mut step_volatile = BTreeSet::new();
+    let mut candidates = trace::unsafe_ignore_candidates(&observations);
+    evidence::retain_included_set(&mut candidates, &ignored_evidence);
+    evidence::report_candidates("FETCH", fetch.line, &candidates);
+    let mut step_volatile = ignored_evidence.clone();
     let volatile = if force && fetch.expected.is_none() {
         let first = fetch_state.snapshot(work.path())?;
         let empty = ScratchDir::new("cix-build-cold-")?;
@@ -278,7 +293,8 @@ fn execute_top_fetch(
                 fetch.line, fetch.source
             )
         })?;
-        let observed_volatile = fetch_state.volatile_paths(first.path(), work.path())?;
+        let mut observed_volatile = fetch_state.volatile_paths(first.path(), work.path())?;
+        evidence::retain_included(&mut observed_volatile, &ignored_evidence);
         FetchState::report_volatility(name, &observed_volatile);
         step_volatile.extend(observed_volatile.keys().cloned());
         workspace::replace_tree_at(first.path(), work.path())?;
@@ -289,7 +305,9 @@ fn execute_top_fetch(
         BTreeMap::new()
     };
     let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-    let output_hash = workspace::nar_hash(work.path())?;
+    let sealed =
+        workspace::seal_directory_excluding(work.path(), &ignored_evidence, "cix-fetch-snapshot")?;
+    let output_hash = sealed.nar_hash;
     if let Some(expected) = fetch.expected.as_deref() {
         FetchState::verify(Some(expected), None, Some(&output_hash)).with_context(|| {
             format!(
@@ -297,10 +315,10 @@ fn execute_top_fetch(
                 fetch.line, fetch.source
             )
         })?;
-    } else if force || !lock.fetches.contains_key(name) {
-        lock.fetches.insert(name.to_owned(), FetchPin::automatic());
+    } else if force || !lock.fetches.contains_key(&fetch_id) {
+        lock.fetches.insert(fetch_id.clone(), FetchPin::automatic());
     }
-    let snapshot = workspace::add_store_object(work.path(), "cix-fetch-snapshot")?;
+    let snapshot = sealed.store_path;
     let reads = trace::read_dependencies(trace_before.path(), &observations)?;
     let changes =
         trace::filesystem_changes(trace_before.path(), work.path(), &observations.writes)?;
@@ -327,9 +345,9 @@ fn execute_top_fetch(
         },
     );
     trace_before.close()?;
-    let actual_paths = FetchState::consumed_path_hashes(work.path(), &needed)?;
+    let actual_paths = FetchState::consumed_path_hashes(work.path(), &needed, &ignored_evidence)?;
     FetchState::report_unconsumed_complement(name, work.path(), &needed);
-    let pin = lock.fetches.get(name).cloned();
+    let pin = lock.fetches.get(&fetch_id).cloned();
     let refreshed = FetchState::refresh_pin(PinRefreshRequest {
         previous: pin.as_ref(),
         expected: fetch.expected.is_some(),
@@ -339,11 +357,11 @@ fn execute_top_fetch(
         volatile,
         name,
     })?;
-    fetch_state.cache_snapshot(name, &refreshed, &snapshot)?;
-    lock.fetches.insert(name.to_owned(), refreshed);
-    let pin = lock.fetches[name].key();
+    fetch_state.cache_snapshot(&fetch_id, &refreshed, &snapshot)?;
+    lock.fetches.insert(fetch_id.clone(), refreshed);
+    let pin = lock.fetches[&fetch_id].key();
     let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
-        command,
+        command: &command_key,
         offered_closure: &offered_closure,
         environment: &environment,
         pin: &pin,
@@ -353,7 +371,11 @@ fn execute_top_fetch(
             .cloned()
             .collect::<Vec<_>>(),
     })?;
-    let paths = workspace::store_consumed_paths(work.path(), needed.keys().cloned())?;
+    let paths = workspace::store_consumed_paths_excluding(
+        work.path(),
+        needed.keys().cloned(),
+        &ignored_evidence,
+    )?;
     lock.memo
         .insert(key.clone(), MemoEngine::entry(paths.clone()));
     let view = workspace::materialize_view(&paths)?;
@@ -383,7 +405,7 @@ fn execute_builder(
     codegen: &dyn EvaluationCodegen,
 ) -> Result<(String, Vec<ExecutedStep>)> {
     let fetch_state = FetchState::new(directory);
-    let command_count = builder
+    let node_count = builder
         .steps
         .iter()
         .filter(|step| matches!(step, BuildStep::Fetch { .. } | BuildStep::Run { .. }))
@@ -404,11 +426,27 @@ fn execute_builder(
             snapshots: binders,
         },
     )?;
-    if context.commands.len() != command_count {
+    if context.nodes.len() != node_count {
         bail!(
-            "internal build context mismatch: resolved {} commands for {command_count} steps",
-            context.commands.len()
+            "internal build context mismatch: resolved {} nodes for {node_count} steps",
+            context.nodes.len()
         );
+    }
+    let mut ignored_by_node = Vec::with_capacity(node_count);
+    let mut all_ignored_evidence = BTreeSet::new();
+    let mut report_node_index = 0;
+    for step in &builder.steps {
+        let (kind, line, source) = match step {
+            BuildStep::Fetch { line, source, .. } => ("FETCH", *line, source.as_str()),
+            BuildStep::Run { line, source, .. } => ("RUN", *line, source.as_str()),
+            BuildStep::Env { .. } | BuildStep::Copy(_) => continue,
+        };
+        let ignored =
+            evidence::normalize_paths(&context.nodes[report_node_index].ignored_evidence)?;
+        report_node_index += 1;
+        evidence::report_waivers(kind, line, source, &ignored);
+        all_ignored_evidence.extend(ignored.iter().cloned());
+        ignored_by_node.push(ignored);
     }
     if context.copies.len() != copy_count {
         bail!(
@@ -436,19 +474,19 @@ fn execute_builder(
         }
         NixEvaluation::offered_closure(&context.offers)?
     };
-    let shell = if command_count == 0 {
-        None
-    } else {
-        Some(Sandbox::shell(&context.imports)?)
-    };
+    if context
+        .nodes
+        .iter()
+        .any(|node| node.command.requires_shell())
+    {
+        Sandbox::shell(&context.imports)?;
+    }
     let run_network = if builder
         .steps
         .iter()
         .any(|step| matches!(step, BuildStep::Run { .. }))
     {
-        Some(Sandbox::run_network(
-            shell.as_deref().expect("RUN steps have a shell"),
-        )?)
+        Some(Sandbox::run_network()?)
     } else {
         None
     };
@@ -473,12 +511,13 @@ fn execute_builder(
         .cloned()
         .collect::<Vec<_>>();
     let mut export_prelude = BTreeMap::new();
-    FetchState::install_builder_expectations(lock, builder_name, builder, &context.commands)?;
+    FetchState::install_builder_expectations(lock, cixfile, builder_name, builder, &context.nodes)?;
     let chain_key_started = Instant::now();
     let existing_keys = match MemoEngine::builder_keys(BuilderKeyRequest {
+        cixfile,
         builder_name,
         builder,
-        commands: &context.commands,
+        nodes: &context.nodes,
         copies: &context.copies,
         ordered_imports: &context.imports,
         universe_identities: &universe_identities,
@@ -536,11 +575,19 @@ fn execute_builder(
     let rerun_from = memo_engine.rerun_from(existing_keys.as_deref(), cold, update_fetch_pins);
     let workdir = workspace.path();
 
-    let mut command_index = 0;
+    let mut node_index = 0;
     let mut copy_index = 0;
     let mut step_results = Vec::with_capacity(builder.steps.len());
-    let mut fetch_snapshots =
-        BTreeMap::<String, (bool, Option<String>, String, BTreeMap<String, VolatilePath>)>::new();
+    let mut fetch_snapshots = BTreeMap::<
+        String,
+        (
+            bool,
+            Option<String>,
+            String,
+            BTreeMap<String, VolatilePath>,
+            BTreeSet<String>,
+        ),
+    >::new();
     for (index, step) in builder.steps.iter().enumerate() {
         match step {
             BuildStep::Env {
@@ -583,8 +630,13 @@ fn execute_builder(
                 step_results.push(MemoEngine::step_result(builder_name, index, "COPY", true));
             }
             BuildStep::Fetch { line, source, .. } | BuildStep::Run { line, source, .. } => {
-                let command = &context.commands[command_index];
-                command_index += 1;
+                let node = &context.nodes[node_index];
+                let ignored_evidence = &ignored_by_node[node_index];
+                node_index += 1;
+                let command = &node.command;
+                let command_key = command.canonical_text();
+                let mut node_environment = environment.clone();
+                node_environment.extend(node.environment.clone());
                 if index < rerun_from {
                     eprintln!(
                         "BUILDER {builder_name} step {} reused from persistent workspace",
@@ -605,19 +657,29 @@ fn execute_builder(
                     index,
                     kind,
                     directive: source,
-                    arguments: command,
+                    arguments: &command_key,
                     offered_closure: &offered_closure,
                     ordered_imports: &context.imports,
-                    environment: &environment,
+                    environment: &node_environment,
                     universe_identities: &universe_identities,
                 })?;
-                let memo_owner = format!("builder:{builder_name}:{index}");
+                let memo_owner = resolved_statement_id(
+                    &format!("builder:{builder_name}:{index}"),
+                    &command_key,
+                    cixfile,
+                );
                 let superseded_memo = lock.step_memo.get(&memo_owner).cloned();
                 let recorded_memo = superseded_memo
                     .as_ref()
                     .filter(|memo| memo.key == memo_key)
                     .cloned();
-                let fetch_id = is_fetch.then(|| builder_fetch_id(builder_name, index, command));
+                let fetch_id = is_fetch.then(|| {
+                    resolved_statement_id(
+                        &builder_fetch_id(builder_name, index, &command_key),
+                        &command_key,
+                        cixfile,
+                    )
+                });
                 if let Some(id) = &fetch_id {
                     if cold {
                         if let Some(memo) = &recorded_memo {
@@ -694,7 +756,7 @@ fn execute_builder(
                 .transpose()?;
                 let started = Instant::now();
                 let credential = if is_fetch {
-                    credentials.for_command(command)?
+                    credentials.for_command(&command.credential_text())?
                 } else {
                     None
                 };
@@ -702,7 +764,7 @@ fn execute_builder(
                 let observations = Sandbox::execute(SandboxRequest {
                     workdir,
                     command,
-                    environment: &environment,
+                    environment: &node_environment,
                     export_prelude: &export_prelude,
                     offered_closure: &offered_closure,
                     imports: &context.imports,
@@ -710,6 +772,9 @@ fn execute_builder(
                     credentials: &credential_mounts,
                 })
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
+                let mut candidates = trace::unsafe_ignore_candidates(&observations);
+                evidence::retain_included_set(&mut candidates, ignored_evidence);
+                evidence::report_candidates(kind, *line, &candidates);
                 let read_set_started = Instant::now();
                 let empty_reads = BTreeMap::new();
                 let (reads, recording_metrics) = trace::read_dependencies_with_known(
@@ -729,7 +794,7 @@ fn execute_builder(
                     read_set_started.elapsed().as_millis()
                 );
                 let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
-                let mut step_volatile = BTreeSet::new();
+                let mut step_volatile = ignored_evidence.clone();
                 if is_fetch {
                     let id = fetch_id.expect("FETCH has an id");
                     let volatile = if let Some(before) = probe_before {
@@ -738,7 +803,7 @@ fn execute_builder(
                         let _ = Sandbox::execute(SandboxRequest {
                             workdir,
                             command,
-                            environment: &environment,
+                            environment: &node_environment,
                             export_prelude: &export_prelude,
                             offered_closure: &offered_closure,
                             imports: &context.imports,
@@ -748,8 +813,9 @@ fn execute_builder(
                         .with_context(|| {
                             format!("line {line}: FETCH update probe failed\n  | {source:?}")
                         })?;
-                        let observed_volatile =
+                        let mut observed_volatile =
                             fetch_state.volatile_paths(first.path(), workdir)?;
+                        evidence::retain_included(&mut observed_volatile, ignored_evidence);
                         FetchState::report_volatility(&id, &observed_volatile);
                         step_volatile.extend(observed_volatile.keys().cloned());
                         workspace.replace_tree(first.path())?;
@@ -760,7 +826,12 @@ fn execute_builder(
                     } else {
                         BTreeMap::new()
                     };
-                    let actual = workspace::nar_hash(workdir)?;
+                    let sealed = workspace::seal_directory_excluding(
+                        workdir,
+                        ignored_evidence,
+                        "cix-fetch-snapshot",
+                    )?;
+                    let actual = sealed.nar_hash;
                     let expected = match step {
                         BuildStep::Fetch { expected, .. } => expected.as_deref(),
                         _ => None,
@@ -776,10 +847,15 @@ fn execute_builder(
                     } else if !lock.fetches.contains_key(&id) {
                         lock.fetches.insert(id.clone(), FetchPin::automatic());
                     }
-                    let snapshot = workspace::add_store_object(workdir, "cix-fetch-snapshot")?;
                     fetch_snapshots.insert(
                         id,
-                        (expected.is_some(), Some(snapshot.clone()), actual, volatile),
+                        (
+                            expected.is_some(),
+                            Some(sealed.store_path),
+                            actual,
+                            volatile,
+                            ignored_evidence.clone(),
+                        ),
                     );
                 }
                 let changes_started = Instant::now();
@@ -886,9 +962,12 @@ fn execute_builder(
         }
     }
     if !fetch_snapshots.is_empty() {
-        let actual_paths = FetchState::consumed_path_hashes(workdir, &needed)?;
         FetchState::report_unconsumed_complement(builder_name, workdir, &needed);
-        for (id, (expected, snapshot, snapshot_nar_hash, volatile)) in fetch_snapshots {
+        for (id, (expected, snapshot, snapshot_nar_hash, volatile, ignored_evidence)) in
+            fetch_snapshots
+        {
+            let actual_paths =
+                FetchState::consumed_path_hashes(workdir, &needed, &ignored_evidence)?;
             let refreshed = FetchState::refresh_pin(PinRefreshRequest {
                 previous: lock.fetches.get(&id),
                 expected,
@@ -906,9 +985,10 @@ fn execute_builder(
     }
     let chain_key_started = Instant::now();
     let step_keys = match MemoEngine::builder_keys(BuilderKeyRequest {
+        cixfile,
         builder_name,
         builder,
-        commands: &context.commands,
+        nodes: &context.nodes,
         copies: &context.copies,
         ordered_imports: &context.imports,
         universe_identities: &universe_identities,
@@ -929,7 +1009,11 @@ fn execute_builder(
         .last()
         .cloned()
         .unwrap_or_else(|| hex_hash(format!("BUILDER\0{builder_name}").as_bytes()));
-    let paths = workspace.store_consumed_paths(needed.keys().cloned())?;
+    let paths = workspace::store_consumed_paths_excluding(
+        workdir,
+        needed.keys().cloned(),
+        &all_ignored_evidence,
+    )?;
     if cold {
         MemoEngine::compare_cold_outputs(ColdOutputRequest {
             warm: lock.memo.get(&key),
@@ -1021,17 +1105,40 @@ fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, Needed
                         );
                     }
                 }
-                BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                    for binder in template_binders(command) {
-                        add(binder, ".", None);
+                BuildStep::Fetch {
+                    command,
+                    environment,
+                    ..
+                }
+                | BuildStep::Run {
+                    command,
+                    environment,
+                    ..
+                } => {
+                    for template in command.templates() {
+                        for binder in template_binders(template) {
+                            add(binder, ".", None);
+                        }
+                    }
+                    for template in environment.values() {
+                        for binder in template_binders(template) {
+                            add(binder, ".", None);
+                        }
                     }
                 }
             }
         }
     }
     for fetch in cixfile.fetches.values() {
-        for binder in template_binders(&fetch.command) {
-            add(binder, ".", None);
+        for template in fetch
+            .command
+            .templates()
+            .into_iter()
+            .chain(fetch.environment.values())
+        {
+            for binder in template_binders(template) {
+                add(binder, ".", None);
+            }
         }
     }
     needed

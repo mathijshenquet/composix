@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 
 use cix_build::{
     Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, InputKind, InputLock,
-    LockFile, PortSource, Probe, Protocol, Template, TemplatePart,
+    LockFile, NodeCommand, PortSource, Probe, Protocol, Template, TemplatePart,
 };
 
 pub(crate) struct Codegen;
@@ -89,7 +89,7 @@ pub fn generate_spec_json(cixfile: &Cixfile) -> Result<String> {
     if !artifact.imports.is_empty() {
         bail!("an artifact with IMPORT needs Nix evaluation to enumerate its sparse mounts");
     }
-    manifest_contract(artifact, literal_template)?.to_canonical_json()
+    manifest_contract(artifact, selected_args(cixfile), literal_template)?.to_canonical_json()
 }
 
 pub fn generate_nix(
@@ -123,7 +123,7 @@ pub fn generate_nix_with_snapshots(
 
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     if artifact.kind.is_runnable() {
-        writeln!(expression, "  spec = {};", nix_spec(artifact)?)?;
+        writeln!(expression, "  spec = {};", nix_spec(cixfile, artifact)?)?;
     }
     for (index, import) in artifact.imports.iter().enumerate() {
         writeln!(expression, "  import{index} = {};", nix_template(import))?;
@@ -320,22 +320,27 @@ pub fn generate_builder_context_nix(
         "  imports = {};",
         nix_templates(&builder.imports)
     )?;
-    writeln!(
-        expression,
-        "  commands = {};",
-        nix_templates(
-            &builder
-                .steps
-                .iter()
-                .filter_map(|step| match step {
-                    BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                        Some(command.clone())
-                    }
-                    BuildStep::Env { .. } | BuildStep::Copy(_) => None,
-                })
-                .collect::<Vec<_>>()
-        )
-    )?;
+    let nodes = builder
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            BuildStep::Fetch {
+                command,
+                environment,
+                ignored_evidence,
+                ..
+            }
+            | BuildStep::Run {
+                command,
+                environment,
+                ignored_evidence,
+                ..
+            } => Some(nix_resolved_node(command, environment, ignored_evidence)),
+            BuildStep::Env { .. } | BuildStep::Copy(_) => None,
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    writeln!(expression, "  nodes = [ {nodes} ];")?;
     writeln!(
         expression,
         "  copies = [ {} ];",
@@ -432,7 +437,12 @@ pub fn generate_fetch_context_nix(
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     let primary = primary_namespace(cixfile)?;
     writeln!(expression, "in {{")?;
-    let refs = package_references([&fetch.command]);
+    let fetch_templates = fetch
+        .command
+        .templates()
+        .into_iter()
+        .chain(fetch.environment.values());
+    let refs = package_references(fetch_templates);
     writeln!(
         expression,
         "  offers = [ (builtins.toString universes.{}.bash) {} ];",
@@ -452,8 +462,8 @@ pub fn generate_fetch_context_nix(
     )?;
     writeln!(
         expression,
-        "  commands = [ {} ];",
-        nix_template(&fetch.command)
+        "  nodes = [ {} ];",
+        nix_resolved_node(&fetch.command, &fetch.environment, &fetch.ignored_evidence)
     )?;
     writeln!(expression, "  copies = [];")?;
     writeln!(expression, "  environment = {{}};")?;
@@ -481,7 +491,13 @@ pub fn generate_fetch_offer_nix(
     let source_dir = source_dir.canonicalize()?;
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     let primary = primary_namespace(cixfile)?;
-    let refs = package_references([&fetch.command]);
+    let refs = package_references(
+        fetch
+            .command
+            .templates()
+            .into_iter()
+            .chain(fetch.environment.values()),
+    );
     writeln!(
         expression,
         "in [ universes.{}.bash {} ]",
@@ -614,10 +630,25 @@ fn builder_templates(builder: &Builder) -> Vec<&Template> {
     builder
         .imports
         .iter()
-        .chain(builder.steps.iter().flat_map(|step| match step {
-            BuildStep::Env { .. } => vec![],
-            BuildStep::Copy(copy) => vec![&copy.src],
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => vec![command],
+        .chain(builder.steps.iter().flat_map(|step| {
+            match step {
+                BuildStep::Env { .. } => vec![],
+                BuildStep::Copy(copy) => vec![&copy.src],
+                BuildStep::Fetch {
+                    command,
+                    environment,
+                    ..
+                }
+                | BuildStep::Run {
+                    command,
+                    environment,
+                    ..
+                } => command
+                    .templates()
+                    .into_iter()
+                    .chain(environment.values())
+                    .collect(),
+            }
         }))
         .collect()
 }
@@ -626,11 +657,60 @@ fn builder_command_templates(builder: &Builder) -> Vec<&Template> {
     builder
         .imports
         .iter()
-        .chain(builder.steps.iter().filter_map(|step| match step {
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
-            BuildStep::Env { .. } | BuildStep::Copy(_) => None,
+        .chain(builder.steps.iter().flat_map(|step| {
+            match step {
+                BuildStep::Fetch {
+                    command,
+                    environment,
+                    ..
+                }
+                | BuildStep::Run {
+                    command,
+                    environment,
+                    ..
+                } => command
+                    .templates()
+                    .into_iter()
+                    .chain(environment.values())
+                    .collect(),
+                BuildStep::Env { .. } | BuildStep::Copy(_) => vec![],
+            }
         }))
         .collect()
+}
+
+fn nix_resolved_node(
+    command: &NodeCommand,
+    environment: &BTreeMap<String, Template>,
+    ignored_evidence: &BTreeSet<String>,
+) -> String {
+    let command = match command {
+        NodeCommand::Legacy(command) => format!(
+            "{{ kind = \"legacy\"; command = {}; }}",
+            nix_template(command)
+        ),
+        NodeCommand::Argv(argv) => {
+            format!("{{ kind = \"argv\"; argv = {}; }}", nix_templates(argv))
+        }
+        NodeCommand::Heredoc { interpreter, body } => format!(
+            "{{ kind = \"heredoc\"; interpreter = {}; body = {}; }}",
+            nix_template(interpreter),
+            nix_template(body)
+        ),
+    };
+    let environment = environment
+        .iter()
+        .map(|(name, value)| format!("{} = {};", nix_attr(name), nix_template(value)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let ignored_evidence = ignored_evidence
+        .iter()
+        .map(|path| nix_string(path))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!(
+        "{{ command = {command}; environment = {{ {environment} }}; ignoredEvidence = [ {ignored_evidence} ]; }}"
+    )
 }
 
 fn offer_expressions<'a>(
@@ -738,14 +818,23 @@ fn nix_artifact_copy_source(copy: &Copy) -> String {
     }
 }
 
-fn nix_spec(artifact: &Artifact) -> Result<String> {
-    let contract = manifest_contract(artifact, |template| Ok(template.clone()))?;
+fn nix_spec(cixfile: &Cixfile, artifact: &Artifact) -> Result<String> {
+    let contract = manifest_contract(artifact, selected_args(cixfile), |template| {
+        Ok(template.clone())
+    })?;
     let service = contract
         .services
         .first_key_value()
         .map(|(_, service)| service)
         .context("bare manifest has no def-node")?;
     let mut output = String::from("{ cixManifest = 0;");
+    if !contract.build_args.is_empty() {
+        output.push_str(" buildArgs = {");
+        for (name, value) in &contract.build_args {
+            write!(output, " {} = {};", nix_attr(name), nix_string(value))?;
+        }
+        output.push_str(" };");
+    }
     if contract.kind != cix_manifest::ManifestKind::Service {
         write!(output, " kind = \"app\";")?;
     }
@@ -1186,6 +1275,7 @@ fn projected_mounts(artifact: &Artifact) -> BTreeSet<String> {
 
 fn manifest_contract<T>(
     artifact: &Artifact,
+    build_args: BTreeMap<String, String>,
     render_template: impl Fn(&Template) -> Result<T>,
 ) -> Result<cix_manifest::Spec<T>> {
     if !artifact.kind.is_runnable() {
@@ -1323,8 +1413,17 @@ fn manifest_contract<T>(
             cix_build::ArtifactKind::Service => cix_manifest::ManifestKind::Service,
             cix_build::ArtifactKind::Item => unreachable!("items were rejected"),
         },
+        build_args,
         services: BTreeMap::from([("artifact".into(), contract)]),
     })
+}
+
+fn selected_args(cixfile: &Cixfile) -> BTreeMap<String, String> {
+    cixfile
+        .args
+        .iter()
+        .map(|(name, argument)| (name.clone(), argument.selected.clone()))
+        .collect()
 }
 
 fn contract_command<T>(

@@ -5,6 +5,8 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Cixfile {
+    pub lets: BTreeMap<String, Vec<String>>,
+    pub args: BTreeMap<String, Arg>,
     pub inputs: BTreeMap<String, Input>,
     pub fetches: BTreeMap<String, Fetch>,
     pub fetch_order: Vec<String>,
@@ -26,7 +28,13 @@ impl Cixfile {
 
         while let Some(name) = pending.pop_first() {
             let dependencies = if let Some(fetch) = self.fetches.get(&name) {
-                binder_names([&fetch.command])
+                binder_names(
+                    fetch
+                        .command
+                        .templates()
+                        .into_iter()
+                        .chain(fetch.environment.values()),
+                )
             } else if let Some(builder) = self.builders.get(&name) {
                 binder_names(builder_templates(builder))
             } else {
@@ -73,11 +81,25 @@ fn artifact_templates(artifact: &Artifact) -> Vec<&Template> {
 
 fn builder_templates(builder: &Builder) -> Vec<&Template> {
     let mut templates = builder.imports.iter().collect::<Vec<_>>();
-    templates.extend(builder.steps.iter().filter_map(|step| match step {
-        BuildStep::Copy(copy) => Some(&copy.src),
-        BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
-        BuildStep::Env { .. } => None,
-    }));
+    for step in &builder.steps {
+        match step {
+            BuildStep::Copy(copy) => templates.push(&copy.src),
+            BuildStep::Fetch {
+                command,
+                environment,
+                ..
+            }
+            | BuildStep::Run {
+                command,
+                environment,
+                ..
+            } => {
+                templates.extend(command.templates());
+                templates.extend(environment.values());
+            }
+            BuildStep::Env { .. } => {}
+        }
+    }
     templates
 }
 
@@ -120,7 +142,9 @@ impl Input {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct Fetch {
     pub expected: Option<String>,
-    pub command: Template,
+    pub command: NodeCommand,
+    pub environment: BTreeMap<String, Template>,
+    pub ignored_evidence: BTreeSet<String>,
     #[serde(skip)]
     pub line: usize,
     #[serde(skip)]
@@ -158,19 +182,52 @@ pub enum BuildStep {
     Copy(Copy),
     Fetch {
         expected: Option<String>,
-        command: Template,
+        command: NodeCommand,
+        environment: BTreeMap<String, Template>,
+        ignored_evidence: BTreeSet<String>,
         #[serde(skip)]
         line: usize,
         #[serde(skip)]
         source: String,
     },
     Run {
-        command: Template,
+        command: NodeCommand,
+        environment: BTreeMap<String, Template>,
+        ignored_evidence: BTreeSet<String>,
         #[serde(skip)]
         line: usize,
         #[serde(skip)]
         source: String,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub enum NodeCommand {
+    /// Compatibility form retained until the corpus migration deletes it.
+    Legacy(Template),
+    Argv(Vec<Template>),
+    Heredoc {
+        interpreter: Template,
+        body: Template,
+    },
+}
+
+impl NodeCommand {
+    pub fn templates(&self) -> Vec<&Template> {
+        match self {
+            Self::Legacy(command) => vec![command],
+            Self::Argv(argv) => argv.iter().collect(),
+            Self::Heredoc { interpreter, body } => vec![interpreter, body],
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct Arg {
+    pub values: Vec<String>,
+    pub selected: String,
+    #[serde(skip)]
+    pub line: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

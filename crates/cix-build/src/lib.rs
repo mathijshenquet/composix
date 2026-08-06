@@ -8,6 +8,7 @@
 //!
 //! - `build_chain`: conducts ordered FETCH/BUILDER dispatch and assembles receipts.
 //! - `evaluation`: owns typed Nix-evaluation requests and results.
+//! - `evidence`: owns declared evidence exclusions and their diagnostics.
 //! - `eval_plan`: records pure Cixfile evaluation.
 //! - `fetch`: owns credential consent and fetch inputs.
 //! - `fetch_state`: owns FETCH snapshots, volatility, and pin refresh.
@@ -45,6 +46,7 @@ pub(crate) use cix_timing;
 mod build_chain;
 mod eval_plan;
 mod evaluation;
+mod evidence;
 mod fetch;
 mod fetch_state;
 mod fhs;
@@ -75,10 +77,14 @@ pub use scratch::{
     ScratchDir,
 };
 
-pub const BUILDER_FINGERPRINT: &str =
-    concat!(env!("CARGO_PKG_VERSION"), ":d87-v3-canonical-ast-nar-v1");
+/// One compatibility boundary for the stage-2 execution semantics and CIP-110
+/// canonical-AST/NAR identity changes; old memo entries must not cross it.
+pub const BUILDER_FINGERPRINT: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    ":epoch-v1-stage2-canonical-ast-nar"
+);
 pub use model::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
-    Env, Fetch, Input, InputKind, Liveness, Port, PortSource, Probe, Protocol, Readiness, Secret,
-    Service, Template, TemplatePart,
+    Arg, Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode,
+    Dirs, Env, Fetch, Input, InputKind, Liveness, NodeCommand, Port, PortSource, Probe, Protocol,
+    Readiness, Secret, Service, Template, TemplatePart,
 };

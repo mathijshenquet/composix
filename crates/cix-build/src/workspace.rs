@@ -118,13 +118,6 @@ impl Workspace {
         make_writable(&self.work)
     }
 
-    pub(crate) fn store_consumed_paths(
-        &self,
-        needed: impl Iterator<Item = String>,
-    ) -> Result<BTreeMap<String, ConsumedPath>> {
-        store_consumed_paths(self.path(), needed)
-    }
-
     pub(crate) fn add_step_output_snapshot(
         &self,
         changes: &BTreeMap<String, StepChange>,
@@ -223,6 +216,39 @@ pub(crate) fn add_store_object(path: &Path, name: &str) -> Result<String> {
         .filter(|line| !line.is_empty())
         .map(ToOwned::to_owned)
         .context("nix store add did not return a store path")
+}
+
+pub(crate) struct SealedTree {
+    pub(crate) store_path: String,
+    pub(crate) nar_hash: String,
+}
+
+pub(crate) fn seal_directory_excluding(
+    source: &Path,
+    excluded: &BTreeSet<String>,
+    name: &str,
+) -> Result<SealedTree> {
+    if excluded.contains(".") {
+        bail!(
+            "WITH UNSAFE IGNORE cannot exclude the entire consumed workspace; name a cache subtree; see docs/cixfile.md#unsafe-ignore"
+        );
+    }
+    if excluded.is_empty() {
+        return Ok(SealedTree {
+            nar_hash: nar_hash(source)?,
+            store_path: add_store_object(source, name)?,
+        });
+    }
+    let filtered =
+        ScratchDir::new("cix-evidence-seal-").context("creating filtered build-evidence seal")?;
+    copy_tree(source, filtered.path())?;
+    for path in excluded {
+        remove_path_if_present(&filtered.path().join(path))?;
+    }
+    Ok(SealedTree {
+        nar_hash: nar_hash(filtered.path())?,
+        store_path: add_store_object(filtered.path(), name)?,
+    })
 }
 
 pub(crate) fn materialize_view(paths: &BTreeMap<String, ConsumedPath>) -> Result<String> {
@@ -564,9 +590,10 @@ pub(crate) fn add_step_output_snapshot(
     add_store_object(delta.path(), "cix-step-output")
 }
 
-pub(crate) fn store_consumed_paths(
+pub(crate) fn store_consumed_paths_excluding(
     workspace: &Path,
     needed: impl Iterator<Item = String>,
+    excluded: &BTreeSet<String>,
 ) -> Result<BTreeMap<String, ConsumedPath>> {
     let mut paths = BTreeMap::new();
     for path in needed {
@@ -578,15 +605,42 @@ pub(crate) fn store_consumed_paths(
         if !source.exists() && fs::symlink_metadata(&source).is_err() {
             bail!("consumed builder path {path:?} does not exist");
         }
-        paths.insert(
-            path,
+        let relative_exclusions = exclusions_beneath(&path, excluded)?;
+        let consumed = if relative_exclusions.is_empty() {
             ConsumedPath {
                 nar_hash: nar_hash(&source)?,
                 store_path: add_store_object(&source, "cix-build-consumed")?,
-            },
-        );
+            }
+        } else {
+            let sealed =
+                seal_directory_excluding(&source, &relative_exclusions, "cix-build-consumed")?;
+            ConsumedPath {
+                nar_hash: sealed.nar_hash,
+                store_path: sealed.store_path,
+            }
+        };
+        paths.insert(path, consumed);
     }
     Ok(paths)
+}
+
+fn exclusions_beneath(path: &str, excluded: &BTreeSet<String>) -> Result<BTreeSet<String>> {
+    let mut relative = BTreeSet::new();
+    for ignored in excluded {
+        if path == "." {
+            relative.insert(ignored.clone());
+        } else if ignored == path || crate::evidence::same_or_descendant(path, ignored) {
+            bail!(
+                "WITH UNSAFE IGNORE path {ignored:?} is consumed directly as {path:?}; ignored cache state cannot be an output; see docs/cixfile.md#unsafe-ignore"
+            );
+        } else if let Some(suffix) = ignored
+            .strip_prefix(path)
+            .and_then(|suffix| suffix.strip_prefix('/'))
+        {
+            relative.insert(suffix.to_owned());
+        }
+    }
+    Ok(relative)
 }
 
 pub(crate) fn workspace_identity(directory: &Path, builder: &str) -> String {

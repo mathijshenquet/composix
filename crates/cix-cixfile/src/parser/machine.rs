@@ -41,6 +41,9 @@ pub(super) struct Parser<'a> {
     pub(super) lines: Vec<&'a str>,
     pub(super) index: usize,
     pub(super) inputs: BTreeMap<String, Input>,
+    pub(super) lets: BTreeMap<String, Vec<String>>,
+    pub(super) args: BTreeMap<String, Arg>,
+    pub(super) selected_args: BTreeMap<String, String>,
     pub(super) fetches: BTreeMap<String, Fetch>,
     pub(super) fetch_order: Vec<String>,
     pub(super) builders: BTreeMap<String, Builder>,
@@ -51,6 +54,14 @@ pub(super) struct Parser<'a> {
     pub(super) destinations: BTreeMap<String, BTreeSet<String>>,
     pub(super) metadata: BTreeMap<String, ServiceMetadata>,
     pub(super) current: Option<CurrentBlock>,
+    pub(super) opened_block: Option<OpenedBlock>,
+}
+
+#[derive(Clone)]
+pub(super) struct OpenedBlock {
+    pub(super) kind: &'static str,
+    pub(super) name: String,
+    pub(super) line: usize,
 }
 
 #[derive(Clone)]
@@ -73,10 +84,56 @@ pub(super) struct ServiceMetadata {
 }
 
 pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
+    parse_selected(input, BTreeMap::new())
+}
+
+pub fn parse_with_args(
+    input: &str,
+    selected_args: &BTreeMap<String, String>,
+) -> Result<Cixfile, ParseError> {
+    let declared = parse(input)?;
+    for (name, value) in selected_args {
+        let Some(argument) = declared.args.get(name) else {
+            let matrix = declared
+                .args
+                .iter()
+                .map(|(name, argument)| format!("{name}=[{}]", argument.values.join(", ")))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(ParseError::new(
+                1,
+                "",
+                format!(
+                    "--arg {name}={value} names no declared ARG; declared matrix: {}; see docs/cixfile.md#build-args",
+                    if matrix.is_empty() { "<none>" } else { &matrix }
+                ),
+            ));
+        };
+        if !argument.values.contains(value) {
+            return Err(ParseError::new(
+                argument.line,
+                input.lines().nth(argument.line - 1).unwrap_or_default(),
+                format!(
+                    "--arg {name}={value} is outside the declared matrix [{}]; see docs/cixfile.md#build-args",
+                    argument.values.join(", ")
+                ),
+            ));
+        }
+    }
+    parse_selected(input, selected_args.clone())
+}
+
+fn parse_selected(
+    input: &str,
+    selected_args: BTreeMap<String, String>,
+) -> Result<Cixfile, ParseError> {
     Parser {
         lines: input.lines().collect(),
         index: 0,
         inputs: BTreeMap::new(),
+        lets: BTreeMap::new(),
+        args: BTreeMap::new(),
+        selected_args,
         fetches: BTreeMap::new(),
         fetch_order: Vec::new(),
         builders: BTreeMap::new(),
@@ -87,6 +144,7 @@ pub fn parse(input: &str) -> Result<Cixfile, ParseError> {
         destinations: BTreeMap::new(),
         metadata: BTreeMap::new(),
         current: None,
+        opened_block: None,
     }
     .parse()
 }
@@ -133,6 +191,10 @@ impl Parser<'_> {
                 }
             }
             let trimmed = logical.trim();
+            if trimmed == "}" {
+                self.close_block(line_number, source)?;
+                continue;
+            }
             let (directive, arguments) = trimmed
                 .split_once(char::is_whitespace)
                 .map_or((trimmed, ""), |(directive, arguments)| {
@@ -143,6 +205,8 @@ impl Parser<'_> {
             }
             match directive {
                 "FROM" => self.from(line_number, source, arguments)?,
+                "LET" => self.let_binding(line_number, source, arguments)?,
+                "ARG" => self.arg_binding(line_number, source, arguments)?,
                 "FETCH" => self.fetch(line_number, source, arguments)?,
                 "BUILDER" => self.begin_builder(line_number, source, arguments)?,
                 "SERVICE" => {
@@ -228,6 +292,17 @@ impl Parser<'_> {
             }
         }
 
+        if let Some(opened) = &self.opened_block {
+            return Err(ParseError::new(
+                opened.line,
+                self.lines.get(opened.line - 1).copied().unwrap_or_default(),
+                format!(
+                    "{} {} opened at line {} is never closed",
+                    opened.kind, opened.name, opened.line
+                ),
+            ));
+        }
+
         let first = || {
             self.lines
                 .iter()
@@ -275,6 +350,8 @@ impl Parser<'_> {
         }
         materialize_structural_copy_ancestors(&mut self.artifacts);
         Ok(Cixfile {
+            lets: self.lets,
+            args: self.args,
             inputs: self.inputs,
             fetches: self.fetches,
             fetch_order: self.fetch_order,
@@ -283,6 +360,21 @@ impl Parser<'_> {
             artifacts: self.artifacts,
             artifact_order: self.artifact_order,
         })
+    }
+}
+
+impl Parser<'_> {
+    fn close_block(&mut self, line: usize, source: &str) -> Result<(), ParseError> {
+        if self.opened_block.is_none() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "unexpected }; phase blocks do not nest",
+            ));
+        }
+        self.opened_block = None;
+        self.current = None;
+        Ok(())
     }
 }
 

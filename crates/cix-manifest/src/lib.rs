@@ -14,6 +14,7 @@ use url::Url;
 pub struct Spec<T = String> {
     pub cix_manifest: u32,
     pub kind: ManifestKind,
+    pub build_args: BTreeMap<String, String>,
     pub services: BTreeMap<String, Service<T>>,
 }
 
@@ -200,6 +201,12 @@ impl Spec {
             .cloned()
             .context("cix-manifest.json must be a JSON object")?;
         body.remove("cixManifest");
+        let build_args = body
+            .remove("buildArgs")
+            .map(serde_json::from_value)
+            .transpose()
+            .context("cix-manifest.json field \"buildArgs\" must map ARG names to values")?
+            .unwrap_or_default();
         if body.contains_key("health") {
             bail!(
                 "manifest field \"health\" is obsolete; replace it with typed \"readiness\" and/or \"liveness\" probes (http, tcp, or notify)"
@@ -216,6 +223,7 @@ impl Spec {
         let spec = Self {
             cix_manifest: 0,
             kind,
+            build_args,
             services: BTreeMap::from([("artifact".to_owned(), service)]),
         };
         spec.validate()?;
@@ -279,6 +287,12 @@ impl Spec {
             .context("bare manifest has no def-node")?;
         let mut value = canonical_service(service)?;
         value.insert("cixManifest".to_owned(), Value::from(0));
+        if !self.build_args.is_empty() {
+            value.insert(
+                "buildArgs".to_owned(),
+                serde_json::to_value(&self.build_args)?,
+            );
+        }
         if self.kind != ManifestKind::Service {
             value.insert("kind".to_owned(), serde_json::to_value(self.kind)?);
         }
@@ -746,6 +760,12 @@ impl Serialize for Spec {
             .as_object_mut()
             .ok_or_else(|| serde::ser::Error::custom("bare def-node is not an object"))?;
         object.insert("cixManifest".to_owned(), serde_json::Value::from(0));
+        if !self.build_args.is_empty() {
+            object.insert(
+                "buildArgs".to_owned(),
+                serde_json::to_value(&self.build_args).map_err(serde::ser::Error::custom)?,
+            );
+        }
         if self.kind != ManifestKind::Service {
             object.insert(
                 "kind".to_owned(),
@@ -952,13 +972,15 @@ mod tests {
     #[test]
     fn parses_and_serializes_the_v0_def_node() {
         let spec = Spec::from_slice(
-            br#"{"cixManifest":0,"start":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"claims":["jit"]}"#,
+            br#"{"cixManifest":0,"buildArgs":{"FLAVOR":"debug"},"start":["bin/app","$PORT"],"env":{"PORT":{"default":"8080"}},"ports":{"http":{"env":"PORT","protocol":"tcp"}},"listeners":{"admin":{"type":"stream"}},"claims":["jit"]}"#,
         )
         .unwrap();
         let service = spec.select_service(None).unwrap().1;
         assert_eq!(service.start, ["bin/app", "$PORT"]);
         assert!(service.has_claim("jit"));
-        assert_eq!(serde_json::to_value(&spec).unwrap()["cixManifest"], 0);
+        let serialized = serde_json::to_value(&spec).unwrap();
+        assert_eq!(serialized["cixManifest"], 0);
+        assert_eq!(serialized["buildArgs"]["FLAVOR"], "debug");
     }
 
     #[test]

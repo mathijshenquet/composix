@@ -1,10 +1,33 @@
-# pnpm-wall — the package-manager fetch problem, dissected
+# CIP-114 — pnpm-wall: the package-manager fetch problem, dissected
 
-Status: **draft v3** (2026-08-06; evidence update from the pnpm-wall spike;
-expanded from the expand1 CIP-light
-per Mathijs — four chapters, full analysis. This is where the
-"traced sandbox replaces the *2nix genre" claim gets tested where it
-matters most: node is where real Dockerfiles live.)
+Status: **accepted** (2026-08-06, Mathijs — adoption pre-authorized
+"on sol's receipts"; the frozenStore validation receipts landed with
+track/pnpm-frozenstore the same day. Drafted 2026-08-05, expanded from
+the expand1 CIP-light. This is where the "traced sandbox replaces the
+*2nix genre" claim gets tested where it matters most: node is where
+real Dockerfiles live.)
+
+## Decision (adopted 2026-08-06)
+
+All four legs as recommended, with the validation now receipt-backed:
+the cacert diagnosis complete and taught (migrate.md + the
+trace-pattern hint); bare-CAS rejected for pnpm; **the frozenStore
+whole-store route validated** (two network-silent installs from one
+read-only sealed instance, byte-identical application outputs; the
+TOFU instance-pin needs no semantic exception — the actual cix route
+accepts and seals it); target pnpm bumps recorded as explicit GAPS
+deviations; problem-class hints live at the reporting seams with
+doc-anchor citations; upstream-incoherence honesty preserved (and the
+directus diagnosis corrected). Remaining open items stay tracked in
+§4: the traced-install TRACE-COST wall (dozzle/verdaccio full-route
+items — a performance track, not a mechanism gap), seal-time
+engineering for large stores, the UNSAFE-IGNORE detection leg's build
+order, and the cacert-prelude generalization taste call.
+
+Changelog:
+- 2026-08-06 — adopted; instance-pin acceptance decided by the
+  orchestrator under delegated authority ("maak zelf de juiste
+  beslissing"); detection leg folded into epoch groundwork.
 
 ## 1. The problem
 
@@ -28,24 +51,35 @@ produce bad language changes. The precise exhibits:
    finished in 6.6 seconds with 52 IPv6 and 38 IPv4 connect calls,
    every package fetch on attempt 1, and no TLS errors. This was not
    IPv6 fallback; missing trust material made the client look hung.
-3. **Verdaccio — CONSUMED volatility, the hard core.** Cold replay
-   observes a volatile pnpm root read set: the store's SQLite
-   index/metadata files differ per fetch AND are genuinely read by
-   the subsequent step. Read-set reduction (CIP-102's rescue) only
-   removes UNCONSUMED volatility; here the nondeterministic bytes are
-   load-bearing, so no honest pin exists for the tree as fetched. The
-   store spike sharpened this: pnpm 11.1.2 and 11.17.0 produce stable
-   `files/` CAS trees, but neither can resolve packages offline from
-   those bytes without its volatile SQLite package index.
-4. **Directus — coherent upstream; incomplete offline metadata.** The
+   The frozenStore follow-up with pinned pnpm 11.18.0 then sealed the
+   complete 20,175-file CAS plus `index.db`; its downstream frozen offline
+   install remained active under Cix's tracer until the 20-minute bound.
+   No pnpm/store error or item was observed, so this is a trace-cost wall.
+3. **Verdaccio — resolved mechanism, bounded integration walls.** The
+   earlier bare-CAS route was correctly blocked: pnpm needs its SQLite
+   package index. The frozenStore validation instead sealed the complete
+   store from one pnpm 11.17.0 fetch. Two network-silent installs used that
+   read-only instance without changing its NAR hash, and both builds produced
+   byte-identical output for all 31 packages. Raw `node_modules` identity is
+   weaker: pnpm writes `prunedAt` and `lastValidatedTimestamp` bookkeeping,
+   so the receipt grades the consumed application build output, not those
+   unconsumed install metadata files. The actual Cix route accepts and seals
+   this instance pin without a semantic exception, but tracing the downstream
+   high-fanout install exceeded 20 minutes. A separate production `deploy`
+   probe reaches `ERR_PNPM_NO_OFFLINE_META` for `@verdaccio/e2e-cli@2.10.1`.
+4. **Directus — coherent upstream; complete store sealed.** The
    pinned `package.json` and `pnpm-lock.yaml` exactly match git revision
    `b1d7a45a77661fd13928a53448c06649f36b56f5`. Node 22 plus exact pnpm
    10.27.0 accepted all 41 workspaces with `--frozen-lockfile` (exit 0),
    and an empty-store run explicitly said the lock was current before
    failing at `ERR_PNPM_NO_OFFLINE_TARBALL`. Nearby revision
    `d87981b99d2e7916905ac797fda79f33dc01190b` independently passes the
-   same check. The earlier incoherence diagnosis was wrong; the current
-   Directus wall is missing package metadata during offline deploy.
+   same check. The earlier incoherence diagnosis was wrong; the observed
+   Directus wall was missing package metadata during offline deploy.
+   With the recorded pnpm 11.18.0 deviation, a new probe fetches and seals
+   the complete store (80,763 CAS files plus `index.db`) and proves the
+   read-only store's NAR hash unchanged. This track claims only fetch+seal;
+   install, deploy, item, and runtime remain unproved.
 5. **Filestash (adjacent, no pnpm) — snapshot scale.** The first
    Go-module FETCH seals ~2.7 GiB / 69k files and exceeds 20 minutes:
    the cost is snapshot-taking time. Related but distinct:
@@ -121,15 +155,19 @@ Four legs, ordered by evidence-before-mechanism:
    `--offline --frozen-lockfile` against a fully-populated store.
    That inverts our mechanism: do NOT strip or regenerate the index —
    **seal the whole store as fetched (files/ + index.db), a TOFU
-   instance-pin**, and install frozen against it. The cross-fetch
+   instance-pin**, and install frozen against it. The completed Verdaccio
+   validation confirms this route: two network-silent installs left the
+   read-only store byte-identical and produced identical application build
+   output. The cross-fetch
    nondeterminism of `index.db` gets reclassified: it makes two
    fetches inequivalent as BYTES but not as STORES — replayability of
    one pinned instance is what cix needs, and frozenStore guarantees
    the install neither mutates nor regenerates anything (the
-   consumed-volatility loop is cut by pnpm itself, not by us). cix's
-   double-fetch probe should then require identity on `files/` and
-   record index/metadata divergence as instance-volatility, without
-   refusing the pin. Guards, all upstream-defined: pnpm ≥11.7.0 and
+   consumed-volatility loop is cut by pnpm itself, not by us). Cix's
+   existing double-fetch probe already accepts the resulting instance pin:
+   it reports the volatile index/metadata paths and seals one complete fetch
+   without requiring a semantic reclassification. Guards, all
+   upstream-defined: pnpm ≥11.7.0 and
    Node ≥22.15/23.11/24 required (`ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE`);
    stores must pre-contain build outputs for script-running packages
    (`ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` fails upfront, we fetch
@@ -154,10 +192,10 @@ Four legs, ordered by evidence-before-mechanism:
 4. **Keep frozen validation, but correct the Directus diagnosis.** A real
    manifest/lock mismatch should still be named as an upstream defect
    and must never trigger an automatic non-frozen install. Directus is
-   not that case: both its pin and a nearby revision validate. Its
-   missing offline deployment metadata belongs with exhibit 3's
-   fetch-artifact problem, and it does not gate CIP-107's 14 narHash
-   regenerations on finding another source revision.
+   not that case: both its pin and a nearby revision validate. The pnpm
+   11.18.0 route now seals its complete fetched store unchanged; the narrower
+   fetch/seal receipt does not yet promote install, deploy, item, or runtime,
+   and source-revision hunting does not gate CIP-107's narHash regenerations.
 
 Explicitly rejected: a global pnpm exception; weakening network
 isolation; translating lockfiles by default (*2nix fallback stays a
@@ -169,12 +207,12 @@ worse than no pin).
 - **Answered:** pnpm does not rebuild its store index from bare CAS at
   either corpus pin; npm can replay from content-v2 without index-v5
   when audit/fund network features are disabled.
-- **Instance-pin semantics** (new, from the frozenStore route): does
-  cix's pin model accept a TOFU instance-pin whose double-fetch probe
-  shows index/metadata divergence — i.e. "identical `files/`, divergent
-  derived index" graded as a valid pin rather than refused volatility?
-  This is the one semantic amendment the surgical route needs from us;
-  everything else is upstream mechanism.
+- **Instance-pin semantics — ANSWERED.** Cix's existing probe already accepts
+  the frozenStore shape: it identifies the divergent index/verification
+  metadata, seals one whole fetched instance, and makes that immutable path
+  available downstream. No fetch-pin semantic amendment or package-manager
+  exception is needed. The remaining 20-minute Verdaccio result is a tracing
+  performance wall, not a pin-classification wall.
 - **Translation pnpm-version policy** — DECIDED (Mathijs, 2026-08-06):
   for the specific corpus targets, bump pnpm past 11.7 and RECORD it —
   the upgrade is an explicit, GAPS-visible deviation from upstream's
@@ -185,12 +223,15 @@ worse than no pin).
   TLS-trust masquerade → "import `${pkgs.cacert}`"; offline-tarball /
   store-write walls → the frozenStore route with its version gates.
   Doc-anchor citations per D73, never CIP numbers.
-- **Spike before adoption**: one verdaccio-shaped validation of the
+- **Spike before adoption — COMPLETE:** one verdaccio-shaped validation of the
   full route (seal files/+index.db as fetched → `frozen-store=true`
   install `--offline --frozen-lockfile` from the read-only pinned
   tree, twice, network-silent) with a pnpm ≥11.7 override, before any
-  language/semantic change lands. (In flight as track/pnpm-frozenstore
-  together with the two decided items above.)
+  language/semantic change lands. VALIDATED (track/pnpm-frozenstore,
+  2026-08-06): the two installs and builds passed; the sealed store
+  remained unchanged and application outputs matched byte-for-byte.
+  Raw pnpm install bookkeeping retained volatile timestamps, so it is
+  not graded as an output identity receipt.
 - **`WITH UNSAFE IGNORE` as the generic escape hatch + path detection**
   — SETTLED on naming and role (Mathijs + orchestrator, 2026-08-06):
   the clause is the ecosystem-agnostic emergency hatch for
@@ -206,11 +247,12 @@ worse than no pin).
   diagnostic proposes the clause; the author declares it (CIP-102:
   declared coarseness, never silent evidence exclusion). Build order
   of the detection leg is still Mathijs's call.
-- Where does the pinned store live in the artifact model — a FETCH
-  output tree (the frozenStore route: evidence IN, pinned, cold-
-  replayable) versus `WITH UNSAFE IGNORE` (evidence OUT, warm-only)?
-  For pnpm the answer is now the former; the hatch stays for
-  ecosystems where no pinned-store route exists.
+- **Pinned-store placement — ANSWERED for pnpm frozenStore:** it is a
+  normal FETCH output tree containing the entire pnpm store.
+  `WITH UNSAFE IGNORE` does not subsume it: the hatch can improve a
+  warm loop but cannot provide the cold, immutable replay evidence
+  demonstrated here; it stays for ecosystems where no pinned-store
+  route exists.
 - Seal-time engineering for large stores (exhibit 5) remains open: the
   CAS-only measurements establish determinism for 20k–56k-file trees,
   not whether parallel hashing or CAS-portion pinning makes sealing fast
