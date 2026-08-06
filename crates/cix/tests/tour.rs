@@ -179,20 +179,7 @@ fn stop_user_units_created_since(before: &BTreeSet<String>, prefix: &str, receip
         user_cix_units().unwrap_or_else(|error| panic!("listing units after {receipt}: {error}"));
     let created = created_cix_units(before, &after, prefix);
     for unit in &created {
-        let output = Command::new("systemctl")
-            .args(["--user", "stop", unit])
-            .output()
-            .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error}"));
-        if !output.status.success()
-            && user_cix_units()
-                .unwrap_or_else(|error| panic!("checking {unit} after {receipt}: {error}"))
-                .contains(unit)
-        {
-            panic!(
-                "stopping {unit} after {receipt} failed: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            );
-        }
+        stop_user_unit_if_loaded(unit, receipt);
     }
     wait_for_user_units_gone(created.iter().map(String::as_str))
         .unwrap_or_else(|error| panic!("tearing down units after {receipt}: {error}"));
@@ -213,10 +200,42 @@ fn created_cix_units(
 }
 
 fn stop_user_unit(unit: &str, receipt: &str) {
-    cix_run::runtime::stop_service(unit, true)
-        .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error:#}"));
+    stop_user_unit_if_loaded(unit, receipt);
     wait_for_user_units_gone([unit])
         .unwrap_or_else(|error| panic!("tearing down {unit} after {receipt}: {error}"));
+}
+
+fn idempotent_user_stop_command(unit: &str) -> String {
+    format!(
+        "systemctl --user stop \"{unit}\" || test \"$(systemctl --user show --property=LoadState --value \"{unit}\")\" = not-found"
+    )
+}
+
+fn stop_failure_is_already_unloaded(load_state: &str) -> bool {
+    load_state.trim() == "not-found"
+}
+
+fn stop_user_unit_if_loaded(unit: &str, receipt: &str) {
+    let output = Command::new("systemctl")
+        .args(["--user", "stop", unit])
+        .output()
+        .unwrap_or_else(|error| panic!("stopping {unit} after {receipt}: {error}"));
+    if output.status.success() {
+        return;
+    }
+    let load_state = Command::new("systemctl")
+        .args(["--user", "show", "--property=LoadState", "--value", unit])
+        .output()
+        .unwrap_or_else(|error| panic!("checking {unit} after {receipt}: {error}"));
+    let state = String::from_utf8_lossy(&load_state.stdout);
+    if load_state.status.success() && stop_failure_is_already_unloaded(&state) {
+        return;
+    }
+    panic!(
+        "stopping {unit} after {receipt} failed (LoadState={}): {}",
+        state.trim(),
+        String::from_utf8_lossy(&output.stderr).trim()
+    );
 }
 
 fn stop_empty_cix_run_slice(receipt: &str) {
@@ -247,15 +266,7 @@ fn stop_empty_cix_run_slice(receipt: &str) {
     if !units.contains("cix-run.slice") {
         return;
     }
-    let output = Command::new("systemctl")
-        .args(["--user", "stop", "cix-run.slice"])
-        .output()
-        .unwrap_or_else(|error| panic!("stopping cix-run.slice after {receipt}: {error}"));
-    assert!(
-        output.status.success(),
-        "stopping cix-run.slice after {receipt} failed: {}",
-        String::from_utf8_lossy(&output.stderr).trim()
-    );
+    stop_user_unit_if_loaded("cix-run.slice", receipt);
     wait_for_user_units_gone(["cix-run.slice"])
         .unwrap_or_else(|error| panic!("tearing down cix-run.slice after {receipt}: {error}"));
 }
@@ -1156,6 +1167,17 @@ fn tour_ignores_a_foreign_user_unit() {
         created_cix_units(&before, &after, "cix-run-"),
         ["cix-run-owned.service", "cix-run-owned.slice"]
     );
+}
+
+#[test]
+fn tour_stop_only_accepts_an_unloaded_unit_after_a_stop_failure() {
+    assert_eq!(
+        idempotent_user_stop_command("$unit"),
+        "systemctl --user stop \"$unit\" || test \"$(systemctl --user show --property=LoadState --value \"$unit\")\" = not-found"
+    );
+    assert!(stop_failure_is_already_unloaded("not-found\n"));
+    assert!(!stop_failure_is_already_unloaded("loaded\n"));
+    assert!(!stop_failure_is_already_unloaded("masked\n"));
 }
 
 #[test]

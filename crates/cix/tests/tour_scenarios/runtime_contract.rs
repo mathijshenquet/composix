@@ -192,7 +192,7 @@ START runtime-observer
     assert!(restarted.contains("liveness watchdog restarted the service"));
     wait_for_http(TOUR_LISTEN, "runtime healthy");
     doc.sh_with_env(
-        "systemctl --user stop \"$unit\"",
+        &idempotent_user_stop_command("$unit"),
         &[("unit", &first_web_unit)],
         true,
     );
@@ -213,7 +213,7 @@ START runtime-observer
     let persisted = doc.sh("curl -fsS http://127.0.0.1:8420/state", true);
     assert_eq!(persisted.trim(), "kept across restart");
     doc.sh_with_env(
-        "systemctl --user stop \"$unit\"",
+        &idempotent_user_stop_command("$unit"),
         &[("unit", &second_web_unit)],
         true,
     );
