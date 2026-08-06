@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>docker / ntfy — migration corpus</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; --page: #f8fafc; --ink: #182230; --muted: #667085; --line: #d0d5dd; --panel: #fff; --code: #f3f5f7; --link: #1769aa; --directive: #7856a8; --interpolation: #9a4f00; --comment: #68717d; --string: #39704a; --number: #a23b51; --key: #2f6598; --literal: #8c3f72; --heredoc: #344054; }
+    @media (prefers-color-scheme: dark) { :root { --page: #11161d; --ink: #e7ebf0; --muted: #9da8b8; --line: #3a4553; --panel: #171e27; --code: #0d1218; --link: #78b7ef; --directive: #c4a7e7; --interpolation: #e8ae73; --comment: #8995a5; --string: #8fc89f; --number: #e58a9d; --key: #82b9e8; --literal: #d79bc2; --heredoc: #c2cad5; } }
+    * { box-sizing: border-box; }
+    body { max-width: 92rem; margin: 0 auto; padding: 1rem; line-height: 1.42; background: var(--page); color: var(--ink); }
+    a { color: var(--link); }
+    h1 { margin: .45rem 0 .55rem; font-size: 1.75rem; }
+    h2 { margin: 0; padding: .65rem .75rem 0; font-size: 1.1rem; }
+    p { margin: .45rem 0; }
+    .crumbs, .status, .source { color: var(--muted); font-size: .92rem; }
+    .artifacts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-top: .8rem; align-items: start; }
+    .column { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); padding-bottom: .75rem; }
+    .file { min-width: 100%; width: max-content; max-width: none; margin-top: .65rem; padding: 0 .75rem; }
+    .file h3 { position: sticky; left: .75rem; width: fit-content; margin: 0 0 .3rem; font-size: .84rem; font-weight: 650; color: var(--muted); }
+    .file summary { position: sticky; left: .75rem; width: fit-content; cursor: pointer; color: var(--muted); font-size: .84rem; font-weight: 650; }
+    pre { min-width: 100%; width: max-content; margin: 0; padding: .7rem .8rem; border-radius: .3rem; background: var(--code); color: var(--ink); white-space: pre; tab-size: 2; font-size: 13px; line-height: 1.42; }
+    code { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
+    .tok-directive { color: var(--directive); font-weight: 650; }
+    .tok-interpolation { color: var(--interpolation); font-weight: 600; }
+    .tok-comment { color: var(--comment); font-style: italic; }
+    .tok-string { color: var(--string); }
+    .tok-number { color: var(--number); }
+    .tok-key { color: var(--key); }
+    .tok-literal { color: var(--literal); }
+    .tok-heredoc { color: var(--heredoc); }
+    table { width: 100%; border-collapse: collapse; margin-top: .8rem; background: var(--panel); }
+    th, td { padding: .48rem .55rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { white-space: nowrap; }
+    .context, .gap-panel { margin: .8rem 0; padding: .65rem .75rem; border: 1px solid var(--line); border-radius: .45rem; background: var(--panel); }
+    .context summary { cursor: pointer; font-weight: 650; }
+    .file-tree { margin: .55rem 0 0; padding-left: 1.35rem; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: .84rem; }
+    .file-tree span { color: var(--muted); }
+    .gap-panel { border-left: .35rem solid var(--interpolation); }
+    .gap-panel.stale { border-left-color: var(--number); }
+    .gap-meta { color: var(--muted); font-size: .9rem; }
+    .gap-panel ul { margin: .45rem 0; padding-left: 1.35rem; }
+    .variant-tabs { margin-top: .65rem; padding: 0 .75rem; }
+    .variant-tabs input { position: absolute; opacity: 0; pointer-events: none; }
+    .variant-tabs label { display: inline-block; margin-right: .3rem; padding: .25rem .5rem; border: 1px solid var(--line); border-bottom: 0; border-radius: .3rem .3rem 0 0; cursor: pointer; color: var(--muted); font-size: .84rem; }
+    .variant-tabs input:checked + label { background: var(--code); color: var(--ink); font-weight: 650; }
+    .variant-panel { display: none; }
+    .variant-panel .file { margin-top: .3rem; padding: 0; }
+    .variant-panel .file h3 { display: none; }
+    .variant-tabs input:checked + label + input + label + .variant-panels .variant-panel.faithful { display: block; }
+    .variant-tabs input + label + input:checked + label + .variant-panels .variant-panel.dissolved { display: block; }
+    footer { margin-top: 1.25rem; color: var(--muted); font-size: .85rem; }
+    @media (max-width: 46rem) { .artifacts { grid-template-columns: minmax(0, 1fr); } body { padding: .75rem; } }
+  </style>
+</head>
+<body>
+  <nav class="crumbs"><a href="index.html">Corpus browser</a> / docker / ntfy</nav>
+  <h1>docker / ntfy</h1>
+  <p class="status"><strong>docs/corpus.md ribbon:</strong> ✅ The Docker-only GoReleaser context artifact is now an explicit, checksum-verified FETCH; Alpine/image metadata and entrypoint-only invocation deliberately dissolve · <strong>Evidence:</strong> build and runtime receipt</p>
+  <p class="status"><strong>Receipt status:</strong> Faithful 2.27.0 release artifact build and /v1/health probe pass; dissolved twin builds · <a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/ntfy/receipt.md">Full migration receipt</a></p>
+  <p class="source"><a href="https://github.com/mathijshenquet/composix/blob/main/corpus/migrate/docker/ntfy/SOURCE">Pinned upstream source notes</a></p>
+  <aside class="gap-panel">
+    <h2>Migration gaps</h2>
+    <p class="gap-meta"><strong>Generated:</strong> migrate.md@current · track-expand-ntfy-filebrowser · 2026-08-06 · <strong>Status:</strong> current</p>
+    <ul>
+      <li>The Docker build context is created by GoReleaser and supplies <code>ntfy</code> without recording an artifact identity in the Dockerfile. The faithful Cixfile makes that hidden release-tarball input explicit and pins both its upstream SHA-256 and FETCH snapshot; the v2.27.0 build and <code>/v1/health</code> receipt pass. → case</li>
+      <li>Docker&#39;s Alpine base, fixed image layout, labels, and entrypoint-only command dissolve into the locked nixpkgs closure and the explicit <code>ntfy serve</code> service command. → case</li>
+      <li>The host drops <code>PrivatePIDs</code> while realizing DynamicUser, so Cix reports degraded PID-namespace confinement for the successful system-manager health probe. → evidence</li>
+    </ul>
+  </aside>
+  <details class="context">
+    <summary>Upstream build context: 615 files, 22154969 bytes</summary>
+    <ul class="file-tree">
+      <li><code>.dockerignore</code> <span>32 bytes</span></li>
+      <li><code>.git-blame-ignore-revs</code> <span>495 bytes</span></li>
+      <li><code>.github/FUNDING.yml</code> <span>40 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/1_bug_report.md</code> <span>735 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/2_enhancement_request.md</code> <span>644 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/3_tech_support.md</code> <span>460 bytes</span></li>
+      <li><code>.github/ISSUE_TEMPLATE/4_question.md</code> <span>463 bytes</span></li>
+      <li><code>.github/dependabot.yml</code> <span>464 bytes</span></li>
+      <li><code>.github/images/logo.png</code> <span>82776 bytes</span></li>
+      <li><code>.github/images/screenshot-curl.png</code> <span>304373 bytes</span></li>
+      <li><code>.github/images/screenshot-phone-detail.jpg</code> <span>230376 bytes</span></li>
+      <li><code>.github/images/screenshot-phone-main.jpg</code> <span>130761 bytes</span></li>
+      <li><code>.github/images/screenshot-phone-notification.jpg</code> <span>229658 bytes</span></li>
+      <li><code>.github/images/screenshot-web-detail.png</code> <span>484250 bytes</span></li>
+      <li><code>.github/workflows/build.yaml</code> <span>835 bytes</span></li>
+      <li><code>.github/workflows/docs.yaml</code> <span>1162 bytes</span></li>
+      <li><code>.github/workflows/release.yaml</code> <span>1652 bytes</span></li>
+      <li><code>.github/workflows/test.yaml</code> <span>1484 bytes</span></li>
+      <li><code>.gitignore</code> <span>258 bytes</span></li>
+      <li><code>.gitpod.yml</code> <span>643 bytes</span></li>
+      <li><code>.go-version</code> <span>7 bytes</span></li>
+      <li><code>.goreleaser.yml</code> <span>6066 bytes</span></li>
+      <li><code>CODE_OF_CONDUCT.md</code> <span>5531 bytes</span></li>
+      <li><code>Dockerfile</code> <span>638 bytes</span></li>
+      <li><code>Dockerfile-arm</code> <span>722 bytes</span></li>
+      <li><code>Dockerfile-build</code> <span>2254 bytes</span></li>
+      <li><code>LICENSE</code> <span>11347 bytes</span></li>
+      <li><code>LICENSE.GPLv2</code> <span>18024 bytes</span></li>
+      <li><code>Makefile</code> <span>18227 bytes</span></li>
+      <li><code>README.md</code> <span>24171 bytes</span></li>
+      <li><code>SECURITY.md</code> <span>436 bytes</span></li>
+      <li><code>action/action.go</code> <span>9802 bytes</span></li>
+      <li><code>action/action_test.go</code> <span>9254 bytes</span></li>
+      <li><code>assets/favicon.xcf</code> <span>9911 bytes</span></li>
+      <li><code>attachment/backend.go</code> <span>579 bytes</span></li>
+      <li><code>attachment/backend_file.go</code> <span>1941 bytes</span></li>
+      <li><code>attachment/backend_s3.go</code> <span>1159 bytes</span></li>
+      <li><code>attachment/store.go</code> <span>8029 bytes</span></li>
+      <li><code>attachment/store_file_test.go</code> <span>353 bytes</span></li>
+      <li><code>attachment/store_s3_test.go</code> <span>2935 bytes</span></li>
+      <li><code>attachment/store_test.go</code> <span>10838 bytes</span></li>
+      <li><code>ban/service.go</code> <span>6202 bytes</span></li>
+      <li><code>ban/service_test.go</code> <span>9987 bytes</span></li>
+      <li><code>ban/weights.go</code> <span>2496 bytes</span></li>
+      <li><code>ban/weights_test.go</code> <span>3036 bytes</span></li>
+      <li><code>client/client.go</code> <span>9139 bytes</span></li>
+      <li><code>client/client.yml</code> <span>2406 bytes</span></li>
+      <li><code>client/client_test.go</code> <span>3251 bytes</span></li>
+      <li><code>client/config.go</code> <span>1627 bytes</span></li>
+      <li><code>client/config_darwin.go</code> <span>335 bytes</span></li>
+      <li><code>client/config_test.go</code> <span>4731 bytes</span></li>
+      <li><code>client/config_unix.go</code> <span>379 bytes</span></li>
+      <li><code>client/config_windows.go</code> <span>214 bytes</span></li>
+      <li><code>client/ntfy-client.service</code> <span>219 bytes</span></li>
+      <li><code>client/options.go</code> <span>7579 bytes</span></li>
+      <li><code>client/user/ntfy-client.service</code> <span>203 bytes</span></li>
+      <li><code>cmd/access.go</code> <span>8365 bytes</span></li>
+      <li><code>cmd/access_test.go</code> <span>2700 bytes</span></li>
+      <li><code>cmd/app.go</code> <span>3413 bytes</span></li>
+      <li><code>cmd/app_test.go</code> <span>702 bytes</span></li>
+      <li><code>cmd/config_loader.go</code> <span>1892 bytes</span></li>
+      <li><code>cmd/config_loader_test.go</code> <span>854 bytes</span></li>
+      <li><code>cmd/publish.go</code> <span>13362 bytes</span></li>
+      <li><code>cmd/publish_test.go</code> <span>11611 bytes</span></li>
+      <li><code>cmd/publish_unix.go</code> <span>205 bytes</span></li>
+      <li><code>cmd/publish_windows.go</code> <span>118 bytes</span></li>
+      <li><code>cmd/serve.go</code> <span>50297 bytes</span></li>
+      <li><code>cmd/serve_test.go</code> <span>14613 bytes</span></li>
+      <li><code>cmd/serve_unix.go</code> <span>1347 bytes</span></li>
+      <li><code>cmd/serve_windows.go</code> <span>2673 bytes</span></li>
+      <li><code>cmd/subscribe.go</code> <span>11142 bytes</span></li>
+      <li><code>cmd/subscribe_darwin.go</code> <span>373 bytes</span></li>
+      <li><code>cmd/subscribe_test.go</code> <span>14963 bytes</span></li>
+      <li><code>cmd/subscribe_unix.go</code> <span>395 bytes</span></li>
+      <li><code>cmd/subscribe_windows.go</code> <span>293 bytes</span></li>
+      <li><code>cmd/tier.go</code> <span>14331 bytes</span></li>
+      <li><code>cmd/tier_test.go</code> <span>2442 bytes</span></li>
+      <li><code>cmd/token.go</code> <span>7332 bytes</span></li>
+      <li><code>cmd/token_test.go</code> <span>1616 bytes</span></li>
+      <li><code>cmd/user.go</code> <span>18980 bytes</span></li>
+      <li><code>cmd/user_test.go</code> <span>7104 bytes</span></li>
+      <li><code>cmd/webpush.go</code> <span>1728 bytes</span></li>
+      <li><code>cmd/webpush_test.go</code> <span>952 bytes</span></li>
+      <li><code>db/db.go</code> <span>4075 bytes</span></li>
+      <li><code>db/pg/pg.go</code> <span>3514 bytes</span></li>
+      <li><code>db/pg/pg_test.go</code> <span>1256 bytes</span></li>
+      <li><code>db/schema/schema.go</code> <span>4408 bytes</span></li>
+      <li><code>db/schema/schema_test.go</code> <span>7079 bytes</span></li>
+      <li><code>db/schema/types.go</code> <span>958 bytes</span></li>
+      <li><code>db/test/schema.go</code> <span>6316 bytes</span></li>
+      <li><code>db/test/test.go</code> <span>1778 bytes</span></li>
+      <li><code>db/types.go</code> <span>580 bytes</span></li>
+      <li><code>db/util.go</code> <span>906 bytes</span></li>
+      <li><code>docker-compose.yml</code> <span>376 bytes</span></li>
+      <li><code>docs/_overrides/main.html</code> <span>2209 bytes</span></li>
+      <li><code>docs/config.md</code> <span>173573 bytes</span></li>
+      <li><code>docs/contact.md</code> <span>3329 bytes</span></li>
+      <li><code>docs/contributing.md</code> <span>1568 bytes</span></li>
+      <li><code>docs/deprecations.md</code> <span>2384 bytes</span></li>
+      <li><code>docs/develop.md</code> <span>19927 bytes</span></li>
+      <li><code>docs/emojis.md</code> <span>133581 bytes</span></li>
+      <li><code>docs/examples.md</code> <span>23465 bytes</span></li>
+      <li><code>docs/faq.md</code> <span>7007 bytes</span></li>
+      <li><code>docs/hooks.py</code> <span>169 bytes</span></li>
+      <li><code>docs/index.md</code> <span>3401 bytes</span></li>
+      <li><code>docs/install.md</code> <span>26991 bytes</span></li>
+      <li><code>docs/integrations.md</code> <span>38551 bytes</span></li>
+      <li><code>docs/known-issues.md</code> <span>2834 bytes</span></li>
+      <li><code>docs/privacy.md</code> <span>8646 bytes</span></li>
+      <li><code>docs/publish.md</code> <span>229563 bytes</span></li>
+      <li><code>docs/publish/template-functions.md</code> <span>33269 bytes</span></li>
+      <li><code>docs/releases.md</code> <span>150403 bytes</span></li>
+      <li><code>docs/static/audio/ntfy-phone-call.mp3</code> <span>59728 bytes</span></li>
+      <li><code>docs/static/audio/ntfy-phone-call.ogg</code> <span>51664 bytes</span></li>
+      <li><code>docs/static/css/config-generator.css</code> <span>16002 bytes</span></li>
+      <li><code>docs/static/css/extra.css</code> <span>5076 bytes</span></li>
+      <li><code>docs/static/css/topic-generator.css</code> <span>4745 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-mono-v22-latin-regular.woff2</code> <span>12312 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-v30-latin-300.woff2</code> <span>15740 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-v30-latin-500.woff2</code> <span>15920 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-v30-latin-700.woff2</code> <span>15860 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-v30-latin-italic.woff2</code> <span>17368 bytes</span></li>
+      <li><code>docs/static/fonts/roboto-v30-latin-regular.woff2</code> <span>15744 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-add-instant.png</code> <span>95639 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-add-other.png</code> <span>98276 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-add.png</code> <span>78882 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-attachment-file.png</code> <span>52868 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-attachment-image.png</code> <span>159657 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-basic-notification.png</code> <span>25063 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-certs-manage.jpg</code> <span>116882 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-certs-warning-dialog.jpg</code> <span>117060 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-connection-error-dialog.jpg</code> <span>236893 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-connection-error-warning.jpg</code> <span>104543 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-custom-headers-add.jpg</code> <span>81496 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-custom-headers.jpg</code> <span>73947 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-detail.png</code> <span>75898 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-icon.png</code> <span>28493 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-language-chinese.jpg</code> <span>114879 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-language-german.jpg</code> <span>150738 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-language-hebrew.jpg</code> <span>114744 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-language-selection.jpg</code> <span>88143 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-logs.jpg</code> <span>35977 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-macrodroid-action.png</code> <span>104341 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-macrodroid-overview.png</code> <span>91671 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-macrodroid-send-action.png</code> <span>85182 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-macrodroid-send-macro.png</code> <span>78605 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-macrodroid-trigger.png</code> <span>97007 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-main.png</code> <span>54340 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-muted.png</code> <span>21781 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-actions.png</code> <span>55671 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-details.jpg</code> <span>30346 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-multiline.jpg</code> <span>133117 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-settings.png</code> <span>50310 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-update-1.png</code> <span>82085 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-notification-update-2.png</code> <span>81609 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-pause.png</code> <span>75488 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-publish-dialog.jpg</code> <span>86001 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-publish-message-bar.jpg</code> <span>96889 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-share-1.jpg</code> <span>104496 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-share-2.jpg</code> <span>86739 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-action-edit.png</code> <span>61896 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-action-http-post.png</code> <span>112759 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-event-edit.png</code> <span>76054 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-profile-send.png</code> <span>52377 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-profiles.png</code> <span>57210 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-task-edit-post.png</code> <span>48791 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-tasker-task-edit.png</code> <span>56494 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-template-custom.png</code> <span>45032 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-template-predefined.png</code> <span>86828 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-template.jpg</code> <span>124374 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-unifiedpush-fluffychat.jpg</code> <span>60431 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-unifiedpush-settings.jpg</code> <span>67580 bytes</span></li>
+      <li><code>docs/static/img/android-screenshot-unifiedpush-subscription.jpg</code> <span>42652 bytes</span></li>
+      <li><code>docs/static/img/android-video-overview.mp4</code> <span>1289875 bytes</span></li>
+      <li><code>docs/static/img/badge-appstore.png</code> <span>24487 bytes</span></li>
+      <li><code>docs/static/img/badge-fdroid.png</code> <span>17302 bytes</span></li>
+      <li><code>docs/static/img/badge-fdroid.svg</code> <span>23235 bytes</span></li>
+      <li><code>docs/static/img/badge-googleplay.png</code> <span>4698 bytes</span></li>
+      <li><code>docs/static/img/cdio-setup.jpg</code> <span>158553 bytes</span></li>
+      <li><code>docs/static/img/cli-subscribe-video-1.mp4</code> <span>432401 bytes</span></li>
+      <li><code>docs/static/img/cli-subscribe-video-2.webm</code> <span>220847 bytes</span></li>
+      <li><code>docs/static/img/cli-subscribe-video-3.webm</code> <span>1211979 bytes</span></li>
+      <li><code>docs/static/img/config-generator.png</code> <span>325157 bytes</span></li>
+      <li><code>docs/static/img/favicon.ico</code> <span>15406 bytes</span></li>
+      <li><code>docs/static/img/foreground-service.png</code> <span>39689 bytes</span></li>
+      <li><code>docs/static/img/getting-started-add.png</code> <span>92172 bytes</span></li>
+      <li><code>docs/static/img/grafana-dashboard.png</code> <span>341741 bytes</span></li>
+      <li><code>docs/static/img/mobile-screenshot-notification.png</code> <span>72277 bytes</span></li>
+      <li><code>docs/static/img/nodered-message.png</code> <span>7582 bytes</span></li>
+      <li><code>docs/static/img/nodered-picture.png</code> <span>10097 bytes</span></li>
+      <li><code>docs/static/img/notification-settings.png</code> <span>68865 bytes</span></li>
+      <li><code>docs/static/img/notification-with-tags.png</code> <span>158980 bytes</span></li>
+      <li><code>docs/static/img/notification-with-title.png</code> <span>165318 bytes</span></li>
+      <li><code>docs/static/img/ntfy.png</code> <span>3627 bytes</span></li>
+      <li><code>docs/static/img/priority-1.svg</code> <span>2765 bytes</span></li>
+      <li><code>docs/static/img/priority-2.svg</code> <span>2186 bytes</span></li>
+      <li><code>docs/static/img/priority-4.svg</code> <span>2201 bytes</span></li>
+      <li><code>docs/static/img/priority-5.svg</code> <span>2772 bytes</span></li>
+      <li><code>docs/static/img/priority-detail-overview.png</code> <span>197324 bytes</span></li>
+      <li><code>docs/static/img/priority-notification.png</code> <span>276520 bytes</span></li>
+      <li><code>docs/static/img/pwa-badge.png</code> <span>189854 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-chrome-android-menu.jpg</code> <span>102614 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-chrome-android-popup.jpg</code> <span>70558 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-chrome-android.jpg</code> <span>114925 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-firefox-android-menu.jpg</code> <span>72151 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-firefox-android-popup.jpg</code> <span>53425 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-macos-safari-add-to-dock.png</code> <span>166445 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-safari-ios-add-icon.jpg</code> <span>102960 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-safari-ios-button.jpg</code> <span>105035 bytes</span></li>
+      <li><code>docs/static/img/pwa-install-safari-ios-menu.jpg</code> <span>127292 bytes</span></li>
+      <li><code>docs/static/img/pwa-install.png</code> <span>109179 bytes</span></li>
+      <li><code>docs/static/img/pwa.png</code> <span>94276 bytes</span></li>
+      <li><code>docs/static/img/rundeck.png</code> <span>97249 bytes</span></li>
+      <li><code>docs/static/img/screenshot-curl.png</code> <span>259051 bytes</span></li>
+      <li><code>docs/static/img/screenshot-email-publishing-dns.png</code> <span>17218 bytes</span></li>
+      <li><code>docs/static/img/screenshot-email-publishing-gmail.png</code> <span>29793 bytes</span></li>
+      <li><code>docs/static/img/screenshot-email.png</code> <span>50070 bytes</span></li>
+      <li><code>docs/static/img/screenshot-github-webhook-config.png</code> <span>98734 bytes</span></li>
+      <li><code>docs/static/img/screenshot-phone-add.jpg</code> <span>232701 bytes</span></li>
+      <li><code>docs/static/img/screenshot-phone-detail.jpg</code> <span>230376 bytes</span></li>
+      <li><code>docs/static/img/screenshot-phone-main.jpg</code> <span>130761 bytes</span></li>
+      <li><code>docs/static/img/screenshot-phone-notification.jpg</code> <span>229658 bytes</span></li>
+      <li><code>docs/static/img/uptimekuma-ios-down.jpg</code> <span>52295 bytes</span></li>
+      <li><code>docs/static/img/uptimekuma-ios-test.jpg</code> <span>43063 bytes</span></li>
+      <li><code>docs/static/img/uptimekuma-ios-up.jpg</code> <span>45723 bytes</span></li>
+      <li><code>docs/static/img/uptimekuma-settings.png</code> <span>15230 bytes</span></li>
+      <li><code>docs/static/img/uptimekuma-setup.png</code> <span>32805 bytes</span></li>
+      <li><code>docs/static/img/uptimerobot-setup.jpg</code> <span>55162 bytes</span></li>
+      <li><code>docs/static/img/uptimerobot-test.jpg</code> <span>27471 bytes</span></li>
+      <li><code>docs/static/img/web-account.png</code> <span>100878 bytes</span></li>
+      <li><code>docs/static/img/web-detail.png</code> <span>484250 bytes</span></li>
+      <li><code>docs/static/img/web-logs.png</code> <span>73975 bytes</span></li>
+      <li><code>docs/static/img/web-markdown.png</code> <span>254160 bytes</span></li>
+      <li><code>docs/static/img/web-notification.png</code> <span>304373 bytes</span></li>
+      <li><code>docs/static/img/web-phone-verify.png</code> <span>22959 bytes</span></li>
+      <li><code>docs/static/img/web-reserve-topic-dialog.png</code> <span>85821 bytes</span></li>
+      <li><code>docs/static/img/web-reserve-topic.png</code> <span>73802 bytes</span></li>
+      <li><code>docs/static/img/web-signup.png</code> <span>27538 bytes</span></li>
+      <li><code>docs/static/img/web-subscribe.png</code> <span>98009 bytes</span></li>
+      <li><code>docs/static/img/web-token-create.png</code> <span>84930 bytes</span></li>
+      <li><code>docs/static/img/web-token-list.png</code> <span>95212 bytes</span></li>
+      <li><code>docs/static/js/bcrypt.js</code> <span>47507 bytes</span></li>
+      <li><code>docs/static/js/config-generator.js</code> <span>53134 bytes</span></li>
+      <li><code>docs/static/js/extra.js</code> <span>3168 bytes</span></li>
+      <li><code>docs/static/js/topic-generator.js</code> <span>5582 bytes</span></li>
+      <li><code>docs/subscribe/api.md</code> <span>21944 bytes</span></li>
+      <li><code>docs/subscribe/cli.md</code> <span>13187 bytes</span></li>
+      <li><code>docs/subscribe/phone.md</code> <span>26988 bytes</span></li>
+      <li><code>docs/subscribe/pwa.md</code> <span>4235 bytes</span></li>
+      <li><code>docs/subscribe/web.md</code> <span>5083 bytes</span></li>
+      <li><code>docs/terms.md</code> <span>13014 bytes</span></li>
+      <li><code>docs/troubleshooting.md</code> <span>13110 bytes</span></li>
+      <li><code>examples/grafana-dashboard/ntfy-grafana.json</code> <span>57493 bytes</span></li>
+      <li><code>examples/linux-desktop-notifications/notify-desktop.sh</code> <span>321 bytes</span></li>
+      <li><code>examples/publish-go/main.go</code> <span>846 bytes</span></li>
+      <li><code>examples/publish-php/publish.php</code> <span>509 bytes</span></li>
+      <li><code>examples/publish-python/publish.py</code> <span>293 bytes</span></li>
+      <li><code>examples/ssh-login-alert/ntfy-ssh-login.sh</code> <span>354 bytes</span></li>
+      <li><code>examples/ssh-login-alert/pam_sshd</code> <span>260 bytes</span></li>
+      <li><code>examples/subscribe-go/main.go</code> <span>282 bytes</span></li>
+      <li><code>examples/subscribe-php/subscribe.php</code> <span>205 bytes</span></li>
+      <li><code>examples/subscribe-python/subscribe.py</code> <span>170 bytes</span></li>
+      <li><code>examples/web-example-eventsource/example-sse.html</code> <span>1906 bytes</span></li>
+      <li><code>examples/web-example-websocket/example-ws.html</code> <span>1881 bytes</span></li>
+      <li><code>go.mod</code> <span>4892 bytes</span></li>
+      <li><code>go.sum</code> <span>27749 bytes</span></li>
+      <li><code>log/event.go</code> <span>6235 bytes</span></li>
+      <li><code>log/log.go</code> <span>4934 bytes</span></li>
+      <li><code>log/log_test.go</code> <span>9415 bytes</span></li>
+      <li><code>log/types.go</code> <span>2029 bytes</span></li>
+      <li><code>mail/format.go</code> <span>2456 bytes</span></li>
+      <li><code>mail/format_test.go</code> <span>4417 bytes</span></li>
+      <li><code>mail/mailer_emoji_map.json</code> <span>52255 bytes</span></li>
+      <li><code>mail/sender.go</code> <span>4612 bytes</span></li>
+      <li><code>main.go</code> <span>1117 bytes</span></li>
+      <li><code>message/cache.go</code> <span>15268 bytes</span></li>
+      <li><code>message/cache_postgres.go</code> <span>7065 bytes</span></li>
+      <li><code>message/cache_postgres_schema.go</code> <span>2403 bytes</span></li>
+      <li><code>message/cache_postgres_test.go</code> <span>3061 bytes</span></li>
+      <li><code>message/cache_sqlite.go</code> <span>8354 bytes</span></li>
+      <li><code>message/cache_sqlite_schema.go</code> <span>7499 bytes</span></li>
+      <li><code>message/cache_sqlite_test.go</code> <span>8381 bytes</span></li>
+      <li><code>message/cache_test.go</code> <span>34716 bytes</span></li>
+      <li><code>metrics/metrics.go</code> <span>3726 bytes</span></li>
+      <li><code>metrics/metrics_test.go</code> <span>1716 bytes</span></li>
+      <li><code>mkdocs.yml</code> <span>2966 bytes</span></li>
+      <li><code>model/model.go</code> <span>8091 bytes</span></li>
+      <li><code>payments/payments.go</code> <span>656 bytes</span></li>
+      <li><code>payments/payments_dummy.go</code> <span>433 bytes</span></li>
+      <li><code>requirements.txt</code> <span>99 bytes</span></li>
+      <li><code>s3/client.go</code> <span>11261 bytes</span></li>
+      <li><code>s3/client_auth.go</code> <span>2165 bytes</span></li>
+      <li><code>s3/client_multipart.go</code> <span>6570 bytes</span></li>
+      <li><code>s3/client_test.go</code> <span>13724 bytes</span></li>
+      <li><code>s3/types.go</code> <span>4886 bytes</span></li>
+      <li><code>s3/util.go</code> <span>5817 bytes</span></li>
+      <li><code>s3/util_test.go</code> <span>6247 bytes</span></li>
+      <li><code>scripts/emoji-convert.sh</code> <span>2785 bytes</span></li>
+      <li><code>scripts/emoji.json</code> <span>400246 bytes</span></li>
+      <li><code>scripts/postinst.sh</code> <span>1671 bytes</span></li>
+      <li><code>scripts/postrm.sh</code> <span>227 bytes</span></li>
+      <li><code>scripts/preinst.sh</code> <span>325 bytes</span></li>
+      <li><code>scripts/prerm.sh</code> <span>349 bytes</span></li>
+      <li><code>server/ban_test.go</code> <span>2076 bytes</span></li>
+      <li><code>server/config.go</code> <span>19707 bytes</span></li>
+      <li><code>server/config_test.go</code> <span>1278 bytes</span></li>
+      <li><code>server/config_unix.go</code> <span>141 bytes</span></li>
+      <li><code>server/config_windows.go</code> <span>328 bytes</span></li>
+      <li><code>server/errors.go</code> <span>17024 bytes</span></li>
+      <li><code>server/log.go</code> <span>3520 bytes</span></li>
+      <li><code>server/ntfy.openrc</code> <span>1556 bytes</span></li>
+      <li><code>server/ntfy.service</code> <span>528 bytes</span></li>
+      <li><code>server/server.go</code> <span>82901 bytes</span></li>
+      <li><code>server/server.yml</code> <span>26063 bytes</span></li>
+      <li><code>server/server_account.go</code> <span>36696 bytes</span></li>
+      <li><code>server/server_account_email_test.go</code> <span>20492 bytes</span></li>
+      <li><code>server/server_account_test.go</code> <span>34870 bytes</span></li>
+      <li><code>server/server_admin.go</code> <span>5917 bytes</span></li>
+      <li><code>server/server_admin_test.go</code> <span>15855 bytes</span></li>
+      <li><code>server/server_auth.go</code> <span>4553 bytes</span></li>
+      <li><code>server/server_firebase.go</code> <span>10725 bytes</span></li>
+      <li><code>server/server_firebase_dummy.go</code> <span>871 bytes</span></li>
+      <li><code>server/server_firebase_test.go</code> <span>10964 bytes</span></li>
+      <li><code>server/server_manager.go</code> <span>5359 bytes</span></li>
+      <li><code>server/server_manager_test.go</code> <span>810 bytes</span></li>
+      <li><code>server/server_matrix.go</code> <span>7010 bytes</span></li>
+      <li><code>server/server_matrix_test.go</code> <span>4891 bytes</span></li>
+      <li><code>server/server_middleware.go</code> <span>4694 bytes</span></li>
+      <li><code>server/server_payments.go</code> <span>24147 bytes</span></li>
+      <li><code>server/server_payments_dummy.go</code> <span>1264 bytes</span></li>
+      <li><code>server/server_payments_email_test.go</code> <span>4476 bytes</span></li>
+      <li><code>server/server_payments_test.go</code> <span>31465 bytes</span></li>
+      <li><code>server/server_race_off_test.go</code> <span>60 bytes</span></li>
+      <li><code>server/server_race_on_test.go</code> <span>58 bytes</span></li>
+      <li><code>server/server_template.go</code> <span>9724 bytes</span></li>
+      <li><code>server/server_template_test.go</code> <span>5141 bytes</span></li>
+      <li><code>server/server_test.go</code> <span>248222 bytes</span></li>
+      <li><code>server/server_twilio.go</code> <span>1790 bytes</span></li>
+      <li><code>server/server_twilio_test.go</code> <span>14397 bytes</span></li>
+      <li><code>server/server_web.go</code> <span>3759 bytes</span></li>
+      <li><code>server/server_webpush.go</code> <span>6666 bytes</span></li>
+      <li><code>server/server_webpush_dummy.go</code> <span>701 bytes</span></li>
+      <li><code>server/server_webpush_test.go</code> <span>15005 bytes</span></li>
+      <li><code>server/smtp_server.go</code> <span>10077 bytes</span></li>
+      <li><code>server/smtp_server_test.go</code> <span>70022 bytes</span></li>
+      <li><code>server/templates/alertmanager.yml</code> <span>768 bytes</span></li>
+      <li><code>server/templates/github.yml</code> <span>1959 bytes</span></li>
+      <li><code>server/templates/grafana.yml</code> <span>294 bytes</span></li>
+      <li><code>server/testdata/webhook_alertmanager_firing.json</code> <span>747 bytes</span></li>
+      <li><code>server/testdata/webhook_github_comment_created.json</code> <span>13315 bytes</span></li>
+      <li><code>server/testdata/webhook_github_issue_opened.json</code> <span>10929 bytes</span></li>
+      <li><code>server/testdata/webhook_github_pr_opened.json</code> <span>27631 bytes</span></li>
+      <li><code>server/testdata/webhook_github_star_created.json</code> <span>7115 bytes</span></li>
+      <li><code>server/testdata/webhook_github_watch_created.json</code> <span>7074 bytes</span></li>
+      <li><code>server/testdata/webhook_grafana_resolved.json</code> <span>1997 bytes</span></li>
+      <li><code>server/topic.go</code> <span>5391 bytes</span></li>
+      <li><code>server/topic_test.go</code> <span>2047 bytes</span></li>
+      <li><code>server/types.go</code> <span>16513 bytes</span></li>
+      <li><code>server/util.go</code> <span>6767 bytes</span></li>
+      <li><code>server/util_test.go</code> <span>6835 bytes</span></li>
+      <li><code>server/visitor.go</code> <span>19729 bytes</span></li>
+      <li><code>template/gotext/GENERATED_FROM</code> <span>9 bytes</span></li>
+      <li><code>template/gotext/README.md</code> <span>6908 bytes</span></li>
+      <li><code>template/gotext/doc.go</code> <span>18627 bytes</span></li>
+      <li><code>template/gotext/exec.go</code> <span>36999 bytes</span></li>
+      <li><code>template/gotext/fmtsort/sort.go</code> <span>5019 bytes</span></li>
+      <li><code>template/gotext/funcs.go</code> <span>21244 bytes</span></li>
+      <li><code>template/gotext/helper.go</code> <span>6547 bytes</span></li>
+      <li><code>template/gotext/option.go</code> <span>1989 bytes</span></li>
+      <li><code>template/gotext/patches/0001-exec-context.patch</code> <span>5704 bytes</span></li>
+      <li><code>template/gotext/template.go</code> <span>7369 bytes</span></li>
+      <li><code>test/server.go</code> <span>1350 bytes</span></li>
+      <li><code>test/test.go</code> <span>138 bytes</span></li>
+      <li><code>test/util.go</code> <span>1050 bytes</span></li>
+      <li><code>tools/fbsend/README.md</code> <span>94 bytes</span></li>
+      <li><code>tools/fbsend/main.go</code> <span>1117 bytes</span></li>
+      <li><code>tools/loadgen/main.go</code> <span>2080 bytes</span></li>
+      <li><code>tools/loadtest/go.mod</code> <span>72 bytes</span></li>
+      <li><code>tools/loadtest/go.sum</code> <span>175 bytes</span></li>
+      <li><code>tools/loadtest/main.go</code> <span>13651 bytes</span></li>
+      <li><code>tools/pgimport/README.md</code> <span>1567 bytes</span></li>
+      <li><code>tools/pgimport/main.go</code> <span>39991 bytes</span></li>
+      <li><code>tools/s3cli/main.go</code> <span>3271 bytes</span></li>
+      <li><code>tools/shrink-png.sh</code> <span>622 bytes</span></li>
+      <li><code>twilio/client.go</code> <span>6313 bytes</span></li>
+      <li><code>twilio/client_test.go</code> <span>11001 bytes</span></li>
+      <li><code>twilio/types.go</code> <span>2726 bytes</span></li>
+      <li><code>user/access_cache.go</code> <span>8875 bytes</span></li>
+      <li><code>user/access_cache_test.go</code> <span>10403 bytes</span></li>
+      <li><code>user/manager.go</code> <span>70539 bytes</span></li>
+      <li><code>user/manager_postgres.go</code> <span>21866 bytes</span></li>
+      <li><code>user/manager_postgres_schema.go</code> <span>4877 bytes</span></li>
+      <li><code>user/manager_sqlite.go</code> <span>21977 bytes</span></li>
+      <li><code>user/manager_sqlite_schema.go</code> <span>14976 bytes</span></li>
+      <li><code>user/manager_test.go</code> <span>130302 bytes</span></li>
+      <li><code>user/types.go</code> <span>15211 bytes</span></li>
+      <li><code>user/types_test.go</code> <span>2141 bytes</span></li>
+      <li><code>user/util.go</code> <span>4434 bytes</span></li>
+      <li><code>user/util_test.go</code> <span>10370 bytes</span></li>
+      <li><code>util/batching_queue.go</code> <span>1840 bytes</span></li>
+      <li><code>util/batching_queue_test.go</code> <span>1259 bytes</span></li>
+      <li><code>util/content_type_writer.go</code> <span>1387 bytes</span></li>
+      <li><code>util/content_type_writer_test.go</code> <span>2023 bytes</span></li>
+      <li><code>util/embedfs.go</code> <span>1496 bytes</span></li>
+      <li><code>util/embedfs/test.txt</code> <span>40 bytes</span></li>
+      <li><code>util/embedfs_test.go</code> <span>1087 bytes</span></li>
+      <li><code>util/gzip_handler.go</code> <span>1133 bytes</span></li>
+      <li><code>util/gzip_handler_test.go</code> <span>1125 bytes</span></li>
+      <li><code>util/limit.go</code> <span>6869 bytes</span></li>
+      <li><code>util/limit_test.go</code> <span>6658 bytes</span></li>
+      <li><code>util/lookup_cache.go</code> <span>1439 bytes</span></li>
+      <li><code>util/lookup_cache_test.go</code> <span>1498 bytes</span></li>
+      <li><code>util/peek.go</code> <span>1740 bytes</span></li>
+      <li><code>util/peek_test.go</code> <span>1283 bytes</span></li>
+      <li><code>util/sprig/LICENSE.txt</code> <span>1060 bytes</span></li>
+      <li><code>util/sprig/crypto.go</code> <span>1674 bytes</span></li>
+      <li><code>util/sprig/crypto_test.go</code> <span>783 bytes</span></li>
+      <li><code>util/sprig/date.go</code> <span>6981 bytes</span></li>
+      <li><code>util/sprig/date_test.go</code> <span>3316 bytes</span></li>
+      <li><code>util/sprig/defaults.go</code> <span>7390 bytes</span></li>
+      <li><code>util/sprig/defaults_test.go</code> <span>5049 bytes</span></li>
+      <li><code>util/sprig/dict.go</code> <span>6505 bytes</span></li>
+      <li><code>util/sprig/dict_test.go</code> <span>4696 bytes</span></li>
+      <li><code>util/sprig/doc.go</code> <span>670 bytes</span></li>
+      <li><code>util/sprig/example_test.go</code> <span>518 bytes</span></li>
+      <li><code>util/sprig/flow_control.go</code> <span>177 bytes</span></li>
+      <li><code>util/sprig/flow_control_test.go</code> <span>279 bytes</span></li>
+      <li><code>util/sprig/functions.go</code> <span>5631 bytes</span></li>
+      <li><code>util/sprig/functions_linux_test.go</code> <span>626 bytes</span></li>
+      <li><code>util/sprig/functions_test.go</code> <span>1795 bytes</span></li>
+      <li><code>util/sprig/list.go</code> <span>13773 bytes</span></li>
+      <li><code>util/sprig/list_test.go</code> <span>13362 bytes</span></li>
+      <li><code>util/sprig/numeric.go</code> <span>12628 bytes</span></li>
+      <li><code>util/sprig/numeric_test.go</code> <span>6733 bytes</span></li>
+      <li><code>util/sprig/reflect.go</code> <span>2035 bytes</span></li>
+      <li><code>util/sprig/reflect_test.go</code> <span>1409 bytes</span></li>
+      <li><code>util/sprig/regex.go</code> <span>7622 bytes</span></li>
+      <li><code>util/sprig/regex_test.go</code> <span>5622 bytes</span></li>
+      <li><code>util/sprig/strings.go</code> <span>13483 bytes</span></li>
+      <li><code>util/sprig/strings_test.go</code> <span>6289 bytes</span></li>
+      <li><code>util/sprig/url.go</code> <span>1625 bytes</span></li>
+      <li><code>util/sprig/url_test.go</code> <span>2071 bytes</span></li>
+      <li><code>util/time.go</code> <span>3863 bytes</span></li>
+      <li><code>util/time_test.go</code> <span>3528 bytes</span></li>
+      <li><code>util/util.go</code> <span>13929 bytes</span></li>
+      <li><code>util/util_test.go</code> <span>9841 bytes</span></li>
+      <li><code>web/.eslintignore</code> <span>42 bytes</span></li>
+      <li><code>web/.eslintrc</code> <span>1022 bytes</span></li>
+      <li><code>web/.prettierignore</code> <span>76 bytes</span></li>
+      <li><code>web/index.html</code> <span>4924 bytes</span></li>
+      <li><code>web/jsconfig.json</code> <span>267 bytes</span></li>
+      <li><code>web/package-lock.json</code> <span>357445 bytes</span></li>
+      <li><code>web/package.json</code> <span>1738 bytes</span></li>
+      <li><code>web/public/config.js</code> <span>800 bytes</span></li>
+      <li><code>web/public/static/css/app.css</code> <span>124 bytes</span></li>
+      <li><code>web/public/static/css/fonts.css</code> <span>901 bytes</span></li>
+      <li><code>web/public/static/fonts/roboto-v29-latin-300.woff2</code> <span>15732 bytes</span></li>
+      <li><code>web/public/static/fonts/roboto-v29-latin-500.woff2</code> <span>15920 bytes</span></li>
+      <li><code>web/public/static/fonts/roboto-v29-latin-700.woff2</code> <span>15828 bytes</span></li>
+      <li><code>web/public/static/fonts/roboto-v29-latin-regular.woff2</code> <span>15688 bytes</span></li>
+      <li><code>web/public/static/images/apple-touch-icon.png</code> <span>15584 bytes</span></li>
+      <li><code>web/public/static/images/favicon.ico</code> <span>15406 bytes</span></li>
+      <li><code>web/public/static/images/ntfy-mask.svg</code> <span>1134 bytes</span></li>
+      <li><code>web/public/static/images/ntfy-splash.svg</code> <span>2190 bytes</span></li>
+      <li><code>web/public/static/images/ntfy.png</code> <span>6633 bytes</span></li>
+      <li><code>web/public/static/images/pwa-192x192.png</code> <span>10819 bytes</span></li>
+      <li><code>web/public/static/images/pwa-512x512.png</code> <span>37475 bytes</span></li>
+      <li><code>web/public/static/langs/ar.json</code> <span>32211 bytes</span></li>
+      <li><code>web/public/static/langs/be.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/static/langs/bg.json</code> <span>50564 bytes</span></li>
+      <li><code>web/public/static/langs/bn.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/static/langs/ca.json</code> <span>2302 bytes</span></li>
+      <li><code>web/public/static/langs/cs.json</code> <span>33706 bytes</span></li>
+      <li><code>web/public/static/langs/cu.json</code> <span>257 bytes</span></li>
+      <li><code>web/public/static/langs/cy.json</code> <span>2449 bytes</span></li>
+      <li><code>web/public/static/langs/da.json</code> <span>29909 bytes</span></li>
+      <li><code>web/public/static/langs/de.json</code> <span>38453 bytes</span></li>
+      <li><code>web/public/static/langs/en.json</code> <span>34975 bytes</span></li>
+      <li><code>web/public/static/langs/en_GB.json</code> <span>113 bytes</span></li>
+      <li><code>web/public/static/langs/eo.json</code> <span>93 bytes</span></li>
+      <li><code>web/public/static/langs/es.json</code> <span>35773 bytes</span></li>
+      <li><code>web/public/static/langs/et.json</code> <span>37985 bytes</span></li>
+      <li><code>web/public/static/langs/fa.json</code> <span>3675 bytes</span></li>
+      <li><code>web/public/static/langs/fi.json</code> <span>32653 bytes</span></li>
+      <li><code>web/public/static/langs/fr.json</code> <span>39814 bytes</span></li>
+      <li><code>web/public/static/langs/gl.json</code> <span>32699 bytes</span></li>
+      <li><code>web/public/static/langs/he.json</code> <span>4386 bytes</span></li>
+      <li><code>web/public/static/langs/hu.json</code> <span>39944 bytes</span></li>
+      <li><code>web/public/static/langs/id.json</code> <span>37719 bytes</span></li>
+      <li><code>web/public/static/langs/it.json</code> <span>39005 bytes</span></li>
+      <li><code>web/public/static/langs/ja.json</code> <span>41491 bytes</span></li>
+      <li><code>web/public/static/langs/ko.json</code> <span>14603 bytes</span></li>
+      <li><code>web/public/static/langs/lt.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/static/langs/lv.json</code> <span>6523 bytes</span></li>
+      <li><code>web/public/static/langs/mk.json</code> <span>7821 bytes</span></li>
+      <li><code>web/public/static/langs/ml.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/static/langs/ms.json</code> <span>13711 bytes</span></li>
+      <li><code>web/public/static/langs/nb_NO.json</code> <span>31533 bytes</span></li>
+      <li><code>web/public/static/langs/nl.json</code> <span>32979 bytes</span></li>
+      <li><code>web/public/static/langs/pl.json</code> <span>39095 bytes</span></li>
+      <li><code>web/public/static/langs/pt.json</code> <span>36076 bytes</span></li>
+      <li><code>web/public/static/langs/pt_BR.json</code> <span>38129 bytes</span></li>
+      <li><code>web/public/static/langs/ro.json</code> <span>26789 bytes</span></li>
+      <li><code>web/public/static/langs/ru.json</code> <span>43790 bytes</span></li>
+      <li><code>web/public/static/langs/sk.json</code> <span>33924 bytes</span></li>
+      <li><code>web/public/static/langs/sl.json</code> <span>7080 bytes</span></li>
+      <li><code>web/public/static/langs/sq.json</code> <span>3519 bytes</span></li>
+      <li><code>web/public/static/langs/sv.json</code> <span>32435 bytes</span></li>
+      <li><code>web/public/static/langs/ta.json</code> <span>59099 bytes</span></li>
+      <li><code>web/public/static/langs/te.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/static/langs/th.json</code> <span>4459 bytes</span></li>
+      <li><code>web/public/static/langs/tr.json</code> <span>38164 bytes</span></li>
+      <li><code>web/public/static/langs/uk.json</code> <span>52074 bytes</span></li>
+      <li><code>web/public/static/langs/uz.json</code> <span>1303 bytes</span></li>
+      <li><code>web/public/static/langs/vi.json</code> <span>6961 bytes</span></li>
+      <li><code>web/public/static/langs/zh_Hans.json</code> <span>34316 bytes</span></li>
+      <li><code>web/public/static/langs/zh_Hant.json</code> <span>30307 bytes</span></li>
+      <li><code>web/public/static/langs/zu.json</code> <span>3 bytes</span></li>
+      <li><code>web/public/sw.js</code> <span>15986 bytes</span></li>
+      <li><code>web/src/app/AccountApi.js</code> <span>16325 bytes</span></li>
+      <li><code>web/src/app/AccountApi.test.js</code> <span>8786 bytes</span></li>
+      <li><code>web/src/app/Api.js</code> <span>5165 bytes</span></li>
+      <li><code>web/src/app/Api.test.js</code> <span>4717 bytes</span></li>
+      <li><code>web/src/app/Connection.js</code> <span>4318 bytes</span></li>
+      <li><code>web/src/app/ConnectionManager.js</code> <span>3989 bytes</span></li>
+      <li><code>web/src/app/Notifier.js</code> <span>5370 bytes</span></li>
+      <li><code>web/src/app/Poller.js</code> <span>3732 bytes</span></li>
+      <li><code>web/src/app/Prefs.js</code> <span>3556 bytes</span></li>
+      <li><code>web/src/app/Prefs.test.js</code> <span>1488 bytes</span></li>
+      <li><code>web/src/app/Pruner.js</code> <span>1263 bytes</span></li>
+      <li><code>web/src/app/Session.js</code> <span>2434 bytes</span></li>
+      <li><code>web/src/app/SubscriptionManager.js</code> <span>10022 bytes</span></li>
+      <li><code>web/src/app/SubscriptionManager.test.js</code> <span>4211 bytes</span></li>
+      <li><code>web/src/app/UserManager.js</code> <span>1000 bytes</span></li>
+      <li><code>web/src/app/VersionChecker.js</code> <span>1939 bytes</span></li>
+      <li><code>web/src/app/actions.js</code> <span>253 bytes</span></li>
+      <li><code>web/src/app/config.js</code> <span>279 bytes</span></li>
+      <li><code>web/src/app/db.js</code> <span>1141 bytes</span></li>
+      <li><code>web/src/app/emojis.js</code> <span>303569 bytes</span></li>
+      <li><code>web/src/app/emojisMapped.js</code> <span>41304 bytes</span></li>
+      <li><code>web/src/app/errors.js</code> <span>2939 bytes</span></li>
+      <li><code>web/src/app/errors.test.js</code> <span>3312 bytes</span></li>
+      <li><code>web/src/app/events.js</code> <span>781 bytes</span></li>
+      <li><code>web/src/app/i18n.js</code> <span>953 bytes</span></li>
+      <li><code>web/src/app/notificationUtils.js</code> <span>2950 bytes</span></li>
+      <li><code>web/src/app/notificationUtils.test.js</code> <span>4672 bytes</span></li>
+      <li><code>web/src/app/splash.js</code> <span>2018 bytes</span></li>
+      <li><code>web/src/app/transition.js</code> <span>1547 bytes</span></li>
+      <li><code>web/src/app/utils.js</code> <span>16941 bytes</span></li>
+      <li><code>web/src/app/utils.test.js</code> <span>10294 bytes</span></li>
+      <li><code>web/src/components/Account.jsx</code> <span>51978 bytes</span></li>
+      <li><code>web/src/components/AccountContext.js</code> <span>116 bytes</span></li>
+      <li><code>web/src/components/ActionBar.jsx</code> <span>7264 bytes</span></li>
+      <li><code>web/src/components/App.jsx</code> <span>8219 bytes</span></li>
+      <li><code>web/src/components/AttachmentIcon.jsx</code> <span>1619 bytes</span></li>
+      <li><code>web/src/components/AvatarBox.jsx</code> <span>1417 bytes</span></li>
+      <li><code>web/src/components/DialogFooter.jsx</code> <span>654 bytes</span></li>
+      <li><code>web/src/components/EmailVerify.jsx</code> <span>3377 bytes</span></li>
+      <li><code>web/src/components/EmojiPicker.jsx</code> <span>5376 bytes</span></li>
+      <li><code>web/src/components/ErrorBoundary.jsx</code> <span>3552 bytes</span></li>
+      <li><code>web/src/components/Login.jsx</code> <span>4407 bytes</span></li>
+      <li><code>web/src/components/MarkdownContent.jsx</code> <span>1718 bytes</span></li>
+      <li><code>web/src/components/Messaging.jsx</code> <span>4276 bytes</span></li>
+      <li><code>web/src/components/Navigation.jsx</code> <span>17081 bytes</span></li>
+      <li><code>web/src/components/Notifications.jsx</code> <span>22211 bytes</span></li>
+      <li><code>web/src/components/PasswordReset.jsx</code> <span>3893 bytes</span></li>
+      <li><code>web/src/components/PasswordResetRequest.jsx</code> <span>3617 bytes</span></li>
+      <li><code>web/src/components/PopupMenu.jsx</code> <span>1324 bytes</span></li>
+      <li><code>web/src/components/Pref.jsx</code> <span>1318 bytes</span></li>
+      <li><code>web/src/components/PrefCache.jsx</code> <span>2219 bytes</span></li>
+      <li><code>web/src/components/Preferences.jsx</code> <span>31271 bytes</span></li>
+      <li><code>web/src/components/PublishDialog.jsx</code> <span>32872 bytes</span></li>
+      <li><code>web/src/components/RTLCacheProvider.jsx</code> <span>614 bytes</span></li>
+      <li><code>web/src/components/ReserveDialogs.jsx</code> <span>7223 bytes</span></li>
+      <li><code>web/src/components/ReserveIcons.jsx</code> <span>1464 bytes</span></li>
+      <li><code>web/src/components/ReserveTopicSelect.jsx</code> <span>1904 bytes</span></li>
+      <li><code>web/src/components/Signup.jsx</code> <span>5812 bytes</span></li>
+      <li><code>web/src/components/SubscribeDialog.jsx</code> <span>12173 bytes</span></li>
+      <li><code>web/src/components/SubscriptionPopup.jsx</code> <span>13926 bytes</span></li>
+      <li><code>web/src/components/UpgradeDialog.jsx</code> <span>15166 bytes</span></li>
+      <li><code>web/src/components/hooks.js</code> <span>13728 bytes</span></li>
+      <li><code>web/src/components/routes.js</code> <span>658 bytes</span></li>
+      <li><code>web/src/components/styles.js</code> <span>507 bytes</span></li>
+      <li><code>web/src/components/theme.js</code> <span>1473 bytes</span></li>
+      <li><code>web/src/img/file-app.svg</code> <span>455 bytes</span></li>
+      <li><code>web/src/img/file-audio.svg</code> <span>283 bytes</span></li>
+      <li><code>web/src/img/file-document.svg</code> <span>247 bytes</span></li>
+      <li><code>web/src/img/file-image.svg</code> <span>271 bytes</span></li>
+      <li><code>web/src/img/file-video.svg</code> <span>272 bytes</span></li>
+      <li><code>web/src/img/ntfy-filled.svg</code> <span>4388 bytes</span></li>
+      <li><code>web/src/img/ntfy-outline.svg</code> <span>2336 bytes</span></li>
+      <li><code>web/src/img/ntfy.png</code> <span>4701 bytes</span></li>
+      <li><code>web/src/img/ntfy.svg</code> <span>2930 bytes</span></li>
+      <li><code>web/src/img/priority-1.svg</code> <span>1220 bytes</span></li>
+      <li><code>web/src/img/priority-2.svg</code> <span>833 bytes</span></li>
+      <li><code>web/src/img/priority-3.svg</code> <span>605 bytes</span></li>
+      <li><code>web/src/img/priority-4.svg</code> <span>847 bytes</span></li>
+      <li><code>web/src/img/priority-5.svg</code> <span>1219 bytes</span></li>
+      <li><code>web/src/index.jsx</code> <span>250 bytes</span></li>
+      <li><code>web/src/registerSW.js</code> <span>1378 bytes</span></li>
+      <li><code>web/src/sounds/beep.mp3</code> <span>2813 bytes</span></li>
+      <li><code>web/src/sounds/dadum.mp3</code> <span>18880 bytes</span></li>
+      <li><code>web/src/sounds/ding.mp3</code> <span>25266 bytes</span></li>
+      <li><code>web/src/sounds/juntos.mp3</code> <span>18835 bytes</span></li>
+      <li><code>web/src/sounds/pop-swoosh.mp3</code> <span>9593 bytes</span></li>
+      <li><code>web/src/sounds/pop.mp3</code> <span>9806 bytes</span></li>
+      <li><code>web/src/sounds/pristine.mp3</code> <span>31734 bytes</span></li>
+      <li><code>web/src/test/setup.js</code> <span>1327 bytes</span></li>
+      <li><code>web/vite.config.js</code> <span>1756 bytes</span></li>
+      <li><code>web/vitest.config.js</code> <span>617 bytes</span></li>
+      <li><code>webpush/store.go</code> <span>6154 bytes</span></li>
+      <li><code>webpush/store_postgres.go</code> <span>4750 bytes</span></li>
+      <li><code>webpush/store_sqlite.go</code> <span>4949 bytes</span></li>
+      <li><code>webpush/store_test.go</code> <span>14866 bytes</span></li>
+      <li><code>webpush/types.go</code> <span>489 bytes</span></li>
+    </ul>
+  </details>
+  <main class="artifacts">
+    <section class="column">
+      <h2>Upstream</h2>
+      <section class="file">
+        <h3>Dockerfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> alpine
+
+<span class="tok-directive">LABEL</span> org.opencontainers.image.authors=<span class="tok-string">&quot;philipp.heckel@gmail.com&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.url=<span class="tok-string">&quot;https://ntfy.sh/&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.documentation=<span class="tok-string">&quot;https://docs.ntfy.sh/&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.source=<span class="tok-string">&quot;https://github.com/binwiederhier/ntfy&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.vendor=<span class="tok-string">&quot;Philipp C. Heckel&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.licenses=<span class="tok-string">&quot;Apache-2.0, GPL-2.0&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.title=<span class="tok-string">&quot;ntfy&quot;</span>
+<span class="tok-directive">LABEL</span> org.opencontainers.image.description=<span class="tok-string">&quot;Send push notifications to your phone or desktop using PUT/POST&quot;</span>
+
+<span class="tok-directive">RUN</span> apk add --no-cache tzdata
+<span class="tok-directive">COPY</span> ntfy /usr/bin
+
+<span class="tok-directive">EXPOSE</span> 80/tcp
+<span class="tok-directive">ENTRYPOINT</span> [<span class="tok-string">&quot;ntfy&quot;</span>]
+</code></pre>
+      </section>
+      <section class="file">
+        <h3>SOURCE</h3>
+        <pre><code>Repository: https://github.com/binwiederhier/ntfy.git
+Resolved revision: 4c2b69e0591b51d7ed7b2e71954f0f7be936b47f
+Context path: .
+Dockerfile: Dockerfile
+Release: v2.27.0
+Release artifact: https://github.com/binwiederhier/ntfy/releases/download/v2.27.0/ntfy_2.27.0_linux_amd64.tar.gz
+Release artifact SHA-256: 4b7220cb0e7673a66ace8e1368573c0df89888aafde6860ae3a48ae1174c8cee
+Natural probe: GET /v1/health
+</code></pre>
+      </section>
+    </section>
+    <section class="column">
+      <h2>composix</h2>
+      <section class="variant-tabs">
+        <input id="tabs-ntfy-0-faithful" name="tabs-ntfy-0" type="radio" checked>
+        <label for="tabs-ntfy-0-faithful">Dockerfile-faithful</label>
+        <input id="tabs-ntfy-0-dissolved" name="tabs-ntfy-0" type="radio">
+        <label for="tabs-ntfy-0-dissolved">nixpkgs-direct</label>
+        <div class="variant-panels">
+          <div class="variant-panel faithful">      <section class="file">
+        <h3>Cixfile</h3>
+        <pre><code><span class="tok-directive">FROM</span> github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+<span class="tok-directive">BUILDER</span> release
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.bash}</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.coreutils}</span> <span class="tok-interpolation">${pkgs.curl}</span> <span class="tok-interpolation">${pkgs.gnutar}</span> <span class="tok-interpolation">${pkgs.gzip}</span>
+  <span class="tok-directive">ENV</span> NTFY_VERSION=2.27.0
+  <span class="tok-directive">ENV</span> NTFY_ARCH=amd64
+  <span class="tok-directive">ENV</span> NTFY_SHA256=4b7220cb0e7673a66ace8e1368573c0df89888aafde6860ae3a48ae1174c8cee
+  <span class="tok-directive">FETCH</span> curl --fail --location https://github.com/binwiederhier/ntfy/releases/download/v$NTFY_VERSION/ntfy_$NTFY_VERSION&quot;&quot;_linux_$NTFY_ARCH.tar.gz --output ntfy.tar.gz &amp;&amp; echo &quot;$NTFY_SHA256  ntfy.tar.gz&quot; | sha256sum --check --status EXPECT sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=
+  <span class="tok-directive">RUN</span> &lt;&lt;BUILD
+<span class="tok-heredoc">archive=&quot;ntfy_$NTFY_VERSION&quot;&quot;_linux_$NTFY_ARCH&quot;</span>
+<span class="tok-heredoc">tar --no-same-owner --transform &quot;s,^$archive/ntfy$,output/bin/ntfy,&quot; -xf ntfy.tar.gz &quot;$archive/ntfy&quot;</span>
+<span class="tok-directive">BUILD</span>
+
+<span class="tok-directive">SERVICE</span> ntfy
+  <span class="tok-directive">IMPORT</span> <span class="tok-interpolation">${pkgs.cacert}</span> <span class="tok-interpolation">${pkgs.tzdata}</span>
+  <span class="tok-directive">COPY</span> <span class="tok-interpolation">${release}</span>/output/bin/ntfy /bin/ntfy
+  <span class="tok-directive">START</span> ntfy serve
+  <span class="tok-directive">PORT</span> http = 80
+  <span class="tok-directive">STATEDIR</span> /var/lib/ntfy
+  <span class="tok-directive">CACHEDIR</span> /var/cache/ntfy
+</code></pre>
+      </section>
+          </div>
+          <div class="variant-panel dissolved">      <section class="file">
+        <h3>Cixfile.dissolved</h3>
+        <pre><code>FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE ntfy
+  IMPORT ${pkgs.cacert} ${pkgs.ntfy-sh} ${pkgs.tzdata}
+  START ntfy serve
+  PORT http = 80
+  STATEDIR /var/lib/ntfy
+  CACHEDIR /var/cache/ntfy
+</code></pre>
+      </section>
+          </div>
+        </div>
+      </section>
+      <details class="file">
+        <summary>Cixfile.dissolved.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
+    }
+  },
+  &quot;outputs&quot;: {
+    &quot;ntfy&quot;: {
+      &quot;sourceHash&quot;: &quot;4316fb10768971ea63b663694108010fcc2464789ff8160e5d48d2b2b059b455&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/isl3wgxj0i559h3ja5p0sj3j4k0m01vv-cix-item-ntfy&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>Cixfile.lock</summary>
+        <pre><code>{
+  &quot;inputs&quot;: {
+    &quot;pkgs&quot;: {
+      &quot;url&quot;: &quot;github:NixOS/nixpkgs/nixos-unstable&quot;,
+      &quot;rev&quot;: &quot;e72e4f299401a3689d4b3d5fc6496b11db7064eb&quot;,
+      &quot;narHash&quot;: &quot;sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=&quot;,
+      &quot;lastModified&quot;: 1785828668
+    }
+  },
+  &quot;fetches&quot;: {
+    &quot;builder:release:3-6b7b0677f094&quot;: {
+      &quot;narHash&quot;: &quot;sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=&quot;,
+      &quot;snapshotNarHash&quot;: &quot;sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=&quot;
+    }
+  },
+  &quot;memo&quot;: {
+    &quot;8f493ae1d9f0b3f596a242daa1e5708b43dc8d13ad9ec80429d27127b933e940&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/ntfy&quot;: {
+          &quot;narHash&quot;: &quot;sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;d492512c8c8280e49d6a94fdf9690d3c4e29bc8a36cc76618701e592fff01d5e&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/ntfy&quot;: {
+          &quot;narHash&quot;: &quot;sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed&quot;
+        }
+      }
+    },
+    &quot;f874d600613977d97f69ce33509d90afaae265ff3722a9c0ea592d6506522448&quot;: {
+      &quot;paths&quot;: {
+        &quot;output/bin/ntfy&quot;: {
+          &quot;narHash&quot;: &quot;sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=&quot;,
+          &quot;storePath&quot;: &quot;/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed&quot;
+        }
+      }
+    }
+  },
+  &quot;stepMemo&quot;: {
+    &quot;builder:release:3&quot;: {
+      &quot;key&quot;: &quot;bfe43941388c3a8760b423af2164b24450b8ade98863a502885c99802fdba475&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;.config/curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        },
+        &quot;.curlrc&quot;: {
+          &quot;kind&quot;: &quot;absent&quot;
+        }
+      },
+      &quot;outputSnapshot&quot;: &quot;/nix/store/xs6693zb4b51xh0nyx9m85rcpqh01m3s-cix-step-output&quot;,
+      &quot;changes&quot;: {
+        &quot;ntfy.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;present&quot;
+        }
+      },
+      &quot;outputHashes&quot;: {
+        &quot;ntfy.tar.gz&quot;: {
+          &quot;content&quot;: &quot;49ca00eeaef604412ea7ec500f42cb70118f4693de5c17e0ab0e674e1e35e0fb&quot;
+        }
+      }
+    },
+    &quot;builder:release:4&quot;: {
+      &quot;key&quot;: &quot;f7a9f18218c85c80523b1c54d3c084b1075d6e7d1da9d756ed5fea4f9827fc40&quot;,
+      &quot;reads&quot;: {
+        &quot;.&quot;: {
+          &quot;kind&quot;: &quot;directory-exists&quot;
+        },
+        &quot;ntfy.tar.gz&quot;: {
+          &quot;kind&quot;: &quot;file&quot;,
+          &quot;hash&quot;: &quot;a2030c27e86247c236bd4e465b1ad48109ac334e40cff791a558b57bf464aae3&quot;,
+          &quot;fingerprint&quot;: {
+            &quot;dev&quot;: 38,
+            &quot;inode&quot;: 56648396,
+            &quot;mtimeNs&quot;: 602697970,
+            &quot;size&quot;: 31662216,
+            &quot;len&quot;: 31662216,
+            &quot;mode&quot;: 33188
+          }
+        }
+      },
+      &quot;changes&quot;: {
+        &quot;output&quot;: {
+          &quot;kind&quot;: &quot;subtree&quot;,
+          &quot;mode&quot;: 16877
+        }
+      }
+    }
+  },
+  &quot;devEnvs&quot;: {
+    &quot;3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;: {
+      &quot;environment&quot;: {
+        &quot;SYSTEM_CERTIFICATE_PATH&quot;: &quot;/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt&quot;,
+        &quot;XDG_DATA_DIRS&quot;: &quot;/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share&quot;
+      }
+    }
+  },
+  &quot;builderDevEnvs&quot;: {
+    &quot;release&quot;: &quot;3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652&quot;
+  },
+  &quot;outputs&quot;: {
+    &quot;ntfy&quot;: {
+      &quot;sourceHash&quot;: &quot;225e612212ddb030f1f9534777e72680ce7b77f24534b7eb7a5b5e58c03a6e59&quot;,
+      &quot;storePath&quot;: &quot;/nix/store/fvfpg6vpw54zdzdqvmlkalxdmc8lqrgr-cix-item-ntfy&quot;
+    }
+  }
+}
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>check.sh</summary>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+case ${1:-} in
+  cix) ;;
+  *)
+    echo &quot;usage: $0 cix&quot; &gt;&amp;2
+    exit 2
+    ;;
+esac
+
+root=$(cd -- &quot;$(dirname -- &quot;$0&quot;)&quot; &amp;&amp; pwd)
+cix=${CIX:-&quot;$root/../../../../target/debug/cix&quot;}
+item=$(timeout 240 &quot;$cix&quot; build &quot;$root#ntfy&quot;)
+printf &#39;cix item %s\n&#39; &quot;$item&quot;
+unit=$(timeout 30 sudo -n &quot;$cix&quot; run --detach &quot;$item&quot;)
+[[ $unit == cix-run-ntfy-* ]]
+printf &#39;cix unit %s\n&#39; &quot;$unit&quot;
+
+cleanup() {
+  sudo -n systemctl stop &quot;$unit&quot; &gt;/dev/null 2&gt;&amp;1 || true
+}
+trap cleanup EXIT HUP INT TERM
+
+timeout 30 &quot;$cix&quot; probe await http http://127.0.0.1:80/v1/health
+health=$(curl --fail --silent --show-error --max-time 5 http://127.0.0.1:80/v1/health)
+[[ $health == &#39;{&quot;healthy&quot;:true}&#39; ]]
+printf &#39;PASS cix health=%s\n&#39; &quot;$health&quot;
+</code></pre>
+      </details>
+      <details class="file">
+        <summary>receipt.md</summary>
+        <pre><code># ntfy migration receipt
+
+2026-08-06 synchronous independent receipt. `corpus/migrate/fetch.sh ntfy`
+restored `binwiederhier/ntfy` at
+`4c2b69e0591b51d7ed7b2e71954f0f7be936b47f`, context `.`.
+
+`devenv shell -- target/debug/cix build corpus/migrate/docker/ntfy#ntfy`
+exited 0 and produced
+`/nix/store/fvfpg6vpw54zdzdqvmlkalxdmc8lqrgr-cix-item-ntfy`. Its pinned
+FETCH downloaded the upstream v2.27.0 Linux amd64 tarball and its internal
+published SHA-256 check passed before extraction. The dissolved nixpkgs twin
+also exited 0, producing
+`/nix/store/isl3wgxj0i559h3ja5p0sj3j4k0m01vv-cix-item-ntfy`.
+
+An empty-workspace faithful `--cold` replay exited 0 using the pinned FETCH
+snapshot and produced the same item. The dissolved twin&#39;s `--cold` build also
+exited 0.
+
+`devenv shell -- env CIX=&quot;$PWD/target/debug/cix&quot; ./check.sh cix` exited 0.
+The system-manager service returned the exact value `{&quot;healthy&quot;:true}` from
+`GET /v1/health`. Cix reported the host&#39;s documented `PrivatePIDs` degraded
+fallback while the value check passed.
+</code></pre>
+      </details>
+    </section>
+  </main>
+  <footer>Generated from <code>corpus/migrate/docker/ntfy</code>. Do not edit this page by hand.</footer>
+</body>
+</html>

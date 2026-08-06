@@ -1,0 +1,8 @@
+Repository: https://github.com/binwiederhier/ntfy.git
+Resolved revision: 4c2b69e0591b51d7ed7b2e71954f0f7be936b47f
+Context path: .
+Dockerfile: Dockerfile
+Release: v2.27.0
+Release artifact: https://github.com/binwiederhier/ntfy/releases/download/v2.27.0/ntfy_2.27.0_linux_amd64.tar.gz
+Release artifact SHA-256: 4b7220cb0e7673a66ace8e1368573c0df89888aafde6860ae3a48ae1174c8cee
+Natural probe: GET /v1/health

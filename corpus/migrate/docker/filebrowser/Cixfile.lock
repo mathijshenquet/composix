@@ -1,0 +1,104 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "e72e4f299401a3689d4b3d5fc6496b11db7064eb",
+      "narHash": "sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=",
+      "lastModified": 1785828668
+    }
+  },
+  "fetches": {
+    "builder:release:3-8bc1a68b59f9": {
+      "narHash": "sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM=",
+      "snapshotNarHash": "sha256-k6239590pl8k4UojhPb4QmwjmlZwvlJ2ta9fsXC9wIM="
+    }
+  },
+  "memo": {
+    "02b406239366a1e5a52f483ca701aa89a5fc4dd0655b697927eb73084595ca75": {
+      "paths": {
+        "output/bin/filebrowser": {
+          "narHash": "sha256-9ldBiYd75aw1ctO5vCFgpRaa5xwsVvocMBIF3HASToo=",
+          "storePath": "/nix/store/hvxhfdxw71l85wby548x096wadxcgicg-cix-build-consumed"
+        }
+      }
+    },
+    "e2c995bcb1113ecce98f935dade74a3985f45840a854d35edaf8d138cd0b4038": {
+      "paths": {
+        "output/bin/filebrowser": {
+          "narHash": "sha256-9ldBiYd75aw1ctO5vCFgpRaa5xwsVvocMBIF3HASToo=",
+          "storePath": "/nix/store/hvxhfdxw71l85wby548x096wadxcgicg-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:release:3": {
+      "key": "e4134bd76c5d7bc3fc4f592d7f32313f25189dfb675a966d7572af881ffbf236",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/3kadw2f6g08n25a4lx55kiy4zmcy1g85-cix-step-output",
+      "changes": {
+        "filebrowser.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "filebrowser.tar.gz": {
+          "content": "c27b31d443735a80a23acb9361f439c4066c0e876412a83e781ff980e830d5c5"
+        }
+      }
+    },
+    "builder:release:4": {
+      "key": "3cfb6523101e48c58ed1e98a8e6798eeeb8e5e365d3b691745f84c287e16224a",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "filebrowser.tar.gz": {
+          "kind": "file",
+          "hash": "375cb2a542fef327d5bf2cc9caed895cd8f8f9cf25b986eae27391f000ff529e",
+          "fingerprint": {
+            "dev": 38,
+            "inode": 56648420,
+            "mtimeNs": 348822190,
+            "size": 15767666,
+            "len": 15767666,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "output": {
+          "kind": "subtree",
+          "mode": 16877
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "builderDevEnvs": {
+    "release": "3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652"
+  },
+  "outputs": {
+    "filebrowser": {
+      "sourceHash": "4659a03dbcbb9d1bd1c03e46c9e4ef12ab600fdb22c544c5c974eb3b6e660918",
+      "storePath": "/nix/store/w9z11aajzl0brzdrz5dg7lyglqxfv4y0-cix-item-filebrowser"
+    }
+  }
+}

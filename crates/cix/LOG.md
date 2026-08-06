@@ -1,5 +1,14 @@
 # litdoc work log
 
+- 2026-08-06T00:00:00Z — Started `track/expand-ntfy-filebrowser` from the
+  supplied spec. This is corpus-only work: add faithful ntfy and filebrowser
+  migration cases, with their upstream release artifacts prestaged through
+  pinned `FETCH` inputs rather than letting an installer use the network during
+  a build. Read the active corpus contract, fetch/staging conventions, and
+  recent green case anatomy. Next: identify the exact upstream Dockerfiles,
+  source revisions, release artifacts, and probe contracts; record walls
+  rather than fabricate green evidence.
+
 - 2026-08-06T00:00:00Z — Started track/ch7gcroot from the supplied spec.
   Scope is the Chapter 7 CI-only gcroot cleanup drift. Read the repository
   journal, D13 dev-mode context, and the scenario before changing anything.
@@ -895,3 +904,42 @@
   foreign Nix build parent, and synchronously exited 0 in 666.376s. No forced
   rebuild was rerun after the scope trim. Next: commit this receipt entry and
   leave the branch clean for orchestrator verification.
+
+- 2026-08-06T02:05:00Z — `track/expand-ntfy-filebrowser` staged the pinned
+  ntfy v2.27.0 and Filebrowser v2.63.23 upstream contexts with
+  `corpus/migrate/fetch.sh`, then added both complete corpus anatomies,
+  including faithful and dissolved Cixfiles, source provenance, checked
+  artifact checksums, locks, probes, receipts, gaps, and corpus-ledger rows.
+  Faithful and dissolved builds exited 0 for both cases; ntfy's system-manager
+  probe returned the exact `{"healthy":true}` value. Filebrowser's runtime is
+  deliberately not green: its upstream init cannot create `/config/settings.json`
+  because arbitrary-path role realization makes `/config` read-only; the
+  value-captured check exit is 1 and no health result is claimed. Next: cold
+  replay and cold-stage compatibility checks, then Cixfile formatting/parser
+  and final diff review.
+
+  FRICTION:
+  - `$VERSION` immediately followed by `_` needs the Cixfile shell spelling
+    `$VERSION""_`; `${VERSION}` is interpreted as a Cixfile binder rather than
+    a builder environment variable. The parser's diagnostic named the binder
+    model, but the migration form is easy to reach for. → language
+  - Raw upstream SHA-256 is not a `FETCH EXPECT` value: EXPECT hashes the
+    fetched workspace directory. The first value-checked fetch reported the
+    correct directory SRI, while the raw SHA remains verified inside FETCH. →
+    language
+  - `CONFIGDIR /config` looked right from the Docker volume name, but the
+    upstream writes self-generated settings, so `STATEDIR` is the correct
+    lifecycle. Both directives nevertheless expose the same arbitrary-path
+    read-only mount defect; recorded in Filebrowser GAPS as a runtime wall. →
+    language
+
+- 2026-08-06T02:20:00Z — Final corpus-track receipts: fresh-workspace warm
+  and `--cold` faithful builds both exited 0 for ntfy and Filebrowser, replaying
+  their pinned FETCH snapshots; both dissolved twins also built cold with exit
+  0. `regen-stage.sh` synchronously staged both cases with Dockerfile, SOURCE,
+  check contract, cix binary, and pinned upstream `context/`. `cix fmt --check`
+  exited 0 for all four Cixfiles. Corpus-browser regeneration exited 0, then
+  the normal corpus suite (real parser, browser drift, determinism, and ledger
+  discovery) passed 7/7 with one deliberate ignored generator. No Rust source
+  changed, so the corpus-only spec does not require a workspace-wide test or
+  VM matrix. Next: stage, review, commit the clean track branch; do not merge.

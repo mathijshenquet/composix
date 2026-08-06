@@ -1,0 +1,20 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+BUILDER release
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.curl} ${pkgs.gnutar} ${pkgs.gzip}
+  ENV NTFY_VERSION=2.27.0
+  ENV NTFY_ARCH=amd64
+  ENV NTFY_SHA256=4b7220cb0e7673a66ace8e1368573c0df89888aafde6860ae3a48ae1174c8cee
+  FETCH curl --fail --location https://github.com/binwiederhier/ntfy/releases/download/v$NTFY_VERSION/ntfy_$NTFY_VERSION""_linux_$NTFY_ARCH.tar.gz --output ntfy.tar.gz && echo "$NTFY_SHA256  ntfy.tar.gz" | sha256sum --check --status EXPECT sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=
+  RUN <<BUILD
+archive="ntfy_$NTFY_VERSION""_linux_$NTFY_ARCH"
+tar --no-same-owner --transform "s,^$archive/ntfy$,output/bin/ntfy," -xf ntfy.tar.gz "$archive/ntfy"
+BUILD
+
+SERVICE ntfy
+  IMPORT ${pkgs.cacert} ${pkgs.tzdata}
+  COPY ${release}/output/bin/ntfy /bin/ntfy
+  START ntfy serve
+  PORT http = 80
+  STATEDIR /var/lib/ntfy
+  CACHEDIR /var/cache/ntfy

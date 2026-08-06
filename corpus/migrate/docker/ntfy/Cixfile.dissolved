@@ -1,0 +1,8 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE ntfy
+  IMPORT ${pkgs.cacert} ${pkgs.ntfy-sh} ${pkgs.tzdata}
+  START ntfy serve
+  PORT http = 80
+  STATEDIR /var/lib/ntfy
+  CACHEDIR /var/cache/ntfy

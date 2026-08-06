@@ -1,0 +1,112 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "e72e4f299401a3689d4b3d5fc6496b11db7064eb",
+      "narHash": "sha256-8fsyqeO+mJqvIzeO4xIpgJe/f7MTbbVTEC6RT6WSXNs=",
+      "lastModified": 1785828668
+    }
+  },
+  "fetches": {
+    "builder:release:3-6b7b0677f094": {
+      "narHash": "sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ=",
+      "snapshotNarHash": "sha256-lGGZu8Tos7cQvG0RRQ3cPyzULGhvcwpQ/w6/aN6BbaQ="
+    }
+  },
+  "memo": {
+    "8f493ae1d9f0b3f596a242daa1e5708b43dc8d13ad9ec80429d27127b933e940": {
+      "paths": {
+        "output/bin/ntfy": {
+          "narHash": "sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=",
+          "storePath": "/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed"
+        }
+      }
+    },
+    "d492512c8c8280e49d6a94fdf9690d3c4e29bc8a36cc76618701e592fff01d5e": {
+      "paths": {
+        "output/bin/ntfy": {
+          "narHash": "sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=",
+          "storePath": "/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed"
+        }
+      }
+    },
+    "f874d600613977d97f69ce33509d90afaae265ff3722a9c0ea592d6506522448": {
+      "paths": {
+        "output/bin/ntfy": {
+          "narHash": "sha256-d84AcJyxJIq/Tj1a9kZd/8o6e5TKiNoOZJsNmDB1Fg4=",
+          "storePath": "/nix/store/wa1wnl6sr6hwwnq0brq7a371x2p5qwif-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:release:3": {
+      "key": "bfe43941388c3a8760b423af2164b24450b8ade98863a502885c99802fdba475",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/xs6693zb4b51xh0nyx9m85rcpqh01m3s-cix-step-output",
+      "changes": {
+        "ntfy.tar.gz": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "ntfy.tar.gz": {
+          "content": "49ca00eeaef604412ea7ec500f42cb70118f4693de5c17e0ab0e674e1e35e0fb"
+        }
+      }
+    },
+    "builder:release:4": {
+      "key": "f7a9f18218c85c80523b1c54d3c084b1075d6e7d1da9d756ed5fea4f9827fc40",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        "ntfy.tar.gz": {
+          "kind": "file",
+          "hash": "a2030c27e86247c236bd4e465b1ad48109ac334e40cff791a558b57bf464aae3",
+          "fingerprint": {
+            "dev": 38,
+            "inode": 56648396,
+            "mtimeNs": 602697970,
+            "size": 31662216,
+            "len": 31662216,
+            "mode": 33188
+          }
+        }
+      },
+      "changes": {
+        "output": {
+          "kind": "subtree",
+          "mode": 16877
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/3cp4kw4376flmhlxxi4w2jkancv3irp8-gnutar-1.35/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "builderDevEnvs": {
+    "release": "3cda2cecc0a9b66e8aa82b1cd7b4077fe565b60be8463fce665ee196769c53a3:27505dcc3766c206e663efc833aa983bf85ee98b13ef78617a0ca492ad318652"
+  },
+  "outputs": {
+    "ntfy": {
+      "sourceHash": "225e612212ddb030f1f9534777e72680ce7b77f24534b7eb7a5b5e58c03a6e59",
+      "storePath": "/nix/store/fvfpg6vpw54zdzdqvmlkalxdmc8lqrgr-cix-item-ntfy"
+    }
+  }
+}

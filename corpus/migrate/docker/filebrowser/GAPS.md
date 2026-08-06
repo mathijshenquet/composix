@@ -1,0 +1,6 @@
+Generated: migrate.md@current · track-expand-ntfy-filebrowser · 2026-08-06
+Status: current
+
+- The official installer downloads `releases/latest` and therefore cannot be a reproducible build step. This case preserves its Linux amd64 artifact selection as a fixed release URL, published SHA-256, and pinned FETCH snapshot; faithful and dissolved build receipts pass while the runtime wall is recorded below. → case
+- `/config/settings.json` is generated and then mutated by the application, so it is durable application state rather than operator-supplied configuration; `/config`, `/database`, and `/srv` are explicit private state roles. Docker's BusyBox/Alpine assembly, fixed UID/GID, `tini`, and recursive startup ownership changes dissolve into the locked nixpkgs closure and systemd process lifecycle. → case
+- The faithful system-manager run cannot write `/config/settings.json`: realization mounts the arbitrary app-path role root read-only after its managed bind, hiding the bind. `STATEDIR /config` is the right lifecycle for Filebrowser's self-generated settings, but it exhibits the same arbitrary-path realization defect, so the `/health` runtime contract is unproved. The user-manager fallback cannot project the declared app paths and then times out. → language

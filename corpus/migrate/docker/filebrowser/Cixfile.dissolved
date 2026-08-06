@@ -1,0 +1,15 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+SERVICE filebrowser
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.filebrowser}
+  COPY ${src}/context/docker/alpine/init.sh /init.sh
+  COPY ${src}/context/docker/alpine/healthcheck.sh /healthcheck.sh
+  COPY ${src}/context/docker/common/defaults/settings.json /defaults/settings.json
+  START bash /init.sh
+  PORT http = 80
+  STATEDIR /database
+  STATEDIR /config
+  STATEDIR /srv
+  READINESS http://127.0.0.1:80/health IN 10s
+  LIVENESS http://127.0.0.1:80/health EVERY 5s
