@@ -1,5 +1,37 @@
 # composix work log
 
+## 2026-08-06 day, cont. 4 (goal drive-progress: scale-up to five parallel tracks)
+
+- **/goal drive-progress activated** (Mathijs: "kan er meer parallel?
+  schaal maar op"). Queue walked against live state; four launches
+  (announced in chat), all gate-condition-verified:
+  - **fmtkey-evidence (terra)**: pin the causal keying-leak chains for
+    the three exhibits (ntfy/nginx/tomcat), hermetic repro tests,
+    inventory table into the fmt-key draft. Evidence only — feeds the
+    adoption that gates the epoch.
+  - **narhash-regens (luna)**: precise fetch-level narHash inventory
+    (EXPECT-backed vs legacy-automatic; InputLock.narHash out of
+    scope), refresh non-pnpm legacy cases; drift walls recorded, never
+    EXPECT-updated. Converges with pnpm-frozenstore toward CIP-107's
+    FetchPin deletion.
+  - **staterole-bindfix (terra)**: the filebrowser arbitrary-app-path
+    state-role realization defect (bind hidden by later read-only
+    mount) — realization repair + VM regression; stop-and-report if it
+    turns semantic.
+  - **expand-postgres-registry (luna)**: corpus 30→32 from the
+    verified candidate bank (state-heavy band: PGDG apt + initdb;
+    multi-stage Go native-build dissolution).
+- Also this stretch: `WITH CACHE` renamed to **`WITH UNSAFE IGNORE`**
+  (Mathijs + underlay argument: D71 owns persistence, the clause is
+  pure evidence exclusion; CACHE stays reserved for D71's retreat
+  dial) — recorded across nodes-and-edges + pnpm-wall drafts.
+- Not launched (gates genuinely closed): epoch trio (behind adoption),
+  k8s wave 1 (behind adoption), UNSAFE-IGNORE detection leg (build
+  order = Mathijs), it-tools lock-scale (behind language), pnpm locks
+  (in flight). Shared-axis note: corpus browser/ledger is the one
+  contended file family across three of five tracks — merges will be
+  staggered, conflicts resolved by regeneration.
+
 ## 2026-08-06 day, cont. 3 (tourdet flake fixed+merged; frozenStore breakthrough; pnpm-frozenstore launched)
 
 - **CI flake on main traced and fixed same-day**: `f3115542`'s red was
