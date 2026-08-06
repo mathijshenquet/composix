@@ -1,5 +1,31 @@
 # litdoc work log
 
+- 2026-08-06T00:00:00Z — Started track/ch7gcroot from the supplied spec.
+  Scope is the Chapter 7 CI-only gcroot cleanup drift. Read the repository
+  journal, D13 dev-mode context, and the scenario before changing anything.
+  First investigate the failing root's ownership/lifecycle in the GitHub
+  runner's old user-manager environment; do not normalize the symptom unless
+  the documented cleanup is sound and host-environmental. Next: trace the
+  run/cleanup implementation and reproduce the chapter command sequence.
+
+- 2026-08-06T00:15:00Z — Cause confirmed at the product lifecycle layer:
+  the CI user manager retains `PrivateUsers=yes`, making the injected
+  unprefixed `ExecStopPost=rm` unable to unlink the host runtime-dir root;
+  beast's D13 fallback drops it. Changed the cleanup command to use systemd's
+  `+` prefix, which is still the user manager's UID but escapes that sandbox.
+  A focused construction test, `cargo fmt --all --check`, and an actual
+  `systemd-run --user` ExecStopPost probe each returned synchronous exit 0.
+  Next: regenerate Chapter 7 and run the track gates.
+
+- 2026-08-06T00:30:00Z — Final track receipts are value-checked: fmt,
+  examples fmt, warning-denied workspace/all-target Clippy, serial workspace
+  tests, explicit tour generation plus no `docs/tour` drift, and regular tour
+  drift/determinism tests each exited 0. The derived progressive VM matrix
+  selected all 14 runtime-core scenarios for the lifecycle change and exited 0
+  after 624.335s. An initial terminal bridge detached overlapping processes;
+  those were terminated and discarded, then the serial sessions above captured
+  concrete exit values. Next: clean final state checks; do not commit.
+
 - 2026-08-04T16:47:31Z — Semantic jsonpretty merge resolution is fully green
   with synchronous exit-0 receipts. Explicit ignored regeneration ran twice;
   the second run against staged pages left `git diff --exit-code -- docs/tour`
