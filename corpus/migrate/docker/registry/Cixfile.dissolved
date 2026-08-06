@@ -1,0 +1,10 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+
+SERVICE registry
+  IMPORT ${pkgs.cacert} ${pkgs.distribution}
+  COPY context/cmd/registry/config-dev.yml /etc/distribution/config.yml
+  ENV OTEL_TRACES_EXPORTER=none
+  START registry serve /etc/distribution/config.yml
+  PORT registry = 5000
+  PORT debug = 5001
+  STATEDIR /var/lib/registry

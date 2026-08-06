@@ -72,7 +72,7 @@ touched; the CIP-84 closed-root VM audits the green set exhaustively. Cases
 that dissolve entirely into nixpkgs additionally carry a Dockerfile-faithful
 twin so the page can show both translations side by side.
 
-## The living migration corpus (30)
+## The living migration corpus (32)
 
 These are the checked-in conversions under `corpus/migrate/docker/`, not a second
 historical grade set. Fidelity grades the translation; Evidence grades only the
@@ -120,6 +120,8 @@ live inside the cell prose of the case that records them.
 | 28 | Mosquitto | Faithful 2.0.22 MQTT pub/sub roundtrip and cold replay pass; dissolved twin builds cold | 🔶 TCP behavior is live; WebSockets are omitted because the source build cannot see the required headers, and this host degrades `PrivatePIDs` | M | [build/runtime and cold receipt](../corpus/migrate/docker/mosquitto/receipt.md) |
 | 29 | ntfy | Faithful 2.27.0 release artifact build and `/v1/health` probe pass; dissolved twin builds | ✅ The Docker-only GoReleaser context artifact is now an explicit, checksum-verified FETCH; Alpine/image metadata and entrypoint-only invocation deliberately dissolve | S | [build and runtime receipt](../corpus/migrate/docker/ntfy/receipt.md) |
 | 30 | Filebrowser | Faithful 2.63.23 release artifact build, dissolved twin build, and system-manager `/health` probe pass | 🔶 `--user` remains a deliberately degraded fallback on managers that reject mount namespaces, so arbitrary declared paths cannot be projected there | S | [build and runtime receipt](../corpus/migrate/docker/filebrowser/receipt.md) |
+| 31 | PostgreSQL | Upstream 17/trixie initdb entrypoint translation and dissolved twin build; the `pg_isready` runtime wall is recorded from the current host | 🔶 PGDG APT package/keyserver installation is a no-network wall; locked nixpkgs runtime bits preserve the state/init lifecycle, with arbitrary-path state-role friction cited | M | [build/runtime receipt](../corpus/migrate/docker/postgres/receipt.md) |
+| 32 | Registry | Native distribution source build and `/v2/` response pass; dissolved twin cold replay passes, while the faithful cold replay wall is recorded | 🔶 `tonistiigi/xx` cross compilation and multi-platform artifact production dissolve to a native host build; Docker Alpine/image metadata dissolve | M | [build/runtime receipt](../corpus/migrate/docker/registry/receipt.md) |
 
 ### CIP-84 closed-root audit
 
@@ -134,7 +136,7 @@ to faithful version, entrypoint, or configuration parity. The check has an
 exhaustive directory roster, so a newly added pack or migration cannot silently
 escape classification.
 
-Thirteen migrations remain outside the green closed-root set. Directus, Filestash,
+Fifteen migrations remain outside the green closed-root set. Directus, Filestash,
 and Verdaccio still fail before producing a runnable item; Dozzle's FETCH is now
 diagnosed and green but its full item is unverified, while its socket bridge and
 Watchtower's remain intentionally desk-only Docker-control-plane cases; Parse

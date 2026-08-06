@@ -1,0 +1,89 @@
+{
+  "inputs": {
+    "pkgs": {
+      "url": "github:NixOS/nixpkgs/nixos-unstable",
+      "rev": "b7c2ada94fe99c15b0dbcf4d11fd7850b957a436",
+      "narHash": "sha256-IItrdb7Puk05RqOBWZYFC5X6Wl1sJmCfh5MWVHw5iMM=",
+      "lastModified": 1785967620
+    }
+  },
+  "fetches": {
+    "builder:vendor:2-5b65b745109d": {
+      "snapshotNarHash": "sha256-kH5UBsArY1gikrzazPXEuEqe7VbEHBF7vkB12oareJA=",
+      "paths": {
+        "output/gosu": "sha256-VmNcv6bmk3WjyLm02hEd1EyWYbMiyecL+7htABihBWM="
+      }
+    }
+  },
+  "memo": {
+    "90b007693d3901dc797b775b04bc3ff0da2ffc1f14db69e752e61020807dafe3": {
+      "paths": {
+        "output/gosu": {
+          "narHash": "sha256-VmNcv6bmk3WjyLm02hEd1EyWYbMiyecL+7htABihBWM=",
+          "storePath": "/nix/store/gi4g817bnnpfz8kdmvx6n9gfg19rw6l9-cix-build-consumed"
+        }
+      }
+    }
+  },
+  "stepMemo": {
+    "builder:vendor:2": {
+      "key": "267fd81a220d0dfeb76079dec514d9f54a9e1e61419b3521eae13ca750963d2f",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        },
+        ".config/curlrc": {
+          "kind": "absent"
+        },
+        ".curlrc": {
+          "kind": "absent"
+        }
+      },
+      "outputSnapshot": "/nix/store/c01bxmc8crdz98sypcl6b8x6b306ffbl-cix-step-output",
+      "changes": {
+        "gosu": {
+          "kind": "present"
+        }
+      },
+      "outputHashes": {
+        "gosu": {
+          "content": "6cf5be14797ed6038b4d1fc2a46c209d99844c093f89193bdbeb84fba797128b"
+        }
+      }
+    },
+    "builder:vendor:3": {
+      "key": "fac36dc6e916aa2d6de7cbf74b506b1d13cd5f34cbad91d9c2ea74a838345375",
+      "reads": {
+        ".": {
+          "kind": "directory-exists"
+        }
+      },
+      "changes": {
+        "gosu": {
+          "kind": "present"
+        },
+        "output": {
+          "kind": "subtree",
+          "mode": 16877
+        }
+      }
+    }
+  },
+  "devEnvs": {
+    "055f493356c0a150224a9ca97694f507f3a6c140bd1c5814338d235a4993e656:0952aee3115c535aa8e1f9cb3fe387da181ad2d70c5af6a791a8c2ffe85ef50a": {
+      "environment": {
+        "SYSTEM_CERTIFICATE_PATH": "/nix/store/k7bij71h4wsgl7g18pbsdzxfnmanhnq2-nss-cacert-3.126/etc/ssl/certs/ca-bundle.crt",
+        "XDG_DATA_DIRS": "/nix/store/bwry105g7v5jspr41bx9x3fcfqsmfkq2-bash-interactive-5.3p15/share:/nix/store/d0a0g5q9spi04dpz89n4wqnzv8synh73-curl-8.21.0-dev/share:/nix/store/m0nph6b8w876i1y5gpprmghi76fd06kk-brotli-1.2.0/share:/nix/store/qiwg67zp9w898zwr57g2lnhmhk0bifxa-krb5-1.22.2-lib/share:/nix/store/174ld31gjiv9k1gy4hnpjidrffwcwi6l-krb5-1.22.2/share:/nix/store/j30jxkm8hx4p7q3vpk946ljfc0rw43z4-nghttp2-1.69.0/share:/nix/store/alpmn3xfcx3ks489ryi261ws2m1ijlza-libidn2-2.3.8-bin/share:/nix/store/7svf4fa139ajvhfaxry3smvlbhrnraq1-libidn2-2.3.8/share:/nix/store/n1axb0xwihqfzijxmcna23rnw8h9c8s3-publicsuffix-list-0-unstable-2026-06-24/share:/nix/store/z5kci0gxs7yw3b6h341r10jsmkmvz2wq-libpsl-0.21.5/share:/nix/store/h4si9iyvqy1aaqy4piqw0pj2c6snmz69-zlib-1.3.2-dev/share:/nix/store/fkcbg2c1w29jr5yp9awai9w3v1wvxdk9-zlib-1.3.2/share:/nix/store/9nizcmvz2699nkrbzxx8xsp5d8jp686w-zstd-1.5.7/share:/nix/store/pzvcwi6y0vfmfpni6b52jwy9x6sj1yv1-patchelf-0.15.2/share"
+      }
+    }
+  },
+  "builderDevEnvs": {
+    "vendor": "055f493356c0a150224a9ca97694f507f3a6c140bd1c5814338d235a4993e656:0952aee3115c535aa8e1f9cb3fe387da181ad2d70c5af6a791a8c2ffe85ef50a"
+  },
+  "outputs": {
+    "postgres": {
+      "sourceHash": "c1cbe00f16665301d1e756b646e9b6fb90ca227fc68bb36cc6783504f77ced05",
+      "storePath": "/nix/store/if5hb96kxfc79wccd6jsm5a6prh2l19x-cix-item-postgres"
+    }
+  }
+}

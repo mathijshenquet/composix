@@ -1,0 +1,5 @@
+Repository: https://github.com/docker-library/postgres.git
+Resolved revision: 62a714f93cc32220de46fd12235c9d509e3b1ad6
+Context path: 17/trixie
+Dockerfile: Dockerfile
+Natural probe: pg_isready

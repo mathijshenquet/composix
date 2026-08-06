@@ -1,5 +1,76 @@
 # litdoc work log
 
+- 2026-08-06T10:20:00Z — Finished `track/expand-postgres-registry`. The two
+  fetched contexts, faithful Cixfiles, dissolved twins, locks, checks, receipts,
+  GAPS files, and generated corpus pages are present. Synchronous receipts:
+  `cargo test -p cix --test corpus` exited 0 (7 passed, 1 ignored), browser
+  generation exited 0, faithful and dissolved PostgreSQL builds plus both cold
+  builds exited 0, and the Registry dissolved normal/cold builds plus faithful
+  runtime check exited 0 with exact `GET /v2/` value `{}`. The faithful Registry
+  cold build is a recorded read-set wall at `FETCH go mod download`; the
+  PostgreSQL runtime is a recorded wall before `pg_isready` because the item
+  cannot provide the package `lib` path and the state-role setup cannot chmod
+  `/var/run/postgresql`. No Rust source changed, so workspace Rust/VM gates were
+  outside this corpus-only scope. Next: hand off without committing or merging.
+
+  FRICTION: Cix FETCH read-set replay distinguishes a warm Go module cache from
+  a cold absent cache, so the faithful Registry case cannot honestly claim cold
+  compatibility. PostgreSQL's split Nix `lib` output and arbitrary-path role
+  realization remain product walls; both are preserved in receipts/GAPS rather
+  than hidden behind a green probe claim.
+
+- 2026-08-06T00:00:00Z — Started `track/expand-postgres-registry` from a
+  clean worktree after reading the supplied spec, `docs/corpus.md`, the
+  candidate rows, and recent ntfy/filebrowser anatomy. This is corpus-only:
+  add faithful postgres and distribution registry cases, prestage all vendor
+  inputs through pinned FETCHes, and preserve synchronous receipts and honest
+  walls. Next: pin the upstream revisions, fetch contexts, and inspect the
+  exact Dockerfiles before authoring translations.
+
+  FRICTION: The requested `crates/cix/LOG.md` is a tracked append-only journal
+  shared by prior tracks; no new language form has been reached for yet.
+
+- 2026-08-06T00:20:00Z — The first registry receipt could not start because
+  this clean worktree had no `target/debug/cix`; the prerequisite
+  `devenv shell -- cargo build -p cix` exited 0 synchronously in 12.70s.
+  No case build was counted from the missing-binary attempt. Next: rerun the
+  registry build with the freshly built binary, then exercise postgres.
+
+  FRICTION: The documented corpus command assumes an existing debug binary;
+  a clean worktree needs the explicit package build first. `devenv shell` was
+  active and healthy once invoked.
+
+- 2026-08-06T00:35:00Z — The registry Cixfile parsed and its first corrected
+  build reached the large Go dependency compile after moving `GOPROXY=off`
+  from the network FETCH to the offline build. The initial ordering failure
+  was a synchronous nonzero receipt and was fixed before counting the build.
+  Added the two corpus rows and updated the outside-closed-root count to 32
+  cases / 15 outside the roster. Next: collect the registry build exit and
+  then build the PostgreSQL case.
+
+  FRICTION: `--update-lock` has an optional selector argument; writing
+  `--update-lock corpus/...#registry` consumed the directory as the selector
+  and made cix read the repository-root Cixfile. The working form is
+  `--update-lock=build corpus/...#registry`. Go's module cache must remain
+  network-enabled during FETCH and only become `GOPROXY=off` in RUN.
+
+- 2026-08-06T01:00:00Z — Faithful and dissolved PostgreSQL builds exit 0.
+  Its synchronous runtime attempt is a wall: the upstream entrypoint reaches
+  the existing state directory, but the service cannot chmod
+  `/var/run/postgresql`, and PostgreSQL then reports its package `lib` path is
+  unavailable in the isolated item. This is recorded with the known
+  arbitrary-path state-role defect rather than reclassified as a green probe.
+  Registry initially failed its upstream debug listener on undeclared port
+  5001; adding the declared second port preserved the config, and the rerun
+  passed `GET /v2/` with exact value `{}` (one transient readiness refusal
+  preceded the successful probe). Next: run cold build receipts, dissolved
+  registry build, and write both full receipts.
+
+  FRICTION: A package with a separate Nix `lib` output is not made available
+  merely by `IMPORT`; Cix's runtime import surface is bin/etc/share, while
+  PostgreSQL discovers its compiled package lib path. Direct `/lib` COPY is a
+  reserved runtime path, so this remains an honest package/sandbox wall.
+
 - 2026-08-06T00:00:00Z — Started `track/expand-ntfy-filebrowser` from the
   supplied spec. This is corpus-only work: add faithful ntfy and filebrowser
   migration cases, with their upstream release artifacts prestaged through

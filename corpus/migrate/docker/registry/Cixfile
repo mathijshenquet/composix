@@ -1,0 +1,25 @@
+FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs
+FROM . AS src
+
+BUILDER build
+  IMPORT ${pkgs.bash} ${pkgs.cacert} ${pkgs.coreutils} ${pkgs.go_1_25} ${pkgs.gnugrep}
+  COPY ${src}/context/ .
+  ENV CGO_ENABLED=0
+  ENV GOMODCACHE=$PWD/.cache/go-mod
+  ENV GOCACHE=/tmp/registry-go-cache
+  ENV GOTELEMETRY=off
+  ENV HOME=/tmp/registry-go-home
+  ENV REGISTRY_REVISION=9f9289e23a133b02f61d8c768016eddbdec65c61
+  FETCH go mod download
+  COPY ${src}/context/ .
+  RUN rm -rf output && mkdir -p output && GOPROXY=off go build -trimpath -ldflags "-s -w -X github.com/distribution/distribution/v3/version.version=3.1.1+unknown -X github.com/distribution/distribution/v3/version.revision=$REGISTRY_REVISION -X github.com/distribution/distribution/v3/version.mainpkg=github.com/distribution/distribution/v3" -o output/registry ./cmd/registry
+
+SERVICE registry
+  IMPORT ${pkgs.cacert}
+  COPY ${build}/output/registry /bin/registry
+  COPY context/cmd/registry/config-dev.yml /etc/distribution/config.yml
+  ENV OTEL_TRACES_EXPORTER=none
+  START registry serve /etc/distribution/config.yml
+  PORT registry = 5000
+  PORT debug = 5001
+  STATEDIR /var/lib/registry
