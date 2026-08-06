@@ -20,7 +20,10 @@
   regenerated for the fingerprint epoch. Byte-identity scenario green.
 - **Final state: full workspace suite exit 0, progressive VM 0/14
   (no contract change), byte-identity exit 0 — main locally green on
-  every tier**; CI confirmation pending on `1cb856c7`. Also swept 40G
+  every tier**; CI CONFIRMED GREEN on `c40376af` after one last
+  source-size coda (the fingerprint stratum missing from the cix-build
+  module map — the CIP-104 lesson relearned on a module-adding merge;
+  the guard is now on the personal merge checklist for real). Also swept 40G
   of orphaned worker evidence dirs from /var/tmp mid-flight (disk was
   at 21G with a live suite).
 - **The epoch implementation now stands complete pre-sweep**:
