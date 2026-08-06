@@ -1,5 +1,33 @@
 # cix-build work log
 
+- 2026-08-06T02:00:00Z — Started `track/cip107-pinleg`. Read CIP-107 and the
+  assigned spec. The mandatory order is regenerate every committed whole-tree
+  FETCH `narHash` exhibit first, capture a synchronous build exit-0 and review
+  each lock diff, then remove the whole-tree FetchPin read/write path while
+  retaining an explicit reject-and-teach old-lock diagnostic. `direnv` has the
+  devenv environment loaded. Next: enumerate the exact legacy entries and
+  derive the corpus regeneration commands before making product edits.
+
+## FRICTION
+
+- 2026-08-06T02:00:00Z — Initial broad text search matched unrelated lock
+  dependency `kind` values and large trace payloads; legacy FetchPin evidence
+  must instead be identified structurally as `fetches` entries carrying
+  `narHash`.
+
+## Work
+
+- 2026-08-06T01:46:27Z — Directus is the mandatory stop: after restoring its
+  pinned context, `target/debug/cix build corpus/migrate/docker/directus
+  --update-lock build` synchronously exited 1. It completed the FETCH and
+  install steps, then its offline production deploy could not resolve
+  `@directus/tsconfig@4.0.0` because the pinned metadata cache lacks it. The
+  attempted lock diff was reviewed and restored byte-for-byte to SHA-256
+  `e40ee98df87de1bbf9a65b261c79f56987e0eb4b70ab1a3ece6a106906ea0d66`.
+  `corpus/migrate/docker/directus/GAPS.md` now marks the case stale for the
+  CIP-107 FetchPin migration. Per the spec, do not delete whole-tree FetchPin
+  support while this committed exhibit remains.
+
 - 2026-08-05T21:23:35Z — Reproduced the exact pre-fix CI failure before
   editing: the real binary under a one-core, nice-19, 2%-CPU user scope exited
   101 after `sigterm_removes_live_build_scratch` reported `cix did not create
@@ -694,3 +722,19 @@
   drift; source-size and shared-state audits; and final bounded two-job
   progressive selector, which selected all 14 scenarios and exited 0 in
   688.590s. Captures are retained at `/var/tmp/cip101-livelock-receipts/`.
+
+- 2026-08-06T01:55:49Z — Stopped `track/cip107-pinleg` before deletion, as
+  required. A repo-wide structural scan finds 21 `fetches.*.narHash` entries
+  across 14 committed locks (the current tree is broader than the spec's
+  stale 18/9 count); Directus is one of them. Its freshly restored-context
+  `--update-lock build` attempt exited 1 only after completing FETCH and
+  installation, because the pinned metadata cache lacks
+  `@directus/tsconfig@4.0.0` for offline deploy. The partial generated lock
+  was reviewed and restored byte-identically; its SHA-256 remains
+  `e40ee98df87de1bbf9a65b261c79f56987e0eb4b70ab1a3ece6a106906ea0d66`.
+  Directus GAPS/receipt and its generated browser page record the wall. Final
+  synchronous receipts: corpus browser regeneration, Rust fmt, examples fmt,
+  warning-denied clippy, workspace tests (retry exit 0 after a foreign tour
+  renderer made the first run fail at the listener), tour regeneration/drift,
+  and progressive VM selector (0 scenarios, exit 0). No FetchPin source or
+  lock deletion was made; receipts are `/var/tmp/cip107-pinleg-receipts/`.
