@@ -2226,3 +2226,20 @@
   was committed. The added change was isolated to the sandbox CI test, but was
   merged and all applicable final receipts were repeated rather than treating
   the prior tree as current. → moving integration target
+
+## 2026-08-06 — fmtkey-impl final stage-2 seam receipt
+
+- 2026-08-06T12:13:53Z — Merged the final current-main stage-2 Nix-path repair
+  (`198b40c7`) and regenerated the tour again. The captured workspace receipt
+  contained `0`; Rust fmt, warning-denied workspace/all-target clippy, examples
+  fmt, and committed-tour drift passed. The progressive VM gate selected all
+  14 scenarios for the conservative Nix-input change and completed with build
+  exit `0` in 668.650 seconds. `origin/main` is unchanged after this receipt.
+  Next: amend the local merge with this log and verify cleanliness.
+
+### FRICTION
+
+- 2026-08-06T12:13:53Z — A second current-main advance repaired the stage-2
+  NodeCommand Nix boundary, so the intermediate test-only selector receipt was
+  insufficient. The complete 14-scenario VM roster was rerun on the repaired
+  integration tree and passed. → moving integration target

@@ -83,9 +83,16 @@ let
   templatePackages = template: builtins.filter (value: value != null) (map (part:
     if part.kind == "package" then package part.namespace part.attrpath else null
   ) template);
+  # Stage-2 locks wrap step commands in a NodeCommand variant set; the nix
+  # evaluation path supports the legacy shell template today and rejects
+  # argv/heredoc nodes explicitly until the epoch sweep teaches it those.
+  commandTemplate = command:
+    if builtins.isList command then command
+    else if command.kind or null == "legacy" then command.command
+    else throw "CIP-94 buildCixfile: evalPlan command kind ${command.kind or "?"} is not supported by the nix evaluation path yet (epoch sweep)";
   stepPackages = step:
     if step.kind == "copy" then templatePackages step.copy.src
-    else if step.kind == "fetch" || step.kind == "run" then templatePackages step.command
+    else if step.kind == "fetch" || step.kind == "run" then templatePackages (commandTemplate step.command)
     else if step.kind == "env" then templatePackages step.value
     else [ ];
 
@@ -224,7 +231,7 @@ let
           state // { actions = state.actions ++ [ (sandboxCommand {
             inherit imports;
             inherit (state) environment declared;
-            command = renderTemplate binders step.command;
+            command = renderTemplate binders (commandTemplate step.command);
             network = false;
             inherit (step) line;
           }) ]; }
@@ -246,7 +253,7 @@ let
                 ${sandboxCommand {
                   inherit imports;
                   inherit (state) environment declared;
-                  command = renderTemplate binders step.command;
+                  command = renderTemplate binders (commandTemplate step.command);
                   network = true;
                   inherit (step) line;
                 }}
