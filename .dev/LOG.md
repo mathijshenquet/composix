@@ -1,5 +1,41 @@
 # composix work log
 
+## 2026-08-06 afternoon (THE EPOCH IS ADOPTED — CIP-110..113; three merges; two drafts; implementation launched)
+
+- **Adoptions formalized** (Mathijs's calls, AFK-delegated gaps filled
+  under standing grant): CIP-110 fmt-key-neutrality (both faces:
+  canonical-AST keys + NAR-invariant fingerprints), CIP-111
+  nodes-and-edges (JUXTAPOSITION lists superseding the bracket sketch;
+  heredoc interpreter mandatory; UNSAFE-IGNORE incl. detection),
+  CIP-112 phase-blocks, CIP-113 build-args (ARG first-value default;
+  TAG deferred out intact to cips/deferred/build-args-tag.md).
+  design.md "Building now" rewritten to the adopted epoch.
+- **Merged behind independent gates**: fmtkey-evidence (terra —
+  DISPROVED the morning's exhibit attributions: dev/inode are unkeyed
+  hints; real leaks are full-mode read/pin hashing + an under-NAR
+  exec-bit miss; my nodes-and-edges note corrected), narhash-regens
+  (luna — inventory 21 = 15 EXPECT-backed + 6 legacy; echo-server+nats
+  refreshed; remaining legacy inventory: 3 — 2 filestash-walled,
+  1 pnpm; also rescued the ittools LOG section from a stray committed
+  diff3 base marker — grep henceforth includes `|||||||`),
+  staterole-bindfix (terra — root cause proven live: TemporaryFileSystem
+  :ro emitted after BindPaths; fix = exact ReadWritePaths allowlist;
+  filebrowser /health OK; dirs2 VM regression; my gate: fmt +
+  progressive VM 452s exit 0).
+- **New drafts for Mathijs** (his asks): release-01-scope (epoch as
+  pre-release must; DOCS REDO PERSONALLY BY MATHIJS recorded as 0.1
+  item; k8s lean post-0.1) and naming-table (all-composix lean worked
+  into a typed-vs-read table; binary name is the one open call).
+- **pnpm-wall decisions recorded**: instance-pin = ACCEPTED
+  (orchestrator call under "maak zelf de juiste beslissing");
+  detection leg = build ("doe maar erbij", folded into epoch
+  groundwork); draft→CIP adoption on sol's receipts.
+- **Implementation launched**: fmtkey-impl (terra) + epoch-groundwork
+  (terra) — canonical-key seam owned by fmtkey-impl, new grammar by
+  groundwork, NO corpus sweep in either (single sweep lands last).
+  Still in flight: pnpm-frozenstore (sol), expand-postgres-registry
+  (luna).
+
 ## 2026-08-06 day, cont. 4 (goal drive-progress: scale-up to five parallel tracks)
 
 - **/goal drive-progress activated** (Mathijs: "kan er meer parallel?
