@@ -1,9 +1,8 @@
-# phase-blocks — explicit `{ }` delimiters for BUILDER/ITEM/SERVICE/APP
+# CIP-112 — phase-blocks: explicit `{ }` delimiters for BUILDER/ITEM/SERVICE/APP
 
-Status: **draft** (2026-08-05; from the nodes-and-edges design round —
-Mathijs: the vague phase-indent convention deserves its own decision).
-Companion to [nodes-and-edges](nodes-and-edges.md); independent enough
-to decide separately.
+Status: **accepted** (2026-08-06; drafted 2026-08-05 from the
+nodes-and-edges design round. Lands as ONE epoch with CIP-111 +
+CIP-113.)
 
 ## 1. The problem
 
@@ -95,3 +94,14 @@ SERVICE web {
 ## Effort
 
 M as its own sweep; marginal if folded into the nodes-and-edges epoch.
+
+## 5. Decision (adopted 2026-08-06, Mathijs)
+
+Adopted with all §4 resolutions as recorded: single-level braces only;
+the parser never rejects on whitespace grounds (one-line blocks parse;
+fmt canonicalizes to multi-line always); missing `}` is a parse error
+naming the unclosed block's opening line, with fmt's tolerant mode
+allowed to auto-insert the unambiguous close; lands inside the epoch.
+
+Changelog:
+- 2026-08-06 — adopted as part of the epoch (with CIP-111/113).

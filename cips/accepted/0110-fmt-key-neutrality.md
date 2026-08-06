@@ -1,7 +1,7 @@
-# fmt-key-neutrality — formatting must not invalidate build inputs (CIP-light)
+# CIP-110 — fmt-key-neutrality: formatting must not invalidate build inputs
 
-Status: **draft** (2026-08-05), with current-behavior evidence added
-2026-08-06.
+Status: **accepted** (2026-08-06). Drafted 2026-08-05 as a CIP-light;
+expanded with the fmtkey-evidence characterization 2026-08-06.
 
 ## Problem
 
@@ -114,3 +114,32 @@ not cause an invented input change.
 M. Centralize key serialization at the resolved AST boundary, version/fingerprint
 the old raw-text identities honestly, and add warm/cold formatter-equivalence
 coverage.
+
+## Decision (adopted 2026-08-06, Mathijs)
+
+Adopted as proposed, both faces:
+
+1. **Canonical-AST keying**: every semantic key derives from the
+   parser's canonical form, never raw declared text. D59 meaning is
+   preserved (names, values, order, imports, commands, resolved
+   arguments still key); only fmt-rewritable syntax (indentation,
+   inter-token whitespace, canonical layout) becomes key-neutral. The
+   formatter-equivalence regression fixture (lock → fmt a copy →
+   identical FETCH identities, snapshot lookups, item output) is the
+   acceptance test.
+2. **NAR-invariant filesystem fingerprints**, per the evidence table's
+   rightmost column at every listed site: object identity is type +
+   content + executable bit + symlink target, nothing else.
+   `trace::file_fingerprint` survives only as an unkeyed validation
+   hint (or is removed). The under-NAR gap (source-tree hash missing
+   executable-bit changes) is fixed in the same move.
+
+Sequencing: this CIP is the prerequisite of the language epoch
+(CIP-111/112/113); its lock churn lands inside the epoch's single
+corpus sweep rather than as a separate wave. The three original green
+exhibits stay recorded as symptoms; the evidence-retention protocol in
+this document governs any future exhibit.
+
+Changelog:
+- 2026-08-06 — adopted; implementation staged as track/fmtkey-impl,
+  corpus resweep deferred to the epoch sweep.

@@ -131,65 +131,43 @@ Rare enough to leave out of v1 of the feature; if it bites, the
 answer is enumerating pairs as single values rather than a coupling
 construct across args.
 
-### Args × tagging: the declared `TAG` line (v4 pass)
+### Args × tagging
 
-The v3 sketch (CLI interpolation, `--tag 'app:${VERSION}'`) kept
-tagging freehand — the Docker shape, and the janky part. The v4 cut
-inverts it: **the file declares its own identity.**
-
-Docker is the outlier here, not the norm. Everywhere else the
-artifact's name lives in source: Cargo.toml's name+version, Maven
-coordinates, package.json, nix flake output names — and Docker's own
-ecosystem reinvented it the moment builds got matrices:
-`docker buildx bake` declares `tags = ["app:${VERSION}"]` in
-source-side HCL. The freehand `-t` survives only where there is no
-file to declare it in.
-
-Proposal:
-
-- **ONE `TAG <ref>` line per Cixfile** (Mathijs, 2026-08-06: uniform —
-  the file has one identity, the tag-per-Cixfile semantics we already
-  carried). It interpolates LET/ARG: `TAG app:${VERSION}`. No alias
-  TAG lines — aliases (`app:latest`) are index-level moves via
-  `cix tag`, after the build, where retagging already lives. Today's
-  tag surface is CLI-only (`BuildOptions.tag` → the registry's
-  `tag_artifact`); TAG feeds that same seam from source.
-- **`cix build` applies the declared tag by default**; `--all-args`
-  yields tag-per-cell automatically because the one template resolves
-  per cell — the CI matrix story becomes declaration, not flag
-  choreography. `--tag` stays as an explicit override move (the
-  `--override-input` shape: visible, never ambient).
-- **Collision guard**: under `--all-args`, a TAG template that does
-  not mention any ARG resolves identically for every cell — that is
-  an error (declare the interpolation or build one cell), never a
-  silent last-writer-wins.
-- **Identity is not content**: TAG lines should not participate in
-  build keying/sourceHash — retagging must not rebuild. Needs an
-  explicit carve-out in the fingerprint, and is consistent with the
-  manifest recording selection (the artifact knows which cell it is;
-  the tag names it outward).
+DEFERRED OUT at adoption (Mathijs, 2026-08-06): the worked TAG-line
+design moved intact to `cips/deferred/build-args-tag.md` for a later
+round. CIP-113 ships without any TAG surface; tagging stays CLI-side
+(`--tag` / `cix tag`). Under `--all-args`, per-cell tags are given on
+the CLI or applied afterwards via `cix tag` with `cix inspect`
+resolving the cell.
 
 ## 4. Open questions
 
-- **Syntax** for the enumeration and the default: list-literal matrix
-  per the nodes-and-edges resolution (`ARG VERSION from [1.24.2,
-  1.25.1]` — one enumeration form shared with future LET-lists);
-  still open: first value as default vs explicit marker, and whether
-  a no-default ARG (operator must pick) is wanted, mirroring
-  `ENV … required` (CIP-100 family).
-- **TAG placement and namespace**: prelude (file identity) vs APP
-  block (artifact identity) — prelude proposed; and how the TAG ref
-  interacts with index namespaces/qualified refs.
-- **Twins vs args**: when both could serve, what's the guidance line?
-  (Proposal: args for same-shape variants of one artifact; twins for
-  genuinely different build shapes.)
-- **Acceptance test**: does the gitea version-stamp case translate to
-  a declared version list cleanly — and does the CI-matrix story
-  (pin/build every declared cell + declared TAG template) become the
-  one-liner it promises?
-
 Resolved in review (Mathijs, 2026-08-05): the lock is partial per
 cell with first-build-pins semantics — eager full-matrix locking is
-rejected as too heavy; coupled args stay out of v1. (2026-08-06):
-the epoch trio lands together; tagging goes through a declared TAG
-line — this v4 works that out for the next review round.
+rejected as too heavy; coupled args stay out of v1. (2026-08-06): the
+epoch trio lands together; TAG deferred out entirely (see §3).
+
+## 5. Decision (adopted 2026-08-06, Mathijs)
+
+Route A adopted: closed-matrix ARG, partial per-cell lock with
+first-build-pins, manifest-recorded selection, `--all-args` for CI,
+Route C's generation idiom documented as the open-ended fallback.
+Calls closed at adoption:
+
+- **Syntax follows CIP-111's juxtaposition decision**:
+  `ARG VERSION from 1.24.2 1.25.1` — a bare word-list matrix, no
+  bracket literal, the same enumeration shape future LET-lists use.
+- **Default: the first declared value** (gap filled under standing
+  delegation: simplest rule, matches the docker mental model, keeps
+  plain `cix build` meaningful for every matrix file). A no-default
+  `required` marker is deferred until a real case demands it.
+- **TAG deferred out** (Mathijs: "doen we tzt") — design parked
+  intact in `cips/deferred/build-args-tag.md`; no TAG surface in
+  this CIP.
+- **Twins vs args guidance** as proposed: args for same-shape
+  variants of one artifact; twins for genuinely different build
+  shapes. Acceptance test stays the gitea version-stamp case plus a
+  CI `--all-args` pin of a declared matrix.
+
+Changelog:
+- 2026-08-06 — adopted as part of the epoch (with CIP-111/112).

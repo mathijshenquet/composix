@@ -1,7 +1,8 @@
-# nodes-and-edges — argv-first steps, explicit dataflow, the shell in a heredoc
+# CIP-111 — nodes-and-edges: argv-first steps, explicit dataflow, the shell in a heredoc
 
-Status: **draft** (2026-08-05; the bundled language round from Mathijs's
-shell/ENV design sessions. Supersedes draft/shell-directive.md.)
+Status: **accepted** (2026-08-06; drafted 2026-08-05 from Mathijs's
+shell/ENV design sessions. Supersedes draft/shell-directive.md. Lands
+as ONE epoch with CIP-112 + CIP-113, prerequisite CIP-110.)
 
 ## 1. The problem, and the principle
 
@@ -245,3 +246,34 @@ lock pins); migrate.md teaches the boundary rule in one sentence.
 - **Effort/staging** — RESOLVED: nodes-and-edges + phase-blocks +
   build-args land together as ONE language epoch (one corpus sweep,
   one migrate.md rewrite); the LET/ARG/ENV triad is part of it.
+
+## 5. Decision (adopted 2026-08-06, Mathijs)
+
+Adopted with all §4 resolutions, plus two calls closed at adoption:
+
+- **Heredoc interpreter is mandatory** — `RUN bash <<EOF`; a bare
+  `RUN <<EOF` is a parse error naming the missing interpreter.
+- **List syntax: JUXTAPOSITION, superseding §4's bracket-literal
+  sketch** (decided after the prior-work round in chat: the
+  make/systemd/fish family — bare whitespace-separated words after
+  `=` — is exactly Cixfile's line-oriented directive lineage; Tcl,
+  cabal, ebuilds, pkg-config, and HTML's class attribute all agree,
+  and nix's bracket gotcha (application vs elements) has no analogue
+  here because value position has no application). Semantics are
+  fish's: **every value is a list; a scalar is a singleton**; quoting
+  binds spaces; `${NAME}` interpolation of a list expands into that
+  many argv elements. ARG's closed matrix is the same bare form —
+  `ARG VERSION from 1.24.2 1.25.1` — one enumeration shape, no
+  bracket literal anywhere. LET-lists remain out of v1 as features
+  (multi-element LET values); the grammar rule ships now so nothing
+  needs re-parsing later.
+- The `WITH UNSAFE IGNORE` clause (§3.4's amended direction) ships
+  with the epoch, including its use-site diagnostic naming the waived
+  evidence, and the detection/surfacing diagnostic (Mathijs
+  2026-08-06: "doe maar erbij").
+
+Changelog:
+- 2026-08-06 — adopted as part of the epoch (CIP-110 prerequisite,
+  CIP-112/113 siblings); implementation staged: fmtkey-impl →
+  epoch-groundwork (parser/fmt/executor behind tests) → single epoch
+  corpus sweep + migrate.md rewrite.
