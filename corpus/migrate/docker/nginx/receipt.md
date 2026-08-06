@@ -63,3 +63,14 @@ The probe was not weakened; this is a faithful-twin runtime finding.
 ## 2026-08-05 STOPSIGNAL regeneration
 
 Current `target/debug/cix` built `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`; `./check.sh cix`, faithful `--cold`, and dissolved `--cold` each exited 0. The pid lives at `/run/nginx/nginx.pid` under `RUNDIR`, and the service carries `STOPSIGNAL SIGQUIT`.
+
+## 2026-08-06 widened-parser cold-replay verification
+
+After the pinned context was restored, the faithful warm build and
+`devenv shell -- ./target/debug/cix build --cold corpus/migrate/docker/nginx#nginx`
+each exited 0 and produced `/nix/store/aqf3p4z5gyjbx5pqfsvjdclz5iyiayz1-cix-item-nginx`.
+The cold verification dirtied only `Cixfile.lock`'s `sourceHash`, changing
+`2289625103e7245081b02115293cc8910f4da9520cdb8104152ec153e26dfba0` to
+`31aa13b1809fbe04ae8957eac7ca84368a76f92cf35dad307e5afb73302fdf93`; the
+exact line was restored byte-for-byte and no regeneration was performed. This
+is retained as a keying-neutrality exhibit in `GAPS.md`.

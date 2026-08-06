@@ -46,3 +46,15 @@ revision `2ac6f46c6ba6f3ece54183a518a2bfd865390368`. The faithful build produced
 build produced `/nix/store/f8xsydbpl1bmn3vr348fqyfxcp6lzm4h-cix-item-redis`.
 The unchanged PING probe initially observed connection refusal while the service
 started, then passed within its existing bound after the documented D36 fallback.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+`devenv shell -- ./target/debug/cix build --cold corpus/migrate/docker/redis#redis`
+exited 1 before replay because this worktree had no local FETCH snapshot. The
+required warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/redis#redis`,
+also exited 1: the upstream Redis tarball's observed SHA-256 was
+`sha256-LijBYlrDlf7uKh6a7XacdBt0oLJbRXtp8BkqgJ126Nc=` rather than the declared
+`sha256-PsELmdlX+Gux9kXvgjb2FuGNuTKFgZ1xxZPEyiGhroo=`. No cold replay or
+regeneration claim is made; this is recorded as an upstream-drift wall in
+`GAPS.md`.

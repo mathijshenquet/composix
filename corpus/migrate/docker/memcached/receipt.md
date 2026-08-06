@@ -34,3 +34,13 @@ dissolved build produced
 unchanged protocol probe returned `VERSION 1.6.45` and `PASS cix`. The faithful
 builder reported that the upstream test harness was skipped because its isolated
 environment has no root account; compilation and the version/runtime checks passed.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/memcached#memcached`,
+exited 1 at the source tarball FETCH. The declared digest
+`sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=` did not match the
+observed `sha256-Oar8dErGyg32RgIbe4NtXHyJ0E062bX+IlMpbjUue94=`. No valid local
+snapshot was available for cold replay, so no cold or regeneration claim is
+made; this upstream-drift wall is recorded in `GAPS.md`.

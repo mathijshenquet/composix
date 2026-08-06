@@ -66,6 +66,7 @@
       <li>Docker&#39;s fixed <code>memcache</code> uid/gid 11211 is replaced by Cix/systemd&#39;s managed unprivileged identity; the protocol probe does not depend on the numeric identity. → language (fixed service identity)</li>
       <li>The upstream <code>make test</code> harness expects a root account that the isolated Cix builder does not provide, so the faithful build skips that harness while keeping compilation, <code>memcached -V</code>, and the runtime protocol probe fatal. → evidence</li>
       <li>The dissolved twin incorrectly retains upstream version, URL, and checksum environment variables even though nixpkgs selects the packaged version and those values are behavior-free Docker build metadata. → prompt</li>
+      <li>The 2026-08-06 widened-parser sweep could not materialize the faithful FETCH snapshot: <code>https://memcached.org/files/memcached-1.6.45.tar.gz</code> returned declared <code>sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=</code> versus observed <code>sha256-Oar8dErGyg32RgIbe4NtXHyJ0E062bX+IlMpbjUue94=</code>. → upstream drift wall</li>
     </ul>
   </aside>
   <details class="context">
@@ -7751,6 +7752,16 @@ dissolved build produced
 unchanged protocol probe returned `VERSION 1.6.45` and `PASS cix`. The faithful
 builder reported that the upstream test harness was skipped because its isolated
 environment has no root account; compilation and the version/runtime checks passed.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/memcached#memcached`,
+exited 1 at the source tarball FETCH. The declared digest
+`sha256-F+YQ+MXoOLqMZsr63YPuVpRDyWgvUxKDBog1frUyOhM=` did not match the
+observed `sha256-Oar8dErGyg32RgIbe4NtXHyJ0E062bX+IlMpbjUue94=`. No valid local
+snapshot was available for cold replay, so no cold or regeneration claim is
+made; this upstream-drift wall is recorded in `GAPS.md`.
 </code></pre>
       </details>
     </section>

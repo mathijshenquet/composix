@@ -16,3 +16,14 @@ still passed.
 
 The dissolved nixpkgs twin built warm and cold with exit 0, producing
 `/nix/store/xggwfv26l7nsraymni7kqcwlgizwmrbm-cix-item-broker`.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm prerequisite,
+`devenv shell -- ./target/debug/cix build corpus/migrate/docker/mosquitto#broker`,
+exited 1 while refetching the GPG key: the declared digest was
+`sha256-vSgE3uH3CP8JOW6MW1bZ7CAH6sEglZQHhKQDPqweLNs=` and the observed digest
+was `sha256-t6R8FXIdR0EmuvPy0OTBWvZzkNnmF/y4rNCsyVUr67c=`. Therefore the
+worktree had no valid local snapshot for the corresponding cold command, and
+no cold replay or lock regeneration claim is made; the drift is recorded in
+`GAPS.md`.

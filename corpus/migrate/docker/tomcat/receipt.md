@@ -40,3 +40,15 @@ ordinary and cold twin commands:
 - The same two builds with `--cold` each exited 0 and returned the same items.
 
 Docker mode was not rerun.
+
+## 2026-08-06 widened-parser cold-replay sweep
+
+The faithful warm and cold commands each exited 0, with cold returning
+`/nix/store/5bqhzp9yc7plf621fr33560zs6hdz41v-cix-item-tomcat`. Verification
+dirtied `Cixfile.lock`: `sourceHash` changed from
+`4e8b397afdd22a4bc32bf5e1beffd2be13842037a8bbfdbac64df7f809a1ff14` to
+`a98267fb02f1acf91908f1e3e8f8ae081bae22b9f65e37b7f186dd97a2c5a60a`, and
+`storePath` changed from `/nix/store/s58jpph2qgzj18xwwam5is3jkzhqa9mf-cix-item-tomcat`
+to `/nix/store/5bqhzp9yc7plf621fr33560zs6hdz41v-cix-item-tomcat`. The exact
+two-line diff was restored byte-for-byte; no regeneration claim is made. This
+is retained as a keying-neutrality exhibit in `GAPS.md`.
