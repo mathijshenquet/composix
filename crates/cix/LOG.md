@@ -2140,3 +2140,11 @@
   delimiter tokens uniformly; a focused lossless/idempotent regression passed
   1/1, the complete formatter suite passed 5/5, and the extended real build then
   passed 1/1 with two distinct `ingredient-*` lock pins. → implementation seam
+
+### FRICTION (continued)
+
+- 2026-08-06T11:22:19Z — The new remote branch was created successfully at
+  `4d2678ae`, verified directly with `git ls-remote`. Git could not write local
+  upstream configuration because the shared repository already contains a
+  read-only `.git/config.lock` dated 2026-08-05; the push was not retried and
+  that unrelated lock was left untouched. → environment
