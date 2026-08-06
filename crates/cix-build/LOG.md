@@ -738,3 +738,171 @@
   renderer made the first run fail at the listener), tour regeneration/drift,
   and progressive VM selector (0 scenarios, exit 0). No FetchPin source or
   lock deletion was made; receipts are `/var/tmp/cip107-pinleg-receipts/`.
+
+## 2026-08-06 — track/cip104-strata
+
+- 2026-08-06T02:28:10Z — Started CIP-104 from clean current main
+  `30a3af49` with the devenv environment active. Acceptance is the executable
+  dependency graph: neutral manifest contract, codegen in the language crate,
+  no compose dependency from parsing/formatting, no index dependency from the
+  runner or build engine, enabled manifest/codegen cross-checks, and
+  byte-identical generated manifests plus CLI behavior. The implementation is
+  staged as neutral contract, codegen ownership, CLI/watch coordination, then
+  resolver injection; each compile-valid stage gets an all examples+corpus
+  identity receipt and a narrow commit.
+
+### FRICTION
+
+- 2026-08-06T02:28:10Z — The first baseline-render attempt is explicitly not
+  a receipt: it synchronously exited 1 at Adminer's `IMPORT`, because the
+  existing literal generator deliberately refuses manifests whose sparse
+  mounts require Nix evaluation. This is the contract duplication CIP-104 is
+  meant to remove. The baseline harness must capture both the literal contract
+  for every runnable fixture and the import-aware Nix projection, then compare
+  both byte streams at every stage; an empty/partial output is never accepted.
+
+- 2026-08-06T02:29:00Z — Baseline receipts are established and value-checked.
+  The manifest harness rendered 49 runnable artifacts from every Cixfile under
+  `examples/` and `corpus/`: canonical literal JSON where evaluation-free and
+  the complete import-aware generated Nix projection for every artifact. Its
+  229,007-byte stream has SHA-256
+  `eb18ad191956df90fb55d9df259fcb3139731c743a744cc905e5129baa8f7642`;
+  both header classes were checked to contain exactly 49 values. The 6,836-byte
+  CLI transcript covers top-level/build/fmt/watch/run/debug help, examples fmt
+  check, and a stable invalid build-selector diagnostic; its checked exit
+  vector is `0 0 0 0 0 0 0 1` and SHA-256 is
+  `6eb944b8c04696c73c369284a68aedc6193e2ac9229f062d24fd1ccd6819f0b0`.
+  Baselines and harness live outside the worktree under
+  `/var/tmp/cip104-strata-receipts/` and
+  `/var/tmp/cip104-manifest-receipt/`.
+
+- 2026-08-06T02:33:14Z — Stage 1 extracted the complete alpha schema,
+  validation, and canonical `Spec` serializer to the neutral `cix-manifest`
+  crate. Runner keeps a compatibility re-export while compose now consumes the
+  neutral crate directly. Synchronous receipts: workspace all-target check
+  exited 0; focused manifest/runner/compose tests exited 0 (9 + 72 + 48 tests,
+  including integration tests); the stage-1 49-artifact manifest/projection
+  stream compared byte-for-byte equal to baseline (`cmp` 0, same SHA-256
+  `eb18ad…7642`); the checked CLI exit vector remained `0 0 0 0 0 0 0 1`
+  and its transcript compared byte-for-byte equal (`cmp` 0, same SHA-256
+  `6eb944…f0b0`). Next: commit this compile-valid stratum-1a move, then move
+  codegen to the language crate and replace its duplicated JSON object builder
+  with the neutral typed contract.
+
+- 2026-08-06T02:46:07Z — Stage 2 moved the complete 1,381-line language
+  codegen owner from `cix-build` to `cix-cixfile`. The build engine now asks a
+  narrow `EvaluationCodegen` interface for its five Nix evaluation expressions;
+  no cycle or shared owner was introduced. Literal JSON and Nix emission both
+  project from one generic neutral `cix_manifest::Spec<T>` assembled by the
+  language adapter; canonical minimal JSON serialization now belongs to the
+  manifest crate. The five formerly `cfg(all(test, any()))` codegen tests are
+  active in the language crate; two stale expectations were reconciled with
+  already-adopted LINK removal/current ENV semantics, without changing product
+  output. Focused cixfile+manifest tests synchronously exited 0 (13 unit tests,
+  75 integration tests, 9 manifest tests); focused warning-denied clippy exited
+  0. Final stage receipts from the finished source: 49/49 JSON and Nix
+  projections compare byte-identically to baseline (`cmp` 0,
+  `eb18ad…7642`), and the eight-command CLI transcript/exit vector compares
+  byte-identically (`cmp` 0, `6eb944…f0b0`). Next: checkpoint, then split the
+  remaining directive owner by inputs/builder/assembly/contract.
+
+- 2026-08-06T02:50:32Z — Parser substage completed as a byte-only move. The
+  former 1,417-line directive owner is split into `inputs`, `builder`,
+  `assembly`, and `contract` implementation modules around the unchanged
+  single `Parser` state machine and unchanged single `validate` layer; shared
+  parser helpers remain in the thin directive module. The 992-line acceptance
+  test owner is split along the same four strata, preserving all 34 tests.
+  Synchronous parser/fmt/diagnostic tests exited 0 (39 tests), and the final
+  split parser test binary exited 0 (34/34). Finished-source receipts again
+  compare 49/49 generated JSON+Nix projections byte-for-byte to baseline
+  (`cmp` 0, `eb18ad…7642`) and the CLI transcript/checked exit vector
+  byte-for-byte to baseline (`cmp` 0, `6eb944…f0b0`). Next: checkpoint, then
+  lift build/watch CLI coordination to the application boundary so the
+  language crate can drop compose.
+
+- 2026-08-06T02:53:27Z — Stage 3 moved the build/fmt/watch clap coordinator
+  and compose-aware watcher to `cix`; `cix-cixfile` now has no normal
+  `cix-compose` edge (confirmed by `cargo tree -p cix-cixfile -e normal`) and
+  its library all-target check exits 0. The first combined cix+cixfile test
+  attempt is not a receipt: after its ordinary CLI/watch and cixfile tests
+  passed, the flake-backed tour helper excluded the two untracked moved module
+  files from the Git source and failed to compile them. The isolated
+  reproduction synchronously exited 101 with exactly that missing-untracked-
+  module diagnosis; commit the compile-valid move before rerunning the
+  flake-backed test. Product receipts from the finished source are green:
+  49/49 generated JSON+Nix projections compare byte-for-byte to baseline
+  (`cmp` 0, `eb18ad…7642`), and the checked eight-command CLI transcript
+  compares byte-for-byte (`cmp` 0, `6eb944…f0b0`). Next: checkpoint so Nix's
+  Git source sees the modules, rerun focused tests, then inject resolvers.
+
+- 2026-08-06T03:05:29Z — The committed stage-3 source passed its previously
+  blocked focused gate synchronously: `cargo test -p cix -p cix-cixfile`
+  exited 0 after both flake-backed tour tests completed (95.43s), along with
+  all ordinary application and language tests. Resolver injection then moved
+  concrete artifact lookup/tagging and Nix/index installable resolution into
+  the application `registry` adapter. `cix-build` and `cix-run` have no normal
+  index edge; `cix-cixfile` has neither normal index nor compose edges, and its
+  now-inert state-directory build option was removed. The checked nine-package
+  direct-edge graph is retained at
+  `/var/tmp/cip104-strata-receipts/stage4-direct-edges.tsv`; Cargo accepted it
+  as acyclic. Focused build/run/language tests exited 0 (43 build tests, 75
+  Cixfile tests, 71 runner tests), the application binary's 9 tests exited 0,
+  and focused warning-denied clippy exited 0.
+
+### FRICTION
+
+- 2026-08-06T03:05:29Z — The first combined resolver-stage package test is
+  explicitly not a receipt: it exited 101 because the existing artifact-ref
+  integration test still called the compatibility build entry point, whose
+  deliberately unavailable default registry correctly refused the artifact.
+  The test now supplies its local index-backed `TestRegistry`; its focused
+  rerun and the complete focused suite both synchronously exited 0. A later
+  long combined test capture completed with exit 0 but emitted two unused
+  fixture warnings after the state option removal; those dead fixtures were
+  removed before the warning-denied receipt above.
+
+- 2026-08-06T03:05:29Z — Final stage-4 behavioral receipts are value-checked
+  and byte-identical: 49 canonical literal manifests and all 49 generated Nix
+  projections produced 229,007 bytes with SHA-256
+  `eb18ad191956df90fb55d9df259fcb3139731c743a744cc905e5129baa8f7642`
+  and `cmp` 0 against stage 0. The 6,836-byte CLI capture retained the exact
+  checked exit vector `0 0 0 0 0 0 0 1`, SHA-256
+  `6eb944b8c04696c73c369284a68aedc6193e2ac9229f062d24fd1ccd6819f0b0`,
+  and `cmp` 0. All captures are under
+  `/var/tmp/cip104-strata-receipts/`. Next: commit the compile-valid resolver
+  stage, then run the full agent tier and focused progressive VM selector from
+  committed source.
+
+### FRICTION
+
+- 2026-08-06T03:25:18Z — The first progressive VM invocation is explicitly
+  not a receipt: it synchronously exited 2 before scenario selection because
+  the new tracked `crates/cix-manifest/src/lib.rs` lacked a scenario-contract
+  classification. D67's manifest/runner stratum makes the conservative mapping
+  unambiguous, so `crates/cix-manifest/src/**` is now part of the existing
+  `runtime-core` surface. The validator/dry run then exited 0 and selected all
+  14 scenarios. This integration fix is committed separately as `75cea3c5`.
+
+- 2026-08-06T03:25:18Z — CIP-104 is complete at `75cea3c5`. Final synchronous
+  agent-tier receipts: `cargo fmt --all --check` exit 0; `cargo run -- fmt
+  --check examples` exit 0; warning-denied all-target workspace clippy exit 0;
+  `cargo test --workspace` exit 0, including both long tour renderers; explicit
+  tour regeneration exit 0, `git diff --exit-code -- docs/tour` exit 0, and the
+  exact committed-document drift test exit 0. The structural scan reported 17
+  shared-state/static sites; every site was reviewed and has its required
+  local rationale, including the moved application interrupt handler. All 30
+  migration GAPS files plus Docker/corpus ledgers had zero CIP-104 hits, and
+  the generated/ledger trees have zero diff. The real progressive selector
+  selected all 14 declared scenarios and the foreground build exited 0 after
+  672.141s.
+
+- 2026-08-06T03:25:18Z — Finished-head behavioral receipts were repeated after
+  the selector-contract commit: 49/49 canonical manifests and Nix projections
+  remain byte-identical (`cmp` 0, 229,007 bytes, SHA-256
+  `eb18ad191956df90fb55d9df259fcb3139731c743a744cc905e5129baa8f7642`),
+  and the exact eight-command CLI vector remains `0 0 0 0 0 0 0 1` with a
+  byte-identical 6,836-byte transcript (`cmp` 0, SHA-256
+  `6eb944b8c04696c73c369284a68aedc6193e2ac9229f062d24fd1ccd6819f0b0`).
+  Captures are retained under `/var/tmp/cip104-strata-receipts/`. Product and
+  selector changes are fully committed; this required uncommitted LOG update
+  is the only worktree change. Do not merge.
