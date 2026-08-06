@@ -2,6 +2,7 @@
 //!
 //! - `cixfile_cli`: coordinates build/fmt/watch application commands.
 //! - `registry`: adapts application-owned index and Nix resolution to lower crates.
+//! - `tests`: owns application-level command regression tests.
 //! - `watch`: coordinates rebuilds with compose activation.
 
 mod cixfile_cli;

@@ -1,4 +1,5 @@
 //! Neutral alpha manifest schema, validation, and canonical serialization.
+//! Intentional module-map omission: single-module crate (the D67 stratum-1a manifest contract is owned whole).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;

@@ -18,7 +18,6 @@
 //! - `probe`: owns readiness and liveness probe execution.
 //! - `runtime`: validates run options and conducts service selection.
 //! - `shell`: owns interactive shell command projection.
-//! - `cix-manifest` (re-exported as `spec`): owns manifest parsing and validation.
 //! - `target`: selects manifested services through injected installable resolution.
 //! - `unit`: conducts ordered systemd property assembly.
 
