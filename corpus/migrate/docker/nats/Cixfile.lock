@@ -8,11 +8,9 @@
     }
   },
   "fetches": {
-    "builder:final:3-11bbc8e4e546": {
-      "narHash": "sha256-0a7KA8SV3F8VxIqNAIJNipngAvAW0YUdTiLFSoc3B7w="
-    },
     "builder:runtime:3-11bbc8e4e546": {
-      "narHash": "sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838="
+      "narHash": "sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838=",
+      "snapshotNarHash": "sha256-kqUeAFIPk6wGUFYrYQQX/bBX6ryPdaCOUuLCbWjc838="
     }
   },
   "memo": {
@@ -25,6 +23,14 @@
       }
     },
     "82a9a2199f13376f87200da17f4a5aa10d10d3962966029e249b40d1030611cf": {
+      "paths": {
+        "output/bin/nats-server": {
+          "narHash": "sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=",
+          "storePath": "/nix/store/9l3hyraxfnf19x2pa7dyfi8rz5q8xaw8-cix-build-consumed"
+        }
+      }
+    },
+    "9d104a31fdd854e75e6a2d56bbf30996158821872d90755818d4978848fcd763": {
       "paths": {
         "output/bin/nats-server": {
           "narHash": "sha256-Hm/hxAEsdpWOabUDTB5mdVTDkonAt6RWuFMIocMLqyc=",
@@ -109,7 +115,7 @@
       }
     },
     "builder:runtime:3": {
-      "key": "87c9a4d471e7d9f5674345cd0fd61976ecc178a35fa242e68eef027ecaf04aef",
+      "key": "c4d2b037d5fce6cd3ce06f0bb058637840a6faea39e7340aa0efcd2352ac8dc7",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -134,7 +140,7 @@
       }
     },
     "builder:runtime:4": {
-      "key": "2c169534a0c97ae6a8dbb5a381762846d05ea2f050b322bc9d4451f8757b3b26",
+      "key": "db30ebb576d0b7db57f8936dd9a0a419d167935f73df8c63290bd8bff2a5c96e",
       "reads": {
         ".": {
           "kind": "directory-exists"
@@ -144,23 +150,18 @@
           "hash": "3593e33a18fbe07c3f4da715d4ce7b51f2bf7470159c1d1cd4afed945438e648",
           "fingerprint": {
             "dev": 2307,
-            "inode": 12727623,
-            "mtimeNs": 686293023,
+            "inode": 25740629,
+            "mtimeNs": 0,
             "size": 6675238,
             "len": 6675238,
             "mode": 33188
           }
-        },
-        "output": {
-          "kind": "absent"
         }
       },
       "changes": {
-        "output/bin": {
-          "kind": "present"
-        },
-        "output/bin/nats-server": {
-          "kind": "present"
+        "output": {
+          "kind": "subtree",
+          "mode": 16877
         }
       }
     }
@@ -173,10 +174,13 @@
       }
     }
   },
+  "builderDevEnvs": {
+    "runtime": "0c893f7880636a08462d076382173a67170e69179867c354685cdb0c8d583b1d:a83c8a6e6670e2476df97ef6e047e6edc3c154a0c338593d411e611beb699b4a"
+  },
   "outputs": {
     "nats": {
-      "sourceHash": "a7773552e8ddbce1d97e583b653e596e2a1cbb0e6c0d7ee0e213defb6dc26483",
-      "storePath": "/nix/store/a16p3gqwxxldhvmg94wak99z9q6w3xjy-cix-item-nats"
+      "sourceHash": "5f7039c94f1f5e22c30b05932633f4189ca1ad372de62f1ae002cf95bf9cbc7f",
+      "storePath": "/nix/store/rzk74i60ylpqy1x2drf65mjf7q612m9n-cix-item-nats"
     }
   }
 }
