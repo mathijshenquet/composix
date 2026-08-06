@@ -8,7 +8,6 @@ license.workspace = true
 anyhow.workspace = true
 cix-common.workspace = true
 cix-build.workspace = true
-cix-index.workspace = true
 cix-manifest.workspace = true
 libc.workspace = true
 serde.workspace = true
@@ -19,4 +18,5 @@ thiserror.workspace = true
 url.workspace = true
 
 [dev-dependencies]
+cix-index.workspace = true
 cix-run.workspace = true

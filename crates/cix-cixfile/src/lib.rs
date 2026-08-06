@@ -16,8 +16,10 @@ pub mod fmt;
 mod parser;
 
 pub use build::{
-    build, build_family, build_family_with_stats, build_family_with_stats_file, build_with_stats,
-    BuildOptions, BuildStats, BuiltItem, StepStat,
+    build, build_family, build_family_with_registry, build_family_with_stats,
+    build_family_with_stats_and_registry, build_family_with_stats_file,
+    build_family_with_stats_file_and_registry, build_with_registry, build_with_stats,
+    build_with_stats_and_registry, ArtifactRegistry, BuildOptions, BuildStats, BuiltItem, StepStat,
 };
 pub use cix_build::revoke_fetch_consent;
 pub use cix_build::{

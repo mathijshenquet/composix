@@ -5,10 +5,6 @@ use cix_cixfile::{build, fmt, parse, BuildOptions, LockFile};
 
 const COPY_KEYING_FIXTURE: &str = "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFROM . AS src\n\nBUILDER build\nCOPY ${src}/input.txt .\n\nITEM result\nCOPY ${build}/input.txt /input.txt\n";
 
-fn test_state_directory() -> PathBuf {
-    tempfile::tempdir().unwrap().keep()
-}
-
 #[test]
 fn golden_messy_input_has_the_v1_canon() {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fmt");
@@ -95,7 +91,6 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         cold: false,
         allow_secret: false,
         workspace_directory: original_workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let original_lock: LockFile =
@@ -112,7 +107,6 @@ fn formatting_preserves_builder_keys_and_clean_update_lock() {
         cold: false,
         allow_secret: false,
         workspace_directory: formatted_workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
 

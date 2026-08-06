@@ -63,8 +63,9 @@ pub use evaluation::EvaluationCodegen;
 pub use fetch::revoke_fetch_consent;
 pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, validate_declared_expectations, ArtifactPin,
-    ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry, OutputHash,
-    OutputReceipt, ReadDependency, StepChange, StepMemo, VolatilePath, DEFAULT_NIXPKGS_URL,
+    ArtifactResolver, ConsumedPath, DevEnvironment, FetchPin, InputLock, LockFile, MemoEntry,
+    OutputHash, OutputReceipt, ReadDependency, StepChange, StepMemo, VolatilePath,
+    DEFAULT_NIXPKGS_URL,
 };
 pub use memo::ExecutedStep;
 pub use scratch::{

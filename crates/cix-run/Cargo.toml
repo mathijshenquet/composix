@@ -7,7 +7,6 @@ license.workspace = true
 [dependencies]
 cix-common.workspace = true
 cix-manifest.workspace = true
-cix-index.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde.workspace = true

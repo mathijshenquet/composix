@@ -14,7 +14,7 @@ use anyhow::{bail, Context, Result};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use notify::{Config, Event, EventKind, PollWatcher, RecommendedWatcher, RecursiveMode, Watcher};
 
-use cix_cixfile::{build, BuildOptions, BuiltItem};
+use cix_cixfile::{build_with_registry, BuildOptions, BuiltItem};
 
 // The handler is installed once because ctrlc owns a process-wide handler slot.
 static INTERRUPT_HANDLER: Once = Once::new();
@@ -201,15 +201,18 @@ fn run_bare_round(
     workspace_directory: &Path,
     state_directory: &Path,
 ) -> Result<()> {
-    for item in build(&BuildOptions {
-        directory: directory.to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: workspace_directory.to_owned(),
-        state_directory: state_directory.to_owned(),
-    })? {
+    let registry = crate::registry::IndexRegistry::open(state_directory.to_owned())?;
+    for item in build_with_registry(
+        &BuildOptions {
+            directory: directory.to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: workspace_directory.to_owned(),
+        },
+        &registry,
+    )? {
         println!("{}", item.store_path);
     }
     Ok(())
@@ -230,15 +233,18 @@ fn run_compose_round(
 
     for cixfile in cixfiles {
         let directory = cixfile.parent().expect("Cixfile has a parent");
-        let outputs = build(&BuildOptions {
-            directory: directory.to_owned(),
-            update_lock: None,
-            tag: None,
-            cold: false,
-            allow_secret: false,
-            workspace_directory: context.workspace_directory.clone(),
-            state_directory: context.state_directory.clone(),
-        })?;
+        let registry = crate::registry::IndexRegistry::open(context.state_directory.clone())?;
+        let outputs = build_with_registry(
+            &BuildOptions {
+                directory: directory.to_owned(),
+                update_lock: None,
+                tag: None,
+                cold: false,
+                allow_secret: false,
+                workspace_directory: context.workspace_directory.clone(),
+            },
+            &registry,
+        )?;
         for (service, item) in map_outputs(&compose, &context.root, directory, outputs)? {
             let declaration = compose_item(&compose, &service).expect("mapped item child");
             cix_index::tag(

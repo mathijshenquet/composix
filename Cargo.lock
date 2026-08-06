@@ -177,7 +177,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cix-common",
- "cix-index",
  "libc",
  "serde",
  "serde_json",
@@ -267,7 +266,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cix-common",
- "cix-index",
  "cix-manifest",
  "cix-test-support",
  "clap",

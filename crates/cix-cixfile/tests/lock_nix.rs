@@ -3,17 +3,35 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use anyhow::Context;
+use cix_build::ArtifactResolver;
 use cix_cixfile::generate_nix_with_snapshots;
 use cix_cixfile::{
-    build, build_family, build_family_with_stats_file, generate_nix, parse, ArtifactPin,
-    BuildOptions, LockFile,
+    build, build_family, build_family_with_stats_file, build_with_registry, generate_nix, parse,
+    ArtifactPin, ArtifactRegistry, BuildOptions, LockFile,
 };
 
-fn test_workspace_directory() -> PathBuf {
-    tempfile::tempdir().unwrap().keep()
+struct TestRegistry(cix_index::Store);
+
+impl ArtifactResolver for TestRegistry {
+    fn resolve_artifact(&self, reference: &str) -> anyhow::Result<ArtifactPin> {
+        let output = cix_index::resolve_with(&self.0, reference).with_context(|| {
+            format!("resolving cix-item FROM ref {reference:?}; pull it or tag it first")
+        })?;
+        Ok(ArtifactPin {
+            store_path: output.store_path,
+            nar_hash: output.nar_hash,
+        })
+    }
 }
 
-fn test_state_directory() -> PathBuf {
+impl ArtifactRegistry for TestRegistry {
+    fn tag_artifact(&self, store_path: &str, reference: &str) -> anyhow::Result<()> {
+        cix_index::tag(&self.0, store_path, reference, None)
+    }
+}
+
+fn test_workspace_directory() -> PathBuf {
     tempfile::tempdir().unwrap().keep()
 }
 
@@ -71,7 +89,6 @@ fn named_cixfiles_build_independently_with_sibling_locks() {
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     };
 
     let default = build(&options).unwrap();
@@ -225,7 +242,6 @@ fn fhs_build_options(directory: &Path) -> BuildOptions {
         cold: true,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     }
 }
 
@@ -664,7 +680,6 @@ fn overlay_edits_change_builder_keys_without_repinning_the_base() {
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     };
     build(&options).unwrap();
     let first: LockFile =
@@ -810,7 +825,6 @@ START /bin/output
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let output = &output[0].store_path;
@@ -832,7 +846,6 @@ START /bin/output
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(repeated[0].store_path, *output);
@@ -876,7 +889,6 @@ START /bin/true
             cold: false,
             allow_secret: false,
             workspace_directory: test_workspace_directory(),
-            state_directory: test_state_directory(),
         },
         &[],
         None,
@@ -938,7 +950,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(output.len(), 2);
@@ -952,7 +963,6 @@ START /bin/true
 fn warm_fetch_memo_rejects_expect_that_diverges_from_its_recorded_pin() {
     let directory = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();
-    let state = tempfile::tempdir().unwrap();
     let first_tree = tempfile::tempdir().unwrap();
     fs::write(first_tree.path().join("release.json"), "release\n").unwrap();
     let second_tree = tempfile::tempdir().unwrap();
@@ -995,7 +1005,6 @@ COPY ${{release}}/traefik.tar.gz /traefik.tar.gz
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: state.path().to_owned(),
     };
 
     build(&options).unwrap();
@@ -1064,7 +1073,6 @@ fn fetch_expect_mismatch_names_declared_and_actual_hashes() {
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -1104,7 +1112,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -1122,7 +1129,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let head = fs::read_to_string(PathBuf::from(&output[0].store_path).join("head")).unwrap();
@@ -1168,7 +1174,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap_err();
     let rendered = format!("{error:#}");
@@ -1188,7 +1193,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1230,7 +1234,6 @@ COPY ${{build}}/one /one
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1250,7 +1253,6 @@ COPY ${{build}}/one /one
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1277,7 +1279,6 @@ COPY ${{build}}/one /one
 fn edited_plan_reconciles_repeated_copy_in_warm_workspace() {
     let directory = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();
-    let state = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("input"), "payload\n").unwrap();
     fs::write(
         directory.path().join("Cixfile.lock"),
@@ -1308,7 +1309,6 @@ COPY ${{build}}/first /first
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: state.path().to_owned(),
     };
     build(&options).unwrap();
 
@@ -1361,7 +1361,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let lock: LockFile =
@@ -1380,7 +1379,6 @@ START /bin/true
         cold: true,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1418,7 +1416,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let output = build(&BuildOptions {
@@ -1428,7 +1425,6 @@ START /bin/true
         cold: true,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1469,7 +1465,6 @@ COPY ${{build}}/result /result
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     };
     build(&options).unwrap();
     fs::write(
@@ -1525,7 +1520,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let first_lock: LockFile =
@@ -1537,7 +1531,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     let second_lock: LockFile =
@@ -1619,7 +1612,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1635,7 +1627,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1679,7 +1670,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     };
 
     build(&options).unwrap();
@@ -1771,7 +1761,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
 
@@ -1783,7 +1772,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1828,7 +1816,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1844,7 +1831,6 @@ START /bin/true
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap();
     assert_eq!(
@@ -1859,7 +1845,6 @@ START /bin/true
         cold: true,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: test_state_directory(),
     })
     .unwrap_err()
     .to_string();
@@ -1908,7 +1893,7 @@ fn bare_and_explicit_local_copy_contexts_are_byte_identical() {
 #[test]
 fn cix_item_from_copies_a_lock_pinned_tag_and_rejects_a_bad_nar_hash() {
     let state = tempfile::tempdir().unwrap();
-    let store = cix_index::Store::open(state.path().to_owned()).unwrap();
+    let registry = TestRegistry(cix_index::Store::open(state.path().to_owned()).unwrap());
 
     let missing = tempfile::tempdir().unwrap();
     fs::write(
@@ -1929,15 +1914,17 @@ START /bin/true
         ),
     )
     .unwrap();
-    let missing_error = build(&BuildOptions {
-        directory: missing.path().to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: state.path().to_owned(),
-    })
+    let missing_error = build_with_registry(
+        &BuildOptions {
+            directory: missing.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+        },
+        &registry,
+    )
     .unwrap_err()
     .to_string();
     assert!(
@@ -1971,7 +1958,6 @@ EOF
         cold: false,
         allow_secret: false,
         workspace_directory: test_workspace_directory(),
-        state_directory: state.path().to_owned(),
     })
     .unwrap()
     .remove(0)
@@ -1987,7 +1973,7 @@ EOF
         "{manifest_error}"
     );
     assert!(manifest_error.contains("SERVICE/APP"), "{manifest_error}");
-    cix_index::tag(&store, &producer_output, "family/source:v1", None).unwrap();
+    cix_index::tag(&registry.0, &producer_output, "family/source:v1", None).unwrap();
 
     let consumer = tempfile::tempdir().unwrap();
     fs::write(
@@ -2008,15 +1994,17 @@ START /bin/true
         ),
     )
     .unwrap();
-    let first = build(&BuildOptions {
-        directory: consumer.path().to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: state.path().to_owned(),
-    })
+    let first = build_with_registry(
+        &BuildOptions {
+            directory: consumer.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+        },
+        &registry,
+    )
     .unwrap();
     assert_eq!(
         fs::read_to_string(Path::new(&first[0].store_path).join("payload")).unwrap(),
@@ -2033,32 +2021,36 @@ START /bin/true
         .unwrap()
         .trim()
         .to_owned();
-    cix_index::tag(&store, &moved, "family/source:v1", None).unwrap();
+    cix_index::tag(&registry.0, &moved, "family/source:v1", None).unwrap();
 
-    let pinned = build(&BuildOptions {
-        directory: consumer.path().to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: state.path().to_owned(),
-    })
+    let pinned = build_with_registry(
+        &BuildOptions {
+            directory: consumer.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+        },
+        &registry,
+    )
     .unwrap();
     assert_eq!(
         fs::read_to_string(Path::new(&pinned[0].store_path).join("payload")).unwrap(),
         "first\n"
     );
 
-    let updated = build(&BuildOptions {
-        directory: consumer.path().to_owned(),
-        update_lock: Some("source".into()),
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: state.path().to_owned(),
-    })
+    let updated = build_with_registry(
+        &BuildOptions {
+            directory: consumer.path().to_owned(),
+            update_lock: Some("source".into()),
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+        },
+        &registry,
+    )
     .unwrap();
     assert_eq!(
         fs::read_to_string(Path::new(&updated[0].store_path).join("payload")).unwrap(),
@@ -2077,15 +2069,17 @@ START /bin/true
         format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
     )
     .unwrap();
-    let error = build(&BuildOptions {
-        directory: consumer.path().to_owned(),
-        update_lock: None,
-        tag: None,
-        cold: false,
-        allow_secret: false,
-        workspace_directory: test_workspace_directory(),
-        state_directory: test_state_directory(),
-    })
+    let error = build_with_registry(
+        &BuildOptions {
+            directory: consumer.path().to_owned(),
+            update_lock: None,
+            tag: None,
+            cold: false,
+            allow_secret: false,
+            workspace_directory: test_workspace_directory(),
+        },
+        &registry,
+    )
     .unwrap_err()
     .to_string();
     assert!(error.contains("narHash mismatch"), "{error}");

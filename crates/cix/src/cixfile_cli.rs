@@ -82,14 +82,15 @@ impl Command {
                     cold,
                     allow_secret,
                     workspace_directory,
-                    state_directory: state_directory.to_owned(),
                 };
-                let (items, build_stats) = cix_cixfile::build_family_with_stats_file(
+                let registry = crate::registry::IndexRegistry::open(state_directory.to_owned())?;
+                let (items, build_stats) = cix_cixfile::build_family_with_stats_file_and_registry(
                     &options,
                     &tag,
                     namespace.as_deref(),
                     selector.as_deref(),
                     &file,
+                    &registry,
                 )?;
                 if selector.is_some() {
                     if stats {

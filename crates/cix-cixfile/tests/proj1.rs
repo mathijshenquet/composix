@@ -71,7 +71,6 @@ fn proj1_multi_item_cache_selectivity_and_clean_rebuild() {
         cold: true,
         allow_secret: false,
         workspace_directory: workspace_base.clone(),
-        state_directory: temporary.path().join("state"),
     })
     .expect_err("the cold audit must reject the warm-only workspace read");
     let cold_error = format!("{cold_error:#}");
@@ -123,7 +122,6 @@ fn local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence() {
         cold: false,
         allow_secret: false,
         workspace_directory: workspace.path().to_owned(),
-        state_directory: temporary.path().join("state"),
     };
     let (first, _) = build_with_stats(&options).unwrap();
     let (repeat, stats) = build_with_stats(&options).unwrap();
@@ -184,7 +182,6 @@ fn run_build(directory: &Path, workspace_directory: &Path, cold: bool) -> Vec<Bu
         cold,
         allow_secret: false,
         workspace_directory: workspace_directory.to_owned(),
-        state_directory: directory.join("state"),
     })
     .unwrap()
 }

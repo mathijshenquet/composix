@@ -1,9 +1,11 @@
 //! ## Module map
 //!
 //! - `cixfile_cli`: coordinates build/fmt/watch application commands.
+//! - `registry`: adapts application-owned index and Nix resolution to lower crates.
 //! - `watch`: coordinates rebuilds with compose activation.
 
 mod cixfile_cli;
+mod registry;
 mod watch;
 
 use std::collections::BTreeMap;
@@ -145,7 +147,7 @@ fn main() -> anyhow::Result<()> {
                 ..
             },
         ) => run_compose(&state_directory, command),
-        Command::Run(cmd) => cmd.run(&state_directory),
+        Command::Run(cmd) => cmd.run(&registry::RunResolver::new(state_directory)),
     }
 }
 

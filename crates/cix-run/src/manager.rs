@@ -1164,7 +1164,7 @@ mod tests {
     use super::*;
     use crate::runtime::{materialize_run_directories, RunOptions};
     use crate::spec::Spec;
-    use crate::target::{resolve_installable, split_single_hash};
+    use crate::target::split_single_hash;
 
     #[test]
     fn splits_store_and_double_hash_service_selectors() {
@@ -1209,20 +1209,6 @@ mod tests {
             .properties
             .iter()
             .any(|(name, _)| name == "PrivateDevices"));
-    }
-
-    #[test]
-    fn resolves_an_existing_store_path_without_building_it() {
-        let store_path = std::fs::read_dir("/nix/store")
-            .unwrap()
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .find(|path| path.is_dir())
-            .unwrap();
-        assert_eq!(
-            resolve_installable(std::path::Path::new("/"), store_path.to_str().unwrap()).unwrap(),
-            store_path
-        );
     }
 
     #[test]
@@ -1286,7 +1272,6 @@ mod tests {
             schedule: None,
             closed_root: false,
             user: false,
-            state_directory: directory.path().join("state"),
         };
         let compiled = materialize_run_directories(&mut service, &options).unwrap();
         assert!(service

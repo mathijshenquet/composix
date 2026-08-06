@@ -7,7 +7,29 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{codegen::generate_nix_with_snapshots, ensure_lock, parse};
-use cix_build::{execute, resolve_input_metadata, save_lock, OutputReceipt};
+use cix_build::{
+    execute, resolve_input_metadata, save_lock, ArtifactPin, ArtifactResolver, OutputReceipt,
+};
+
+pub trait ArtifactRegistry: ArtifactResolver {
+    fn tag_artifact(&self, store_path: &str, reference: &str) -> Result<()>;
+}
+
+struct UnavailableRegistry;
+
+impl ArtifactResolver for UnavailableRegistry {
+    fn resolve_artifact(&self, reference: &str) -> Result<ArtifactPin> {
+        anyhow::bail!(
+            "resolving cix-item FROM ref {reference:?} requires an application artifact registry"
+        )
+    }
+}
+
+impl ArtifactRegistry for UnavailableRegistry {
+    fn tag_artifact(&self, _store_path: &str, reference: &str) -> Result<()> {
+        anyhow::bail!("tagging {reference:?} requires an application artifact registry")
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
@@ -17,7 +39,6 @@ pub struct BuildOptions {
     pub cold: bool,
     pub allow_secret: bool,
     pub workspace_directory: PathBuf,
-    pub state_directory: PathBuf,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -41,13 +62,27 @@ pub struct StepStat {
 }
 
 pub fn build(options: &BuildOptions) -> Result<Vec<BuiltItem>> {
+    build_with_registry(options, &UnavailableRegistry)
+}
+
+pub fn build_with_registry(
+    options: &BuildOptions,
+    registry: &dyn ArtifactRegistry,
+) -> Result<Vec<BuiltItem>> {
     let tags = options.tag.iter().cloned().collect::<Vec<_>>();
-    build_family(options, &tags, None, None)
+    build_family_with_registry(options, &tags, None, None, registry)
 }
 
 pub fn build_with_stats(options: &BuildOptions) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    build_with_stats_and_registry(options, &UnavailableRegistry)
+}
+
+pub fn build_with_stats_and_registry(
+    options: &BuildOptions,
+    registry: &dyn ArtifactRegistry,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
     let tags = options.tag.iter().cloned().collect::<Vec<_>>();
-    build_family_with_stats(options, &tags, None, None)
+    build_family_with_stats_and_registry(options, &tags, None, None, registry)
 }
 
 pub fn build_family(
@@ -56,7 +91,30 @@ pub fn build_family(
     requested_namespace: Option<&str>,
     selector: Option<&str>,
 ) -> Result<Vec<BuiltItem>> {
-    Ok(build_family_with_stats(options, tags, requested_namespace, selector)?.0)
+    build_family_with_registry(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        &UnavailableRegistry,
+    )
+}
+
+pub fn build_family_with_registry(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+    registry: &dyn ArtifactRegistry,
+) -> Result<Vec<BuiltItem>> {
+    Ok(build_family_with_stats_and_registry(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        registry,
+    )?
+    .0)
 }
 
 pub fn build_family_with_stats(
@@ -65,7 +123,30 @@ pub fn build_family_with_stats(
     requested_namespace: Option<&str>,
     selector: Option<&str>,
 ) -> Result<(Vec<BuiltItem>, BuildStats)> {
-    build_family_with_stats_file(options, tags, requested_namespace, selector, "Cixfile")
+    build_family_with_stats_and_registry(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        &UnavailableRegistry,
+    )
+}
+
+pub fn build_family_with_stats_and_registry(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+    registry: &dyn ArtifactRegistry,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    build_family_with_stats_file_and_registry(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        "Cixfile",
+        registry,
+    )
 }
 
 pub fn build_family_with_stats_file(
@@ -74,6 +155,24 @@ pub fn build_family_with_stats_file(
     requested_namespace: Option<&str>,
     selector: Option<&str>,
     file_name: &str,
+) -> Result<(Vec<BuiltItem>, BuildStats)> {
+    build_family_with_stats_file_and_registry(
+        options,
+        tags,
+        requested_namespace,
+        selector,
+        file_name,
+        &UnavailableRegistry,
+    )
+}
+
+pub fn build_family_with_stats_file_and_registry(
+    options: &BuildOptions,
+    tags: &[String],
+    requested_namespace: Option<&str>,
+    selector: Option<&str>,
+    file_name: &str,
+    registry: &dyn ArtifactRegistry,
 ) -> Result<(Vec<BuiltItem>, BuildStats)> {
     cix_common::reset_nix_subprocess_count();
     let directory = options
@@ -131,8 +230,7 @@ pub fn build_family_with_stats_file(
         ),
     };
     let lock_path = directory.join(format!("{file_name}.lock"));
-    let state = cix_index::Store::open(options.state_directory.clone())?;
-    let mut lock = ensure_lock(&state, &lock_path, &cixfile.inputs, input_update)?;
+    let mut lock = ensure_lock(registry, &lock_path, &cixfile.inputs, input_update)?;
     resolve_input_metadata(&mut cixfile, &lock)?;
     let expectations_validated = cix_build::validate_declared_expectations(&cixfile, &lock)?;
     let source_hash = build_fingerprint(&directory, &lock, file_name)?;
@@ -205,9 +303,11 @@ pub fn build_family_with_stats_file(
     for item in &outputs {
         for tag in tags {
             let reference = tag_reference(namespace.as_deref(), &item.name, tag)?;
-            cix_index::tag(&state, &item.store_path, &reference, None).with_context(|| {
-                format!("tagging built member {:?} as {reference:?}", item.name)
-            })?;
+            registry
+                .tag_artifact(&item.store_path, &reference)
+                .with_context(|| {
+                    format!("tagging built member {:?} as {reference:?}", item.name)
+                })?;
         }
     }
     for item in &outputs {
@@ -539,7 +639,6 @@ mod tests {
             cold: false,
             allow_secret: false,
             workspace_directory: directory.path().join("workspaces"),
-            state_directory: directory.path().join("state"),
         };
         let error = build_family_with_stats_file(&options, &[], None, None, "Cixfile.dissolved")
             .unwrap_err()

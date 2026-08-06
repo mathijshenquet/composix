@@ -19,7 +19,7 @@
 //! - `runtime`: validates run options and conducts service selection.
 //! - `shell`: owns interactive shell command projection.
 //! - `cix-manifest` (re-exported as `spec`): owns manifest parsing and validation.
-//! - `target`: resolves paths, refs, and Nix installables.
+//! - `target`: selects manifested services through injected installable resolution.
 //! - `unit`: conducts ordered systemd property assembly.
 
 mod app;
@@ -40,3 +40,5 @@ pub mod shell;
 pub use cix_manifest as spec;
 mod target;
 pub mod unit;
+
+pub use target::InstallableResolver;
