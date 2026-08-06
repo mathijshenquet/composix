@@ -60,6 +60,21 @@ let
     echo configdir-projected
     while true; do ${pkgs.coreutils}/bin/sleep 1; done
   '';
+  arbitrary = item "scenario-dirs2-arbitrary" ''
+    {"cixManifest":0,"start":["bin/start"],"dirs":{"state":["/config/state"]}}
+  '' ''
+    set -eu
+    count=0
+    if test -e /config/state/count; then
+      count="$(${pkgs.coreutils}/bin/cat /config/state/count)"
+    fi
+    printf '%s\n' "$((count + 1))" > /config/state/count
+    if ${pkgs.coreutils}/bin/touch /config/undeclared; then
+      echo "undeclared config path became writable" >&2
+      exit 1
+    fi
+    while true; do ${pkgs.coreutils}/bin/sleep 1; done
+  '';
   localhost = item "scenario-dirs2-localhost" ''
     {"cixManifest":0,"start":["bin/start"]}
   '' ''
@@ -98,6 +113,7 @@ let
         },
         "private": {"item": "scenario-dirs2-private:v1"},
         "nested": {"item": "scenario-dirs2-nested:v1"},
+        "arbitrary": {"item": "scenario-dirs2-arbitrary:v1"},
         "left": {"item": "scenario-dirs2-left:v1", "dirs": {"/var/lib/shared": {"shared": "uploads"}}},
         "right": {"item": "scenario-dirs2-right:v1", "dirs": {"/var/lib/shared": {"shared": "uploads"}}}
       }
@@ -134,6 +150,7 @@ scenario.node ''
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${shared "left"}) scenario-dirs2-left:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${shared "right"}) scenario-dirs2-right:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${config}) scenario-dirs2-config:v1")
+  machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${arbitrary}) scenario-dirs2-arbitrary:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${localhost}) scenario-dirs2-localhost:v1")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix tag $(nix store add-path ${localhostOverride}) scenario-dirs2-localhost-override:v1")
   machine.succeed("cp ${compose} /tmp/scenario/dirs2.json")
@@ -143,16 +160,21 @@ scenario.node ''
   assert status == 0
   assert "LOUD durability degradation" in warning
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2.json")
-  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-nested.service cix-dirs2-left.service cix-dirs2-right.service")
+  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-nested.service cix-dirs2-arbitrary.service cix-dirs2-left.service cix-dirs2-right.service")
   machine.wait_until_succeeds("test -f /tmp/dirs2/host-state/host-state", timeout=60)
   machine.wait_until_succeeds("test -f /tmp/dirs2/host-media/host-media", timeout=60)
   machine.wait_until_succeeds("test -f /var/lib/cix-dirs2-nested/var/www/db/nested-state", timeout=60)
   machine.wait_until_succeeds("test -f /var/lib/cix-dirs2-nested/var/www/images/uploads/logos/nested-logo", timeout=60)
   machine.succeed("systemctl show cix-dirs2-nested.service --property=BindReadOnlyPaths --value | grep -F :/var/www")
+  machine.wait_until_succeeds("test \"$(cat /var/lib/cix-dirs2-arbitrary/config/state/count)\" = 1", timeout=60)
+  machine.succeed("systemctl show cix-dirs2-arbitrary.service --property=ReadWritePaths --value | tr ' ' '\\n' | grep -Fx /config/state")
+  machine.succeed("! systemctl show cix-dirs2-arbitrary.service --property=TemporaryFileSystem --value | tr ' ' '\\n' | grep -Fx /config:ro")
+  machine.succeed("systemctl restart cix-dirs2-arbitrary.service")
+  machine.wait_until_succeeds("test \"$(cat /var/lib/cix-dirs2-arbitrary/config/state/count)\" = 2", timeout=60)
   machine.wait_until_succeeds("test -f /var/lib/cix-compose/dirs2/shared/uploads/left", timeout=60)
   machine.wait_until_succeeds("test -f /var/lib/cix-compose/dirs2/shared/uploads/right", timeout=60)
-  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-nested.service cix-dirs2-left.service cix-dirs2-right.service")
-  for unit in ["cix-dirs2-host", "cix-dirs2-private", "cix-dirs2-nested", "cix-dirs2-left", "cix-dirs2-right"]:
+  machine.succeed("systemctl is-active cix-dirs2-host.service cix-dirs2-private.service cix-dirs2-nested.service cix-dirs2-arbitrary.service cix-dirs2-left.service cix-dirs2-right.service")
+  for unit in ["cix-dirs2-host", "cix-dirs2-private", "cix-dirs2-nested", "cix-dirs2-arbitrary", "cix-dirs2-left", "cix-dirs2-right"]:
       machine.succeed("test $(systemctl show " + unit + ".service -p NRestarts --value) = 0")
   machine.succeed("test $(stat -c %a /var/lib/cix-compose/dirs2/shared/uploads) = 2770")
   machine.succeed("CIX_STATE_DIR=/var/lib/cix-index cix up /tmp/scenario/dirs2-sealed.json --closed-root")
@@ -175,5 +197,6 @@ scenario.node ''
   machine.succeed("test -f /tmp/dirs2/host-state/host-state")
   machine.succeed("test -f /tmp/dirs2/host-media/host-media")
   machine.succeed("test ! -e /var/lib/cix-dirs2-private/var/lib/private")
+  machine.succeed("test ! -e /var/lib/cix-dirs2-arbitrary/config/state")
   machine.succeed("test ! -e /var/lib/cix-compose/dirs2/shared/uploads")
 ''
