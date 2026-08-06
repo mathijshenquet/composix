@@ -1,7 +1,7 @@
-Generated: migrate.md@current · independently rechecked · 2026-08-05
-Status: stale — regenerate with CIP-99 workspace-root aggregation
+Generated: migrate.md@current · independently rechecked · 2026-08-06
+Status: current — root runtime verified; CIP-99 workspace-root aggregation remains open on the final pnpm trace
 
-- A direct source build completed once, producing a static nginx item, but the original `LOGDIR /var/log/nginx` declaration left nginx unable to open its DynamicUser-owned logs. The declaration was removed. → case
-- The corrected rebuild's pnpm FETCH emits a huge volatile store/index set and exceeded the independently applied 600-second bound without a final item; its timeout wrapper did not reap the child, so a manual signal ended the supervisor. Runtime after that correction is unproved. → language (lock-scale)
-- The staged lock retains descendants below a fully observed FETCH workspace root because the original CIP-99 aggregation helper did not treat `.` as a root. That criterion is fixed, but this lock may be regenerated only after a completed corrected build; the later pnpm trace is partial/volatile and must remain per-path. → language (lock-scale)
-- Docker's Alpine images and fixed user dissolve into nixpkgs nginx and the managed service identity. → case
+- The current Cixfile build/replay produced `/nix/store/4zalfi4g7n2bd52niggwbhh4873iq4h6-cix-item-web`. The committed lock has 1,536,045 lines versus the 1,544,041-line source lock (−7,996, −0.52%). Scratch/update captures varied from 550,128 to 1,536,045 lines; the smaller candidate belonged to a pre-runtime `LOGDIR` assembly and is not the final lock. The retained trace recorded 99,625 reads at `builder:build:4`, so no aggregation green is claimed. → language (lock-scale)
+- The service uses a complete nginx main configuration and ephemeral `RUNDIR /var/log/nginx`: on this host the `LOGDIR` bind became permission-denied for DynamicUser after the system-manager PrivatePIDs fallback. Nginx access-file logging is disabled; this is a deliberate runtime workaround and loss. → case/runtime
+- Verified synchronously with the extended harness: `CIX_ITEM=/nix/store/4zalfi4g7n2bd52niggwbhh4873iq4h6-cix-item-web ./check.sh cix` exits 0, with `HTTP GET / -> 200`. The ordinary fresh-build replay hit its 240-second bound (exit 124) before emitting an item. Its secondary `/not-a-real-route` observation reports 404; SPA deep-route fallback is therefore still open. → case
+- Docker's Alpine image and fixed user dissolve into nixpkgs nginx and the managed service identity. → case

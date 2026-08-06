@@ -11,9 +11,11 @@ BUILDER build
   RUN pnpm install --offline --frozen-lockfile && pnpm build
 
 SERVICE web
-  IMPORT ${pkgs.nginx}
+  IMPORT ${pkgs.bash} ${pkgs.nginx}
   COPY ${build}/dist /usr/share/nginx/html
-  COPY context/nginx.conf /etc/nginx/conf.d/default.conf
-  START nginx -g 'daemon off;'
+  COPY nginx.conf /etc/nginx/nginx.conf
+  COPY start-nginx /bin/start-nginx
+  START bash /bin/start-nginx
   PORT http = 80
+  RUNDIR /var/log/nginx
   RUNDIR /run/nginx
