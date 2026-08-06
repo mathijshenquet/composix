@@ -1,5 +1,40 @@
 # composix work log
 
+## 2026-08-06 evening close (CIP-110 merged; the integration tail repaired; main fully green locally)
+
+- **fmtkey-impl (terra) landed in three rounds**, all merged: the
+  CIP-110 implementation (canonical.rs + fingerprint.rs, unified
+  fingerprint epoch `epoch-v1-stage2-canonical-ast-nar`, formatter-
+  equivalence fixture), then the warm-memo regression fix (derived
+  dev-environment identity was the moving key ingredient — proj1
+  no-op rebuild is 0-subprocess again), then the FHS diagnostic
+  repair (argv-mode exec ENOENT with an existing target now runs the
+  ELF-interpreter analysis; env-alias hint reserved for absent
+  commands).
+- **Integration-tail fix-forwards by the orchestrator** (each
+  value-checked): stage-2 sandbox tests canonicalize store bash
+  (CI-only symlink-env break); buildCixfile nix path normalizes
+  NodeCommand + accepts evalPlan v2 + raw-hash guard retired with a
+  sweep TODO (canonical cixfileHash is nix-unrecomputable); all three
+  CIP-94 fixtures fmt'd + relocked at v2, flake-pinned; tour
+  regenerated for the fingerprint epoch. Byte-identity scenario green.
+- **Final state: full workspace suite exit 0, progressive VM 0/14
+  (no contract change), byte-identity exit 0 — main locally green on
+  every tier**; CI confirmation pending on `1cb856c7`. Also swept 40G
+  of orphaned worker evidence dirs from /var/tmp mid-flight (disk was
+  at 21G with a live suite).
+- **The epoch implementation now stands complete pre-sweep**:
+  CIP-110/111/112/113 all executing on main behind dual acceptance.
+  Remaining epoch work: the SINGLE corpus sweep + migrate.md rewrite
+  (+ naming rename if Mathijs adopts the table) — deliberately one
+  churn. **Open with Mathijs**: 0.1-scope v2 read (inventory-derived;
+  dogfood roster + audience + freshness policy calls), naming-table
+  read (binary-name cell), k8s wave, ribbon trio, tour read, herdr
+  restart. **Open for agents**: the epoch sweep (after Mathijs's
+  naming call, to fold the rename in), trace-cost performance track
+  (CIP-114 residual), probe-executor-under-hardening class (0.1
+  bucket B7), upstream-EXPECT freshness pass (B8).
+
 ## 2026-08-06 late afternoon (pnpm wall CLOSED as CIP-114; corpus 32; epoch stage 1 merged; stage 2 to sol)
 
 - **pnpm-frozenstore (sol) merged + CIP-114 ADOPTED on its receipts**
