@@ -75,7 +75,7 @@ pub use scratch::{
 
 pub const BUILDER_FINGERPRINT: &str = concat!(env!("CARGO_PKG_VERSION"), ":d87-v2");
 pub use model::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
-    Env, Fetch, Input, InputKind, Liveness, Port, PortSource, Probe, Protocol, Readiness, Secret,
-    Service, Template, TemplatePart,
+    Arg, Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode,
+    Dirs, Env, Fetch, Input, InputKind, Liveness, NodeCommand, Port, PortSource, Probe, Protocol,
+    Readiness, Secret, Service, Template, TemplatePart,
 };

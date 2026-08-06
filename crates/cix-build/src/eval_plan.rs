@@ -4,8 +4,8 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ArtifactKind, Assembly, BuildStep, Cixfile, Copy, CopyMode, InputKind, LockFile, Template,
-    TemplatePart,
+    ArtifactKind, Assembly, BuildStep, Cixfile, Copy, CopyMode, InputKind, LockFile, NodeCommand,
+    Template, TemplatePart,
 };
 
 pub const EVAL_PLAN_VERSION: u32 = 1;
@@ -52,14 +52,29 @@ pub enum EvalStep {
         copy: EvalCopy,
     },
     Fetch {
-        command: EvalTemplate,
+        command: EvalCommand,
         line: usize,
         #[serde(rename = "snapshotNarHash")]
         snapshot_nar_hash: String,
     },
     Run {
-        command: EvalTemplate,
+        command: EvalCommand,
         line: usize,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum EvalCommand {
+    Legacy {
+        command: EvalTemplate,
+    },
+    Argv {
+        argv: Vec<EvalTemplate>,
+    },
+    Heredoc {
+        interpreter: EvalTemplate,
+        body: EvalTemplate,
     },
 }
 
@@ -245,14 +260,29 @@ fn eval_step(builder: &str, index: usize, step: &BuildStep, lock: &LockFile) -> 
                 );
             }
             EvalStep::Fetch {
-                command: eval_template(command)?,
+                command: eval_command(command)?,
                 line: *line,
                 snapshot_nar_hash: pin.snapshot_nar_hash.clone(),
             }
         }
         BuildStep::Run { command, line, .. } => EvalStep::Run {
-            command: eval_template(command)?,
+            command: eval_command(command)?,
             line: *line,
+        },
+    })
+}
+
+fn eval_command(command: &NodeCommand) -> Result<EvalCommand> {
+    Ok(match command {
+        NodeCommand::Legacy(command) => EvalCommand::Legacy {
+            command: eval_template(command)?,
+        },
+        NodeCommand::Argv(argv) => EvalCommand::Argv {
+            argv: argv.iter().map(eval_template).collect::<Result<_>>()?,
+        },
+        NodeCommand::Heredoc { interpreter, body } => EvalCommand::Heredoc {
+            interpreter: eval_template(interpreter)?,
+            body: eval_template(body)?,
         },
     })
 }

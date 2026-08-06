@@ -60,27 +60,28 @@ START /bin/true \
         command,
         line,
         source,
+        ..
     } = &parsed.builders["build"].steps[0]
     else {
         panic!("expected continued RUN");
     };
     assert_eq!(*line, 9);
     assert!(source.starts_with("RUN printf"));
-    assert_eq!(
-        command.literal_value().as_deref(),
-        Some("printf '%s\\n' '# inline shell comment text is data' > continued")
+    assert!(
+        matches!(command, NodeCommand::Legacy(command) if command.literal_value().as_deref() == Some("printf '%s\\n' '# inline shell comment text is data' > continued")),
     );
     let BuildStep::Run { command, line, .. } = &parsed.builders["build"].steps[1] else {
         panic!("expected heredoc RUN");
     };
     assert_eq!(*line, 11);
     assert!(matches!(
-        command.parts.as_slice(),
+        command,
+        NodeCommand::Legacy(Template { parts }) if matches!(parts.as_slice(),
         [
             TemplatePart::Literal(first),
             TemplatePart::Package { line: 13, .. },
             TemplatePart::Literal(last),
-        ] if first.starts_with("# This comment belongs") && last.ends_with(" > result\n")
+        ] if first.starts_with("# This comment belongs") && last.ends_with(" > result\n"))
     ));
     let start = &parsed.artifacts["app"].service.start;
     assert_eq!(start[1].literal_value().as_deref(), Some("#"));

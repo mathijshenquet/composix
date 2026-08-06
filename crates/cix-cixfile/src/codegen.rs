@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Result};
 
 use cix_build::{
     Artifact, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, InputKind, InputLock,
-    LockFile, PortSource, Probe, Protocol, Template, TemplatePart,
+    LockFile, NodeCommand, PortSource, Probe, Protocol, Template, TemplatePart,
 };
 
 pub(crate) struct Codegen;
@@ -320,22 +320,18 @@ pub fn generate_builder_context_nix(
         "  imports = {};",
         nix_templates(&builder.imports)
     )?;
-    writeln!(
-        expression,
-        "  commands = {};",
-        nix_templates(
-            &builder
-                .steps
-                .iter()
-                .filter_map(|step| match step {
-                    BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
-                        Some(command.clone())
-                    }
-                    BuildStep::Env { .. } | BuildStep::Copy(_) => None,
-                })
-                .collect::<Vec<_>>()
-        )
-    )?;
+    let commands = builder
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+                Some(nix_node_command(command))
+            }
+            BuildStep::Env { .. } | BuildStep::Copy(_) => None,
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    writeln!(expression, "  commands = [ {commands} ];")?;
     writeln!(
         expression,
         "  copies = [ {} ];",
@@ -432,7 +428,7 @@ pub fn generate_fetch_context_nix(
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     let primary = primary_namespace(cixfile)?;
     writeln!(expression, "in {{")?;
-    let refs = package_references([&fetch.command]);
+    let refs = package_references(fetch.command.templates());
     writeln!(
         expression,
         "  offers = [ (builtins.toString universes.{}.bash) {} ];",
@@ -453,7 +449,7 @@ pub fn generate_fetch_context_nix(
     writeln!(
         expression,
         "  commands = [ {} ];",
-        nix_template(&fetch.command)
+        nix_node_command(&fetch.command)
     )?;
     writeln!(expression, "  copies = [];")?;
     writeln!(expression, "  environment = {{}};")?;
@@ -481,7 +477,7 @@ pub fn generate_fetch_offer_nix(
     let source_dir = source_dir.canonicalize()?;
     let mut expression = nix_prelude(cixfile, &source_dir, lock, system, snapshots)?;
     let primary = primary_namespace(cixfile)?;
-    let refs = package_references([&fetch.command]);
+    let refs = package_references(fetch.command.templates());
     writeln!(
         expression,
         "in [ universes.{}.bash {} ]",
@@ -617,7 +613,9 @@ fn builder_templates(builder: &Builder) -> Vec<&Template> {
         .chain(builder.steps.iter().flat_map(|step| match step {
             BuildStep::Env { .. } => vec![],
             BuildStep::Copy(copy) => vec![&copy.src],
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => vec![command],
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+                command.templates()
+            }
         }))
         .collect()
 }
@@ -626,11 +624,27 @@ fn builder_command_templates(builder: &Builder) -> Vec<&Template> {
     builder
         .imports
         .iter()
-        .chain(builder.steps.iter().filter_map(|step| match step {
-            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => Some(command),
-            BuildStep::Env { .. } | BuildStep::Copy(_) => None,
+        .chain(builder.steps.iter().flat_map(|step| match step {
+            BuildStep::Fetch { command, .. } | BuildStep::Run { command, .. } => {
+                command.templates()
+            }
+            BuildStep::Env { .. } | BuildStep::Copy(_) => vec![],
         }))
         .collect()
+}
+
+fn nix_node_command(command: &NodeCommand) -> String {
+    match command {
+        NodeCommand::Legacy(command) => nix_template(command),
+        NodeCommand::Argv(argv) => {
+            format!("(builtins.concatStringsSep \" \" {})", nix_templates(argv))
+        }
+        NodeCommand::Heredoc { interpreter, body } => format!(
+            "builtins.concatStringsSep \" \" [ {} \"-c\" {} ]",
+            nix_template(interpreter),
+            nix_template(body)
+        ),
+    }
 }
 
 fn offer_expressions<'a>(

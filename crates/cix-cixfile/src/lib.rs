@@ -27,9 +27,9 @@ pub use cix_build::{
     DEFAULT_NIXPKGS_URL,
 };
 pub use cix_build::{
-    Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode, Dirs,
-    Env, Fetch, Input, InputKind, Liveness, Port, PortSource, Probe, Protocol, Readiness, Secret,
-    Service, Template, TemplatePart,
+    Arg, Artifact, ArtifactKind, Assembly, BuildStep, Builder, Cixfile, Claim, Copy, CopyMode,
+    Dirs, Env, Fetch, Input, InputKind, Liveness, NodeCommand, Port, PortSource, Probe, Protocol,
+    Readiness, Secret, Service, Template, TemplatePart,
 };
 pub use codegen::{generate_nix, generate_nix_with_snapshots, generate_spec_json};
 pub use parser::{parse, ParseError};

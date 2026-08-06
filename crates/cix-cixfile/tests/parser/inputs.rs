@@ -1,6 +1,37 @@
 use cix_cixfile::*;
 
 #[test]
+fn epoch_nodes_and_phase_braces_parse_with_precise_errors() {
+    let input = "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nLET VERSION = '1.2.3'\nARG FLAVOR from plain debug\nBUILDER build {\nIMPORT ${pkgs.bash}\nRUN ${pkgs.coreutils}/bin/printf ${VERSION}\n  WITH MODE=${FLAVOR}\nRUN ${pkgs.bash}/bin/bash <<EOF\nprintf '%s' \"$MODE\" > result\nEOF\n  WITH UNSAFE IGNORE cache\n}\nITEM result {\nCOPY ${build}/result /result\n}\n";
+    let parsed = parse(input).unwrap();
+    assert_eq!(parsed.lets["VERSION"], ["1.2.3"]);
+    assert_eq!(parsed.args["FLAVOR"].selected, "plain");
+    assert!(matches!(
+        parsed.builders["build"].steps[0],
+        BuildStep::Run {
+            command: NodeCommand::Argv(_),
+            ..
+        }
+    ));
+    assert!(matches!(
+        parsed.builders["build"].steps[1],
+        BuildStep::Run {
+            command: NodeCommand::Heredoc { .. },
+            ..
+        }
+    ));
+    let error =
+        parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build {\nRUN true\n")
+            .unwrap_err();
+    assert_eq!(
+        error.message,
+        "BUILDER build opened at line 2 is never closed"
+    );
+    let error = parse("FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nBUILDER build {\nRUN echo $X\n}\nITEM result {\nCOPY ${build}/x /x\n}\n").unwrap_err();
+    assert_eq!(error.message, "$X is shell interpolation, not argv syntax; declare LET X = value and write ${X}, or use a heredoc");
+}
+
+#[test]
 fn fetch_expect_is_trailing_and_rejects_the_removed_leading_form() {
     let parsed = parse(
         "FROM github:NixOS/nixpkgs/nixos-unstable AS pkgs\nFETCH ingredient ${pkgs.coreutils}/bin/printf top EXPECT sha256-top\nBUILDER build\nIMPORT ${pkgs.bash}\nFETCH printf step EXPECT sha256-step\nSERVICE app\nSTART /bin/true\n",

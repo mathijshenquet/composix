@@ -13,6 +13,14 @@ impl Parser<'_> {
         source: &str,
         arguments: &str,
     ) -> Result<(), ParseError> {
+        let (arguments, opened) = phase_header(arguments, kind.keyword(), line, source)?;
+        if self.opened_block.is_some() {
+            return Err(ParseError::new(
+                line,
+                source,
+                "phase blocks are single-level; close the current block with } first",
+            ));
+        }
         let fields = exact_fields(
             arguments,
             1,
@@ -30,6 +38,13 @@ impl Parser<'_> {
         self.metadata
             .insert(name.to_owned(), ServiceMetadata::default());
         self.current = Some(CurrentBlock::Artifact(name.to_owned()));
+        if opened {
+            self.opened_block = Some(super::super::machine::OpenedBlock {
+                kind: kind.keyword(),
+                name: name.to_owned(),
+                line,
+            });
+        }
         Ok(())
     }
 

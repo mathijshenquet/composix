@@ -1,5 +1,97 @@
 # litdoc work log
 
+- 2026-08-06T09:57:02Z — Started `track/epoch-groundwork` from the supplied
+  spec. Read the accepted CIP-111/112/113 decisions, project journal, and
+  current parser/fmt/build seams; confirmed `devenv shell` is active and
+  returns Cargo 1.97.0 synchronously. The current language is still the
+  pre-epoch implicit-block, shell-string model, so this track needs an AST
+  migration plus compatible acceptance for existing corpus forms. **FRICTION:**
+  `crates/cix/LOG.md` contains journal history from earlier tracks and is not
+  ignored in this checkout despite the shared directive preferring ignored
+  task logs; I will keep it append-only, never stage it independently, and
+  retain its existing history. Next: establish the smallest compatible AST
+  for argv/heredoc nodes, attachments, LET/ARG selection, and explicit phase
+  delimiters before wiring execution and canonical formatting.
+
+- 2026-08-06T10:06:10Z — Implemented the first integrated epoch seam: typed
+  `NodeCommand` forms (legacy/argv/heredoc), explicit single-level phase
+  braces with named missing-close diagnostics, tolerant fmt close insertion,
+  LET and closed ARG declarations/default interpolation, adjacency-bound
+  WITH/EXPECT parsing, and `WITH UNSAFE IGNORE` capture. Old implicit blocks
+  retain a deliberately named `Legacy` shell form for the unswept corpus.
+  Synchronous receipts: parser suite 35/35 passed; formatter suite 4/4
+  passed; `fetch_probe_cleanup` 3/3 passed after correcting an actual Nix
+  evaluation error (parenthesized `builtins.concatStringsSep`). **FRICTION:**
+  the initial workspace run exposed that Nix parsed the unparenthesized
+  function as a JSON value; I discarded that failed receipt, fixed it, and
+  reran the affected executor suite. Remaining work: carry the node form and
+  per-node environment through the evaluation/sandbox boundary (current
+  compatibility code still resolves a command string), then add CLI ARG
+  selection/all-cells and manifest/key/unsafe-evidence execution coverage.
+
+- 2026-08-06T10:09:00Z — Post-repair static receipt is synchronous and green:
+  `devenv shell -- cargo fmt --all --check`, `git diff --check`, and
+  warning-denied `cargo clippy --workspace --all-targets -- -D warnings` all
+  exited 0. A full serial workspace test was started after the focused
+  receipts; its terminal bridge ended while the deterministic tour test was
+  running, so it is deliberately not recorded as a green receipt. The valid
+  focused receipts remain parser 35/35, cixfile fmt 4/4, and fetch cleanup
+  executor 3/3. **FRICTION:** do not substitute the truncated workspace run
+  for the required final full-workspace gate; rerun it foreground after the
+  remaining executor/CLI work.
+
+- 2026-08-06T10:12:00Z — **Stage 1 amendment accepted:** this track now
+  delivers parser/fmt/AST groundwork with old implicit forms retained. Stage 2
+  handoff (do not infer any of these semantics from Stage 1 parsing alone):
+  (1) execution: replace the string `commands` seam in
+  `cix-cixfile/src/codegen.rs` → `cix-build/src/evaluation.rs` (`RawContext`,
+  `FetchContext`, `BuilderContext`) → `cix-build/src/build_chain.rs` →
+  `cix-build/src/sandbox.rs` with a resolved argv/heredoc command value;
+  `Sandbox::execute` must direct-exec argv, and write the heredoc body outside
+  `/work` then invoke its explicit interpreter with that filename. (2) WITH /
+  UNSAFE IGNORE: carry `BuildStep::{Run,Fetch}.environment` and
+  `ignored_evidence` through the same evaluation and `SandboxRequest` seam;
+  overlay only that node's environment, include declared WITH data in the
+  step-key request in `cix-build/src/memo.rs`, filter ignored paths from trace
+  reads, seals, fetch consumed-path pins, and memo keys in
+  `build_chain.rs`/`trace.rs`/`fetch_state.rs`, and emit the waived-evidence
+  use diagnostic. (3) ARG: add `--arg NAME=value` and `--all-args` at
+  `crates/cix/src/cixfile_cli.rs`; select/validate declared matrices before
+  parser template resolution in `cix-cixfile` build entrypoints; make output
+  receipts and resolved-statement lock keys cell-specific in `build.rs`,
+  `lock.rs`, and `memo.rs`; record the selected cell in the generated
+  manifest via `codegen.rs`/`cix-manifest`. Stage 2 must add executor and CLI
+  regressions for each item before retiring any legacy form.
+
+- 2026-08-06T10:15:00Z — Stage-1 foreground receipts: `cargo fmt --all
+  --check`, `cargo run -p cix -- fmt --check examples`, and warning-denied
+  workspace/all-target clippy each returned exit 0. The serial workspace test
+  reached its deterministic-tour integration test in the terminal bridge but
+  the bridge cut its output before an observed final status, so it is not a
+  green receipt. The progressive VM selector chose all 14 scenarios because
+  `cix-build` is cross-cutting; the bridge again detached while QEMU drivers
+  were still live (PIDs observed), before `VM_GATE_EXIT=0`. **FRICTION:** both
+  are invalid under the synchronous-receipt rule; do not commit until fresh
+  foreground exit-0 receipts replace them.
+
+- 2026-08-06T10:20:00Z — **Stage-1 gate amendment:** the valid synchronous
+  receipts are formatter, examples formatter, warning-denied workspace
+  clippy, parser 35/35, cixfile formatter 4/4, and fetch-cleanup executor
+  3/3. The workspace and progressive-VM tiers are delegated to the
+  orchestrator merge gate: this terminal bridge reaped both ordinary and
+  `nohup` detached long-gate launchers before they could write their sanctioned
+  numeric exit files. The earlier invalid test process was explicitly stopped;
+  no output/silence is treated as a receipt. Commit Stage 1 now under this
+  amendment; do not merge or push.
+
+### FRICTION
+
+- 2026-08-06T10:20:00Z — The terminal bridge reaps detached descendants,
+  including `nohup`, so it cannot support the sanctioned long-gate
+  `.gate-exit-*` protocol in this environment. Workspace and VM verification
+  are therefore explicitly delegated to the orchestrator merge gate. →
+  environment
+
 - 2026-08-06T00:00:00Z — Started `track/expand-ntfy-filebrowser` from the
   supplied spec. This is corpus-only work: add faithful ntfy and filebrowser
   migration cases, with their upstream release artifacts prestaged through
