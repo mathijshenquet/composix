@@ -192,6 +192,7 @@ dependencies = [
  "cix-common",
  "cix-compose",
  "cix-index",
+ "cix-manifest",
  "cix-run",
  "clap",
  "ctrlc",

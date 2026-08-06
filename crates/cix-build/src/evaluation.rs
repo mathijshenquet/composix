@@ -12,11 +12,59 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::codegen::{
-    generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
-    generate_fetch_context_nix, generate_fetch_offer_nix,
-};
 use crate::{Cixfile, DevEnvironment, LockFile};
+
+pub trait EvaluationCodegen {
+    fn fetch_context(
+        &self,
+        cixfile: &Cixfile,
+        fetch_name: &str,
+        source_dir: &Path,
+        lock: &LockFile,
+        system: &str,
+        snapshots: &BTreeMap<String, String>,
+    ) -> Result<String>;
+
+    fn fetch_offers(
+        &self,
+        cixfile: &Cixfile,
+        fetch_name: &str,
+        source_dir: &Path,
+        lock: &LockFile,
+        system: &str,
+        snapshots: &BTreeMap<String, String>,
+    ) -> Result<String>;
+
+    fn builder_context(
+        &self,
+        cixfile: &Cixfile,
+        builder_name: &str,
+        source_dir: &Path,
+        lock: &LockFile,
+        system: &str,
+        snapshots: &BTreeMap<String, String>,
+    ) -> Result<String>;
+
+    fn builder_offers(
+        &self,
+        cixfile: &Cixfile,
+        builder_name: &str,
+        source_dir: &Path,
+        lock: &LockFile,
+        system: &str,
+        snapshots: &BTreeMap<String, String>,
+    ) -> Result<String>;
+
+    fn builder_dev_environment(
+        &self,
+        cixfile: &Cixfile,
+        builder_name: &str,
+        source_dir: &Path,
+        lock: &LockFile,
+        system: &str,
+        snapshots: &BTreeMap<String, String>,
+    ) -> Result<String>;
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct FetchContext {
@@ -69,8 +117,11 @@ pub(crate) struct DevEnvironmentRequest<'a> {
 pub(crate) struct NixEvaluation;
 
 impl NixEvaluation {
-    pub(crate) fn fetch_context(request: FetchContextRequest<'_>) -> Result<FetchContext> {
-        let expression = generate_fetch_context_nix(
+    pub(crate) fn fetch_context(
+        codegen: &dyn EvaluationCodegen,
+        request: FetchContextRequest<'_>,
+    ) -> Result<FetchContext> {
+        let expression = codegen.fetch_context(
             request.cixfile,
             request.name,
             request.directory,
@@ -98,8 +149,11 @@ impl NixEvaluation {
         })
     }
 
-    pub(crate) fn builder_context(request: BuilderContextRequest<'_>) -> Result<BuilderContext> {
-        let expression = generate_builder_context_nix(
+    pub(crate) fn builder_context(
+        codegen: &dyn EvaluationCodegen,
+        request: BuilderContextRequest<'_>,
+    ) -> Result<BuilderContext> {
+        let expression = codegen.builder_context(
             request.cixfile,
             request.name,
             request.directory,
@@ -121,8 +175,11 @@ impl NixEvaluation {
         })
     }
 
-    pub(crate) fn realize_fetch_offers(request: FetchContextRequest<'_>) -> Result<()> {
-        let expression = generate_fetch_offer_nix(
+    pub(crate) fn realize_fetch_offers(
+        codegen: &dyn EvaluationCodegen,
+        request: FetchContextRequest<'_>,
+    ) -> Result<()> {
+        let expression = codegen.fetch_offers(
             request.cixfile,
             request.name,
             request.directory,
@@ -133,8 +190,11 @@ impl NixEvaluation {
         realize_offers(&expression)
     }
 
-    pub(crate) fn realize_builder_offers(request: BuilderContextRequest<'_>) -> Result<()> {
-        let expression = generate_builder_offer_nix(
+    pub(crate) fn realize_builder_offers(
+        codegen: &dyn EvaluationCodegen,
+        request: BuilderContextRequest<'_>,
+    ) -> Result<()> {
+        let expression = codegen.builder_offers(
             request.cixfile,
             request.name,
             request.directory,
@@ -169,6 +229,7 @@ impl NixEvaluation {
     }
 
     pub(crate) fn development_environment(
+        codegen: &dyn EvaluationCodegen,
         request: DevEnvironmentRequest<'_>,
     ) -> Result<BTreeMap<String, String>> {
         if request.imports.is_empty() {
@@ -205,7 +266,7 @@ impl NixEvaluation {
             }
             return Ok(environment);
         }
-        let expression = generate_builder_dev_env_nix(
+        let expression = codegen.builder_dev_environment(
             request.cixfile,
             request.builder_name,
             request.directory,

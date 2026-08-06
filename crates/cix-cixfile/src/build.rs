@@ -6,10 +6,8 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::{ensure_lock, parse};
-use cix_build::{
-    execute, generate_nix_with_snapshots, resolve_input_metadata, save_lock, OutputReceipt,
-};
+use crate::{codegen::generate_nix_with_snapshots, ensure_lock, parse};
+use cix_build::{execute, resolve_input_metadata, save_lock, OutputReceipt};
 
 #[derive(Clone, Debug)]
 pub struct BuildOptions {
@@ -178,6 +176,7 @@ pub fn build_family_with_stats_file(
         options.cold,
         options.allow_secret,
         &options.workspace_directory,
+        &crate::codegen::Codegen,
     );
     save_lock(&lock_path, &lock)?;
     let (snapshots, executed_steps) = execution?;

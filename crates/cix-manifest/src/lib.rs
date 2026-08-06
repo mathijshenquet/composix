@@ -6,13 +6,14 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use url::Url;
 
 #[derive(Debug, Clone)]
-pub struct Spec {
+pub struct Spec<T = String> {
     pub cix_manifest: u32,
     pub kind: ManifestKind,
-    pub services: BTreeMap<String, Service>,
+    pub services: BTreeMap<String, Service<T>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -25,18 +26,18 @@ pub enum ManifestKind {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Service {
+pub struct Service<T = String> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub start: Vec<String>,
+    pub start: Vec<T>,
     /// Read-only sparse-rootfs paths projected from the store item in system mode.
     pub mounts: Option<Vec<PathBuf>>,
     /// Pre-start argv run in the service sandbox on every start.
     ///
     /// It follows the same output-relative executable and environment interpolation rules as
     /// `start` and must be idempotent.
-    pub start_pre: Option<Vec<String>>,
+    pub start_pre: Option<Vec<T>>,
     #[serde(default)]
-    pub env: BTreeMap<String, Env>,
+    pub env: BTreeMap<String, Env<T>>,
     #[serde(default)]
     pub secrets: BTreeMap<String, Secret>,
     #[serde(default)]
@@ -75,10 +76,10 @@ pub struct DeviceClaim {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Env {
+pub struct Env<T = String> {
     #[serde(rename = "type")]
     pub legacy_type: Option<String>,
-    pub default: Option<String>,
+    pub default: Option<T>,
     #[serde(default)]
     pub required: bool,
     #[serde(default)]
@@ -268,6 +269,150 @@ impl Spec {
         }
         Ok(())
     }
+
+    pub fn to_canonical_json(&self) -> Result<String> {
+        let service = self
+            .services
+            .first_key_value()
+            .map(|(_, service)| service)
+            .context("bare manifest has no def-node")?;
+        let mut value = canonical_service(service)?;
+        value.insert("cixManifest".to_owned(), Value::from(0));
+        if self.kind != ManifestKind::Service {
+            value.insert("kind".to_owned(), serde_json::to_value(self.kind)?);
+        }
+        let mut json = serde_json::to_string_pretty(&Value::Object(value))?;
+        json.push('\n');
+        Ok(json)
+    }
+}
+
+fn canonical_service(service: &Service) -> Result<Map<String, Value>> {
+    let mut value = Map::new();
+    value.insert("start".into(), serde_json::to_value(&service.start)?);
+    if let Some(mounts) = &service.mounts {
+        if !mounts.is_empty() {
+            value.insert("mounts".into(), serde_json::to_value(mounts)?);
+        }
+    }
+    if let Some(start_pre) = &service.start_pre {
+        value.insert("start_pre".into(), serde_json::to_value(start_pre)?);
+    }
+    value.insert("env".into(), canonical_env(&service.env)?);
+    if !service.ports.is_empty() {
+        value.insert("ports".into(), canonical_ports(&service.ports));
+    }
+    if !service.listeners.is_empty() {
+        value.insert(
+            "listeners".into(),
+            serde_json::to_value(&service.listeners)?,
+        );
+    }
+    if let Some(readiness) = &service.readiness {
+        value.insert("readiness".into(), serde_json::to_value(readiness)?);
+    }
+    if let Some(liveness) = &service.liveness {
+        value.insert("liveness".into(), serde_json::to_value(liveness)?);
+    }
+    if !service.secrets.is_empty() {
+        value.insert("secrets".into(), canonical_secrets(&service.secrets));
+    }
+    if let Some(dirs) = canonical_dirs(&service.dirs)? {
+        value.insert("dirs".into(), dirs);
+    }
+    if !service.claims.is_empty() {
+        value.insert("claims".into(), serde_json::to_value(&service.claims)?);
+    }
+    if let Some(shm) = &service.shm {
+        value.insert("shm".into(), Value::String(shm.clone()));
+    }
+    if let Some(stop_signal) = &service.stop_signal {
+        value.insert("stopSignal".into(), Value::String(stop_signal.clone()));
+    }
+    if let Some(jit) = service.jit {
+        value.insert("jit".into(), Value::Bool(jit));
+    }
+    if service.egress {
+        value.insert("egress".into(), Value::Bool(true));
+    }
+    if let Some(network) = service.network {
+        value.insert("network".into(), serde_json::to_value(network)?);
+    }
+    Ok(value)
+}
+
+fn canonical_env(env: &BTreeMap<String, Env>) -> Result<Value> {
+    let mut values = Map::new();
+    for (name, declaration) in env {
+        let mut fields = Map::new();
+        if let Some(default) = &declaration.default {
+            fields.insert("default".into(), Value::String(default.clone()));
+        }
+        if declaration.required {
+            fields.insert("required".into(), Value::Bool(true));
+        }
+        if declaration.secret {
+            fields.insert("secret".into(), Value::Bool(true));
+        }
+        values.insert(name.clone(), Value::Object(fields));
+    }
+    Ok(Value::Object(values))
+}
+
+fn canonical_ports(ports: &BTreeMap<String, Port>) -> Value {
+    let mut values = Map::new();
+    for (name, port) in ports {
+        let mut fields = Map::new();
+        if let Some(env) = &port.env {
+            fields.insert("env".into(), Value::String(env.clone()));
+        }
+        if let Some(port) = port.value {
+            fields.insert("value".into(), Value::from(port));
+        }
+        fields.insert(
+            "protocol".into(),
+            Value::String(
+                match port.protocol {
+                    Protocol::Tcp => "tcp",
+                    Protocol::Udp => "udp",
+                }
+                .into(),
+            ),
+        );
+        values.insert(name.clone(), Value::Object(fields));
+    }
+    Value::Object(values)
+}
+
+fn canonical_secrets(secrets: &BTreeMap<String, Secret>) -> Value {
+    let mut values = Map::new();
+    for (name, secret) in secrets {
+        let mut fields = Map::new();
+        if let Some(as_env) = &secret.as_env {
+            fields.insert("as".into(), Value::String(as_env.clone()));
+        }
+        values.insert(name.clone(), Value::Object(fields));
+    }
+    Value::Object(values)
+}
+
+fn canonical_dirs(dirs: &Dirs) -> Result<Option<Value>> {
+    let mut value = Map::new();
+    for (role, paths) in [
+        ("state", dirs.state.as_slice()),
+        ("cache", dirs.cache.as_slice()),
+        ("logs", dirs.logs.as_slice()),
+        ("config", dirs.config.as_slice()),
+        ("run", dirs.run.as_deref().unwrap_or_default()),
+    ] {
+        if !paths.is_empty() {
+            value.insert(role.into(), serde_json::to_value(paths)?);
+        }
+    }
+    if !dirs.data.is_empty() {
+        value.insert("data".into(), serde_json::to_value(&dirs.data)?);
+    }
+    Ok((!value.is_empty()).then_some(Value::Object(value)))
 }
 
 fn item_name_from_store_path(output: &Path) -> Option<String> {

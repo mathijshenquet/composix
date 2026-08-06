@@ -3,7 +3,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cix_build::generate_nix_with_snapshots;
+use cix_cixfile::generate_nix_with_snapshots;
 use cix_cixfile::{
     build, build_family, build_family_with_stats_file, generate_nix, parse, ArtifactPin,
     BuildOptions, LockFile,

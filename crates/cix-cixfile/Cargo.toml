@@ -11,6 +11,7 @@ cix-common.workspace = true
 cix-build.workspace = true
 cix-index.workspace = true
 cix-compose.workspace = true
+cix-manifest.workspace = true
 libc.workspace = true
 ignore.workspace = true
 notify.workspace = true

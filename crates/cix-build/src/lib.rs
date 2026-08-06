@@ -7,7 +7,6 @@
 //! ## Module map
 //!
 //! - `build_chain`: conducts ordered FETCH/BUILDER dispatch and assembles receipts.
-//! - `codegen`: emits Nix and manifest expressions.
 //! - `evaluation`: owns typed Nix-evaluation requests and results.
 //! - `eval_plan`: records pure Cixfile evaluation.
 //! - `fetch`: owns credential consent and fetch inputs.
@@ -44,7 +43,6 @@ macro_rules! cix_timing {
 pub(crate) use cix_timing;
 
 mod build_chain;
-mod codegen;
 mod eval_plan;
 mod evaluation;
 mod fetch;
@@ -60,12 +58,8 @@ mod trace;
 mod workspace;
 
 pub use build_chain::execute;
-pub use codegen::{
-    generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
-    generate_fetch_context_nix, generate_fetch_offer_nix, generate_nix,
-    generate_nix_with_snapshots, generate_spec_json,
-};
 pub use eval_plan::{EvalPlan, EVAL_PLAN_VERSION};
+pub use evaluation::EvaluationCodegen;
 pub use fetch::revoke_fetch_consent;
 pub use lock::{
     ensure_lock, resolve_input_metadata, save_lock, validate_declared_expectations, ArtifactPin,
