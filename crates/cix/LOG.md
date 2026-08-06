@@ -2243,3 +2243,41 @@
   NodeCommand Nix boundary, so the intermediate test-only selector receipt was
   insufficient. The complete 14-scenario VM roster was rerun on the repaired
   integration tree and passed. → moving integration target
+
+## 2026-08-06 — fmtkey-impl post-merge memo regression
+
+- 2026-08-06T12:20:02Z — Current `origin/main` is already contained in this
+  merged track branch. Diagnosing the reported immediate no-op memo miss in
+  `local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence`; the
+  required causal receipt is a diff of the two computed keys, before changing
+  behavior.
+
+### FRICTION
+
+- 2026-08-06T12:20:02Z — The branch did not need a new main merge despite the
+  request: `git merge origin/main` reported already up to date. → coordination
+
+- 2026-08-06T12:25:57Z — Causal key diff: inserting only the derived
+  `lock.dev_envs` cache entry changed the computed build fingerprint from
+  `11857e0675d2e2af01e53ff4098a993087b11850c8aab6723c673190d52323ae` to
+  `dbf10dda99db13e423f6555ffc38351af83d8b1c34cee7caa464d509d517a0b4`.
+  `development_environment` writes and normalizes that cache during a build,
+  while its real semantic inputs (locked universe identity and ordered imports)
+  are already represented by the input/fetch pins and canonical Cixfile.
+  Removed `dev_envs` from the output fingerprint and added a proj1 cache-
+  rewrite regression guard; focused proj1 and formatter-equivalence receipts
+  passed. → root cause
+
+### FRICTION
+
+- 2026-08-06T12:25:57Z — The first version of the regression fixture replaced
+  the whole `devEnvs` object and correctly failed lock validation because it
+  deleted the builder's referenced entry. The final fixture adds an unused,
+  valid cache entry instead, isolating the nonsemantic key ingredient. → test
+  setup
+
+- 2026-08-06T12:29:31Z — Final synchronous, value-checked receipts: focused
+  proj1 regression fixture passed; the formatter-equivalence fixture passed;
+  the captured workspace exit file contained `0`; Rust fmt check and
+  warning-denied workspace/all-target clippy passed. Next: commit the staged
+  root fix; do not merge.

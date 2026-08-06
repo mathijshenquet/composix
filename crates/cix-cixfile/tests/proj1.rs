@@ -148,6 +148,21 @@ fn local_fetch_fixture_has_read_set_early_cutoff_and_cold_convergence() {
     let (latest, readdir_stats) = build_with_stats(&options).unwrap();
     assert_eq!(status(&readdir_stats, "RUN"), "executed");
 
+    let lock_path = temporary.path().join("Cixfile.lock");
+    let mut lock: serde_json::Value =
+        serde_json::from_slice(&fs::read(&lock_path).unwrap()).unwrap();
+    lock["devEnvs"].as_object_mut().unwrap().insert(
+        "derived-cache-rewrite".into(),
+        serde_json::json!({
+            "environment": { "PATH": "/nix/store/example/bin" }
+        }),
+    );
+    fs::write(
+        &lock_path,
+        format!("{}\n", serde_json::to_string_pretty(&lock).unwrap()),
+    )
+    .unwrap();
+
     let (noop, noop_stats) = build_with_stats(&options).unwrap();
     assert_eq!(noop, latest);
     assert_eq!(noop_stats.nix_subprocesses, 0);
