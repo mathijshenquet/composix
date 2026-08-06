@@ -2207,3 +2207,22 @@
   `nar_identity` re-export. Restoring that deliberate public API fixed the
   seam; the subsequent focused suites and complete required gates passed. →
   merge integration
+
+## 2026-08-06 — fmtkey-impl final main receipt
+
+- 2026-08-06T11:58:09Z — A newer `main` CI fixture repair
+  (`1b6cdcfd`, sandbox interpreter symlink canonicalization) arrived during
+  integration and was merged as a second local merge. The final-tree captured
+  workspace receipt again contained `0`; fmt, warning-denied workspace/all-
+  target clippy, examples fmt, and committed-tour drift passed. The progressive
+  VM selector exited `0` and correctly selected no scenarios for this test-only
+  diff; the preceding integrated tree had already completed its 14 selected VM
+  scenarios with exit `0`. Next: amend this merge with the receipt and verify a
+  clean branch.
+
+### FRICTION
+
+- 2026-08-06T11:58:09Z — `origin/main` advanced once after the initial merge
+  was committed. The added change was isolated to the sandbox CI test, but was
+  merged and all applicable final receipts were repeated rather than treating
+  the prior tree as current. → moving integration target
