@@ -6,16 +6,19 @@
 //!
 //! ## Module map
 //!
-//! - `build_chain`: conducts ordered build-step execution and sandbox use.
+//! - `build_chain`: conducts ordered FETCH/BUILDER dispatch and assembles receipts.
 //! - `codegen`: emits Nix and manifest expressions.
+//! - `evaluation`: owns typed Nix-evaluation requests and results.
 //! - `eval_plan`: records pure Cixfile evaluation.
 //! - `fetch`: owns credential consent and fetch inputs.
+//! - `fetch_state`: owns FETCH snapshots, volatility, and pin refresh.
 //! - `fhs`: diagnoses FHS-loader compatibility.
 //! - `lock`: owns persisted pins and memo records.
 //! - `memo`: owns build-step keys, validation, reduction, and constructive replay.
 //! - `model`: defines the shared Cixfile language model.
 //! - `scratch`: owns temporary build-state lifecycle.
 //! - `seccomp`: owns build network policy.
+//! - `sandbox`: owns typed traced-sandbox requests and results.
 //! - `trace`: captures build read sets.
 //! - `workspace`: owns persisted and disposable builder filesystem state.
 //!
@@ -43,11 +46,14 @@ pub(crate) use cix_timing;
 mod build_chain;
 mod codegen;
 mod eval_plan;
+mod evaluation;
 mod fetch;
+mod fetch_state;
 mod fhs;
 mod lock;
 mod memo;
 mod model;
+mod sandbox;
 mod scratch;
 mod seccomp;
 mod trace;

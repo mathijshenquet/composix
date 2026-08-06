@@ -1,22 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs;
-use std::io::{self, Write};
-use std::os::fd::AsRawFd;
-use std::os::unix::fs::{symlink, PermissionsExt};
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::Path;
 use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::codegen::{
-    generate_builder_context_nix, generate_builder_dev_env_nix, generate_builder_offer_nix,
-    generate_fetch_context_nix, generate_fetch_offer_nix,
+use crate::evaluation::{
+    BuilderContextRequest, DevEnvironmentRequest, FetchContextRequest, NixEvaluation,
 };
-use crate::fetch::{CredentialMount, HostCredentials};
-use crate::fhs;
+use crate::fetch::HostCredentials;
+use crate::fetch_state::{FetchState, PinRefreshRequest};
 use crate::lock::builder_fetch_id;
 use crate::memo::{
     Attribution, BuilderKeyRequest, ChainKeysVerdict, ColdOutputRequest, ColdReadComparisonRequest,
@@ -24,62 +17,13 @@ use crate::memo::{
     ReductionRequest, StepMemoKeyRequest, StepReuseRequest, StepReuseVerdict, TopFetchKeyRequest,
     TopReductionRequest,
 };
-use crate::seccomp;
+use crate::sandbox::{Sandbox, SandboxRequest};
 use crate::trace;
 use crate::workspace::{self, Workspace};
 use crate::{
-    BuildStep, Builder, Cixfile, DevEnvironment, Fetch, FetchPin, LockFile, ScratchDir, StepMemo,
-    Template, TemplatePart, VolatilePath,
+    BuildStep, Builder, Cixfile, Fetch, FetchPin, LockFile, ScratchDir, StepMemo, Template,
+    TemplatePart, VolatilePath,
 };
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct BuildContext {
-    offers: Vec<String>,
-    imports: Vec<String>,
-    commands: Vec<String>,
-    copies: Vec<String>,
-    environment: BTreeMap<String, String>,
-    #[serde(rename = "universeIdentities")]
-    universe_identities: BTreeMap<String, String>,
-}
-
-struct FetchProbe {
-    temporary: Option<ScratchDir>,
-}
-
-impl FetchProbe {
-    fn path(&self) -> &Path {
-        self.temporary
-            .as_ref()
-            .expect("FETCH probe snapshot is open")
-            .path()
-    }
-
-    fn close(mut self) -> Result<()> {
-        self.temporary
-            .take()
-            .expect("FETCH probe snapshot is open")
-            .close()
-    }
-}
-
-impl Drop for FetchProbe {
-    fn drop(&mut self) {
-        let Some(temporary) = self.temporary.take() else {
-            return;
-        };
-        if let Err(error) = temporary.close() {
-            eprintln!("warning: failed to clean FETCH probe snapshot: {error:#}");
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RunNetwork {
-    Namespace,
-    SocketFilter,
-}
 
 #[allow(clippy::too_many_arguments)]
 pub fn execute(
@@ -154,37 +98,41 @@ fn execute_top_fetch(
     cold: bool,
     credentials: &mut HostCredentials,
 ) -> Result<(String, bool)> {
-    if let Some(expected) = &fetch.expected {
-        match lock.fetches.get(name) {
-            Some(pin) if pin.nar_hash != *expected => bail!(
-                "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {expected}\n  lock records {}",
+    FetchState::install_expected(lock, name, fetch.expected.as_deref(), |pin| {
+        format!(
+                "line {}: FETCH {name:?} EXPECT disagrees with its recorded lock pin\n  | {:?}\n  declared {}\n  lock records {}",
                 fetch.line,
                 fetch.source,
+                fetch.expected.as_deref().expect("EXPECT was supplied"),
                 pin.nar_hash
-            ),
-            Some(_) => {}
-            None => {
-                lock.fetches
-                    .insert(name.to_owned(), FetchPin::expected(expected.clone()));
-            }
-        }
-    }
-    let context = resolve_fetch_context(cixfile, name, directory, lock, system, binders)?;
-    if context.commands.len() != 1 {
-        bail!(
-            "internal top-level FETCH context mismatch: resolved {} commands",
-            context.commands.len()
-        );
-    }
+            )
+    })?;
+    let fetch_state = FetchState::new(directory);
+    let context_request = FetchContextRequest {
+        cixfile,
+        name,
+        directory,
+        lock,
+        system,
+        snapshots: binders,
+    };
+    let context = NixEvaluation::fetch_context(context_request)?;
     // Store paths are complete by store invariant (the ensure_store_path
     // assumption); realization is only needed when an offer is missing.
     if context.offers.iter().any(|path| !Path::new(path).exists()) {
-        realize_fetch_offers(cixfile, name, directory, lock, system, binders)?;
+        NixEvaluation::realize_fetch_offers(FetchContextRequest {
+            cixfile,
+            name,
+            directory,
+            lock,
+            system,
+            snapshots: binders,
+        })?;
     }
-    let offered_closure = query_closure(&context.offers)?;
-    let shell = find_shell(&context.imports)?;
+    let offered_closure = NixEvaluation::offered_closure(&context.offers)?;
+    Sandbox::shell(&context.imports)?;
     let environment = build_environment(context.environment.clone());
-    let command = &context.commands[0];
+    let command = &context.command;
     let universe_identities = context
         .universe_identities
         .values()
@@ -239,8 +187,8 @@ fn execute_top_fetch(
         let pin = lock.fetches.get(name).with_context(|| {
             format!("FETCH {name} has no pin to replay; --cold never refetches")
         })?;
-        let snapshot = replay_fetch_snapshot(directory, name, pin)?;
-        verify_fetch_hash(fetch.expected.as_deref(), Some(pin), None)?;
+        let snapshot = fetch_state.replay_snapshot(name, pin)?;
+        FetchState::verify(fetch.expected.as_deref(), Some(pin), None)?;
         let paths = workspace::store_consumed_paths(Path::new(&snapshot), needed.keys().cloned())?;
         let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
             command,
@@ -268,7 +216,7 @@ fn execute_top_fetch(
                 entry: lock.memo.get(key),
                 needed: needed.keys().cloned().collect(),
             })? {
-                verify_fetch_hash(fetch.expected.as_deref(), lock.fetches.get(name), None)
+                FetchState::verify(fetch.expected.as_deref(), lock.fetches.get(name), None)
                     .with_context(|| {
                         format!(
                             "line {}: top-level FETCH {name:?} pin verification failed\n  | {:?}",
@@ -281,24 +229,20 @@ fn execute_top_fetch(
         }
     }
     let work = ScratchDir::new("cix-fetch-work-").context("creating top-level FETCH workdir")?;
-    let trace_before = copied_snapshot(work.path())?;
+    let trace_before = fetch_state.snapshot(work.path())?;
     let started = Instant::now();
     let credential = credentials.for_command(command)?;
-    let observations = run_sandbox(
-        work.path(),
-        &shell,
+    let credential_mounts = credential.as_ref().into_iter().collect::<Vec<_>>();
+    let observations = Sandbox::execute(SandboxRequest {
+        workdir: work.path(),
         command,
-        &environment,
-        &BTreeMap::new(),
-        &offered_closure,
-        &context.imports,
-        None,
-        credential
-            .as_ref()
-            .into_iter()
-            .collect::<Vec<_>>()
-            .as_slice(),
-    )
+        environment: &environment,
+        export_prelude: &BTreeMap::new(),
+        offered_closure: &offered_closure,
+        imports: &context.imports,
+        run_network: None,
+        credentials: &credential_mounts,
+    })
     .with_context(|| {
         format!(
             "line {}: top-level FETCH {name:?} failed\n  | {:?}",
@@ -307,35 +251,30 @@ fn execute_top_fetch(
     })?;
     let mut step_volatile = BTreeSet::new();
     let volatile = if force && fetch.expected.is_none() {
-        let first = copied_snapshot(work.path())?;
+        let first = fetch_state.snapshot(work.path())?;
         let empty = ScratchDir::new("cix-build-cold-")?;
         workspace::replace_tree_at(empty.path(), work.path())?;
-        run_sandbox(
-            work.path(),
-            &shell,
+        Sandbox::execute(SandboxRequest {
+            workdir: work.path(),
             command,
-            &environment,
-            &BTreeMap::new(),
-            &offered_closure,
-            &context.imports,
-            None,
-            credential
-                .as_ref()
-                .into_iter()
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )
+            environment: &environment,
+            export_prelude: &BTreeMap::new(),
+            offered_closure: &offered_closure,
+            imports: &context.imports,
+            run_network: None,
+            credentials: &credential_mounts,
+        })
         .with_context(|| {
             format!(
                 "line {}: top-level FETCH {name:?} probe failed\n  | {:?}",
                 fetch.line, fetch.source
             )
         })?;
-        let observed_volatile = volatile_paths(first.path(), work.path())?;
-        report_volatile(name, &observed_volatile);
+        let observed_volatile = fetch_state.volatile_paths(first.path(), work.path())?;
+        FetchState::report_volatility(name, &observed_volatile);
         step_volatile.extend(observed_volatile.keys().cloned());
         workspace::replace_tree_at(first.path(), work.path())?;
-        let volatile = consumed_volatile_paths(observed_volatile, &needed);
+        let volatile = FetchState::consumed_volatility(observed_volatile, &needed);
         first.close()?;
         volatile
     } else {
@@ -344,7 +283,7 @@ fn execute_top_fetch(
     let wall_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
     let output_hash = workspace::nar_hash(work.path())?;
     if let Some(expected) = fetch.expected.as_deref() {
-        verify_fetch_hash(Some(expected), None, Some(&output_hash)).with_context(|| {
+        FetchState::verify(Some(expected), None, Some(&output_hash)).with_context(|| {
             format!(
                 "line {}: top-level FETCH {name:?} output did not match EXPECT\n  | {:?}",
                 fetch.line, fetch.source
@@ -380,19 +319,19 @@ fn execute_top_fetch(
         },
     );
     trace_before.close()?;
-    let actual_paths = fetch_path_hashes(work.path(), &needed)?;
-    report_unconsumed_complement(name, work.path(), &needed);
+    let actual_paths = FetchState::consumed_path_hashes(work.path(), &needed)?;
+    FetchState::report_unconsumed_complement(name, work.path(), &needed);
     let pin = lock.fetches.get(name).cloned();
-    let refreshed = refresh_fetch_pin(
-        pin.as_ref(),
-        fetch.expected.is_some(),
+    let refreshed = FetchState::refresh_pin(PinRefreshRequest {
+        previous: pin.as_ref(),
+        expected: fetch.expected.is_some(),
         force,
         actual_paths,
-        &output_hash,
+        snapshot_nar_hash: &output_hash,
         volatile,
         name,
-    )?;
-    cache_fetch_snapshot(directory, name, &refreshed, &snapshot)?;
+    })?;
+    fetch_state.cache_snapshot(name, &refreshed, &snapshot)?;
     lock.fetches.insert(name.to_owned(), refreshed);
     let pin = lock.fetches[name].key();
     let key = MemoEngine::top_fetch_key(TopFetchKeyRequest {
@@ -434,6 +373,7 @@ fn execute_builder(
     workspace_directory: &Path,
     credentials: &mut HostCredentials,
 ) -> Result<(String, Vec<ExecutedStep>)> {
+    let fetch_state = FetchState::new(directory);
     let command_count = builder
         .steps
         .iter()
@@ -444,7 +384,14 @@ fn execute_builder(
         .iter()
         .filter(|step| matches!(step, BuildStep::Copy(_)))
         .count();
-    let context = resolve_builder_context(cixfile, builder_name, directory, lock, system, binders)?;
+    let context = NixEvaluation::builder_context(BuilderContextRequest {
+        cixfile,
+        name: builder_name,
+        directory,
+        lock,
+        system,
+        snapshots: binders,
+    })?;
     if context.commands.len() != command_count {
         bail!(
             "internal build context mismatch: resolved {} commands for {command_count} steps",
@@ -463,36 +410,43 @@ fn execute_builder(
         // Store paths are complete by store invariant (the ensure_store_path
         // assumption); realization is only needed when an offer is missing.
         if context.offers.iter().any(|path| !Path::new(path).exists()) {
-            realize_builder_offers(cixfile, builder_name, directory, lock, system, binders)?;
+            NixEvaluation::realize_builder_offers(BuilderContextRequest {
+                cixfile,
+                name: builder_name,
+                directory,
+                lock,
+                system,
+                snapshots: binders,
+            })?;
         }
-        query_closure(&context.offers)?
+        NixEvaluation::offered_closure(&context.offers)?
     };
     let shell = if command_count == 0 {
         None
     } else {
-        Some(find_shell(&context.imports)?)
+        Some(Sandbox::shell(&context.imports)?)
     };
     let run_network = if builder
         .steps
         .iter()
         .any(|step| matches!(step, BuildStep::Run { .. }))
     {
-        Some(probe_run_network(
+        Some(Sandbox::run_network(
             shell.as_deref().expect("RUN steps have a shell"),
         )?)
     } else {
         None
     };
-    let mut environment = vendored_dev_environment(
+    let mut environment = NixEvaluation::development_environment(DevEnvironmentRequest {
         cixfile,
         builder_name,
         directory,
         lock,
         system,
-        binders,
-        &context.imports,
-        &context.universe_identities,
-    )?;
+        snapshots: binders,
+        imports: &context.imports,
+        universe_identities: &context.universe_identities,
+    })?;
     environment.extend(context.environment.clone());
     environment = build_environment(environment);
     let universe_identities = context
@@ -501,7 +455,7 @@ fn execute_builder(
         .cloned()
         .collect::<Vec<_>>();
     let mut export_prelude = BTreeMap::new();
-    install_declared_expectations(builder_name, builder, &context.commands, lock)?;
+    FetchState::install_builder_expectations(lock, builder_name, builder, &context.commands)?;
     let chain_key_started = Instant::now();
     let existing_keys = match MemoEngine::builder_keys(BuilderKeyRequest {
         builder_name,
@@ -659,7 +613,7 @@ fn execute_builder(
                         if let Some(memo) = &recorded_memo {
                             memo_engine.replay_cold(memo)?;
                         } else {
-                            let snapshot = replay_fetch_snapshot(directory, id, pin)?;
+                            let snapshot = fetch_state.replay_snapshot(id, pin)?;
                             workspace.restore_snapshot(Path::new(&snapshot))?;
                         }
                         eprintln!(
@@ -710,7 +664,7 @@ fn execute_builder(
                     }
                 }
                 let snapshot_started = Instant::now();
-                let trace_before = copied_snapshot(workdir)?;
+                let trace_before = fetch_state.snapshot(workdir)?;
                 crate::cix_timing!(
                     "CIX timing workspace-snapshot phase=before-command wall_ms={}",
                     snapshot_started.elapsed().as_millis()
@@ -718,7 +672,7 @@ fn execute_builder(
                 let probe_before = (is_fetch
                     && update_fetch_pins
                     && matches!(step, BuildStep::Fetch { expected: None, .. }))
-                .then(|| copied_snapshot(workdir))
+                .then(|| fetch_state.snapshot(workdir))
                 .transpose()?;
                 let started = Instant::now();
                 let credential = if is_fetch {
@@ -726,21 +680,17 @@ fn execute_builder(
                 } else {
                     None
                 };
-                let observations = run_sandbox(
+                let credential_mounts = credential.as_ref().into_iter().collect::<Vec<_>>();
+                let observations = Sandbox::execute(SandboxRequest {
                     workdir,
-                    shell.as_deref().expect("command steps have a shell"),
                     command,
-                    &environment,
-                    &export_prelude,
-                    &offered_closure,
-                    &context.imports,
-                    if is_fetch { None } else { run_network },
-                    credential
-                        .as_ref()
-                        .into_iter()
-                        .collect::<Vec<_>>()
-                        .as_slice(),
-                )
+                    environment: &environment,
+                    export_prelude: &export_prelude,
+                    offered_closure: &offered_closure,
+                    imports: &context.imports,
+                    run_network: if is_fetch { None } else { run_network },
+                    credentials: &credential_mounts,
+                })
                 .with_context(|| format!("line {line}: {kind} failed\n  | {source:?}"))?;
                 let read_set_started = Instant::now();
                 let empty_reads = BTreeMap::new();
@@ -765,32 +715,28 @@ fn execute_builder(
                 if is_fetch {
                     let id = fetch_id.expect("FETCH has an id");
                     let volatile = if let Some(before) = probe_before {
-                        let first = copied_snapshot(workdir)?;
+                        let first = fetch_state.snapshot(workdir)?;
                         workspace.replace_tree(before.path())?;
-                        let _ = run_sandbox(
+                        let _ = Sandbox::execute(SandboxRequest {
                             workdir,
-                            shell.as_deref().expect("command steps have a shell"),
                             command,
-                            &environment,
-                            &export_prelude,
-                            &offered_closure,
-                            &context.imports,
-                            None,
-                            credential
-                                .as_ref()
-                                .into_iter()
-                                .collect::<Vec<_>>()
-                                .as_slice(),
-                        )
+                            environment: &environment,
+                            export_prelude: &export_prelude,
+                            offered_closure: &offered_closure,
+                            imports: &context.imports,
+                            run_network: None,
+                            credentials: &credential_mounts,
+                        })
                         .with_context(|| {
                             format!("line {line}: FETCH update probe failed\n  | {source:?}")
                         })?;
-                        let observed_volatile = volatile_paths(first.path(), workdir)?;
-                        report_volatile(&id, &observed_volatile);
+                        let observed_volatile =
+                            fetch_state.volatile_paths(first.path(), workdir)?;
+                        FetchState::report_volatility(&id, &observed_volatile);
                         step_volatile.extend(observed_volatile.keys().cloned());
                         workspace.replace_tree(first.path())?;
                         before.close()?;
-                        let volatile = consumed_volatile_paths(observed_volatile, &needed);
+                        let volatile = FetchState::consumed_volatility(observed_volatile, &needed);
                         first.close()?;
                         volatile
                     } else {
@@ -802,7 +748,7 @@ fn execute_builder(
                         _ => None,
                     };
                     if let Some(expected) = expected {
-                        verify_fetch_hash(Some(expected), None, Some(&actual)).with_context(
+                        FetchState::verify(Some(expected), None, Some(&actual)).with_context(
                             || {
                                 format!(
                                 "line {line}: FETCH output did not match EXPECT\n  | {source:?}"
@@ -922,20 +868,20 @@ fn execute_builder(
         }
     }
     if !fetch_snapshots.is_empty() {
-        let actual_paths = fetch_path_hashes(workdir, &needed)?;
-        report_unconsumed_complement(builder_name, workdir, &needed);
+        let actual_paths = FetchState::consumed_path_hashes(workdir, &needed)?;
+        FetchState::report_unconsumed_complement(builder_name, workdir, &needed);
         for (id, (expected, snapshot, snapshot_nar_hash, volatile)) in fetch_snapshots {
-            let refreshed = refresh_fetch_pin(
-                lock.fetches.get(&id),
+            let refreshed = FetchState::refresh_pin(PinRefreshRequest {
+                previous: lock.fetches.get(&id),
                 expected,
-                update_fetch_pins,
-                actual_paths.clone(),
-                &snapshot_nar_hash,
+                force: update_fetch_pins,
+                actual_paths: actual_paths.clone(),
+                snapshot_nar_hash: &snapshot_nar_hash,
                 volatile,
-                &id,
-            )?;
+                name: &id,
+            })?;
             if let Some(snapshot) = snapshot {
-                cache_fetch_snapshot(directory, &id, &refreshed, &snapshot)?;
+                fetch_state.cache_snapshot(&id, &refreshed, &snapshot)?;
             }
             lock.fetches.insert(id, refreshed);
         }
@@ -998,156 +944,6 @@ fn build_environment(mut environment: BTreeMap<String, String>) -> BTreeMap<Stri
     environment.insert("TMPDIR".into(), "/tmp".into());
     environment.insert("TZ".into(), "UTC".into());
     environment
-}
-
-#[allow(clippy::too_many_arguments)]
-fn vendored_dev_environment(
-    cixfile: &Cixfile,
-    builder_name: &str,
-    directory: &Path,
-    lock: &mut LockFile,
-    system: &str,
-    snapshots: &BTreeMap<String, String>,
-    imports: &[String],
-    universe_identities: &BTreeMap<String, String>,
-) -> Result<BTreeMap<String, String>> {
-    if imports.is_empty() {
-        return Ok(BTreeMap::new());
-    }
-    let universe = cixfile
-        .inputs
-        .iter()
-        .find(|(_, input)| input.kind == crate::InputKind::PackageUniverse)
-        .map(|(name, _)| name)
-        .context("BUILDER IMPORT needs a package-universe FROM")?;
-    let identity = universe_identities
-        .get(universe)
-        .context("package universe identity was not resolved")?;
-    let key = format!("{identity}:{}", hex_hash(imports.join("\0").as_bytes()));
-    if let Some(snapshot) = lock.dev_envs.get(&key) {
-        lock.builder_dev_envs
-            .insert(builder_name.to_owned(), key.clone());
-        let environment = filter_development_environment(&snapshot.environment);
-        if environment != snapshot.environment {
-            lock.dev_envs.insert(
-                key,
-                DevEnvironment {
-                    environment: environment.clone(),
-                },
-            );
-        }
-        return Ok(environment);
-    }
-    let expression =
-        generate_builder_dev_env_nix(cixfile, builder_name, directory, lock, system, snapshots)?;
-    let raw = cix_common::nix(&["print-dev-env", "--impure", "--json", "--expr", &expression])
-        .context("capturing nixpkgs development environment for IMPORT")?;
-    let document: serde_json::Value =
-        serde_json::from_str(&raw).context("parsing nix print-dev-env JSON")?;
-    let raw_environment = document
-        .get("variables")
-        .and_then(serde_json::Value::as_object)
-        .into_iter()
-        .flat_map(|variables| variables.iter())
-        .filter_map(|(name, variable)| {
-            variable
-                .get("value")?
-                .as_str()
-                .map(|value| (name.clone(), value.to_owned()))
-        })
-        .collect::<BTreeMap<_, _>>();
-    let environment = filter_development_environment(&raw_environment);
-    lock.dev_envs.insert(
-        key.clone(),
-        DevEnvironment {
-            environment: environment.clone(),
-        },
-    );
-    lock.builder_dev_envs.insert(builder_name.to_owned(), key);
-    Ok(environment)
-}
-
-fn filter_development_environment(
-    environment: &BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
-    environment
-        .iter()
-        .filter(|(name, value)| {
-            value.contains("/nix/store/")
-                && !value.contains(char::is_whitespace)
-                && !skeleton_environment_variable(name)
-                && development_search_variable(name)
-        })
-        .map(|(name, value)| (name.clone(), value.clone()))
-        .collect()
-}
-
-fn skeleton_environment_variable(name: &str) -> bool {
-    matches!(
-        name,
-        "BASH"
-            | "CONFIG_SHELL"
-            | "HOME"
-            | "HOST_PATH"
-            | "LC_ALL"
-            | "PATH"
-            | "SHELL"
-            | "SOURCE_DATE_EPOCH"
-            | "SSL_CERT_FILE"
-            | "TMPDIR"
-            | "TZ"
-    ) || name.starts_with("NIX_")
-        || name.starts_with("stdenv")
-        || name.ends_with("Phase")
-        || name.ends_with("Hooks")
-}
-
-fn development_search_variable(name: &str) -> bool {
-    name.ends_with("_PATH")
-        || name.ends_with("_DIRS")
-        || matches!(
-            name,
-            "PKG_CONFIG_PATH" | "CMAKE_PREFIX_PATH" | "SYSTEM_CERTIFICATE_PATH"
-        )
-}
-
-fn report_unconsumed_complement(
-    name: &str,
-    workspace: &Path,
-    needed: &BTreeMap<String, NeededPath>,
-) {
-    const THRESHOLD_BYTES: u64 = 16 * 1024 * 1024;
-    let total = tree_size(workspace).unwrap_or(0);
-    let consumed = needed
-        .keys()
-        .map(|path| {
-            let source = if path == "." {
-                workspace.to_owned()
-            } else {
-                workspace.join(path)
-            };
-            tree_size(&source).unwrap_or(0)
-        })
-        .sum::<u64>();
-    let complement = total.saturating_sub(consumed.min(total));
-    if complement >= THRESHOLD_BYTES {
-        eprintln!(
-            "note: FETCH {name} leaves {} MiB unconsumed of {} MiB in its workspace; only COPY-reachable paths enter the pin",
-            complement / (1024 * 1024),
-            total / (1024 * 1024),
-        );
-    }
-}
-
-fn tree_size(path: &Path) -> Result<u64> {
-    let metadata = fs::symlink_metadata(path)?;
-    if !metadata.is_dir() {
-        return Ok(metadata.len());
-    }
-    fs::read_dir(path)?.try_fold(0u64, |total, entry| {
-        let entry = entry?;
-        Ok(total.saturating_add(tree_size(&entry.path())?))
-    })
 }
 
 fn consumed_paths(cixfile: &Cixfile) -> BTreeMap<String, BTreeMap<String, NeededPath>> {
@@ -1239,810 +1035,6 @@ fn template_binders(template: &Template) -> impl Iterator<Item = &str> {
         TemplatePart::Binder { name, .. } => Some(name.as_str()),
         _ => None,
     })
-}
-
-fn install_declared_expectations(
-    builder_name: &str,
-    builder: &Builder,
-    commands: &[String],
-    lock: &mut LockFile,
-) -> Result<()> {
-    let mut command_index = 0;
-    for (index, step) in builder.steps.iter().enumerate() {
-        match step {
-            BuildStep::Env { .. } => {}
-            BuildStep::Fetch {
-                expected,
-                line,
-                source,
-                ..
-            } => {
-                let command = &commands[command_index];
-                if let Some(expected) = expected {
-                    let id = builder_fetch_id(builder_name, index, command);
-                    match lock.fetches.get(&id) {
-                        Some(pin) if pin.nar_hash != *expected => bail!(
-                            "line {line}: BUILDER {builder_name} FETCH EXPECT disagrees with its recorded lock pin\n  | {source:?}\n  declared {expected}\n  lock records {}",
-                            pin.nar_hash
-                        ),
-                        Some(_) => {}
-                        None => {
-                            lock.fetches.insert(id, FetchPin::expected(expected.clone()));
-                        }
-                    }
-                }
-                command_index += 1;
-            }
-            BuildStep::Run { .. } => command_index += 1,
-            BuildStep::Copy(_) => {}
-        }
-    }
-    Ok(())
-}
-
-fn replay_fetch_snapshot(directory: &Path, name: &str, pin: &FetchPin) -> Result<String> {
-    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
-    let snapshot = fs::read_to_string(&receipt)
-        .ok()
-        .map(|text| text.trim().to_owned())
-        .filter(|path| !path.is_empty())
-        .filter(|path| workspace::ensure_store_path(path).unwrap_or(false));
-    snapshot.with_context(|| {
-        format!(
-            "FETCH {name} has no locally cached replay snapshot at {}; run a non-cold build first (--cold never refetches)",
-            receipt.display()
-        )
-    })
-}
-
-fn cache_fetch_snapshot(
-    directory: &Path,
-    name: &str,
-    pin: &FetchPin,
-    snapshot: &str,
-) -> Result<()> {
-    let receipt = fetch_snapshot_receipt(directory, name, pin)?;
-    let parent = receipt
-        .parent()
-        .expect("fetch snapshot receipt has a parent");
-    fs::create_dir_all(parent)
-        .with_context(|| format!("creating FETCH snapshot cache {}", parent.display()))?;
-    fs::write(&receipt, format!("{snapshot}\n"))
-        .with_context(|| format!("recording FETCH snapshot cache {}", receipt.display()))
-}
-
-fn fetch_snapshot_receipt(directory: &Path, name: &str, pin: &FetchPin) -> Result<PathBuf> {
-    let base = if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
-        PathBuf::from(path)
-    } else {
-        PathBuf::from(
-            std::env::var_os("HOME")
-                .context("HOME is unset; set XDG_CACHE_HOME for FETCH replay snapshots")?,
-        )
-        .join(".cache")
-    };
-    let directory = directory.canonicalize().with_context(|| {
-        format!(
-            "resolving Cixfile directory for FETCH snapshot cache {}",
-            directory.display()
-        )
-    })?;
-    let key = hex_hash(format!("{}\0{name}\0{}", directory.display(), pin.key()).as_bytes());
-    Ok(base.join("cix/fetch-snapshots").join(key))
-}
-
-fn copied_snapshot(source: &Path) -> Result<FetchProbe> {
-    let snapshot = ScratchDir::new("cix-fetch-probe-").context("creating FETCH probe snapshot")?;
-    workspace::copy_tree(source, snapshot.path())?;
-    Ok(FetchProbe {
-        temporary: Some(snapshot),
-    })
-}
-
-fn volatile_paths(first: &Path, second: &Path) -> Result<BTreeMap<String, VolatilePath>> {
-    let mut first_nodes = BTreeMap::new();
-    let mut second_nodes = BTreeMap::new();
-    collect_files(first, Path::new(""), &mut first_nodes)?;
-    collect_files(second, Path::new(""), &mut second_nodes)?;
-    let names = first_nodes
-        .keys()
-        .chain(second_nodes.keys())
-        .cloned()
-        .collect::<BTreeSet<_>>();
-    let mut volatile = BTreeMap::new();
-    for name in names {
-        let before = first_nodes.get(&name);
-        let after = second_nodes.get(&name);
-        if before.map(|node| &node.0) != after.map(|node| &node.0) {
-            volatile.insert(
-                name,
-                VolatilePath {
-                    first_size: before.map_or(0, |node| node.1),
-                    second_size: after.map_or(0, |node| node.1),
-                },
-            );
-        }
-    }
-    Ok(volatile)
-}
-
-fn consumed_volatile_paths(
-    observed: BTreeMap<String, VolatilePath>,
-    needed: &BTreeMap<String, NeededPath>,
-) -> BTreeMap<String, VolatilePath> {
-    observed
-        .into_iter()
-        .filter(|(path, _)| {
-            needed.keys().any(|needed_path| {
-                needed_path == "."
-                    || path == needed_path
-                    || path
-                        .strip_prefix(needed_path)
-                        .is_some_and(|suffix| suffix.starts_with('/'))
-            })
-        })
-        .collect()
-}
-
-fn report_volatile(name: &str, volatile: &BTreeMap<String, VolatilePath>) {
-    if volatile.is_empty() {
-        eprintln!("FETCH {name} update probe: two outputs were identical");
-        return;
-    }
-    eprintln!("FETCH {name} update probe found volatile files:");
-    for (path, sizes) in volatile {
-        eprintln!(
-            "  {path} ({} B -> {} B)",
-            sizes.first_size, sizes.second_size
-        );
-    }
-}
-
-fn collect_files(
-    root: &Path,
-    relative: &Path,
-    files: &mut BTreeMap<String, (String, u64)>,
-) -> Result<()> {
-    let directory = root.join(relative);
-    for entry in fs::read_dir(&directory)
-        .with_context(|| format!("reading FETCH probe tree {}", directory.display()))?
-    {
-        let entry = entry?;
-        let name = relative.join(entry.file_name());
-        let path = root.join(&name);
-        let metadata = fs::symlink_metadata(&path)?;
-        if metadata.is_dir() {
-            collect_files(root, &name, files)?;
-        } else {
-            files.insert(
-                name.to_string_lossy().into_owned(),
-                (file_fingerprint(&path, &metadata)?, metadata.len()),
-            );
-        }
-    }
-    Ok(())
-}
-
-fn file_fingerprint(path: &Path, metadata: &fs::Metadata) -> Result<String> {
-    let mut hasher = Sha256::new();
-    hasher.update(metadata.permissions().mode().to_le_bytes());
-    if metadata.file_type().is_symlink() {
-        hasher.update(fs::read_link(path)?.as_os_str().as_encoded_bytes());
-    } else {
-        let mut file = fs::File::open(path)?;
-        io::copy(&mut file, &mut hasher)?;
-    }
-    Ok(hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
-}
-
-fn resolve_builder_context(
-    cixfile: &Cixfile,
-    builder: &str,
-    directory: &Path,
-    lock: &LockFile,
-    system: &str,
-    snapshots: &BTreeMap<String, String>,
-) -> Result<BuildContext> {
-    let expression =
-        generate_builder_context_nix(cixfile, builder, directory, lock, system, snapshots)?;
-    if let Some(context) = cached_context(&expression, directory)? {
-        return Ok(context);
-    }
-    let context = eval_context(&expression)?;
-    cache_context(&expression, directory, &context)?;
-    Ok(context)
-}
-
-/// The generated context expression is byte-stable across source edits (the
-/// source enters it only as a `builtins.path` literal of a fixed directory
-/// path), so its evaluation result is reusable as long as every resolved
-/// store path still exists — except `copies` entries rooted in the source,
-/// which move with the source content. Those are re-rooted by store-adding
-/// the source directory (`nix store add --mode nar` computes the identical
-/// path to `builtins.path`). Expressions whose results depend on source
-/// content beyond that root (hashFile interpolations, project-local
-/// overlays) never take this fastpath.
-fn context_source_dependent(expression: &str) -> bool {
-    expression.contains("builtins.hashFile") || expression.contains("overlay = import")
-}
-
-fn context_cache_file(expression: &str) -> Result<Option<PathBuf>> {
-    let base = if let Some(path) = std::env::var_os("XDG_CACHE_HOME") {
-        PathBuf::from(path)
-    } else if let Some(home) = std::env::var_os("HOME") {
-        PathBuf::from(home).join(".cache")
-    } else {
-        return Ok(None);
-    };
-    Ok(Some(
-        base.join("cix/context-cache")
-            .join(hex_hash(expression.as_bytes())),
-    ))
-}
-
-#[derive(Serialize, Deserialize)]
-struct CachedContext {
-    source_root: Option<String>,
-    context: BuildContext,
-}
-
-fn cached_context(expression: &str, directory: &Path) -> Result<Option<BuildContext>> {
-    if context_source_dependent(expression) {
-        return Ok(None);
-    }
-    let Some(file) = context_cache_file(expression)? else {
-        return Ok(None);
-    };
-    let Some(cached) = fs::read(&file)
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<CachedContext>(&bytes).ok())
-    else {
-        return Ok(None);
-    };
-    let mut context = cached.context;
-    if let Some(old_root) = cached.source_root.as_deref() {
-        let new_root = add_source_root(directory)?;
-        for copy in &mut context.copies {
-            if let Some(suffix) = copy.strip_prefix(old_root) {
-                *copy = format!("{new_root}{suffix}");
-            }
-        }
-    }
-    let complete = context
-        .offers
-        .iter()
-        .chain(&context.imports)
-        .chain(&context.copies)
-        .map(|path| trim_copy_suffix(path))
-        .all(|path| Path::new(path).exists());
-    if !complete {
-        return Ok(None);
-    }
-    Ok(Some(context))
-}
-
-fn cache_context(expression: &str, directory: &Path, context: &BuildContext) -> Result<()> {
-    if context_source_dependent(expression) {
-        return Ok(());
-    }
-    let Some(file) = context_cache_file(expression)? else {
-        return Ok(());
-    };
-    let source_root = if context
-        .copies
-        .iter()
-        .any(|copy| copy.contains("-cix-source"))
-    {
-        Some(add_source_root(directory)?)
-    } else {
-        None
-    };
-    let parent = file.parent().expect("context cache file has a parent");
-    fs::create_dir_all(parent)
-        .with_context(|| format!("creating context cache {}", parent.display()))?;
-    let payload = serde_json::to_vec_pretty(&CachedContext {
-        source_root,
-        context: context.clone(),
-    })?;
-    let temporary = file.with_extension("next");
-    fs::write(&temporary, payload)
-        .with_context(|| format!("writing context cache {}", temporary.display()))?;
-    fs::rename(&temporary, &file)
-        .with_context(|| format!("recording context cache {}", file.display()))?;
-    Ok(())
-}
-
-fn add_source_root(directory: &Path) -> Result<String> {
-    let directory = directory
-        .canonicalize()
-        .with_context(|| format!("resolving Cixfile source {}", directory.display()))?;
-    let path = directory
-        .to_str()
-        .context("Cixfile source directory is not UTF-8")?;
-    let added = cix_common::nix(&[
-        "store",
-        "add",
-        "--mode",
-        "nar",
-        "--name",
-        "cix-source",
-        path,
-    ])?;
-    added
-        .lines()
-        .last()
-        .filter(|line| !line.is_empty())
-        .map(ToOwned::to_owned)
-        .context("nix store add did not return a source store path")
-}
-
-fn trim_copy_suffix(path: &str) -> &str {
-    path.strip_suffix('/').unwrap_or(path)
-}
-
-fn resolve_fetch_context(
-    cixfile: &Cixfile,
-    fetch: &str,
-    directory: &Path,
-    lock: &LockFile,
-    system: &str,
-    snapshots: &BTreeMap<String, String>,
-) -> Result<BuildContext> {
-    let expression =
-        generate_fetch_context_nix(cixfile, fetch, directory, lock, system, snapshots)?;
-    eval_context(&expression)
-}
-
-fn eval_context(expression: &str) -> Result<BuildContext> {
-    let raw = cix_common::nix(&["eval", "--impure", "--json", "--expr", expression])
-        .context("resolving RUN/FETCH build context from locked FROM inputs")?;
-    serde_json::from_str(&raw).context("parsing resolved RUN/FETCH build context")
-}
-
-fn realize_builder_offers(
-    cixfile: &Cixfile,
-    builder: &str,
-    directory: &Path,
-    lock: &LockFile,
-    system: &str,
-    snapshots: &BTreeMap<String, String>,
-) -> Result<()> {
-    let expression =
-        generate_builder_offer_nix(cixfile, builder, directory, lock, system, snapshots)?;
-    realize_offers(&expression)
-}
-
-fn realize_fetch_offers(
-    cixfile: &Cixfile,
-    fetch: &str,
-    directory: &Path,
-    lock: &LockFile,
-    system: &str,
-    snapshots: &BTreeMap<String, String>,
-) -> Result<()> {
-    let expression = generate_fetch_offer_nix(cixfile, fetch, directory, lock, system, snapshots)?;
-    realize_offers(&expression)
-}
-
-fn realize_offers(expression: &str) -> Result<()> {
-    cix_common::nix(&[
-        "build",
-        "--impure",
-        "--no-link",
-        "--print-out-paths",
-        "--expr",
-        expression,
-    ])
-    .context("realizing offered RUN/FETCH closure")?;
-    Ok(())
-}
-
-fn query_closure(offers: &[String]) -> Result<BTreeSet<String>> {
-    cix_common::record_nix_subprocess();
-    let output = Command::new("nix-store")
-        .args(["--query", "--requisites"])
-        .args(offers)
-        .output()
-        .context("executing nix-store to resolve offered closure")?;
-    if !output.status.success() {
-        bail!(
-            "nix-store --query --requisites failed ({}): {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    let stdout = String::from_utf8(output.stdout).context("nix-store returned non-UTF-8 paths")?;
-    Ok(stdout
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(ToOwned::to_owned)
-        .collect())
-}
-
-fn find_shell(paths: &[String]) -> Result<String> {
-    paths
-        .iter()
-        .map(|package| Path::new(package).join("bin/bash"))
-        .find(|candidate| candidate.is_file())
-        .map(|candidate| candidate.to_string_lossy().into_owned())
-        .context("RUN/FETCH requires bash in an IMPORTed package")
-}
-
-#[allow(clippy::too_many_arguments)]
-fn run_sandbox(
-    workdir: &Path,
-    _shell: &str,
-    command: &str,
-    environment: &BTreeMap<String, String>,
-    export_prelude: &BTreeMap<String, String>,
-    offered_closure: &BTreeSet<String>,
-    imports: &[String],
-    run_network: Option<RunNetwork>,
-    credentials: &[&CredentialMount],
-) -> Result<trace::Capture> {
-    let import_union = prepare_import_union(imports, run_network.is_none())?;
-    let loader_surface = fhs::LoaderSurface::new(imports)?;
-    let env_is_missing = !import_union.path().join("bin/env").is_file();
-    let trace_directory =
-        ScratchDir::new("cix-read-trace-").context("creating read trace directory")?;
-    let trace_path = trace_directory.path().join("syscalls");
-    let mut process = Command::new("strace");
-    process
-        .args(["-f", "--seccomp-bpf", "-qq", "-yy", "-s", "0", "-e"])
-        .arg("trace=%file,getdents,getdents64,chdir,fchdir,clone,clone3,fork,vfork")
-        .arg("-o")
-        .arg(&trace_path)
-        .args(["--", "bwrap"]);
-    process.args([
-        "--die-with-parent",
-        "--new-session",
-        "--unshare-user",
-        "--uid",
-        "0",
-        "--gid",
-        "0",
-        "--unshare-pid",
-        "--unshare-uts",
-        "--unshare-ipc",
-        "--unshare-cgroup",
-    ]);
-    if run_network == Some(RunNetwork::Namespace) {
-        process.arg("--unshare-net");
-    }
-    let seccomp_filter = if run_network == Some(RunNetwork::SocketFilter) {
-        Some(seccomp::prepare_socket_filter(&mut process)?)
-    } else {
-        None
-    };
-    if let Some(filter) = &seccomp_filter {
-        process.arg("--seccomp").arg(filter.as_raw_fd().to_string());
-    }
-    process.args(["--dir", "/nix", "--dir", "/nix/store"]);
-    process.args(["--dir", "/usr", "--dir", "/usr/bin"]);
-    process.args(["--symlink", "/bin/env", "/usr/bin/env"]);
-    loader_surface.mount(&mut process);
-    for path in offered_closure {
-        process.args(["--ro-bind", path, path]);
-    }
-    for credential in credentials {
-        let destination = format!("/run/cix-credentials/{}", credential.name);
-        process.args(["--dir", "/run", "--dir", "/run/cix-credentials"]);
-        process
-            .arg("--ro-bind")
-            .arg(&credential.source)
-            .arg(&destination);
-    }
-    for subtree in ["bin", "etc", "share"] {
-        let source = import_union.path().join(subtree);
-        if source.is_dir() {
-            process
-                .arg("--ro-bind")
-                .arg(&source)
-                .arg(Path::new("/").join(subtree));
-        }
-    }
-    process.args(["--bind"]).arg(workdir).arg("/work").args([
-        "--proc",
-        "/proc",
-        "--dev",
-        "/dev",
-        "--tmpfs",
-        "/tmp",
-        "--chdir",
-        "/work",
-        "--clearenv",
-    ]);
-    if !import_union.path().join("etc").is_dir() {
-        process.args(["--dir", "/etc"]);
-    }
-    for (name, value) in environment {
-        process.args(["--setenv", name, value]);
-    }
-    if let Some(credential) = credentials.first() {
-        process
-            .arg("--setenv")
-            .arg("CIX_FETCH_CREDENTIAL_FILE")
-            .arg(format!("/run/cix-credentials/{}", credential.name));
-        process
-            .arg("--setenv")
-            .arg("CIX_FETCH_TOKEN")
-            .arg(&credential.name);
-    }
-    let exports = export_prelude
-        .iter()
-        .map(|(name, value)| format!("export {name}={value};"))
-        .collect::<String>();
-    let shell_program = format!("umask 022; {exports}eval \"$1\"");
-    let output = process
-        .arg("/bin/bash")
-        .args(["-c", &shell_program, "cix-build", command])
-        .output()
-        .context(
-            "starting traced bubblewrap sandbox; this host must permit ptrace and unprivileged user namespaces",
-        )?;
-    io::stderr().write_all(&output.stdout)?;
-    io::stderr().write_all(&output.stderr)?;
-    if !output.status.success() {
-        let mut failure = sandbox_failure(output.status, run_network);
-        if env_is_missing {
-            failure.push_str(
-                "\nhint: /usr/bin/env is a fixed alias to /bin/env; IMPORT ${pkgs.coreutils} or another package that supplies env",
-            );
-        }
-        if let Ok(trace_text) = fs::read_to_string(&trace_path) {
-            if let Some(hint) =
-                fhs::failure_hint(workdir, imports, &trace::parse_failure(&trace_text))
-            {
-                failure.push('\n');
-                failure.push_str(&hint);
-            }
-        }
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        if !stderr.trim().is_empty() {
-            failure.push_str("\ncommand stderr:\n");
-            failure.push_str(stderr.trim());
-        }
-        bail!("{failure}");
-    }
-    let trace_text = fs::read_to_string(&trace_path)
-        .with_context(|| format!("reading syscall trace {}", trace_path.display()))?;
-    Ok(trace::parse(&trace_text))
-}
-
-fn prepare_import_union(
-    imports: &[String],
-    include_network_configuration: bool,
-) -> Result<ScratchDir> {
-    let union = ScratchDir::new("cix-import-union-").context("creating IMPORT package union")?;
-    for package in imports {
-        let package = Path::new(package);
-        if !package.is_absolute() {
-            bail!(
-                "IMPORT resolved to non-absolute package path {}",
-                package.display()
-            );
-        }
-        for subtree in ["bin", "etc", "share"] {
-            let source = package.join(subtree);
-            if !source.is_dir() {
-                continue;
-            }
-            let destination = union.path().join(subtree);
-            fs::create_dir_all(&destination)?;
-            merge_import_directory(&source, &destination)?;
-        }
-    }
-    if include_network_configuration {
-        let etc = union.path().join("etc");
-        fs::create_dir_all(&etc)?;
-        for source in ["/etc/hosts", "/etc/nsswitch.conf", "/etc/resolv.conf"] {
-            let source = Path::new(source);
-            if !source.is_file() {
-                continue;
-            }
-            let destination = etc.join(source.file_name().expect("network file has a name"));
-            remove_path_if_present(&destination)?;
-            fs::copy(source, &destination)?;
-        }
-    }
-    Ok(union)
-}
-
-fn merge_import_directory(source: &Path, destination: &Path) -> Result<()> {
-    for entry in fs::read_dir(source)
-        .with_context(|| format!("reading IMPORT subtree {}", source.display()))?
-    {
-        let entry = entry?;
-        let source_path = entry.path();
-        let destination_path = destination.join(entry.file_name());
-        let source_metadata = fs::symlink_metadata(&source_path)?;
-        let destination_metadata = fs::symlink_metadata(&destination_path).ok();
-        if let Some(destination_metadata) = destination_metadata {
-            if source_metadata.is_dir()
-                && !source_metadata.file_type().is_symlink()
-                && destination_metadata.is_dir()
-                && !destination_metadata.file_type().is_symlink()
-            {
-                merge_import_directory(&source_path, &destination_path)?;
-            }
-            continue;
-        }
-        if source_metadata.is_dir() && !source_metadata.file_type().is_symlink() {
-            fs::create_dir(&destination_path)?;
-            merge_import_directory(&source_path, &destination_path)?;
-        } else {
-            symlink(&source_path, &destination_path)?;
-        }
-    }
-    Ok(())
-}
-
-fn remove_path_if_present(path: &Path) -> Result<()> {
-    let metadata = match fs::symlink_metadata(path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error).with_context(|| format!("reading {}", path.display())),
-    };
-    if metadata.is_dir() && !metadata.file_type().is_symlink() {
-        workspace::make_writable(path)?;
-        fs::remove_dir_all(path)
-    } else {
-        fs::remove_file(path)
-    }
-    .with_context(|| format!("removing {}", path.display()))
-}
-
-fn probe_run_network(shell: &str) -> Result<RunNetwork> {
-    let output = Command::new("bwrap")
-        .args([
-            "--die-with-parent",
-            "--new-session",
-            "--unshare-user",
-            "--uid",
-            "0",
-            "--gid",
-            "0",
-            "--unshare-net",
-            "--ro-bind",
-            "/",
-            "/",
-            "--",
-            shell,
-            "-c",
-            "true",
-        ])
-        .output()
-        .context(
-            "probing bubblewrap network isolation; this host may restrict unprivileged user namespaces",
-        )?;
-    Ok(if output.status.success() {
-        RunNetwork::Namespace
-    } else {
-        RunNetwork::SocketFilter
-    })
-}
-
-fn sandbox_failure(status: impl std::fmt::Display, run_network: Option<RunNetwork>) -> String {
-    let mut message = format!(
-        "bubblewrap sandbox or command exited {status}; sandboxing was not weakened (enable unprivileged user namespaces if bwrap reported a namespace permission error)"
-    );
-    if run_network == Some(RunNetwork::SocketFilter) {
-        message.push_str(
-            "\nhint: this RUN used the socket-filter fallback because the host rejected bubblewrap's network namespace (often an AppArmor restriction); localhost networking (127.0.0.1) was unavailable",
-        );
-    }
-    message
-}
-
-fn fetch_path_hashes(
-    workspace: &Path,
-    needed: &BTreeMap<String, NeededPath>,
-) -> Result<BTreeMap<String, String>> {
-    let mut paths = BTreeMap::new();
-    for path in needed.keys() {
-        let source = if path == "." {
-            workspace.to_owned()
-        } else {
-            workspace.join(path)
-        };
-        if !source.exists() && fs::symlink_metadata(&source).is_err() {
-            bail!("FETCH-consumed path {path:?} does not exist");
-        }
-        paths.insert(path.clone(), workspace::nar_hash(&source)?);
-    }
-    Ok(paths)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn refresh_fetch_pin(
-    previous: Option<&FetchPin>,
-    expected: bool,
-    force: bool,
-    actual_paths: BTreeMap<String, String>,
-    snapshot_nar_hash: &str,
-    volatile: BTreeMap<String, VolatilePath>,
-    name: &str,
-) -> Result<FetchPin> {
-    if expected {
-        let mut pin = previous
-            .cloned()
-            .context("declared EXPECT pin was not installed")?;
-        pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
-        if !volatile.is_empty() {
-            pin.volatile = volatile;
-        }
-        return Ok(pin);
-    }
-
-    let mut pin = previous.cloned().unwrap_or_else(FetchPin::automatic);
-    if !force && !pin.paths.is_empty() {
-        for (path, pinned) in &pin.paths {
-            let actual = actual_paths
-                .get(path)
-                .with_context(|| format!("FETCH pin's consumed path {path:?} disappeared"))?;
-            if actual != pinned {
-                bail!(
-                    "FETCH consumed-path mismatch at {path:?}: lock pins {pinned}, fetched {actual}; rerun with --update-lock to accept the new output"
-                );
-            }
-        }
-        for path in actual_paths
-            .keys()
-            .filter(|path| !pin.paths.contains_key(*path))
-        {
-            eprintln!(
-                "FETCH {name} consumed a newly observed path {path:?}; recording a fresh pin entry"
-            );
-        }
-    }
-    pin.nar_hash.clear();
-    pin.snapshot_nar_hash = snapshot_nar_hash.to_owned();
-    pin.paths = actual_paths;
-    if force {
-        pin.volatile = volatile;
-    }
-    Ok(pin)
-}
-
-fn verify_fetch_pin(pin: Option<&FetchPin>, actual: Option<&str>) -> Result<()> {
-    if let Some(pin) = pin {
-        if pin.nar_hash.is_empty() && actual.is_none() {
-            return Ok(());
-        }
-        let actual = actual.context("FETCH pin needs fetched bytes for whole-tree verification")?;
-        if pin.nar_hash != actual {
-            bail!(
-                "FETCH hash mismatch: lock pins {}, fetched {}; rerun with --update-lock to accept the new output",
-                pin.nar_hash,
-                actual
-            );
-        }
-    }
-    Ok(())
-}
-
-fn verify_fetch_hash(
-    expected: Option<&str>,
-    pin: Option<&FetchPin>,
-    actual: Option<&str>,
-) -> Result<()> {
-    if let Some(expected) = expected {
-        if let Some(actual) = actual {
-            if expected != actual {
-                bail!(
-                    "FETCH EXPECT hash mismatch: declared {expected}, fetched {actual}. If a refetch of unchanged upstream diverges, the fetched tree is volatile: drop EXPECT and run `cix build --update-lock <fetch-or-builder>` to record TOFU consumed pins, or pin a stable asset URL."
-                );
-            }
-        } else if pin.is_none_or(|pin| pin.nar_hash != expected) {
-            bail!("FETCH EXPECT hash mismatch: declared {expected}, lock has no matching pin");
-        }
-        return Ok(());
-    }
-    verify_fetch_pin(pin, actual)
 }
 
 fn hex_hash(bytes: &[u8]) -> String {

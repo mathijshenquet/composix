@@ -1,8 +1,10 @@
 use super::*;
+use crate::evaluation::NixEvaluation;
 use crate::fetch::{
     concrete_fetch_url, revoke_from_store, token_matches, url_prefix, Consent, ConsentStore,
     CredentialToken,
 };
+use crate::fetch_state::FetchState;
 use crate::memo::{
     test_compare_cold_paths as compare_cold_paths, test_copy_key_arguments as copy_key_arguments,
     test_memo_entry as memo_entry, test_retain_fetch_output_roots as retain_fetch_output_roots,
@@ -10,8 +12,13 @@ use crate::memo::{
     test_top_fetch_chain_key as top_fetch_chain_key, test_validate_step_memo as validate_step_memo,
     test_verify_cold_read_set as verify_cold_read_set, StepKeyRequest,
 };
+use crate::sandbox::{
+    failure_message as sandbox_failure, prepare_import_union, RunNetwork, Sandbox, SandboxRequest,
+};
 use crate::workspace::{memo_output_hashes, revert_step_writes, stage_input, workspace_identity};
 use crate::{ConsumedPath, Copy, StepChange};
+use std::fs;
+use std::path::PathBuf;
 
 fn closure(paths: &[&str]) -> BTreeSet<String> {
     paths.iter().map(|path| (*path).to_owned()).collect()
@@ -475,7 +482,8 @@ fn a_fetch_self_states_never_allow_b_to_bypass_its_own_fingerprint() {
     fs::write(workspace.join("foo"), "drifted-a-output").unwrap();
     assert!(!validate_step_memo(&a, &workspace, true, None).unwrap().0);
     assert!(!validate_step_memo(&b, &workspace, false, None).unwrap().0);
-    let error = verify_fetch_pin(
+    let error = FetchState::verify(
+        None,
         Some(&FetchPin::expected("sha256-pinned".into())),
         Some("sha256-drifted"),
     )
@@ -551,7 +559,8 @@ fn first_staging_overrides_prior_step_output_then_preserves_upper_writes() {
 
 #[test]
 fn fetch_pin_mismatch_is_loud_and_names_update_lock() {
-    let error = verify_fetch_pin(
+    let error = FetchState::verify(
+        None,
         Some(&FetchPin::expected("sha256-old".into())),
         Some("sha256-new"),
     )
@@ -592,7 +601,7 @@ fn volatile_facts_follow_only_consumed_path_boundaries() {
     ]);
 
     assert_eq!(
-        consumed_volatile_paths(observed, &needed)
+        FetchState::consumed_volatility(observed, &needed)
             .keys()
             .map(String::as_str)
             .collect::<Vec<_>>(),
@@ -644,20 +653,19 @@ fn socket_filter_is_accepted_by_bubblewrap() {
         .unwrap()
         .to_string_lossy()
         .into_owned();
-    let offered_closure = query_closure(std::slice::from_ref(&offer)).unwrap();
+    let offered_closure = NixEvaluation::offered_closure(std::slice::from_ref(&offer)).unwrap();
     let work = tempfile::tempdir().unwrap();
 
-    run_sandbox(
-        work.path(),
-        shell.to_str().unwrap(),
-        "printf fallback-ok > result",
-        &BTreeMap::new(),
-        &BTreeMap::new(),
-        &offered_closure,
-        &[offer],
-        Some(RunNetwork::SocketFilter),
-        &[],
-    )
+    Sandbox::execute(SandboxRequest {
+        workdir: work.path(),
+        command: "printf fallback-ok > result",
+        environment: &BTreeMap::new(),
+        export_prelude: &BTreeMap::new(),
+        offered_closure: &offered_closure,
+        imports: &[offer],
+        run_network: Some(RunNetwork::SocketFilter),
+        credentials: &[],
+    })
     .unwrap();
     assert_eq!(
         fs::read_to_string(work.path().join("result")).unwrap(),
