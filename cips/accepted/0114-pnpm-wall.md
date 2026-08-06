@@ -1,10 +1,33 @@
-# pnpm-wall — the package-manager fetch problem, dissected
+# CIP-114 — pnpm-wall: the package-manager fetch problem, dissected
 
-Status: **draft v4** (2026-08-06; frozenStore validation and corpus evidence;
-expanded from the expand1 CIP-light
-per Mathijs — four chapters, full analysis. This is where the
-"traced sandbox replaces the *2nix genre" claim gets tested where it
-matters most: node is where real Dockerfiles live.)
+Status: **accepted** (2026-08-06, Mathijs — adoption pre-authorized
+"on sol's receipts"; the frozenStore validation receipts landed with
+track/pnpm-frozenstore the same day. Drafted 2026-08-05, expanded from
+the expand1 CIP-light. This is where the "traced sandbox replaces the
+*2nix genre" claim gets tested where it matters most: node is where
+real Dockerfiles live.)
+
+## Decision (adopted 2026-08-06)
+
+All four legs as recommended, with the validation now receipt-backed:
+the cacert diagnosis complete and taught (migrate.md + the
+trace-pattern hint); bare-CAS rejected for pnpm; **the frozenStore
+whole-store route validated** (two network-silent installs from one
+read-only sealed instance, byte-identical application outputs; the
+TOFU instance-pin needs no semantic exception — the actual cix route
+accepts and seals it); target pnpm bumps recorded as explicit GAPS
+deviations; problem-class hints live at the reporting seams with
+doc-anchor citations; upstream-incoherence honesty preserved (and the
+directus diagnosis corrected). Remaining open items stay tracked in
+§4: the traced-install TRACE-COST wall (dozzle/verdaccio full-route
+items — a performance track, not a mechanism gap), seal-time
+engineering for large stores, the UNSAFE-IGNORE detection leg's build
+order, and the cacert-prelude generalization taste call.
+
+Changelog:
+- 2026-08-06 — adopted; instance-pin acceptance decided by the
+  orchestrator under delegated authority ("maak zelf de juiste
+  beslissing"); detection leg folded into epoch groundwork.
 
 ## 1. The problem
 
